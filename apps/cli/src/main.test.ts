@@ -406,6 +406,29 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
 
+	it("does not capture an activation event for hub commands", async () => {
+		// The desktop app and the SSH remote flow run `cline hub ensure` on
+		// every launch/connect; those must not count as CLI activations.
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard", "--no-open"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledTimes(1);
+		expect(telemetryMocks.captureCliExtensionActivated).not.toHaveBeenCalled();
+	});
+
+	it("captures an activation event for regular commands", async () => {
+		process.argv = ["bun", "src/index.ts", "history", "--json"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(telemetryMocks.captureCliExtensionActivated).toHaveBeenCalledTimes(
+			1,
+		);
+	});
+
 	it.each([
 		"connect",
 		"mcp",

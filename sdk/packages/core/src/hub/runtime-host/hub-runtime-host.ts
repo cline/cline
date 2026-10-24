@@ -10,6 +10,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	ITelemetryService,
 	JsonValue,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -26,6 +27,13 @@ import {
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -46,6 +54,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
@@ -81,6 +90,7 @@ import {
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
+import { createHubPluginCommandsApi } from "../client/plugin-commands";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -279,6 +289,7 @@ function buildClientContributionRegistration(
 				name: tool.name,
 				description: tool.description,
 				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
+				successContext: tool.successContext,
 				...(tool.lifecycle
 					? {
 							lifecycle: toJsonRecord(
@@ -587,6 +598,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -762,6 +775,7 @@ function buildManifestFromSnapshot(
 export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
 	private client: NodeHubClient;
 	private readonly clientOptions: Omit<HubClientOptions, "url">;
 	private readonly clientContext?: { workspaceRoot?: string; cwd?: string };
@@ -788,6 +802,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -804,6 +819,9 @@ export class HubRuntimeHost implements RuntimeHost {
 			delete: (input) => this.requestPendingPromptDelete(input),
 		};
 		this.client = this.createClient(options.url);
+		this.pluginCommands = createHubPluginCommandsApi({
+			command: (...args) => this.client.command(...args),
+		});
 	}
 
 	private createClient(url: string): NodeHubClient {
@@ -900,6 +918,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
+				...(input.plugins
+					? {
+							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
+						}
+					: {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -956,12 +979,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 		}
 
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as SessionPluginIssue[])
+			: undefined;
 		return {
 			sessionId,
 			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -1049,6 +1076,13 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.plugins
+									? {
+											plugins: toJsonRecord(
+												startConfig.plugins as Record<string, unknown>,
+											),
+										}
+									: {}),
 								...(startConfig.initialCompactionState
 									? {
 											initialCompactionState:
@@ -1286,6 +1320,62 @@ export class HubRuntimeHost implements RuntimeHost {
 			{ sessionId, reason: messageFromUnknown(reason) },
 			sessionId,
 		);
+	}
+
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		try {
+			const reply = await this.client.command(
+				"session.mcp_apps.resolve_tool",
+				{ sessionId, toolName },
+				sessionId,
+				{ timeoutMs: null },
+			);
+			return reply.payload?.binding as McpAppToolBinding | undefined;
+		} catch (error) {
+			if ((error as { code?: unknown })?.code === "unsupported_command") {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.read_resource",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.read_resource"),
+			);
+		}
+		return reply.payload?.result as McpResourceReadResult;
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.call_tool",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.call_tool"),
+			);
+		}
+		return reply.payload?.result;
 	}
 
 	async proceedWhileRunning(

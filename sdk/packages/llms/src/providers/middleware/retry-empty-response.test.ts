@@ -746,6 +746,15 @@ describe("classifyModelStreamPart", () => {
 			}),
 		).toBe("unsupported-output");
 	});
+
+	it.each([
+		"anthropic.message_start",
+		"anthropic.fallback",
+	])("treats the %s marker as structural, so an otherwise empty turn still retries", (kind) => {
+		expect(classifyModelStreamPart({ type: "custom", kind })).toBe(
+			"structural",
+		);
+	});
 });
 
 describe("addUsage", () => {

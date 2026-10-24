@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.92",
+	"version": "0.2.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -35,17 +35,9 @@
 			"types": "./dist/services/feature-flags/posthog.d.ts",
 			"import": "./dist/services/feature-flags/posthog.js"
 		},
-		"./remote/helper-entry": {
-			"types": "./dist/remote/remote-helper-entry.d.ts",
-			"import": "./dist/remote/remote-helper-entry.js"
-		},
 		"./cloud": {
 			"types": "./dist/cloud/index.d.ts",
 			"import": "./dist/cloud/index.js"
-		},
-		"./remote/helper": {
-			"types": "./dist/remote/remote-helper.d.ts",
-			"import": "./dist/remote/remote-helper.js"
 		}
 	},
 	"scripts": {
@@ -76,9 +68,12 @@
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@opentelemetry/semantic-conventions": "^1.40.0",
+		"http-proxy-agent": "^7.0.2",
+		"https-proxy-agent": "^7.0.6",
 		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
+		"proxy-from-env": "^2.1.0",
 		"simple-git": "3.36.0",
 		"ws": "^8.20.0",
 		"yaml": "^2.8.2",
@@ -93,8 +88,10 @@
 		}
 	},
 	"devDependencies": {
+		"@types/proxy-from-env": "^1.0.4",
 		"@types/ws": "^8.18.1",
-		"posthog-node": "^5.8.0"
+		"posthog-node": "^5.8.0",
+		"skills": "1.7.2"
 	},
 	"engines": {
 		"node": ">=22"

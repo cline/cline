@@ -1,6 +1,8 @@
 import type { ModelInfo, ToolResultContent } from "@cline/llms";
 import {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateTokens,
 	type MessageWithMetadata,
 } from "@cline/shared";
@@ -86,6 +88,22 @@ export function truncateText(text: string, limit: number): string {
 		return text;
 	}
 	return `${text.slice(0, limit)}\n...[truncated ${text.length - limit} chars]`;
+}
+
+export function resolveProviderMaxInputTokens(
+	providerConfig: ProviderConfig,
+): number | undefined {
+	const modelInfoLimit = resolveEffectiveMaxInputTokens({
+		maxInputTokens:
+			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
+		contextWindow: providerConfig.modelInfo?.contextWindow,
+	});
+	if (modelInfoLimit !== undefined) return modelInfoLimit;
+	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
+	return resolveEffectiveMaxInputTokens({
+		maxInputTokens: knownModelInfo?.maxInputTokens,
+		contextWindow: knownModelInfo?.contextWindow,
+	});
 }
 
 export function flattenToolResultContent(
@@ -201,13 +219,19 @@ export function createTokenEstimator(): EstimateMessageTokens {
 		if (typeof cached === "number") {
 			return cached;
 		}
+		const { replacer, imageCount } = createImageAwareReplacer();
 		let serialized: string;
+		// Only trust imageCount() when the replacer-driven pass actually
+		// finished; see the matching comment in estimateRequestInputTokens.
+		let images = 0;
 		try {
-			serialized = JSON.stringify(message);
+			serialized = JSON.stringify(message, replacer);
+			images = imageCount();
 		} catch {
 			serialized = serializeMessage(message);
 		}
-		const value = estimateTokens(serialized.length);
+		const value =
+			estimateTokens(serialized.length) + images * ESTIMATED_TOKENS_PER_IMAGE;
 		cache.set(ref, value);
 		return value;
 	};

@@ -35,6 +35,33 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("settles a question on cancel even while its state post is still in flight", async () => {
+		const pendingTask = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releaseQuestionPost!: () => void
+		const questionPost = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseQuestionPost = resolve
+				}),
+		)
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: questionPost,
+		})
+		const { options } = makeCoordinator({ activeSession: makeActiveSession() })
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(questionPost).toHaveBeenCalledOnce())
+
+		await coordinator.cancelTask()
+
+		await expect(questionPromise).resolves.toBe("")
+		releaseQuestionPost()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(interactions.resolvePendingAskQuestion("input after cancel")).toBe(false)
+	})
+
 	it("cancels a running Cline task when the user signs out", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -50,6 +77,17 @@ describe("SdkTaskControlCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		await coordinator.cancelClineTaskOnSignOut(false)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+	})
+
+	it("leaves a running cloud host alone on sign-out even without a displayed task", async () => {
+		const activeSession = makeActiveSession()
+		Object.assign(activeSession.sdkHost, { isCloud: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
 
 		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
 		expect(options.sessions.setRunning).not.toHaveBeenCalled()

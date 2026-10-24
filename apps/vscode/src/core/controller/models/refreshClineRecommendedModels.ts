@@ -40,6 +40,11 @@ export async function refreshClineRecommendedModels(): Promise<ClineRecommendedM
 	return pendingRefresh
 }
 
+/** The last successfully fetched list, without fetching; undefined before the first success. */
+export function getCachedClineRecommendedModels(): ClineRecommendedModelsData | undefined {
+	return inMemoryCache?.data
+}
+
 export function resetClineRecommendedModelsCacheForTests(): void {
 	pendingRefresh = null
 	inMemoryCache = null

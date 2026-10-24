@@ -27,6 +27,9 @@ import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
 import { listSupervisedConnectorsViaHub } from "./connect-via-hub";
 
+// A frozen Hub accepts the connection but never answers its health check.
+const HUB_PROBE_TIMEOUT_MS = 3_000;
+
 type DoctorIo = {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
@@ -259,10 +262,13 @@ function listStaleSidecarPids(): number[] {
 	const patterns = [
 		"/apps/examples/desktop-app/sidecar/index.ts",
 		"/apps/examples/desktop-app/dist/sidecar/index.js",
+		// The packaged desktop backend runs on the bundled Cline CLI.
+		"/bin/desktop-backend/index.js",
 		// Keep the pre-example-reorg paths so `doctor --fix` can still clean up
 		// stale sidecars that were launched from older checkouts.
 		"/apps/code/sidecar/index.ts",
 		"/apps/code/dist/sidecar/index.js",
+		// Backend executable of earlier desktop releases.
 		"/src-tauri/bin/code-sidecar",
 		"/Resources/code-sidecar",
 		" code-sidecar",
@@ -432,7 +438,10 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		? recorded
 		: readSupersededHubDiscovery(owner.discoveryPath);
 	const health = discovery?.url
-		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
+		? await probeHubServer(discovery.url, {
+				authToken: discovery.authToken,
+				signal: AbortSignal.timeout(HUB_PROBE_TIMEOUT_MS),
+			})
 		: undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);

@@ -8,9 +8,11 @@ import {
 	ChevronRight,
 	Clock3,
 	CornerUpLeft,
+	FolderTree,
 	Loader2,
 	MoreHorizontal,
 	Plus,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
@@ -34,6 +36,7 @@ import {
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { normalizeTitle } from "./utils";
+import { PullRequestMenu } from "./views/chat/pull-request-menu";
 
 type AgentHeaderProps = {
 	title?: string;
@@ -44,7 +47,11 @@ type AgentHeaderProps = {
 	onDeleteSession?: () => void;
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
-	onOpenDiff?: () => void;
+	/** Omit when the session has no browsable workspace (e.g. cloud runs). */
+	onToggleFiles?: () => void;
+	filesOpen?: boolean;
+	/** Where to look up the branch's pull request for the PR menu button. */
+	pullRequest?: { cwd: string; branch: string | null };
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
@@ -60,6 +67,11 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	/** Shown only where a terminal can run (local sessions in the desktop app). */
+	onToggleTerminal?: () => void;
+	terminalOpen?: boolean;
+	/** Display form of the configured toggle shortcut, for the tooltip. */
+	terminalShortcut?: string;
 };
 
 function AgentHeaderImpl({
@@ -71,7 +83,9 @@ function AgentHeaderImpl({
 	onDeleteSession,
 	canDeleteSession,
 	deletingSession,
-	onOpenDiff,
+	onToggleFiles,
+	filesOpen = false,
+	pullRequest,
 	showSessionActions = true,
 	status,
 	diff,
@@ -83,6 +97,9 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	onToggleTerminal,
+	terminalOpen = false,
+	terminalShortcut,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -136,26 +153,64 @@ function AgentHeaderImpl({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenChange={onAgentsOpenChange}
 						/>
-						{additions !== 0 && (
+						{/* One control for changes: it opens the workspace panel (which
+						    lands on the first diff) and carries the session's line counts. */}
+						{onToggleFiles ? (
 							<Button
-								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
-								className={cn(
-									"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
+								aria-label={`${filesOpen ? "Hide" : "Show"} project files${
 									hasChanges
-										? "hover:bg-secondary/80"
-										: "cursor-default opacity-60",
+										? `: ${additions} additions, ${deletions} deletions`
+										: ""
+								}`}
+								aria-pressed={filesOpen}
+								className={cn(
+									"text-muted-foreground transition-colors hover:text-foreground",
+									hasChanges && "h-7 gap-1.5 px-2",
+									filesOpen && "bg-secondary text-foreground",
 								)}
-								disabled={!hasChanges}
-								id="diff-stats"
-								onClick={() => onOpenDiff?.()}
-								size="sm"
+								id="toggle-project-files"
+								onClick={onToggleFiles}
+								size={hasChanges ? "sm" : "icon-sm"}
+								title={filesOpen ? "Hide project files" : "Show project files"}
 								type="button"
-								variant="secondary"
+								variant="ghost"
 							>
-								<span className="text-chart-2">+{additions}</span>
-								<span className="text-destructive">-{deletions}</span>
+								<FolderTree className="size-4" />
+								{hasChanges ? (
+									<span className="flex items-center gap-1 font-mono text-xs">
+										<span className="text-chart-2">+{additions}</span>
+										<span className="text-destructive">-{deletions}</span>
+									</span>
+								) : null}
 							</Button>
-						)}
+						) : null}
+						{onToggleTerminal ? (
+							<Button
+								aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+								aria-pressed={terminalOpen}
+								className={cn(
+									"text-muted-foreground transition-colors hover:text-foreground",
+									terminalOpen && "bg-secondary text-foreground",
+								)}
+								onClick={onToggleTerminal}
+								size="icon-sm"
+								title={
+									terminalShortcut
+										? `Toggle terminal (${terminalShortcut})`
+										: "Toggle terminal"
+								}
+								type="button"
+								variant="ghost"
+							>
+								<SquareTerminal className="size-4" />
+							</Button>
+						) : null}
+						{pullRequest ? (
+							<PullRequestMenu
+								branch={pullRequest.branch}
+								cwd={pullRequest.cwd}
+							/>
+						) : null}
 						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}

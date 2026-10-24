@@ -452,7 +452,7 @@ describe("hub server startup", () => {
 		}
 	});
 
-	it("reports its build identity on the unauthenticated health endpoint", async () => {
+	it("reports its build and instance identity on the unauthenticated health endpoint", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-health-build");
 		const result = await ensureHubWebSocketServer({
 			owner,
@@ -465,8 +465,15 @@ describe("hub server startup", () => {
 
 		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
 		expect(health.status).toBe(200);
-		const payload = (await health.json()) as { buildId?: string };
+		const payload = (await health.json()) as {
+			buildId?: string;
+			hubId?: string;
+		};
 		expect(payload.buildId).toBe(resolveHubBuildId());
+		expect(payload.hubId).toBe(
+			(await readHubDiscovery(owner.discoveryPath))?.hubId,
+		);
+		expect(payload.hubId).toEqual(expect.any(String));
 	});
 
 	it("does not reuse managed discovery from an older build", async () => {

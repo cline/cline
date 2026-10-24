@@ -119,6 +119,26 @@ vi.mock("./bind-diagnostics", () => ({
 	describeAddressInUse: mockDescribeAddressInUse,
 }));
 
+const { mockPluginPreload } = vi.hoisted(() => ({
+	mockPluginPreload: vi.fn(async () => []),
+}));
+
+vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
+	resolvePluginExecutionMode: () =>
+		process.env.CLINE_PLUGIN_MODE === "sandbox" ? "sandbox" : "worker",
+	resolveAgentPluginPathsWithDiagnostics: () => ({
+		paths: [],
+		disabledPaths: [],
+		discoveryFailures: [],
+	}),
+}));
+
+vi.mock("../../extensions/plugin/plugin-registry", () => ({
+	getProcessPluginRegistry: () => ({
+		preload: mockPluginPreload,
+	}),
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -343,6 +363,49 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
+	});
+
+	it("does not preload plugins in sandbox mode", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation((() => process) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		mockPluginPreload.mockClear();
+		const previous = process.env.CLINE_PLUGIN_MODE;
+		process.env.CLINE_PLUGIN_MODE = "sandbox";
+		try {
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(mockPluginPreload).not.toHaveBeenCalled();
+		} finally {
+			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previous;
+		}
+	});
+
+	it("preloads plugin status in worker mode", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation((() => process) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		mockPluginPreload.mockClear();
+		const previous = process.env.CLINE_PLUGIN_MODE;
+		delete process.env.CLINE_PLUGIN_MODE;
+		try {
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			// Preloads in throwaway workers, never in the hub.
+			expect(mockPluginPreload).toHaveBeenCalledWith(
+				expect.objectContaining({ pluginPaths: [] }),
+			);
+		} finally {
+			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previous;
+		}
 	});
 
 	it("routes HTTP and signal shutdown through one cleanup", async () => {

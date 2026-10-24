@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	decodeJwtPayload,
 	getClineEnvironmentConfig,
@@ -232,10 +233,6 @@ function getAuthTelemetryDetails(
 	};
 }
 
-async function sleep(ms: number): Promise<void> {
-	await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 type WorkOSDeviceAuthorizationResponse = {
 	device_code?: string;
 	user_code?: string;
@@ -274,7 +271,7 @@ function requireClineTokenResponse(
 
 async function requestWorkOSDeviceAuthorization(
 	clientId: string,
-	options?: { requestTimeoutMs?: number },
+	options?: { requestTimeoutMs?: number; signal?: AbortSignal },
 ): Promise<{
 	deviceCode: string;
 	userCode: string;
@@ -294,9 +291,12 @@ async function requestWorkOSDeviceAuthorization(
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: new URLSearchParams({ client_id: clientId }),
-			signal: AbortSignal.timeout(
-				options?.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-			),
+			signal: AbortSignal.any([
+				AbortSignal.timeout(
+					options?.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
+				),
+				...(options?.signal ? [options.signal] : []),
+			]),
 		},
 	);
 
@@ -334,6 +334,7 @@ async function requestWorkOSDeviceAuthorization(
 }
 
 async function pollWorkOSTokens(options: {
+	signal?: AbortSignal;
 	clientId: string;
 	deviceCode: string;
 	expiresInSeconds: number;
@@ -361,7 +362,10 @@ async function pollWorkOSTokens(options: {
 					device_code: options.deviceCode,
 					client_id: options.clientId,
 				}),
-				signal: AbortSignal.timeout(options.requestTimeoutMs),
+				signal: AbortSignal.any([
+					AbortSignal.timeout(options.requestTimeoutMs),
+					...(options.signal ? [options.signal] : []),
+				]),
 			},
 		);
 		const payload = (await response
@@ -380,12 +384,16 @@ async function pollWorkOSTokens(options: {
 
 		switch (payload.error) {
 			case "authorization_pending": {
-				await sleep(intervalSeconds * 1000);
+				await sleep(intervalSeconds * 1000, undefined, {
+					signal: options.signal,
+				});
 				break;
 			}
 			case "slow_down": {
 				intervalSeconds += 1;
-				await sleep(intervalSeconds * 1000);
+				await sleep(intervalSeconds * 1000, undefined, {
+					signal: options.signal,
+				});
 				break;
 			}
 			case "access_denied":
@@ -422,6 +430,7 @@ async function registerWorkOSTokens(
 	workosTokens: WorkOSTokenSuccess,
 	options: ClineOAuthProviderOptions,
 	provider?: string,
+	signal?: AbortSignal,
 ): Promise<ClineOAuthCredentials> {
 	const body = {
 		accessToken: workosTokens.accessToken,
@@ -437,9 +446,12 @@ async function registerWorkOSTokens(
 				...(await resolveHeaders(options.headers)),
 			},
 			body: JSON.stringify(body),
-			signal: AbortSignal.timeout(
-				options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-			),
+			signal: AbortSignal.any([
+				AbortSignal.timeout(
+					options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
+				),
+				...(signal ? [signal] : []),
+			]),
 		},
 	);
 
@@ -641,6 +653,7 @@ export async function loginClineOAuth(
 }
 
 export async function startClineDeviceAuth(options?: {
+	signal?: AbortSignal;
 	requestTimeoutMs?: number;
 }): Promise<{
 	deviceCode: string;
@@ -657,6 +670,7 @@ export async function startClineDeviceAuth(options?: {
 }
 
 export async function completeClineDeviceAuth(options: {
+	signal?: AbortSignal;
 	deviceCode: string;
 	expiresInSeconds: number;
 	pollIntervalSeconds: number;
@@ -670,6 +684,7 @@ export async function completeClineDeviceAuth(options: {
 	captureAuthStarted(options.telemetry, providerName);
 	try {
 		const workosTokens = await pollWorkOSTokens({
+			signal: options.signal,
 			clientId: getClineEnvironmentConfig().workOsClientId,
 			deviceCode: options.deviceCode,
 			expiresInSeconds: options.expiresInSeconds,
@@ -686,6 +701,7 @@ export async function completeClineDeviceAuth(options: {
 				provider: options.provider,
 			},
 			options.provider,
+			options.signal,
 		);
 		captureAuthSucceeded(
 			options.telemetry,

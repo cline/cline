@@ -10,6 +10,7 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
+	formatSessionPluginIssue,
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
@@ -36,6 +37,7 @@ import {
 	type ConsecutiveMistakeLimitContext,
 	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
+	type SessionPluginIssue,
 } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -724,7 +726,6 @@ function buildCoreSessionConfig(
 		// runs and long desktop sessions overflow the context window.
 		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -1092,7 +1093,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -1151,7 +1151,22 @@ async function handleStart(
 		cwd,
 		workspaceRoot,
 		environmentId: binding.environmentId,
+		...pluginWarningsOf(startResult.pluginIssues),
 	};
+}
+
+/**
+ * Plugins the session asked for but could not load, as display lines.
+ * Failures that happen later (setup and hooks run on the first turn) arrive
+ * as notices on the session stream instead.
+ */
+function pluginWarningsOf(
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): { pluginWarnings?: string[] } {
+	const pluginWarnings = (issues ?? [])
+		.filter((issue) => issue.state === "failed")
+		.map(formatSessionPluginIssue);
+	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
 }
 
 async function handleAttach(
@@ -1641,8 +1656,8 @@ async function handleSend(
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
 		ctx.localWorkspaceRoot;
-	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
-	// as in the CLI: the handler's reply goes to the webview as a toast and
+	// Plugin slash commands execute in the session runtime.
+	// The handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	if (commandName === "compact") {
@@ -1669,10 +1684,13 @@ async function handleSend(
 		return { sessionId, ok: true, commandHandled: true };
 	}
 	const pluginCommand =
-		commandName &&
-		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
-		binding.kind !== "ssh"
-			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand(ctx, {
+					workspacePath,
+					prompt,
+					sessionId,
+					environmentId: binding.environmentId,
+				})
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {
@@ -1689,15 +1707,15 @@ async function handleSend(
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		binding.kind === "ssh"
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
 			? prompt
-			: (pluginCommand?.submitPrompt ??
-				(await resolveDesktopRuntimePrompt(
+			: await resolveDesktopRuntimePrompt(
 					ctx,
 					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				)));
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

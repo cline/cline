@@ -34,9 +34,15 @@ interface DiffEditRowProps {
 	path: string
 	isLoading?: boolean
 	startLineNumbers?: number[]
+	/**
+	 * Whether the file path can be opened in the local editor. False for a
+	 * cloud task, whose paths are relative to the sandbox and not to any local
+	 * workspace.
+	 */
+	canOpenFile?: boolean
 }
 
-export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers }) => {
+export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers, canOpenFile = true }) => {
 	const { parsedFiles, isStreaming } = useMemo(() => {
 		const parsed = parsePatch(patch, path)
 		return {
@@ -53,6 +59,7 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, sta
 		<div className="space-y-4 rounded-xs">
 			{parsedFiles.map((file, index) => (
 				<FileBlock
+					canOpenFile={canOpenFile}
 					file={file}
 					isStreaming={isStreaming}
 					key={`${file.path}-${index}`}
@@ -63,8 +70,8 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, sta
 	)
 })
 
-const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: number }>(
-	({ file, isStreaming, startLineNumber }) => {
+const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: number; canOpenFile: boolean }>(
+	({ file, isStreaming, startLineNumber, canOpenFile }) => {
 		const [isExpanded, setIsExpanded] = useState(true)
 		const scrollContainerRef = useRef<HTMLDivElement>(null)
 		const shouldFollowRef = useRef(true)
@@ -145,22 +152,28 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
 						<div className={cn("flex items-center gap-2 w-full", actionStyle.borderClass)}>
 							<ActionIcon className={cn("w-5 h-5", actionStyle.iconClass)} />
-							<span
-								className="font-medium truncate hover:underline hover:text-link"
-								onClick={handleOpenFile}
-								title="Open file in editor">
-								{file.path}
-							</span>
+							{canOpenFile ? (
+								<span
+									className="font-medium truncate hover:underline hover:text-link"
+									onClick={handleOpenFile}
+									title="Open file in editor">
+									{file.path}
+								</span>
+							) : (
+								<span className="font-medium truncate">{file.path}</span>
+							)}
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
 						<DiffStats additions={file.additions} deletions={file.deletions} />
-						<span
-							className="p-1 hover:bg-description/20 rounded-xs transition-colors"
-							onClick={handleOpenFile}
-							title="Open file in editor">
-							<SquareArrowOutUpRightIcon className="size-2 text-description hover:text-foreground" />
-						</span>
+						{canOpenFile && (
+							<span
+								className="p-1 hover:bg-description/20 rounded-xs transition-colors"
+								onClick={handleOpenFile}
+								title="Open file in editor">
+								<SquareArrowOutUpRightIcon className="size-2 text-description hover:text-foreground" />
+							</span>
+						)}
 					</div>
 				</button>
 
