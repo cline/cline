@@ -4,6 +4,10 @@ import {
 	getGeneratedProviderModels,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "@cline/llms";
+import type {
+	ClineRecommendedModel,
+	ClineRecommendedModelsData,
+} from "@cline/shared";
 import {
 	getClineEnvironmentConfig,
 	type ProviderModel,
@@ -13,19 +17,10 @@ import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
 
-export interface ClineRecommendedModel {
-	id: string;
-	/** Display-ready model name, resolved against the model catalog. */
-	name: string;
-	description: string;
-	tags: string[];
-}
-
-export interface ClineRecommendedModelsData {
-	recommended: ClineRecommendedModel[];
-	free: ClineRecommendedModel[];
-	clinePass: ClineRecommendedModel[];
-}
+export type {
+	ClineRecommendedModel,
+	ClineRecommendedModelsData,
+} from "@cline/shared";
 
 type ModelsCatalog = Record<string, Record<string, ModelInfo>>;
 
