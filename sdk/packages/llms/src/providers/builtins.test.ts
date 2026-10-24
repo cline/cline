@@ -457,6 +457,15 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("registers InferAll as an OpenAI-compatible provider", async () => {
+		const provider = await getProvider("inferall");
+
+		expect(provider?.name).toBe("InferAll");
+		expect(provider?.defaultModelId).toBe("nvidia/nemotron-3-ultra-550b-a55b");
+		expect(provider?.env).toEqual(["INFERALL_API_KEY"]);
+		expect(provider?.baseUrl).toBe("https://api.inferall.ai/v1");
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
