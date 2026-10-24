@@ -14,9 +14,9 @@
 //      tasks next to local ones.
 
 import type { ITelemetryService, SessionAccumulatedUsage, SessionHistoryRecord, StartSessionInput } from "@cline/core"
-import { CloudCreationUnconfirmedError } from "@cline/core/cloud"
+import { CloudCreationUnconfirmedError, type CloudModel } from "@cline/core/cloud"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
+import { CLINE_DEFAULT_MODEL_ID, type ToolApprovalRequest, type ToolApprovalResult } from "@cline/shared"
 import {
 	ACTIVE_CLOUD_STATUSES,
 	CLOUD_CREATION_UNCONFIRMED_ERROR_CODE,
@@ -32,10 +32,6 @@ import {
 import type { ClineCloudProvisioningInfo, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { ShowMessageType } from "@shared/proto/host/window"
-import {
-	getCachedClineRecommendedModels,
-	refreshClineRecommendedModels,
-} from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import {
@@ -46,7 +42,6 @@ import {
 	isCloudSessionExpired,
 } from "@/services/cloud/CloudSessionsService"
 import { ClineError } from "@/services/error/ClineError"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { Logger } from "@/shared/services/Logger"
 import { PendingStartJournal, type PendingStartRecord } from "./cloud-pending-starts"
 import { CloudSessionHost } from "./cloud-session-host"
@@ -107,7 +102,6 @@ function describeExpiredCloudSession(
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
-const RECOMMENDED_MODELS_RETRY_MS = 30_000
 
 function cloudProvisioningRow(
 	ts: number,
@@ -202,6 +196,10 @@ export interface SdkCloudSessionCoordinatorOptions {
 	pendingStartsDir?: string
 	/** Identity of the active account (user and organization), so recovery acts only for the account that started a sandbox. */
 	getAccountScope?: () => string | undefined
+	/** The models the cloud offers the active account: Usage-Billing, ClinePass (personal accounts only) and ClineFree. */
+	loadCloudModels?: () => Promise<CloudModel[]>
+	/** Whether the active account can use ClinePass models in the cloud; undefined when that could not be checked. */
+	checkClinePassSubscription?: () => Promise<boolean | undefined>
 }
 
 interface CloudSessionEntry {
@@ -246,9 +244,8 @@ export class SdkCloudSessionCoordinator {
 	 * that it lost the view and is cleaning up.
 	 */
 	private renewPendingStartView: (() => boolean) | undefined
-	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
-	private recommendedModelsWarmup: Promise<unknown> | undefined
-	private recommendedModelsRetryAt = 0
+	/** The cloud catalog and ClinePass plan for one account scope; see accountCloudModels. */
+	private accountCloud: { scope: string; models?: CloudModel[]; subscribed?: boolean } | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -904,47 +901,84 @@ export class SdkCloudSessionCoordinator {
 	// ---- Starting a task ----
 
 	/**
-	 * The Cline model a new sandbox runs: the user's Act-mode Cline model,
-	 * else the top recommendation known so far. Synchronous, and the only
-	 * source for both the composer label and the start path, so the sandbox
-	 * runs the model the user saw when they submitted.
+	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
+	 * else the user's Act-mode Cline or ClinePass model, each when the cloud
+	 * catalog offers it; else the first ClinePass model when the local provider
+	 * is ClinePass, else Cline's default model. Until the catalog is known, the
+	 * Settings pick and a local Cline or ClinePass model are assumed to be
+	 * offered. Synchronous, and the only source for both
+	 * the composer label and the start path, so the sandbox runs the model the
+	 * user saw when they submitted.
 	 */
-	private nextCloudModelId(): string {
-		const apiConfig = this.options.stateManager.getApiConfiguration()
-		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
-			return apiConfig.actModeClineModelId.trim()
+	nextCloudModelId(): string {
+		const catalog = this.accountCloudModels()?.models
+		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
+		if (chosen && (!catalog || catalog.some((model) => model.id === chosen))) {
+			return chosen
 		}
-		this.warmRecommendedModels()
-		const recommended = getCachedClineRecommendedModels() ?? CLINE_RECOMMENDED_MODELS_FALLBACK
-		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
+		const apiConfig = this.options.stateManager.getApiConfiguration()
+		const local =
+			apiConfig.actModeApiProvider === "cline"
+				? apiConfig.actModeClineModelId?.trim()
+				: apiConfig.actModeApiProvider === "cline-pass"
+					? apiConfig.actModeClinePassModelId?.trim()
+					: undefined
+		// The local ClinePass provider also offers free models, which the cloud does not take.
+		const offered = catalog
+			? catalog.some((model) => model.id === local)
+			: apiConfig.actModeApiProvider === "cline" || !!local?.startsWith("cline-pass/")
+		if (local && offered) {
+			return local
+		}
+		const firstPass =
+			apiConfig.actModeApiProvider === "cline-pass"
+				? catalog?.find((model) => model.catalogId === "cline-pass")?.id
+				: undefined
+		return firstPass ?? CLINE_DEFAULT_MODEL_ID
+	}
+
+	/** Whether the active account has ClinePass, as far as is known now. */
+	clinePassSubscribed(): boolean | undefined {
+		return this.accountCloudModels()?.subscribed
 	}
 
 	/**
-	 * Fetches the recommendation list so the composer label moves from the
-	 * built-in fallback to the live recommendation before the user submits.
-	 * State is re-posted only when the list lands, because that post reads
-	 * the model again and would otherwise start the next fetch. A fetch that
-	 * leaves the cache empty waits briefly before another state post can retry.
+	 * The active account's cloud catalog and ClinePass plan, filled in as each
+	 * lookup answers. The first read for an account starts both and each answer
+	 * posts state, so the composer label and Settings catch up. A failed lookup
+	 * is not retried until the account changes; the default then rests on the
+	 * local model and Cline's default model.
 	 */
-	private warmRecommendedModels(): void {
-		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels() || Date.now() < this.recommendedModelsRetryAt) {
-			return
+	private accountCloudModels(): { models?: CloudModel[]; subscribed?: boolean } | undefined {
+		const scope = this.options.getAccountScope?.()
+		if (!scope) {
+			return undefined
 		}
-		const warmup = refreshClineRecommendedModels()
-			.then(() => {
-				if (!this.disposed && getCachedClineRecommendedModels()) {
-					this.options.postStateToWebview().catch(() => {})
-				}
-			})
+		if (this.accountCloud?.scope === scope) {
+			return this.accountCloud
+		}
+		const entry: NonNullable<typeof this.accountCloud> = { scope }
+		this.accountCloud = entry
+		const answered = () => {
+			if (!this.disposed && this.accountCloud === entry) {
+				this.options.postStateToWebview().catch(() => {})
+			}
+		}
+		this.options.loadCloudModels?.().then(
+			(models) => {
+				entry.models = models
+				answered()
+			},
+			() => undefined,
+		)
+		this.options
+			.checkClinePassSubscription?.()
 			.catch(() => undefined)
-			.finally(() => {
-				if (this.recommendedModelsWarmup === warmup) {
-					if (!getCachedClineRecommendedModels())
-						this.recommendedModelsRetryAt = Date.now() + RECOMMENDED_MODELS_RETRY_MS
-					this.recommendedModelsWarmup = undefined
-				}
+			.then((subscribed) => {
+				entry.subscribed = subscribed
+				if (subscribed !== undefined) answered()
 			})
-		this.recommendedModelsWarmup = warmup
+		return entry
 	}
 
 	/** The model the displayed cloud task runs on, else the one a new cloud task would use. */

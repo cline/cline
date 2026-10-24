@@ -33,5 +33,13 @@ export async function refreshClineRecommendedModelsRpc(
 				tags: model.tags,
 			}),
 		),
+		clineCloud: (models.clineCloud ?? []).map((model) =>
+			ClineRecommendedModel.create({
+				id: model.id,
+				name: model.name,
+				description: model.description,
+				tags: model.tags,
+			}),
+		),
 	})
 }
