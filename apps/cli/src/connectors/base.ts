@@ -442,11 +442,11 @@ export abstract class ConnectorBase<Options, State>
 		if (value === undefined) {
 			return undefined;
 		}
-		const parsed = Number.parseInt(value, 10);
-		if (!Number.isFinite(parsed)) {
+		const trimmed = value.trim();
+		if (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed))) {
 			throw new Error(`invalid ${label} "${value}"`);
 		}
-		return parsed;
+		return Number(trimmed);
 	}
 
 	protected parseMode(value: string | undefined): "act" | "plan" {
