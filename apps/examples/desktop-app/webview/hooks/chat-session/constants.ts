@@ -91,9 +91,8 @@ export function getInitialChatConfig(
 
 /**
  * The Cloud model picked in the model picker, else the local Cline/ClinePass
- * model. Once the cloud catalog and ClinePass plan load, the picker replaces a
- * model it does not offer, or a carried-over ClinePass model without a plan,
- * with the first ClinePass model for subscribers, else the Cline default.
+ * model. Once the cloud catalog loads, the picker replaces a model it does not
+ * offer with the first ClinePass model for subscribers, else the Cline default.
  */
 export function getInitialCloudModel(
 	localProvider: string,

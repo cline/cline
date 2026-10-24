@@ -1971,20 +1971,13 @@ const ModelSelector = memo(function ModelSelector({
 		// omit live ClinePass models, and refreshes can return partial lists.
 		// Keep the configured model for the current provider even if absent;
 		// otherwise loading the catalog silently changes the session's model.
-		// A ClinePass model carried over from Local defaults only with a plan.
-		const unsubscribedClinePassDefault =
-			includeCloudModels &&
-			!clinePassSubscribed &&
-			model.startsWith("cline-pass/") &&
-			model !==
-				readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline;
 		if (
 			model &&
 			(normalizedProvider === resolvedProvider ||
 				modelsForProvider.includes(model)) &&
 			(!includeCloudModels ||
 				!autoCorrectModel ||
-				(modelsForProvider.includes(model) && !unsubscribedClinePassDefault))
+				modelsForProvider.includes(model))
 		) {
 			return model;
 		}

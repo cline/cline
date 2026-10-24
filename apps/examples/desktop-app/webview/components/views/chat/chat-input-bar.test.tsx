@@ -19,7 +19,6 @@ import {
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
 	readModelSelectionStorageFromWindow,
-	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
@@ -1111,14 +1110,13 @@ describe("ChatInputBar", () => {
 	});
 
 	it.each([
-		["an offered model", "cline-test", true, true, undefined, false],
+		["an offered model", "cline-test", true, true, undefined],
 		[
 			"an unoffered model for a subscriber",
 			"openai/retired",
 			true,
 			true,
 			"cline-pass/first-pass",
-			false,
 		],
 		[
 			"an unoffered ClinePass model without a subscription",
@@ -1126,7 +1124,6 @@ describe("ChatInputBar", () => {
 			true,
 			false,
 			CLINE_DEFAULT_MODEL_ID,
-			false,
 		],
 		[
 			"an unoffered model for an organization subscriber",
@@ -1134,46 +1131,9 @@ describe("ChatInputBar", () => {
 			false,
 			true,
 			CLINE_DEFAULT_MODEL_ID,
-			false,
 		],
-		[
-			"a local ClinePass model for a subscriber",
-			"cline-pass/second-pass",
-			true,
-			true,
-			undefined,
-			false,
-		],
-		[
-			"a local ClinePass model without a subscription",
-			"cline-pass/second-pass",
-			true,
-			false,
-			CLINE_DEFAULT_MODEL_ID,
-			false,
-		],
-		[
-			"a ClinePass free model without a subscription",
-			"cline-free/free-model",
-			true,
-			false,
-			CLINE_DEFAULT_MODEL_ID,
-			false,
-		],
-		[
-			"a ClinePass model picked in Cloud without a subscription",
-			"cline-pass/second-pass",
-			true,
-			false,
-			undefined,
-			true,
-		],
-	])("starts a new cloud chat on %s", async (_label, model, hasPass, subscribed, expected, picked) => {
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, subscribed, expected) => {
 		window.localStorage.clear();
-		const saved = picked
-			? { lastProvider: "cline", lastModelByProvider: { cline: model } }
-			: { lastProvider: "", lastModelByProvider: {} };
-		if (picked) writeModelSelectionStorageToWindow(saved, "cloud");
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: hasPass
@@ -1244,7 +1204,10 @@ describe("ChatInputBar", () => {
 			expect(onModelChange).not.toHaveBeenCalled();
 		}
 		// Automatic choices stay defaults; only explicit picks are remembered.
-		expect(readModelSelectionStorageFromWindow("cloud")).toEqual(saved);
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "",
+			lastModelByProvider: {},
+		});
 	});
 
 	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
