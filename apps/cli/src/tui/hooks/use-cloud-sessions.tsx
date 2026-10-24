@@ -1,4 +1,8 @@
-import { ProviderSettingsManager } from "@cline/core";
+import {
+	ProviderSettingsManager,
+	readCloudModelIdGlobally,
+	setCloudModelIdGlobally,
+} from "@cline/core";
 import type {
 	CloudModel,
 	CloudRepositoryOption,
@@ -88,6 +92,7 @@ export function useCloudSessions(input: {
 		client,
 		dialog,
 		termHeight,
+		modelId: localModelId,
 		replaceEntries,
 		showToast,
 		refocusTextarea,
@@ -95,12 +100,16 @@ export function useCloudSessions(input: {
 	const [target, setTarget] = useState<"local" | "cloud">("local");
 	const [selection, setSelection] = useState<CloudRepoSelection>();
 	const [model, setModel] = useState<CloudModel>();
+	const [explicitModelId, setExplicitModelId] = useState(() =>
+		readCloudModelIdGlobally(),
+	);
 	const [sessionId, setSessionId] = useState<string>();
 	const [sessionStatus, setSessionStatus] = useState<string>();
 	const sessionIdRef = useRef<string | undefined>(undefined);
 	const abortRequestedRef = useRef(false);
 	const pickingRef = useRef(false);
 	const modelsRef = useRef<CloudModel[] | undefined>(undefined);
+	const subscribedRef = useRef<boolean | undefined>(undefined);
 	const inputRef = useRef(input);
 	inputRef.current = input;
 
@@ -111,27 +120,44 @@ export function useCloudSessions(input: {
 	}, [client]);
 
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
-		if (!client) throw new Error("Cline Cloud is not available");
 		const models = await loadModels();
-		const local = models.find(
-			(candidate) => candidate.id === inputRef.current.modelId,
-		);
-		// The local Cline/ClinePass model if it's offered; otherwise ClinePass
-		// subscribers default to ClinePass and everyone else to Cline's default
+		const offered = (id: string | undefined) =>
+			id ? models.find((candidate) => candidate.id === id) : undefined;
+		const subscribed = async () => {
+			subscribedRef.current ??= await hasClinePassSubscription();
+			return subscribedRef.current;
+		};
+		// An explicit pick wins while the catalog still offers it. Otherwise the
+		// default is recomputed each time: the local Cline/ClinePass model if it's
+		// offered, then ClinePass for subscribers, then Cline's default
 		// usage-billed model.
 		const next =
-			local ??
-			((await hasClinePassSubscription())
+			offered(explicitModelId) ??
+			offered(localModelId) ??
+			((await subscribed())
 				? models.find((candidate) => candidate.catalogId === "cline-pass")
 				: undefined) ??
-			models.find((candidate) => candidate.id === CLINE_DEFAULT_MODEL_ID) ??
+			offered(CLINE_DEFAULT_MODEL_ID) ??
 			models.find((candidate) => candidate.catalogId === "cline") ??
 			models[0];
 		if (!next)
 			throw new Error("No cloud models are available for this account.");
-		setModel((current) => current ?? next);
 		return next;
-	}, [client, loadModels]);
+	}, [explicitModelId, loadModels, localModelId]);
+
+	useEffect(() => {
+		if (!client || target !== "cloud" || !selection) return;
+		let cancelled = false;
+		resolveModel().then(
+			(next) => {
+				if (!cancelled) setModel(next);
+			},
+			() => {},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [client, resolveModel, selection, target]);
 
 	/** Walks the user through sign-in and GitHub access; undefined means stay local. */
 	const loadRepositories = useCallback(async (): Promise<
@@ -217,10 +243,7 @@ export function useCloudSessions(input: {
 					/>
 				),
 			});
-			if (picked) {
-				setSelection(picked);
-				void resolveModel().catch(() => {});
-			}
+			if (picked) setSelection(picked);
 		} catch (error) {
 			showToast(`Cline Cloud: ${errorMessage(error)}`, "error");
 		} finally {
@@ -232,7 +255,6 @@ export function useCloudSessions(input: {
 		dialog,
 		loadRepositories,
 		refocusTextarea,
-		resolveModel,
 		selection,
 		showToast,
 		termHeight,
@@ -252,7 +274,11 @@ export function useCloudSessions(input: {
 					/>
 				),
 			});
-			if (picked) setModel(picked);
+			if (picked) {
+				setCloudModelIdGlobally(picked.id);
+				setExplicitModelId(picked.id);
+				setModel(picked);
+			}
 		} catch (error) {
 			showToast(`Cline Cloud: ${errorMessage(error)}`, "error");
 		} finally {
@@ -317,7 +343,7 @@ export function useCloudSessions(input: {
 			if (!client || !selection) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
-			const modelId = model?.id ?? (await resolveModel()).id;
+			const modelId = (await resolveModel()).id;
 			let id = sessionIdRef.current;
 			if (!id) {
 				setSessionStatus("Starting sandbox in Cline Cloud…");
@@ -361,7 +387,7 @@ export function useCloudSessions(input: {
 				};
 			}
 		},
-		[client, model, resolveModel, selection],
+		[client, resolveModel, selection],
 	);
 
 	const abort = useCallback(() => {
