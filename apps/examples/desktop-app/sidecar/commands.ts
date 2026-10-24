@@ -409,6 +409,7 @@ const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
 
 // Fall back to cached rows rather than stall the sidebar on the cloud API.
 const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
+const CLOUD_DISCOVERY_MAX_AGE_MS = 30_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
@@ -2471,7 +2472,10 @@ export async function handleCommand(
 		const local = discoverChatSessions(ctx, limit);
 		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
-			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.listForDiscovery({
+				timeoutMs: CLOUD_DISCOVERY_BUDGET_MS,
+				maxAgeMs: CLOUD_DISCOVERY_MAX_AGE_MS,
+			})
 			.catch((error) => {
 				// A persistent listing failure silently empties the sidebar's
 				// cloud rows; keep a diagnostic trail.
@@ -2498,7 +2502,10 @@ export async function handleCommand(
 		)) as JsonRecord[];
 		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
-			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.listForDiscovery({
+				timeoutMs: CLOUD_DISCOVERY_BUDGET_MS,
+				maxAgeMs: CLOUD_DISCOVERY_MAX_AGE_MS,
+			})
 			.catch((error) => {
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];

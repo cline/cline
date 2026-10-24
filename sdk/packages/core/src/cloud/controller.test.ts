@@ -234,7 +234,7 @@ describe("CloudSessionController neutral host contract", () => {
 			);
 			let settled = false;
 			discovering = f.controller
-				.listForDiscovery({ timeoutMs })
+				.listForDiscovery({ timeoutMs, maxAgeMs: 30_000 })
 				.then((rows) => {
 					settled = true;
 					return rows;
@@ -292,7 +292,9 @@ describe("CloudSessionController neutral host contract", () => {
 		let organizationId = "org-one";
 		const f = fixture({ getActiveOrganizationId: async () => organizationId });
 		try {
-			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			expect(
+				await f.controller.listForDiscovery({ maxAgeMs: 30_000 }),
+			).toHaveLength(1);
 			organizationId = "org-two";
 			let finish!: (rows: CloudSessionRecord[]) => void;
 			f.api.list.mockImplementationOnce(
@@ -301,9 +303,13 @@ describe("CloudSessionController neutral host contract", () => {
 						finish = resolve;
 					}),
 			);
-			expect(await f.controller.listForDiscovery({ timeoutMs: 0 })).toEqual([]);
+			expect(
+				await f.controller.listForDiscovery({ timeoutMs: 0, maxAgeMs: 30_000 }),
+			).toEqual([]);
 			finish([]);
-			expect(await f.controller.listForDiscovery()).toEqual([]);
+			expect(await f.controller.listForDiscovery({ maxAgeMs: 30_000 })).toEqual(
+				[],
+			);
 		} finally {
 			await f.controller.dispose();
 		}
@@ -358,6 +364,171 @@ describe("CloudSessionController neutral host contract", () => {
 		} finally {
 			await f.controller.dispose();
 		}
+	});
+
+	it.each([
+		{ rows: [] },
+		{ rows: [record] },
+	])("reuses a successful discovery list within maxAgeMs: %j", async ({
+		rows,
+	}) => {
+		const f = fixture();
+		f.api.list.mockResolvedValue(rows);
+		const now = vi.spyOn(Date, "now").mockReturnValue(0);
+		try {
+			const initial = await f.controller.listForDiscovery({ maxAgeMs: 30_000 });
+			now.mockReturnValue(29_999);
+			expect(await f.controller.listForDiscovery({ maxAgeMs: 30_000 })).toEqual(
+				initial,
+			);
+			expect(f.api.list).toHaveBeenCalledTimes(1);
+			now.mockReturnValue(30_000);
+			await f.controller.listForDiscovery({ maxAgeMs: 30_000 });
+			expect(f.api.list).toHaveBeenCalledTimes(2);
+			await f.controller.listForDiscovery();
+			expect(f.api.list).toHaveBeenCalledTimes(3);
+			await f.controller.dispose();
+			await expect(
+				f.controller.listForDiscovery({ maxAgeMs: 30_000 }),
+			).rejects.toThrow("disposed");
+		} finally {
+			now.mockRestore();
+			await f.controller.dispose();
+		}
+	});
+
+	it("does not renew discovery freshness after a failed refresh", async () => {
+		const f = fixture();
+		const now = vi.spyOn(Date, "now").mockReturnValue(0);
+		try {
+			const initial = await f.controller.listForDiscovery({ maxAgeMs: 30_000 });
+			now.mockReturnValue(30_000);
+			f.api.list.mockRejectedValueOnce(new Error("Network unavailable"));
+			expect(
+				await f.controller.listForDiscovery({ maxAgeMs: 30_000, timeoutMs: 1 }),
+			).toEqual(initial);
+			await f.controller.listForDiscovery({ maxAgeMs: 30_000 });
+			expect(f.api.list).toHaveBeenCalledTimes(3);
+		} finally {
+			now.mockRestore();
+			await f.controller.dispose();
+		}
+	});
+
+	it("does not cache an old list that completes after organization invalidation", async () => {
+		const f = fixture();
+		let complete!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const old = f.controller.list();
+		await vi.waitFor(() => expect(f.api.list).toHaveBeenCalledOnce());
+		await f.controller.refreshOrganization();
+		f.api.list.mockResolvedValue([
+			{ ...record, id: "ses-current", title: "Current organization" },
+		]);
+		await f.controller.list();
+		let finishStatus!: (result: { status: string }) => void;
+		f.api.status.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishStatus = resolve;
+				}),
+		);
+		complete([
+			{ ...record, status: "provisioning", title: "Previous organization" },
+		]);
+		await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+		expect(
+			(await f.controller.listForDiscovery({ maxAgeMs: 30_000 }))[0]?.metadata,
+		).toMatchObject({ title: "Current organization" });
+		finishStatus({ status: "ready" });
+		await old;
+		expect(
+			(await f.controller.listForDiscovery({ maxAgeMs: 30_000 }))[0]?.metadata,
+		).toMatchObject({ title: "Current organization" });
+		expect(f.api.list).toHaveBeenCalledTimes(4);
+		await f.controller.dispose();
+	});
+
+	it("joins a pending discovery refresh even while the previous cache is fresh", async () => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		let complete!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const refresh = f.controller.listForDiscovery();
+		const cached = f.controller.listForDiscovery({ maxAgeMs: 30_000 });
+		await vi.waitFor(() => expect(f.api.list).toHaveBeenCalledTimes(2));
+		complete([{ ...record, title: "Updated remotely" }]);
+		await refresh;
+		expect((await cached)[0]?.metadata).toMatchObject({
+			title: "Updated remotely",
+		});
+		await f.controller.dispose();
+	});
+
+	it.each([
+		false,
+		true,
+	])("keeps cached discovery consistent after deletion (fails: %s)", async (fails) => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		if (fails) {
+			f.api.delete.mockRejectedValueOnce(new Error("Network unavailable"));
+			await expect(f.controller.delete(record.id)).rejects.toThrow(
+				"Network unavailable",
+			);
+		} else {
+			await f.controller.delete(record.id);
+		}
+		expect(
+			await f.controller.listForDiscovery({ maxAgeMs: 30_000 }),
+		).toHaveLength(fails ? 1 : 0);
+		expect(f.api.list).toHaveBeenCalledTimes(1);
+		await f.controller.dispose();
+	});
+
+	it("does not cache a list that completes after a session was deleted", async () => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		let complete!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const pending = f.controller.listForDiscovery();
+		await vi.waitFor(() => expect(f.api.list).toHaveBeenCalledTimes(2));
+		await f.controller.delete(record.id);
+		f.api.list.mockResolvedValue([]);
+		complete([record]);
+		await pending;
+		expect(await f.controller.listForDiscovery({ maxAgeMs: 30_000 })).toEqual(
+			[],
+		);
+		expect(f.api.list).toHaveBeenCalledTimes(3);
+		await f.controller.dispose();
+	});
+
+	it("keeps cached discovery titles current after a readiness refresh and rename", async () => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		await f.controller.waitUntilReady(record.id);
+		await f.controller.updateTitle(record.id, "New title");
+		expect(
+			(await f.controller.listForDiscovery({ maxAgeMs: 30_000 }))[0]?.metadata,
+		).toMatchObject({ title: "New title" });
+		expect(f.api.list).toHaveBeenCalledTimes(2);
+		await f.controller.dispose();
 	});
 
 	it("refreshes an attached session title after an external rename", async () => {

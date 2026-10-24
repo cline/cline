@@ -442,6 +442,8 @@ export class CloudSessionController {
 	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private lastListedOrganizationId?: string;
+	private lastListedAt?: number;
+	private discoveryGeneration = 0;
 	private discoveryRefresh?: {
 		organizationId: string | undefined;
 		promise: Promise<CloudSessionRecord[]>;
@@ -716,6 +718,7 @@ export class CloudSessionController {
 		organizationId: string | undefined,
 	): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const generation = this.discoveryGeneration;
 		const currentTitle = (id: string) =>
 			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
 		const titlesBeforeRefresh = new Map(
@@ -741,6 +744,7 @@ export class CloudSessionController {
 		// Keep canonical rows available while their status checks run.
 		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = listed;
+		this.lastListedAt = undefined;
 		for (const session of listed) {
 			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
@@ -818,6 +822,8 @@ export class CloudSessionController {
 		}
 		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = scoped;
+		this.lastListedAt =
+			generation === this.discoveryGeneration ? Date.now() : undefined;
 		for (const record of scoped)
 			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
 		return immutableCopy(scoped);
@@ -854,7 +860,13 @@ export class CloudSessionController {
 		};
 	}
 
+	invalidateDiscoveryCache(): void {
+		this.lastListedAt = undefined;
+		this.discoveryGeneration++;
+	}
+
 	async refreshOrganization(): Promise<void> {
+		this.invalidateDiscoveryCache();
 		await this.resolveActiveOrganizationId({ fresh: true });
 	}
 
@@ -927,8 +939,9 @@ export class CloudSessionController {
 	}
 
 	async listForDiscovery(
-		options: { timeoutMs?: number } = {},
+		options: { timeoutMs?: number; maxAgeMs?: number } = {},
 	): Promise<JsonRecord[]> {
+		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		let resolvedScope: { organizationId: string | undefined } | undefined;
 		const refresh = (async () => {
 			const organizationId = await this.resolveActiveOrganizationId();
@@ -937,6 +950,15 @@ export class CloudSessionController {
 				this.discoveryRefresh?.organizationId === organizationId
 					? this.discoveryRefresh?.promise
 					: undefined;
+			if (
+				!listing &&
+				this.lastListedOrganizationId === organizationId &&
+				(options.maxAgeMs ?? 0) > 0 &&
+				this.lastListedAt !== undefined &&
+				Date.now() - this.lastListedAt < (options.maxAgeMs ?? 0)
+			) {
+				return { organizationId, records: this.lastListedSessions };
+			}
 			if (!listing) {
 				const promise = this.listInOrganization(organizationId).finally(() => {
 					if (this.discoveryRefresh?.promise === promise)
@@ -2050,6 +2072,12 @@ export class CloudSessionController {
 			if (record) {
 				record.title = title;
 			}
+			const listed = this.lastListedSessions.find(
+				(session) => session.id === outerSessionId,
+			);
+			if (listed) {
+				listed.title = title;
+			}
 			const live = this.sessions.get(outerSessionId);
 			if (live) {
 				live.title = title;
@@ -2087,6 +2115,10 @@ export class CloudSessionController {
 					throw error;
 				}
 			}
+			this.discoveryGeneration++;
+			this.lastListedSessions = this.lastListedSessions.filter(
+				(record) => record.id !== outerSessionId,
+			);
 			this.knownSessions.delete(outerSessionId);
 			this.unlistedSessions.delete(outerSessionId);
 			this.pendingInitialTasks.delete(outerSessionId);
