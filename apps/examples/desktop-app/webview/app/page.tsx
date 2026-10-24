@@ -338,6 +338,22 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	return "New session";
 }
 
+// A reload discards every terminal tab, so shells from the previous page
+// load are unreachable. Memoized per page load: Activity re-runs App's effects
+// on a backend reconnect, when the live tabs still own their shells. The
+// terminal is only offered once this resolves, so a restored panel's new
+// shell cannot be caught by the reap.
+let terminalReap: Promise<void> | null = null;
+function reapOrphanedTerminals(): Promise<void> {
+	terminalReap ??= import("@tauri-apps/api/core")
+		.then(({ invoke }) => invoke("terminal_kill_all"))
+		.then(
+			() => undefined,
+			() => undefined,
+		);
+	return terminalReap;
+}
+
 export default function Home() {
 	const startup = useHubStartup();
 	const hubReady =
@@ -393,15 +409,7 @@ function App() {
 	});
 	useEffect(() => {
 		if (isTauriAvailable()) {
-			// A reload discards every tab, so shells from the previous page load
-			// are unreachable. Reap them before offering the terminal, or a
-			// restored panel's new shell could be caught by the reap.
-			void import("@tauri-apps/api/core")
-				.then(({ invoke }) => invoke("terminal_kill_all"))
-				.catch(() => {
-					// Nothing to reap.
-				})
-				.finally(() => setTerminalAvailable(true));
+			void reapOrphanedTerminals().then(() => setTerminalAvailable(true));
 		}
 		const stored = readTerminalPanelState();
 		setTerminalPanel({
