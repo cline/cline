@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, relative, sep } from "node:path";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -22,6 +22,28 @@ import {
 	parseU64Value,
 	stringifyMessageContent,
 } from "./common";
+
+/** The directory the runtime resolved this session's `@` mentions against. */
+function readMentionBaseDir(sessionId: string): string | undefined {
+	const manifest = readSessionManifest(sessionId);
+	const base = manifest?.workspace_root ?? manifest?.cwd;
+	return typeof base === "string" && base.trim() ? base : undefined;
+}
+
+// Relative to the mention base so the webview can match `@path` text exactly;
+// paths outside it stay absolute and simply never match a relative mention.
+function toMentionRelativePath(
+	filePath: string,
+	mentionBaseDir: string | undefined,
+): string {
+	if (!mentionBaseDir) return filePath;
+	const relativePath = relative(mentionBaseDir, filePath);
+	return !relativePath ||
+		relativePath.startsWith("..") ||
+		isAbsolute(relativePath)
+		? filePath
+		: relativePath.split(sep).join("/");
+}
 
 type ChatTurnResult = {
 	usage?: {
@@ -369,6 +391,9 @@ export function readSessionMessagesSync(
 		? new Map<number, StoredCheckpointEntry>()
 		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
+	const mentionBaseDir = isRemoteRead
+		? undefined
+		: readMentionBaseDir(sessionId);
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
 		const rawMessage = messages[idx];
@@ -659,7 +684,9 @@ export function readSessionMessagesSync(
 			}
 			if (blockType === "file") {
 				if (role === "user" && typeof record.path === "string") {
-					attachedFiles.push(record.path);
+					attachedFiles.push(
+						toMentionRelativePath(record.path, mentionBaseDir),
+					);
 				}
 				continue;
 			}

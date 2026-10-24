@@ -85,13 +85,7 @@ function UserMessageMarkdown({
 	const tokenKey = getComposerHighlights(
 		content,
 		commandNames,
-		(path) =>
-			mentionPaths.has(path) ||
-			Boolean(
-				attachedFiles?.some(
-					(file) => file === path || file.endsWith(`/${path}`),
-				),
-			),
+		(path) => mentionPaths.has(path) || Boolean(attachedFiles?.includes(path)),
 	)
 		.map(({ start, end }) => content.slice(start, end))
 		.join("\n");
