@@ -73,7 +73,6 @@ export function useCloudSessions(input: {
 	termHeight: number;
 	cwd: string;
 	localBranch: string | null;
-	modelId: string;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
 	/** Cloud sessions run in Act mode, so a Plan-mode UI switches over. */
@@ -113,14 +112,13 @@ export function useCloudSessions(input: {
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
 		if (!client) throw new Error("Cline Cloud is not available");
 		const models = await loadModels();
-		const local = models.find(
-			(candidate) => candidate.id === inputRef.current.modelId,
+		// Same plan-based default as the desktop app: ClinePass subscribers start
+		// on ClinePass, everyone else on Cline's default usage-billed model.
+		const offersPass = models.some(
+			(candidate) => candidate.catalogId === "cline-pass",
 		);
-		// ClinePass subscribers default to ClinePass; everyone else to Cline's
-		// default usage-billed model.
 		const next =
-			local ??
-			((await hasClinePassSubscription())
+			(offersPass && (await hasClinePassSubscription())
 				? models.find((candidate) => candidate.catalogId === "cline-pass")
 				: undefined) ??
 			models.find((candidate) => candidate.id === CLINE_DEFAULT_MODEL_ID) ??

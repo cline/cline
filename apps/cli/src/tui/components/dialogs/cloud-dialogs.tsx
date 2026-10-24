@@ -387,8 +387,8 @@ export const CLOUD_MODEL_PROVIDERS: {
 	name: string;
 }[] = [
 	{ id: "cline-pass", name: "ClinePass" },
-	{ id: "cline-cloud", name: "ClineFree" },
 	{ id: "cline", name: "Cline Usage-Billing" },
+	{ id: "cline-cloud", name: "ClineFree" },
 ];
 
 /** ClinePass/ClineFree names are raw `cline-pass/...` ids; drop the catalog prefix. */
@@ -410,6 +410,7 @@ export function CloudModelPickerContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, models, currentModelId } = props;
+	const palette = useDialogPalette();
 	const providers = useMemo(
 		() =>
 			CLOUD_MODEL_PROVIDERS.filter((provider) =>
@@ -417,11 +418,14 @@ export function CloudModelPickerContent(
 			),
 		[models],
 	);
+	const currentProviderId = models.find(
+		(model) => model.id === currentModelId,
+	)?.catalogId;
 	const [providerId, setProviderId] = useState(
-		() =>
-			models.find((model) => model.id === currentModelId)?.catalogId ??
-			providers[0]?.id,
+		() => currentProviderId ?? providers[0]?.id,
 	);
+	const [choosingProvider, setChoosingProvider] = useState(false);
+	const [providerSelected, setProviderSelected] = useState(0);
 	const items = useMemo<SearchableItem[]>(
 		() =>
 			models
@@ -451,18 +455,49 @@ export function CloudModelPickerContent(
 		if (model) resolve(model);
 	};
 
+	const openProviders = () => {
+		setProviderSelected(
+			Math.max(
+				0,
+				providers.findIndex((provider) => provider.id === providerId),
+			),
+		);
+		setChoosingProvider(true);
+	};
+
+	const chooseProvider = (index: number) => {
+		const provider = providers[index];
+		if (!provider) return;
+		if (provider.id !== providerId) list.setSearch("");
+		setProviderId(provider.id);
+		setChoosingProvider(false);
+	};
+
 	useDialogKeyboard((key) => {
+		if (choosingProvider) {
+			if (key.name === "escape" || key.name === "tab") {
+				setChoosingProvider(false);
+				return;
+			}
+			if (key.name === "return" || key.name === "enter") {
+				chooseProvider(providerSelected);
+				return;
+			}
+			if (key.name === "up" || (key.ctrl && key.name === "p")) {
+				setProviderSelected((s) => (s <= 0 ? providers.length - 1 : s - 1));
+				return;
+			}
+			if (key.name === "down" || (key.ctrl && key.name === "n")) {
+				setProviderSelected((s) => (s >= providers.length - 1 ? 0 : s + 1));
+			}
+			return;
+		}
 		if (key.name === "escape") {
 			dismiss();
 			return;
 		}
 		if (key.name === "tab" && providers.length > 1) {
-			const index = providers.findIndex((p) => p.id === providerId);
-			const step = key.shift ? -1 : 1;
-			list.setSearch("");
-			setProviderId(
-				providers[(index + step + providers.length) % providers.length]?.id,
-			);
+			openProviders();
 			return;
 		}
 		if (key.name === "return" || key.name === "enter") {
@@ -477,6 +512,51 @@ export function CloudModelPickerContent(
 			list.moveDown();
 		}
 	}, dialogId);
+
+	if (choosingProvider) {
+		return (
+			<box flexDirection="column" gap={1}>
+				<text>Select Cloud Provider</text>
+				<box flexDirection="column">
+					{providers.map((provider, index) => {
+						const isSel = index === providerSelected;
+						const count = models.filter(
+							(model) => model.catalogId === provider.id,
+						).length;
+						return (
+							<box
+								key={provider.id}
+								paddingX={1}
+								flexDirection="row"
+								gap={1}
+								backgroundColor={isSel ? palette.selection : undefined}
+								onMouseDown={() => chooseProvider(index)}
+							>
+								<text
+									fg={isSel ? palette.textOnSelection : "gray"}
+									flexShrink={0}
+								>
+									{isSel ? "❯" : " "}
+								</text>
+								<text fg={isSel ? palette.textOnSelection : undefined}>
+									{provider.name}
+								</text>
+								<text fg={isSel ? palette.textOnSelection : "gray"}>
+									{count} {count === 1 ? "model" : "models"}
+								</text>
+								{provider.id === currentProviderId && (
+									<text fg={isSel ? palette.textOnSelection : palette.success}>
+										(current)
+									</text>
+								)}
+							</box>
+						);
+					})}
+				</box>
+				<text fg="gray">↑/↓ navigate, Enter to select, Esc to go back</text>
+			</box>
+		);
+	}
 
 	return (
 		<box flexDirection="column" gap={1}>

@@ -324,7 +324,6 @@ function App(props: TuiProps) {
 		termHeight,
 		cwd: props.config.cwd,
 		localBranch: repoStatus.branch,
-		modelId: props.config.modelId,
 		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
 		onEnterCloud: () => {
 			if (session.uiMode === "plan") toggleMode();
