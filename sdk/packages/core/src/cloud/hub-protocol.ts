@@ -1,4 +1,3 @@
-import type { CreateCloudSessionInput } from "./api";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
@@ -22,13 +21,35 @@ export const CLOUD_HUB_OPERATIONS = [
 	"respondApproval",
 	"restoreCreationOptions",
 	"refreshOrganization",
+	"prepareHandoffRepository",
 ] as const;
 export type CloudHubScope = { serviceId: string; scopeGeneration: number };
+
+export type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
+
+export function serializeCloudSendFailure(
+	error: unknown,
+	dispatched: boolean,
+): CloudSendFailure {
+	return {
+		dispatched,
+		message: error instanceof Error ? error.message : String(error),
+		...(error instanceof Error &&
+		"detail" in error &&
+		typeof error.detail === "string"
+			? { detail: error.detail }
+			: {}),
+	};
+}
 
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
-	? [input: Omit<CreateCloudSessionInput, "handoff">]
+	? [input: Omit<Parameters<CloudSessionController["create"]>[0], "handoff">]
 	: K extends "send"
 		? [
 				sessionId: string,

@@ -20,6 +20,10 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import {
+	type CloudSendFailure,
+	serializeCloudSendFailure,
+} from "./hub-protocol";
 import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
@@ -450,6 +454,13 @@ export class CloudSessionController {
 	private readonly createRequests = new Map<
 		string,
 		Promise<CloudSessionAttachment>
+	>();
+	private readonly initialSends = new Map<
+		string,
+		{
+			lifecycle: CloudSendLifecycle;
+			settled: Promise<CloudSendFailure | undefined>;
+		}
 	>();
 	private readonly provisioningControllers = new Map<
 		string,
@@ -1029,20 +1040,78 @@ export class CloudSessionController {
 		return listed;
 	}
 
-	async create(
+	private async createSession(
 		input: CreateCloudSessionInput,
+		beforePublish?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		const key = input.requestId?.trim();
-		if (!key) return await this.createOnce(input);
+		if (!key) return await this.createOnce(input, beforePublish);
 		const existing = this.createRequests.get(key);
-		if (existing) return await existing;
-		const creating = this.createOnce(input).finally(() => {
+		if (existing) {
+			const target = await existing;
+			beforePublish?.(target.sessionId);
+			return target;
+		}
+		const creating = this.createOnce(input, beforePublish).finally(() => {
 			if (this.createRequests.get(key) === creating) {
 				this.createRequests.delete(key);
 			}
 		});
 		this.createRequests.set(key, creating);
 		return await creating;
+	}
+
+	async create(
+		input: CreateCloudSessionInput & {
+			initialMessage?: { text: string; images?: string[] };
+		},
+	): Promise<
+		CloudSessionAttachment & {
+			initialSend?:
+				| Awaited<ReturnType<CloudSessionController["send"]>>
+				| CloudSendFailure;
+		}
+	> {
+		const { initialMessage, ...creation } = input;
+		if (!initialMessage) return this.createSession(creation);
+		let dispatched = false;
+		let settle!: (failure?: CloudSendFailure) => void;
+		const initial = {
+			lifecycle: {
+				beforeDispatch: () => {
+					dispatched = true;
+				},
+			},
+			settled: new Promise<CloudSendFailure | undefined>((resolve) => {
+				settle = resolve;
+			}),
+		};
+		const target = await this.createSession(
+			{ ...creation, initialPrompt: initialMessage.text },
+			(sessionId) => {
+				if (!this.initialSends.has(sessionId))
+					this.initialSends.set(sessionId, initial);
+			},
+		);
+		try {
+			const send = await this.send(
+				target.sessionId,
+				initialMessage.text,
+				"queue",
+				input.modelId,
+				initialMessage.images,
+				initial.lifecycle,
+			);
+			settle();
+			return { ...target, initialSend: send };
+		} catch (error) {
+			const send = serializeCloudSendFailure(error, dispatched);
+			settle(send);
+			return { ...target, initialSend: send };
+		} finally {
+			if (this.initialSends.get(target.sessionId) === initial)
+				this.initialSends.delete(target.sessionId);
+		}
 	}
 
 	private trackProvisioningController(
@@ -1161,6 +1230,7 @@ export class CloudSessionController {
 
 	private async createOnce(
 		input: CreateCloudSessionInput,
+		beforePublish?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const cwd = cloudWorkspaceCwd(input.workspaceRelativePath);
@@ -1272,6 +1342,7 @@ export class CloudSessionController {
 		}
 
 		this.assertSessionActive(record.id);
+		beforePublish?.(record.id);
 		this.notify("chat_session_status", {
 			sessionId: record.id,
 			status: live.status,
@@ -1377,6 +1448,16 @@ export class CloudSessionController {
 		result?: unknown;
 	}> {
 		const abortToken = this.sendAbortTokens.get(outerSessionId);
+		const initial = this.initialSends.get(outerSessionId);
+		// Only the initial send may bypass its own reservation.
+		if (initial && lifecycle !== initial.lifecycle) {
+			if (await initial.settled) {
+				throw new CloudSessionError(
+					"request_failed",
+					"The initial cloud prompt was not confirmed. Check the cloud task before sending another message.",
+				);
+			}
+		}
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(

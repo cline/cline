@@ -5,6 +5,7 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
+import { CloudSessionError } from "../../cloud/api";
 import type { CloudSessionController } from "../../cloud/controller";
 import {
 	type CloudHubConnection,
@@ -23,7 +24,7 @@ import {
 	emptyStoredProviderSettings,
 	ProviderSettingsSchemaTyped,
 } from "../../types/provider-settings";
-import { NodeHubClient } from "../client";
+import { HubCommandError, NodeHubClient } from "../client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { createInMemoryHubOwnerContext } from "../discovery";
 import { HubCloudSessionService } from "./cloud-session-service";
@@ -76,7 +77,26 @@ function fixture() {
 				emit = listener;
 				return () => {};
 			},
-			create: vi.fn(async () => ({ sessionId: "ses-one", status: "ready" })),
+			provision: vi.fn(
+				async (_input: Parameters<CloudSessionController["create"]>[0]) => ({
+					sessionId: "ses-one",
+					status: "ready",
+				}),
+			),
+			create: vi.fn(
+				async (input: Parameters<CloudSessionController["create"]>[0]) => {
+					const target = await controller.provision(input);
+					if (!input.initialMessage) return target;
+					const send = await controller.send(
+						target.sessionId,
+						input.initialMessage.text,
+						"queue",
+						input.modelId,
+						input.initialMessage.images,
+					);
+					return { ...target, initialSend: send };
+				},
+			),
 			attach: vi.fn(async (sessionId: string) => {
 				emit({
 					type: "snapshot",
@@ -86,7 +106,16 @@ function fixture() {
 				});
 				return { sessionId, status: "running" };
 			}),
-			send: vi.fn(async () => ({ sessionId: "ses-one", ok: true })),
+			send: vi.fn(
+				async (..._args: Parameters<CloudSessionController["send"]>) => ({
+					sessionId: "ses-one",
+					ok: true,
+				}),
+			),
+			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
+				organizationId: "org-one",
+			})),
+			listModels: vi.fn(async () => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
@@ -126,7 +155,15 @@ function fixture() {
 		const result =
 			name === "cloud.watch"
 				? service.watch()
-				: await service.command(body.operation, body.args, body.scope);
+				: await service
+						.command(body.operation, body.args, body.scope)
+						.catch((error: unknown) => {
+							throw new HubCommandError(
+								name,
+								undefined,
+								error instanceof Error ? error.message : String(error),
+							);
+						});
 		return JSON.parse(
 			JSON.stringify({ version: "v1", ok: true, payload: result }),
 		);
@@ -158,6 +195,84 @@ function fixture() {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("pins every handoff operation to its prepared account scope", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		expect(viewer.scope).toBeUndefined();
+		await viewer.prepareHandoffRepository("https://github.com/example/project");
+		const scope = viewer.scope;
+		if (!scope) throw new Error("Missing prepared scope");
+		const copy = viewer.scope;
+		if (copy) copy.scopeGeneration++;
+		expect(viewer.scope).toEqual(scope);
+		f.changeScope("account-two");
+		f.service.watch();
+		for (const operation of [
+			() =>
+				viewer.prepareHandoffRepository(
+					"https://github.com/example/project",
+					scope,
+				),
+			() => viewer.listModels(scope),
+			() => viewer.create({ modelId: "model", repoUrl: "repo" }, scope),
+			() =>
+				viewer.create(
+					{
+						modelId: "model",
+						repoUrl: "repo",
+						initialMessage: { text: "Continue" },
+					},
+					scope,
+				),
+		])
+			await expect(operation()).rejects.toThrow("account changed");
+		const current = f.controllers[1]?.controller;
+		if (!current) throw new Error("Missing replacement controller");
+		for (const method of [
+			current.prepareHandoffRepository,
+			current.listModels,
+			current.create,
+		])
+			expect(method).not.toHaveBeenCalled();
+		await expect(viewer.listModels()).resolves.toEqual([]);
+	});
+
+	it.each([
+		"send",
+		"create",
+		"create-only",
+	] as const)("keeps a lost %s reply unknown without replaying the request", async (operation) => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const original = f.connection.command;
+		f.connection.command = async (...args) => {
+			await original(...args);
+			throw new Error("Reply lost");
+		};
+		const failure = await (operation === "send"
+			? viewer.send("ses-one", "Once")
+			: viewer.create({
+					modelId: "model",
+					repoUrl: "repo",
+					...(operation === "create"
+						? { initialMessage: { text: "Once" } }
+						: { initialPrompt: "Once" }),
+				})
+		).catch((error: unknown) => error);
+		expect(failure).toBeInstanceOf(Error);
+		if (operation === "create")
+			expect(failure).toMatchObject({
+				code: "request_failed",
+				detail:
+					"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
+			});
+		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
+		expect(f.controllers[0]?.controller.send).toHaveBeenCalledTimes(
+			operation === "create-only" ? 0 : 1,
+		);
+	});
+
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
@@ -462,7 +577,62 @@ describe("cloud RPC over a shared hub socket", () => {
 		return { root, server };
 	}
 
-	it("reports in-flight cloud commands as hub activity", async () => {
+	it("preserves repository preparation and ordinary send results over the socket", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
+		const client = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "cloud-outcomes",
+			workspaceRoot: root,
+		});
+		const viewer = new HubCloudSessionClient(async () => client);
+		try {
+			const repo = "https://github.com/example/project";
+			await expect(viewer.prepareHandoffRepository(repo)).resolves.toEqual({
+				organizationId: "org-one",
+			});
+			const controller = f.controllers[0]?.controller;
+			if (!controller) throw new Error("Missing cloud controller");
+			expect(
+				controller.prepareHandoffRepository,
+			).toHaveBeenCalledExactlyOnceWith(repo);
+			await expect(
+				viewer.send("ses-one", "Continue", undefined, "model", ["image"]),
+			).resolves.toEqual({ sessionId: "ses-one", ok: true });
+			expect(controller.send).toHaveBeenLastCalledWith(
+				"ses-one",
+				"Continue",
+				undefined,
+				"model",
+				["image"],
+			);
+			const failure = new CloudSessionError(
+				"session_failed",
+				"Repository clone failed.",
+			);
+			controller.send.mockRejectedValueOnce(failure);
+			await expect(viewer.send("ses-one", "Continue")).rejects.toThrow(
+				failure.message,
+			);
+			await client.command("cloud.command", {
+				operation: "send",
+				args: ["ses-one", "Short arguments"],
+				scope: viewer.scope,
+			});
+			expect(controller.send).toHaveBeenLastCalledWith(
+				"ses-one",
+				"Short arguments",
+			);
+		} finally {
+			await viewer.dispose();
+			await client.dispose();
+			await server.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps creation and sending active after the requesting viewer disconnects", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -475,33 +645,77 @@ describe("cloud RPC over a shared hub socket", () => {
 			await client.connect();
 			return client;
 		});
+		const observer = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "cloud-observer",
+			workspaceRoot: root,
+		});
 		try {
 			await viewer.connect();
+			await observer.connect();
+			const controller = f.controllers[0]?.controller;
+			if (!controller) throw new Error("Missing connected controller");
 			const provisioning = deferred<{ sessionId: string; status: string }>();
-			f.controllers[0]!.controller.create.mockReturnValueOnce(
-				provisioning.promise,
-			);
-			const created = viewer.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/cline",
-			});
-			await vi.waitFor(() =>
-				expect(f.controllers[0]!.controller.create).toHaveBeenCalled(),
-			);
-			expect((await client.command("session.list")).payload).toMatchObject({
+			const sending = deferred<{ sessionId: string; ok: true }>();
+			controller.provision.mockReturnValueOnce(provisioning.promise);
+			controller.send.mockReturnValueOnce(sending.promise);
+			const created = viewer
+				.create({
+					modelId: "model",
+					repoUrl: "https://github.com/example/project",
+					initialMessage: {
+						text: "Summary and next instruction",
+						images: ["image"],
+					},
+					mode: "plan",
+					workspaceRelativePath: "packages/app",
+				})
+				.catch((error: unknown) => error);
+			await vi.waitFor(() => expect(controller.create).toHaveBeenCalled());
+			expect((await observer.command("session.list")).payload).toMatchObject({
 				activeCloudCommands: 1,
 			});
-			expect((await client.command("hub.status")).payload).toMatchObject({
+			expect((await observer.command("hub.status")).payload).toMatchObject({
 				idle: false,
 			});
+			await viewer.dispose();
+			await client.dispose();
+			expect(await created).toMatchObject({ code: "request_failed" });
 			provisioning.resolve({ sessionId: "ses-one", status: "ready" });
-			await created;
-			expect((await client.command("session.list")).payload).toMatchObject({
-				activeCloudCommands: 0,
+			await vi.waitFor(() =>
+				expect(controller.send).toHaveBeenCalledExactlyOnceWith(
+					"ses-one",
+					"Summary and next instruction",
+					"queue",
+					"model",
+					["image"],
+				),
+			);
+			expect((await observer.command("session.list")).payload).toMatchObject({
+				activeCloudCommands: 1,
 			});
+			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
+				modelId: "model",
+				repoUrl: "https://github.com/example/project",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["image"],
+				},
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+				sandboxType: "resumable",
+			});
+			sending.resolve({ sessionId: "ses-one", ok: true });
+			await vi.waitFor(async () =>
+				expect((await observer.command("session.list")).payload).toMatchObject({
+					activeCloudCommands: 0,
+				}),
+			);
 		} finally {
 			await viewer.dispose();
 			await client.dispose();
+			await observer.dispose();
 			await server.close();
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -560,6 +774,13 @@ describe("cloud RPC over a shared hub socket", () => {
 			await expect(next.send("ses-one", "New work")).rejects.toThrow(
 				/draining/,
 			);
+			await expect(
+				next.create({
+					modelId: "model",
+					repoUrl: "repo",
+					initialMessage: { text: "Continue" },
+				}),
+			).rejects.toThrow(/draining/);
 			await next.dispose();
 		} finally {
 			await first.dispose();

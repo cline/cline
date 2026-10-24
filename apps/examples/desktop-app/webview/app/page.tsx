@@ -39,8 +39,13 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ToastAction } from "@/components/ui/toast";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import {
+	CloudHandoffGitConfirmation,
+	CloudHandoffStatus,
+} from "@/components/views/chat/cloud-handoff";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
@@ -56,12 +61,12 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
-import { usePendingAttachments } from "@/hooks/use-pending-attachments";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -70,6 +75,25 @@ import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
+import {
+	HANDOFF_PROGRESS_LABELS,
+	type HandoffResult,
+	isExpectedHandoffSourceActive,
+	parseHandoffCommand,
+	validateHandoffAttachments,
+} from "@/lib/cloud-handoff";
+import {
+	createHandoffLifecycle,
+	type HandoffLifecycle,
+	type HandoffOpenResult,
+	type HandoffProgressEventPayload,
+} from "@/lib/cloud-handoff-lifecycle";
+import {
+	type CloudHandoffUiAction,
+	type CloudHandoffUiState,
+	cloudHandoffUiReducer,
+	type HandoffDraft,
+} from "@/lib/cloud-handoff-ui-state";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
 	humanizeCloudSessionError,
@@ -161,6 +185,8 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+import type { PrepareHandoffResult } from "../../sidecar/cloud-handoff";
+import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
 // chat shell, so keeping them out of the entry chunk shortens app startup.
@@ -239,6 +265,9 @@ function readCloudProvisioningPhase(
 		: undefined;
 }
 
+// Git preparation and cloud startup each need their own timeout budget.
+const HANDOFF_STAGE_TIMEOUT_MS = 25 * 60_000;
+
 function useCloudProvisioningPhase(
 	repoUrl: string | undefined,
 	active: boolean,
@@ -279,6 +308,13 @@ function useCloudProvisioningPhase(
 		? `${label}... This may take several minutes.`
 		: `${label}...`;
 }
+
+type OpenSessionOptions = {
+	draft?: HandoffDraft;
+	environmentId?: string;
+	silent?: boolean;
+	expectedActiveThreadId?: string;
+};
 
 function CloudProvisioningPane({ phase }: { phase: string }) {
 	return (
@@ -333,7 +369,7 @@ export default function Home() {
 function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
-	const { current: promptDrafts } = useRef(new Map<string, string>());
+	const { current: promptDrafts } = useRef(new Map<string, PromptDraft>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -344,6 +380,28 @@ function App() {
 				LOCAL_WORKSPACE_ENVIRONMENT_ID,
 			),
 	);
+	const [handoffUiState, dispatchHandoffUi] = useReducer(
+		cloudHandoffUiReducer,
+		{},
+	);
+	const [gitConfirmation, setGitConfirmation] =
+		useState<HandoffGitPreview | null>(null);
+	const gitDecisionRef = useRef<((approved: boolean) => void) | null>(null);
+	const confirmHandoffGit = useCallback(
+		(plan: HandoffGitPreview) =>
+			new Promise<boolean>((resolve) => {
+				gitDecisionRef.current?.(false);
+				gitDecisionRef.current = resolve;
+				setGitConfirmation(plan);
+			}),
+		[],
+	);
+	const finishGitConfirmation = useCallback((approved: boolean) => {
+		const resolve = gitDecisionRef.current;
+		gitDecisionRef.current = null;
+		setGitConfirmation(null);
+		resolve?.(approved);
+	}, []);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
@@ -378,6 +436,8 @@ function App() {
 	>(null);
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
 	useEffect(() => {
 		const threadIds = new Set(threads.map((thread) => thread.id));
 		for (const threadId of promptDrafts.keys()) {
@@ -683,15 +743,38 @@ function App() {
 	}, []);
 
 	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem, initialPromptDraft?: string) => {
+		async (
+			session: SessionHistoryItem,
+			initialPromptDraft?: string,
+			initialAttachments?: File[],
+		): Promise<HandoffOpenResult> => {
+			if (initialAttachments) {
+				const thread = threadsRef.current.find(
+					(item) =>
+						item.environmentId === session.environmentId &&
+						(item.sessionId === session.sessionId ||
+							item.historySession?.sessionId === session.sessionId),
+				);
+				const draft = thread && promptDrafts.get(thread.id);
+				if (draft && (draft.text.trim() || draft.attachments.length)) {
+					toast({
+						title: "Your cloud draft is unchanged",
+						description:
+							"Send or clear it before restoring the handoff prompt.",
+					});
+					return { opened: false };
+				}
+			}
 			dispatchApp({
 				type: "open-session",
 				session,
 				environmentId: session.environmentId,
 				initialPromptDraft,
+				initialAttachments,
 			});
+			return { opened: true };
 		},
-		[],
+		[promptDrafts],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -757,6 +840,8 @@ function App() {
 					environmentId: activeThread.environmentId,
 				})
 			: null;
+	const activeLocationRef = useRef(appState.navigation.current);
+	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			selectEnvironmentDraft(activeEnvironmentId);
@@ -832,7 +917,20 @@ function App() {
 		sessionHistoryRef.current = sessionHistory.sessions;
 	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string, environmentId?: string): Promise<void> => {
+		async (
+			sessionId: string,
+			options: OpenSessionOptions = {},
+		): Promise<HandoffOpenResult | undefined> => {
+			const environmentId = options.environmentId;
+			if (
+				!isExpectedHandoffSourceActive(
+					options.expectedActiveThreadId,
+					activeLocationRef.current.activeThreadId,
+					activeLocationRef.current.view,
+				)
+			) {
+				return undefined;
+			}
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -840,8 +938,11 @@ function App() {
 						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
-				return;
+				return await handleOpenSession(
+					cachedSession,
+					options.draft?.text,
+					options.draft?.attachments,
+				);
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
@@ -855,6 +956,15 @@ function App() {
 					throw new Error("The session for this run is no longer available.");
 				}
 				if (
+					!isExpectedHandoffSourceActive(
+						options.expectedActiveThreadId,
+						activeLocationRef.current.activeThreadId,
+						activeLocationRef.current.view,
+					)
+				) {
+					return undefined;
+				}
+				if (
 					environmentId !== undefined &&
 					session.environmentId !== environmentId
 				) {
@@ -862,18 +972,71 @@ function App() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
-				handleOpenSession(session);
+				return await handleOpenSession(
+					session,
+					options.draft?.text,
+					options.draft?.attachments,
+				);
 			} catch (error) {
-				toast({
-					title: "Unable to open run",
-					description: humanizeCloudSessionError(
-						error instanceof Error ? error.message : String(error),
-					),
-					variant: "destructive",
-				});
+				if (!options.silent) {
+					toast({
+						title: "Unable to open run",
+						description: humanizeCloudSessionError(
+							error instanceof Error ? error.message : String(error),
+						),
+						variant: "destructive",
+					});
+				}
+				return { opened: false };
 			}
 		},
 		[handleOpenSession],
+	);
+	const openSessionFromNavigation = useCallback(
+		async (sessionId: string) => {
+			await handleOpenSessionById(sessionId);
+		},
+		[handleOpenSessionById],
+	);
+	const handoffLifecycleRef = useRef<HandoffLifecycle | null>(null);
+	if (handoffLifecycleRef.current === null) {
+		handoffLifecycleRef.current = createHandoffLifecycle({
+			dispatch: dispatchHandoffUi,
+			toast: ({ connectUrl, ...toastFields }) =>
+				toast({
+					...toastFields,
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				}),
+		});
+	}
+	const handoffLifecycle = handoffLifecycleRef.current;
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const progress = payload as Partial<HandoffProgressEventPayload>;
+				const { sourceSessionId, phase } = progress;
+				if (
+					!sourceSessionId?.trim() ||
+					!phase ||
+					!(phase in HANDOFF_PROGRESS_LABELS)
+				) {
+					return;
+				}
+				void handoffLifecycle.onEvent({
+					...progress,
+					sourceSessionId,
+					phase,
+				});
+			}),
+		[handoffLifecycle],
 	);
 	useEffect(
 		() =>
@@ -999,6 +1162,8 @@ function App() {
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}
+											handoffUiState={handoffUiState}
+											onHandoffUiAction={dispatchHandoffUi}
 											environmentId={activeThread.environmentId}
 											environmentProfiles={remoteEnvironmentProfiles}
 											environmentProfilesLoading={
@@ -1023,7 +1188,10 @@ function App() {
 														)
 													: undefined
 											}
+											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
+											handoffLifecycle={handoffLifecycle}
+											confirmHandoffGit={confirmHandoffGit}
 											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
@@ -1064,7 +1232,7 @@ function App() {
 										<SettingsView
 											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
+											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
 									</div>
@@ -1092,6 +1260,12 @@ function App() {
 				onOpenChange={setExportDiagnosticsOpen}
 				open={exportDiagnosticsOpen}
 			/>
+			{gitConfirmation ? (
+				<CloudHandoffGitConfirmation
+					plan={gitConfirmation}
+					onDecision={finishGitConfirmation}
+				/>
+			) : null}
 			<QuitHoldHandler bindings={keybindings} />
 			{whatsNew ? (
 				<WhatsNewDialog
@@ -1117,7 +1291,7 @@ function App() {
 			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
+				onOpenSession={openSessionFromNavigation}
 				open={commandBarOpen && !showOnboarding}
 			/>
 			{remoteDirectoryPicker ? (
@@ -1141,6 +1315,7 @@ function App() {
 let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
+	confirmHandoffGit,
 	threadId,
 	promptDrafts,
 	environmentId,
@@ -1148,7 +1323,9 @@ function ChatThreadPane({
 	environmentProfilesLoading,
 	historySession,
 	liveHistorySession,
+	initialAttachments,
 	initialPromptDraft,
+	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -1165,15 +1342,20 @@ function ChatThreadPane({
 	parentSession,
 	remoteEnvironment,
 	onThreadStarted,
+	handoffUiState,
+	onHandoffUiAction,
 }: {
 	threadId: string;
-	promptDrafts: Map<string, string>;
+	promptDrafts: Map<string, PromptDraft>;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
 	liveHistorySession?: SessionHistoryItem;
+	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	handoffLifecycle: Omit<HandoffLifecycle, "onEvent">;
+	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -1189,8 +1371,8 @@ function ChatThreadPane({
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
-		environmentId?: string,
-	) => void | Promise<void>;
+		options?: OpenSessionOptions,
+	) => HandoffOpenResult | undefined | Promise<HandoffOpenResult | undefined>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
 	) => Promise<string | null>;
@@ -1199,8 +1381,10 @@ function ChatThreadPane({
 	onOpenModelSettings?: () => void;
 	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 	onThreadStarted?: (threadId: string, sessionId?: string) => void;
+	handoffUiState: CloudHandoffUiState;
+	onHandoffUiAction: (action: CloudHandoffUiAction) => void;
+	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 }) {
 	const {
 		sessionId,
@@ -1243,12 +1427,14 @@ function ChatThreadPane({
 		}
 	}, [onThreadStarted, sessionId, threadId]);
 	const {
+		draftRef,
+		pendingAttachments,
+		setPendingAttachments,
 		clearPromptForSend,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
-	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1273,6 +1459,12 @@ function ChatThreadPane({
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const sourceSessionId = sessionId ?? historySession?.sessionId;
+	// Handoff state is keyed by local session id; another environment may reuse the id.
+	const handoffUi =
+		sourceSessionId && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? handoffUiState[sourceSessionId]
+			: undefined;
 	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	const openGitHubConnect = useCallback(
@@ -1412,6 +1604,9 @@ function ChatThreadPane({
 		config.repoUrl || historySession?.repoUrl,
 		isCloudSession && status === "starting",
 		liveProvisioningPhase ??
+			readCloudProvisioningPhase(
+				liveHistorySession?.metadata?.provisioningPhase,
+			) ??
 			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
 		historySession?.startedAt,
 	);
@@ -1846,37 +2041,46 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPendingAttachments]);
+	}, [historySession, manualTitle, reset, threadId]);
 
 	useEffect(() => {
 		if (!historySession) {
 			return;
 		}
+		const hasInitialComposerState =
+			initialPromptDraft !== undefined || initialAttachments !== undefined;
+		if (hasInitialComposerState) {
+			const preserveComposer =
+				historySession.origin === "cloud" &&
+				Boolean(
+					draftRef.current.text.trim() || draftRef.current.attachments.length,
+				);
+			if (!preserveComposer) {
+				setPromptInput(initialPromptDraft ?? "");
+				setPendingAttachments(
+					initialAttachments ? [...initialAttachments] : [],
+				);
+			}
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		// Opening the current live session's sidebar row now reuses this pane.
-		// Don't reset its stream/attachments just to hydrate the same session.
-		if (
-			historySession.sessionId === sessionId &&
-			initialPromptDraft === undefined
-		) {
-			return;
+		if (!hasInitialComposerState) {
+			// Opening the current live session's sidebar row now reuses this pane.
+			// Don't reset its stream/attachments just to hydrate the same session.
+			if (historySession.sessionId === sessionId) return;
 		}
-		if (initialPromptDraft !== undefined) {
-			setPromptInput(initialPromptDraft);
-			onInitialPromptDraftConsumed?.(threadId);
-		}
-		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
 	}, [
 		historySession,
 		hydrateSession,
+		draftRef,
+		initialAttachments,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
 		sessionId,
@@ -1929,9 +2133,248 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
+	const handleRestoreHandoffDraft = useCallback(
+		async (destination: "local" | "cloud") => {
+			if (!sourceSessionId) return;
+			if (
+				destination === "cloud" &&
+				handoffUi?.status === "complete" &&
+				handoffUi.unsentDraft
+			) {
+				const opened = await onOpenSessionById?.(handoffUi.sessionId, {
+					draft: handoffUi.unsentDraft,
+					expectedActiveThreadId: threadId,
+				});
+				if (opened?.opened) {
+					onHandoffUiAction({
+						type: "cloud_draft_restored",
+						sourceSessionId,
+						draft: handoffUi.unsentDraft,
+					});
+				}
+				return;
+			}
+			const draft =
+				handoffUi?.preparationFailure?.draft ??
+				(handoffUi?.status === "failed"
+					? {
+							text: handoffUi.retryDraft,
+							attachments: handoffUi.retryAttachments,
+						}
+					: undefined);
+			if (!draft) return;
+			if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
+				toast({
+					title: "Your current draft is unchanged",
+					description: "Send or clear it before restoring the /cloud draft.",
+				});
+				return;
+			}
+			setPromptInput(draft.text ? `/cloud ${draft.text}` : "/cloud");
+			setPendingAttachments([...draft.attachments]);
+			onHandoffUiAction({
+				type:
+					handoffUi?.status === "failed"
+						? "dismiss"
+						: "preparation_draft_restored",
+				sourceSessionId,
+			});
+		},
+		[
+			draftRef,
+			setPromptInput,
+			setPendingAttachments,
+			handoffUi,
+			onHandoffUiAction,
+			onOpenSessionById,
+			threadId,
+			sourceSessionId,
+		],
+	);
+
+	const prepareHandoff = useCallback(
+		async (nextCommand: string) => {
+			const sourceSessionId = sessionId ?? historySession?.sessionId;
+			if (isCloudSession) {
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				toast({
+					title: "Already in Cline Cloud",
+					description: "Handoff is available from local sessions.",
+				});
+				return;
+			}
+			if (!sourceSessionId) {
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				toast({
+					title: "Start the local session first",
+					description: "Send at least one message before handing off to cloud.",
+				});
+				return;
+			}
+			if (
+				status === "starting" ||
+				status === "running" ||
+				status === "stopping" ||
+				promptsInQueue.length > 0
+			) {
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				toast({
+					title: "Wait for the current turn",
+					description:
+						"Handoff can start once the local agent is idle and its prompt queue is empty.",
+				});
+				return;
+			}
+			const attachmentError = validateHandoffAttachments(pendingAttachments);
+			if (attachmentError) {
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				toast({
+					title: "Handoff is not ready",
+					description: attachmentError,
+					variant: "destructive",
+				});
+				return;
+			}
+
+			if (
+				handoffUi?.status === "progress" ||
+				!handoffLifecycle.onPreparationStarted(sourceSessionId)
+			) {
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				toast({
+					title: "Handoff is already starting",
+					description: "Wait for the current handoff request to finish.",
+				});
+				return;
+			}
+			const sourceAttachments = [...pendingAttachments];
+			let handoffAttemptId: string | undefined;
+			setPendingAttachments([]);
+			try {
+				setPromptInput("");
+				onHandoffUiAction({
+					type: "prepare",
+					sourceSessionId,
+				});
+				const attachments = await serializeAttachments(sourceAttachments);
+				const preparation = await desktopClient.invoke<PrepareHandoffResult>(
+					"chat_session_command",
+					{
+						request: {
+							action: "prepare_handoff",
+							sessionId: sourceSessionId,
+							completedHandoffAttemptId:
+								handoffLifecycle.getCompletedAttemptId(sourceSessionId),
+							config,
+						},
+					},
+					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS },
+				);
+				if ("previousHandoff" in preparation) {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error: new Error(
+							"Your earlier cloud task completed. Check it before starting another task.",
+						),
+						nextCommand,
+						sourceAttachments,
+						silent: true,
+					});
+					handoffLifecycle.onRecovered(
+						sourceSessionId,
+						preparation.previousHandoff,
+					);
+					return;
+				}
+				const { gitPreparation } = preparation;
+				if (!(await confirmHandoffGit(gitPreparation))) {
+					await desktopClient.invoke("chat_session_command", {
+						request: {
+							action: "discard_handoff",
+							sessionId: sourceSessionId,
+							gitPreparationId: gitPreparation.id,
+						},
+					});
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error: new Error("Cloud preparation cancelled."),
+						nextCommand,
+						sourceAttachments,
+						silent: true,
+					});
+					return;
+				}
+				handoffAttemptId = handoffLifecycle.onRpcStarted(
+					sourceSessionId,
+					sourceAttachments,
+				);
+				onHandoffUiAction({ type: "start", sourceSessionId });
+				onHandoffUiAction({
+					type: "progress",
+					sourceSessionId,
+					phase: "checking",
+					message: "Preparing the summary and approved Git checkpoint...",
+				});
+				const result = await desktopClient.invoke<HandoffResult>(
+					"chat_session_command",
+					{
+						request: {
+							action: "handoff",
+							sessionId: sourceSessionId,
+							handoffAttemptId,
+							gitPreparationId: gitPreparation.id,
+							nextCommand: nextCommand || undefined,
+							attachments: attachments.userImages.length
+								? attachments
+								: undefined,
+						},
+					},
+					{ timeoutMs: 2 * HANDOFF_STAGE_TIMEOUT_MS },
+				);
+				await handoffLifecycle.onRpcResolved(sourceSessionId, {
+					handoffAttemptId,
+					result,
+				});
+			} catch (error) {
+				if (handoffAttemptId) {
+					await handoffLifecycle.onRpcRejected(sourceSessionId, {
+						handoffAttemptId,
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				} else {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				}
+			}
+		},
+		[
+			confirmHandoffGit,
+			config,
+			handoffLifecycle,
+			historySession?.sessionId,
+			isCloudSession,
+			handoffUi?.status,
+			pendingAttachments,
+			promptsInQueue.length,
+			sessionId,
+			setPendingAttachments,
+			setPromptInput,
+			status,
+			onHandoffUiAction,
+		],
+	);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
+			const handoff = parseHandoffCommand(trimmed);
+			if (handoff && cloudAgentsEnabled) {
+				await prepareHandoff(handoff.nextCommand);
+				return;
+			}
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
 			}
@@ -1942,9 +2385,9 @@ function ChatThreadPane({
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
+			const restorePrompt = clearPromptForSend();
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
@@ -1963,10 +2406,12 @@ function ChatThreadPane({
 			isNewThread,
 			onThreadStarted,
 			pendingAttachments,
+			prepareHandoff,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
 			threadId,
+			cloudAgentsEnabled,
 			workIn,
 		],
 	);
@@ -2348,6 +2793,27 @@ function ChatThreadPane({
 		(prompt: string) => void handleSend(prompt),
 		[handleSend],
 	);
+	const handleOpenHandoffProgressLink = useCallback(() => {
+		if (!handoffUi || !("dashboardUrl" in handoffUi) || !handoffUi.dashboardUrl)
+			return;
+		const { dashboardUrl, sessionId: targetSessionId } = handoffUi;
+		void (async () => {
+			if (cloudAgentsEnabled && targetSessionId && onOpenSessionById) {
+				const opened = await onOpenSessionById(targetSessionId, {
+					silent: true,
+					expectedActiveThreadId: threadId,
+				});
+				if (!opened || opened.opened) return;
+			}
+			await openExternalUrl(dashboardUrl);
+		})().catch(() =>
+			toast({
+				title: "Unable to open the browser",
+				description: `Open the cloud task: ${dashboardUrl}`,
+				variant: "destructive",
+			}),
+		);
+	}, [handoffUi, cloudAgentsEnabled, onOpenSessionById, threadId]);
 
 	const firstUserMessage = messages.find(
 		(message) => message.role === "user",
@@ -2436,7 +2902,7 @@ function ChatThreadPane({
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
 		async (agentSessionId: string) => {
-			await onOpenSessionById?.(agentSessionId, environmentId);
+			await onOpenSessionById?.(agentSessionId, { environmentId });
 		},
 		[environmentId, onOpenSessionById],
 	);
@@ -2540,11 +3006,12 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = (
+	const chatComposer = (
 		<ChatInputBar
 			sessionId={sessionId}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
+			cloudHandoffAvailable={cloudAgentsEnabled}
 			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
@@ -2579,6 +3046,21 @@ function ChatThreadPane({
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
+	);
+	const composer = (
+		<div className="w-full">
+			{handoffUi && sourceSessionId && (
+				<CloudHandoffStatus
+					state={handoffUi}
+					onOpenCloud={handleOpenHandoffProgressLink}
+					onRestoreDraft={handleRestoreHandoffDraft}
+					onDismiss={() =>
+						onHandoffUiAction({ type: "dismiss", sourceSessionId })
+					}
+				/>
+			)}
+			{chatComposer}
+		</div>
 	);
 
 	const cloudConnectUrl =
@@ -2615,7 +3097,9 @@ function ChatThreadPane({
 								onOpenAgentSession={onOpenAgentSession}
 								onOpenParentSession={onOpenAgentSession}
 								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={Boolean(activeSessionForTitle)}
+								canEditTitle={
+									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
+								}
 								canDeleteSession={Boolean(activeSessionToDelete)}
 								deletingSession={deletingSession}
 								diff={isCloudSession ? undefined : headerDiff}
@@ -2716,7 +3200,13 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={
+						onOpenSessionById
+							? async (sessionId) => {
+									await onOpenSessionById(sessionId);
+								}
+							: undefined
+					}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

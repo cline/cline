@@ -16,6 +16,7 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	initialAttachments?: File[];
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -45,6 +46,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			session: SessionHistoryItem;
 			environmentId: string;
 			initialPromptDraft?: string;
+			initialAttachments?: File[];
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
@@ -197,6 +199,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 											environmentId: action.environmentId,
 										},
 										initialPromptDraft: action.initialPromptDraft,
+										initialAttachments: action.initialAttachments,
 									}
 								: thread,
 						)
@@ -211,12 +214,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 									environmentId: action.environmentId,
 								},
 								initialPromptDraft: action.initialPromptDraft,
+								initialAttachments: action.initialAttachments,
 							},
 						];
 			return {
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
-					type: "navigate",
+					type:
+						state.navigation.current.view === "chat" &&
+						state.navigation.current.activeThreadId === threadId
+							? "replace"
+							: "navigate",
 					destination: {
 						...state.navigation.current,
 						activeThreadId: threadId,
@@ -230,8 +238,13 @@ export function desktopAppReducer<SettingsSection extends string>(
 				...state,
 				threads: state.threads.map((thread) =>
 					thread.id === action.threadId &&
-					thread.initialPromptDraft !== undefined
-						? { ...thread, initialPromptDraft: undefined }
+					(thread.initialPromptDraft !== undefined ||
+						thread.initialAttachments !== undefined)
+						? {
+								...thread,
+								initialPromptDraft: undefined,
+								initialAttachments: undefined,
+							}
 						: thread,
 				),
 			};

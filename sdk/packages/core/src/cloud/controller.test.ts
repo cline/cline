@@ -1029,6 +1029,128 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
+	it.each([
+		false,
+		true,
+	])("holds follow-ups behind the initial prompt (rejected: %s)", async (rejected) => {
+		const f = fixture();
+		let release!: () => void;
+		let entered!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const original = f.command.getMockImplementation()!;
+		let attaches = 0;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.attach" && ++attaches === 2) {
+				entered();
+				await gate;
+				if (rejected) throw new Error("Initial attachment failed");
+			}
+			return original(...args);
+		});
+		try {
+			const creating = f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialMessage: { text: "INITIAL SUMMARY" },
+			});
+			await blocked;
+			const following = f.controller.send(record.id, "FOLLOW UP", "queue");
+			const outcome = following.then(
+				() => "sent",
+				() => "rejected",
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+			release();
+			const created = await creating;
+			expect(created.initialSend).toMatchObject(
+				rejected ? { dispatched: false } : { ok: true },
+			);
+			expect(await outcome).toBe(rejected ? "rejected" : "sent");
+			expect(
+				f.commands
+					.filter((entry) => entry.command === "session.send_input")
+					.map((entry) => entry.payload),
+			).toEqual(
+				rejected
+					? []
+					: [
+							{ prompt: "INITIAL SUMMARY", delivery: "queue" },
+							{ prompt: "FOLLOW UP", delivery: "queue" },
+						],
+			);
+			if (rejected) {
+				await f.controller.send(record.id, "Explicit retry", "queue");
+				expect(
+					f.commands.filter((entry) => entry.command === "session.send_input"),
+				).toHaveLength(1);
+			}
+		} finally {
+			release();
+			await f.controller.dispose();
+		}
+	});
+	it("keeps initialPrompt metadata without submitting a message", async () => {
+		const f = fixture();
+		try {
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialPrompt: "Draft metadata",
+			});
+			expect(result.sessionId).toBe(record.id);
+			expect(result).not.toHaveProperty("initialSend");
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBe(
+				"Draft metadata",
+			);
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("creates and sends one initial prompt with images without a second caller action", async () => {
+		const f = fixture();
+		try {
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				branch: "qa/summary",
+				modelId: "model",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["data:image/png;base64,aW1hZ2U="],
+				},
+			});
+			expect(result).toMatchObject({
+				sessionId: record.id,
+				branch: "qa/summary",
+				initialSend: { ok: true, sessionId: record.id },
+			});
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([
+				{
+					command: "session.send_input",
+					sessionId: "inner",
+					payload: {
+						prompt: "Summary and next instruction",
+						delivery: "queue",
+						attachments: { userImages: ["data:image/png;base64,aW1hZ2U="] },
+					},
+				},
+			]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("prevents dispatch if beforeDispatch throws", async () => {
 		const f = await attached();
 		const previousTitle = f.controller.getSnapshot(record.id)?.title;
@@ -1374,9 +1496,10 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 	it.each([
-		"preserve",
-		"delete",
-	] as const)("uses explicit %s policy for a POST completing after disposal", async (policy) => {
+		["preserve", false],
+		["delete", false],
+		["preserve", true],
+	] as const)("uses explicit %s policy for creation after disposal (initial message: %s)", async (policy, withMessage) => {
 		let resolve!: (value: {
 			sessionId: string;
 			status: string;
@@ -1398,6 +1521,8 @@ describe("CloudSessionController neutral host contract", () => {
 				requestId: "request",
 				modelId: "model",
 				repoUrl: record.repoContext.repoUrl!,
+				initialPrompt: "Continue",
+				...(withMessage ? { initialMessage: { text: "Continue" } } : {}),
 			})
 			.catch((error) => error);
 		await vi.waitFor(() => expect(f.api.create).toHaveBeenCalledOnce());
@@ -1411,6 +1536,9 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(await creating).toBeInstanceOf(Error);
 		expect(f.api.delete).toHaveBeenCalledTimes(policy === "delete" ? 1 : 0);
 		expect(f.controller.getSnapshot(record.id)).toBeUndefined();
+		expect(
+			f.commands.some((entry) => entry.command === "session.send_input"),
+		).toBe(false);
 	});
 	it.each([
 		["persist", true],

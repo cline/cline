@@ -2,7 +2,6 @@ import {
 	type CloudCreationOptions,
 	type CloudHubConnection,
 	type CloudSessionEvent,
-	type CreateCloudSessionInput,
 	HubCloudSessionClient,
 } from "@cline/core/cloud";
 import {
@@ -31,12 +30,6 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		super(connect ?? (() => ensureSharedHubClient(owner)));
 		this.ctx = getEnvironmentContext(owner, LOCAL_ENVIRONMENT_ID);
 		this.subscribe((event) => this.project(event));
-	}
-	override async create(input: Omit<CreateCloudSessionInput, "handoff">) {
-		return await super.create({
-			...input,
-			sandboxType: input.sandboxType ?? "resumable",
-		});
 	}
 	override async listForDiscovery(
 		options: { timeoutMs?: number } = {},
