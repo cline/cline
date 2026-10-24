@@ -28,6 +28,11 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { NodeHubClient } from "../../hub/client";
+import { createLocalHubScheduleRuntimeHandlers } from "../../hub/daemon/runtime-handlers";
+import { createInMemoryHubOwnerContext } from "../../hub/discovery";
+import { HubRuntimeHost } from "../../hub/runtime-host/hub-runtime-host";
+import { startHubWebSocketServer } from "../../hub/server/hub-websocket-server";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -39,6 +44,7 @@ import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
+import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
@@ -219,6 +225,252 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("preserves Hub detach-and-create rebuilds while resume leaves a live owner intact", async () => {
+		const runtime = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+		const server = await startHubWebSocketServer({
+			owner: createInMemoryHubOwnerContext("hub-rebuild-test"),
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			workspaceRoot: isolatedHomeDir,
+			sessionHost: runtime,
+			eventLog: false,
+			runQueue: false,
+			scheduleOptions: { dbPath: ":memory:" },
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: {
+				dbPath: join(isolatedHomeDir, "tasks.db"),
+				globalSpecsDir: join(isolatedHomeDir, "specs"),
+				watchFiles: false,
+			},
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		const hub = new HubRuntimeHost({
+			url: server.url,
+			authToken: server.authToken,
+		});
+		const observer = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+		});
+		const input: StartSessionInput = {
+			config: createConfig({
+				sessionId: "hub-rebuild",
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [] },
+			interactive: true,
+			initialMessages: [{ role: "user", content: "saved conversation" }],
+		};
+		try {
+			await hub.startSession(input);
+			const before = await observer.command("session.get", {
+				sessionId: "hub-rebuild",
+			});
+			expect(before.payload?.session).toMatchObject({
+				sessionId: "hub-rebuild",
+				createdByClientId: expect.any(String),
+			});
+			await expect(
+				observer.command("session.resume", { sessionConfig: input.config }),
+			).rejects.toMatchObject({ code: "session_already_exists" });
+			const after = await observer.command("session.get", {
+				sessionId: "hub-rebuild",
+			});
+			expect(after.payload?.session).toEqual(before.payload?.session);
+			await hub.stopSession("hub-rebuild");
+			await expect(
+				runtime.updateSessionConnection("hub-rebuild", {}),
+			).resolves.toBeUndefined();
+			await expect(
+				hub.startSession({
+					...input,
+					config: {
+						...input.config,
+						providerId: "anthropic",
+						modelId: "claude-sonnet-4-5",
+					},
+				}),
+			).resolves.toMatchObject({ sessionId: "hub-rebuild" });
+			expect(await runtime.getSession("hub-rebuild")).toMatchObject({
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+			});
+			expect(
+				await runtime.readLiveSessionMessages("hub-rebuild"),
+			).toMatchObject([{ role: "user", content: "saved conversation" }]);
+		} finally {
+			await observer.dispose();
+			await hub.dispose();
+			await server.close();
+		}
+	});
+
+	it("rejects concurrent and resident resume starts without replacing the requested session", async () => {
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+		const input: StartSessionInput = {
+			config: createConfig({
+				sessionId: "same-id",
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [], rejectExistingSession: true },
+			interactive: true,
+			initialMessages: [{ role: "user", content: "original conversation" }],
+		};
+		try {
+			const results = await Promise.allSettled([
+				manager.startSession(input),
+				manager.startSession({
+					...input,
+					initialMessages: [{ role: "user", content: "replacement" }],
+				}),
+				manager.startSession(input),
+			]);
+			expect(results.map((result) => result.status)).toEqual([
+				"fulfilled",
+				"rejected",
+				"rejected",
+			]);
+			for (const result of results.slice(1)) {
+				expect(result).toMatchObject({
+					reason: { code: "session_already_exists" },
+				});
+			}
+			await expect(manager.startSession(input)).rejects.toMatchObject({
+				code: "session_already_exists",
+			});
+			expect(await manager.readLiveSessionMessages("same-id")).toMatchObject([
+				{ role: "user", content: "original conversation" },
+			]);
+			await manager.stopSession("same-id");
+			await expect(manager.startSession(input)).resolves.toMatchObject({
+				sessionId: "same-id",
+			});
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it("releases startup admission before the initial prompt finishes", async () => {
+		let releaseTurn: (() => void) | undefined;
+		const turnResult = new Promise<AgentResult>((resolve) => {
+			releaseTurn = () => resolve(createResult());
+		});
+		const run = vi
+			.spyOn(SessionRuntime.prototype, "run")
+			.mockImplementationOnce(() => turnResult);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+		const input: StartSessionInput = {
+			config: createConfig({
+				sessionId: "initial-prompt",
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [] },
+			interactive: true,
+		};
+		const first = manager.startSession({ ...input, prompt: "held prompt" });
+		try {
+			await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+			let conflict: unknown;
+			const resume = manager
+				.startSession({
+					...input,
+					localRuntime: { ...input.localRuntime, rejectExistingSession: true },
+				})
+				.catch((error: unknown) => {
+					conflict = error;
+				});
+			await vi.waitFor(() =>
+				expect(conflict).toMatchObject({ code: "session_already_exists" }),
+			);
+			await resume;
+			let rebuilt = false;
+			const replacement = manager.startSession(input).then((result) => {
+				rebuilt = true;
+				return result;
+			});
+			await vi.waitFor(() => expect(rebuilt).toBe(true));
+			await expect(replacement).resolves.toMatchObject({
+				sessionId: "initial-prompt",
+			});
+		} finally {
+			releaseTurn?.();
+			await first;
+			run.mockRestore();
+			await manager.dispose();
+		}
+	});
+
+	it("allows a waiting start to retry after initialization fails", async () => {
+		const service = new FileSessionService(join(isolatedHomeDir, "sessions"));
+		vi.spyOn(service, "ensureSessionsDir").mockImplementationOnce(() => {
+			throw new Error("initialization failed");
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: service,
+		});
+		const input: StartSessionInput = {
+			config: createConfig({
+				sessionId: "retry-id",
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [], rejectExistingSession: true },
+			interactive: true,
+		};
+		try {
+			const results = await Promise.allSettled([
+				manager.startSession(input),
+				manager.startSession(input),
+				manager.startSession(input),
+			]);
+			expect(results[0]).toMatchObject({
+				status: "rejected",
+				reason: { message: "initialization failed" },
+			});
+			expect(results[1]).toMatchObject({
+				status: "fulfilled",
+				value: { sessionId: "retry-id" },
+			});
+			expect(results[2]).toMatchObject({
+				status: "rejected",
+				reason: { code: "session_already_exists" },
+			});
+		} finally {
+			await manager.dispose();
 		}
 	});
 

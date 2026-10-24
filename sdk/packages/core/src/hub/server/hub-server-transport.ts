@@ -30,6 +30,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import { SessionAlreadyExistsError } from "../../runtime/host/runtime-host";
 import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
@@ -828,6 +829,9 @@ export class HubServerTransport implements NativeHubTransport {
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
+			if (error instanceof SessionAlreadyExistsError) {
+				return errorReply(envelope, error.code, error.message);
+			}
 			captureSdkError(this.options.telemetry, {
 				component: "core",
 				operation: "hub.command",
@@ -912,6 +916,7 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 			case "client.list":
 				return handleClientList(this.ctx, envelope);
+			case "session.resume":
 			case "session.create":
 				return await handleSessionCreate(
 					this.ctx,

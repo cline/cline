@@ -92,6 +92,14 @@ host presentation.
 
 `createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
 
+## Starting a runtime from saved Hub history
+
+`session.resume` loads a saved conversation on the Hub, avoiding a history download and re-upload through `session.create`. Its `sessionConfig` must include nonblank `sessionId`, `providerId`, and `modelId`, a `mode` (`act`, `plan`, `yolo`, or `zen`), and a string `systemPrompt` (empty selects the default prompt). It rejects incomplete configuration with `invalid_resume` before starting a runtime. Supplied history and compaction state are not accepted.
+
+The caller owns execution configuration. Other options follow `session.create` defaults, including enabled tools/spawn/teams and disabled checkpointing; callers must supply saved overrides they want to preserve. This operation does not recover credentials or reconstruct execution settings from disk. Stored history, workspace paths when omitted, and saved compaction state use the existing same-ID initialization path.
+
+Resume rejects missing or empty saved history before admission. Otherwise a local resident runtime returns `session_already_exists`; callers can attach to it rather than recreate it. `HubRuntimeHost` and `RemoteRuntimeHost` cannot enforce guarded starts and reject them without forwarding `session.create`. An older Hub returns `unsupported_command`; only that error permits a client to choose the legacy history-transfer flow, which lacks the new atomic nonreplacement guarantee.
+
 ## Cloud sessions (experimental)
 
 `summarizeConversation({ messages, config, signal? })` from `@cline/core` returns

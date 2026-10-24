@@ -1,3 +1,4 @@
+import type { MessageWithMetadata } from "@cline/llms";
 import type {
 	ClientContext,
 	HubCommandEnvelope,
@@ -13,6 +14,7 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import { z } from "zod";
 import {
 	isCoreBuiltinToolAvailable,
 	resolveToolClientType,
@@ -48,6 +50,14 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+const ResumeSessionConfigSchema = z.object({
+	sessionId: z.string().trim().min(1),
+	providerId: z.string().trim().min(1),
+	modelId: z.string().trim().min(1),
+	mode: z.enum(["act", "plan", "yolo", "zen"]),
+	systemPrompt: z.string(),
+});
 
 function readHubContextString(
 	record: Record<string, unknown> | undefined,
@@ -300,7 +310,7 @@ export async function handleSessionCreate(
 		payload.metadata && typeof payload.metadata === "object"
 			? JSON.parse(JSON.stringify(payload.metadata))
 			: {};
-	const sessionConfig =
+	let sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
 			? (JSON.parse(
 					JSON.stringify(payload.sessionConfig),
@@ -359,6 +369,52 @@ export async function handleSessionCreate(
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
 			: "";
+	let initialMessages = Array.isArray(payload.initialMessages)
+		? (payload.initialMessages as MessageWithMetadata[])
+		: undefined;
+	if (envelope.command === "session.resume") {
+		if (
+			!requestedSessionId ||
+			(envelope.sessionId !== undefined &&
+				envelope.sessionId.trim() !== requestedSessionId) ||
+			(payload.sessionId !== undefined &&
+				payload.sessionId !== requestedSessionId) ||
+			Object.hasOwn(payload, "initialMessages") ||
+			Object.hasOwn(payload, "initialCompactionState")
+		) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"session.resume requires a matching saved session id and no supplied history",
+			);
+		}
+		const resumeConfig = ResumeSessionConfigSchema.safeParse(sessionConfig);
+		if (!resumeConfig.success) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"session.resume requires sessionConfig with sessionId, providerId, modelId, mode, and systemPrompt",
+			);
+		}
+		sessionConfig = { ...sessionConfig, ...resumeConfig.data };
+		if (!(await ctx.sessionHost.getSession(requestedSessionId))) {
+			return errorReply(
+				envelope,
+				"session_not_found",
+				`Unknown session: ${requestedSessionId}`,
+			);
+		}
+		const savedMessages =
+			await ctx.sessionHost.readSessionMessages(requestedSessionId);
+		if (savedMessages.length === 0) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"The saved conversation is empty or unavailable",
+			);
+		}
+		initialMessages = savedMessages;
+	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
@@ -405,11 +461,10 @@ export async function handleSessionCreate(
 			Object.keys(metadata as Record<string, unknown>).length > 0
 				? (metadata as Record<string, unknown>)
 				: undefined,
-		initialMessages: Array.isArray(payload.initialMessages)
-			? (payload.initialMessages as never[])
-			: undefined,
+		initialMessages,
 		initialCompactionState,
 		localRuntime: {
+			rejectExistingSession: envelope.command === "session.resume",
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
 				loadPrivateOnAuth: true,

@@ -876,6 +876,11 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		if (input.localRuntime?.rejectExistingSession) {
+			throw new Error(
+				"HubRuntimeHost cannot guarantee a guarded session start",
+			);
+		}
 		const capabilities = this.resolveCapabilities(input);
 		const clientContributions = buildClientContributionRegistration(
 			input.localRuntime,
