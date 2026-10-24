@@ -15,6 +15,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["sync", "time"] }
+portable-pty = "0.9"
 # gtk3 instead of the default xdg-portal backend on Linux: the portal needs a
 # D-Bus session and an xdg-desktop-portal backend, and when either is missing
 # pick_folder() returns None, which the app reads as "cancelled". The app is a
@@ -26,6 +27,10 @@ rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
 # Already in the graph through notify-rust; used to ask the session bus
 # whether a StatusNotifier host exists (see linux_tray.rs).
 zbus = "5"
+
+[target."cfg(windows)".dependencies]
+# Same version portable-pty already pulls in; reads the Windows build number.
+winreg = "0.10"
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"

@@ -81,7 +81,6 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-import { PullRequestBar } from "./pull-request-bar";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -1216,7 +1215,6 @@ function ChatInputBarImpl({
 			variant={variant}
 		>
 			{/* Input area */}
-			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
