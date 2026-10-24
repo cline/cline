@@ -253,6 +253,35 @@ describe("parseArgs", () => {
 		expect(parsed.retries).toBeUndefined();
 		expect(parsed.invalidRetries).toBe("0");
 	});
+
+	it.each([
+		"10m",
+		"1.5",
+		"1e3",
+		"+1",
+		"   ",
+		"0",
+		"9007199254740993",
+	])("rejects --timeout %j instead of reading a numeric prefix", (value) => {
+		const parsed = parseArgs(["--timeout", value]);
+
+		expect(parsed.timeoutSeconds).toBeUndefined();
+		expect(parsed.invalidTimeoutSeconds).toBeDefined();
+	});
+
+	it.each([
+		"3x",
+		"1.5",
+		"1e3",
+		"+1",
+		"   ",
+		"9007199254740993",
+	])("rejects --retries %j instead of reading a numeric prefix", (value) => {
+		const parsed = parseArgs(["--retries", value]);
+
+		expect(parsed.retries).toBeUndefined();
+		expect(parsed.invalidRetries).toBeDefined();
+	});
 });
 
 describe("format helpers", () => {

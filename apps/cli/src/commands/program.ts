@@ -1,6 +1,7 @@
 import { Command, CommanderError, Option } from "commander";
 import { version } from "../../package.json";
 import { CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES } from "../runtime/defaults";
+import { parsePositiveInteger } from "../utils/common";
 import {
 	CLI_COMPACTION_MODE_OPTION_DESCRIPTION,
 	parseCliCompactionMode,
@@ -162,12 +163,11 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	// Timeout validation
 	if (opts.timeout !== undefined) {
-		const raw = opts.timeout.trim();
-		const parsed = Number.parseInt(raw, 10);
-		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+		const parsed = parsePositiveInteger(opts.timeout);
+		if (parsed !== undefined) {
 			result.timeoutSeconds = parsed;
-		} else if (raw) {
-			result.invalidTimeoutSeconds = raw;
+		} else {
+			result.invalidTimeoutSeconds = opts.timeout.trim() || opts.timeout;
 		}
 	}
 
@@ -205,12 +205,11 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	// Retries (max consecutive mistakes) validation
 	if (opts.retries !== undefined) {
-		const raw = opts.retries.trim();
-		const parsed = Number.parseInt(raw, 10);
-		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+		const parsed = parsePositiveInteger(opts.retries);
+		if (parsed !== undefined) {
 			result.retries = parsed;
-		} else if (raw) {
-			result.invalidRetries = raw;
+		} else {
+			result.invalidRetries = opts.retries.trim() || opts.retries;
 		}
 	}
 
