@@ -91,7 +91,22 @@ export const ollamaBackend: LocalRuntimeBackend = {
 				: install.kind === "windows-app"
 					? spawnDetached(install.path, [])
 					: spawnDetached(install.path, ["serve"], serveEnv);
-		return await waitUntilReachable(ollamaBackend, 20_000, spawnError);
+		const reachable = await waitUntilReachable(
+			ollamaBackend,
+			20_000,
+			spawnError,
+		);
+		if (
+			!reachable &&
+			install.kind !== "cli" &&
+			new URL(readHost()).port !==
+				new URL(LOCAL_RUNTIMES.ollama.defaultBaseUrl).port
+		) {
+			throw new Error(
+				`The Ollama app didn't start on ${serveEnv.OLLAMA_HOST}. It uses its own address setting, so set OLLAMA_HOST for the app or run \`ollama serve\` yourself.`,
+			);
+		}
+		return reachable;
 	},
 
 	async readModels() {
