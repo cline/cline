@@ -55,7 +55,9 @@ const REFRESH_DEBOUNCE_MS = 400;
  * Last-turn and whole-session changes for a local session, refetched whenever
  * `refreshKey` changes (tool edits and turn boundaries). Errors, such as an
  * untrusted connection, read as unavailable so hosts fall back to the
- * tool-event reconstruction.
+ * tool-event reconstruction. `current` is false until the fetch for the
+ * latest `refreshKey` lands, so hosts can hold back views that must not show
+ * the previous turn's changes.
  */
 export function useSessionChanges({
 	enabled,
@@ -69,18 +71,20 @@ export function useSessionChanges({
 	sessionId: string | null;
 	cwd: string;
 	refreshKey: string;
-}): SessionChanges | null {
-	const [changes, setChanges] = useState<SessionChanges | null>(null);
+}): { changes: SessionChanges | null; current: boolean } {
+	const [result, setResult] = useState<{
+		key: string;
+		changes: SessionChanges;
+	} | null>(null);
 	const requestRef = useRef(0);
 
 	// A different session never shows the previous one's changes.
 	useEffect(() => {
 		void sessionId;
 		void cwd;
-		setChanges(null);
+		setResult(null);
 	}, [sessionId, cwd]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is a reload signal.
 	useEffect(() => {
 		if (!enabled || !sessionId || !cwd) return;
 		const request = ++requestRef.current;
@@ -96,11 +100,16 @@ export function useSessionChanges({
 						error instanceof Error ? error.message : String(error),
 				}))
 				.then((next) => {
-					if (request === requestRef.current) setChanges(next);
+					if (request === requestRef.current) {
+						setResult({ key: refreshKey, changes: next });
+					}
 				});
 		}, REFRESH_DEBOUNCE_MS);
 		return () => window.clearTimeout(timer);
 	}, [enabled, environmentId, sessionId, cwd, refreshKey]);
 
-	return changes;
+	return {
+		changes: result?.changes ?? null,
+		current: result?.key === refreshKey,
+	};
 }

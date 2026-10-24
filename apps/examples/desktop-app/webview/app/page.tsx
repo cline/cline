@@ -2687,14 +2687,21 @@ function ChatThreadPane({
 		}
 	}, [mayBrowseFiles]);
 
-	const sessionChanges = useSessionChanges({
-		enabled: mayBrowseFiles,
-		environmentId,
-		sessionId,
-		cwd: config.cwd || resolvedWorkspaceRoot,
-		// Tool edits and turn boundaries both move the working tree.
-		refreshKey: `${status}:${fileDiffs.length}:${summary.additions}:${summary.deletions}`,
-	});
+	const toolMessageCount = useMemo(
+		() => messages.filter((message) => message.role === "tool").length,
+		[messages],
+	);
+	const { changes: sessionChanges, current: sessionChangesCurrent } =
+		useSessionChanges({
+			enabled: mayBrowseFiles,
+			environmentId,
+			sessionId,
+			cwd: config.cwd || resolvedWorkspaceRoot,
+			// Tool calls and turn boundaries both move the working tree. Counting
+			// tool messages catches edits mid-turn; the tool-event diff only
+			// refreshes when a turn ends.
+			refreshKey: `${status}:${toolMessageCount}`,
+		});
 	// Git checkpoints when the workspace has them, otherwise the tool-event
 	// reconstruction.
 	const headerDiff = useMemo(
@@ -2881,7 +2888,9 @@ function ChatThreadPane({
 								}
 								onFixCredentials={handleFixCredentials}
 								lastTurnChanges={
-									canBrowseFiles ? sessionChanges?.lastTurn : undefined
+									canBrowseFiles && sessionChangesCurrent
+										? sessionChanges?.lastTurn
+										: undefined
 								}
 								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
 								pendingToolApprovals={pendingToolApprovals}

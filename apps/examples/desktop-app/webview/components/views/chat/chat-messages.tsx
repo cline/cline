@@ -93,8 +93,11 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	/** Opens the settings page that fixes a credential failure. */
 	onFixCredentials?: (target: "account" | "models") => void;
-	/** What the last turn changed; drives the receipt under it. */
-	lastTurnChanges?: SessionChangeSet & { runCount: number };
+	/**
+	 * What the last turn changed, fetched after the turn's latest activity;
+	 * drives the receipt under it.
+	 */
+	lastTurnChanges?: SessionChangeSet;
 	onReviewLastTurn?: (path?: string) => void;
 };
 
@@ -281,13 +284,11 @@ function ChatMessagesImpl({
 		() => buildUserRunCountMap(messages),
 		[messages],
 	);
-	// Shown only once the latest turn finishes, and only while those changes
-	// belong to it: sending the next message starts a new turn and drops it.
+	// Shown only once the latest turn finishes; sending the next message
+	// starts a new turn, which hides it until that turn's changes arrive.
 	const showLastTurnReceipt =
 		Boolean(onReviewLastTurn) &&
 		(lastTurnChanges?.files.length ?? 0) > 0 &&
-		lastTurnChanges?.runCount ===
-			Math.max(0, ...userRunCountByMessage.values()) &&
 		status !== "starting" &&
 		status !== "running" &&
 		status !== "stopping";

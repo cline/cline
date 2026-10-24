@@ -2653,7 +2653,6 @@ describe("ChatMessages last turn receipt", () => {
 		message("a2", "assistant", "second answer"),
 	];
 	const lastTurnChanges = {
-		runCount: 2,
 		files: [
 			{ path: "docs/b.md", status: "A" as const, additions: 5, deletions: 0 },
 		],
@@ -2682,17 +2681,11 @@ describe("ChatMessages last turn receipt", () => {
 		expect(onReviewLastTurn).toHaveBeenCalledWith("docs/b.md");
 	});
 
-	it("hides while a turn runs and once the next message starts a new turn", async () => {
+	it("hides while a turn runs", async () => {
 		await renderMessages(transcript, {
 			lastTurnChanges,
 			onReviewLastTurn: vi.fn(),
 			status: "running",
-		});
-		expect(receipts()).toHaveLength(0);
-		// The next message was sent; the changes still describe turn 2.
-		await renderMessages([...transcript, message("u3", "user", "third ask")], {
-			lastTurnChanges,
-			onReviewLastTurn: vi.fn(),
 		});
 		expect(receipts()).toHaveLength(0);
 	});
