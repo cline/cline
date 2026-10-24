@@ -3738,6 +3738,969 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	function createAbortedSessionFixture(sessionId: string) {
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((_resolve, reject) => {
+				rejectRun = (error: Error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "woken result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn().mockImplementation(() => {
+				rejectRun?.(new Error("aborted by user"));
+			}),
+			notifyPendingUserMessage: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		return { manager, agent, runStarted, sentPrompts };
+	}
+
+	it("wakes an idle session that was stopped by the user when a steer arrives", async () => {
+		const sessionId = "sess-steer-wakes-aborted-session";
+		const { manager, runStarted, sentPrompts } =
+			createAbortedSessionFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.abort(sessionId);
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(await manager.getSession(sessionId)).toMatchObject({
+			status: "idle",
+		});
+
+		// A plugin or connector steering a session the user stopped must start
+		// a turn in it rather than sit in the queue waiting for one.
+		await manager.runTurn({
+			sessionId,
+			prompt: "wake up",
+			delivery: "steer",
+		});
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">wake up</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("keeps a steer sent while the user's stop is settling and runs it afterwards", async () => {
+		const sessionId = "sess-steer-during-abort-window";
+		const { manager, runStarted, sentPrompts } =
+			createAbortedSessionFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		// abort() flags the session before the rejected run has settled;
+		// the steer lands inside that window.
+		const aborting = manager.abort(sessionId);
+		await manager.runTurn({
+			sessionId,
+			prompt: "steer during abort",
+			delivery: "steer",
+		});
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((p) => p.prompt),
+		).toEqual(["steer during abort"]);
+		await aborting;
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">steer during abort</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("drops queued prompts when a session is stopped mid-turn, even if shutdown is slow", async () => {
+		const sessionId = "sess-stop-drops-queued-prompts";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((_resolve, reject) => {
+				rejectRun = (error: Error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "drained result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn().mockImplementation(() => {
+				rejectRun?.(new Error("aborted by stop"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			// Slower than the aborted turn takes to settle, so the session is
+			// still registered and idle when the abort path schedules a drain.
+			shutdown: vi.fn(
+				() => new Promise<void>((resolve) => setTimeout(resolve, 20)),
+			),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const submitted: string[] = [];
+		let lastQueueSnapshot: string[] | undefined;
+		let discarded: string[] | undefined;
+		manager.subscribe((event) => {
+			if (event.type === "pending_prompt_submitted") {
+				submitted.push(event.payload.prompt);
+			}
+			if (event.type === "pending_prompts") {
+				lastQueueSnapshot = event.payload.prompts.map((p) => p.prompt);
+				if (event.payload.discarded) {
+					discarded = event.payload.discarded.map((p) => p.prompt);
+				}
+			}
+		});
+		const capture = vi.fn();
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, telemetry: { capture } as never }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued before stop",
+			delivery: "queue",
+		});
+
+		const stopping = manager.stopSession(sessionId);
+		// A prompt sent while teardown is in progress is refused, whatever its
+		// delivery, so the caller can report the loss instead of showing it
+		// as queued.
+		for (const delivery of ["queue", "steer"] as const) {
+			await expect(
+				manager.runTurn({
+					sessionId,
+					prompt: `${delivery} during stop`,
+					delivery,
+				}),
+			).rejects.toThrow("is shutting down");
+		}
+		await stopping;
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 40));
+
+		expect(sentPrompts).toHaveLength(1);
+		expect(submitted).toEqual([]);
+		expect(lastQueueSnapshot).toEqual([]);
+		// The discard is observable: the entries ride on the snapshot that
+		// empties the queue, and telemetry counts them.
+		expect(discarded).toEqual(["queued before stop"]);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.SESSION.PENDING_PROMPTS_DISCARDED,
+				properties: expect.objectContaining({
+					sessionId,
+					count: 1,
+					reason: "session_teardown",
+				}),
+			}),
+		);
+		const statuses = sessionService.updateSessionStatus.mock.calls.map(
+			(call) => call[1],
+		);
+		expect(statuses).toEqual(["running", "cancelled"]);
+	});
+
+	it("does not start a drained prompt whose turn was still preparing when the session was stopped", async () => {
+		const sessionId = "sess-stop-during-drained-turn-prep";
+		const manifest = createManifest(sessionId);
+		let holdNextRunningStatus = false;
+		let releaseRunningStatus: (() => void) | undefined;
+		let markRunningStatusHeld: (() => void) | undefined;
+		const runningStatusHeld = new Promise<void>((resolve) => {
+			markRunningStatusHeld = resolve;
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn(async (_sessionId: string, status: string) => {
+				// Park the drained turn inside executeTurn, after it passed the
+				// queue but before it reached the agent.
+				if (status === "running" && holdNextRunningStatus) {
+					holdNextRunningStatus = false;
+					markRunningStatusHeld?.();
+					await new Promise<void>((resolve) => {
+						releaseRunningStatus = resolve;
+					});
+				}
+				return { updated: true, endedAt: "2026-01-01T00:00:05.000Z" };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((_resolve, reject) => {
+				rejectRun = (error: Error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "drained result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn().mockImplementation(() => {
+				rejectRun?.(new Error("aborted by user"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		let endedEvents = 0;
+		const submitted: string[] = [];
+		const discarded: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "ended") endedEvents += 1;
+			if (event.type === "pending_prompt_submitted") {
+				submitted.push(event.payload.prompt);
+			}
+			if (event.type === "pending_prompts" && event.payload.discarded) {
+				discarded.push(...event.payload.discarded.map((p) => p.prompt));
+			}
+		});
+		const capture = vi.fn();
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, telemetry: { capture } as never }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "drained before stop",
+			delivery: "queue",
+		});
+		holdNextRunningStatus = true;
+		await manager.abort(sessionId);
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		await runningStatusHeld;
+
+		const stopping = manager.stopSession(sessionId);
+		// Teardown must wait for the in-flight running write: the persistence
+		// layer retries a write whose status lock went stale, so a cancelled
+		// written underneath it would be overwritten with running.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		expect(statuses()).toEqual(["running", "idle", "running"]);
+		releaseRunningStatus?.();
+		await stopping;
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(sentPrompts).toHaveLength(1);
+		expect(endedEvents).toBe(1);
+		expect(statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		// The drain had already announced the prompt as submitted; the client
+		// must learn that it never reached the agent.
+		expect(submitted).toEqual(["drained before stop"]);
+		expect(discarded).toEqual(["drained before stop"]);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.SESSION.PENDING_PROMPTS_DISCARDED,
+				properties: expect.objectContaining({
+					count: 1,
+					reason: "session_teardown",
+				}),
+			}),
+		);
+	});
+
+	function createOneShotStopFixture(
+		sessionId: string,
+		options: { abortSettlesRun: boolean } = { abortSettlesRun: true },
+	) {
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let settleRun: ((result: AgentResult) => void) | undefined;
+		let failRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const startRun = vi.fn().mockImplementation(() => {
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve, reject) => {
+				settleRun = (result) => {
+					activeRun = false;
+					resolve(result);
+				};
+				failRun = (error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const agent = {
+			run: startRun,
+			continue: startRun,
+			// The runtime resolves an aborted run with an "aborted" finish.
+			abort: vi.fn().mockImplementation(() => {
+				if (options.abortSettlesRun) {
+					settleRun?.(createResult({ finishReason: "aborted" }));
+				}
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn(
+				() => new Promise<void>((resolve) => setTimeout(resolve, 20)),
+			),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const endReasons: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "ended") endReasons.push(event.payload.reason);
+		});
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		return {
+			manager,
+			agent,
+			runStarted,
+			endReasons,
+			statuses,
+			failRun: (error: Error) => failRun?.(error),
+		};
+	}
+
+	it("lets teardown own a one-shot session whose start turn is stopped", async () => {
+		const sessionId = "sess-stop-one-shot-start";
+		const { manager, agent, runStarted, endReasons, statuses } =
+			createOneShotStopFixture(sessionId);
+
+		const starting = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "one-shot",
+			}),
+		);
+		await runStarted;
+		await manager.stopSession(sessionId);
+
+		// The stop persisted the status and ended the session; the aborted
+		// turn must not run the single-run teardown a second time.
+		await expect(starting).resolves.toMatchObject({
+			sessionId,
+			result: { finishReason: "aborted" },
+		});
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets teardown own a seeded one-shot session whose turn is stopped", async () => {
+		const sessionId = "sess-stop-one-shot-turn";
+		const { manager, agent, runStarted, endReasons, statuses } =
+			createOneShotStopFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				initialMessages: [
+					{ role: "user", content: "seeded" },
+					{ role: "assistant", content: "ok" },
+				] as never,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "continue" });
+		await runStarted;
+		await manager.stopSession(sessionId);
+
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("still reports a one-shot turn that fails on its own while the session is stopping", async () => {
+		const sessionId = "sess-stop-one-shot-independent-failure";
+		const { manager, agent, runStarted, endReasons, statuses, failRun } =
+			createOneShotStopFixture(sessionId, { abortSettlesRun: false });
+
+		const starting = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "one-shot",
+			}),
+		);
+		await runStarted;
+		const stopping = manager.stopSession(sessionId);
+		// Teardown is still awaiting the agent shutdown when the provider
+		// fails. The failure must reach the caller, and must not run a
+		// second teardown that records "failed" over the stop's status.
+		failRun(new Error("provider exploded"));
+		await expect(starting).rejects.toThrow("provider exploded");
+		await stopping;
+
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("still reports a seeded one-shot turn that fails on its own while the session is stopping", async () => {
+		const sessionId = "sess-stop-one-shot-turn-independent-failure";
+		const { manager, agent, runStarted, endReasons, statuses, failRun } =
+			createOneShotStopFixture(sessionId, { abortSettlesRun: false });
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				initialMessages: [
+					{ role: "user", content: "seeded" },
+					{ role: "assistant", content: "ok" },
+				] as never,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "continue" });
+		await runStarted;
+		const stopping = manager.stopSession(sessionId);
+		failRun(new Error("provider exploded"));
+		await expect(turn).rejects.toThrow("provider exploded");
+		await stopping;
+
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	function createPreparingTurnFixture(
+		sessionId: string,
+		options: {
+			holdRowCreation?: boolean;
+			holdSecondRunningWrite?: boolean;
+			holdFirstRunningWrite?: boolean;
+			resumedStatus?: "completed";
+		} = {},
+	) {
+		const manifest = {
+			...createManifest(sessionId),
+			...(options.resumedStatus
+				? { status: options.resumedStatus, interactive: true }
+				: {}),
+		};
+		let releaseHold: (() => void) | undefined;
+		let markHeld: (() => void) | undefined;
+		const held = new Promise<void>((resolve) => {
+			markHeld = resolve;
+		});
+		const hold = () =>
+			new Promise<void>((resolve) => {
+				releaseHold = resolve;
+				markHeld?.();
+			});
+		let runningWrites = 0;
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn(async () => {
+				if (options.holdRowCreation) await hold();
+				return {
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				};
+			}),
+			persistSessionMessages: vi.fn(),
+			...(options.resumedStatus
+				? { readSessionManifest: vi.fn().mockReturnValue(manifest) }
+				: {}),
+			updateSessionStatus: vi.fn(async (_sessionId: string, status: string) => {
+				if (status === "running") {
+					runningWrites += 1;
+					if (
+						(options.holdSecondRunningWrite && runningWrites === 2) ||
+						(options.holdFirstRunningWrite && runningWrites === 1)
+					) {
+						await hold();
+					}
+				}
+				return { updated: true, endedAt: "2026-01-01T00:00:05.000Z" };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult({ text: "first reply" })),
+			continue: vi.fn().mockResolvedValue(createResult({ text: "reply" })),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => true),
+		};
+		const capture = vi.fn();
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const endReasons: string[] = [];
+		const submitted: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "ended") endReasons.push(event.payload.reason);
+			if (event.type === "pending_prompt_submitted") {
+				submitted.push(event.payload.prompt);
+			}
+		});
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		const telemetryEvents = () =>
+			capture.mock.calls.map((call) => (call[0] as { event: string }).event);
+		return {
+			manager,
+			agent,
+			sessionService,
+			capture,
+			held,
+			release: () => releaseHold?.(),
+			endReasons,
+			submitted,
+			statuses,
+			telemetryEvents,
+		};
+	}
+
+	it("records cancelled when a session is stopped while its next turn is still preparing after a completed turn", async () => {
+		const sessionId = "sess-stop-while-next-turn-prepares";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdSecondRunningWrite: true,
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					telemetry: { capture: f.capture } as never,
+				}),
+				interactive: true,
+			}),
+		);
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "first" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+
+		// The second turn is parked in its pre-run status write: the agent has
+		// no run yet, so canStartRun() is still true.
+		const second = f.manager.runTurn({ sessionId, prompt: "second" });
+		await f.held;
+		const stopping = f.manager.stopSession(sessionId);
+		f.release();
+		await stopping;
+		await expect(second).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.telemetryEvents()).not.toContain("task.completed");
+		expect(f.agent.continue).not.toHaveBeenCalled();
+	});
+
+	for (const delivery of [undefined, "queue" as const]) {
+		it(`queues a prompt sent while another turn is still preparing (delivery: ${delivery ?? "default"}) and runs it afterwards`, async () => {
+			const sessionId = `sess-send-during-prep-${delivery ?? "default"}`;
+			const f = createPreparingTurnFixture(sessionId, {
+				holdFirstRunningWrite: true,
+			});
+			await f.manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// Turn A is parked in its pre-run status write: the agent has no run
+			// yet, so a second send must not race it to the agent.
+			const first = f.manager.runTurn({ sessionId, prompt: "first" });
+			await f.held;
+			const second = await f.manager.runTurn({
+				sessionId,
+				prompt: "second",
+				...(delivery ? { delivery } : {}),
+			});
+			expect(second).toBeUndefined();
+			expect(
+				(await f.manager.pendingPrompts.list({ sessionId })).map(
+					(prompt) => prompt.prompt,
+				),
+			).toEqual(["second"]);
+			expect(f.agent.run).not.toHaveBeenCalled();
+			expect(f.agent.continue).not.toHaveBeenCalled();
+			// The drain must leave it alone until A settles: no submitted
+			// announcement, and no bouncing between drain and the queue.
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(f.submitted).toEqual([]);
+
+			f.release();
+			await expect(first).resolves.toMatchObject({ finishReason: "completed" });
+			await vi.waitFor(async () => {
+				expect(f.agent.continue).toHaveBeenCalledTimes(1);
+				expect(await f.manager.pendingPrompts.list({ sessionId })).toEqual([]);
+			});
+			expect(f.agent.run).toHaveBeenCalledTimes(1);
+			expect(f.submitted).toEqual(["second"]);
+		});
+	}
+
+	it("runs a prompt queued behind a session's initial turn once that turn completes", async () => {
+		const sessionId = "sess-queue-behind-initial-turn";
+		// A prompted start begins as running, so the hold is the session row
+		// creation the initial turn performs before it reaches the agent.
+		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
+		// The second prompt arrives while the initial turn is still preparing;
+		// there is no later runTurn to drain it.
+		const starting = f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				prompt: "first",
+			}),
+		);
+		await f.held;
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "second" }),
+		).resolves.toBeUndefined();
+		expect(
+			(await f.manager.pendingPrompts.list({ sessionId })).map(
+				(prompt) => prompt.prompt,
+			),
+		).toEqual(["second"]);
+
+		f.release();
+		await expect(starting).resolves.toMatchObject({
+			result: { finishReason: "completed" },
+		});
+		await vi.waitFor(async () => {
+			expect(f.agent.continue).toHaveBeenCalledTimes(1);
+			expect(await f.manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+		expect(f.submitted).toEqual(["second"]);
+	});
+
+	for (const gesture of ["stopSession", "dispose"] as const) {
+		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
+			const sessionId = `sess-resumed-${gesture}-while-preparing`;
+			const f = createPreparingTurnFixture(sessionId, {
+				holdFirstRunningWrite: true,
+				resumedStatus: "completed",
+			});
+			await f.manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						telemetry: { capture: f.capture } as never,
+					}),
+					interactive: true,
+					initialMessages: [
+						{ role: "user", content: "earlier" },
+						{ role: "assistant", content: "done" },
+					] as never,
+				}),
+			);
+			expect(await f.manager.getSession(sessionId)).toMatchObject({
+				status: "completed",
+			});
+
+			// The follow-up is parked in its running write while the manifest
+			// status still reads completed from before the resume.
+			const followUp = f.manager.runTurn({ sessionId, prompt: "follow-up" });
+			await f.held;
+			const ending =
+				gesture === "dispose"
+					? f.manager.dispose()
+					: f.manager.stopSession(sessionId);
+			f.release();
+			await ending;
+			await expect(followUp).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
+
+			expect(f.statuses()).toEqual(["running", "cancelled"]);
+			expect(f.endReasons).toEqual([
+				gesture === "dispose" ? "disposed" : "stopped",
+			]);
+			expect(f.telemetryEvents()).not.toContain("task.completed");
+			expect(f.agent.run).not.toHaveBeenCalled();
+		});
+	}
+
+	it("records cancelled when the host is disposed while a session's next turn is still preparing", async () => {
+		const sessionId = "sess-dispose-while-next-turn-prepares";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdSecondRunningWrite: true,
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					telemetry: { capture: f.capture } as never,
+				}),
+				interactive: true,
+			}),
+		);
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "first" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+
+		const second = f.manager.runTurn({ sessionId, prompt: "second" });
+		await f.held;
+		const disposing = f.manager.dispose();
+		f.release();
+		await disposing;
+		await expect(second).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		expect(f.endReasons).toEqual(["disposed"]);
+		expect(f.telemetryEvents()).not.toContain("task.completed");
+		expect(f.agent.continue).not.toHaveBeenCalled();
+	});
+
+	it("does not materialize a session that was stopped before its first turn persisted", async () => {
+		const sessionId = "sess-stop-before-first-persist";
+		const f = createPreparingTurnFixture(sessionId);
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+
+		// The turn has yielded inside prompt preparation when the stop lands.
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.manager.stopSession(sessionId);
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(f.statuses()).toEqual([]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.agent.run).not.toHaveBeenCalled();
+	});
+
+	it("lands the stop status on a session row that was still being created", async () => {
+		const sessionId = "sess-stop-during-first-persist";
+		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.held;
+		const stopping = f.manager.stopSession(sessionId);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		// Teardown must wait for the row rather than skip the status write.
+		expect(f.statuses()).toEqual([]);
+		f.release();
+		await stopping;
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["cancelled"]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.agent.run).not.toHaveBeenCalled();
+	});
+
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
 		const sessionId = "sess-second-abort-clears-queue";
 		const manifest = createManifest(sessionId);
