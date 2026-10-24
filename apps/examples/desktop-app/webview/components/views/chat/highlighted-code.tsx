@@ -41,7 +41,9 @@ export function languageForPath(path: string): string {
 	const extension = name.includes(".")
 		? (name.split(".").pop() ?? "").toLowerCase()
 		: "";
-	return EXTENSION_LANGUAGES[extension] ?? extension;
+	return Object.hasOwn(EXTENSION_LANGUAGES, extension)
+		? (EXTENSION_LANGUAGES[extension] ?? extension)
+		: extension;
 }
 
 function splitLines(text: string): string[] {

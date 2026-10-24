@@ -43,6 +43,8 @@ describe("languageForPath", () => {
 		expect(languageForPath("config.yaml")).toBe("yaml");
 		expect(languageForPath("/home/u/.zshrc")).toBe("shellscript");
 		expect(languageForPath("Makefile")).toBe("");
+		expect(languageForPath("x.constructor")).toBe("constructor");
+		expect(languageForPath("x.__proto__")).toBe("__proto__");
 	});
 });
 
