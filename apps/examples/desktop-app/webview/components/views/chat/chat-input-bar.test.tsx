@@ -18,6 +18,7 @@ import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
+	readModelSelectionStorageFromWindow,
 } from "@/lib/model-selection";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
@@ -1076,6 +1077,10 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "cline-alt" },
+		});
 		for (const [label, model] of [
 			["ClinePass", "cline-pass/pass-model"],
 			["ClineFree", "cline-cloud/free-model"],
@@ -1105,21 +1110,30 @@ describe("ChatInputBar", () => {
 	});
 
 	it.each([
-		["an offered model", "cline-test", true, undefined],
+		["an offered model", "cline-test", true, true, undefined],
 		[
-			"an unoffered ClinePass model",
+			"an unoffered model for a subscriber",
+			"openai/retired",
+			true,
+			true,
+			"cline-pass/first-pass",
+		],
+		[
+			"an unoffered ClinePass model without a subscription",
 			"cline-pass/retired",
 			true,
-			"cline-pass/pass-model",
-		],
-		["an unoffered model", "openai/retired", true, CLINE_DEFAULT_MODEL_ID],
-		[
-			"a ClinePass model without ClinePass",
-			"cline-pass/retired",
 			false,
 			CLINE_DEFAULT_MODEL_ID,
 		],
-	])("starts a new cloud chat on %s", async (_label, model, hasPass, expected) => {
+		[
+			"an unoffered model for an organization subscriber",
+			"openai/retired",
+			false,
+			true,
+			CLINE_DEFAULT_MODEL_ID,
+		],
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, subscribed, expected) => {
+		window.localStorage.clear();
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: hasPass
@@ -1127,10 +1141,13 @@ describe("ChatInputBar", () => {
 				: ["cline", "cline-cloud"],
 			providerModels: {
 				cline: ["cline-test", CLINE_DEFAULT_MODEL_ID],
-				"cline-pass": hasPass ? ["cline-pass/pass-model"] : [],
+				"cline-pass": hasPass
+					? ["cline-pass/first-pass", "cline-pass/second-pass"]
+					: [],
 				"cline-cloud": ["cline-cloud/free-model"],
 			},
 			providerReasoningModels: {},
+			clinePassSubscribed: subscribed,
 		});
 		const onModelChange = vi.fn();
 		await act(async () => {
@@ -1186,6 +1203,11 @@ describe("ChatInputBar", () => {
 		} else {
 			expect(onModelChange).not.toHaveBeenCalled();
 		}
+		// Automatic choices stay defaults; only explicit picks are remembered.
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "",
+			lastModelByProvider: {},
+		});
 	});
 
 	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {

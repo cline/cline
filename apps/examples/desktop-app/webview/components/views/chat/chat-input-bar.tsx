@@ -1666,7 +1666,6 @@ function ChatInputBarImpl({
 								executionTarget === "cloud" ? undefined : onOpenModelSettings
 							}
 							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
 						/>
 					</div>
@@ -1761,7 +1760,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
 	includeCloudModels = false,
-	persistSelection = true,
 	provider,
 	model,
 	isBusy,
@@ -1775,7 +1773,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
-	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1809,6 +1806,7 @@ const ModelSelector = memo(function ModelSelector({
 			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
+	const [clinePassSubscribed, setClinePassSubscribed] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const normalizedProvider = includeCloudModels
 		? (Object.keys(providerModels).find((id) =>
@@ -1992,13 +1990,17 @@ const ModelSelector = memo(function ModelSelector({
 		) {
 			return rememberedModel;
 		}
-		// Cloud: unoffered ClinePass models resolve to the ClinePass catalog
-		// (first entry); everything else starts on the Cline default model.
-		if (
-			includeCloudModels &&
-			modelsForProvider.includes(CLINE_DEFAULT_MODEL_ID)
-		) {
-			return CLINE_DEFAULT_MODEL_ID;
+		if (includeCloudModels) {
+			const fallback =
+				(clinePassSubscribed
+					? visibleProviderModels["cline-pass"]?.[0]
+					: undefined) ??
+				(Object.values(visibleProviderModels).some((ids) =>
+					ids.includes(CLINE_DEFAULT_MODEL_ID),
+				)
+					? CLINE_DEFAULT_MODEL_ID
+					: undefined);
+			if (fallback) return fallback;
 		}
 		return (
 			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
@@ -2006,6 +2008,7 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		clinePassSubscribed,
 		includeCloudModels,
 		autoCorrectModel,
 		lastSelection.lastModelByProvider,
@@ -2015,6 +2018,7 @@ const ModelSelector = memo(function ModelSelector({
 		pickerModelIds,
 		rememberedLastProvider,
 		resolvedProvider,
+		visibleProviderModels,
 	]);
 	// The picker can intentionally hide catalog models (the ClinePass offer
 	// is exactly its subscribed/free tiers), but the active model must stay
@@ -2069,6 +2073,7 @@ const ModelSelector = memo(function ModelSelector({
 					return;
 				}
 				setProviderModels(payload.providerModels);
+				setClinePassSubscribed(payload.clinePassSubscribed === true);
 				setProviderReasoningModels(payload.providerReasoningModels);
 				setProviderNames((current) => ({
 					...current,
@@ -2138,10 +2143,20 @@ const ModelSelector = memo(function ModelSelector({
 	// prop change here would also capture passive changes — most notably
 	// opening an existing session, whose config drives these props — silently
 	// replacing the user's chosen default with whatever model that session
-	// happened to use.
+	// happened to use. It also skips automatic Cloud fallbacks, so the Cloud
+	// default keeps following the local model and ClinePass subscription.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
-			if (!persistSelection) {
+			if (includeCloudModels) {
+				if (!modelId) return;
+				try {
+					writeModelSelectionStorageToWindow(
+						{ lastProvider: "cline", lastModelByProvider: { cline: modelId } },
+						"cloud",
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 				return;
 			}
 			const normalizedId = normalizeProviderId(providerId);
@@ -2166,17 +2181,17 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[persistSelection],
+		[includeCloudModels],
 	);
 
 	useEffect(() => {
-		if (!persistSelection) return;
+		if (includeCloudModels) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection, persistSelection]);
+	}, [includeCloudModels, lastSelection]);
 
 	useEffect(() => {
 		if (providers.length === 0) {

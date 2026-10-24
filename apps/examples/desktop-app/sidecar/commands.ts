@@ -513,6 +513,18 @@ function removePathIfExists(
 	return true;
 }
 
+function createClineAccountService(
+	manager: ProviderSettingsManager,
+	authToken: string,
+): ClineAccountService {
+	return new ClineAccountService({
+		apiBaseUrl:
+			manager.getProviderSettings("cline")?.baseUrl?.trim() ||
+			getClineEnvironmentConfig().apiBaseUrl,
+		getAuthToken: async () => authToken,
+	});
+}
+
 function syncAccountContextFromResult(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
@@ -2912,15 +2924,9 @@ export async function handleCommand(
 			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
-		const settings = manager.getProviderSettings("cline");
-		const accountService = new ClineAccountService({
-			apiBaseUrl:
-				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => authToken,
-		});
 		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
-			accountService,
+			createClineAccountService(manager, authToken),
 		);
 		if (operation === "switchAccount") {
 			if (isCloudAgentsEnabled()) {
@@ -2940,6 +2946,26 @@ export async function handleCommand(
 		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
+	}
+
+	// True/false when the plan lookup answers; null when it can't be checked.
+	if (command === "cline_pass_subscribed") {
+		const manager = new ProviderSettingsManager();
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
+		if (!authToken) return null;
+		try {
+			const current = await createClineAccountService(
+				manager,
+				authToken,
+			).fetchCurrentUserPlan();
+			return Boolean(current?.plan);
+		} catch (error) {
+			// ClinePass is the only individual plan; no plan means not subscribed.
+			return error instanceof Error &&
+				error.message.toLowerCase().includes("no plan found")
+				? false
+				: null;
+		}
 	}
 
 	// ── Cline integrations (GitHub App) ────────────────────────────────

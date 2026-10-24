@@ -107,10 +107,7 @@ import {
 } from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
-import {
-	writeExecutionTargetToWindow,
-	writeModelSelectionStorageToWindow,
-} from "@/lib/model-selection";
+import { writeExecutionTargetToWindow } from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -2460,25 +2457,11 @@ function ChatThreadPane({
 	}, [abort]);
 	const handleModelChange = useCallback(
 		(nextModel: string) => {
-			// The shared model picker only persists Local selections.
-			if (config.executionTarget === "cloud") {
-				try {
-					writeModelSelectionStorageToWindow(
-						{
-							lastProvider: "cline",
-							lastModelByProvider: { cline: nextModel },
-						},
-						"cloud",
-					);
-				} catch {
-					// Ignore localStorage persistence failures.
-				}
-			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
 			);
 		},
-		[config.executionTarget, setConfig],
+		[setConfig],
 	);
 	const handleModeToggle = useCallback(
 		() =>
