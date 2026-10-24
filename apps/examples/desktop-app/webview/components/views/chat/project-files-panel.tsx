@@ -337,14 +337,15 @@ export function ProjectFilesPanel({
 		[loadDirectory],
 	);
 	// There is no refresh button: while the tree is showing, expanded folders
-	// re-list on their own interval (independent of git, which may be
-	// failing or absent), and again right after each git snapshot so the
-	// tree follows actions and agent edits without waiting for a tick.
+	// and open files re-read on their own interval (independent of git, which
+	// may be failing or absent), and again right after each git snapshot so
+	// the tree follows actions and agent edits without waiting for a tick.
 	useEffect(() => {
 		if (view !== "files") return;
 		const relistIfVisible = () => {
 			if (document.visibilityState === "visible") {
 				reloadDirectories({ ifIdle: true });
+				setFiles(markStale);
 			}
 		};
 		const interval = window.setInterval(
@@ -1062,7 +1063,7 @@ export function ProjectFilesPanel({
 								</span>
 							) : null}
 							<span className="ml-auto flex shrink-0 items-center gap-1">
-								{activeChange?.worktree ? (
+								{activeScope === "worktree" && activeChange?.worktree ? (
 									<>
 										<Button
 											aria-label="Discard changes"
@@ -1096,7 +1097,7 @@ export function ProjectFilesPanel({
 											<Plus className="size-3" /> Stage
 										</Button>
 									</>
-								) : activeChange?.staged ? (
+								) : activeScope === "staged" && activeChange?.staged ? (
 									<Button
 										aria-label="Unstage file"
 										className="h-6 gap-1 px-1.5 text-[10.5px]"
