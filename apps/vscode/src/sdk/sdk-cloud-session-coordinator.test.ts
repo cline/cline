@@ -768,18 +768,15 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			checkClinePassSubscription: vi.fn(() => plan.promise),
 		})
 
-		// A local ClinePass model only carries over once the plan check confirms a current plan.
-		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
+		// A local ClinePass model carries over without waiting for the plan check.
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/local")
 		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
+		apiConfig = { actModeApiProvider: "anthropic" }
 		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 
 		plan.resolve(true)
 		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(true))
 		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
-		expect(coordinator.nextCloudModelId()).toBe("cline-pass/local")
-		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }
-		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
-		apiConfig = { actModeApiProvider: "anthropic" }
 		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
 		apiConfig = { actModeApiProvider: "cline", actModeClineModelId: "usage/model" }
 		expect(coordinator.nextCloudModelId()).toBe("usage/model")
@@ -789,26 +786,6 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		globalState.cloudModelId = "usage/picked"
 		expect(coordinator.nextCloudModelId()).toBe("usage/picked")
-		await coordinator.dispose()
-	})
-
-	it("starts a local ClinePass provider user without a current plan on Cline's default model", async () => {
-		let apiConfig: Record<string, unknown> = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }
-		const { coordinator } = makeCoordinator({
-			stateManager: { ...makeStateManager(), getApiConfiguration: () => apiConfig } as never,
-			getAccountScope: () => "user-1:",
-			loadCloudModels: async () => [
-				{ id: "cline-pass/local", name: "Local", catalogId: "cline-pass" },
-				{ id: "cline-free/local", name: "Free", catalogId: "cline" },
-			],
-			checkClinePassSubscription: async () => false,
-		})
-
-		coordinator.nextCloudModelId()
-		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(false))
-		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
-		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-pass/local" }
-		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 		await coordinator.dispose()
 	})
 
