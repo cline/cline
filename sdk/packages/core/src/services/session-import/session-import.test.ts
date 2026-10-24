@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { zstdCompressSync } from "node:zlib";
 import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoreSessionService } from "../../session/services/session-service";
@@ -478,6 +479,57 @@ describe("CodexImportAdapter", () => {
 			"Script completed\nOutput:\nhealth.ts\nusers.ts\n",
 		);
 		expect(JSON.stringify(converted.messages)).not.toContain("input_text");
+	});
+
+	it("imports compressed .jsonl.zst rollouts", () => {
+		const codexHome = tempDir("codex-import-compressed-");
+		const dayDir = join(codexHome, "sessions", "2026", "03", "01");
+		mkdirSync(dayDir, { recursive: true });
+		const lines = [
+			{
+				timestamp: "2026-03-01T09:00:00.000Z",
+				type: "session_meta",
+				payload: { id: "cdx-compressed", cwd: "/workspace/compressed" },
+			},
+			{
+				timestamp: "2026-03-01T09:00:01.000Z",
+				type: "event_msg",
+				payload: {
+					type: "user_message",
+					message: "summarize the compressed session",
+				},
+			},
+			{
+				timestamp: "2026-03-01T09:00:02.000Z",
+				type: "response_item",
+				payload: {
+					type: "message",
+					role: "assistant",
+					content: [
+						{ type: "output_text", text: "Compressed session imported." },
+					],
+				},
+			},
+		];
+		writeFileSync(
+			join(dayDir, "rollout-2026-03-01T09-00-00-cdx-compressed.jsonl.zst"),
+			zstdCompressSync(Buffer.from(jsonl(lines), "utf8")),
+		);
+
+		const adapter = new CodexImportAdapter({ codexHome });
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourceId).toBe("cdx-compressed");
+		expect(discovered[0].sourcePath).toMatch(/\.jsonl\.zst$/);
+
+		const converted = adapter.convert("cdx-compressed");
+		expect(converted.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+		]);
+		expect(JSON.stringify(converted.messages)).toContain(
+			"Compressed session imported.",
+		);
 	});
 
 	it("dedupes resumed rollouts sharing one session id, keeping the richer file", () => {
