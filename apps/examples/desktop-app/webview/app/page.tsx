@@ -2687,20 +2687,26 @@ function ChatThreadPane({
 		}
 	}, [mayBrowseFiles]);
 
-	const toolMessageCount = useMemo(
-		() => messages.filter((message) => message.role === "tool").length,
-		[messages],
-	);
+	// Each turn adds a user message and each tool call a tool message, so the
+	// key changes with every turn and every edit mid-turn.
+	const activityKey = useMemo(() => {
+		let users = 0;
+		let tools = 0;
+		for (const message of messages) {
+			if (message.role === "user") users++;
+			else if (message.role === "tool") tools++;
+		}
+		return `${users}:${tools}`;
+	}, [messages]);
 	const { changes: sessionChanges, current: sessionChangesCurrent } =
 		useSessionChanges({
 			enabled: mayBrowseFiles,
 			environmentId,
 			sessionId,
 			cwd: config.cwd || resolvedWorkspaceRoot,
-			// Tool calls and turn boundaries both move the working tree. Counting
-			// tool messages catches edits mid-turn; the tool-event diff only
-			// refreshes when a turn ends.
-			refreshKey: `${status}:${toolMessageCount}`,
+			// Tool calls and turn boundaries both move the working tree; the tool-event
+			// diff only refreshes when a turn ends, so it can't drive this.
+			refreshKey: `${status}:${activityKey}`,
 		});
 	// Git checkpoints when the workspace has them, otherwise the tool-event
 	// reconstruction.
