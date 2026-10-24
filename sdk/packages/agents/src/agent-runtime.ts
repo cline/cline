@@ -399,7 +399,10 @@ function sanitizeHookAttribute(value: string): string {
  */
 type HookContextOrigin =
 	| { source: "RunStart" }
-	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+	| {
+			source: "PreToolUse" | "PostToolUse" | "ToolSuccess";
+			toolCall: AgentToolCallPart;
+	  };
 
 function formatHookContextBlock(
 	origin: HookContextOrigin,
@@ -2557,6 +2560,9 @@ export class AgentRuntime {
 	private async executePreparedTool(
 		prepared: PreparedToolExecution,
 	): Promise<AgentMessage> {
+		// A parallel sibling can outlive a stopped run; pushing to the buffer
+		// captured here keeps its context out of whichever run is current then.
+		const hookContexts = this.pendingHookContexts;
 		const startedAt = new Date();
 		await this.emit({
 			type: "tool-started",
@@ -2625,7 +2631,7 @@ export class AgentRuntime {
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
 				if (after?.appendContext?.trim()) {
-					this.pendingHookContexts.push(
+					hookContexts.push(
 						formatHookContextBlock(
 							{ source: "PostToolUse", toolCall: prepared.toolCall },
 							after.appendContext,
@@ -2637,6 +2643,19 @@ export class AgentRuntime {
 					result = after.result;
 				}
 			}
+		}
+
+		if (
+			!prepared.skipReason &&
+			!result.isError &&
+			prepared.tool?.successContext?.trim()
+		) {
+			hookContexts.push(
+				formatHookContextBlock(
+					{ source: "ToolSuccess", toolCall: prepared.toolCall },
+					prepared.tool.successContext,
+				),
+			);
 		}
 
 		const message = createMessage("tool", [

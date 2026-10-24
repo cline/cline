@@ -3949,6 +3949,138 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it.each([
+		"success",
+		"error",
+		"skip",
+		"hook-error",
+		"stop",
+		"blank",
+	])("handles tool success context for %s", async (outcome) => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "ctx",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(
+					JSON.stringify(request.messages).includes("Continue working."),
+				).toBe(outcome === "success");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					...createEchoTool(),
+					successContext: outcome === "blank" ? "   " : "Continue working.",
+					execute: () => {
+						if (outcome === "error") throw new Error("Failed");
+						return "hi";
+					},
+				},
+			],
+			hooks: {
+				beforeTool: () =>
+					outcome === "skip" ? { skip: true, reason: "Skipped" } : undefined,
+				afterTool: () => {
+					if (outcome === "stop") return { stop: true };
+					if (outcome === "hook-error")
+						return { result: { output: "Failed", isError: true } };
+					return undefined;
+				},
+			},
+		});
+		const result = await runtime.run("Use the tool");
+		expect(JSON.stringify(result.messages).includes("Continue working.")).toBe(
+			outcome === "success",
+		);
+	});
+
+	it("keeps a stopped run's straggling tool context out of the next run", async () => {
+		let releaseSlow = () => {};
+		const slowGate = new Promise<void>((resolve) => {
+			releaseSlow = resolve;
+		});
+		const tool = (name: string, execute: () => Promise<string>): AgentTool => ({
+			name,
+			description: name,
+			inputSchema: { type: "object" },
+			execute,
+		});
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "s",
+					toolName: "slow",
+					inputText: "{}",
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "x",
+					toolName: "stopper",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "w",
+					toolName: "waiter",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			toolExecution: "parallel",
+			tools: [
+				{
+					...tool("slow", async () => {
+						await slowGate;
+						return "late";
+					}),
+					successContext: "Stale note.",
+				},
+				tool("stopper", async () => "ok"),
+				tool("waiter", async () => {
+					releaseSlow();
+					await new Promise((resolve) => setTimeout(resolve, 10));
+					return "waited";
+				}),
+			],
+			hooks: {
+				afterTool: ({ tool }) =>
+					tool.name === "stopper"
+						? { stop: true }
+						: { appendContext: `post ${tool.name}` },
+			},
+		});
+
+		expect((await runtime.run("first")).status).toBe("aborted");
+		const second = await runtime.run("second");
+		const text = JSON.stringify(second.messages);
+		expect(text).toContain("post waiter");
+		expect(text).not.toContain("Stale note.");
+		expect(text).not.toContain("post slow");
+	});
+
 	it("injects beforeRun appendContext into the run's first model request", async () => {
 		const model = new ScriptedModel([
 			(request) => {
