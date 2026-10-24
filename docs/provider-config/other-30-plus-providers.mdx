@@ -31,6 +31,7 @@ Use this page for providers that follow the same setup pattern.
   - [Nous Research](#nous-research)
   - [Oracle Code Assist](#oracle-code-assist)
   - [Qwen Code](#qwen-code)
+  - [Rapid Router](#rapid-router)
   - [Requesty](#requesty)
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
@@ -295,6 +296,19 @@ Qwen Code provides coding-oriented access to Qwen models.
 1. Sign in to Qwen platform.
 2. Obtain API access credentials.
 3. In Cline, select **Qwen Code** and enter the credential.
+
+### Rapid Router
+Rapid Router is an AI model gateway with one OpenAI-compatible API for Claude, GPT, Gemini, DeepSeek and other models.
+
+**Website:** [https://rapidrouter.ai](https://rapidrouter.ai)
+
+#### Basic Setup
+
+1. Sign up or sign in at [rapidrouter.ai](https://rapidrouter.ai) and generate an API key (it starts with `sk-rr-v1-`).
+2. In Cline, choose **OpenAI Compatible** from the API Provider dropdown.
+3. Set the base URL to `https://rapidrouter.ai/api/v1`, paste your API key, and enter a model ID (e.g., `anthropic/claude-sonnet-5`).
+
+Model IDs use the `author/model` form. See the [Rapid Router models page](https://rapidrouter.ai/models) for the current model list with pricing. Not every model supports every optional feature (e.g., tool calling, reasoning).
 
 ### Requesty
 Requesty provides multi-provider routing behind a single API surface.
