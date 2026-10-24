@@ -123,12 +123,13 @@ the response to the sandbox Hub. Desktop owns no cloud API client or sandbox con
 Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
 are owned by the daemon.
 
-### 3. Provider Management — Direct ProviderSettingsManager
+### 3. Provider Management — Shared Hub Commands
 
-```typescript
-import { ProviderSettingsManager, listLocalProviders, ... } from "@cline/core";
-const manager = new ProviderSettingsManager();
-```
+Provider catalog/model discovery, recommended models, provider settings, custom
+provider creation, and model overrides use `createHubProvidersApi` over the
+existing local Hub connection. Credential mutations and sign-out cleanup belong
+to the daemon. Desktop retains cloud-view and account-context reactions.
+Provider OAuth and voice operations still use their existing sidecar services.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 
@@ -168,11 +169,11 @@ OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
 Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
 discovery endpoints instead. Catalog and public endpoint requests time out after
 five seconds, and the initial picker remains usable while a refresh is pending.
-The sidecar omits bundled `knownModels` from the discovery config so they cannot
+The Hub omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
 The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
-command/docs) through the shared RPC contract. The sidecar resolves these facts
+command/docs) through the shared RPC contract. The Hub resolves these facts
 from the registered provider catalog; chat validation and credential-error UI use
 that data rather than importing the browser LLM registry. Error-message metadata
 retains the provider facts used for that message, so changing providers does not
@@ -203,14 +204,16 @@ Supported commands:
 | Command | Implementation |
 |---------|---------------|
 | `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
-| `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
-| `list_provider_models` | `getLocalProviderModels` |
+| `list_provider_catalog` | shared Hub `providers.list` |
+| `list_provider_models` | shared Hub `providers.models.list` |
+| `list_cline_recommended_models` | shared Hub `providers.models.recommended` |
+| `update_provider_models` | shared Hub `providers.models.update` |
 | `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
-| `save_provider_settings` | `saveLocalProviderSettings` |
-| `add_provider` | `addLocalProvider` |
+| `save_provider_settings` | shared Hub `providers.settings.save` |
+| `add_provider` | shared Hub `providers.add` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |

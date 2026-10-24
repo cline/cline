@@ -80,6 +80,7 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleSessionMcpAppsCallTool,
 	handleSessionMcpAppsReadResource,
@@ -813,6 +814,13 @@ export class HubServerTransport implements NativeHubTransport {
 					"client_not_registered",
 					"Register before accessing cloud sessions",
 				);
+			if (authority === null && envelope.command.startsWith("providers.")) {
+				return errorReply(
+					envelope,
+					"client_not_registered",
+					"Register before accessing provider settings",
+				);
+			}
 			const clientId = envelope.clientId?.trim();
 			// Omitted authority is reserved for trusted in-process callers. A remote
 			// transport passes null until registration so caller-controlled envelope
@@ -897,6 +905,13 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 		}
 		switch (envelope.command) {
+			case "providers.list":
+			case "providers.models.list":
+			case "providers.models.recommended":
+			case "providers.settings.save":
+			case "providers.add":
+			case "providers.models.update":
+				return await handleProviderCommand(envelope);
 			case "client.register": {
 				const reply = handleClientRegister(this.ctx, envelope);
 				this.tasks.notifyAutomationReadinessChanged();
