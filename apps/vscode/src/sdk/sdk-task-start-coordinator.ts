@@ -75,88 +75,92 @@ export class SdkTaskStartCoordinator {
 		try {
 			await this.options.clearTask()
 
-			const cwd = await this.options.getWorkspaceRoot()
-			const mode = this.getCurrentMode()
-			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
-			const config = await this.options.sessionConfigBuilder.build({
-				prompt,
-				images,
-				files,
-				historyItem,
-				taskSettings,
-				cwd,
-				mode,
-			})
-			providerId = config.providerId
-			modelId = config.modelId
+			// Tracked from the mode read until the first prompt is sent, so a mode
+			// toggle in between waits for this session instead of missing it.
+			return await this.options.sessions.trackSessionStart(async () => {
+				const cwd = await this.options.getWorkspaceRoot()
+				const mode = this.getCurrentMode()
+				Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
+				const config = await this.options.sessionConfigBuilder.build({
+					prompt,
+					images,
+					files,
+					historyItem,
+					taskSettings,
+					cwd,
+					mode,
+				})
+				providerId = config.providerId
+				modelId = config.modelId
 
-			Logger.log(
-				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
-			)
-
-			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
-				Logger.warn(
-					`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
+				Logger.log(
+					`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 				)
-				// No task/session id exists yet, so this preflight auth UI path is
-				// intentionally not recorded as task-joinable provider error telemetry.
-				this.options.emitClineAuthError(prompt)
-				return undefined
-			}
 
-			taskSessionId = config.sessionId?.trim() || createSessionId()
-			const configWithSessionId = {
-				...config,
-				sessionId: taskSessionId,
-			}
+				if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
+					Logger.warn(
+						`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
+					)
+					// No task/session id exists yet, so this preflight auth UI path is
+					// intentionally not recorded as task-joinable provider error telemetry.
+					this.options.emitClineAuthError(prompt)
+					return undefined
+				}
 
-			const startInput = this.options.buildStartSessionInput(configWithSessionId, {
-				prompt: prompt,
-				images,
-				files,
-				historyItem,
-				taskSettings,
-				cwd,
-				mode,
-			})
+				taskSessionId = config.sessionId?.trim() || createSessionId()
+				const configWithSessionId = {
+					...config,
+					sessionId: taskSessionId,
+				}
 
-			const task = this.createAndSetTask(taskSessionId)
-			this.emitInitialTaskMessage(taskSessionId, prompt ?? "", images, files)
+				const startInput = this.options.buildStartSessionInput(configWithSessionId, {
+					prompt: prompt,
+					images,
+					files,
+					historyItem,
+					taskSettings,
+					cwd,
+					mode,
+				})
 
-			// The turn phase was already set to "streaming" (in SdkController.initTask), but the
-			// webview only learns the phase through a full state post. Ship one now, in parallel
-			// with the potentially slow session startup below, so the chat shows the thinking
-			// indicator as soon as the task message lands instead of after startNewSession settles.
-			this.options.postStateToWebview().catch((error) => {
-				Logger.error("[SdkController] Failed to post state after emitting initial task message:", error)
-			})
+				const task = this.createAndSetTask(taskSessionId)
+				this.emitInitialTaskMessage(taskSessionId, prompt ?? "", images, files)
 
-			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
-			if (startResult.sessionId !== taskSessionId) {
-				Logger.warn(
-					`[SdkController] SDK returned session id ${startResult.sessionId} after requested id ${taskSessionId}`,
+				// The turn phase was already set to "streaming" (in SdkController.initTask), but the
+				// webview only learns the phase through a full state post. Ship one now, in parallel
+				// with the potentially slow session startup below, so the chat shows the thinking
+				// indicator as soon as the task message lands instead of after startNewSession settles.
+				this.options.postStateToWebview().catch((error) => {
+					Logger.error("[SdkController] Failed to post state after emitting initial task message:", error)
+				})
+
+				const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
+				if (startResult.sessionId !== taskSessionId) {
+					Logger.warn(
+						`[SdkController] SDK returned session id ${startResult.sessionId} after requested id ${taskSessionId}`,
+					)
+					task.taskId = startResult.sessionId
+					taskSessionId = startResult.sessionId
+				}
+
+				const newHistoryItem = this.options.createHistoryItemFromSession(
+					taskSessionId,
+					prompt ?? "",
+					configWithSessionId.modelId,
+					cwd,
 				)
-				task.taskId = startResult.sessionId
-				taskSessionId = startResult.sessionId
-			}
+				await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
+				await this.options.postStateToWebview()
 
-			const newHistoryItem = this.options.createHistoryItemFromSession(
-				taskSessionId,
-				prompt ?? "",
-				configWithSessionId.modelId,
-				cwd,
-			)
-			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
-			await this.options.postStateToWebview()
+				if (prompt?.trim() || images?.length || files?.length) {
+					Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
+					const resolvedTask = await this.options.resolveContextMentions(prompt || "")
+					this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
+				}
 
-			if (prompt?.trim() || images?.length || files?.length) {
-				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt || "")
-				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
-			}
-
-			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
-			return taskSessionId
+				Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
+				return taskSessionId
+			})
 		} catch (error) {
 			this.options.captureProviderApiError?.({
 				sessionId: taskSessionId,

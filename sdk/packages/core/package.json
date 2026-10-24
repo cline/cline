@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.93",
+	"version": "0.2.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -35,17 +35,9 @@
 			"types": "./dist/services/feature-flags/posthog.d.ts",
 			"import": "./dist/services/feature-flags/posthog.js"
 		},
-		"./remote/helper-entry": {
-			"types": "./dist/remote/remote-helper-entry.d.ts",
-			"import": "./dist/remote/remote-helper-entry.js"
-		},
 		"./cloud": {
 			"types": "./dist/cloud/index.d.ts",
 			"import": "./dist/cloud/index.js"
-		},
-		"./remote/helper": {
-			"types": "./dist/remote/remote-helper.d.ts",
-			"import": "./dist/remote/remote-helper.js"
 		}
 	},
 	"scripts": {
@@ -98,7 +90,8 @@
 	"devDependencies": {
 		"@types/proxy-from-env": "^1.0.4",
 		"@types/ws": "^8.18.1",
-		"posthog-node": "^5.8.0"
+		"posthog-node": "^5.8.0",
+		"skills": "1.7.2"
 	},
 	"engines": {
 		"node": ">=22"

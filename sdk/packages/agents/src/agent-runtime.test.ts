@@ -1784,6 +1784,45 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("retries when the failed attempt streamed only reasoning, keeping just the retry's reasoning", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "reasoning-delta", text: "partial thought" },
+					{
+						type: "finish",
+						reason: "error",
+						error: "The socket connection was closed unexpectedly.",
+						errorRetryable: true,
+					},
+				],
+				() => [
+					{ type: "reasoning-delta", text: "full thought" },
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({ model });
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+			const assistant = result.messages.filter((m) => m.role === "assistant");
+			expect(assistant).toHaveLength(1);
+			expect(assistant[0]?.content).toEqual([
+				{ type: "reasoning", text: "full thought" },
+				{ type: "text", text: "recovered" },
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not retry when the failed attempt ran a provider-executed tool", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -3283,6 +3322,87 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("correlates model request starts with issued requests and assigns new IDs per request", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel(
+			[0, 1].map(() => () => [
+				{ type: "text-delta", text: "hello" } as AgentModelEvent,
+				{ type: "finish", reason: "stop" } as AgentModelEvent,
+			]),
+		);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			sessionId: "session-test",
+		});
+		await runtime.run("first");
+		await runtime.continue("second");
+		const starts = capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) => call.event === TASK_PROVIDER_REQUEST_STARTED_EVENT);
+		expect(starts).toHaveLength(2);
+		const ids = model.requests.map(
+			(request) =>
+				(request.options?.metadata as Record<string, unknown>).modelRequestId,
+		);
+		expect(ids.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(ids).size).toBe(2);
+		expect(starts.map((event) => event.properties.modelRequestId)).toEqual(ids);
+		for (const event of capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) =>
+				[
+					TASK_PROVIDER_STREAM_STARTED_EVENT,
+					TASK_FIRST_CHUNK_RECEIVED_EVENT,
+				].includes(call.event),
+			)) {
+			expect(ids).toContain(event.properties.modelRequestId);
+		}
+	});
+
+	it("reports tool-argument streaming as progress and merges host run-end properties", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const tool = createEchoTool();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call-1",
+					toolName: "echo",
+					inputText: '{"text":',
+				},
+				{ type: "tool-call-delta", toolCallId: "call-1", inputText: '"hi"}' },
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [tool],
+			telemetry,
+			runEndTelemetryProperties: () => ({ maxIdleMs: 42 }),
+		});
+		const eventTypes: string[] = [];
+		runtime.subscribe((event) => eventTypes.push(event.type));
+
+		await runtime.run("Hi");
+
+		// Two chunks within a second report progress once.
+		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
+			1,
+		);
+		const events = capture.mock.calls.map(([input]) => input);
+		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
+			false,
+		);
+		expect(
+			events.find((input) => input.event === "agent.run-finished")?.properties,
+		).toEqual(expect.objectContaining({ maxIdleMs: 42, status: "completed" }));
+	});
+
 	it("captures task lifecycle telemetry around a successful model stream", async () => {
 		const { capture, telemetry } = createTelemetryMock();
 		const model = new ScriptedModel([
@@ -3827,6 +3947,138 @@ describe("AgentRuntime", () => {
 			displayRole: "system",
 			userRunSpan: 0,
 		});
+	});
+
+	it.each([
+		"success",
+		"error",
+		"skip",
+		"hook-error",
+		"stop",
+		"blank",
+	])("handles tool success context for %s", async (outcome) => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "ctx",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(
+					JSON.stringify(request.messages).includes("Continue working."),
+				).toBe(outcome === "success");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					...createEchoTool(),
+					successContext: outcome === "blank" ? "   " : "Continue working.",
+					execute: () => {
+						if (outcome === "error") throw new Error("Failed");
+						return "hi";
+					},
+				},
+			],
+			hooks: {
+				beforeTool: () =>
+					outcome === "skip" ? { skip: true, reason: "Skipped" } : undefined,
+				afterTool: () => {
+					if (outcome === "stop") return { stop: true };
+					if (outcome === "hook-error")
+						return { result: { output: "Failed", isError: true } };
+					return undefined;
+				},
+			},
+		});
+		const result = await runtime.run("Use the tool");
+		expect(JSON.stringify(result.messages).includes("Continue working.")).toBe(
+			outcome === "success",
+		);
+	});
+
+	it("keeps a stopped run's straggling tool context out of the next run", async () => {
+		let releaseSlow = () => {};
+		const slowGate = new Promise<void>((resolve) => {
+			releaseSlow = resolve;
+		});
+		const tool = (name: string, execute: () => Promise<string>): AgentTool => ({
+			name,
+			description: name,
+			inputSchema: { type: "object" },
+			execute,
+		});
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "s",
+					toolName: "slow",
+					inputText: "{}",
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "x",
+					toolName: "stopper",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "w",
+					toolName: "waiter",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			toolExecution: "parallel",
+			tools: [
+				{
+					...tool("slow", async () => {
+						await slowGate;
+						return "late";
+					}),
+					successContext: "Stale note.",
+				},
+				tool("stopper", async () => "ok"),
+				tool("waiter", async () => {
+					releaseSlow();
+					await new Promise((resolve) => setTimeout(resolve, 10));
+					return "waited";
+				}),
+			],
+			hooks: {
+				afterTool: ({ tool }) =>
+					tool.name === "stopper"
+						? { stop: true }
+						: { appendContext: `post ${tool.name}` },
+			},
+		});
+
+		expect((await runtime.run("first")).status).toBe("aborted");
+		const second = await runtime.run("second");
+		const text = JSON.stringify(second.messages);
+		expect(text).toContain("post waiter");
+		expect(text).not.toContain("Stale note.");
+		expect(text).not.toContain("post slow");
 	});
 
 	it("injects beforeRun appendContext into the run's first model request", async () => {

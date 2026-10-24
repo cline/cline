@@ -136,10 +136,11 @@ Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
-- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Desktop uses `HubCloudSessionClient` over its existing shared Hub connection. `HubCloudSessionService` in the daemon owns its account-scoped controller, refresh-aware credentials, organization lookup, provisioning, sandbox connections, queues, approvals, and transcript reconciliation. Desktop projects the snapshots into its UI; feature gating and host persistence remain in the app. Direct controller hosts (including handoff flows) can still supply authentication. Importing this subpath does not initialize a local agent.
 - `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
+- Cloud RPC validates an explicit operation allowlist and binds requests to the viewer’s observed hub instance and account-scope generation before dispatch. Handoff and prompt dispatch lifecycle callbacks stay with direct controller hosts and are excluded from the serializable RPC arguments. Viewer disconnects do not stop cloud work or close daemon-owned sandbox connections. Account changes retire the old controller and invalidate viewer caches; daemon shutdown disposes it. Cloud events carry a hub-instance id, account-scope generation, and revision; reconnecting subscriptions receive a complete snapshot set, including an empty set, and remove sessions and approvals absent from it. Scope checks run at command/auth boundaries and periodically, avoiding provider-settings reads per streamed event. Token refresh updates credential-based scope identity without retiring the same account’s controller. Discovery caches, pending listing requests, and newly created fallback rows are scoped to their organization; switching the sidebar preserves other organizations’ task state without displaying their rows. The discovery deadline covers organization resolution and listing together; an unresolved organization yields no cloud rows at the deadline. After an organization switch, desktop attempts a cloud-enabled organization refresh without making switch success or viewer cleanup depend on it. Fresh requests invalidate the old cache before fetching; a returning viewer also invalidates it to cover switches made while the Hub was unreachable. Cloud events are excluded from the durable local event log so old-account transcripts cannot be replayed after a scope change. Dispatched cloud mutations are never automatically resent after a lost reply.
 - The cloud controller resumes suspended sessions and restores saved tasks.
-- Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
+- The hub retains pending first-task creation options with its controller across desktop viewer disconnects and reconnects. The controller consumes that intent when an inner task exists or is created. Account changes dispose the old scope and its intent.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
@@ -176,10 +177,13 @@ field.
 
 ### Hub-Backed Runtime
 
+The hub health endpoint includes its `hubId`. Restart callers compare this instance identity while waiting for shutdown, so a replacement started by reconnecting clients at the same address counts as retirement of the original hub. Desktop local activity is recorded only at its local hub observer subscription; cloud session projection does not write to that activity list.
+
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
+   One daemon serves every Cline client on the machine, and a hub-hosted session's telemetry carries only its own client (`clientName`/`clientVersion`), so the daemon also records *whose build started it*. The spawner stamps `CLINE_HUB_LAUNCHER_CLIENT`, `CLINE_HUB_LAUNCHER_VERSION`, and `CLINE_HUB_LAUNCHER_TRANSPORT` on the daemon environment (`withHubLauncherIdentity` in `@cline/shared`), defaulting to the spawning process's `ClineClientIdentity` and `local`. An embedding host that starts the hub through the CLI (the desktop app running `cline-cli hub ensure`) stamps itself first, and a stamp already present is kept as a whole, so the CLI that performs the spawn never records its own name or fills in its version next to the host's name. SSH remote hubs are stamped by the client over the `env` prefix of the remote `hub ensure` command with `transport=ssh`. The daemon claims the stamp out of its environment at startup (`claimHubLauncherIdentity`, same hazard as the daemon sentinel: hosted sessions spawn processes that inherit the environment, and a hub one of them starts must record itself) and publishes it with its build id and executable name as OTel resource attributes: `cline.hub.launcher.client`, `cline.hub.launcher.version`, `cline.hub.launcher.transport`, `cline.hub.build_id`, `cline.hub.runtime`. Collectors and Langfuse surface these as `resourceAttributes.*`, so a desktop session hosted by a CLI-started hub is attributable to that CLI build.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
@@ -248,6 +252,15 @@ the capped log may outlive the normal retention window because preserving a
 potentially live command's advertised path takes precedence over guessing that
 it exited. A detached client connection alone never changes process ownership or
 command execution.
+
+MCP Apps requests follow the same session-scoped command path. A session started
+with `mcpApps: true` keeps an MCP Apps runtime on its `BuiltRuntime`, bound to
+the session's `InMemoryMcpManager` in the Hub process. A UI host never opens its
+own MCP connection for an app. It sends `session.mcp_apps.resolve_tool`,
+`session.mcp_apps.read_resource`, or `session.mcp_apps.call_tool`, and the Hub
+delegates to the `LocalRuntimeHost`, which serves the request from that runtime.
+App tool calls are checked against the tool's `_meta.ui.visibility` there, in the
+process that owns the connection, not in the client.
 
 ### Generated Media Operation and Event Flow
 
@@ -549,6 +562,11 @@ IDs must be span attributes, not only observation metadata, for Langfuse trackin
 
 In the collector relay path, spans use the existing host OTLP exporter. The
 collector owns Langfuse credentials and downstream filtering and sampling.
+The relay exists only when the host registered a traces exporter, which release
+builds inline at build time (`OTEL_TRACES_EXPORTER`, `CLINE_TRACE_*`) into the
+CLI, the extension, and the desktop backend and its bundled CLI; a packaged
+app has no runtime environment to read them from. The `--telemetry-selfcheck`
+report includes `traces_exporter` so publish workflows can gate on it.
 `llms` checks provider eligibility, client sampling, opt-out, and content policy
 per request. The host owns flushing and shutting down its provider.
 
@@ -556,6 +574,21 @@ When no host relay is available, explicitly configured direct Langfuse export
 uses an isolated provider owned and disposed by `llms`. It does not replace or
 shut down an ambient host provider. When both routes are configured, the relay
 takes precedence so a request is not exported through both routes.
+
+Each issued agent model request gets a `modelRequestId`, shared by request-start
+and stream lifecycle events, provider error logs, and AI SDK runtime context.
+Transport retries within one AI SDK call share that ID; a new agent request gets
+a new ID, even within the same run and iteration. Provider errors also include
+run, agent, session, and conversation IDs when available. The AI SDK `callId`
+is recorded separately as `aiSdkCallId` on errors.
+
+Terminal stream failures notify both application error reporting and tracing
+integrations. Native timeout aborts are failures; explicit caller cancellation
+does not emit a provider `sdk.error`. AI SDK stream recovery permits three retries
+per model step. Recovered attempts do not produce terminal `sdk.error` reports or
+mark the operation as failed. Exhausted stream recovery disables the agent's
+whole-turn retry so the two retry budgets do not multiply. Previously streamed
+text and reasoning follow AI SDK's append semantics and may repeat on recovery.
 
 ### 7. Storage Adapters
 
@@ -571,6 +604,7 @@ Extensibility is split deliberately:
 
 - extensions register runtime contributions
 - hooks intercept lifecycle stages
+- tools can declare `successContext` for model-only instructions after successful execution. The generic agent runtime appends this context after tool results and after-tool hooks with `displayRole: "system"`. Core’s `ask_question` uses this contract to keep answers verbatim while reminding both direct agents and sessions to continue; no tool-name policy lives in the generic runtime. Client-registered custom tools retain `successContext` through the hub contribution manifest, parser, and execution proxy.
 
 Design implication:
 
@@ -593,6 +627,7 @@ Context compaction is owned by `core`.
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- automatic compaction requires a positive input limit or context window from model metadata (catalog or caller configuration); unknown custom-model limits do not trigger compaction or status notices based on a guessed window. Manual compaction and provider-confirmed overflow recovery remain available with a default working budget.
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
@@ -615,11 +650,12 @@ Design implications:
 
 #### Plugin execution
 
-Every plugin a session uses goes through one `PluginRegistry` per process
-(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). The
-registry owns status, failure counting, timeouts, the session policy, and
-reload; the execution mode (`CLINE_PLUGIN_MODE`, `resolvePluginExecutionMode`)
-only decides where a session's copy of a plugin runs:
+Plugin code never runs on a host's main thread. Every plugin a session uses
+goes through one `PluginRegistry` per process (`getProcessPluginRegistry()`,
+`extensions/plugin/plugin-registry.ts`). The registry owns status, failure
+counting, timeouts, the session policy, and reload; the execution mode
+(`CLINE_PLUGIN_MODE`, `resolvePluginExecutionMode`) only decides which
+isolated transport a session's copy of a plugin runs in:
 
 - `worker` (default): each plugin runs in its own worker thread per session
   (`WorkerSandbox`), so the host never imports plugin code. The copy the
@@ -632,26 +668,22 @@ only decides where a session's copy of a plugin runs:
   terminates its worker, which stops synchronous loops; the next call starts a
   fresh worker. Released copies end their worker, which stops everything the
   plugin started.
-- `in_process`: the registry imports each copy into the host with jiti. The
-  first session claims the copy imported at startup, and later sessions
-  re-evaluate the module (reusing jiti's transform cache).
 - `sandbox`: the previous per-session `node`/`bun` subprocess. It bypasses the
   registry (no status, policy, or reload) and is kept as an escape hatch.
 
 Plugins written for the per-session sandbox keep state at module level, often
-one plugin object per import that refuses a second `setup()`, so every mode
-gives each session its own copy. The session bootstrap, plugin tool listing
+one plugin object per import that refuses a second `setup()`, so both modes
+give each session its own copy. The session bootstrap, plugin tool listing
 (`listPluginToolsWithDiagnostics`), plugin MCP settings sync, and plugin slash
-commands all load through the registry, so they see the same mode. Neither
-`worker` nor `in_process` starts a child process, so plugins work in the
-compiled CLI, the Hub it starts, the desktop app, and VS Code/Electron without
-a runtime on `PATH`, and plugins can use the host runtime's globals (`Bun`
-under the Bun-built Hub, including inside a Bun worker).
+commands all load through the registry, so they see the same mode. Worker mode
+starts no child process, so plugins work in the compiled CLI, the Hub it
+starts, the desktop app, the SSH remote host, and VS Code/Electron without a
+runtime on `PATH`, and plugins can use the host runtime's globals (`Bun` under
+the Bun-built Hub, including inside a Bun worker).
 
 In the Hub daemon the registry is Hub-owned: the daemon checks global and
-workspace plugins at startup (in throwaway workers in `worker` mode, by
-importing them in `in_process` mode) so status is known before any session
-exists.
+workspace plugins at startup in throwaway workers so status is known before
+any session exists.
 
 Each session gets its own guarded view of the plugins it enabled:
 
@@ -738,24 +770,17 @@ Status is surfaced, never only logged:
   cache is keyed on each plugin's registry status, so a plugin a running
   session turned off is never answered from an earlier clean inspection.
 
-In `in_process` mode the daemon's `uncaughtException` / `unhandledRejection`
-handlers first ask the registry to attribute the error: when its stack points
-into a known plugin root (the package directory for package plugins, the file
-itself for drop-in files), that plugin is marked `failed` and the Hub keeps
-running. Other errors still go to `shutdownFatal`, which is the accepted risk of
-that mode: `process.exit()` from a plugin, or a rejection raised by runtime
-internals with no plugin frame (an un-caught `fetch()`), ends the Hub. Plugins
-also share the process (globals, `process.env`, native resources), and a
-plugin stuck in a synchronous loop freezes the Hub until it returns. Worker
-mode exists to remove these risks.
+Because no plugin code runs on the daemon's thread, its `uncaughtException` /
+`unhandledRejection` handlers treat every error as the daemon's own and go to
+`shutdownFatal`; there is no stack attribution to plugins.
 
 #### Worker and subprocess transports
 
 Both transports share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
-`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
-imports anything but Node builtins, because hosts ship it without
-`node_modules`):
+(`plugin-sandbox-bootstrap.ts`). After SDK compilation, Core builds
+`dist/plugin-runtime/`, containing the self-contained bootstrap and the complete
+SDK import graph under `node_modules/@cline`. Package exports come from the SDK
+manifests, including browser subpaths. Hosts ship this directory as one artifact:
 
 - `WorkerSandbox` (worker mode): structured clone over the worker's message
   port. A worker must not `chdir` (Bun would change the host's cwd), so the
@@ -768,12 +793,54 @@ imports anything but Node builtins, because hosts ship it without
 - `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
   stdout ignored.
 
-Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
-or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop sidecar
-sets it to the copy shipped as a Tauri resource). A host that ships none
-cannot start workers, and `resolvePluginExecutionMode` falls back to
-`in_process`.
+Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
+package-local `plugin-runtime` directory, or embedded resources. Source hosts
+prefer their sibling TypeScript bootstrap over packaged runtimes so development
+and tests execute the current bootstrap and module importer without rebuilding.
+The CLI compiler embeds the runtime tree and dashboard assets in Bun's read-only
+filesystem. Worker and subprocess transports read the same embedded bootstrap
+and SDK exports without extracting files or creating a runtime cache.
+VS Code and npm CLI copy the complete artifact into their bundles. Desktop
+ships it beside its external backend script, whose plain Bun host does not
+mount the CLI's filesystem.
+A host without a bootstrap fails closed with
+`PluginBootstrapMissingError`; plugin code never runs on the host main thread.
+
+Compiled hosts register their subprocess entrypoint with `setPluginSandboxLauncher`.
+The CLI and Desktop’s bundled CLI use the internal `--plugin-sandbox` flag,
+which lazily imports the embedded bootstrap with bunfs mounted and compiled
+runtime flags (including system CA trust) intact. Generic script sandboxes
+still use plain Bun mode when reusing a compiled runtime.
+
+
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution,
+exposed to clients through Hub RPC (`plugins.commands.list` /
+`plugins.commands.run`). The desktop sidecar, CLI, and connectors reuse their
+existing runtime connections and do not load plugins themselves. Plugin command
+execution can recover a connection before dispatch, but never resends a
+dispatched action whose reply was lost.
+
+A resident session lists and executes commands from its own contribution
+registry, retaining the plugin instance and context shared with its hooks.
+Session registrations keep their session lifetime. Without a resident session,
+the runtime uses a per-workspace catalog. Each request fingerprints the enabled
+discoverable plugin entries and their imported source graph, and reloads the
+catalog when that changes; other settings, setup logs, and state files beside a
+plugin do not. Each load uses its own `PluginRegistry`, so a catalog import
+failure cannot block a resident session's copy of the same plugin, and the
+retry re-imports it. A failed load keeps healthy commands, reports
+`status: "error"`, and is retried by a request after 30 seconds. Catalogs idle for 10 minutes release
+their workers. Reload, eviction, and disposal wait for running handlers. Clients
+re-list to stay current (for example when a slash menu opens or the active
+session changes); there is no catalog push event.
+
+The shared command executor records `task.tool_used` once per matched handler,
+including failures, for both direct runtime and Hub calls. Telemetry failures
+cannot replace a command's result or original error. Hub status and replacement
+checks count active command requests even without a chat participant; draining
+refuses new catalog and command requests. CLI and desktop fallbacks treat a
+failed catalog read as "not a plugin command" so skills and workflows still
+work, while errors from a listed plugin's handler remain visible.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -805,6 +872,10 @@ Do not move these concerns into `@cline/agents`:
 - RPC lifecycle
 - host-specific approvals
 - remote-config policy caching
+
+Diagnostics derived from a run (for example run stall telemetry, see `DOC.md`)
+belong in a `core` observer of runtime events. `agents` only emits the events and
+merges host-supplied properties through `runEndTelemetryProperties`.
 
 ### Keep `core` Generic
 
@@ -1055,7 +1126,7 @@ completed turn. Report and cleanup failures are logged separately.
 **I want to understand the agent loop and tool execution:**
 - Start: `packages/agents/src/agent.ts` — the stateless runtime loop
 - Then: `packages/agents/src/agent-step.ts` — individual iteration steps
-- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the in-process registry, and the opt-in sandbox
+- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the registry, and the worker/subprocess transports
 
 **I want to understand session persistence and state:**
 - Start: `packages/core/src/runtime/host/local-runtime-host.ts` — local session lifecycle
@@ -1116,6 +1187,7 @@ The following packages are published to npm:
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
 - `@cline/core` — the main SDK with session management, hub, and configuration
+- `@cline/ui` — shared web theme and reusable agent UI React components
 
 ### Internal Apps
 

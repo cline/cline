@@ -12,18 +12,10 @@ interface AutoApproveModalProps {
 	setIsVisible: (visible: boolean) => void
 	buttonRef: React.RefObject<HTMLDivElement>
 	ACTION_METADATA: ActionMetadata[]
-	cloudAutoApprove?: boolean
 }
 
-const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
-	isVisible,
-	setIsVisible,
-	buttonRef,
-	ACTION_METADATA,
-	cloudAutoApprove = false,
-}) => {
+const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
 	const { isChecked, updateAction } = useAutoApproveActions()
-	const displayedIsChecked = cloudAutoApprove ? () => true : isChecked
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
@@ -76,9 +68,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					maxHeight: "60vh",
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
-					{cloudAutoApprove
-						? "Cloud sessions always auto-approve these actions. Your local settings are unchanged. "
-						: "Let Cline take these actions without asking for approval. "}
+					Let Cline take these actions without asking for approval.{" "}
 					<a
 						className="text-link hover:text-link-hover"
 						href="https://docs.cline.bot/features/auto-approve#auto-approve"
@@ -109,13 +99,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 					{/* All items in a single list - CSS Grid will handle the column distribution */}
 					{ACTION_METADATA.map((action) => (
-						<AutoApproveMenuItem
-							action={action}
-							disabled={cloudAutoApprove}
-							isChecked={displayedIsChecked}
-							key={action.id}
-							onToggle={updateAction}
-						/>
+						<AutoApproveMenuItem action={action} isChecked={isChecked} key={action.id} onToggle={updateAction} />
 					))}
 				</div>
 			</div>

@@ -90,6 +90,12 @@ export interface ActiveSession {
 	sessionId: string
 	/** The config used to start the active session. */
 	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
+	/**
+	 * The mode the session's tools were built for. It can differ from the
+	 * persisted mode setting while a start or rebuild is in flight, so mode
+	 * switches compare against this rather than the setting.
+	 */
+	mode?: Mode
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
@@ -610,7 +616,14 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
+	const sdkProviderId = toSdkProviderId(providerId)
+	// OpenAI Compatible endpoints are user-supplied, so use the URL as entered
+	// rather than inheriting the OpenAI default `/v1` path.
+	if (sdkProviderId === "openai-compatible") {
+		return trimmed
+	}
+
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}

@@ -18,10 +18,16 @@ import type {
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
+import { markPluginCommand } from "./plugin-command-origin";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import {
+	getPluginSandboxLauncher,
+	resolvePluginRuntimeDirectory,
+} from "./plugin-runtime";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+
 /**
  * Absolute path to a compiled `plugin-sandbox-bootstrap.js`, for hosts that
  * ship it somewhere this module cannot find on its own (an app bundle's
@@ -256,7 +262,7 @@ export function selectBootstrapCandidate(options: {
 	sourceBootstrapPath: string;
 	installedCandidates: Array<string | undefined>;
 	exists?: (path: string) => boolean;
-}): { file: string } | { sourcePath: string } {
+}): { file: string } | { sourcePath: string } | undefined {
 	const exists = options.exists ?? existsSync;
 	for (const candidate of options.siblingCandidates) {
 		if (exists(candidate)) return { file: candidate };
@@ -267,11 +273,12 @@ export function selectBootstrapCandidate(options: {
 	for (const candidate of options.installedCandidates) {
 		if (candidate && exists(candidate)) return { file: candidate };
 	}
-	return { sourcePath: options.sourceBootstrapPath };
+	return undefined;
 }
 
 /**
- * Resolve the bootstrap for the sandbox subprocess.
+ * Resolve the bootstrap for the sandbox worker or subprocess, or `undefined`
+ * when this host ships none.
  *
  * In production (bundled), the compiled `.js` file lives next to this module
  * and can be passed directly as a file to spawn. In development/test
@@ -280,7 +287,8 @@ export function selectBootstrapCandidate(options: {
  */
 function resolveBootstrap():
 	| { file: string }
-	| { script: string; sourcePath: string } {
+	| { script: string; sourcePath: string }
+	| undefined {
 	const dir = dirname(fileURLToPath(import.meta.url));
 	const requireFromHere = createRequire(import.meta.url);
 	// In dev, the bootstrap sits next to this file in src/extensions/.
@@ -291,6 +299,14 @@ function resolveBootstrap():
 	if (configured && existsSync(configured)) {
 		return { file: configured };
 	}
+	const sourceBootstrapPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	// Source hosts must execute the current bootstrap and module importer,
+	// even when an earlier SDK build left a packaged runtime on disk.
+	const runtimeDirectory = existsSync(sourceBootstrapPath)
+		? undefined
+		: resolvePluginRuntimeDirectory();
+	if (runtimeDirectory)
+		return { file: join(runtimeDirectory, "plugin-sandbox-bootstrap.js") };
 	const selected = selectBootstrapCandidate({
 		siblingCandidates: [
 			join(dir, "plugin-sandbox-bootstrap.js"),
@@ -300,13 +316,13 @@ function resolveBootstrap():
 			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 		],
-		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		sourceBootstrapPath,
 		installedCandidates: [
 			resolveBootstrapFromWrapper(),
 			resolveBootstrapFromExecutable(),
 		],
 	});
-	if ("file" in selected) {
+	if (!selected || "file" in selected) {
 		return selected;
 	}
 	const tsPath = selected.sourcePath;
@@ -330,24 +346,68 @@ function resolveBootstrap():
 }
 
 let resolvedBootstrap: ReturnType<typeof resolveBootstrap> | undefined;
+let bootstrapUnavailableForTests = false;
 
 /**
  * Resolved on first use, not at import, so a host can set
- * `CLINE_PLUGIN_BOOTSTRAP_PATH` after loading this module.
+ * `CLINE_PLUGIN_BOOTSTRAP_PATH` after loading this module. A host that ships
+ * no bootstrap cannot run plugins at all: plugin code never runs on a host's
+ * main thread, so the load fails instead.
  */
-function getBootstrap(): ReturnType<typeof resolveBootstrap> {
+function getBootstrap(): NonNullable<ReturnType<typeof resolveBootstrap>> {
+	if (bootstrapUnavailableForTests) {
+		throw new PluginBootstrapMissingError();
+	}
 	resolvedBootstrap ??= resolveBootstrap();
+	if (!resolvedBootstrap) {
+		throw new PluginBootstrapMissingError();
+	}
 	return resolvedBootstrap;
 }
 
 /**
- * Whether this build can start the sandbox bootstrap: the compiled file ships
- * beside it, or its TypeScript source exists (running from source). Bundles
- * that ship neither cannot isolate plugins.
+ * @internal Test hook: behave as a host that ships no bootstrap. Tests run
+ * from source, where the `.ts` bootstrap always resolves.
  */
-export function isPluginSandboxBootstrapAvailable(): boolean {
-	const bootstrap = getBootstrap();
-	return "file" in bootstrap || existsSync(bootstrap.sourcePath);
+export function setPluginBootstrapUnavailableForTests(
+	unavailable: boolean,
+): void {
+	bootstrapUnavailableForTests = unavailable;
+}
+
+/** This build ships no `plugin-sandbox-bootstrap.js`, so no plugin can run. */
+export class PluginBootstrapMissingError extends Error {
+	constructor() {
+		super(
+			"This build does not ship plugin-sandbox-bootstrap.js, so plugins cannot run. " +
+				`Set ${CLINE_PLUGIN_BOOTSTRAP_PATH_ENV} to a copy of the file, or reinstall Cline.`,
+		);
+		this.name = "PluginBootstrapMissingError";
+	}
+}
+
+/**
+ * The result of a sandbox load when the host ships no bootstrap: every plugin
+ * is reported failed at import with the same error, so listings and session
+ * starts show the cause instead of silently dropping the plugins.
+ */
+function pluginBootstrapMissingResult(
+	pluginPaths: ReadonlyArray<string>,
+	error: PluginBootstrapMissingError,
+): Awaited<ReturnType<typeof loadSandboxedPlugins>> {
+	return {
+		extensions: [],
+		pluginPaths: [],
+		disabledByPolicy: [],
+		warnings: [],
+		failures: pluginPaths.map((pluginPath) => ({
+			pluginPath,
+			phase: "load" as const,
+			message: error.message,
+			stack: error.stack,
+		})),
+		shutdown: async () => {},
+	};
 }
 
 function withTimeoutFallback(
@@ -399,7 +459,15 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
-	const resolved = getBootstrap();
+	let resolved: ReturnType<typeof getBootstrap>;
+	try {
+		resolved = getBootstrap();
+	} catch (error) {
+		if (error instanceof PluginBootstrapMissingError) {
+			return pluginBootstrapMissingResult(options.pluginPaths, error);
+		}
+		throw error;
+	}
 	const bootstrap =
 		"file" in resolved
 			? { bootstrapFile: resolved.file }
@@ -443,6 +511,10 @@ export async function loadSandboxedPlugins(
 				})
 			: new SubprocessSandbox({
 					name: "plugin-sandbox",
+					launcher:
+						"bootstrapFile" in bootstrap
+							? getPluginSandboxLauncher()
+							: undefined,
 					...bootstrap,
 					idleTimeoutMs,
 					onEvent,
@@ -776,37 +848,39 @@ function registerCommands(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const cd of descriptor.contributions?.commands ?? []) {
-		api.registerCommand({
-			name: cd.name,
-			description: cd.description,
-			handler: async (input: string) => {
-				try {
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				} catch (error) {
-					if (!isUnknownPluginIdError(error)) {
-						throw error;
+		api.registerCommand(
+			markPluginCommand({
+				name: cd.name,
+				description: cd.description,
+				handler: async (input: string) => {
+					try {
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
 					}
-					await reinitialize();
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				}
-			},
-		});
+				},
+			}),
+		);
 	}
 }
 

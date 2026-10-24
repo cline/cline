@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
-import { dirname, extname, isAbsolute, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
+
+import { resolvePluginRuntimeDirectory } from "./plugin-runtime";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST_REQUIRE = createRequire(import.meta.url);
@@ -245,7 +247,9 @@ function resolveFromHostRuntime(specifier: string): string | null {
 	try {
 		return HOST_REQUIRE.resolve(specifier);
 	} catch {
-		// Continue with package export resolution for ESM-only package exports.
+		// Resolve ESM-only exports and embedded bunfs packages through their
+		// manifests. Bun 1.4.2 cannot resolve bare packages inside bunfs with
+		// createRequire.resolve, even though native imports of absolute aliases work.
 	}
 	return resolveHostPackageExport(specifier);
 }
@@ -297,6 +301,8 @@ function resolveHostPackageExport(specifier: string): string | null {
 
 function getHostPackageSearchRoots(): string[] {
 	const roots = [MODULE_DIR];
+	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	if (runtimeDirectory) roots.unshift(runtimeDirectory);
 	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
 	if (wrapperPath) {
 		roots.push(dirname(dirname(wrapperPath)));
@@ -725,6 +731,14 @@ export async function importPluginModule(
 	if (!createJiti) {
 		throw new Error("Unable to load jiti");
 	}
+	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	const nativeSdkModules = Object.entries(sortedAliases)
+		.filter(([specifier, target]) => {
+			if (!runtimeDirectory || !isClineSdkSpecifier(specifier)) return false;
+			const path = relative(runtimeDirectory, target);
+			return !path.startsWith("..") && !isAbsolute(path);
+		})
+		.map(([specifier]) => getPackageName(specifier));
 	const transformModules = Object.entries(sortedAliases)
 		.filter(([, target]) => shouldTransformAliasTarget(target))
 		.map(([specifier]) => specifier);
@@ -754,7 +768,7 @@ export async function importPluginModule(
 		requireCache: options.freshModule ? false : options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		nativeModules: [...BUILTIN_MODULES, ...nativeSdkModules],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

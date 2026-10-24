@@ -1,3 +1,4 @@
+import { getGeneratedModelsForProvider } from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -467,9 +468,14 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
+		const [generatedId, generatedModel] =
+			Object.entries(getGeneratedModelsForProvider("cline-pass")).find(([id]) =>
+				id.startsWith("cline-pass/"),
+			) ?? [];
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
-			"MiMo-V2.5-Pro",
+		expect(generatedId).toBeDefined();
+		expect(resolved?.knownModels?.[generatedId ?? ""]?.name).toBe(
+			generatedModel?.name,
 		);
 		expect(
 			resolved?.knownModels?.["vendor/live-openrouter-model"],

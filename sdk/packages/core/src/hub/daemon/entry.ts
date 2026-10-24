@@ -9,10 +9,7 @@ import {
 	resolveAgentPluginPathsWithDiagnostics,
 	resolvePluginExecutionMode,
 } from "../../extensions/plugin/plugin-config-loader";
-import {
-	getProcessPluginRegistry,
-	type PluginRegistry,
-} from "../../extensions/plugin/plugin-registry";
+import { getProcessPluginRegistry } from "../../extensions/plugin/plugin-registry";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -163,29 +160,6 @@ export function isAbortRejection(reason: unknown): boolean {
 	return false;
 }
 
-/**
- * Plugins run inside the daemon, so a stray exception or rejection from a
- * plugin must not shut every session down. When the error's stack points into
- * a loaded plugin, mark that plugin `failed` and keep running. Returns false
- * for errors that are not attributable to a plugin.
- */
-export function attributeUncaughtErrorToPlugin(
-	label: "uncaughtException" | "unhandledRejection",
-	error: unknown,
-	registry: PluginRegistry = getProcessPluginRegistry(),
-	write: (line: string) => void = (line) => process.stderr.write(line),
-): boolean {
-	const status = registry.attributeUncaughtError(error, label);
-	if (!status) {
-		return false;
-	}
-	const message = error instanceof Error ? error.message : String(error);
-	write(
-		`[hub-daemon] ${label} from plugin "${status.name}" (${status.pluginPath}); marked it failed and kept running: ${message}\n`,
-	);
-	return true;
-}
-
 async function main(): Promise<void> {
 	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
@@ -268,10 +242,9 @@ async function main(): Promise<void> {
 	// instead of taking Node/Bun's default exit path and leaving stale discovery.
 	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
 	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+	// Plugin code runs in workers, never on this thread, so an uncaught error
+	// here is the daemon's own and is fatal.
 	process.on("uncaughtException", (error) => {
-		if (attributeUncaughtErrorToPlugin("uncaughtException", error)) {
-			return;
-		}
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
@@ -280,9 +253,6 @@ async function main(): Promise<void> {
 			process.stderr.write(
 				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);
-			return;
-		}
-		if (attributeUncaughtErrorToPlugin("unhandledRejection", reason)) {
 			return;
 		}
 		shutdownFatal("unhandledRejection", reason);
@@ -438,11 +408,10 @@ async function main(): Promise<void> {
 }
 
 async function preloadDaemonPlugins(cwd: string): Promise<void> {
-	// In sandbox mode plugins must never run inside the Hub process; each
-	// session starts its own sandbox instead. Worker mode preloads in
-	// throwaway workers, so the Hub still never imports plugin code.
-	const mode = resolvePluginExecutionMode();
-	if (mode === "sandbox") {
+	// Sandbox mode has no process-wide registry; each session starts its own
+	// subprocess. Worker mode preloads in throwaway workers so status is known
+	// before any session starts.
+	if (resolvePluginExecutionMode() === "sandbox") {
 		return;
 	}
 	try {
@@ -451,7 +420,6 @@ async function preloadDaemonPlugins(cwd: string): Promise<void> {
 			cwd,
 		});
 		const statuses = await getProcessPluginRegistry().preload({
-			isolation: mode,
 			pluginPaths: resolved.paths,
 			disabledPluginPaths: resolved.disabledPaths,
 			discoveryFailures: resolved.discoveryFailures,

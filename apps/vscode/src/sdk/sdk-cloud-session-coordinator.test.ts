@@ -190,12 +190,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		const rows = vi
 			.mocked(options.messages.appendAndEmit)
-			.mock.calls.flatMap(([messages]) => messages.filter((message) => message.say === "text"))
-		expect(rows.map((row) => row.text)).toEqual([
-			"Starting a cloud sandbox for cline/fixture (main)…",
-			"Cloning cline/fixture (main) into the cloud sandbox…",
-			"Starting the agent in the cloud sandbox…",
-		])
+			.mock.calls.flatMap(([messages]) => messages.filter((message) => message.say === "cloud_provisioning"))
+		expect(rows.map((row) => JSON.parse(row.text!))).toEqual(
+			["starting", "cloning_repo", "agent_starting"].map((phase) => ({ phase, repo: "cline/fixture", branch: "main" })),
+		)
 		expect(new Set(rows.map((row) => row.ts)).size).toBe(1)
 		await coordinator.dispose()
 	})

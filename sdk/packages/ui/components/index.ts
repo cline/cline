@@ -45,6 +45,7 @@ export {
 	AgentComposerTextarea,
 	type AgentComposerTextareaProps,
 	type AgentComposerVariant,
+	agentComposerTokenClassName,
 } from "./agent-composer.js";
 export {
 	AgentContextUsage,
@@ -119,6 +120,7 @@ export {
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
 export { GitHubIcon } from "./github-icon.js";
+export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,

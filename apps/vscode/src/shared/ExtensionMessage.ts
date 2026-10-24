@@ -86,6 +86,8 @@ export interface ExtensionState {
 	enableCheckpointsSetting?: boolean
 	platform: Platform
 	environment?: Environment
+	/** The editor Cline runs in, as the host reports it ("Visual Studio Code", "Cursor", "PyCharm Professional"). */
+	hostName?: string
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
@@ -275,6 +277,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "cloud_provisioning" // cloud sandbox start/resume progress
 
 export interface ClineSayTool {
 	tool:
@@ -400,6 +403,16 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+}
+
+/**
+ * JSON payload of a say:"cloud_provisioning" message. The row is updated in
+ * place (same ts) as the sandbox advances through its phases.
+ */
+export interface ClineCloudProvisioningInfo {
+	phase: "starting" | "cloning_repo" | "agent_starting" | "resuming"
+	repo?: string
+	branch?: string
 }
 
 export interface ClineSubagentUsageInfo {

@@ -399,7 +399,10 @@ function sanitizeHookAttribute(value: string): string {
  */
 type HookContextOrigin =
 	| { source: "RunStart" }
-	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+	| {
+			source: "PreToolUse" | "PostToolUse" | "ToolSuccess";
+			toolCall: AgentToolCallPart;
+	  };
 
 function formatHookContextBlock(
 	origin: HookContextOrigin,
@@ -601,6 +604,7 @@ export class AgentRuntime {
 	private modelSteerController?: AbortController;
 	private readonly telemetryProviderId?: string;
 	private readonly telemetryModelId?: string;
+	private modelRequestId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -792,6 +796,7 @@ export class AgentRuntime {
 
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
+		this.modelRequestId = undefined;
 		this.state.status = "running";
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
@@ -1281,9 +1286,11 @@ export class AgentRuntime {
 	 * True when a turn failed with a transient provider error that a retry
 	 * could plausibly recover, and the failed attempt left nothing behind that
 	 * a second stream would duplicate or repeat:
-	 * - no content at all (text, reasoning, media, or local tool calls): those
+	 * - no content beyond reasoning (text, media, or local tool calls): those
 	 *   deltas were already emitted to the UI and there is no event to retract
-	 *   them, so re-streaming would show the output twice;
+	 *   them, so re-streaming would show the output twice. Partial reasoning is
+	 *   tolerated: it is discarded with the failed message, and losing a long
+	 *   thinking phase to a dropped connection is worse than re-streaming it;
 	 * - no provider-executed tool activity (recorded in message metadata, not
 	 *   content): re-issuing the request could run those side effects again;
 	 * - not an auth or context-window failure, which the same request cannot fix.
@@ -1295,7 +1302,7 @@ export class AgentRuntime {
 		if (turn.finishReason !== "error") {
 			return false;
 		}
-		if (turn.message.content.length > 0) {
+		if (turn.message.content.some((part) => part.type !== "reasoning")) {
 			return false;
 		}
 		const modelToolActivities = turn.message.metadata?.modelToolActivities;
@@ -1765,6 +1772,13 @@ export class AgentRuntime {
 		let request = prepared.request;
 
 		this.throwIfAborted();
+		this.modelRequestId = createUID("model_request", 21);
+		request = {
+			...request,
+			options: mergeModelOptions(request.options, {
+				metadata: { modelRequestId: this.modelRequestId },
+			}),
+		};
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",
@@ -1786,6 +1800,7 @@ export class AgentRuntime {
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const modelToolActivities = new Map<string, AgentModelToolActivity>();
+		let lastToolCallDeltaAt = 0;
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
@@ -1923,6 +1938,17 @@ export class AgentRuntime {
 							assembly.inputText,
 							event.inputText,
 						);
+					}
+					// Only a progress signal: at most once a second, since each event
+					// copies the whole conversation and a large file write streams
+					// thousands of argument chunks.
+					if (Date.now() - lastToolCallDeltaAt >= 1_000) {
+						lastToolCallDeltaAt = Date.now();
+						await this.emit({
+							type: "tool-call-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+						});
 					}
 					break;
 				}
@@ -2155,6 +2181,7 @@ export class AgentRuntime {
 		const sessionId = trimNonEmpty(this.config.sessionId);
 		captureTaskLifecycleEvent(this.config.telemetry, {
 			event,
+			modelRequestId: this.modelRequestId,
 			sessionId,
 			ulid: sessionId,
 			agentId: this.state.agentId,
@@ -2533,6 +2560,9 @@ export class AgentRuntime {
 	private async executePreparedTool(
 		prepared: PreparedToolExecution,
 	): Promise<AgentMessage> {
+		// A parallel sibling can outlive a stopped run; pushing to the buffer
+		// captured here keeps its context out of whichever run is current then.
+		const hookContexts = this.pendingHookContexts;
 		const startedAt = new Date();
 		await this.emit({
 			type: "tool-started",
@@ -2601,7 +2631,7 @@ export class AgentRuntime {
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
 				if (after?.appendContext?.trim()) {
-					this.pendingHookContexts.push(
+					hookContexts.push(
 						formatHookContextBlock(
 							{ source: "PostToolUse", toolCall: prepared.toolCall },
 							after.appendContext,
@@ -2613,6 +2643,19 @@ export class AgentRuntime {
 					result = after.result;
 				}
 			}
+		}
+
+		if (
+			!prepared.skipReason &&
+			!result.isError &&
+			prepared.tool?.successContext?.trim()
+		) {
+			hookContexts.push(
+				formatHookContextBlock(
+					{ source: "ToolSuccess", toolCall: prepared.toolCall },
+					prepared.tool.successContext,
+				),
+			);
 		}
 
 		const message = createMessage("tool", [
@@ -2728,6 +2771,7 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							modelRequestId: this.modelRequestId,
 							...(this.state.lastFinishReason
 								? { finishReason: this.state.lastFinishReason }
 								: {}),
@@ -2746,7 +2790,18 @@ export class AgentRuntime {
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
 			case "assistant-media":
+			case "tool-call-delta":
 			case "tool-updated":
+				break;
+			case "run-finished":
+			case "run-failed":
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: {
+						...(metadata as TelemetryProperties),
+						...this.config.runEndTelemetryProperties?.(),
+					},
+				});
 				break;
 			default:
 				this.config.telemetry?.capture({

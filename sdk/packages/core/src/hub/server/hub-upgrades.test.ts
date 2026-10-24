@@ -134,7 +134,13 @@ describe("Hub app-server upgrades", () => {
 		await transport.start();
 		try {
 			const seen: HubEventEnvelope[] = [];
-			transport.subscribe("observer", (event) => seen.push(event));
+			transport.subscribe("observer", (event) => {
+				if (event.event === "cloud.event") {
+					expect(event.sequence).toBeUndefined();
+					return;
+				}
+				seen.push(event);
+			});
 			await transport.handleCommand({
 				version: "v1",
 				command: "session.create",

@@ -51,7 +51,10 @@ vi.mock("../../services/storage/provider-settings-manager", () => ({
 	},
 }));
 
-import { createHubDaemonTelemetry } from "./telemetry";
+import {
+	createHubDaemonTelemetry,
+	hubDaemonResourceAttributes,
+} from "./telemetry";
 
 describe("createHubDaemonTelemetry", () => {
 	beforeEach(() => {
@@ -102,6 +105,41 @@ describe("createHubDaemonTelemetry", () => {
 				serviceVersion: expect.any(String),
 			}),
 		);
+	});
+
+	it("publishes who launched the daemon as resource attributes", () => {
+		mockGetProviderSettings.mockReturnValue(undefined);
+		vi.stubEnv("CLINE_HUB_LAUNCHER_CLIENT", "cline-desktop");
+		vi.stubEnv("CLINE_HUB_LAUNCHER_VERSION", "0.0.46");
+		vi.stubEnv("CLINE_HUB_LAUNCHER_TRANSPORT", "local");
+		try {
+			const daemonTelemetry = createHubDaemonTelemetry();
+			expect(daemonTelemetry.launcher).toEqual({
+				client: "cline-desktop",
+				version: "0.0.46",
+				transport: "local",
+			});
+			// A desktop session hosted by a CLI-started hub (or the reverse)
+			// is only attributable through the daemon's resource, since the
+			// span's clientName describes the session's client, not the host.
+			// Claimed, not read: hosted sessions must not inherit the stamp.
+			expect(process.env.CLINE_HUB_LAUNCHER_CLIENT).toBeUndefined();
+			expect(process.env.CLINE_HUB_LAUNCHER_VERSION).toBeUndefined();
+			expect(process.env.CLINE_HUB_LAUNCHER_TRANSPORT).toBeUndefined();
+			expect(mockCreateConfiguredTelemetryHandle).toHaveBeenCalledWith(
+				expect.objectContaining({
+					resourceAttributes: expect.objectContaining({
+						"cline.hub.launcher.client": "cline-desktop",
+						"cline.hub.launcher.version": "0.0.46",
+						"cline.hub.launcher.transport": "local",
+						"cline.hub.build_id": expect.any(String),
+						"cline.hub.runtime": expect.any(String),
+					}),
+				}),
+			);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("stays anonymous when no cached account exists, then identifies once the user logs in", () => {
@@ -228,5 +266,33 @@ describe("createHubDaemonTelemetry", () => {
 		const disposed = daemonTelemetry.dispose();
 		await vi.advanceTimersByTimeAsync(5_000);
 		await expect(disposed).resolves.toBeUndefined();
+	});
+});
+
+describe("hubDaemonResourceAttributes", () => {
+	it("falls back to unknown launcher fields and strips the executable path", () => {
+		expect(
+			hubDaemonResourceAttributes(undefined, {
+				buildId: "build-1",
+				execPath: "C:\\Program Files\\Cline\\cline-cli.exe",
+			}),
+		).toEqual({
+			"cline.hub.build_id": "build-1",
+			"cline.hub.runtime": "cline-cli",
+			"cline.hub.launcher.client": "unknown",
+			"cline.hub.launcher.version": "unknown",
+			"cline.hub.launcher.transport": "local",
+		});
+		expect(
+			hubDaemonResourceAttributes(
+				{ client: "cline-cli", version: "3.0.72", transport: "ssh" },
+				{ buildId: "build-2", execPath: "/home/dev/.cline/remote/cline" },
+			),
+		).toMatchObject({
+			"cline.hub.runtime": "cline",
+			"cline.hub.launcher.client": "cline-cli",
+			"cline.hub.launcher.version": "3.0.72",
+			"cline.hub.launcher.transport": "ssh",
+		});
 	});
 });

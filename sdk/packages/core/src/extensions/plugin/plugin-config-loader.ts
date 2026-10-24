@@ -21,10 +21,7 @@ import {
 	type PluginHookErrorMode,
 	type PluginRegistry,
 } from "./plugin-registry";
-import {
-	isPluginSandboxBootstrapAvailable,
-	loadSandboxedPlugins,
-} from "./plugin-sandbox";
+import { loadSandboxedPlugins } from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export { getPluginDisplayName };
@@ -282,7 +279,7 @@ export function resolveAgentPluginSkillDirectories(
 	);
 }
 
-export type PluginExecutionMode = "sandbox" | "worker" | "in_process";
+export type PluginExecutionMode = "sandbox" | "worker";
 
 export const CLINE_PLUGIN_MODE_ENV = "CLINE_PLUGIN_MODE";
 
@@ -291,25 +288,17 @@ export const CLINE_PLUGIN_MODE_ENV = "CLINE_PLUGIN_MODE";
  * - `worker` (default): each plugin runs in its own worker thread per
  *   session, inside the host runtime. A plugin crash, `process.exit()`, or
  *   hung loop ends only its worker, and no `node`/`bun` is needed on PATH.
- * - `in_process`: plugins are imported into the host process.
  * - `sandbox`: the previous per-session `node`/`bun` subprocess.
  *
- * Builds that do not ship the sandbox bootstrap (a host bundle without it)
- * cannot start workers and fall back to `in_process`.
+ * Plugin code never runs on a host's main thread. Both modes need the
+ * sandbox bootstrap; a build that ships none fails every plugin load with
+ * `PluginBootstrapMissingError` rather than importing plugins into the host.
  */
 export function resolvePluginExecutionMode(
 	mode?: PluginExecutionMode,
 ): PluginExecutionMode {
 	const configured = process.env[CLINE_PLUGIN_MODE_ENV]?.trim();
-	const requested: PluginExecutionMode =
-		mode ??
-		(configured === "sandbox" || configured === "in_process"
-			? configured
-			: "worker");
-	if (requested === "worker" && !isPluginSandboxBootstrapAvailable()) {
-		return "in_process";
-	}
-	return requested;
+	return mode ?? (configured === "sandbox" ? configured : "worker");
 }
 
 export interface ResolveAndLoadAgentPluginsOptions
@@ -322,9 +311,8 @@ export interface ResolveAndLoadAgentPluginsOptions
 	contributionTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 	/**
-	 * Structured workspace and git metadata. Forwarded to sandboxed plugins
-	 * via PluginSetupCtx.workspaceInfo and made available to in-process plugins
-	 * in the extension context.
+	 * Structured workspace and git metadata, forwarded to plugins via
+	 * PluginSetupCtx.workspaceInfo.
 	 */
 	workspaceInfo?: WorkspaceInfo;
 	session?: PluginSetupContext["session"];
@@ -335,14 +323,14 @@ export interface ResolveAndLoadAgentPluginsOptions
 	telemetry?: PluginSetupContext["telemetry"];
 	/**
 	 * Per-session plugin selection (`"*"` default plus per-plugin overrides).
-	 * In-process only; the sandbox loads every discovered plugin.
+	 * Worker mode only; the subprocess sandbox loads every discovered plugin.
 	 */
 	policy?: PluginPolicies;
 	/** How a failing plugin hook affects the run. Defaults to `"ignore"`. */
 	hookErrorMode?: PluginHookErrorMode;
-	/** In-process registry. Defaults to the process-wide registry. */
+	/** Worker mode: the registry to load through. Defaults to the process-wide one. */
 	registry?: PluginRegistry;
-	/** In-process only: a plugin this session uses became degraded or failed. */
+	/** Worker mode only: a plugin this session uses became degraded or failed. */
 	onIssue?: (issue: SessionPluginIssue) => void;
 }
 
@@ -358,7 +346,7 @@ export async function resolveAndLoadAgentPlugins(
 	} & PluginLoadDiagnostics
 > {
 	const mode = resolvePluginExecutionMode(options.mode);
-	if (mode === "in_process" || mode === "worker") {
+	if (mode === "worker") {
 		const resolved = resolveAgentPluginPathsWithDiagnostics(options);
 		if (
 			resolved.paths.length === 0 &&
@@ -375,7 +363,6 @@ export async function resolveAndLoadAgentPlugins(
 		}
 		const registry = options.registry ?? getProcessPluginRegistry();
 		const loaded = await registry.loadForSession({
-			isolation: mode,
 			sessionId: options.session?.sessionId,
 			pluginPaths: resolved.paths,
 			disabledPluginPaths: resolved.disabledPaths,
