@@ -1204,7 +1204,8 @@ describe("HubServerTransport boundaries", () => {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
-					sessionId: "123-saved-session",
+					sessionId:
+						command === "session.resume" ? "123-saved-session" : undefined,
 					providerId: "cline",
 					modelId: "test-model",
 					cwd: "/tmp/project",
@@ -1226,8 +1227,9 @@ describe("HubServerTransport boundaries", () => {
 
 		expect(reply.ok).toBe(true);
 		const sessionId = capturedStartInput?.config.sessionId?.trim() || "";
-		expect(sessionId).toBe("123-saved-session");
+		expect(sessionId).toMatch(/^[0-9]/);
 		if (command === "session.resume") {
+			expect(sessionId).toBe("123-saved-session");
 			startSession.mockRejectedValueOnce(
 				new SessionAlreadyExistsError(sessionId),
 			);
