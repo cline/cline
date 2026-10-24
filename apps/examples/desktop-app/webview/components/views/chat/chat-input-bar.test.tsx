@@ -1110,30 +1110,37 @@ describe("ChatInputBar", () => {
 	});
 
 	it.each([
-		["an offered model", "cline-test", true, true, undefined],
+		["an offered model", "cline-test", true, "cline-pass", undefined],
 		[
-			"an unoffered model for a subscriber",
-			"openai/retired",
+			"a local ClinePass free model",
+			"cline-free/free-model",
 			true,
-			true,
+			"cline-pass",
 			"cline-pass/first-pass",
 		],
 		[
-			"an unoffered ClinePass model without a subscription",
+			"an unoffered model for a local Cline user",
 			"cline-pass/retired",
 			true,
-			false,
+			"cline",
 			CLINE_DEFAULT_MODEL_ID,
 		],
 		[
-			"an unoffered model for an organization subscriber",
-			"openai/retired",
+			"a local ClinePass model on an organization account",
+			"cline-pass/retired",
 			false,
-			true,
+			"cline-pass",
 			CLINE_DEFAULT_MODEL_ID,
 		],
-	])("starts a new cloud chat on %s", async (_label, model, hasPass, subscribed, expected) => {
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, localProvider, expected) => {
 		window.localStorage.clear();
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: localProvider,
+				lastModelByProvider: { [localProvider]: model },
+			}),
+		);
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: hasPass
@@ -1147,7 +1154,6 @@ describe("ChatInputBar", () => {
 				"cline-cloud": ["cline-cloud/free-model"],
 			},
 			providerReasoningModels: {},
-			clinePassSubscribed: subscribed,
 		});
 		const onModelChange = vi.fn();
 		await act(async () => {

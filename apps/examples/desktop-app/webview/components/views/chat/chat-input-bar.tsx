@@ -1806,7 +1806,14 @@ const ModelSelector = memo(function ModelSelector({
 			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
-	const [clinePassSubscribed, setClinePassSubscribed] = useState(false);
+	// Remounted per execution target, so this reads the local provider as of entering Cloud.
+	const [localClinePass] = useState(
+		() =>
+			includeCloudModels &&
+			normalizeProviderId(
+				readModelSelectionStorageFromWindow().lastProvider,
+			) === "cline-pass",
+	);
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const normalizedProvider = includeCloudModels
 		? (Object.keys(providerModels).find((id) =>
@@ -1992,7 +1999,7 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		if (includeCloudModels) {
 			const fallback =
-				(clinePassSubscribed
+				(localClinePass
 					? visibleProviderModels["cline-pass"]?.[0]
 					: undefined) ??
 				(Object.values(visibleProviderModels).some((ids) =>
@@ -2008,7 +2015,7 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
-		clinePassSubscribed,
+		localClinePass,
 		includeCloudModels,
 		autoCorrectModel,
 		lastSelection.lastModelByProvider,
@@ -2073,7 +2080,6 @@ const ModelSelector = memo(function ModelSelector({
 					return;
 				}
 				setProviderModels(payload.providerModels);
-				setClinePassSubscribed(payload.clinePassSubscribed === true);
 				setProviderReasoningModels(payload.providerReasoningModels);
 				setProviderNames((current) => ({
 					...current,

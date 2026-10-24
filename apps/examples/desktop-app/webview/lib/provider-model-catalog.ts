@@ -26,8 +26,6 @@ export type ProviderModelCatalog = {
 	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
-	/** Cloud catalogs only; undefined when the plan could not be checked. */
-	clinePassSubscribed?: boolean;
 };
 
 export type TranscriptionModelTarget = {
@@ -326,12 +324,9 @@ export async function loadProviderModelCatalog(options?: {
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
 	if (options?.includeCloudModels) {
-		const [models, localCatalog, clinePassSubscribed] = await Promise.all([
+		const [models, localCatalog] = await Promise.all([
 			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
 			fetchProviderCatalog(),
-			desktopClient
-				.invoke<boolean | null>("cline_pass_subscribed")
-				.catch(() => null),
 		]);
 		// This catalog reads bundled/local metadata, without provider network
 		// discovery. Load it explicitly so capabilities survive a cold cache.
@@ -342,26 +337,23 @@ export async function loadProviderModelCatalog(options?: {
 		);
 		// Cloud catalogs are billing choices on the same Cline transport. Only
 		// the account-scoped cloud response determines which models are offered.
-		return {
-			...buildProviderModelCatalog(
-				Object.entries({
-					cline: "Cline Usage-Billing",
-					"cline-pass": "ClinePass",
-					"cline-cloud": "ClineFree",
-				}).map(([id, name]) => ({
-					id,
-					name,
-					enabled: true,
-					models: null,
-					color: "",
-					letter: "C",
-					modelList: models
-						.filter((model) => model.catalogId === id)
-						.map((model) => ({ ...details.get(model.id), ...model })),
-				})),
-			),
-			clinePassSubscribed: clinePassSubscribed ?? undefined,
-		};
+		return buildProviderModelCatalog(
+			Object.entries({
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			}).map(([id, name]) => ({
+				id,
+				name,
+				enabled: true,
+				models: null,
+				color: "",
+				letter: "C",
+				modelList: models
+					.filter((model) => model.catalogId === id)
+					.map((model) => ({ ...details.get(model.id), ...model })),
+			})),
+		);
 	}
 	const payload = await fetchProviderCatalog();
 	const catalog = buildProviderModelCatalog(payload.providers ?? []);

@@ -8,7 +8,6 @@ import type { SidecarContext } from "./types";
 
 const clineAccountServiceCtorMock = vi.hoisted(() => vi.fn());
 const executeClineAccountActionMock = vi.hoisted(() => vi.fn());
-const fetchCurrentUserPlanMock = vi.hoisted(() => vi.fn());
 const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
@@ -32,7 +31,6 @@ vi.mock("@cline/core", async () => {
 	return {
 		...actual,
 		ClineAccountService: class {
-			fetchCurrentUserPlan = fetchCurrentUserPlanMock;
 			constructor(options: unknown) {
 				clineAccountServiceCtorMock(options);
 			}
@@ -84,7 +82,6 @@ beforeEach(() => {
 	vi.stubEnv("CLINE_DIR", testDataDir);
 	clineAccountServiceCtorMock.mockReset();
 	executeClineAccountActionMock.mockReset();
-	fetchCurrentUserPlanMock.mockReset();
 	getProviderSettingsMock.mockReset();
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
@@ -389,47 +386,6 @@ describe("cline_account command auth states", () => {
 				errorCode: "desktop_refresh_failed_no_fallback_token",
 			}),
 		});
-	});
-});
-
-describe("cline_pass_subscribed command", () => {
-	it.each([
-		["a plan", async () => ({ plan: { id: "pass" } }), true],
-		["no plan in the response", async () => ({ plan: null }), false],
-		[
-			"a no-plan error",
-			async () => {
-				throw new Error("No plan found for user");
-			},
-			false,
-		],
-		[
-			"any other failure",
-			async () => {
-				throw new Error("HTTP 503");
-			},
-			null,
-		],
-	])("reports %s", async (_label, fetchPlan, expected) => {
-		const { ctx } = createContext();
-		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
-		getProviderSettingsMock.mockReturnValue({});
-		fetchCurrentUserPlanMock.mockImplementation(fetchPlan);
-		const { handleCommand } = await import("./commands");
-		await expect(handleCommand(ctx, "cline_pass_subscribed")).resolves.toBe(
-			expected,
-		);
-	});
-
-	it("reports unknown when signed out", async () => {
-		const { ctx } = createContext();
-		resolveProviderApiKeyMock.mockResolvedValue(null);
-		getProviderSettingsMock.mockReturnValue(undefined);
-		const { handleCommand } = await import("./commands");
-		await expect(handleCommand(ctx, "cline_pass_subscribed")).resolves.toBe(
-			null,
-		);
-		expect(fetchCurrentUserPlanMock).not.toHaveBeenCalled();
 	});
 });
 
