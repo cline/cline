@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { CloudSessionError } from "../../cloud/api";
-import { CloudSessionController } from "../../cloud/controller";
+import type { CloudSessionController } from "../../cloud/controller";
 import {
 	type CloudHubConnection,
 	HubCloudSessionClient,
@@ -78,8 +78,29 @@ function fixture() {
 				emit = listener;
 				return () => {};
 			},
-			create: vi.fn(async () => ({ sessionId: "ses-one", status: "ready" })),
-			createAndSend: CloudSessionController.prototype.createAndSend,
+			create: vi.fn(
+				async (_input: Parameters<CloudSessionController["create"]>[0]) => ({
+					sessionId: "ses-one",
+					status: "ready",
+				}),
+			),
+			createAndSend: vi.fn(
+				async (
+					...[input, images]: Parameters<
+						CloudSessionController["createAndSend"]
+					>
+				) => {
+					const target = await controller.create(input);
+					const send = await controller.send(
+						target.sessionId,
+						input.initialPrompt,
+						"queue",
+						input.modelId,
+						images,
+					);
+					return { target, send };
+				},
+			),
 			attach: vi.fn(async (sessionId: string) => {
 				emit({
 					type: "snapshot",
@@ -692,10 +713,9 @@ describe("cloud RPC over a shared hub socket", () => {
 				expect(controller.send).toHaveBeenCalledExactlyOnceWith(
 					"ses-one",
 					"Summary and next instruction",
-					undefined,
+					"queue",
 					"model",
 					["image"],
-					{ beforeDispatch: expect.any(Function) },
 				),
 			);
 			expect((await observer.command("session.list")).payload).toMatchObject({

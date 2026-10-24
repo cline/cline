@@ -111,13 +111,16 @@ async function fixture() {
 		status: "idle",
 		startedAt: 1,
 	});
+	const create = vi.fn(
+		async (_input: Parameters<CloudSessionApi["create"]>[0]) => ({
+			sessionId: "ses-target",
+			status: "ready" as const,
+			sandboxUrl: "",
+		}),
+	);
 	const cloud = await createCloudSessionTestRuntime(ctx, {
 		api: {
-			create: vi.fn(async () => ({
-				sessionId: "ses-target",
-				status: "ready",
-				sandboxUrl: "",
-			})),
+			create,
 		} as unknown as CloudSessionApi,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "synthetic",
@@ -128,7 +131,6 @@ async function fixture() {
 			{ id: modelId, catalogId: "cline-cloud", name: "Test" },
 		]);
 	vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
-	const create = vi.spyOn(cloud, "create");
 	const send = vi.spyOn(cloud, "send").mockImplementation(async (...args) => {
 		args[5]?.beforeDispatch?.();
 		return { sessionId: "ses-target", ok: true };
@@ -480,7 +482,7 @@ describe("summary cloud handoff", () => {
 		expect(f.send).toHaveBeenCalledWith(
 			"ses-target",
 			prompt,
-			undefined,
+			"queue",
 			"test-model",
 			[image],
 			expect.any(Object),

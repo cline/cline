@@ -455,6 +455,13 @@ export class CloudSessionController {
 		string,
 		Promise<CloudSessionAttachment>
 	>();
+	private readonly initialSends = new Map<
+		string,
+		{
+			lifecycle: CloudSendLifecycle;
+			settled: Promise<CloudSendFailure | undefined>;
+		}
+	>();
 	private readonly provisioningControllers = new Map<
 		string,
 		Set<AbortController>
@@ -1036,11 +1043,22 @@ export class CloudSessionController {
 	async create(
 		input: CreateCloudSessionInput,
 	): Promise<CloudSessionAttachment> {
+		return this.createSession(input);
+	}
+
+	private async createSession(
+		input: CreateCloudSessionInput,
+		beforePublish?: (sessionId: string) => void,
+	): Promise<CloudSessionAttachment> {
 		const key = input.requestId?.trim();
-		if (!key) return await this.createOnce(input);
+		if (!key) return await this.createOnce(input, beforePublish);
 		const existing = this.createRequests.get(key);
-		if (existing) return await existing;
-		const creating = this.createOnce(input).finally(() => {
+		if (existing) {
+			const target = await existing;
+			beforePublish?.(target.sessionId);
+			return target;
+		}
+		const creating = this.createOnce(input, beforePublish).finally(() => {
 			if (this.createRequests.get(key) === creating) {
 				this.createRequests.delete(key);
 			}
@@ -1058,24 +1076,40 @@ export class CloudSessionController {
 			| Awaited<ReturnType<CloudSessionController["send"]>>
 			| CloudSendFailure;
 	}> {
-		const target = await this.create(input);
 		let dispatched = false;
+		let settle!: (failure?: CloudSendFailure) => void;
+		const initial = {
+			lifecycle: {
+				beforeDispatch: () => {
+					dispatched = true;
+				},
+			},
+			settled: new Promise<CloudSendFailure | undefined>((resolve) => {
+				settle = resolve;
+			}),
+		};
+		const target = await this.createSession(input, (sessionId) => {
+			if (!this.initialSends.has(sessionId))
+				this.initialSends.set(sessionId, initial);
+		});
 		try {
 			const send = await this.send(
 				target.sessionId,
 				input.initialPrompt,
-				undefined,
+				"queue",
 				input.modelId,
 				images,
-				{
-					beforeDispatch: () => {
-						dispatched = true;
-					},
-				},
+				initial.lifecycle,
 			);
+			settle();
 			return { target, send };
 		} catch (error) {
-			return { target, send: serializeCloudSendFailure(error, dispatched) };
+			const send = serializeCloudSendFailure(error, dispatched);
+			settle(send);
+			return { target, send };
+		} finally {
+			if (this.initialSends.get(target.sessionId) === initial)
+				this.initialSends.delete(target.sessionId);
 		}
 	}
 
@@ -1195,6 +1229,7 @@ export class CloudSessionController {
 
 	private async createOnce(
 		input: CreateCloudSessionInput,
+		beforePublish?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const cwd = cloudWorkspaceCwd(input.workspaceRelativePath);
@@ -1306,6 +1341,7 @@ export class CloudSessionController {
 		}
 
 		this.assertSessionActive(record.id);
+		beforePublish?.(record.id);
 		this.notify("chat_session_status", {
 			sessionId: record.id,
 			status: live.status,
@@ -1411,6 +1447,16 @@ export class CloudSessionController {
 		result?: unknown;
 	}> {
 		const abortToken = this.sendAbortTokens.get(outerSessionId);
+		const initial = this.initialSends.get(outerSessionId);
+		// Only the initial send may bypass its own reservation.
+		if (initial && lifecycle !== initial.lifecycle) {
+			if (await initial.settled) {
+				throw new CloudSessionError(
+					"request_failed",
+					"The initial cloud prompt was not confirmed. Check the cloud task before sending another message.",
+				);
+			}
+		}
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(

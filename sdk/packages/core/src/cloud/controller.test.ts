@@ -1029,6 +1029,71 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
+	it.each([
+		false,
+		true,
+	])("holds follow-ups behind the initial prompt (rejected: %s)", async (rejected) => {
+		const f = fixture();
+		let release!: () => void;
+		let entered!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const original = f.command.getMockImplementation()!;
+		let attaches = 0;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.attach" && ++attaches === 2) {
+				entered();
+				await gate;
+				if (rejected) throw new Error("Initial attachment failed");
+			}
+			return original(...args);
+		});
+		try {
+			const creating = f.controller.createAndSend({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialPrompt: "INITIAL SUMMARY",
+			});
+			await blocked;
+			const following = f.controller.send(record.id, "FOLLOW UP", "queue");
+			const outcome = following.then(
+				() => "sent",
+				() => "rejected",
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+			release();
+			await creating;
+			expect(await outcome).toBe(rejected ? "rejected" : "sent");
+			expect(
+				f.commands
+					.filter((entry) => entry.command === "session.send_input")
+					.map((entry) => entry.payload),
+			).toEqual(
+				rejected
+					? []
+					: [
+							{ prompt: "INITIAL SUMMARY", delivery: "queue" },
+							{ prompt: "FOLLOW UP", delivery: "queue" },
+						],
+			);
+			if (rejected) {
+				await f.controller.send(record.id, "Explicit retry", "queue");
+				expect(
+					f.commands.filter((entry) => entry.command === "session.send_input"),
+				).toHaveLength(1);
+			}
+		} finally {
+			release();
+			await f.controller.dispose();
+		}
+	});
 	it("creates and sends one initial prompt with images without a second caller action", async () => {
 		const f = fixture();
 		try {
@@ -1053,7 +1118,7 @@ describe("CloudSessionController neutral host contract", () => {
 					sessionId: "inner",
 					payload: {
 						prompt: "Summary and next instruction",
-						delivery: undefined,
+						delivery: "queue",
 						attachments: { userImages: ["data:image/png;base64,aW1hZ2U="] },
 					},
 				},
