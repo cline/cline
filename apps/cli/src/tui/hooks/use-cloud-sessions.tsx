@@ -1,8 +1,4 @@
-import {
-	ProviderSettingsManager,
-	readCloudModelIdGlobally,
-	setCloudModelIdGlobally,
-} from "@cline/core";
+import { readCloudModelIdGlobally, setCloudModelIdGlobally } from "@cline/core";
 import type {
 	CloudModel,
 	CloudRepositoryOption,
@@ -17,7 +13,6 @@ import {
 	parseGitHubRepoFullName,
 	readGitOriginUrl,
 } from "../../utils/repo-status";
-import { loadCurrentUserPlanFromProviderSettings } from "../cline-account";
 import {
 	CloudModelPickerContent,
 	CloudRepoPickerContent,
@@ -56,17 +51,6 @@ export function describeCloudSessionStatus(
 	return "Ready in Cline Cloud";
 }
 
-async function hasClinePassSubscription(): Promise<boolean> {
-	try {
-		const current = await loadCurrentUserPlanFromProviderSettings({
-			providerSettingsManager: new ProviderSettingsManager(),
-		});
-		return !!current?.plan;
-	} catch {
-		return false;
-	}
-}
-
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
@@ -77,6 +61,7 @@ export function useCloudSessions(input: {
 	termHeight: number;
 	cwd: string;
 	localBranch: string | null;
+	providerId: string;
 	modelId: string;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
@@ -92,6 +77,7 @@ export function useCloudSessions(input: {
 		client,
 		dialog,
 		termHeight,
+		providerId: localProviderId,
 		modelId: localModelId,
 		replaceEntries,
 		showToast,
@@ -109,7 +95,6 @@ export function useCloudSessions(input: {
 	const abortRequestedRef = useRef(false);
 	const pickingRef = useRef(false);
 	const modelsRef = useRef<CloudModel[] | undefined>(undefined);
-	const subscribedRef = useRef<boolean | undefined>(undefined);
 	const inputRef = useRef(input);
 	inputRef.current = input;
 
@@ -123,18 +108,14 @@ export function useCloudSessions(input: {
 		const models = await loadModels();
 		const offered = (id: string | undefined) =>
 			id ? models.find((candidate) => candidate.id === id) : undefined;
-		const subscribed = async () => {
-			subscribedRef.current ??= await hasClinePassSubscription();
-			return subscribedRef.current;
-		};
 		// An explicit pick wins while the catalog still offers it. Otherwise the
 		// default is recomputed each time: the local Cline/ClinePass model if it's
-		// offered, then ClinePass for subscribers, then Cline's default
+		// offered, then ClinePass for ClinePass users, then Cline's default
 		// usage-billed model.
 		const next =
 			offered(explicitModelId) ??
 			offered(localModelId) ??
-			((await subscribed())
+			(localProviderId === "cline-pass"
 				? models.find((candidate) => candidate.catalogId === "cline-pass")
 				: undefined) ??
 			offered(CLINE_DEFAULT_MODEL_ID) ??
@@ -143,7 +124,7 @@ export function useCloudSessions(input: {
 		if (!next)
 			throw new Error("No cloud models are available for this account.");
 		return next;
-	}, [explicitModelId, loadModels, localModelId]);
+	}, [explicitModelId, loadModels, localModelId, localProviderId]);
 
 	useEffect(() => {
 		if (!client || target !== "cloud" || !selection) return;

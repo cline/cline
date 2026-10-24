@@ -324,6 +324,7 @@ function App(props: TuiProps) {
 		termHeight,
 		cwd: props.config.cwd,
 		localBranch: repoStatus.branch,
+		providerId: props.config.providerId,
 		modelId: props.config.modelId,
 		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
 		onEnterCloud: () => {
