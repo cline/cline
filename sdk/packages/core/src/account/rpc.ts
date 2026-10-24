@@ -182,6 +182,13 @@ export class RpcClineAccountService implements ClineAccountOperations {
 		});
 	}
 
+	public async fetchCurrentUserPlan(): Promise<UserCurrentPlan | undefined> {
+		return this.request<UserCurrentPlan | undefined>({
+			action: "clineAccount",
+			operation: "fetchCurrentUserPlan",
+		});
+	}
+
 	private async request<T>(request: ClineAccountActionRequest): Promise<T> {
 		const response = await this.executor.runProviderAction(request);
 		return response.result as T;

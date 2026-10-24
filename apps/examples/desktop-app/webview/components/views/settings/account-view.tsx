@@ -202,6 +202,7 @@ export function AccountView() {
 		ClineAccountOrganization[]
 	>([]);
 	const [clinePassModels, setClinePassModels] = useState<string[] | null>(null);
+	const clinePassGenerationRef = useRef(0);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
 	// Signed out is an expected state carried by a typed sidecar result (or a
@@ -236,6 +237,7 @@ export function AccountView() {
 		setBalance(null);
 		setOrganizationBalance(null);
 		setOrganizations([]);
+		clinePassGenerationRef.current += 1;
 		setClinePassModels(null);
 		setUsageTransactions([]);
 		setUsageLoaded(false);
@@ -260,7 +262,15 @@ export function AccountView() {
 				return;
 			}
 			// The subscription card is optional, so it neither delays nor breaks the page.
-			void fetchClinePassModels().then(setClinePassModels, () => {});
+			const generation = ++clinePassGenerationRef.current;
+			void fetchClinePassModels().then(
+				(models) => {
+					if (clinePassGenerationRef.current === generation) {
+						setClinePassModels(models);
+					}
+				},
+				() => {},
+			);
 			const [balanceData, orgsData] = await Promise.all([
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),

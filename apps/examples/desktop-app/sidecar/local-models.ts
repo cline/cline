@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { statfs } from "node:fs/promises";
 import os from "node:os";
 import { promisify } from "node:util";
+import { clearPublicModelsCatalogCache } from "@cline/core";
 import {
 	isLocalRuntime,
 	LOCAL_MODEL_PULL_PROGRESS_EVENT,
@@ -213,6 +214,8 @@ function startPull(
 			};
 		} finally {
 			activePulls.delete(key);
+			// The composer's model list comes from a cached copy of the runtime's.
+			clearPublicModelsCatalogCache();
 			broadcastEvent(ctx, LOCAL_MODEL_PULL_PROGRESS_EVENT, final);
 		}
 	})();
@@ -264,6 +267,7 @@ export async function handleLocalModelsCommand(
 			return {};
 		case "delete_local_model":
 			await backend.delete(readModel(args));
+			clearPublicModelsCatalogCache();
 			return {};
 		case "show_local_model":
 			return await backend.show(readModel(args));

@@ -37,6 +37,7 @@ interface LmStudioModel {
 		reasoning?: unknown;
 	};
 	loaded_instances?: { id: string; config?: Record<string, unknown> }[];
+	variants?: string[];
 }
 
 /** A job from `POST /api/v1/models/download` and its status endpoint. */
@@ -141,6 +142,13 @@ export function isNestedDir(parent: string, dir: string, depth: number) {
 }
 
 const hubModelsDir = (home: string) => path.join(home, "hub", "models");
+
+/**
+ * Deleting removes the model's whole source repos, which also hold any other
+ * downloaded variants, and only makes sense when those files are on this computer.
+ */
+const canDelete = (model: LmStudioModel) =>
+	isLocalUrl(readServerUrl()) && (model.variants?.length ?? 0) <= 1;
 
 /**
  * Models downloaded from LM Studio Hub come with a manifest naming the
@@ -251,14 +259,15 @@ export const lmstudioBackend: LocalRuntimeBackend = {
 					quantization: model.quantization?.name ?? "",
 					capabilities: readCapabilities(model),
 					contextLength: model.max_context_length ?? 0,
-					deletable: !!(await readHubSources(home, model.key)),
+					deletable:
+						canDelete(model) && !!(await readHubSources(home, model.key)),
 				})),
 			),
 			running: models
 				.filter((model) => model.loaded_instances?.length)
 				.map((model) => ({
 					name: model.key,
-					sizeBytes: model.size_bytes,
+					sizeBytes: model.size_bytes * (model.loaded_instances?.length ?? 1),
 					contextLength:
 						Number(model.loaded_instances?.[0]?.config?.context_length) || 0,
 				})),
@@ -324,6 +333,11 @@ export const lmstudioBackend: LocalRuntimeBackend = {
 	},
 
 	async delete(model) {
+		if (!canDelete(await findModel(model))) {
+			throw new Error(
+				"Cline can't delete this model. Remove it from LM Studio.",
+			);
+		}
 		const home = await readHome();
 		const sources = await readHubSources(home, model);
 		if (!sources) {

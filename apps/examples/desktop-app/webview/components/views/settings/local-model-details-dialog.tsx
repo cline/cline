@@ -290,7 +290,7 @@ export function LocalModelDetailsDialog({
 									<ReadOnlyField
 										hint="Includes loading the model, so large models on slow hardware can hit it."
 										label="Response timeout"
-										value="5 minutes to start responding"
+										value="5 minutes to start responding (default)"
 									/>
 								) : null}
 							</div>

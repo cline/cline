@@ -298,6 +298,7 @@ function RuntimePicker({
 export function LocalModelsContent() {
 	const [runtime, setRuntime] = useState(readPreferredRuntime);
 	const runtimeRef = useRef(runtime);
+	const refreshGenerationRef = useRef(0);
 	const [status, setStatus] = useState<LocalModelsStatus>();
 	const [refreshing, setRefreshing] = useState(false);
 	const [pulls, setPulls] = useState<Record<string, LocalModelPullProgress>>(
@@ -328,6 +329,7 @@ export function LocalModelsContent() {
 
 	const refresh = useCallback(async ({ quiet = false } = {}) => {
 		if (!quiet) setRefreshing(true);
+		const generation = ++refreshGenerationRef.current;
 		try {
 			const requested = runtimeRef.current;
 			// Without a saved choice, the backend picks whichever runtime is set up.
@@ -335,7 +337,10 @@ export function LocalModelsContent() {
 				"get_local_models_status",
 				requested ? { runtime: requested } : undefined,
 			);
-			if (requested !== runtimeRef.current) {
+			if (
+				requested !== runtimeRef.current ||
+				generation !== refreshGenerationRef.current
+			) {
 				return;
 			}
 			if (!requested) {
@@ -491,8 +496,13 @@ export function LocalModelsContent() {
 			}),
 		);
 
-	const switchToModel = (model: string, contextWindow: number) =>
+	const switchToModel = (model: string, preferredContextWindow: number) =>
 		runAction(model, "using", async () => {
+			// Runtimes won't load past the model's own limit, so chat mustn't assume more.
+			const limit = installed.get(model)?.contextLength;
+			const contextWindow = limit
+				? Math.min(preferredContextWindow, limit)
+				: preferredContextWindow;
 			const provider = shownRuntime;
 			await desktopClient.invoke("save_provider_settings", {
 				provider,
@@ -748,7 +758,7 @@ export function LocalModelsContent() {
 							title={
 								installedModel.deletable
 									? undefined
-									: `Only models downloaded from LM Studio Hub can be deleted here. Remove this one from ${runtimeName}.`
+									: `Cline can only delete LM Studio Hub models with one variant, on this computer. Remove this one in ${runtimeName}.`
 							}
 							type="button"
 							variant="ghost"

@@ -84,6 +84,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { LocalModelIndicator } from "./local-model-indicator";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -1707,7 +1708,10 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-					{executionTarget !== "cloud" && isLocalRuntime(localRuntime) ? (
+					{/* The chip controls this computer's runtime, which SSH sessions don't use. */}
+					{executionTarget !== "cloud" &&
+					environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					isLocalRuntime(localRuntime) ? (
 						<LocalModelIndicator
 							isBusy={isBusy}
 							model={model}
