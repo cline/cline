@@ -312,7 +312,7 @@ function SettingsSectionNavigation({
 				if (collapsed || !isProviderSection(section)) {
 					return renderSectionButton(section);
 				}
-				return section === PROVIDER_SECTIONS[0] ? renderProvidersGroup() : null;
+				return section === "Account" ? renderProvidersGroup() : null;
 			})}
 			{collapsed ? (
 				<>

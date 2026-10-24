@@ -343,7 +343,7 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
-	/** Opens Settings → Local Models from the Ollama memory chip. */
+	/** Opens Settings → Local Models from the local model chip. */
 	onOpenLocalModels?: () => void;
 	summary: {
 		toolCalls: number;
@@ -2187,13 +2187,14 @@ const ModelSelector = memo(function ModelSelector({
 	}, [lastSelection, persistSelection]);
 
 	// A selection made mid-turn waits for the turn to end.
-	const pendingSelectionRef = useRef<ModelSelectionChangedDetail | null>(null);
+	const [pendingSelection, setPendingSelection] =
+		useState<ModelSelectionChangedDetail | null>(null);
 	useEffect(() => {
 		if (includeCloudModels) return;
 		const handleSelectionChanged = (event: Event) => {
-			pendingSelectionRef.current = (
-				event as CustomEvent<ModelSelectionChangedDetail>
-			).detail;
+			setPendingSelection(
+				(event as CustomEvent<ModelSelectionChangedDetail>).detail,
+			);
 			setLastSelection(readModelSelectionStorageFromWindow());
 		};
 		window.addEventListener(
@@ -2207,12 +2208,11 @@ const ModelSelector = memo(function ModelSelector({
 			);
 	}, [includeCloudModels]);
 	useEffect(() => {
-		const pending = pendingSelectionRef.current;
-		if (isBusy || !pending) return;
-		pendingSelectionRef.current = null;
-		onProviderChange(pending.providerId);
-		onModelChange(pending.modelId);
-	}, [isBusy, lastSelection, onModelChange, onProviderChange]);
+		if (isBusy || !pendingSelection) return;
+		setPendingSelection(null);
+		onProviderChange(pendingSelection.providerId);
+		onModelChange(pendingSelection.modelId);
+	}, [isBusy, pendingSelection, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
