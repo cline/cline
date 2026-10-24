@@ -83,11 +83,8 @@ export function getInitialChatConfig(
 		...local,
 		executionTarget: "cloud",
 		provider: DEFAULT_CHAT_CONFIG.provider,
-		model:
-			readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
-			(provider === DEFAULT_CHAT_CONFIG.provider
-				? model
-				: DEFAULT_CHAT_CONFIG.model),
+		// The cloud model picker resolves it from the account's plan.
+		model: "",
 		workspaceRoot: "",
 		cwd: "",
 	};

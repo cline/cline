@@ -6481,7 +6481,7 @@ describe("useChatSession", () => {
 	it.each([
 		"local",
 		"cloud",
-	] as const)("restores the Cloud target and model after viewing a %s session", async (target) => {
+	] as const)("restores the Cloud target and leaves its model to the picker after viewing a %s session", async (target) => {
 		await act(async () => root.unmount());
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,
@@ -6533,7 +6533,7 @@ describe("useChatSession", () => {
 		expect(current.config).toMatchObject({
 			executionTarget: "cloud",
 			provider: "cline",
-			model: "cloud-model",
+			model: "",
 			repoUrl: undefined,
 		});
 
@@ -6568,7 +6568,7 @@ describe("useChatSession", () => {
 			sessionId: undefined,
 			executionTarget: "cloud",
 			provider: "cline",
-			model: "cloud-model",
+			model: "",
 			repoUrl: undefined,
 			branch: undefined,
 		});

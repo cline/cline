@@ -1666,7 +1666,6 @@ function ChatInputBarImpl({
 								executionTarget === "cloud" ? undefined : onOpenModelSettings
 							}
 							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
 						/>
 					</div>
@@ -1761,7 +1760,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
 	includeCloudModels = false,
-	persistSelection = true,
 	provider,
 	model,
 	isBusy,
@@ -1775,7 +1773,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
-	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1803,17 +1800,21 @@ const ModelSelector = memo(function ModelSelector({
 	const [modelDetails, setModelDetails] = useState<
 		Record<string, ProviderModel[]>
 	>({});
+	const selectionScope = includeCloudModels ? "cloud" : "local";
 	const [lastSelection, setLastSelection] = useState(() =>
-		includeCloudModels
-			? { lastProvider: "", lastModelByProvider: {} }
-			: readModelSelectionStorageFromWindow(),
+		readModelSelectionStorageFromWindow(selectionScope),
 	);
+	const [cloudDefaultProvider, setCloudDefaultProvider] = useState("cline");
 	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	// A new cloud composer starts without a model; it resolves to the
+	// remembered or default model of the account's plan catalog.
 	const normalizedProvider = includeCloudModels
-		? (Object.keys(providerModels).find((id) =>
-				providerModels[id]?.includes(model),
-			) ??
+		? ((model
+				? Object.keys(providerModels).find((id) =>
+						providerModels[id]?.includes(model),
+					)
+				: cloudDefaultProvider) ??
 			(model.startsWith("cline-pass/")
 				? "cline-pass"
 				: model.startsWith("cline-cloud/")
@@ -1985,12 +1986,19 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		// Missing remembered models may also be live-only. Models present in
 		// the catalog but deliberately hidden from the offer still fall back.
+		// The cloud catalog is account-scoped, so it is authoritative there.
 		if (
 			rememberedModel &&
 			(pickerModelIds.has(rememberedModel) ||
-				!modelsForProvider.includes(rememberedModel))
+				(!includeCloudModels && !modelsForProvider.includes(rememberedModel)))
 		) {
 			return rememberedModel;
+		}
+		if (
+			includeCloudModels &&
+			modelsForProvider.includes(CLINE_DEFAULT_MODEL_ID)
+		) {
+			return CLINE_DEFAULT_MODEL_ID;
 		}
 		return (
 			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
@@ -2071,6 +2079,9 @@ const ModelSelector = memo(function ModelSelector({
 					...(payload.providerModelDetails ?? {}),
 				}));
 				setReasoningCapabilitySource("catalog");
+				if (payload.defaultProviderId) {
+					setCloudDefaultProvider(payload.defaultProviderId);
+				}
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (
@@ -2133,9 +2144,6 @@ const ModelSelector = memo(function ModelSelector({
 	// happened to use.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
-			if (!persistSelection) {
-				return;
-			}
 			const normalizedId = normalizeProviderId(providerId);
 			if (!normalizedId) {
 				return;
@@ -2158,17 +2166,16 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[persistSelection],
+		[],
 	);
 
 	useEffect(() => {
-		if (!persistSelection) return;
 		try {
-			writeModelSelectionStorageToWindow(lastSelection);
+			writeModelSelectionStorageToWindow(lastSelection, selectionScope);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection, persistSelection]);
+	}, [lastSelection, selectionScope]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
@@ -2244,7 +2251,7 @@ const ModelSelector = memo(function ModelSelector({
 			const nextModel =
 				rememberedModel &&
 				(providerOptionIds.has(rememberedModel) ||
-					!providerModelIds.includes(rememberedModel))
+					(!includeCloudModels && !providerModelIds.includes(rememberedModel)))
 					? rememberedModel
 					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
 						providerModelIds[0]);

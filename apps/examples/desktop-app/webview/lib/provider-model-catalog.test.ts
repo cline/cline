@@ -508,3 +508,39 @@ describe("transcription model selection", () => {
 		).toMatchObject({ supportsStreaming: true });
 	});
 });
+
+describe("cloud model catalog", () => {
+	afterEach(() => {
+		invalidateProviderCatalogCache();
+		vi.restoreAllMocks();
+	});
+
+	it.each([
+		["an active ClinePass plan", { plan: { id: "pass" } }, true, "cline-pass"],
+		["no plan", null, true, "cline"],
+		[
+			"a plan without offered Pass models",
+			{ plan: { id: "pass" } },
+			false,
+			"cline",
+		],
+	])("defaults to the plan's catalog for %s", async (_label, plan, offersPass, expected) => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (command) => {
+			if (command === "list_cloud_models")
+				return [
+					{ id: "usage-model", name: "Usage", catalogId: "cline" },
+					...(offersPass
+						? [{ id: "cline-pass/pass", name: "Pass", catalogId: "cline-pass" }]
+						: []),
+				];
+			if (command === "cline_account") return plan;
+			return { providers: [] };
+		});
+
+		const catalog = await loadProviderModelCatalog({
+			includeCloudModels: true,
+		});
+
+		expect(catalog.defaultProviderId).toBe(expected);
+	});
+});

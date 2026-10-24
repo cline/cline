@@ -2918,6 +2918,11 @@ export async function handleCommand(
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 			getAuthToken: async () => authToken,
 		});
+		if (operation === "fetchCurrentUserPlan") {
+			// Non-subscribers get "No plan found for user". This only steers the
+			// default cloud model, so any failure just means no ClinePass.
+			return await accountService.fetchCurrentUserPlan().catch(() => null);
+		}
 		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
 			accountService,

@@ -8,6 +8,7 @@ import type { SidecarContext } from "./types";
 
 const clineAccountServiceCtorMock = vi.hoisted(() => vi.fn());
 const executeClineAccountActionMock = vi.hoisted(() => vi.fn());
+const fetchCurrentUserPlanMock = vi.hoisted(() => vi.fn());
 const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
@@ -34,6 +35,7 @@ vi.mock("@cline/core", async () => {
 			constructor(options: unknown) {
 				clineAccountServiceCtorMock(options);
 			}
+			fetchCurrentUserPlan = fetchCurrentUserPlanMock;
 		},
 		executeClineAccountAction: executeClineAccountActionMock,
 		ProviderSettingsManager: class {
@@ -319,6 +321,29 @@ describe("cline_account command auth states", () => {
 				errorCode: "desktop_refresh_failed_no_fallback_token",
 			}),
 		});
+	});
+
+	it.each([
+		["returns the current plan", true, { plan: { id: "pass" } }],
+		["treats a missing plan as none", false, null],
+	])("%s", async (_label, subscribed, expected) => {
+		const { ctx } = createContext();
+		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
+		getProviderSettingsMock.mockReturnValue(undefined);
+		if (subscribed) fetchCurrentUserPlanMock.mockResolvedValue(expected);
+		else
+			fetchCurrentUserPlanMock.mockRejectedValue(
+				new Error("No plan found for user"),
+			);
+		const { handleCommand } = await import("./commands");
+
+		const result = await handleCommand(ctx, "cline_account", {
+			action: "clineAccount",
+			operation: "fetchCurrentUserPlan",
+		});
+
+		expect(result).toEqual(expected);
+		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 	});
 });
 

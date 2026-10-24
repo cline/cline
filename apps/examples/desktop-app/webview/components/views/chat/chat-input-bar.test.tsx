@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	act,
 	Fragment,
@@ -17,6 +18,8 @@ import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
+	readModelSelectionStorageFromWindow,
+	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
@@ -1101,6 +1104,14 @@ describe("ChatInputBar", () => {
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
 			),
 		).toEqual(localSelection);
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "cline-cloud",
+			lastModelByProvider: {
+				cline: "cline-alt",
+				"cline-pass": "cline-pass/pass-model",
+				"cline-cloud": "cline-cloud/free-model",
+			},
+		});
 	});
 
 	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
@@ -1215,6 +1226,98 @@ describe("ChatInputBar", () => {
 		expect(imageOnlySendButton?.disabled).toBe(false);
 		await act(async () => imageOnlySendButton?.click());
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["a ClinePass plan", "cline-pass", {}, "cline-pass/pass-model"],
+		[
+			"a ClinePass plan over a remembered usage pick",
+			"cline-pass",
+			{ cline: "cline-alt" },
+			"cline-pass/pass-model",
+		],
+		[
+			"a ClinePass plan with a remembered Pass pick",
+			"cline-pass",
+			{ "cline-pass": "cline-pass/other-model" },
+			"cline-pass/other-model",
+		],
+		["no plan", "cline", {}, CLINE_DEFAULT_MODEL_ID],
+		[
+			"no plan with a remembered usage pick",
+			"cline",
+			{ cline: "cline-alt" },
+			"cline-alt",
+		],
+		[
+			"no plan over a stale remembered model",
+			"cline",
+			{ cline: "cline-pass/pass-model" },
+			CLINE_DEFAULT_MODEL_ID,
+		],
+	])("starts a new cloud session for %s", async (_label, defaultProviderId, remembered, expected) => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "cline-pass", "cline-cloud"],
+			providerModels: {
+				"cline-pass": ["cline-pass/pass-model", "cline-pass/other-model"],
+				"cline-cloud": ["cline-cloud/free-model"],
+				cline: ["cline-alt", CLINE_DEFAULT_MODEL_ID],
+			},
+			providerReasoningModels: {},
+			defaultProviderId,
+		});
+		writeModelSelectionStorageToWindow(
+			{ lastProvider: "cline", lastModelByProvider: remembered },
+			"cloud",
+		);
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						environmentId="local"
+						executionTarget="cloud"
+						gitBranch="no-git"
+						mode="act"
+						model=""
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onModelChange).toHaveBeenCalledWith(expected);
+		});
+		expect(
+			onModelChange.mock.calls.every(([model]) => model === expected),
+		).toBe(true);
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {

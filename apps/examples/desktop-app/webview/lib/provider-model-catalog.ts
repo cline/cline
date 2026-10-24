@@ -26,6 +26,8 @@ export type ProviderModelCatalog = {
 	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
+	/** Cloud only: the catalog a new cloud session starts on. */
+	defaultProviderId?: string;
 };
 
 export type TranscriptionModelTarget = {
@@ -324,9 +326,15 @@ export async function loadProviderModelCatalog(options?: {
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
 	if (options?.includeCloudModels) {
-		const [models, localCatalog] = await Promise.all([
+		const [models, localCatalog, currentPlan] = await Promise.all([
 			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
 			fetchProviderCatalog(),
+			desktopClient
+				.invoke<{ plan?: unknown } | null>("cline_account", {
+					action: "clineAccount",
+					operation: "fetchCurrentUserPlan",
+				})
+				.catch(() => null),
 		]);
 		// This catalog reads bundled/local metadata, without provider network
 		// discovery. Load it explicitly so capabilities survive a cold cache.
@@ -337,7 +345,7 @@ export async function loadProviderModelCatalog(options?: {
 		);
 		// Cloud catalogs are billing choices on the same Cline transport. Only
 		// the account-scoped cloud response determines which models are offered.
-		return buildProviderModelCatalog(
+		const catalog = buildProviderModelCatalog(
 			Object.entries({
 				cline: "Cline Usage-Billing",
 				"cline-pass": "ClinePass",
@@ -354,6 +362,13 @@ export async function loadProviderModelCatalog(options?: {
 					.map((model) => ({ ...details.get(model.id), ...model })),
 			})),
 		);
+		// The ClinePass list is offered to every personal account, so only an
+		// active plan makes it the default over usage billing.
+		catalog.defaultProviderId =
+			currentPlan?.plan && catalog.providerModels["cline-pass"]?.length
+				? "cline-pass"
+				: "cline";
+		return catalog;
 	}
 	const payload = await fetchProviderCatalog();
 	const catalog = buildProviderModelCatalog(payload.providers ?? []);
