@@ -502,6 +502,31 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		// Starting a session by id while its turn is still running must not
+		// build a second runtime: replacing the live entry orphans the running
+		// agent, which keeps calling tools where no abort can reach it. Clients
+		// that reopen a chat from history start it again before each prompt, so
+		// hand back the live session and let the prompt queue behind the turn.
+		const liveSession = requestedSessionId
+			? this.sessions.get(requestedSessionId)
+			: undefined;
+		if (liveSession && !liveSession.agent.canStartRun()) {
+			if (input.prompt?.trim()) {
+				throw new Error(
+					`Session ${requestedSessionId} is already running a turn; send the prompt to it instead of starting it again`,
+				);
+			}
+			await this.ensureSessionPersisted(liveSession);
+			const artifacts = liveSession.artifacts;
+			if (artifacts) {
+				return {
+					sessionId: requestedSessionId,
+					manifest: artifacts.manifest,
+					manifestPath: artifacts.manifestPath,
+					messagesPath: artifacts.messagesPath,
+				};
+			}
+		}
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&

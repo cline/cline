@@ -3387,6 +3387,98 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("reuses a session whose turn is running instead of starting a second runtime under its id", async () => {
+		const sessionId = "sess-start-while-running";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agent = {
+			run: vi.fn().mockImplementation(
+				() =>
+					new Promise<AgentResult>((_resolve, reject) => {
+						activeRun = true;
+						rejectRun = (error) => {
+							activeRun = false;
+							reject(error);
+						};
+						markRunStarted?.();
+					}),
+			),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			abort: vi.fn(() => rejectRun?.(new Error("user cancelled"))),
+			notifyPendingUserMessage: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+
+		// A client that reopened the chat from history starts it again by id
+		// (with the persisted transcript) before sending its next prompt.
+		const restarted = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages: [
+					{ role: "user", content: [{ type: "text", text: "slow" }] },
+				] as never,
+			}),
+		);
+
+		expect(restarted.sessionId).toBe(sessionId);
+		expect(createAgent).toHaveBeenCalledTimes(1);
+		// The running turn is still the session's, so Stop reaches it.
+		await manager.abort(sessionId, new Error("test abort"));
+		expect(agent.abort).toHaveBeenCalledTimes(1);
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+	});
+
 	it("propagates a parent session abort to its team runtime", async () => {
 		const sessionId = "sess-team-abort";
 		const manifest = createManifest(sessionId);
