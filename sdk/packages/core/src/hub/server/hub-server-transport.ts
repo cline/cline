@@ -81,6 +81,11 @@ import {
 	type PendingCapabilityRequest,
 } from "./handlers/context";
 import {
+	handleSessionMcpAppsCallTool,
+	handleSessionMcpAppsReadResource,
+	handleSessionMcpAppsResolveTool,
+} from "./handlers/mcp-apps-handlers";
+import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
 	handleSessionHook,
@@ -953,6 +958,12 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionUpdate(this.ctx, envelope);
 			case "session.update_connection":
 				return await handleSessionUpdateConnection(this.ctx, envelope);
+			case "session.mcp_apps.resolve_tool":
+				return await handleSessionMcpAppsResolveTool(this.ctx, envelope);
+			case "session.mcp_apps.read_resource":
+				return await handleSessionMcpAppsReadResource(this.ctx, envelope);
+			case "session.mcp_apps.call_tool":
+				return await handleSessionMcpAppsCallTool(this.ctx, envelope);
 			case "session.compaction.update":
 				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":

@@ -253,6 +253,15 @@ potentially live command's advertised path takes precedence over guessing that
 it exited. A detached client connection alone never changes process ownership or
 command execution.
 
+MCP Apps requests follow the same session-scoped command path. A session started
+with `mcpApps: true` keeps an MCP Apps runtime on its `BuiltRuntime`, bound to
+the session's `InMemoryMcpManager` in the Hub process. A UI host never opens its
+own MCP connection for an app. It sends `session.mcp_apps.resolve_tool`,
+`session.mcp_apps.read_resource`, or `session.mcp_apps.call_tool`, and the Hub
+delegates to the `LocalRuntimeHost`, which serves the request from that runtime.
+App tool calls are checked against the tool's `_meta.ui.visibility` there, in the
+process that owns the connection, not in the client.
+
 ### Generated Media Operation and Event Flow
 
 Model modalities and provider operations are separate facts. Modalities describe
@@ -617,6 +626,7 @@ Context compaction is owned by `core`.
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- automatic compaction requires a positive input limit or context window from model metadata (catalog or caller configuration); unknown custom-model limits do not trigger compaction or status notices based on a guessed window. Manual compaction and provider-confirmed overflow recovery remain available with a default working budget.
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
