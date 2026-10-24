@@ -231,6 +231,8 @@ Supported commands:
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
+| `get_session_changes` | `session-changes.ts`: each checkpoint (tree plus its untracked-files parent) and the working tree (via a temp copy of the index) become git trees; `diff-tree` between consecutive points gives per-turn files and line counts, first checkpoint → working tree gives the session's. Local only |
+| `read_session_change` | `session-changes.ts`: both sides of one change by blob id, capped at 1 MiB, binary-aware |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
