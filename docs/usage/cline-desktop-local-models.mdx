@@ -8,7 +8,7 @@ The **Local Models** page in Cline Desktop's settings runs models on your own co
 
 ## Open the Local Models page
 
-Click **Settings** at the bottom of the sidebar, then select **Providers → Local**. Clicking **Providers** opens the page for the provider your chat uses right now, marked **In use**.
+Click **Settings** at the bottom of the sidebar, then select **Provider → Local**. Clicking **Provider** opens the page for the provider your chat uses right now, marked **In use**.
 
 <Frame>
   <img
@@ -66,7 +66,7 @@ If Ollama is installed but not running, click **Start Ollama**. Cline launches i
   />
 </Frame>
 
-Cline connects to Ollama at `http://localhost:11434` by default. If your Ollama server runs somewhere else, change the **Base URL** under **Settings → Providers → BYOK → Ollama**. Cline can only start Ollama on your own computer, so for a remote server the page asks you to check that the server is running.
+Cline connects to Ollama at `http://localhost:11434` by default. If your Ollama server runs somewhere else, change the **Base URL** under **Settings → Provider → BYOK → Ollama**. Cline can only start Ollama on your own computer, so for a remote server the page asks you to check that the server is running.
 
 ## Set up LM Studio
 
@@ -81,7 +81,7 @@ If LM Studio isn't installed, the page links to the LM Studio download. If you d
 
 Open LM Studio once after installing it. After that, if LM Studio is installed but not running, click **Start LM Studio** and Cline starts its local server for you.
 
-Cline connects to LM Studio at `http://localhost:1234` by default. If your LM Studio server uses another address, change the **Base URL** under **Settings → Providers → BYOK → LM Studio**. If you turned on authentication for the LM Studio server, add the API token there too.
+Cline connects to LM Studio at `http://localhost:1234` by default. If your LM Studio server uses another address, change the **Base URL** under **Settings → Provider → BYOK → LM Studio**. If you turned on authentication for the LM Studio server, add the API token there too.
 
 ## Download a model
 
@@ -226,12 +226,12 @@ Ollama and LM Studio name the same models differently. With LM Studio selected, 
 
 **"Start Ollama" doesn't start it**
 - Open the Ollama app yourself, or run `ollama serve` in a terminal, and watch for errors.
-- If Ollama runs on another machine or port, check the **Base URL** under **Settings → Providers → BYOK → Ollama**.
+- If Ollama runs on another machine or port, check the **Base URL** under **Settings → Provider → BYOK → Ollama**.
 
 **"Start LM Studio" doesn't start it**
 - Open the LM Studio app once, then try again. Cline starts LM Studio with its `lms` command, which LM Studio sets up the first time it runs.
 - You can also start the server yourself with `lms server start`, or from the **Developer** tab in LM Studio.
-- If LM Studio runs on another machine or port, check the **Base URL** under **Settings → Providers → BYOK → LM Studio**.
+- If LM Studio runs on another machine or port, check the **Base URL** under **Settings → Provider → BYOK → LM Studio**.
 
 **A model fails to load**
 - An out-of-memory error means the model and its context window don't fit. Unload other models, close memory-heavy apps, or pick a smaller model.
