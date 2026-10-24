@@ -284,6 +284,9 @@ export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 		() => null,
 	);
 	const buildNumber = await windowsBuild;
+	// Closed while the imports above were pending: its xterm is disposed and
+	// a shell started now would have no tab to reach it.
+	if (tab.status !== "starting") return;
 	if (buildNumber) {
 		tab.term.options.windowsPty = { backend: "conpty", buildNumber };
 	}
@@ -321,8 +324,15 @@ export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 			},
 			onEvent: channel,
 		});
-		if (tab.status === "starting") tab.status = "running";
+		if (tab.status === "starting") {
+			tab.status = "running";
+		} else if (tab.status === "exited") {
+			// Closed while the spawn was in flight, so its terminal_kill ran
+			// before the shell existed. (A no-op if the shell already exited.)
+			void invoke("terminal_kill", { id: tab.id }).catch(() => {});
+		}
 	} catch (error) {
+		if (tab.status !== "starting") return;
 		// Back to "new" so showing the tab again retries the spawn.
 		tab.status = "new";
 		tab.pty = null;
