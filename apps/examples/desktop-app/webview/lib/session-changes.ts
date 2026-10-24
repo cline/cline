@@ -1,0 +1,110 @@
+import { useEffect, useRef, useState } from "react";
+import { desktopClient } from "./desktop-client";
+
+/** One file from the sidecar's `get_session_changes`. */
+export type SessionChangeFile = {
+	/** Repository-root-relative, forward slashes. */
+	path: string;
+	status: "A" | "M" | "D";
+	/** Null for binary files. */
+	additions: number | null;
+	deletions: number | null;
+	oldOid?: string;
+	newOid?: string;
+};
+
+export type SessionChangeSet = {
+	files: SessionChangeFile[];
+	omitted: number;
+};
+
+export type SessionTurnChanges = SessionChangeSet & { runCount: number };
+
+export type SessionChanges = {
+	root?: string;
+	session?: SessionChangeSet;
+	turns?: SessionTurnChanges[];
+	/** Set when the workspace has no git checkpoints to compare. */
+	unavailableReason?: string;
+};
+
+export type SessionChangeContents = {
+	oldText?: string;
+	newText: string;
+	binary: boolean;
+	truncated: boolean;
+};
+
+/** A turn without `runCount` means the latest one. */
+export type ChangesScope =
+	| { kind: "session" }
+	| { kind: "turn"; runCount?: number };
+
+export function sumChanges(files: readonly SessionChangeFile[]): {
+	additions: number;
+	deletions: number;
+} {
+	return files.reduce(
+		(totals, file) => ({
+			additions: totals.additions + (file.additions ?? 0),
+			deletions: totals.deletions + (file.deletions ?? 0),
+		}),
+		{ additions: 0, deletions: 0 },
+	);
+}
+
+const REFRESH_DEBOUNCE_MS = 400;
+
+/**
+ * Per-turn and whole-session changes for a local session, refetched whenever
+ * `refreshKey` changes (tool edits and turn boundaries). Errors, such as an
+ * untrusted connection, read as unavailable so hosts fall back to the
+ * tool-event reconstruction.
+ */
+export function useSessionChanges({
+	enabled,
+	environmentId,
+	sessionId,
+	cwd,
+	refreshKey,
+}: {
+	enabled: boolean;
+	environmentId: string;
+	sessionId: string | null;
+	cwd: string;
+	refreshKey: string;
+}): SessionChanges | null {
+	const [changes, setChanges] = useState<SessionChanges | null>(null);
+	const requestRef = useRef(0);
+
+	// A different session never shows the previous one's changes.
+	useEffect(() => {
+		void sessionId;
+		void cwd;
+		setChanges(null);
+	}, [sessionId, cwd]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is a reload signal.
+	useEffect(() => {
+		if (!enabled || !sessionId || !cwd) return;
+		const request = ++requestRef.current;
+		const timer = window.setTimeout(() => {
+			desktopClient
+				.invoke<SessionChanges>("get_session_changes", {
+					environmentId,
+					sessionId,
+					cwd,
+				})
+				.catch((error: unknown) => ({
+					unavailableReason:
+						error instanceof Error ? error.message : String(error),
+				}))
+				.then((next) => {
+					if (request === requestRef.current) setChanges(next);
+				});
+		}, REFRESH_DEBOUNCE_MS);
+		return () => window.clearTimeout(timer);
+	}, [enabled, environmentId, sessionId, cwd, refreshKey]);
+
+	return changes;
+}

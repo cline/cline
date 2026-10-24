@@ -10,7 +10,14 @@ import {
 	MessageScrollerViewport,
 } from "@cline/ui/components/message-scroller";
 import { Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	Fragment,
+	memo,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -29,6 +36,7 @@ import type {
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { formatRunError } from "@/lib/run-error";
+import type { SessionChangeSet } from "@/lib/session-changes";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 import { ImportedSessionNotice } from "./imported-session-notice";
@@ -49,6 +57,7 @@ import {
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { TurnReceipt } from "./messages/turn-receipt";
 import { WorkBlock } from "./messages/work-block";
 import { TranscriptOutline } from "./transcript-outline";
 
@@ -91,6 +100,9 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	/** Opens the settings page that fixes a credential failure. */
 	onFixCredentials?: (target: "account" | "models") => void;
+	/** What each turn changed, keyed by run count; drives the turn receipts. */
+	turnChanges?: ReadonlyMap<number, SessionChangeSet>;
+	onReviewTurn?: (runCount: number, path?: string) => void;
 };
 
 type AskQuestionRequestItem = {
@@ -128,6 +140,8 @@ function ChatMessagesImpl({
 	errorAction,
 	onProceedWhileRunning,
 	onFixCredentials,
+	turnChanges,
+	onReviewTurn,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -274,6 +288,29 @@ function ChatMessagesImpl({
 		() => buildUserRunCountMap(messages),
 		[messages],
 	);
+	const latestRunCount = useMemo(
+		() => Math.max(0, ...userRunCountByMessage.values()),
+		[userRunCountByMessage],
+	);
+	const renderTurnReceipt = (runCount: number) => {
+		const changes = turnChanges?.get(runCount);
+		if (!changes || !onReviewTurn || changes.files.length === 0) return null;
+		return (
+			<MessageScrollerItem
+				// The turn's last message floats its timestamp and actions over
+				// whatever follows; the receipt sits below them instead.
+				className="pt-6"
+				key={`receipt_${runCount}`}
+				messageId={`receipt_${runCount}`}
+			>
+				<TurnReceipt
+					changes={changes}
+					onReview={onReviewTurn}
+					runCount={runCount}
+				/>
+			</MessageScrollerItem>
+		);
+	};
 
 	useEffect(() => {
 		void sessionId;
@@ -656,77 +693,92 @@ function ChatMessagesImpl({
 										message.role === "assistant" &&
 										previousItem !== undefined &&
 										previousItem.type !== "message";
+									// A new user turn closes the previous one, so its receipt
+									// renders just above this message.
+									const runCount = userRunCountByMessage.get(message);
+									const previousTurnReceipt =
+										runCount !== undefined
+											? renderTurnReceipt(runCount - 1)
+											: null;
 									return (
-										<MessageScrollerItem
-											key={message.id}
-											messageId={message.id}
-											scrollAnchor={
-												message.role === "user" &&
-												!isSystemSteeringMessage(message)
-											}
-										>
-											<MessageBubble
-												agentRole={agentRole}
-												followsWorkingRows={followsWorkingRows}
-												isLastAssistantMessage={
-													message.role === "assistant" &&
-													lastConversationMessage === message
-												}
-												isStreaming={streamingMessageId === message.id}
+										<Fragment key={message.id}>
+											{previousTurnReceipt}
+											<MessageScrollerItem
 												key={message.id}
-												message={message}
-												runCount={userRunCountByMessage.get(message)}
-												onExpandImage={handleExpandImage}
-												onCopyMessage={handleCopyMessage}
-												onEditMessage={
-													onEditMessage ? requestEditMessage : undefined
+												messageId={message.id}
+												scrollAnchor={
+													message.role === "user" &&
+													!isSystemSteeringMessage(message)
 												}
-												editDisabled={
-													!onEditMessage ||
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												editError={editErrors[message.id]}
-												editPending={editingMessageId === message.id}
-												onRestoreCheckpoint={
-													onRestoreCheckpoint
-														? requestRestoreCheckpoint
-														: undefined
-												}
-												restoreDisabled={
-													!onRestoreCheckpoint ||
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												restoreError={checkpointErrors[message.id]}
-												restorePending={
-													checkpointActions[message.id] === "undoing"
-												}
-												wasCopied={copiedMessageId === message.id}
-												onForkSession={
-													onForkSession ? handleForkSession : undefined
-												}
-												forkDisabled={
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												forkPending={forkingMessageId === message.id}
-												forkError={forkErrors[message.id]}
-												onFixCredentials={onFixCredentials}
-												{...getReasoningProps(reasoningMessages)}
-											/>
-										</MessageScrollerItem>
+											>
+												<MessageBubble
+													agentRole={agentRole}
+													followsWorkingRows={followsWorkingRows}
+													isLastAssistantMessage={
+														message.role === "assistant" &&
+														lastConversationMessage === message
+													}
+													isStreaming={streamingMessageId === message.id}
+													key={message.id}
+													message={message}
+													runCount={userRunCountByMessage.get(message)}
+													onExpandImage={handleExpandImage}
+													onCopyMessage={handleCopyMessage}
+													onEditMessage={
+														onEditMessage ? requestEditMessage : undefined
+													}
+													editDisabled={
+														!onEditMessage ||
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													editError={editErrors[message.id]}
+													editPending={editingMessageId === message.id}
+													onRestoreCheckpoint={
+														onRestoreCheckpoint
+															? requestRestoreCheckpoint
+															: undefined
+													}
+													restoreDisabled={
+														!onRestoreCheckpoint ||
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													restoreError={checkpointErrors[message.id]}
+													restorePending={
+														checkpointActions[message.id] === "undoing"
+													}
+													wasCopied={copiedMessageId === message.id}
+													onForkSession={
+														onForkSession ? handleForkSession : undefined
+													}
+													forkDisabled={
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													forkPending={forkingMessageId === message.id}
+													forkError={forkErrors[message.id]}
+													onFixCredentials={onFixCredentials}
+													{...getReasoningProps(reasoningMessages)}
+												/>
+											</MessageScrollerItem>
+										</Fragment>
 									);
 								})}
+								{status !== "starting" &&
+								status !== "running" &&
+								status !== "stopping"
+									? renderTurnReceipt(latestRunCount)
+									: null}
 								{/* Lives inside the transcript column and mirrors a
 								    reasoning/tool trigger's geometry exactly (icon slot,
 								    min-height, padding), so the first real row replaces it

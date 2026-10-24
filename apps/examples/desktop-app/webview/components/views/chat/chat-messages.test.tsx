@@ -2633,3 +2633,85 @@ describe("ChatMessages credential failures", () => {
 		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });
+
+describe("ChatMessages turn receipts", () => {
+	const message = (
+		id: string,
+		role: "user" | "assistant",
+		content: string,
+	): ChatMessage => ({
+		id,
+		sessionId: "session-1",
+		role,
+		content,
+		createdAt: Date.now(),
+	});
+	const transcript = [
+		message("u1", "user", "first ask"),
+		message("a1", "assistant", "first answer"),
+		message("u2", "user", "second ask"),
+		message("a2", "assistant", "second answer"),
+	];
+	const turnChanges = new Map([
+		[
+			1,
+			{
+				files: [
+					{
+						path: "src/a.ts",
+						status: "M" as const,
+						additions: 3,
+						deletions: 1,
+					},
+				],
+				omitted: 0,
+			},
+		],
+		[
+			2,
+			{
+				files: [
+					{
+						path: "docs/b.md",
+						status: "A" as const,
+						additions: 5,
+						deletions: 0,
+					},
+				],
+				omitted: 0,
+			},
+		],
+	]);
+
+	it("closes each turn with a receipt that opens its changes", async () => {
+		const onReviewTurn = vi.fn();
+		await renderMessages(transcript, { onReviewTurn, turnChanges });
+		const receipts = container.querySelectorAll('[data-testid="turn-receipt"]');
+		expect(receipts).toHaveLength(2);
+		// Turn 1's receipt sits between its answer and the next ask.
+		const text = container.textContent ?? "";
+		expect(text.indexOf("first answer")).toBeLessThan(text.indexOf("+3"));
+		expect(text.indexOf("+3")).toBeLessThan(text.indexOf("second ask"));
+		await act(async () => {
+			receipts[0]?.querySelector<HTMLButtonElement>("button")?.click();
+		});
+		expect(onReviewTurn).toHaveBeenCalledWith(1);
+		await act(async () => {
+			receipts[1]
+				?.querySelector<HTMLButtonElement>('[title="docs/b.md"]')
+				?.click();
+		});
+		expect(onReviewTurn).toHaveBeenCalledWith(2, "docs/b.md");
+	});
+
+	it("holds the latest turn's receipt until the turn finishes", async () => {
+		await renderMessages(transcript, {
+			onReviewTurn: vi.fn(),
+			status: "running",
+			turnChanges,
+		});
+		expect(
+			container.querySelectorAll('[data-testid="turn-receipt"]'),
+		).toHaveLength(1);
+	});
+});

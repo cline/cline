@@ -131,6 +131,11 @@ import {
 	mergeAgentActivity,
 } from "@/lib/session-agents";
 import {
+	type ChangesScope,
+	sumChanges,
+	useSessionChanges,
+} from "@/lib/session-changes";
+import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
@@ -220,21 +225,26 @@ const OnboardingView = dynamic(
 
 const loadProjectFilesPanel = () =>
 	import("@/components/views/chat/project-files-panel");
+const loadChangesPanel = () => import("@/components/views/chat/changes-panel");
+
+// Holds a workspace panel's grid cell at its final width while the chunk
+// loads; an empty cell would let the composer flow into it for a few frames.
+const workspacePanelLoading = () => (
+	<aside
+		aria-hidden
+		className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+		style={{ width: readWorkspacePanelWidth() }}
+	/>
+);
 
 const ProjectFilesPanel = dynamic(
 	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
-	{
-		// Holds the panel's grid cell at its final width while the chunk loads;
-		// an empty cell would let the composer flow into it for a few frames.
-		loading: () => (
-			<aside
-				aria-hidden
-				className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
-				style={{ width: readWorkspacePanelWidth() }}
-			/>
-		),
-		ssr: false,
-	},
+	{ loading: workspacePanelLoading, ssr: false },
+);
+
+const ChangesPanel = dynamic(
+	() => loadChangesPanel().then((module) => module.ChangesPanel),
+	{ loading: workspacePanelLoading, ssr: false },
 );
 
 function makeThreadId(): string {
@@ -1390,11 +1400,29 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	const [showFilesPanel, setShowFilesPanel] = useState(false);
+	// The Changes pane and the Files + Git panel share the right-hand column.
+	const [workspacePanel, setWorkspacePanel] = useState<
+		"changes" | "files" | null
+	>(null);
+	const [changesScope, setChangesScope] = useState<ChangesScope>({
+		kind: "session",
+	});
+	const [changesPath, setChangesPath] = useState<string | null>(null);
 	const toggleFilesPanel = useCallback(
-		() => setShowFilesPanel((current) => !current),
+		() =>
+			setWorkspacePanel((current) => (current === "files" ? null : "files")),
 		[],
 	);
+	const toggleChangesPanel = useCallback(() => {
+		setChangesScope({ kind: "session" });
+		setChangesPath(null);
+		setWorkspacePanel((current) => (current === "changes" ? null : "changes"));
+	}, []);
+	const reviewTurn = useCallback((runCount: number, path?: string) => {
+		setChangesScope({ kind: "turn", runCount });
+		setChangesPath(path ?? null);
+		setWorkspacePanel("changes");
+	}, []);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2510,14 +2538,6 @@ function ChatThreadPane({
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const headerDiff = useMemo(
-		() => ({
-			additions: summary.additions,
-			deletions: summary.deletions,
-		}),
-		[summary.additions, summary.deletions],
-	);
-
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
@@ -2663,8 +2683,36 @@ function ChatThreadPane({
 	const mayBrowseFiles =
 		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
 	useEffect(() => {
-		if (mayBrowseFiles) void loadProjectFilesPanel();
+		if (mayBrowseFiles) {
+			void loadProjectFilesPanel();
+			void loadChangesPanel();
+		}
 	}, [mayBrowseFiles]);
+
+	const sessionChanges = useSessionChanges({
+		enabled: mayBrowseFiles,
+		environmentId,
+		sessionId,
+		cwd: config.cwd || resolvedWorkspaceRoot,
+		// Tool edits and turn boundaries both move the working tree.
+		refreshKey: `${status}:${fileDiffs.length}:${summary.additions}:${summary.deletions}`,
+	});
+	// Git checkpoints when the workspace has them, otherwise the tool-event
+	// reconstruction.
+	const headerDiff = useMemo(
+		() =>
+			sessionChanges?.session
+				? sumChanges(sessionChanges.session.files)
+				: { additions: summary.additions, deletions: summary.deletions },
+		[sessionChanges, summary.additions, summary.deletions],
+	);
+	const turnChanges = useMemo(
+		() =>
+			new Map(
+				(sessionChanges?.turns ?? []).map((turn) => [turn.runCount, turn]),
+			),
+		[sessionChanges],
+	);
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
@@ -2737,7 +2785,8 @@ function ChatThreadPane({
 	// Cloud runs have no reachable workspace, and the welcome state has no
 	// session to browse alongside yet.
 	const canBrowseFiles = mayBrowseFiles;
-	const filesPanelVisible = canBrowseFiles && showFilesPanel;
+	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
+	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2746,7 +2795,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: filesPanelVisible
+						: filesPanelVisible || changesPanelVisible
 							? // The panel is placed explicitly in column 2 spanning both
 								// rows, so the transcript and composer auto-flow into column 1.
 								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
@@ -2781,6 +2830,10 @@ function ChatThreadPane({
 								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
 								filesOpen={filesPanelVisible}
 								pullRequest={isCloudSession ? undefined : pullRequestSource}
+								onToggleChanges={
+									canBrowseFiles ? toggleChangesPanel : undefined
+								}
+								changesOpen={changesPanelVisible}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}
@@ -2836,6 +2889,8 @@ function ChatThreadPane({
 											: undefined
 								}
 								onFixCredentials={handleFixCredentials}
+								turnChanges={canBrowseFiles ? turnChanges : undefined}
+								onReviewTurn={canBrowseFiles ? reviewTurn : undefined}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -2890,6 +2945,23 @@ function ChatThreadPane({
 					terminalToggle={terminalToggle}
 					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
 				/>
+				{changesPanelVisible ? (
+					<ChangesPanel
+						changes={sessionChanges}
+						cwd={config.cwd || resolvedWorkspaceRoot}
+						environmentId={environmentId}
+						fallbackFileDiffs={fileDiffs}
+						onClose={toggleChangesPanel}
+						onOpenGit={() => setWorkspacePanel("files")}
+						onScopeChange={(scope) => {
+							setChangesScope(scope);
+							setChangesPath(null);
+						}}
+						onSelectPath={setChangesPath}
+						scope={changesScope}
+						selectedPath={changesPath}
+					/>
+				) : null}
 				{filesPanelVisible ? (
 					<ProjectFilesPanel
 						cwd={config.cwd || config.workspaceRoot}
