@@ -53,14 +53,16 @@ const readServerUrl = () =>
 		LOCAL_RUNTIMES.lmstudio.defaultBaseUrl,
 	);
 
-async function request<T>(pathname: string, body?: unknown): Promise<T> {
+/** LM Studio's server can require an API token for every endpoint. */
+function authHeaders(): Record<string, string> {
 	const { apiKey } = readProviderSettings("lmstudio");
+	return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+}
+
+async function request<T>(pathname: string, body?: unknown): Promise<T> {
 	const response = await fetch(`${readServerUrl()}${pathname}`, {
 		method: body === undefined ? "GET" : "POST",
-		headers: {
-			"content-type": "application/json",
-			...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
-		},
+		headers: { "content-type": "application/json", ...authHeaders() },
 		body: body === undefined ? undefined : JSON.stringify(body),
 	});
 	const payload = (await response.json().catch(() => ({}))) as {
@@ -207,7 +209,8 @@ export const lmstudioBackend: LocalRuntimeBackend = {
 
 	isLocal: () => isLocalUrl(readServerUrl()),
 
-	isReachable: () => respondsOk(`${readServerUrl()}/api/v1/models`),
+	isReachable: () =>
+		respondsOk(`${readServerUrl()}/api/v1/models`, authHeaders()),
 
 	async isInstalled() {
 		return !!((await findLms(await readHome())) ?? (await findApp()));
@@ -273,6 +276,11 @@ export const lmstudioBackend: LocalRuntimeBackend = {
 		while (job.status !== "completed" && job.status !== "already_downloaded") {
 			if (job.status === "failed" || !job.job_id) {
 				throw new Error(`LM Studio couldn't download ${model}.`);
+			}
+			if (job.status === "paused") {
+				throw new Error(
+					`The download of ${model} was paused. Resume it in LM Studio.`,
+				);
 			}
 			onProgress({
 				status: job.status,

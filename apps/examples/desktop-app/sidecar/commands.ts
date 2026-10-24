@@ -3019,7 +3019,7 @@ export async function handleCommand(
 		}
 	}
 
-	// ── Local models (Ollama) ──────────────────────────────────────────
+	// ── Local models (Ollama, LM Studio) ───────────────────────────────
 	if (LOCAL_MODELS_COMMANDS.has(command)) {
 		return await handleLocalModelsCommand(ctx, command, args);
 	}

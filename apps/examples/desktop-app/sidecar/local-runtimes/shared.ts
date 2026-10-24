@@ -66,9 +66,15 @@ export function isLocalUrl(url: string): boolean {
 	}
 }
 
-export async function respondsOk(url: string): Promise<boolean> {
+export async function respondsOk(
+	url: string,
+	headers?: Record<string, string>,
+): Promise<boolean> {
 	try {
-		const response = await fetch(url, { signal: AbortSignal.timeout(1500) });
+		const response = await fetch(url, {
+			headers,
+			signal: AbortSignal.timeout(1500),
+		});
 		return response.ok;
 	} catch {
 		return false;
