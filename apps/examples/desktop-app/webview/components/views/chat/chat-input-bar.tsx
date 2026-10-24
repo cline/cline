@@ -54,6 +54,7 @@ import {
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
+import { isLocalRuntime } from "@/lib/local-models";
 import {
 	MODEL_SELECTION_CHANGED_EVENT,
 	type ModelSelectionChangedDetail,
@@ -448,6 +449,7 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
+	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
@@ -1600,12 +1602,12 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-					{executionTarget !== "cloud" &&
-					normalizeProviderId(provider) === "ollama" ? (
+					{executionTarget !== "cloud" && isLocalRuntime(localRuntime) ? (
 						<LocalModelIndicator
 							isBusy={isBusy}
 							model={model}
 							onOpenLocalModels={onOpenLocalModels}
+							runtime={localRuntime}
 						/>
 					) : null}
 				</AgentComposerSettingsGroup>

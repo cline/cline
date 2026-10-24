@@ -205,11 +205,11 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
-| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), free disk space (`statfs`), and `ollama` SDK `version`/`list`/`ps`; when Ollama is unreachable, whether it is installed |
-| `start_ollama` | Launches the installed Ollama app (or `ollama serve`) detached, then waits up to 20s for it to answer |
-| `show_ollama_model` | `ollama` SDK `show`: architecture, capabilities, default parameters, template, license |
-| `pull_ollama_model` / `cancel_ollama_pull` | `ollama` SDK `pull`; progress is broadcast as `ollama_pull_progress` events and survives closing the page |
-| `load_ollama_model` / `unload_ollama_model` / `delete_ollama_model` | `ollama` SDK `generate` (`keep_alive` -1 / 0) and `delete` |
+| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `version`/`list`/`ps`, or LM Studio `GET /api/v1/models`) |
+| `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
+| `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |
+| `pull_local_model` / `cancel_local_model_pull` | `ollama` SDK `pull`, or LM Studio `POST /api/v1/models/download` polled until done (not cancellable); progress is broadcast as `local_model_pull_progress` events and survives closing the page |
+| `load_local_model` / `unload_local_model` / `delete_local_model` | Ollama: `generate` (`keep_alive` -1 / 0) and `delete`. LM Studio: `POST /api/v1/models/load` / `unload`, and deleting a Hub model's files listed in its manifest |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |

@@ -14,6 +14,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -29,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	DEFAULT_LOCAL_CONTEXT_WINDOW,
@@ -40,14 +42,17 @@ import {
 	getLocalMemoryBudget,
 	getMachineMemoryBytes,
 	getRecommendedLocalModel,
+	isLocalRuntime,
 	LOCAL_MODEL_CATALOG,
+	LOCAL_MODEL_PULL_PROGRESS_EVENT,
+	LOCAL_RUNTIMES,
 	type LocalHardwareInfo,
 	type LocalModelCatalogEntry,
 	type LocalModelFit,
+	type LocalModelPullProgress,
 	type LocalModelsStatus,
-	normalizeOllamaModelName,
-	OLLAMA_PULL_PROGRESS_EVENT,
-	type OllamaPullProgress,
+	type LocalRuntime,
+	normalizeLocalModelName,
 } from "@/lib/local-models";
 import {
 	readModelSelectionStorageFromWindow,
@@ -57,9 +62,10 @@ import {
 	loadProviderModels,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
+import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { LocalModelDetailsDialog } from "./local-model-details-dialog";
-import { OllamaSetup } from "./ollama-setup";
+import { LocalRuntimeSetup } from "./local-runtime-setup";
 
 type ModelAction = "using" | "loading" | "unloading" | "deleting";
 type InstalledModel = LocalModelsStatus["installed"][number];
@@ -86,16 +92,36 @@ const CAPABILITY_LABELS: Record<string, string> = {
 	vision: "Vision",
 };
 
-/** Polling is quicker while waiting for the user to install or start Ollama. */
-const WAITING_FOR_OLLAMA_POLL_MS = 3000;
+/** Polling is quicker while waiting for the user to install or start the runtime. */
+const WAITING_FOR_RUNTIME_POLL_MS = 3000;
 const POLL_MS = 10_000;
+const RUNTIME_STORAGE_KEY = "cline.local-models.runtime.v1";
 
-function readActiveOllamaModel(): string | undefined {
+const RUNTIME_BLURBS: Record<LocalRuntime, string> = {
+	ollama: "Lightweight and open source. Runs quietly in the background.",
+	lmstudio:
+		"Desktop app with its own model browser. Runs MLX models for extra speed on Apple Silicon.",
+};
+
+/** The runtime picked here before, else the one Cline is chatting with. */
+function readPreferredRuntime(): LocalRuntime | undefined {
+	if (typeof window === "undefined") {
+		return undefined;
+	}
+	const saved = window.localStorage.getItem(RUNTIME_STORAGE_KEY);
+	if (isLocalRuntime(saved)) {
+		return saved;
+	}
+	const { lastProvider } = readModelSelectionStorageFromWindow();
+	return isLocalRuntime(lastProvider) ? lastProvider : undefined;
+}
+
+function readChatSelection(): { provider: string; model?: string } {
 	const selection = readModelSelectionStorageFromWindow();
-	const model = selection.lastModelByProvider.ollama;
-	return selection.lastProvider === "ollama" && model
-		? normalizeOllamaModelName(model)
-		: undefined;
+	return {
+		provider: selection.lastProvider,
+		model: selection.lastModelByProvider[selection.lastProvider],
+	};
 }
 
 function describeHardware(hardware: LocalHardwareInfo): string {
@@ -113,8 +139,9 @@ function describeHardware(hardware: LocalHardwareInfo): string {
 }
 
 function describeRunning(running: RunningModel) {
+	const placement = describeModelPlacement(running);
 	return [
-		`Loaded ${describeModelPlacement(running)}`,
+		placement ? `Loaded ${placement}` : "Loaded",
 		formatGb(running.sizeBytes),
 		running.contextLength > 0 ? formatContext(running.contextLength) : "",
 		describeUnloadTime(running.expiresAtMs) ?? "",
@@ -196,15 +223,97 @@ function StorageBar({
 	);
 }
 
+function RuntimePicker({
+	value,
+	runtimes,
+	onChange,
+}: {
+	value: LocalRuntime | undefined;
+	runtimes: LocalModelsStatus["runtimes"] | undefined;
+	onChange: (runtime: LocalRuntime) => void;
+}) {
+	return (
+		<div>
+			<SectionHeading title="Run models with" />
+			<RadioGroup
+				aria-label="Local model runtime"
+				className="sm:grid-cols-2"
+				onValueChange={(next) => {
+					if (isLocalRuntime(next)) onChange(next);
+				}}
+				value={value ?? ""}
+			>
+				{(Object.keys(LOCAL_RUNTIMES) as LocalRuntime[]).map((runtime) => {
+					const summary = runtimes?.[runtime];
+					return (
+						<label
+							className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-surface-hover has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-primary"
+							htmlFor={`local-runtime-${runtime}`}
+							key={runtime}
+						>
+							<RadioGroupItem
+								className="mt-0.5"
+								id={`local-runtime-${runtime}`}
+								value={runtime}
+							/>
+							<span className="flex min-w-0 flex-1 flex-col gap-1.5">
+								<span className="flex items-center justify-between gap-2">
+									<span className="text-sm font-semibold text-foreground">
+										{LOCAL_RUNTIMES[runtime].name}
+									</span>
+									{summary ? (
+										<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+											<span
+												className={cn(
+													"inline-block size-2 rounded-full",
+													summary.reachable
+														? "bg-emerald-500"
+														: summary.installed
+															? "bg-amber-500"
+															: "bg-muted-foreground/40",
+												)}
+											/>
+											{summary.reachable
+												? "Running"
+												: summary.installed
+													? "Not running"
+													: "Not installed"}
+										</span>
+									) : null}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									{RUNTIME_BLURBS[runtime]}
+								</span>
+							</span>
+						</label>
+					);
+				})}
+			</RadioGroup>
+		</div>
+	);
+}
+
 export function LocalModelsContent() {
+	const [runtime, setRuntime] = useState(readPreferredRuntime);
+	const runtimeRef = useRef(runtime);
 	const [status, setStatus] = useState<LocalModelsStatus>();
 	const [refreshing, setRefreshing] = useState(false);
-	const [pulls, setPulls] = useState<Record<string, OllamaPullProgress>>({});
+	const [pulls, setPulls] = useState<Record<string, LocalModelPullProgress>>(
+		{},
+	);
 	const [actions, setActions] = useState<Record<string, ModelAction>>({});
 	const [errors, setErrors] = useState<Record<string, string>>({});
-	const [activeModel, setActiveModel] = useState(readActiveOllamaModel);
+	const [chatSelection, setChatSelection] = useState(readChatSelection);
 	const [detailsModel, setDetailsModel] = useState<string>();
 	const [pendingDelete, setPendingDelete] = useState<InstalledModel>();
+	const shownRuntime = runtime ?? status?.runtime ?? "ollama";
+	const runtimeName = LOCAL_RUNTIMES[shownRuntime].name;
+	const normalize = (name: string) =>
+		normalizeLocalModelName(shownRuntime, name);
+	const activeModel =
+		chatSelection.provider === shownRuntime && chatSelection.model
+			? normalize(chatSelection.model)
+			: undefined;
 
 	const setModelError = useCallback(
 		(model: string, message: string | undefined) => {
@@ -218,9 +327,19 @@ export function LocalModelsContent() {
 	const refresh = useCallback(async ({ quiet = false } = {}) => {
 		if (!quiet) setRefreshing(true);
 		try {
+			const requested = runtimeRef.current;
+			// Without a saved choice, the backend picks whichever runtime is set up.
 			const next = await desktopClient.invoke<LocalModelsStatus>(
 				"get_local_models_status",
+				requested ? { runtime: requested } : undefined,
 			);
+			if (requested !== runtimeRef.current) {
+				return;
+			}
+			if (!requested) {
+				runtimeRef.current = next.runtime;
+				setRuntime(next.runtime);
+			}
 			setStatus(next);
 			// Downloads keep running in the backend while this page is closed.
 			setPulls((prev) =>
@@ -244,8 +363,11 @@ export function LocalModelsContent() {
 
 	useEffect(
 		() =>
-			desktopClient.subscribe(OLLAMA_PULL_PROGRESS_EVENT, (payload) => {
-				const progress = payload as OllamaPullProgress;
+			desktopClient.subscribe(LOCAL_MODEL_PULL_PROGRESS_EVENT, (payload) => {
+				const progress = payload as LocalModelPullProgress;
+				if (progress.runtime !== runtimeRef.current) {
+					return;
+				}
 				if (!progress.done) {
 					setPulls((prev) => ({ ...prev, [progress.model]: progress }));
 					return;
@@ -257,12 +379,12 @@ export function LocalModelsContent() {
 		[refresh, setModelError],
 	);
 
-	const reachable = status?.ollamaReachable ?? false;
-	// Ollama can start, stop, load a model for a chat, or unload an idle one at any time.
+	const reachable = status?.reachable ?? false;
+	// Runtimes can start, stop, load a model for a chat, or unload an idle one at any time.
 	useEffect(() => {
 		const timer = window.setInterval(
 			() => void refresh({ quiet: true }),
-			reachable ? POLL_MS : WAITING_FOR_OLLAMA_POLL_MS,
+			reachable ? POLL_MS : WAITING_FOR_RUNTIME_POLL_MS,
 		);
 		const onFocus = () => void refresh({ quiet: true });
 		window.addEventListener("focus", onFocus);
@@ -272,19 +394,32 @@ export function LocalModelsContent() {
 		};
 	}, [reachable, refresh]);
 
-	const startOllama = useCallback(async () => {
+	const selectRuntime = (next: LocalRuntime) => {
+		window.localStorage.setItem(RUNTIME_STORAGE_KEY, next);
+		if (next === runtimeRef.current) {
+			return;
+		}
+		runtimeRef.current = next;
+		setRuntime(next);
+		setStatus(undefined);
+		setPulls({});
+		setErrors({});
+		void refresh();
+	};
+
+	const startRuntime = async () => {
 		const { started } = await desktopClient.invoke<{ started: boolean }>(
-			"start_ollama",
-			undefined,
-			{ timeoutMs: 30_000 },
+			"start_local_runtime",
+			{ runtime: shownRuntime },
+			{ timeoutMs: 75_000 },
 		);
 		await refresh();
 		if (!started) {
 			throw new Error(
-				"Ollama didn't respond within 20 seconds. Try opening it yourself.",
+				`${runtimeName} didn't respond in time. Try opening it yourself.`,
 			);
 		}
-	}, [refresh]);
+	};
 
 	const runAction = useCallback(
 		async (model: string, action: ModelAction, run: () => Promise<unknown>) => {
@@ -309,9 +444,9 @@ export function LocalModelsContent() {
 		async (model: string) => {
 			setModelError(model, undefined);
 			try {
-				const progress = await desktopClient.invoke<OllamaPullProgress>(
-					"pull_ollama_model",
-					{ model },
+				const progress = await desktopClient.invoke<LocalModelPullProgress>(
+					"pull_local_model",
+					{ runtime: runtimeRef.current, model },
 				);
 				setPulls((prev) => ({ ...prev, [model]: prev[model] ?? progress }));
 			} catch (error) {
@@ -326,7 +461,7 @@ export function LocalModelsContent() {
 
 	const catalogEntryFor = (model: string) =>
 		LOCAL_MODEL_CATALOG.find(
-			(entry) => normalizeOllamaModelName(entry.id) === model,
+			(entry) => normalize(entry.ids[shownRuntime]) === model,
 		);
 
 	const contextWindowFor = (model: string) => {
@@ -341,26 +476,30 @@ export function LocalModelsContent() {
 	const loadModel = (model: string, contextWindow: number) =>
 		// Loading a large model can take minutes.
 		desktopClient.invoke(
-			"load_ollama_model",
-			{ model, contextWindow },
+			"load_local_model",
+			{ runtime: shownRuntime, model, contextWindow },
 			{ timeoutMs: null },
 		);
 
 	const unloadModel = (model: string) =>
 		runAction(model, "unloading", () =>
-			desktopClient.invoke("unload_ollama_model", { model }),
+			desktopClient.invoke("unload_local_model", {
+				runtime: shownRuntime,
+				model,
+			}),
 		);
 
 	const switchToModel = (model: string, contextWindow: number) =>
 		runAction(model, "using", async () => {
+			const provider = shownRuntime;
 			await desktopClient.invoke("save_provider_settings", {
-				provider: "ollama",
+				provider,
 				settings: { model, contextWindow },
 			});
 			// The composer only offers providers whose models it knows about.
-			publishProviderModels("ollama", await loadProviderModels("ollama"));
-			selectChatModel("ollama", model);
-			setActiveModel(model);
+			publishProviderModels(provider, await loadProviderModels(provider));
+			selectChatModel(provider, model);
+			setChatSelection({ provider, model });
 			// Warm the model up so the first message doesn't wait on a cold load.
 			await loadModel(model, contextWindow);
 		});
@@ -369,7 +508,7 @@ export function LocalModelsContent() {
 		() =>
 			new Map(
 				(status?.installed ?? []).map((model) => [
-					normalizeOllamaModelName(model.name),
+					normalizeLocalModelName(status?.runtime ?? "ollama", model.name),
 					model,
 				]),
 			),
@@ -379,7 +518,7 @@ export function LocalModelsContent() {
 		() =>
 			new Map(
 				(status?.running ?? []).map((model) => [
-					normalizeOllamaModelName(model.name),
+					normalizeLocalModelName(status?.runtime ?? "ollama", model.name),
 					model,
 				]),
 			),
@@ -415,7 +554,7 @@ export function LocalModelsContent() {
 			section: "recommended" | "downloaded";
 		},
 	) => {
-		const name = normalizeOllamaModelName(model);
+		const name = normalize(model);
 		const installedModel = installed.get(name);
 		const runningModel = running.get(name);
 		const pull = pulls[model];
@@ -485,7 +624,7 @@ export function LocalModelsContent() {
 						<Progress className="h-1.5" value={pullPercent} />
 						<div className="flex justify-between gap-2 text-xs text-muted-foreground">
 							<span className="truncate">
-								{pull.status.startsWith("pulling") && pull.total > 0
+								{pull.total > 0
 									? `Downloading ${formatGb(pull.completed)} of ${formatGb(pull.total)}`
 									: pull.status}
 							</span>
@@ -516,10 +655,13 @@ export function LocalModelsContent() {
 							Not enough disk space ({formatGb(disk.freeBytes)} free)
 						</span>
 					) : null}
-					{pull ? (
+					{pull && LOCAL_RUNTIMES[shownRuntime].canCancelDownloads ? (
 						<Button
 							onClick={() =>
-								void desktopClient.invoke("cancel_ollama_pull", { model })
+								void desktopClient.invoke("cancel_local_model_pull", {
+									runtime: shownRuntime,
+									model,
+								})
 							}
 							size="sm"
 							type="button"
@@ -594,9 +736,14 @@ export function LocalModelsContent() {
 					) : null}
 					{installedModel && section === "downloaded" ? (
 						<Button
-							disabled={!!action}
+							disabled={!!action || !installedModel.deletable}
 							onClick={() => setPendingDelete(installedModel)}
 							size="sm"
+							title={
+								installedModel.deletable
+									? undefined
+									: `Only models downloaded from LM Studio Hub can be deleted here. Remove this one from ${runtimeName}.`
+							}
 							type="button"
 							variant="ghost"
 						>
@@ -614,16 +761,15 @@ export function LocalModelsContent() {
 	};
 
 	const budget = hardware ? getLocalMemoryBudget(hardware) : undefined;
-	const deleteName = pendingDelete
-		? normalizeOllamaModelName(pendingDelete.name)
-		: undefined;
+	const deleteName = pendingDelete ? normalize(pendingDelete.name) : undefined;
 
 	return (
 		<PageFrame>
 			<PageHeader
 				description={
 					<>
-						Run models on your own machine with Ollama. Download one, then click{" "}
+						Run models on your own machine with Ollama or LM Studio. Download
+						one, then click{" "}
 						<span className="font-medium text-foreground">Use with Cline</span>{" "}
 						to switch Cline to it with the right settings.
 					</>
@@ -649,10 +795,18 @@ export function LocalModelsContent() {
 					</div>
 				) : null}
 
-				<OllamaSetup
+				<RuntimePicker
+					onChange={selectRuntime}
+					runtimes={status?.runtimes}
+					value={runtime}
+				/>
+
+				<LocalRuntimeSetup
+					key={shownRuntime}
 					onRefresh={() => void refresh()}
-					onStart={startOllama}
+					onStart={startRuntime}
 					refreshing={refreshing}
+					runtime={shownRuntime}
 					status={status}
 				/>
 
@@ -727,11 +881,11 @@ export function LocalModelsContent() {
 					<SectionHeading title="Recommended models" />
 					<div className="overflow-hidden rounded-lg border">
 						{LOCAL_MODEL_CATALOG.map((entry) =>
-							renderModelRow(entry.id, {
+							renderModelRow(entry.ids[shownRuntime], {
 								title: entry.name,
 								entry,
 								section: "recommended",
-								details: `${entry.id} · ${entry.sizeGb} GB download · needs ~${entry.memoryGb} GB memory · ${formatContext(entry.contextWindow)}`,
+								details: `${entry.ids[shownRuntime]} · ${entry.sizeGb} GB download · needs ~${entry.memoryGb} GB memory · ${formatContext(entry.contextWindow)}`,
 							}),
 						)}
 					</div>
@@ -747,11 +901,15 @@ export function LocalModelsContent() {
 						<div className="overflow-hidden rounded-lg border">
 							{installedBySize.map(([name, model]) =>
 								renderModelRow(name, {
-									title: catalogEntryFor(name)?.name ?? model.name,
+									title:
+										catalogEntryFor(name)?.name ??
+										model.displayName ??
+										model.name,
 									section: "downloaded",
-									details: catalogEntryFor(name)
-										? `${model.name} · ${describeInstalled(model)}`
-										: describeInstalled(model),
+									details:
+										catalogEntryFor(name) || model.displayName
+											? `${model.name} · ${describeInstalled(model)}`
+											: describeInstalled(model),
 								}),
 							)}
 						</div>
@@ -759,11 +917,22 @@ export function LocalModelsContent() {
 				) : null}
 
 				<p className="text-xs text-muted-foreground">
-					Models loaded here stay in memory until you unload them. A model
-					Ollama loads on its own, when a message arrives for it, is unloaded
-					after a few minutes idle (configurable with{" "}
-					<code>OLLAMA_KEEP_ALIVE</code>). The server URL can be changed under
-					Providers → Ollama.
+					{shownRuntime === "ollama" ? (
+						<>
+							Models loaded here stay in memory until you unload them. A model
+							Ollama loads on its own, when a message arrives for it, is
+							unloaded after a few minutes idle (configurable with{" "}
+							<code>OLLAMA_KEEP_ALIVE</code>).
+						</>
+					) : (
+						<>
+							Models loaded here stay in memory until you unload them. A model
+							LM Studio loads on its own, when a message arrives for it, uses LM
+							Studio's default context length and is unloaded after an hour
+							idle.
+						</>
+					)}{" "}
+					The server URL can be changed under Providers → {runtimeName}.
 				</p>
 			</section>
 
@@ -774,6 +943,7 @@ export function LocalModelsContent() {
 					if (!open) setDetailsModel(undefined);
 				}}
 				running={detailsModel ? running.get(detailsModel) : undefined}
+				runtime={shownRuntime}
 				sizeBytes={
 					detailsModel ? (installed.get(detailsModel)?.sizeBytes ?? 0) : 0
 				}
@@ -803,14 +973,11 @@ export function LocalModelsContent() {
 							onClick={() => {
 								if (deleteName) {
 									void runAction(deleteName, "deleting", async () => {
+										const args = { runtime: shownRuntime, model: deleteName };
 										if (running.has(deleteName)) {
-											await desktopClient.invoke("unload_ollama_model", {
-												model: deleteName,
-											});
+											await desktopClient.invoke("unload_local_model", args);
 										}
-										await desktopClient.invoke("delete_ollama_model", {
-											model: deleteName,
-										});
+										await desktopClient.invoke("delete_local_model", args);
 									});
 								}
 							}}

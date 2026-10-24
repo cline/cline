@@ -3,7 +3,7 @@ import {
 	evaluateLocalModelFit,
 	getMachineMemoryBytes,
 	getRecommendedLocalModel,
-	normalizeOllamaModelName,
+	normalizeLocalModelName,
 	parseOllamaParameters,
 } from "./local-models";
 
@@ -27,25 +27,32 @@ describe("local models", () => {
 	});
 
 	it("recommends Qwen3.8 27B when it fits on the GPU", () => {
-		expect(getRecommendedLocalModel(mac(32))?.id).toBe("qwen3.8:27b");
-		expect(getRecommendedLocalModel(pc(32, 24))?.id).toBe("qwen3.8:27b");
+		expect(getRecommendedLocalModel(mac(32))?.ids.ollama).toBe("qwen3.8:27b");
+		expect(getRecommendedLocalModel(pc(32, 24))?.ids.ollama).toBe(
+			"qwen3.8:27b",
+		);
 	});
 
 	it("falls back to smaller models on smaller machines", () => {
-		expect(getRecommendedLocalModel(mac(24))?.id).toBe("gpt-oss:20b");
-		expect(getRecommendedLocalModel(mac(16))?.id).toBe("qwen3:8b");
+		expect(getRecommendedLocalModel(mac(24))?.ids.ollama).toBe("gpt-oss:20b");
+		expect(getRecommendedLocalModel(mac(16))?.ids.ollama).toBe("qwen3:8b");
 	});
 
 	it("prefers mixture-of-experts models when only the CPU can run them", () => {
-		expect(getRecommendedLocalModel(pc(32))?.id).toBe("gpt-oss:20b");
+		expect(getRecommendedLocalModel(pc(32))?.ids.ollama).toBe("gpt-oss:20b");
 		expect(getRecommendedLocalModel(pc(4))).toBeUndefined();
 	});
 
-	it("treats untagged Ollama names as :latest", () => {
-		expect(normalizeOllamaModelName("laguna-xs-2.1")).toBe(
+	it("treats untagged Ollama names as :latest but keeps LM Studio keys", () => {
+		expect(normalizeLocalModelName("ollama", "laguna-xs-2.1")).toBe(
 			"laguna-xs-2.1:latest",
 		);
-		expect(normalizeOllamaModelName("qwen3.8:27b")).toBe("qwen3.8:27b");
+		expect(normalizeLocalModelName("ollama", "qwen3.8:27b")).toBe(
+			"qwen3.8:27b",
+		);
+		expect(normalizeLocalModelName("lmstudio", "qwen/qwen3-8b")).toBe(
+			"qwen/qwen3-8b",
+		);
 	});
 
 	it("parses ollama show parameters, keeping repeated stop sequences", () => {

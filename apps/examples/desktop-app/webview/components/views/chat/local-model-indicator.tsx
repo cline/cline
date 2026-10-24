@@ -17,22 +17,27 @@ import {
 	formatContext,
 	formatGb,
 	getMachineMemoryBytes,
+	LOCAL_RUNTIMES,
 	type LocalModelsStatus,
-	normalizeOllamaModelName,
+	type LocalRuntime,
+	normalizeLocalModelName,
 } from "@/lib/local-models";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 15_000;
 
 /**
- * Composer chip for the Ollama provider: whether the selected model is in
- * memory, how much it takes, and shortcuts to unload it or manage models.
+ * Composer chip for the Ollama and LM Studio providers: whether the selected
+ * model is in memory, how much it takes, and shortcuts to unload it or manage
+ * models.
  */
 export function LocalModelIndicator({
+	runtime,
 	model,
 	isBusy,
 	onOpenLocalModels,
 }: {
+	runtime: LocalRuntime;
 	model: string;
 	isBusy: boolean;
 	onOpenLocalModels?: () => void;
@@ -46,14 +51,15 @@ export function LocalModelIndicator({
 			setStatus(
 				await desktopClient.invoke<LocalModelsStatus>(
 					"get_local_models_status",
+					{ runtime },
 				),
 			);
 		} catch {
 			// Keep showing the last known state.
 		}
-	}, []);
+	}, [runtime]);
 
-	// Ollama loads the model when a message arrives, and unloads it after
+	// The runtime loads the model when a message arrives, and unloads it after
 	// idling, so re-check around turns and periodically.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: isBusy is a refresh trigger.
 	useEffect(() => {
@@ -69,14 +75,16 @@ export function LocalModelIndicator({
 		};
 	}, [refresh]);
 
-	if (!status || !model) {
+	if (!status || status.runtime !== runtime || !model) {
 		return null;
 	}
 
-	const selected = normalizeOllamaModelName(model);
+	const { name } = LOCAL_RUNTIMES[runtime];
+	const selected = normalizeLocalModelName(runtime, model);
 	const running = status.running.find(
-		(entry) => normalizeOllamaModelName(entry.name) === selected,
+		(entry) => normalizeLocalModelName(runtime, entry.name) === selected,
 	);
+	const placement = running ? describeModelPlacement(running) : undefined;
 	const others = status.running.filter((entry) => entry !== running);
 	const machineMemoryBytes = getMachineMemoryBytes(status.hardware);
 
@@ -92,13 +100,16 @@ export function LocalModelIndicator({
 			void refresh();
 		}
 	};
-	const unload = (name: string) =>
-		run(`unload:${name}`, () =>
-			desktopClient.invoke("unload_ollama_model", { model: name }),
+	const unload = (entryName: string) =>
+		run(`unload:${entryName}`, () =>
+			desktopClient.invoke("unload_local_model", {
+				runtime,
+				model: entryName,
+			}),
 		);
 
-	const label = !status.ollamaReachable
-		? "Ollama offline"
+	const label = !status.reachable
+		? `${name} offline`
 		: running
 			? formatGb(running.sizeBytes)
 			: "Not loaded";
@@ -121,7 +132,7 @@ export function LocalModelIndicator({
 						<span
 							className={cn(
 								"absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full ring-1 ring-background",
-								!status.ollamaReachable
+								!status.reachable
 									? "bg-destructive"
 									: running
 										? "bg-emerald-500"
@@ -145,22 +156,23 @@ export function LocalModelIndicator({
 					</span>
 				</div>
 
-				{!status.ollamaReachable ? (
+				{!status.reachable ? (
 					<>
 						<p className="text-sm text-muted-foreground">
-							{status.ollamaInstall?.installed
-								? "Ollama is installed but not running."
-								: "Cline can't reach Ollama."}
+							{status.install?.installed
+								? `${name} is installed but not running.`
+								: `Cline can't reach ${name}.`}
 						</p>
-						{status.ollamaInstall?.installed &&
-						status.ollamaInstall.localServer ? (
+						{status.install?.installed && status.install.localServer ? (
 							<Button
 								disabled={!!pending}
 								onClick={() =>
 									void run("start", () =>
-										desktopClient.invoke("start_ollama", undefined, {
-											timeoutMs: 30_000,
-										}),
+										desktopClient.invoke(
+											"start_local_runtime",
+											{ runtime },
+											{ timeoutMs: 75_000 },
+										),
 									)
 								}
 								size="sm"
@@ -171,7 +183,7 @@ export function LocalModelIndicator({
 								) : (
 									<Play />
 								)}
-								Start Ollama
+								Start {name}
 							</Button>
 						) : null}
 					</>
@@ -179,7 +191,7 @@ export function LocalModelIndicator({
 					<div className="flex flex-col gap-1.5">
 						<div className="flex items-baseline justify-between text-sm">
 							<span className="text-foreground">
-								Loaded {describeModelPlacement(running)}
+								{placement ? `Loaded ${placement}` : "Loaded"}
 							</span>
 							<span className="text-xs text-muted-foreground">
 								{formatGb(running.sizeBytes)} of {formatGb(machineMemoryBytes)}
@@ -221,7 +233,7 @@ export function LocalModelIndicator({
 				) : (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Not in memory. Ollama loads it when you send a message, which can
+							Not in memory. {name} loads it when you send a message, which can
 							take a while for large models.
 						</p>
 						<Button
@@ -229,10 +241,11 @@ export function LocalModelIndicator({
 							onClick={() =>
 								void run("load", () =>
 									desktopClient.invoke(
-										"load_ollama_model",
+										"load_local_model",
 										{
+											runtime,
 											model: selected,
-											// Match what chat requests send so Ollama doesn't reload on the first message.
+											// Match what chat requests send so the runtime doesn't reload on the first message.
 											contextWindow:
 												status.contextWindow ?? DEFAULT_LOCAL_CONTEXT_WINDOW,
 										},

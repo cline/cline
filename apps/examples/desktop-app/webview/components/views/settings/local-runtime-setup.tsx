@@ -4,11 +4,19 @@ import { Check, Copy, Download, Loader2, Play, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { openExternalUrl } from "@/lib/desktop-client";
-import type { LocalModelsStatus } from "@/lib/local-models";
+import {
+	LOCAL_RUNTIMES,
+	type LocalModelsStatus,
+	type LocalRuntime,
+} from "@/lib/local-models";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_URL = "http://localhost:11434";
 const LINUX_INSTALL_COMMAND = "curl -fsSL https://ollama.com/install.sh | sh";
+const LMSTUDIO_DOWNLOAD_URL = "https://lmstudio.ai/download";
+const LMSTUDIO_HEADLESS_INSTALL_COMMAND =
+	"curl -fsSL https://lmstudio.ai/install.sh | bash";
+const LMSTUDIO_HEADLESS_INSTALL_COMMAND_WINDOWS =
+	"irm https://lmstudio.ai/install.ps1 | iex";
 
 const DOWNLOADS: Record<string, { label: string; url: string }> = {
 	darwin: {
@@ -86,7 +94,7 @@ function CopyableCommand({ command }: { command: string }) {
 	);
 }
 
-function InstallSteps({ platform }: { platform: string }) {
+function OllamaInstallSteps({ platform }: { platform: string }) {
 	const download = DOWNLOADS[platform];
 	return (
 		<ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-muted-foreground marker:text-muted-foreground">
@@ -129,12 +137,55 @@ function InstallSteps({ platform }: { platform: string }) {
 	);
 }
 
-export function OllamaSetup({
+function LmStudioInstallSteps({ platform }: { platform: string }) {
+	return (
+		<ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-muted-foreground marker:text-muted-foreground">
+			<li>
+				<span className="text-foreground">Install LM Studio.</span> It's free,
+				with its own model browser and chat app.
+				<div className="mt-2 flex flex-col gap-2">
+					<div>
+						<Button
+							onClick={() => void openExternalUrl(LMSTUDIO_DOWNLOAD_URL)}
+							size="sm"
+							type="button"
+						>
+							<Download />
+							Download LM Studio
+						</Button>
+					</div>
+					<span className="text-xs">
+						Or install just the background service, without the app:
+					</span>
+					<CopyableCommand
+						command={
+							platform === "win32"
+								? LMSTUDIO_HEADLESS_INSTALL_COMMAND_WINDOWS
+								: LMSTUDIO_HEADLESS_INSTALL_COMMAND
+						}
+					/>
+				</div>
+			</li>
+			<li>
+				<span className="text-foreground">Open LM Studio once.</span> After
+				that, Cline can start it for you.
+			</li>
+			<li>
+				<span className="text-foreground">Come back here.</span> This page
+				notices LM Studio on its own, then you can download a model.
+			</li>
+		</ol>
+	);
+}
+
+export function LocalRuntimeSetup({
+	runtime,
 	status,
 	refreshing,
 	onRefresh,
 	onStart,
 }: {
+	runtime: LocalRuntime;
 	status: LocalModelsStatus | undefined;
 	refreshing: boolean;
 	onRefresh: () => void;
@@ -142,20 +193,21 @@ export function OllamaSetup({
 }) {
 	const [starting, setStarting] = useState(false);
 	const [startError, setStartError] = useState<string>();
+	const { name, defaultBaseUrl } = LOCAL_RUNTIMES[runtime];
 
 	if (!status) {
 		return (
 			<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="pending">
-				Checking for Ollama…
+				Checking for {name}…
 			</StatusLine>
 		);
 	}
 
-	const url = status.baseUrl || DEFAULT_URL;
-	if (status.ollamaReachable) {
+	const url = status.baseUrl || defaultBaseUrl;
+	if (status.reachable) {
 		return (
 			<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="ok">
-				Ollama {status.ollamaVersion} is running
+				{name} {status.version} is running
 				{status.baseUrl ? (
 					<span className="text-muted-foreground"> at {url}</span>
 				) : null}
@@ -163,16 +215,16 @@ export function OllamaSetup({
 		);
 	}
 
-	const install = status.ollamaInstall;
+	const install = status.install;
 	if (install && !install.localServer) {
 		return (
 			<div className="flex flex-col gap-2">
 				<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="error">
-					Can't reach Ollama at {url}
+					Can't reach {name} at {url}
 				</StatusLine>
 				<p className="text-sm text-muted-foreground">
 					Make sure the server is running and reachable from this computer, or
-					change the URL under Providers → Ollama.
+					change the URL under Providers → {name}.
 				</p>
 			</div>
 		);
@@ -193,7 +245,7 @@ export function OllamaSetup({
 		return (
 			<div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3">
 				<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="error">
-					Ollama is installed but not running
+					{name} is installed but not running
 				</StatusLine>
 				<p className="text-sm text-muted-foreground">
 					Start it to download and run models. It keeps running in the
@@ -207,7 +259,7 @@ export function OllamaSetup({
 						type="button"
 					>
 						{starting ? <Loader2 className="animate-spin" /> : <Play />}
-						{starting ? "Starting Ollama…" : "Start Ollama"}
+						{starting ? `Starting ${name}…` : `Start ${name}`}
 					</Button>
 				</div>
 				{startError ? (
@@ -222,9 +274,13 @@ export function OllamaSetup({
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3">
 			<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="error">
-				Ollama isn't installed
+				{name} isn't installed
 			</StatusLine>
-			<InstallSteps platform={status.hardware.platform} />
+			{runtime === "ollama" ? (
+				<OllamaInstallSteps platform={status.hardware.platform} />
+			) : (
+				<LmStudioInstallSteps platform={status.hardware.platform} />
+			)}
 		</div>
 	);
 }

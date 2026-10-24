@@ -21,8 +21,10 @@ import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	formatGb,
 	isPinnedLoaded,
+	LOCAL_RUNTIMES,
 	type LocalModelDetails,
 	type LocalModelsStatus,
+	type LocalRuntime,
 } from "@/lib/local-models";
 
 const MODELFILE_DOCS_URL =
@@ -39,6 +41,20 @@ const SAMPLING_OPTIONS: { key: string; label: string; fallback: string }[] = [
 	{ key: "num_predict", label: "Max output tokens", fallback: "-1 (no limit)" },
 	{ key: "seed", label: "Seed", fallback: "0 (random)" },
 ];
+
+/** LM Studio load settings, by their REST API name. Unlisted ones show under their raw name. */
+const LOAD_CONFIG_LABELS: Record<string, string> = {
+	context_length: "Context length",
+	flash_attention: "Flash attention",
+	offload_kv_cache_to_gpu: "KV cache on GPU",
+	eval_batch_size: "Evaluation batch size",
+	physical_batch_size: "Physical batch size",
+	parallel: "Parallel requests",
+	num_experts: "Active experts",
+};
+
+const formatConfigValue = (value: string | number | boolean) =>
+	typeof value === "boolean" ? (value ? "On" : "Off") : String(value);
 
 const CAPABILITY_LABELS: Record<string, string> = {
 	completion: "Chat",
@@ -124,12 +140,14 @@ const formatTokens = (tokens: number) =>
 	tokens > 0 ? `${tokens.toLocaleString()} tokens` : "";
 
 export function LocalModelDetailsDialog({
+	runtime,
 	model,
 	sizeBytes,
 	contextWindow,
 	running,
 	onOpenChange,
 }: {
+	runtime: LocalRuntime;
 	/** Opens the dialog when set. */
 	model: string | undefined;
 	sizeBytes: number;
@@ -139,6 +157,7 @@ export function LocalModelDetailsDialog({
 }) {
 	const [details, setDetails] = useState<LocalModelDetails>();
 	const [error, setError] = useState<string>();
+	const isOllama = runtime === "ollama";
 
 	useEffect(() => {
 		if (!model) {
@@ -148,7 +167,7 @@ export function LocalModelDetailsDialog({
 		setDetails(undefined);
 		setError(undefined);
 		desktopClient
-			.invoke<LocalModelDetails>("show_ollama_model", { model })
+			.invoke<LocalModelDetails>("show_local_model", { runtime, model })
 			.then((next) => {
 				if (!cancelled) setDetails(next);
 			})
@@ -160,7 +179,7 @@ export function LocalModelDetailsDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [model]);
+	}, [runtime, model]);
 
 	const parameters = details?.parameters ?? {};
 	const knownKeys = new Set([
@@ -179,7 +198,8 @@ export function LocalModelDetailsDialog({
 				<DialogHeader>
 					<DialogTitle className="font-mono text-base">{model}</DialogTitle>
 					<DialogDescription>
-						The settings Ollama runs this model with. They're read-only for now.
+						The settings {LOCAL_RUNTIMES[runtime].name} runs this model with.
+						They're read-only for now.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -204,11 +224,15 @@ export function LocalModelDetailsDialog({
 									label="Max context"
 									value={formatTokens(details.contextLength)}
 								/>
-								<Fact
-									label="Embedding size"
-									value={details.embeddingLength || ""}
-								/>
-								<Fact label="Layers" value={details.layers || ""} />
+								{isOllama ? (
+									<>
+										<Fact
+											label="Embedding size"
+											value={details.embeddingLength || ""}
+										/>
+										<Fact label="Layers" value={details.layers || ""} />
+									</>
+								) : null}
 								<Fact label="Format" value={details.format.toUpperCase()} />
 							</div>
 							{details.capabilities.length > 0 ? (
@@ -231,22 +255,31 @@ export function LocalModelDetailsDialog({
 											: undefined
 									}
 									label="Context window"
-									option="num_ctx"
+									option={isOllama ? "num_ctx" : "context_length"}
 									value={formatTokens(contextWindow)}
 								/>
-								<ReadOnlyField
-									hint="Set with OLLAMA_KEEP_ALIVE on the Ollama server."
-									label="Keep loaded"
-									option="keep_alive"
-									value={
-										running && isPinnedLoaded(running.expiresAtMs)
-											? "Until unloaded"
-											: "5 minutes after last use (Ollama default)"
-									}
-								/>
+								{isOllama ? (
+									<ReadOnlyField
+										hint="Set with OLLAMA_KEEP_ALIVE on the Ollama server."
+										label="Keep loaded"
+										option="keep_alive"
+										value={
+											running?.expiresAtMs &&
+											isPinnedLoaded(running.expiresAtMs)
+												? "Until unloaded"
+												: "5 minutes after last use (Ollama default)"
+										}
+									/>
+								) : (
+									<ReadOnlyField
+										hint="Models LM Studio loads on its own unload after an hour idle."
+										label="Keep loaded"
+										value="Until unloaded, when loaded from Cline"
+									/>
+								)}
 								<ReadOnlyField
 									label="Thinking"
-									option="think"
+									option={isOllama ? "think" : undefined}
 									value={
 										supportsThinking
 											? "Follows the composer's Thinking level"
@@ -261,79 +294,111 @@ export function LocalModelDetailsDialog({
 							</div>
 						</Section>
 
-						<Section title="Sampling">
-							<div className="grid gap-3 sm:grid-cols-2">
-								{SAMPLING_OPTIONS.map((option) => {
-									const value = parameters[option.key]?.join(", ");
-									return (
-										<ReadOnlyField
-											hint={value ? "Set by the model" : "Ollama default"}
-											key={option.key}
-											label={option.label}
-											option={option.key}
-											value={value ?? option.fallback}
-										/>
-									);
-								})}
-								{extraParameters.map(([key, values]) => (
-									<ReadOnlyField
-										hint="Set by the model"
-										key={key}
-										label={key}
-										value={values.join(", ")}
-									/>
-								))}
-							</div>
-							{parameters.stop?.length ? (
-								<div className="flex flex-col gap-1">
-									<span className="flex items-baseline justify-between text-xs text-foreground">
-										Stop sequences
-										<code className="text-[11px] text-muted-foreground">
-											stop
-										</code>
-									</span>
-									<div className="flex flex-wrap gap-1.5">
-										{parameters.stop.map((stop) => (
-											<code
-												className="rounded border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground"
-												key={stop}
-											>
-												{stop}
-											</code>
+						{isOllama ? null : (
+							<Section title="Load settings">
+								{details.loadConfig ? (
+									<div className="grid gap-3 sm:grid-cols-2">
+										{Object.entries(details.loadConfig).map(([key, value]) => (
+											<ReadOnlyField
+												key={key}
+												label={LOAD_CONFIG_LABELS[key] ?? key}
+												option={key}
+												value={formatConfigValue(value)}
+											/>
 										))}
 									</div>
-								</div>
-							) : null}
-						</Section>
+								) : (
+									<p className="text-sm text-muted-foreground">
+										Load the model to see the settings LM Studio loads it with.
+									</p>
+								)}
+								<p className="text-xs text-muted-foreground">
+									Defaults for sampling and loading are set per model in LM
+									Studio's My Models.
+								</p>
+							</Section>
+						)}
 
-						<Section title="Advanced">
-							<div className="flex flex-col gap-2">
-								{details.template ? (
-									<TextBlock text={details.template} title="Prompt template" />
-								) : null}
-								{details.system ? (
-									<TextBlock text={details.system} title="System prompt" />
-								) : null}
-								{details.modelfile ? (
-									<TextBlock text={details.modelfile} title="Modelfile" />
-								) : null}
-								{details.license ? (
-									<TextBlock text={details.license} title="License" />
-								) : null}
-							</div>
-							<p className="text-xs text-muted-foreground">
-								To change these, build your own variant of the model from a{" "}
-								<button
-									className="text-primary underline-offset-4 hover:underline"
-									onClick={() => void openExternalUrl(MODELFILE_DOCS_URL)}
-									type="button"
-								>
-									Modelfile
-								</button>{" "}
-								with <code>ollama create</code>. It then shows up under
-								Downloaded models.
-							</p>
-						</Section>
+						{isOllama ? (
+							<>
+								<Section title="Sampling">
+									<div className="grid gap-3 sm:grid-cols-2">
+										{SAMPLING_OPTIONS.map((option) => {
+											const value = parameters[option.key]?.join(", ");
+											return (
+												<ReadOnlyField
+													hint={value ? "Set by the model" : "Ollama default"}
+													key={option.key}
+													label={option.label}
+													option={option.key}
+													value={value ?? option.fallback}
+												/>
+											);
+										})}
+										{extraParameters.map(([key, values]) => (
+											<ReadOnlyField
+												hint="Set by the model"
+												key={key}
+												label={key}
+												value={values.join(", ")}
+											/>
+										))}
+									</div>
+									{parameters.stop?.length ? (
+										<div className="flex flex-col gap-1">
+											<span className="flex items-baseline justify-between text-xs text-foreground">
+												Stop sequences
+												<code className="text-[11px] text-muted-foreground">
+													stop
+												</code>
+											</span>
+											<div className="flex flex-wrap gap-1.5">
+												{parameters.stop.map((stop) => (
+													<code
+														className="rounded border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground"
+														key={stop}
+													>
+														{stop}
+													</code>
+												))}
+											</div>
+										</div>
+									) : null}
+								</Section>
+
+								<Section title="Advanced">
+									<div className="flex flex-col gap-2">
+										{details.template ? (
+											<TextBlock
+												text={details.template}
+												title="Prompt template"
+											/>
+										) : null}
+										{details.system ? (
+											<TextBlock text={details.system} title="System prompt" />
+										) : null}
+										{details.modelfile ? (
+											<TextBlock text={details.modelfile} title="Modelfile" />
+										) : null}
+										{details.license ? (
+											<TextBlock text={details.license} title="License" />
+										) : null}
+									</div>
+									<p className="text-xs text-muted-foreground">
+										To change these, build your own variant of the model from a{" "}
+										<button
+											className="text-primary underline-offset-4 hover:underline"
+											onClick={() => void openExternalUrl(MODELFILE_DOCS_URL)}
+											type="button"
+										>
+											Modelfile
+										</button>{" "}
+										with <code>ollama create</code>. It then shows up under
+										Downloaded models.
+									</p>
+								</Section>
+							</>
+						) : null}
 					</div>
 				)}
 			</DialogContent>

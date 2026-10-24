@@ -1,13 +1,38 @@
+/** The local model servers Cline can manage. Each is also the id of the provider Cline chats through. */
+export type LocalRuntime = "ollama" | "lmstudio";
+
+export const LOCAL_RUNTIMES: Record<
+	LocalRuntime,
+	{ name: string; defaultBaseUrl: string; canCancelDownloads: boolean }
+> = {
+	ollama: {
+		name: "Ollama",
+		defaultBaseUrl: "http://localhost:11434",
+		canCancelDownloads: true,
+	},
+	lmstudio: {
+		name: "LM Studio",
+		defaultBaseUrl: "http://localhost:1234",
+		// LM Studio's REST API has no way to stop a download job.
+		canCancelDownloads: false,
+	},
+};
+
+export function isLocalRuntime(value: unknown): value is LocalRuntime {
+	return value === "ollama" || value === "lmstudio";
+}
+
 /**
- * Curated Ollama models that work well with Cline, each with the context
- * window Cline should run it at. Ordered by how strongly we recommend them, so
- * the first one that fits a machine is its recommendation.
+ * Curated models that work well with Cline, each with the context window
+ * Cline should run it at. Ordered by how strongly we recommend them, so the
+ * first one that fits a machine is its recommendation.
  *
  * `memoryGb` estimates weights plus KV cache at `contextWindow`; it is what
  * decides whether a model fits on the user's hardware.
  */
 export interface LocalModelCatalogEntry {
-	id: string;
+	/** Ollama library names and LM Studio Hub keys. */
+	ids: Record<LocalRuntime, string>;
 	name: string;
 	description: string;
 	sizeGb: number;
@@ -18,7 +43,7 @@ export interface LocalModelCatalogEntry {
 
 export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 	{
-		id: "qwen3.8:27b",
+		ids: { ollama: "qwen3.8:27b", lmstudio: "qwen/qwen3.8-27b" },
 		name: "Qwen3.8 27B",
 		description:
 			"The strongest all-round local model for agentic coding. Reliable tool use across long tasks.",
@@ -28,7 +53,7 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Best overall", "Vision"],
 	},
 	{
-		id: "laguna-xs-2.1",
+		ids: { ollama: "laguna-xs-2.1", lmstudio: "poolside/laguna-xs-2.1" },
 		name: "Laguna XS 2.1",
 		description:
 			"Mixture-of-experts model from Poolside built for long-horizon coding. Only 3B active parameters, so it's fast.",
@@ -38,7 +63,7 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Fast"],
 	},
 	{
-		id: "qwen3.6:35b-a3b",
+		ids: { ollama: "qwen3.6:35b-a3b", lmstudio: "qwen/qwen3.6-35b-a3b" },
 		name: "Qwen3.6 35B A3B",
 		description:
 			"Fast mixture-of-experts Qwen with solid agentic coding. A good pick when speed matters more than depth.",
@@ -48,7 +73,10 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Fast", "Vision"],
 	},
 	{
-		id: "devstral-small-2:24b",
+		ids: {
+			ollama: "devstral-small-2:24b",
+			lmstudio: "mistralai/devstral-small-2-2512",
+		},
 		name: "Devstral Small 2",
 		description:
 			"Mistral's agentic coding model, tuned for exploring codebases and editing many files.",
@@ -58,7 +86,7 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Vision"],
 	},
 	{
-		id: "gpt-oss:20b",
+		ids: { ollama: "gpt-oss:20b", lmstudio: "openai/gpt-oss-20b" },
 		name: "gpt-oss 20B",
 		description:
 			"OpenAI's open-weight reasoning model. Light on memory and quick, a great fit for 16-24 GB machines.",
@@ -68,7 +96,7 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Fast"],
 	},
 	{
-		id: "qwen3-coder-next",
+		ids: { ollama: "qwen3-coder-next", lmstudio: "qwen/qwen3-coder-next" },
 		name: "Qwen3-Coder-Next",
 		description:
 			"80B mixture-of-experts coder with 3B active parameters, for machines with 64 GB or more.",
@@ -78,7 +106,7 @@ export const LOCAL_MODEL_CATALOG: LocalModelCatalogEntry[] = [
 		tags: ["Fast"],
 	},
 	{
-		id: "qwen3:8b",
+		ids: { ollama: "qwen3:8b", lmstudio: "qwen/qwen3-8b" },
 		name: "Qwen3 8B",
 		description:
 			"Small enough for 8-16 GB machines. Handles simple edits, but struggles with larger multi-step tasks.",
@@ -102,7 +130,8 @@ export interface LocalHardwareInfo {
 	gpus: { name: string; memoryGb: number }[];
 }
 
-export interface OllamaPullProgress {
+export interface LocalModelPullProgress {
+	runtime: LocalRuntime;
 	model: string;
 	status: string;
 	completed: number;
@@ -112,43 +141,51 @@ export interface OllamaPullProgress {
 	error?: string;
 }
 
-/** Payload of `get_local_models_status`. */
+/** Payload of `get_local_models_status`, for one runtime. */
 export interface LocalModelsStatus {
+	runtime: LocalRuntime;
 	hardware: LocalHardwareInfo;
-	/** The Ollama provider's saved base URL and context window. */
+	/** Whether each runtime is up, for picking between them. */
+	runtimes: Record<LocalRuntime, { reachable: boolean; installed: boolean }>;
+	/** The runtime provider's saved base URL and context window. */
 	baseUrl: string;
 	contextWindow?: number;
-	ollamaReachable: boolean;
-	ollamaVersion?: string;
-	/** Only checked while Ollama is unreachable. */
-	ollamaInstall?: {
+	reachable: boolean;
+	version?: string;
+	/** Only checked while the runtime is unreachable. */
+	install?: {
 		installed: boolean;
-		/** The base URL points at this machine, so Cline can start Ollama itself. */
+		/** The base URL points at this machine, so Cline can start the runtime itself. */
 		localServer: boolean;
 	};
-	/** Space on the drive Ollama stores models on. Local servers only. */
+	/** Space on the drive the runtime stores models on. Local servers only. */
 	disk?: { freeBytes: number; totalBytes: number };
 	installed: {
 		name: string;
+		displayName?: string;
 		sizeBytes: number;
 		parameterSize: string;
 		quantization: string;
-		/** e.g. `tools`, `thinking`, `vision`. Reported by newer Ollama versions. */
+		/** e.g. `tools`, `thinking`, `vision`. */
 		capabilities: string[];
 		/** The longest context the model supports, or 0 if unknown. */
 		contextLength: number;
+		/** False when Cline can't tell which files belong to the model. */
+		deletable: boolean;
 	}[];
 	running: {
 		name: string;
 		sizeBytes: number;
-		sizeVramBytes: number;
-		expiresAtMs: number;
+		/** Unknown for LM Studio. */
+		sizeVramBytes?: number;
+		/** Unknown for LM Studio. */
+		expiresAtMs?: number;
 		contextLength: number;
 	}[];
-	activePulls: OllamaPullProgress[];
+	activePulls: LocalModelPullProgress[];
 }
 
-/** Payload of `show_ollama_model`. */
+/** Payload of `show_local_model`. */
 export interface LocalModelDetails {
 	name: string;
 	architecture: string;
@@ -159,15 +196,17 @@ export interface LocalModelDetails {
 	embeddingLength: number;
 	layers: number;
 	capabilities: string[];
-	/** Defaults baked into the model, e.g. `{ temperature: ["0.6"], stop: ["<|im_end|>"] }`. */
+	/** Ollama defaults baked into the model, e.g. `{ temperature: ["0.6"], stop: ["<|im_end|>"] }`. */
 	parameters: Record<string, string[]>;
 	template: string;
 	system: string;
 	license: string;
 	modelfile: string;
+	/** The settings LM Studio loaded the model with, while it's loaded. */
+	loadConfig?: Record<string, string | number | boolean>;
 }
 
-export const OLLAMA_PULL_PROGRESS_EVENT = "ollama_pull_progress";
+export const LOCAL_MODEL_PULL_PROGRESS_EVENT = "local_model_pull_progress";
 
 export const formatGb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`;
 
@@ -184,7 +223,10 @@ export function describeModelPlacement(
 		LocalModelsStatus["running"][number],
 		"sizeBytes" | "sizeVramBytes"
 	>,
-): string {
+): string | undefined {
+	if (running.sizeVramBytes === undefined) {
+		return undefined;
+	}
 	if (running.sizeVramBytes <= 0) {
 		return "on CPU";
 	}
@@ -194,12 +236,14 @@ export function describeModelPlacement(
 	return `${Math.round((running.sizeVramBytes / running.sizeBytes) * 100)}% on GPU`;
 }
 
-export function describeUnloadTime(expiresAtMs: number): string | undefined {
+export function describeUnloadTime(
+	expiresAtMs: number | undefined,
+): string | undefined {
+	if (expiresAtMs === undefined || expiresAtMs <= 0) {
+		return undefined;
+	}
 	if (isPinnedLoaded(expiresAtMs)) {
 		return "stays loaded until unloaded";
-	}
-	if (expiresAtMs <= 0) {
-		return undefined;
 	}
 	const time = new Date(expiresAtMs).toLocaleTimeString([], {
 		hour: "numeric",
@@ -288,7 +332,10 @@ export function parseOllamaParameters(text: string): Record<string, string[]> {
 	return parameters;
 }
 
-/** Ollama treats an untagged name as `:latest`. */
-export function normalizeOllamaModelName(name: string): string {
-	return name.includes(":") ? name : `${name}:latest`;
+/** Ollama treats an untagged name as `:latest`; LM Studio keys are used as is. */
+export function normalizeLocalModelName(
+	runtime: LocalRuntime,
+	name: string,
+): string {
+	return runtime === "ollama" && !name.includes(":") ? `${name}:latest` : name;
 }
