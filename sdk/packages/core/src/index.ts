@@ -519,6 +519,7 @@ export {
 	isSessionNotFoundError,
 	isUnusableSessionError,
 	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionAlreadyExistsError,
 	SessionNotFoundError,
 	splitCoreSessionConfig,
 } from "./runtime/host/runtime-host";

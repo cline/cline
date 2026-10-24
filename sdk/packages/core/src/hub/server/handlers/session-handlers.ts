@@ -14,6 +14,7 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import { z } from "zod";
 import {
 	isCoreBuiltinToolAvailable,
 	resolveToolClientType,
@@ -49,6 +50,14 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+const ResumeSessionConfigSchema = z.object({
+	sessionId: z.string().trim().min(1),
+	providerId: z.string().trim().min(1),
+	modelId: z.string().trim().min(1),
+	mode: z.enum(["act", "plan", "yolo", "zen"]),
+	systemPrompt: z.string(),
+});
 
 function readHubContextString(
 	record: Record<string, unknown> | undefined,
@@ -301,7 +310,7 @@ export async function handleSessionCreate(
 		payload.metadata && typeof payload.metadata === "object"
 			? JSON.parse(JSON.stringify(payload.metadata))
 			: {};
-	const sessionConfig =
+	let sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
 			? (JSON.parse(
 					JSON.stringify(payload.sessionConfig),
@@ -379,6 +388,15 @@ export async function handleSessionCreate(
 				"session.resume requires a matching saved session id and no supplied history",
 			);
 		}
+		const resumeConfig = ResumeSessionConfigSchema.safeParse(sessionConfig);
+		if (!resumeConfig.success) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"session.resume requires sessionConfig with sessionId, providerId, modelId, mode, and systemPrompt",
+			);
+		}
+		sessionConfig = { ...sessionConfig, ...resumeConfig.data };
 		if (!(await ctx.sessionHost.getSession(requestedSessionId))) {
 			return errorReply(
 				envelope,

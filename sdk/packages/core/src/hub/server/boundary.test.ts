@@ -25,6 +25,14 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 
 describe("HubServerTransport boundaries", () => {
+	const resumeConfig = {
+		sessionId: "session-1",
+		providerId: "openai",
+		modelId: "gpt-4.1",
+		mode: "plan",
+		systemPrompt: "Keep the supplied instructions",
+	};
+
 	function createTransport(options: Record<string, unknown> = {}) {
 		const { sessionHost: sessionHostOverride, ...transportOptions } = options;
 		return new HubServerTransport({
@@ -61,7 +69,10 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
-	it("resumes from persisted messages through the existing creation path", async () => {
+	it.each([
+		"plan",
+		"zen",
+	])("resumes saved history with explicit %s configuration", async (mode) => {
 		const messages = [{ role: "user", content: "saved conversation" }];
 		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
 		const readSessionMessages = vi.fn().mockResolvedValue(messages);
@@ -74,7 +85,7 @@ describe("HubServerTransport boundaries", () => {
 				command: "session.resume",
 				clientId: "resume-client",
 				payload: {
-					sessionConfig: { sessionId: "session-1", reasoningEffort: "high" },
+					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
 				},
 			});
 			expect(reply.ok).toBe(true);
@@ -87,7 +98,8 @@ describe("HubServerTransport boundaries", () => {
 				expect.objectContaining({
 					initialMessages: messages,
 					config: expect.objectContaining({
-						sessionId: "session-1",
+						...resumeConfig,
+						mode,
 						reasoningEffort: "high",
 					}),
 				}),
@@ -100,21 +112,24 @@ describe("HubServerTransport boundaries", () => {
 
 	it.each([
 		{ payload: {} },
+		{ payload: { sessionConfig: { sessionId: "session-1" } } },
+		{ payload: { sessionConfig: { ...resumeConfig, providerId: " " } } },
+		{ payload: { sessionConfig: { ...resumeConfig, mode: "invalid" } } },
 		{
 			payload: {
-				sessionConfig: { sessionId: "session-1" },
+				sessionConfig: resumeConfig,
 				sessionId: "other",
 			},
 		},
 		{
 			payload: {
-				sessionConfig: { sessionId: "session-1" },
+				sessionConfig: resumeConfig,
 				initialMessages: [],
 			},
 		},
 		{
 			payload: {
-				sessionConfig: { sessionId: "session-1" },
+				sessionConfig: resumeConfig,
 				initialCompactionState: {},
 			},
 		},
@@ -158,7 +173,7 @@ describe("HubServerTransport boundaries", () => {
 			const reply = await transport.handleCommand({
 				version: "v1",
 				command: "session.resume",
-				payload: { sessionConfig: { sessionId: "session-1" } },
+				payload: { sessionConfig: resumeConfig },
 			});
 			expect(reply.error?.code).toBe(
 				messages === undefined ? "session_not_found" : "invalid_resume",
@@ -1206,6 +1221,7 @@ describe("HubServerTransport boundaries", () => {
 				sessionConfig: {
 					sessionId:
 						command === "session.resume" ? "123-saved-session" : undefined,
+					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",
 					cwd: "/tmp/project",
@@ -1237,7 +1253,7 @@ describe("HubServerTransport boundaries", () => {
 				version: "v1",
 				command,
 				clientId: "client-2",
-				payload: { sessionConfig: { sessionId } },
+				payload: { sessionConfig: { ...resumeConfig, sessionId } },
 			});
 			expect(duplicate.error?.code).toBe("session_already_exists");
 			expect(

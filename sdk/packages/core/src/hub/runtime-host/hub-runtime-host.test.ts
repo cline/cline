@@ -82,6 +82,20 @@ describe("HubRuntimeHost", () => {
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
+	it("rejects guarded starts before sending a replacing create", async () => {
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await expect(
+			host.startSession({
+				config: createConfig(),
+				localRuntime: { rejectExistingSession: true },
+			}),
+		).rejects.toThrow("cannot guarantee a guarded session start");
+		expect(commandMock).not.toHaveBeenCalled();
+		expect(subscribeMock).not.toHaveBeenCalled();
+		await host.dispose();
+	});
+
 	it("does not auto-start a run during session creation", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		commandMock.mockResolvedValue({
