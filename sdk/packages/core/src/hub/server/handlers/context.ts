@@ -105,6 +105,7 @@ export interface HubTransportContext {
 		payload: Record<string, unknown>,
 		targetClientId: string,
 		onProgress?: (payload: Record<string, unknown>) => void,
+		timeoutMs?: number,
 	): Promise<Record<string, unknown> | undefined>;
 }
 
