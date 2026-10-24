@@ -45,6 +45,7 @@ export function LocalModelIndicator({
 	const [status, setStatus] = useState<LocalModelsStatus>();
 	const [pending, setPending] = useState<string>();
 	const [error, setError] = useState<string>();
+	const [open, setOpen] = useState(false);
 
 	const refresh = useCallback(async () => {
 		try {
@@ -115,7 +116,13 @@ export function LocalModelIndicator({
 			: "Not loaded";
 
 	return (
-		<Popover onOpenChange={(open) => open && void refresh()}>
+		<Popover
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (next) void refresh();
+			}}
+			open={open}
+		>
 			<PopoverTrigger asChild>
 				<button
 					aria-label={`Local model: ${label}`}
@@ -307,7 +314,11 @@ export function LocalModelIndicator({
 				{onOpenLocalModels ? (
 					<Button
 						className="justify-start"
-						onClick={onOpenLocalModels}
+						onClick={() => {
+							// The composer stays mounted behind settings, so close explicitly.
+							setOpen(false);
+							onOpenLocalModels();
+						}}
 						size="sm"
 						type="button"
 						variant="ghost"
