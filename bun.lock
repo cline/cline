@@ -649,7 +649,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.95",
+      "version": "0.2.0",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -658,7 +658,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.95",
+      "version": "0.2.0",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -701,7 +701,7 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.95",
+      "version": "0.2.0",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.113",
         "@ai-sdk/anthropic": "^4.0.78",
@@ -750,14 +750,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.95",
+      "version": "0.2.0",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.95",
+      "version": "0.2.0",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",
@@ -767,7 +767,7 @@
     },
     "sdk/packages/ui": {
       "name": "@cline/ui",
-      "version": "0.2.0-next.12",
+      "version": "0.2.0",
       "dependencies": {
         "@cline/shared": "workspace:*",
         "@radix-ui/react-slot": "1.2.4",
