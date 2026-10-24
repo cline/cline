@@ -5,9 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { resetClineRecommendedModelsCacheForTests } from "../../services/llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../../services/llms/provider-defaults";
+import * as ProviderRegistry from "../../services/providers/local-provider-registry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { FileSessionService } from "../../session/services/file-session-service";
-import { HubCommandError, NodeHubClient } from "../client";
+import {
+	HubCommandError,
+	hasActiveHubSessions,
+	NodeHubClient,
+} from "../client";
 import { createHubProvidersApi } from "../client/providers";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { createInMemoryHubOwnerContext } from "../discovery";
@@ -16,10 +21,12 @@ import { startHubWebSocketServer } from "./hub-websocket-server";
 
 let root: string;
 let transport: HubServerTransport;
+let transportStopped: boolean;
 let api: ReturnType<typeof createHubProvidersApi>;
 const send = vi.fn();
 
 beforeEach(async () => {
+	transportStopped = false;
 	root = await mkdtemp(join(tmpdir(), "hub-providers-"));
 	vi.stubEnv("CLINE_DATA_DIR", root);
 	vi.stubEnv("CLINE_DIR", root);
@@ -53,7 +60,8 @@ beforeEach(async () => {
 	>);
 });
 afterEach(async () => {
-	await transport?.stop();
+	if (!transportStopped) await transport?.stop();
+	vi.restoreAllMocks();
 	clearLiveModelsCatalogCache();
 	resetClineRecommendedModelsCacheForTests();
 	vi.unstubAllGlobals();
@@ -62,6 +70,130 @@ afterEach(async () => {
 });
 
 describe("hub provider management", () => {
+	it("protects an accepted multi-file provider write from replacement and shutdown", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let entered!: () => void;
+		const started = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const write = ProviderRegistry.writeModelsFile;
+		vi.spyOn(ProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async (...args) => {
+				entered();
+				await gate;
+				return await write(...args);
+			},
+		);
+		const pending = api.add({
+			providerId: "pending-provider",
+			name: "Pending Provider",
+			baseUrl: "https://example.test/v1",
+			apiKey: "saved-first",
+			models: ["finished-model"],
+		});
+		let stopping: Promise<void> | undefined;
+		try {
+			await started;
+			expect(
+				new ProviderSettingsManager().getProviderSettings("pending-provider")
+					?.apiKey,
+			).toBe("saved-first");
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).toMatchObject({
+				idle: false,
+				activeProviderMutations: 1,
+			});
+			const sessions = await transport.handleCommand({
+				version: "v1",
+				command: "session.list",
+			});
+			expect(sessions.payload).toMatchObject({
+				sessions: [],
+				activeProviderMutations: 1,
+			});
+			expect(hasActiveHubSessions(sessions.payload)).toBe(true);
+			await transport.handleCommand({ version: "v1", command: "hub.drain" });
+			await expect(
+				api.saveSettings({ providerId: "anthropic", apiKey: "refused" }),
+			).rejects.toMatchObject({ code: "hub_draining" });
+			const stopped = vi.fn();
+			stopping = transport.stop().then(() => {
+				transportStopped = true;
+				stopped();
+			});
+			await Promise.resolve();
+			expect(stopped).not.toHaveBeenCalled();
+			release();
+			await expect(pending).resolves.toMatchObject({ modelsCount: 1 });
+			await stopping;
+			expect(stopped).toHaveBeenCalledOnce();
+			const modelsPath = ProviderRegistry.resolveModelsRegistryPath(
+				new ProviderSettingsManager(),
+			);
+			expect(
+				(await ProviderRegistry.readModelsFile(modelsPath)).providers[
+					"pending-provider"
+				].models,
+			).toHaveProperty("finished-model");
+			expect(
+				(
+					await transport.handleCommand({
+						version: "v1",
+						command: "hub.status",
+					})
+				).payload,
+			).toMatchObject({ idle: true, activeProviderMutations: 0 });
+		} finally {
+			release();
+			await pending;
+			await stopping;
+		}
+	});
+
+	it.each([
+		"providers.add",
+		"providers.settings.save",
+		"providers.models.update",
+	] as const)("refuses %s during drain before validation or persistence", async (command) => {
+		await transport.handleCommand({ version: "v1", command: "hub.drain" });
+		expect(
+			await transport.handleCommand({ version: "v1", command, payload: {} }),
+		).toMatchObject({ ok: false, error: { code: "hub_draining" } });
+	});
+
+	it("releases activity tracking when a provider write fails", async () => {
+		vi.spyOn(ProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			new Error("model write failed"),
+		);
+		await expect(
+			api.add({
+				providerId: "failed-provider",
+				name: "Failed Provider",
+				baseUrl: "https://example.test/v1",
+				models: ["model"],
+			}),
+		).rejects.toMatchObject({ code: "provider_error" });
+		const status = await transport.handleCommand({
+			version: "v1",
+			command: "hub.status",
+		});
+		expect(status.payload).toMatchObject({
+			idle: true,
+			activeProviderMutations: 0,
+		});
+		const sessions = await transport.handleCommand({
+			version: "v1",
+			command: "session.list",
+		});
+		expect(hasActiveHubSessions(sessions.payload)).toBe(false);
+	});
+
 	it("creates a provider, discovers its models, and persists overrides across calls", async () => {
 		await api.add({
 			providerId: "hub-custom",

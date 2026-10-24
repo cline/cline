@@ -300,6 +300,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
+	private readonly pendingProviderMutations = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
 
@@ -762,7 +763,10 @@ export class HubServerTransport implements NativeHubTransport {
 
 	async stop(): Promise<void> {
 		this.draining = true;
-		await Promise.allSettled(this.pendingPluginCommands);
+		await Promise.allSettled([
+			...this.pendingPluginCommands,
+			...this.pendingProviderMutations,
+		]);
 		this.unsubscribePluginStatus?.();
 		this.unsubscribePluginStatus = undefined;
 		if (this.eventLogPruneTimer) {
@@ -908,10 +912,18 @@ export class HubServerTransport implements NativeHubTransport {
 			case "providers.list":
 			case "providers.models.list":
 			case "providers.models.recommended":
+				return await handleProviderCommand(envelope);
 			case "providers.settings.save":
 			case "providers.add":
-			case "providers.models.update":
-				return await handleProviderCommand(envelope);
+			case "providers.models.update": {
+				const request = handleProviderCommand(envelope);
+				this.pendingProviderMutations.add(request);
+				try {
+					return await request;
+				} finally {
+					this.pendingProviderMutations.delete(request);
+				}
+			}
 			case "client.register": {
 				const reply = handleClientRegister(this.ctx, envelope);
 				this.tasks.notifyAutomationReadinessChanged();
@@ -963,6 +975,7 @@ export class HubServerTransport implements NativeHubTransport {
 					payload: {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
+						activeProviderMutations: this.pendingProviderMutations.size,
 						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
@@ -1308,6 +1321,7 @@ export class HubServerTransport implements NativeHubTransport {
 			activeRpcTurns,
 			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
+			activeProviderMutations: this.pendingProviderMutations.size,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
@@ -1317,6 +1331,7 @@ export class HubServerTransport implements NativeHubTransport {
 				activeRpcTurns === 0 &&
 				this.cloud.activeCommands === 0 &&
 				this.pendingPluginCommands.size === 0 &&
+				this.pendingProviderMutations.size === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
