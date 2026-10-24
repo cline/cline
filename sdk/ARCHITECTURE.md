@@ -253,6 +253,15 @@ potentially live command's advertised path takes precedence over guessing that
 it exited. A detached client connection alone never changes process ownership or
 command execution.
 
+MCP Apps requests follow the same session-scoped command path. A session started
+with `mcpApps: true` keeps an MCP Apps runtime on its `BuiltRuntime`, bound to
+the session's `InMemoryMcpManager` in the Hub process. A UI host never opens its
+own MCP connection for an app. It sends `session.mcp_apps.resolve_tool`,
+`session.mcp_apps.read_resource`, or `session.mcp_apps.call_tool`, and the Hub
+delegates to the `LocalRuntimeHost`, which serves the request from that runtime.
+App tool calls are checked against the tool's `_meta.ui.visibility` there, in the
+process that owns the connection, not in the client.
+
 ### Generated Media Operation and Event Flow
 
 Model modalities and provider operations are separate facts. Modalities describe

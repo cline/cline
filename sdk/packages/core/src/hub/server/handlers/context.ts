@@ -13,6 +13,7 @@ import type {
 import { createSessionId } from "@cline/shared";
 import type {
 	CommandExecutionRuntimeService,
+	McpAppsRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -82,7 +83,8 @@ export interface HubTransportContext {
 			CommandExecutionRuntimeService &
 				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
-				SessionConnectionRuntimeService
+				SessionConnectionRuntimeService &
+				McpAppsRuntimeService
 		>;
 	/**
 	 * While draining, new mutating work (session.create, run.*) is refused
