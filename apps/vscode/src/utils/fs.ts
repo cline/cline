@@ -103,7 +103,22 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
 			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
-			.then((entries) => entries.filter((entry) => entry.isFile()))
+			.then(async (entries) => {
+				const files: typeof entries = []
+				for (const entry of entries) {
+					const isFile =
+						entry.isFile() ||
+						(entry.isSymbolicLink() &&
+							(await fs
+								.stat(path.join(entry.parentPath, entry.name))
+								.then((target) => target.isFile())
+								.catch(() => false)))
+					if (isFile) {
+						files.push(entry)
+					}
+				}
+				return files
+			})
 			.then((files) =>
 				files.map((file) => {
 					const resolvedPath = workspaceResolver.resolveWorkspacePath(

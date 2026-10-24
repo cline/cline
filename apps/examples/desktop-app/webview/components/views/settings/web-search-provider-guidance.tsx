@@ -1,6 +1,5 @@
 "use client";
 
-import { providerOffersModelTool } from "@cline/llms/browser";
 import { useEffect, useState } from "react";
 import {
 	fetchProviderCatalog,
@@ -25,7 +24,7 @@ export function WebSearchProviderGuidance({
 							.filter(
 								(provider) =>
 									provider.enabled &&
-									providerOffersModelTool(provider.id, "web_search"),
+									provider.modelTools?.includes("web_search"),
 							)
 							.map((provider) => provider.name),
 					);

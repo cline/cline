@@ -73,7 +73,7 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		if (this.options.interactions.resolvePendingAskQuestion(prompt)) {
+		if (this.options.interactions.resolvePendingAskQuestion(prompt, images, files)) {
 			return
 		}
 

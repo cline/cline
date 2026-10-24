@@ -58,6 +58,10 @@ export function resolveModelsRegistryPath(): string {
 export function ensureCustomProvidersLoadedSync(): void {}
 
 export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
+export {
+	parseRuleConfigFromMarkdown,
+	parseSkillConfigFromMarkdown,
+} from "../../../../sdk/packages/core/src/extensions/config/user-instruction-config-loader"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -141,7 +145,14 @@ export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/sr
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+// Real rule selection re-exported from SDK source so standalone callers are
+// tested against the same pipeline a session's system prompt uses.
+export { loadRulesForSystemPromptFromRecords } from "../../../../sdk/packages/core/src/runtime/safety/rules"
 export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
+// Real source-of-truth values re-exported so the extension is tested against the
+// same session-source tag and core version the SDK stamps on a session's requests.
+export { SessionSource } from "../../../../sdk/packages/core/src/types/common"
+export { CORE_BUILD_VERSION } from "../../../../sdk/packages/core/src/version"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.

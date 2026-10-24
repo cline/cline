@@ -68,14 +68,6 @@ export type ConnectorInitiateResult = {
 	redirectUrl?: string;
 };
 
-export type ConnectorToolSchema = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: unknown;
-};
-
 type ConnectorPage<T> = {
 	items: T[];
 	nextToken: string;
@@ -209,7 +201,7 @@ export async function listConnections(
 }
 
 async function listAllConnectorPages<T>(
-	path: "/connections" | "/toolkits" | `/toolkits/${string}/tools`,
+	path: "/connections" | "/toolkits",
 	ctx?: ConnectorsRequestContext,
 ): Promise<T[]> {
 	ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
@@ -265,21 +257,6 @@ export async function deleteConnection(
 		"DELETE",
 		`/connections/${encodeURIComponent(connectedAccountId)}`,
 		{ ctx },
-	);
-}
-
-/**
- * `GET /api/v1/connectors/toolkits/{slug}/tools` — complete toolkit schemas
- * in provider order. Fetch every page before
- * returning so failed pagination cannot persist an incomplete tool set.
- */
-export async function listToolkitTools(
-	toolkit: ComposioToolkitSlug,
-	ctx?: ConnectorsRequestContext,
-): Promise<ConnectorToolSchema[]> {
-	return listAllConnectorPages<ConnectorToolSchema>(
-		`/toolkits/${encodeURIComponent(toolkit)}/tools`,
-		ctx,
 	);
 }
 

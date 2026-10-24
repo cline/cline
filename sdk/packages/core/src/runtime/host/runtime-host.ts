@@ -4,6 +4,13 @@ import type {
 	AgentResult,
 	RuntimeConfigExtensionKind,
 } from "@cline/shared";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
@@ -169,6 +176,12 @@ export interface StartSessionInput {
 	localRuntime?: LocalRuntimeStartOptions;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
+	/**
+	 * Which plugins this session uses, shaped like `toolPolicies`:
+	 * `{ "*": { enabled: true }, "my-plugin": { enabled: false } }`. Plugins
+	 * are enabled by default. Plugin tools still go through `toolPolicies`.
+	 */
+	plugins?: import("@cline/shared").PluginPolicies;
 }
 
 /** Session input after the execution host has resolved a concrete workspace. */
@@ -245,6 +258,11 @@ export interface StartSessionResult {
 	manifestPath: string;
 	messagesPath: string;
 	result?: AgentResult;
+	/**
+	 * Plugins the session asked for but does not have because they failed or
+	 * are disabled. Clients should show these to the user.
+	 */
+	pluginIssues?: import("@cline/shared").SessionPluginIssue[];
 }
 
 export interface SendSessionInput {
@@ -330,6 +348,21 @@ export interface SessionConnectionRuntimeService {
 		sessionId: string,
 		updates: SessionConnectionUpdate,
 	): Promise<void>;
+}
+
+export interface McpAppsRuntimeService {
+	resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined>;
+	readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult>;
+	callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult>;
 }
 
 export interface CommandExecutionRuntimeService {

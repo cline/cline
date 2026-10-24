@@ -1,4 +1,9 @@
-export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+/** @deprecated Import from `@cline/shared`; kept for compatibility. */
+export {
+	CLINE_DEFAULT_MODEL_ID,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "@cline/shared";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,
@@ -38,10 +43,6 @@ export {
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
 export { buildClineClientHeaders } from "./providers/cline-client-headers";
-export {
-	type ProviderLocalCli,
-	resolveProviderLocalCli,
-} from "./providers/local-cli";
 export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,

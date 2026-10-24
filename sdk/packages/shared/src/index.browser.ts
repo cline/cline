@@ -238,6 +238,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -314,6 +316,12 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
@@ -478,6 +486,11 @@ export {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
+export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,

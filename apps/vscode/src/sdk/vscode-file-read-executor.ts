@@ -18,7 +18,7 @@ export function createWorkspaceFileReadExecutor(getWorkspaceRoot: () => Promise<
 		throw new Error("SDK default executors did not provide a readFile executor")
 	}
 	return async (request, context) => {
-		if (path.isAbsolute(request.path)) {
+		if (request.path.startsWith("cline://cache/") || path.isAbsolute(request.path)) {
 			return readFile(request, context)
 		}
 		const workspaceRoot = await getWorkspaceRoot()

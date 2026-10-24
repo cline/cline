@@ -1,15 +1,12 @@
-import { ClineAccountService, ProviderSettingsManager } from "@cline/core";
 import {
 	type CloudCreationOptions,
-	CloudSessionApi,
-	CloudSessionController,
-	type CloudSessionControllerOptions,
+	type CloudHubConnection,
 	type CloudSessionEvent,
 	type CreateCloudSessionInput,
+	HubCloudSessionClient,
 } from "@cline/core/cloud";
-import { getClineEnvironmentConfig } from "@cline/shared";
-import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	ensureSharedHubClient,
 	getEnvironmentContext,
 	getSidecarContextOwner,
 	handleHubLiveEvent,
@@ -21,43 +18,21 @@ import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 export * from "@cline/core/cloud";
 
-// Credential refresh replaces the controller, not the sidecar's creation intent.
-const pendingInitialTasksByContext = new WeakMap<
-	SidecarContext,
-	Map<string, CloudCreationOptions>
->();
-
 /** Desktop projection adapter. Cloud transport and authoritative state live in core. */
-export class CloudSessionManager extends CloudSessionController {
+export class CloudSessionManager extends HubCloudSessionClient {
 	private readonly ownedIds = new Set<string>();
 	private readonly approvalSnapshots = new Map<string, string>();
 	private readonly ctx: SidecarContext;
-	constructor(ctx: SidecarContext, options: CloudSessionControllerOptions) {
+	constructor(
+		ctx: SidecarContext,
+		connect?: () => Promise<CloudHubConnection>,
+	) {
 		const owner = getSidecarContextOwner(ctx);
-		let pendingInitialTasks = pendingInitialTasksByContext.get(owner);
-		if (!pendingInitialTasks) {
-			pendingInitialTasks = new Map();
-			pendingInitialTasksByContext.set(owner, pendingInitialTasks);
-		}
-		super({
-			...options,
-			pendingInitialTasks,
-			logger: options.logger ?? ctx.logger,
-			lateCreateDisposition: options.lateCreateDisposition ?? "delete",
-			clientIdentity: options.clientIdentity ?? {
-				prefix: "code-cloud",
-				type: "code-cloud-sidecar",
-				displayName: "Cline Code cloud session",
-				source: "desktop",
-			},
-		});
-		this.ctx = getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID);
-		for (const [id, state] of ctx.liveSessions)
-			if (state.config.executionTarget === "cloud")
-				this.seedSessionState(id, state);
+		super(connect ?? (() => ensureSharedHubClient(owner)));
+		this.ctx = getEnvironmentContext(owner, LOCAL_ENVIRONMENT_ID);
 		this.subscribe((event) => this.project(event));
 	}
-	override async create(input: CreateCloudSessionInput) {
+	override async create(input: Omit<CreateCloudSessionInput, "handoff">) {
 		return await super.create({
 			...input,
 			sandboxType: input.sandboxType ?? "resumable",
@@ -79,6 +54,15 @@ export class CloudSessionManager extends CloudSessionController {
 			? { ...record, environmentId: LOCAL_ENVIRONMENT_ID }
 			: undefined;
 	}
+	override async getCrossScopeDiscoveryRecord(
+		sessionId: string,
+	): Promise<Record<string, unknown> | undefined> {
+		const record = await super.getCrossScopeDiscoveryRecord(sessionId);
+		return record
+			? { ...record, environmentId: LOCAL_ENVIRONMENT_ID }
+			: undefined;
+	}
+
 	private project(event: CloudSessionEvent): void {
 		if (event.type === "prompt_accepted") return;
 		const id = event.sessionId;
@@ -125,6 +109,7 @@ export class CloudSessionManager extends CloudSessionController {
 		else this.ctx.liveSessions.set(id, state);
 		const approvalsJson = JSON.stringify(snapshot.approvals);
 		if (
+			event.replace ||
 			event.cause === "approvals" ||
 			(this.approvalSnapshots.get(id) !== approvalsJson &&
 				snapshot.approvals.length > 0)
@@ -142,7 +127,7 @@ export class CloudSessionManager extends CloudSessionController {
 				items: snapshot.approvals,
 			});
 		}
-		if (event.cause === "queue")
+		if (event.cause === "queue" || event.replace)
 			sendEvent(this.ctx, "prompts_in_queue_state", {
 				sessionId: id,
 				items: snapshot.promptsInQueue,
@@ -182,7 +167,7 @@ export class CloudSessionManager extends CloudSessionController {
 		// Existing desktop commands update this local preference before lazy inner creation.
 		const config = this.ctx.liveSessions.get(id)?.config;
 		if (config)
-			this.restoreCreationOptions(id, {
+			await this.restoreCreationOptions(id, {
 				...(typeof config.autoApproveTools === "boolean"
 					? { autoApproveTools: config.autoApproveTools }
 					: {}),
@@ -214,55 +199,14 @@ export function getCloudSessionManager(
 	ctx: SidecarContext,
 ): CloudSessionManager {
 	ctx = getSidecarContextOwner(ctx);
-	const existing = ctx.cloudSessionManager;
-	if (existing instanceof CloudSessionManager) {
-		return existing;
-	}
-	const environment = getClineEnvironmentConfig();
-	const providerSettingsManager = new ProviderSettingsManager();
-	const getAuthToken = () =>
-		resolveFreshClineAuthToken(providerSettingsManager, ctx);
-	const api = new CloudSessionApi({
-		apiBaseUrl: environment.apiBaseUrl,
-		appBaseUrl: environment.appBaseUrl,
-		getAuthToken,
-	});
-	const accountService = new ClineAccountService({
-		apiBaseUrl: environment.apiBaseUrl,
-		getAuthToken,
-	});
-	// Cache successful org lookups across sidebar polls; never cache failures.
-	let activeOrgCache: { id: string | undefined; at: number } | undefined;
-	const getActiveOrganizationId = async (options?: {
-		fresh?: boolean;
-	}): Promise<string | undefined> => {
-		if (
-			!options?.fresh &&
-			activeOrgCache &&
-			Date.now() - activeOrgCache.at < 60_000
-		) {
-			return activeOrgCache.id;
-		}
-		if (!(await getAuthToken())?.trim()) {
-			return undefined;
-		}
-		const organizations = await accountService.fetchUserOrganizations();
-		const id = organizations?.find(
-			(organization) => organization.active,
-		)?.organizationId;
-		activeOrgCache = { id, at: Date.now() };
-		return id;
-	};
-	const manager = new CloudSessionManager(ctx, {
-		api,
-		apiBaseUrl: environment.apiBaseUrl,
-		getAuthToken,
-		getActiveOrganizationId,
-	});
+	if (ctx.cloudSessionManager instanceof CloudSessionManager)
+		return ctx.cloudSessionManager;
+	const manager = new CloudSessionManager(ctx);
 	ctx.cloudSessionManager = manager;
 	return manager;
 }
 
+/** Release this desktop viewer; the hub retains cloud work and sandbox connections. */
 export async function resetCloudSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {

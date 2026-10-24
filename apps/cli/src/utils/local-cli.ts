@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Llms } from "@cline/core";
+import { type ProviderLocalCli, resolveProviderLocalCli } from "@cline/shared";
 
 const execFileAsync = promisify(execFile);
 
-export type ProviderLocalCli = Llms.ProviderLocalCli;
+export type { ProviderLocalCli } from "@cline/shared";
 
 export type LocalCliStatus =
 	| {
@@ -24,7 +25,10 @@ export type LocalCliStatus =
 export function getLocalCliInfo(
 	providerId: string,
 ): ProviderLocalCli | undefined {
-	return Llms.resolveProviderLocalCli(providerId);
+	return resolveProviderLocalCli(
+		Llms.getProviderCollectionSync(Llms.normalizeProviderId(providerId.trim()))
+			?.provider,
+	);
 }
 
 export async function checkLocalCliInstalled(

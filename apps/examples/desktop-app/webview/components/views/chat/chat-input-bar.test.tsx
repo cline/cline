@@ -5,7 +5,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -197,6 +199,7 @@ async function renderVoiceComposer({
 	readOnly = false,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	sessionId,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -210,13 +213,17 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
+	sessionId?: string;
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
+					workspaceRoot="/workspace/cline"
 					readOnly={readOnly}
 					executionTarget={executionTarget}
+					sessionId={sessionId}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -253,7 +260,284 @@ async function renderVoiceComposer({
 	});
 }
 
+function DraftComposer({
+	drafts,
+	threadId,
+	sendPrompt,
+}: {
+	drafts: Map<string, string>;
+	threadId: string;
+	sendPrompt?: (prompt: string) => Promise<boolean>;
+}) {
+	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
+		usePromptDraft(drafts, threadId);
+	return (
+		<WorkspaceProvider value={workspaceValue}>
+			<ChatInputBar
+				environmentId="local"
+				attachments={[]}
+				gitBranch="main"
+				mode="act"
+				model="test-model"
+				onAbort={vi.fn()}
+				onAttachFiles={vi.fn()}
+				onEditPromptInQueue={vi.fn()}
+				onListGitBranches={vi.fn(async () => ({
+					current: "main",
+					branches: ["main"],
+				}))}
+				onModeToggle={vi.fn()}
+				onModelChange={vi.fn()}
+				onPromptInputChange={handlePromptInputChange}
+				onProviderChange={vi.fn()}
+				onReasoningChange={vi.fn()}
+				onRemoveAttachment={vi.fn()}
+				onRemovePromptInQueue={vi.fn()}
+				onSend={async (prompt) => {
+					const restorePrompt = clearPromptForSend();
+					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+				}}
+				onSteerPromptInQueue={vi.fn()}
+				onSwitchGitBranch={vi.fn(async () => true)}
+				promptDraft={promptDraft}
+				promptsInQueue={[]}
+				provider="cline"
+				reasoningEffort="low"
+				status="idle"
+				summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+				thinking
+			/>
+		</WorkspaceProvider>
+	);
+}
+
+describe("ChatInputBar draft navigation", () => {
+	it("restores a failed send after the real composer acknowledges the external clear", async () => {
+		const drafts = new Map([["A", "Try again"]]);
+		const response = deferred<boolean>();
+		await act(async () => {
+			root.render(
+				<DraftComposer
+					drafts={drafts}
+					threadId="A"
+					sendPrompt={() => response.promise}
+				/>,
+			);
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')
+				?.click();
+		});
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await act(async () => response.resolve(false));
+		expect(container.querySelector("textarea")?.value).toBe("Try again");
+		expect(drafts.get("A")).toBe("Try again");
+	});
+
+	it("restores typed text on return and does not restore it after sending", async () => {
+		const drafts = new Map<string, string>();
+		const showThread = async (threadId: string) => {
+			await act(async () => {
+				root.render(
+					<DraftComposer key={threadId} threadId={threadId} drafts={drafts} />,
+				);
+			});
+		};
+		const typePrompt = async (value: string) => {
+			const textarea = container.querySelector("textarea");
+			expect(textarea).not.toBeNull();
+			await act(async () => {
+				const setValue = Object.getOwnPropertyDescriptor(
+					HTMLTextAreaElement.prototype,
+					"value",
+				)?.set;
+				setValue?.call(textarea, value);
+				textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		};
+
+		await showThread("new-session");
+		await typePrompt("My unfinished prompt\nMore details");
+		await showThread("existing-session");
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await typePrompt("A separate follow-up");
+		await showThread("new-session");
+		expect(container.querySelector("textarea")?.value).toBe(
+			"My unfinished prompt\nMore details",
+		);
+		const send = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Send message"]',
+		);
+		expect(send?.disabled).toBe(false);
+		await act(async () => send?.click());
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await showThread("existing-session");
+		expect(container.querySelector("textarea")?.value).toBe(
+			"A separate follow-up",
+		);
+		await showThread("new-session");
+		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+});
+
 describe("ChatInputBar", () => {
+	it("retains skills and workflows when plugin discovery rejects", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			return {
+				runtimeCommands: [
+					{
+						name: "publish-skill",
+						kind: "skill",
+						description: "Publish skill",
+					},
+					{
+						name: "publish-workflow",
+						kind: "workflow",
+						description: "Publish workflow",
+					},
+				],
+			};
+		});
+		await renderVoiceComposer({ prompt: "/publish", executionTarget: "local" });
+		expect(container.textContent).toContain("Publish skill");
+		expect(container.textContent).toContain("Publish workflow");
+	});
+
+	it("re-reads plugin commands when the slash menu reopens after a failure", async () => {
+		let available = false;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (!available) throw new Error("hub connection lost");
+			return {
+				workspacePath: "/workspace/cline",
+				status: "ready",
+				commands: [{ name: "restored", description: "Recovered command" }],
+			};
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Recovered command");
+		expect(container.textContent).not.toContain("Plugin commands unavailable");
+	});
+
+	it("does not show another session's plugin commands", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(
+			async (name, payload) => {
+				if (name !== "list_plugin_commands") return {};
+				if ((payload as { sessionId?: string }).sessionId === "session-b")
+					throw new Error("hub connection closed");
+				return {
+					status: "ready",
+					commands: [{ name: "publish-a", description: "Session A plugin" }],
+				};
+			},
+		);
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-a",
+		});
+		expect(container.textContent).toContain("Session A plugin");
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-b",
+		});
+		expect(container.textContent).not.toContain("Session A plugin");
+	});
+
+	it("refreshes commands on reopen without resetting cached suggestions", async () => {
+		const updated = deferred<{
+			runtimeCommands: Array<{
+				name: string;
+				kind: "workflow";
+				description: string;
+			}>;
+		}>();
+		let instructionRequests = 0;
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					return {
+						status: "ready",
+						commands: [
+							{ name: "publish-plugin", description: "Plugin suggestion" },
+						],
+					};
+				if (name === "list_user_instruction_configs") {
+					instructionRequests++;
+					return instructionRequests === 1
+						? {
+								runtimeCommands: [
+									{
+										name: "publish-old",
+										kind: "skill",
+										description: "Old skill",
+									},
+								],
+							}
+						: updated.promise;
+				}
+				return {};
+			});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		expect(container.textContent).toContain("Plugin suggestion");
+		expect(instructionRequests).toBe(2);
+		expect(
+			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+		).toHaveLength(2);
+		await act(async () =>
+			updated.resolve({
+				runtimeCommands: [
+					{
+						name: "publish-new",
+						kind: "workflow",
+						description: "New workflow",
+					},
+				],
+			}),
+		);
+		expect(container.textContent).not.toContain("Old skill");
+		expect(container.textContent).toContain("New workflow");
+		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
@@ -438,11 +722,20 @@ describe("ChatInputBar", () => {
 
 	it("blocks cloud images for a model without vision support", async () => {
 		const onAttachFiles = vi.fn();
-		loadProviderModelsMock.mockResolvedValue([
-			{ id: "test-model", name: "Text only", inputModalities: ["text"] },
-		]);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			...providerCatalog(null),
+			providerModelDetails: {
+				cline: [
+					{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+				],
+			},
+		});
 		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
-		await vi.waitFor(() => expect(loadProviderModelsMock).toHaveBeenCalled());
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
 		const input =
 			container.querySelector<HTMLInputElement>('input[type="file"]');
 		const png = new File(["png"], "capture.png", { type: "image/png" });
@@ -503,7 +796,7 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("appends plugin commands after skills and workflows", () => {
+	it("gives plugin commands the same precedence as execution", () => {
 		expect(
 			buildUserInstructionSlashCommands(
 				{
@@ -516,9 +809,15 @@ describe("ChatInputBar", () => {
 				],
 			),
 		).toEqual([
-			{ name: "goal", description: "Skill command" },
+			{ name: "goal", description: "Set or clear a goal" },
 			{ name: "goal-status", description: "Plugin command" },
 		]);
+	});
+
+	it("suggests the built-in /compact command", async () => {
+		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
+		const suggestions = container.querySelector("#slash-command-suggestions");
+		expect(suggestions?.textContent).toContain("/compact");
 	});
 
 	it("scrolls the arrow-key selected slash command into view", async () => {
@@ -542,9 +841,15 @@ describe("ChatInputBar", () => {
 	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
-			enabledProviderIds: ["anthropic", "cline"],
+			enabledProviderIds: ["cline", "cline-pass", "cline-cloud"],
+			providerNames: {
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			},
 			providerModels: {
-				anthropic: ["claude-test"],
+				"cline-pass": ["cline-pass/pass-model"],
+				"cline-cloud": ["cline-cloud/free-model"],
 				cline: ["cline-test", "cline-alt"],
 			},
 			providerReasoningModels: { anthropic: [], cline: [] },
@@ -625,9 +930,10 @@ describe("ChatInputBar", () => {
 				initialCatalogLoads + 1,
 			);
 		});
-		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
 			includeCloudModels: true,
 		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
 		const providerModelsListener =
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
 		await act(async () => {
@@ -659,18 +965,15 @@ describe("ChatInputBar", () => {
 		);
 		await act(async () => modelTrigger?.click());
 		const cloudModel = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Model: cline-test"]',
+			'[aria-label="Model: claude-test"]',
 		);
 		loadProviderModelsMock.mockClear();
 		loadProviderModelCatalogMock.mockClear();
 		await act(async () => cloudModel?.click());
-		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith(
-			"anthropic",
-			{
-				includeCloudModels: true,
-			},
-		);
-		expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
 		const alternateModel = Array.from(
 			container.querySelectorAll<HTMLButtonElement>(
 				".cline-ui-search-combobox__option",
@@ -680,6 +983,27 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		for (const [label, model] of [
+			["ClinePass", "cline-pass/pass-model"],
+			["ClineFree", "cline-cloud/free-model"],
+		]) {
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>(
+						'[aria-label="Provider: Cline Usage-Billing"]',
+					)
+					?.click(),
+			);
+			const option = [
+				...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((button) => button.textContent?.includes(label));
+			expect(option).toBeDefined();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenLastCalledWith(model);
+		}
+		expect(
+			onProviderChange.mock.calls.every(([provider]) => provider === "cline"),
+		).toBe(true);
 		expect(
 			JSON.parse(
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
@@ -687,8 +1011,14 @@ describe("ChatInputBar", () => {
 		).toEqual(localSelection);
 	});
 
-	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
 		const onSend = vi.fn();
+		let catalogAvailable = false;
+		loadProviderModelCatalogMock.mockImplementation(async (options) => {
+			if (options?.includeCloudModels && !catalogAvailable)
+				throw new Error("offline");
+			return providerCatalog(null);
+		});
 		const render = async (
 			repoUrl?: string,
 			prompt = "Continue in cloud",
@@ -766,6 +1096,19 @@ describe("ChatInputBar", () => {
 		expect(onSend).not.toHaveBeenCalled();
 
 		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(true);
+		await act(async () =>
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		const retry = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Retry"),
+		);
+		expect(retry).toBeDefined();
+		catalogAvailable = true;
+		await act(async () => retry?.click());
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
 		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
@@ -1356,9 +1699,14 @@ describe("ChatInputBar", () => {
 		const providerTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label^="Provider:"]',
 		);
-		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
-			"max-[560px]:hidden",
+		expect(
+			providerTrigger?.parentElement?.parentElement?.parentElement?.className,
+		).toContain("max-[560px]:hidden");
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
 		);
+		expect(modelTrigger?.className).toContain("max-w-full");
+		expect(modelTrigger?.className).not.toMatch(/max-w-\d/);
 		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
 		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
 		const workspaceTrigger =
@@ -1373,7 +1721,7 @@ describe("ChatInputBar", () => {
 			'[aria-label="Thinking level"]',
 		);
 		const leftControls = attachTrigger?.parentElement;
-		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
+		expect(leftControls?.className).not.toContain("flex-wrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);

@@ -19,9 +19,8 @@ sidecar/
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
-├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cloud-sessions.ts     # Desktop projection of hub-owned cloud sessions
 ├── cline-auth.ts         # Refresh-aware Cline auth token resolution
-├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
 ├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
@@ -82,9 +81,16 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
-the desktop start the same detached Hub when no CLI process has started it yet.
-Startup discovery and locking ensure concurrent clients converge on one Hub.
+The packaged backend runs on the bundled Cline CLI and has it start the Hub:
+`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+Hub daemon is that same CLI binary. Any Hub the backend itself has to start
+later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
+and locking ensure concurrent clients converge on one Hub.
+
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
@@ -111,9 +117,11 @@ const pendingApprovals = new Map<string, {
 // When frontend responds → resolve promise
 ```
 
-Cloud sessions route approvals the same way, but the resolver forwards the
-response to the sandbox Hub (`approval.respond`), which is why `resolve` may
-be async.
+Cloud sessions project approval snapshots from the shared Hub. Their async
+resolvers send `respondApproval` through the cloud RPC facade; the daemon forwards
+the response to the sandbox Hub. Desktop owns no cloud API client or sandbox connection.
+Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
+are owned by the daemon.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -163,6 +171,14 @@ five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
+The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
+command/docs) through the shared RPC contract. The sidecar resolves these facts
+from the registered provider catalog; chat validation and credential-error UI use
+that data rather than importing the browser LLM registry. Error-message metadata
+retains the provider facts used for that message, so changing providers does not
+change an existing message's recovery action. The same response carries
+`modelTools` for provider-level settings indicators such as web-search support.
+
 Voice settings and the composer's microphone separately call
 `list_transcription_models`. Exact audio-only input and text-only output identify
 speech-to-text models; operation labels do not admit additional modalities.
@@ -186,7 +202,7 @@ Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
 | `list_transcription_models` | `getLocalTranscriptionModels` |
@@ -202,10 +218,9 @@ Supported commands:
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
-| `get_desktop_settings` | `readDesktopSettings()` |
-| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |

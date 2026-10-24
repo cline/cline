@@ -280,6 +280,7 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 
 export function OnboardingProviderConfigScreen(props: {
 	activeProviderName: string;
+	saveError?: string;
 	compact: boolean;
 	contentWidth: number;
 	description?: string;
@@ -306,6 +307,7 @@ export function OnboardingProviderConfigScreen(props: {
 		>
 			<box flexDirection="column" gap={1} alignItems="center">
 				<text fg={defaultFg}>{props.activeProviderName}</text>
+				{props.saveError && <text fg="red">{props.saveError}</text>}
 
 				{props.description && <text fg="gray">{props.description}</text>}
 
@@ -365,6 +367,7 @@ export function OnboardingProviderConfigScreen(props: {
 
 export function OnboardingLocalCliScreen(props: {
 	activeProviderName: string;
+	saveError?: string;
 	checking: boolean;
 	cli?: ProviderLocalCli;
 	compact: boolean;
@@ -385,6 +388,7 @@ export function OnboardingLocalCliScreen(props: {
 		>
 			<box flexDirection="column" gap={1} alignItems="center">
 				<text fg={defaultFg}>{props.activeProviderName}</text>
+				{props.saveError && <text fg="red">{props.saveError}</text>}
 
 				{props.checking && (
 					<box flexDirection="row" gap={1}>

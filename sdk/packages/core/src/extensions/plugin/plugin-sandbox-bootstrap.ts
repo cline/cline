@@ -1,8 +1,10 @@
 /**
- * Bootstrap script for the plugin sandbox subprocess.
+ * Bootstrap script for the plugin sandbox.
  *
- * This file runs inside an isolated Node.js child process spawned by
- * {@link SubprocessSandbox}. It receives RPC calls over IPC and dynamically
+ * This file runs either inside an isolated child process spawned by
+ * {@link SubprocessSandbox} or inside a worker thread started by
+ * {@link WorkerSandbox}. It receives RPC calls over IPC (or the worker's
+ * message port) and dynamically
  * imports plugin modules, wiring up their contributions (tools, commands,
  * message builders, providers) and lifecycle hooks.
  *
@@ -10,6 +12,7 @@
  * depend on local helpers that can be inlined into the sandbox build.
  */
 
+import { isMainThread, parentPort } from "node:worker_threads";
 import {
 	type AgentExtensionMcpServer,
 	type AutomationEventEnvelope,
@@ -23,6 +26,10 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
+// The executable has already selected its runtime mode. Do not make commands
+// launched by plugins inherit Bun-only mode instead of their CLI entrypoint.
+if (isMainThread) delete process.env.BUN_BE_BUN;
+
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
 // ---------------------------------------------------------------------------
@@ -34,6 +41,8 @@ interface PluginTool {
 	timeoutMs?: number;
 	retryable?: boolean;
 	execute: (input: unknown, context: unknown) => Promise<unknown>;
+	/** Other definition fields (lifecycle, executionMode, ...) pass through. */
+	[field: string]: unknown;
 }
 
 interface PluginCommand {
@@ -95,6 +104,9 @@ interface PluginSetupCtx {
 	client?: unknown;
 	user?: unknown;
 	workspaceInfo?: unknown;
+	cwd?: string;
+	emitEvent?: (name: string, payload?: unknown) => void;
+	onDispose?: (cleanup: () => void | Promise<void>) => void;
 	automation?: {
 		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
 	};
@@ -161,6 +173,8 @@ interface ContributionDescriptor {
 	inputSchema?: unknown;
 	timeoutMs?: number;
 	retryable?: boolean;
+	/** Tools: the rest of the tool definition, without functions. */
+	definition?: Record<string, unknown>;
 	value?: string;
 	defaultValue?: boolean | string | number;
 	metadata?: Record<string, unknown>;
@@ -224,10 +238,32 @@ interface InitializeResult {
 	plugins: PluginDescriptor[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
+	/** Plugins the session policy turned off once their own name was known. */
+	disabledByPolicy: Array<{ pluginPath: string; name: string }>;
+}
+
+/**
+ * The session plugin policy, shaped like `toolPolicies` (`"*"` default plus
+ * per-plugin overrides). Mirrors `isPluginEnabledByPolicy` in the registry.
+ */
+type PluginPolicy = Record<string, { enabled?: boolean } | undefined>;
+
+function isEnabledByPolicy(
+	policy: PluginPolicy | undefined,
+	names: ReadonlyArray<string>,
+): boolean {
+	if (!policy) return true;
+	for (const name of names) {
+		const enabled = policy[name]?.enabled;
+		if (typeof enabled === "boolean") return enabled;
+	}
+	return policy["*"]?.enabled ?? true;
 }
 
 interface PluginState {
 	plugin: PluginModule;
+	/** Cleanup registered through `ctx.onDispose`, run by `dispose`. */
+	disposers: Array<() => void | Promise<void>>;
 	handlers: {
 		tools: Map<string, PluginTool["execute"]>;
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
@@ -244,6 +280,10 @@ type LoadedPluginResult =
 	  }
 	| {
 			type: "skipped";
+	  }
+	| {
+			type: "policy_disabled";
+			name: string;
 	  }
 	| {
 			type: "failure";
@@ -339,19 +379,105 @@ function toErrorPayload(error: unknown): { message: string; stack?: string } {
 	return { message, stack };
 }
 
+/**
+ * The host link: the worker's message port when running as a worker thread,
+ * otherwise the child process IPC channel.
+ */
+const port = isMainThread ? undefined : parentPort;
+
+if (port) {
+	// Plugin stdout must never reach the host's stdout, which may carry
+	// `--json` output or a JSON-RPC stream. The subprocess sandbox discards
+	// it (stdio "ignore"), and Node workers pipe it to the host, but Bun
+	// workers write straight to the host's stdout. Discard it here too.
+	const discard = () => {};
+	console.log = discard;
+	console.info = discard;
+	console.debug = discard;
+	console.dir = discard;
+	console.table = discard;
+	// write(chunk, cb) and write(chunk, encoding, cb): still complete the
+	// callback, asynchronously as a real stream does, so a plugin awaiting
+	// its write does not hang.
+	process.stdout.write = ((_chunk: unknown, ...rest: unknown[]) => {
+		const callback = rest.find((arg) => typeof arg === "function") as
+			| ((error?: Error | null) => void)
+			| undefined;
+		if (callback) process.nextTick(callback);
+		return true;
+	}) as typeof process.stdout.write;
+}
+
+function isDataCloneError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error.name === "DataCloneError" ||
+			/could not be cloned/i.test(error.message))
+	);
+}
+
+function postToHost(message: Record<string, unknown>): void {
+	if (port) {
+		try {
+			port.postMessage(message);
+		} catch (error) {
+			if (!isDataCloneError(error)) throw error;
+			// Structured clone rejects functions that JSON IPC silently drops.
+			// Match the subprocess behavior so plugins act the same in both.
+			port.postMessage(JSON.parse(JSON.stringify(message)));
+		}
+		return;
+	}
+	process.send?.(message);
+}
+
 function sendResponse(
 	id: string,
 	ok: boolean,
 	result: unknown,
 	error?: { message: string; stack?: string },
 ): void {
-	if (!process.send) return;
-	process.send({ type: "response", id, ok, result, error });
+	postToHost({ type: "response", id, ok, result, error });
 }
 
 function emitEvent(name: string, payload?: unknown): void {
-	if (!process.send) return;
-	process.send({ type: "event", name, payload });
+	postToHost({ type: "event", name, payload });
+}
+
+/**
+ * Internal events (never forwarded to the session): progress updates for a
+ * tool call, and the end of a plugin's import so the host can tell an import
+ * failure from a setup failure. Keep in sync with plugin-sandbox.ts.
+ */
+const TOOL_UPDATE_EVENT = "__cline_tool_update";
+const SETUP_STARTED_EVENT = "__cline_setup_started";
+
+/** A tool's definition fields as plain data (functions dropped). */
+function toolDefinitionData(tool: PluginTool): Record<string, unknown> {
+	const definition: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(tool)) {
+		if (key === "execute" || typeof value === "function") continue;
+		definition[key] = value;
+	}
+	return JSON.parse(JSON.stringify(definition)) as Record<string, unknown>;
+}
+
+function withTimeout<T>(
+	fn: () => T | Promise<T>,
+	timeoutMs: number | undefined,
+	label: string,
+): Promise<T> {
+	if (!timeoutMs || timeoutMs <= 0) return Promise.resolve().then(fn);
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(
+			() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+			timeoutMs,
+		);
+		Promise.resolve()
+			.then(fn)
+			.then(resolve, reject)
+			.finally(() => clearTimeout(timer));
+	});
 }
 
 // Expose event emitter to plugins.
@@ -523,12 +649,17 @@ async function loadPluginDescriptor(args: {
 	targeting: PluginTargeting;
 	setupCtxBase: Pick<
 		PluginSetupCtx,
-		"session" | "client" | "user" | "workspaceInfo"
+		"session" | "client" | "user" | "workspaceInfo" | "cwd"
 	>;
+	setupTimeoutMs?: number;
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
+	policy?: PluginPolicy;
+	/** Names the policy may use besides the plugin's own (its file name). */
+	policyNames?: string[];
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
+	const disposers: PluginState["disposers"] = [];
 	try {
 		const moduleExports = await importPluginModule(args.pluginPath);
 		plugin = (moduleExports.default ??
@@ -537,6 +668,16 @@ async function loadPluginDescriptor(args: {
 		plugin.manifest = normalizePluginManifest(plugin.manifest);
 		if (!matchesPluginManifestTargeting(plugin.manifest, args.targeting)) {
 			return { type: "skipped" };
+		}
+		// The plugin's own name is only known after import; decide before
+		// setup() runs so a plugin the session turned off has no side effects.
+		if (
+			!isEnabledByPolicy(args.policy, [
+				plugin.name,
+				...(args.policyNames ?? []),
+			])
+		) {
+			return { type: "policy_disabled", name: plugin.name };
 		}
 
 		const contributions: PluginDescriptor["contributions"] = {
@@ -568,6 +709,7 @@ async function loadPluginDescriptor(args: {
 					inputSchema: tool.inputSchema,
 					timeoutMs: tool.timeoutMs,
 					retryable: tool.retryable,
+					definition: toolDefinitionData(tool),
 				});
 			},
 			registerCommand: (command) => {
@@ -625,12 +767,19 @@ async function loadPluginDescriptor(args: {
 		};
 
 		if (typeof plugin.setup === "function") {
+			// Tell the host the import finished, so a setup that hangs or
+			// crashes the sandbox is reported as setup, not import.
+			emitEvent(SETUP_STARTED_EVENT, { pluginPath: args.pluginPath });
 			try {
 				const setupCtx = {
 					...args.setupCtxBase,
+					emitEvent,
+					onDispose: (cleanup: () => void | Promise<void>) => {
+						if (typeof cleanup === "function") disposers.push(cleanup);
+					},
 					// Only offered when the host actually has a telemetry service:
 					// the feature-detection contract (`ctx.telemetry?.capture`) must
-					// mean "someone is listening", matching in-process behavior.
+					// mean "someone is listening".
 					...(args.telemetryEnabled
 						? { telemetry: createPluginTelemetry(plugin.name) }
 						: {}),
@@ -648,8 +797,23 @@ async function loadPluginDescriptor(args: {
 						: {}),
 				};
 				assertValidPluginSetupCtx(setupCtx);
-				await plugin.setup(api, setupCtx);
+				const setup = plugin.setup.bind(plugin);
+				await withTimeout(
+					() => setup(api, setupCtx),
+					args.setupTimeoutMs,
+					`Plugin "${plugin.name}" setup`,
+				);
 			} catch (error) {
+				// The plugin is dropped, so nothing would run its cleanup later.
+				// Run it now: a child process started before the failure would
+				// otherwise outlive the worker.
+				await withTimeout(
+					() => runDisposers(plugin?.name ?? args.pluginPath, disposers),
+					args.setupTimeoutMs ?? DISPOSE_AFTER_FAILED_SETUP_TIMEOUT_MS,
+					`Plugin "${plugin.name}" cleanup after failed setup`,
+				).catch(() => {
+					// Best effort; the failure below is what gets reported.
+				});
 				return {
 					type: "failure",
 					failure: {
@@ -665,7 +829,7 @@ async function loadPluginDescriptor(args: {
 
 		return {
 			type: "loaded",
-			state: { plugin, handlers },
+			state: { plugin, handlers, disposers },
 			descriptor: {
 				pluginId: args.pluginId,
 				pluginPath: args.pluginPath,
@@ -709,6 +873,9 @@ async function initialize(args: {
 	workspaceInfo?: unknown;
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
+	setupTimeoutMs?: number;
+	policy?: PluginPolicy;
+	policyNames?: Record<string, string[]>;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -718,7 +885,14 @@ async function initialize(args: {
 	// path resolution inside plugins reflect the correct workspace, not the
 	// host process's cwd (which may differ when --cwd was used without calling
 	// process.chdir() on the host side).
-	if (args.cwd) {
+	// A worker must not chdir: Node throws, and Bun changes the cwd of the
+	// whole host process. Overriding process.cwd() is local to the worker, so
+	// plugins still see the session's directory. Relative fs paths keep
+	// resolving against the host cwd.
+	if (args.cwd && port) {
+		const cwd = args.cwd;
+		process.cwd = () => cwd;
+	} else if (args.cwd) {
 		try {
 			process.chdir(args.cwd);
 		} catch {
@@ -737,6 +911,7 @@ async function initialize(args: {
 	const descriptors: PluginDescriptor[] = [];
 	const failures: PluginInitializationFailure[] = [];
 	const warnings: PluginInitializationWarning[] = [];
+	const disabledByPolicy: InitializeResult["disabledByPolicy"] = [];
 	const exportName = args.exportName || "plugin";
 	const pluginIndexByName = new Map<string, number>();
 	const targeting: PluginTargeting = {
@@ -748,6 +923,7 @@ async function initialize(args: {
 		client: args.client,
 		user: args.user,
 		workspaceInfo: args.workspaceInfo,
+		cwd: args.cwd,
 	};
 
 	const loadResults = await Promise.all(
@@ -759,14 +935,24 @@ async function initialize(args: {
 				exportName,
 				targeting,
 				setupCtxBase,
+				setupTimeoutMs: args.setupTimeoutMs,
+				policy: args.policy,
+				policyNames: args.policyNames?.[pluginPath],
 				loggerEnabled: args.loggerEnabled,
 				telemetryEnabled: args.telemetryEnabled,
 			});
 		}),
 	);
 
-	for (const result of loadResults) {
+	for (const [index, result] of loadResults.entries()) {
 		if (result.type === "skipped") {
+			continue;
+		}
+		if (result.type === "policy_disabled") {
+			disabledByPolicy.push({
+				pluginPath: args.pluginPaths?.[index] ?? "",
+				name: result.name,
+			});
 			continue;
 		}
 		if (result.type === "failure") {
@@ -802,7 +988,7 @@ async function initialize(args: {
 		descriptors.push(descriptor);
 	}
 
-	return { plugins: descriptors, failures, warnings };
+	return { plugins: descriptors, failures, warnings, disabledByPolicy };
 }
 
 async function invokeHook(args: {
@@ -820,18 +1006,78 @@ async function invokeHook(args: {
 	);
 }
 
+/** Abort controllers for tool calls in flight, by host call id. */
+const toolCallControllers = new Map<string, AbortController>();
+
 async function executeTool(args: {
 	pluginId: string;
 	contributionId: string;
 	input: unknown;
 	context: unknown;
+	callId?: string;
+	aborted?: boolean;
 }): Promise<unknown> {
 	const state = getPlugin(args.pluginId);
 	const handler = state.handlers.tools.get(args.contributionId);
 	if (typeof handler !== "function") {
 		throw new Error("Unknown sandbox tool contribution");
 	}
-	return await handler(args.input, args.context);
+	// Rebuild the live parts of the tool context the host could not send:
+	// an abort signal the host drives through `abortToolCall`, progress
+	// updates, and session events.
+	const callId = args.callId;
+	const controller = new AbortController();
+	if (args.aborted) controller.abort();
+	if (callId) toolCallControllers.set(callId, controller);
+	const context = {
+		...sanitizeObject(args.context),
+		signal: controller.signal,
+		emitEvent,
+		emitUpdate: (update: unknown) => {
+			if (callId) emitEvent(TOOL_UPDATE_EVENT, { callId, update });
+		},
+	};
+	try {
+		return await handler(args.input, context);
+	} finally {
+		if (callId) toolCallControllers.delete(callId);
+	}
+}
+
+async function abortToolCall(args: {
+	callId: string;
+	reason?: string;
+}): Promise<void> {
+	toolCallControllers
+		.get(args.callId)
+		?.abort(args.reason ? new Error(args.reason) : undefined);
+}
+
+/** Runs every plugin's `ctx.onDispose` cleanup, newest first. */
+async function dispose(): Promise<void> {
+	for (const state of pluginState.values()) {
+		await runDisposers(state.plugin.name, state.disposers);
+	}
+}
+
+const DISPOSE_AFTER_FAILED_SETUP_TIMEOUT_MS = 3_000;
+
+/** Runs (and clears) `ctx.onDispose` cleanup, newest first. */
+async function runDisposers(
+	pluginName: string,
+	disposers: PluginState["disposers"],
+): Promise<void> {
+	for (const cleanup of disposers.splice(0).reverse()) {
+		try {
+			await cleanup();
+		} catch (error) {
+			emitEvent("plugin_log", {
+				level: "error",
+				pluginName,
+				message: `onDispose cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+			});
+		}
+	}
 }
 
 async function executeCommand(args: {
@@ -880,36 +1126,42 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	initialize,
 	invokeHook,
 	executeTool,
+	abortToolCall,
+	dispose,
 	executeCommand,
 	buildMessages,
 	resolveRuleContent,
 };
 
-installParentDisconnectGuard();
+async function onHostMessage(message: {
+	type: string;
+	id: string;
+	method: string;
+	args?: unknown;
+}): Promise<void> {
+	if (!message || message.type !== "call") {
+		return;
+	}
+	const method = methods[message.method];
+	if (!method) {
+		sendResponse(message.id, false, undefined, {
+			message: `Unknown method: ${String(message.method)}`,
+		});
+		return;
+	}
+	try {
+		const result = await method((message.args || {}) as never);
+		sendResponse(message.id, true, result);
+	} catch (error) {
+		sendResponse(message.id, false, undefined, toErrorPayload(error));
+	}
+}
 
-process.on(
-	"message",
-	async (message: {
-		type: string;
-		id: string;
-		method: string;
-		args?: unknown;
-	}) => {
-		if (!message || message.type !== "call") {
-			return;
-		}
-		const method = methods[message.method];
-		if (!method) {
-			sendResponse(message.id, false, undefined, {
-				message: `Unknown method: ${String(message.method)}`,
-			});
-			return;
-		}
-		try {
-			const result = await method((message.args || {}) as never);
-			sendResponse(message.id, true, result);
-		} catch (error) {
-			sendResponse(message.id, false, undefined, toErrorPayload(error));
-		}
-	},
-);
+if (port) {
+	// Terminating the worker ends it; there is no IPC channel to watch.
+	port.on("message", onHostMessage);
+	postToHost({ type: "ready" });
+} else {
+	installParentDisconnectGuard();
+	process.on("message", onHostMessage);
+}
