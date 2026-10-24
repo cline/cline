@@ -23,6 +23,10 @@ portable-pty = "0.9"
 # feature is a no-op on macOS and Windows.
 rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
 
+[target."cfg(windows)".dependencies]
+# Same version portable-pty already pulls in; reads the Windows build number.
+winreg = "0.10"
+
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSEvent", "NSImage", "NSMenu", "NSMenuItem", "NSResponder"] }

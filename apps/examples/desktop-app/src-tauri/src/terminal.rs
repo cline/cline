@@ -146,6 +146,33 @@ fn split_utf8(bytes: Vec<u8>) -> (String, Vec<u8>) {
     }
 }
 
+/// The Windows build, which xterm.js needs to match ConPTY's line wrapping:
+/// ConPTY only supports reflow from build 21376, so Windows 10 must not
+/// reflow in xterm. None on other platforms.
+#[tauri::command]
+pub fn terminal_windows_build() -> Option<u32> {
+    windows_build_number()
+}
+
+#[cfg(windows)]
+fn windows_build_number() -> Option<u32> {
+    use winreg::{enums::HKEY_LOCAL_MACHINE, RegKey};
+    // The registry value, unlike GetVersionEx, is not capped by app-compat shims.
+    RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+        .ok()?
+        .get_value::<String, _>("CurrentBuildNumber")
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+#[cfg(not(windows))]
+fn windows_build_number() -> Option<u32> {
+    None
+}
+
 #[tauri::command]
 pub fn terminal_spawn(
     state: State<'_, TerminalState>,

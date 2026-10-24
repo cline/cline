@@ -265,6 +265,8 @@ export function applyTerminalTheme(): void {
  * straight into xterm; when the shell exits the tab closes itself, matching
  * how editors treat a finished terminal.
  */
+let windowsBuild: Promise<number | null> | null = null;
+
 export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 	if (tab.status !== "new") return;
 	tab.status = "starting";
@@ -276,6 +278,15 @@ export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 		return;
 	}
 	const { Channel, invoke } = await import("@tauri-apps/api/core");
+	// On Windows, xterm must match ConPTY's wrapping and reflow, which depend
+	// on the OS build; set before spawning so the first output wraps right.
+	windowsBuild ??= invoke<number | null>("terminal_windows_build").catch(
+		() => null,
+	);
+	const buildNumber = await windowsBuild;
+	if (buildNumber) {
+		tab.term.options.windowsPty = { backend: "conpty", buildNumber };
+	}
 	const channel = new Channel<PtyEvent>();
 	channel.onmessage = (event) => {
 		if (event.type === "data") {
