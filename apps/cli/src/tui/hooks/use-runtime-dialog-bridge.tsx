@@ -153,22 +153,19 @@ export function useRuntimeDialogBridge(input: {
 		setInteraction(null);
 	}, []);
 
-	const requestToolApproval = useCallback(
-		(request: ToolApprovalRequest) =>
-			new Promise<ToolApprovalResult>((resolve) => {
-				enqueue({
-					id: nextIdRef.current,
-					kind: "tool_approval",
-					request,
-					resolve,
-				});
-				nextIdRef.current += 1;
-			}),
-		[enqueue],
-	);
-
 	useEffect(() => {
-		setToolApprover(requestToolApproval);
+		setToolApprover(
+			(request) =>
+				new Promise<ToolApprovalResult>((resolve) => {
+					enqueue({
+						id: nextIdRef.current,
+						kind: "tool_approval",
+						request,
+						resolve,
+					});
+					nextIdRef.current += 1;
+				}),
+		);
 		setAskQuestion(
 			(question, options) =>
 				new Promise<string>((resolve) => {
@@ -194,7 +191,6 @@ export function useRuntimeDialogBridge(input: {
 	}, [
 		dismissAll,
 		enqueue,
-		requestToolApproval,
 		setAskQuestion,
 		setModeChangeNotifier,
 		setToolApprover,
@@ -203,7 +199,6 @@ export function useRuntimeDialogBridge(input: {
 
 	return {
 		interaction,
-		requestToolApproval,
 		resolveToolApproval,
 		resolveAskQuestion,
 	};

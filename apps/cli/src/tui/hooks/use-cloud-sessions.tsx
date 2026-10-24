@@ -3,7 +3,6 @@ import type {
 	CloudRepositoryOption,
 	CloudSessionSnapshot,
 } from "@cline/core/cloud";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -60,14 +59,10 @@ export function useCloudSessions(input: {
 	localBranch: string | null;
 	providerId: string;
 	modelId: string;
-	autoApproveAll: boolean;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
 	loadClineAccount: TuiProps["loadClineAccount"];
 	onAccountChange: TuiProps["onAccountChange"];
-	requestToolApproval: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 	replaceEntries: (entries: ChatEntry[]) => void;
 	showToast: (message: string, variant?: ToastVariant) => void;
 	refocusTextarea: () => void;
@@ -77,7 +72,6 @@ export function useCloudSessions(input: {
 		dialog,
 		termHeight,
 		replaceEntries,
-		requestToolApproval,
 		showToast,
 		refocusTextarea,
 	} = input;
@@ -87,7 +81,6 @@ export function useCloudSessions(input: {
 	const [sessionId, setSessionId] = useState<string>();
 	const [sessionStatus, setSessionStatus] = useState<string>();
 	const sessionIdRef = useRef<string | undefined>(undefined);
-	const handledApprovalsRef = useRef(new Set<string>());
 	const abortRequestedRef = useRef(false);
 	const pickingRef = useRef(false);
 	const inputRef = useRef(input);
@@ -237,32 +230,8 @@ export function useCloudSessions(input: {
 			if (snapshot.messages.length > 0) {
 				replaceEntries(hydrateSessionMessages([...snapshot.messages]));
 			}
-			for (const approval of snapshot.approvals) {
-				if (handledApprovalsRef.current.has(approval.approvalId)) continue;
-				handledApprovalsRef.current.add(approval.approvalId);
-				void requestToolApproval({
-					sessionId: snapshot.sessionId,
-					agentId: approval.agentId ?? "",
-					conversationId: approval.conversationId ?? "",
-					iteration: approval.iteration ?? 0,
-					toolCallId: approval.toolCallId,
-					toolName: approval.toolName,
-					input: approval.input,
-					policy: { autoApprove: false },
-				})
-					.then((result) =>
-						client?.respondApproval(
-							snapshot.sessionId,
-							approval.approvalId,
-							result,
-						),
-					)
-					.catch((error) =>
-						showToast(`Cline Cloud: ${errorMessage(error)}`, "error"),
-					);
-			}
 		},
-		[client, replaceEntries, requestToolApproval, showToast],
+		[replaceEntries],
 	);
 
 	useEffect(() => {
@@ -295,7 +264,7 @@ export function useCloudSessions(input: {
 						modelId,
 						initialPrompt: prompt,
 						mode,
-						autoApproveTools: inputRef.current.autoApproveAll,
+						autoApproveTools: true,
 					});
 					id = created.sessionId;
 				} catch (error) {
@@ -346,7 +315,6 @@ export function useCloudSessions(input: {
 	/** Detaches this chat from its cloud session; the remote task keeps its state. */
 	const reset = useCallback(() => {
 		sessionIdRef.current = undefined;
-		handledApprovalsRef.current.clear();
 		setSessionId(undefined);
 		setSessionStatus(undefined);
 	}, []);

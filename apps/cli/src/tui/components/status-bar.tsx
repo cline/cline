@@ -317,16 +317,17 @@ export function StatusBar(props: StatusBarProps) {
 					</text>
 				))}
 
-			{autoApproveAll ? (
-				<text fg={defaultFg}>
-					<span fg={successColor}>
-						{AUTO_APPROVE_GLYPH} Auto-approve all enabled
-					</span>
-					<span fg="gray"> (Shift+Tab)</span>
-				</text>
-			) : (
-				<text fg="gray">Auto-approve all disabled (Shift+Tab)</text>
-			)}
+			{cloud?.target !== "cloud" &&
+				(autoApproveAll ? (
+					<text fg={defaultFg}>
+						<span fg={successColor}>
+							{AUTO_APPROVE_GLYPH} Auto-approve all enabled
+						</span>
+						<span fg="gray"> (Shift+Tab)</span>
+					</text>
+				) : (
+					<text fg="gray">Auto-approve all disabled (Shift+Tab)</text>
+				))}
 		</box>
 	);
 }

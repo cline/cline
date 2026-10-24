@@ -139,7 +139,6 @@ export type CloudSessionsClient = Pick<
 	| "create"
 	| "send"
 	| "abort"
-	| "respondApproval"
 	| "subscribe"
 	| "getSnapshot"
 >;

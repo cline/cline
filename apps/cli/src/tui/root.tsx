@@ -5,10 +5,7 @@ import {
 	upgradeManagedHub,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import {
-	formatDisplayUserInput,
-	type ToolApprovalRequest,
-} from "@cline/shared";
+import { formatDisplayUserInput } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -318,15 +315,6 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
-	const requestToolApprovalRef = useRef<
-		ReturnType<typeof useRuntimeDialogBridge>["requestToolApproval"] | null
-	>(null);
-	const requestCloudToolApproval = useCallback(
-		(request: ToolApprovalRequest) =>
-			requestToolApprovalRef.current?.(request) ??
-			Promise.resolve({ approved: false }),
-		[],
-	);
 	const cloud = useCloudSessions({
 		client: props.cloudSessions,
 		dialog,
@@ -335,11 +323,9 @@ function App(props: TuiProps) {
 		localBranch: repoStatus.branch,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
-		autoApproveAll: session.autoApproveAll,
 		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
 		loadClineAccount: props.loadClineAccount,
 		onAccountChange: props.onAccountChange,
-		requestToolApproval: requestCloudToolApproval,
 		replaceEntries: session.replaceEntries,
 		showToast,
 		refocusTextarea: () => refocusTextareaRef.current(),
@@ -930,7 +916,6 @@ function App(props: TuiProps) {
 		setUiMode: session.setUiMode,
 		refocusTextarea: promptInput.refocusTextarea,
 	});
-	requestToolApprovalRef.current = runtimeBridge.requestToolApproval;
 	const runtimeInteraction = runtimeBridge.interaction;
 	const isRuntimeInteractionOpen = runtimeInteraction !== null;
 	const saveQueuedPromptEdit = useCallback(
