@@ -184,3 +184,91 @@ export function listSessionAgents(
 	}
 	return out;
 }
+
+const TEAMMATE_SESSION_TTL_MS = 2_000;
+// A miss usually means the run's child row is not written yet; retry soon.
+const TEAMMATE_SESSION_MISS_TTL_MS = 250;
+const teammateSessionCache = new Map<
+	string,
+	{ sessionId?: string; checkedAt: number }
+>();
+
+type ChildSessionSource = Pick<SqliteSessionStore, "queryAll">;
+
+// One connection for the lifetime of the sidecar: this runs every couple of
+// seconds per active teammate, and each store opens its own database handle.
+let sharedSessionStore: SqliteSessionStore | undefined;
+
+function sessionStore(): ChildSessionSource {
+	sharedSessionStore ??= new SqliteSessionStore();
+	return sharedSessionStore;
+}
+
+const teammateCacheKey = (rootSessionId: string, agentId: string) =>
+	`${rootSessionId}\u0000${agentId}`;
+
+/**
+ * Drop the cached session for a teammate whose run just started or ended, so
+ * its next events are routed by a fresh lookup instead of to the previous run.
+ */
+export function forgetTeammateSession(
+	rootSessionId: string,
+	agentId: string,
+): void {
+	teammateSessionCache.delete(teammateCacheKey(rootSessionId, agentId));
+}
+
+/**
+ * The child session of the teammate run `agentId` is working in under
+ * `rootSessionId`: its newest team-task run, while that run is still running.
+ * Teammate events stream under the root session carrying only the agent id, so
+ * this is what routes them to the session they belong to. A finished run is
+ * never a target, so a new run's first events are dropped rather than written
+ * into the previous run before the new run's row exists. Lookups are cached
+ * briefly because events arrive per streamed chunk.
+ */
+export function resolveTeammateSessionId(
+	rootSessionId: string,
+	agentId: string,
+	options: { now?: number; store?: ChildSessionSource } = {},
+): string | undefined {
+	const now = options.now ?? Date.now();
+	const key = teammateCacheKey(rootSessionId, agentId);
+	const cached = teammateSessionCache.get(key);
+	const ttl = cached?.sessionId
+		? TEAMMATE_SESSION_TTL_MS
+		: TEAMMATE_SESSION_MISS_TTL_MS;
+	if (cached && now - cached.checkedAt < ttl) {
+		return cached.sessionId;
+	}
+	const latest = newestTeamTaskChild(rootSessionId, agentId, options.store);
+	const status = latest?.status?.trim().toLowerCase();
+	const sessionId =
+		status === "running" || status === "pending"
+			? latest?.session_id
+			: undefined;
+	teammateSessionCache.set(key, { sessionId, checkedAt: now });
+	return sessionId;
+}
+
+function newestTeamTaskChild(
+	rootSessionId: string,
+	agentId: string,
+	store?: ChildSessionSource,
+): { session_id: string; status: string } | undefined {
+	try {
+		return (store ?? sessionStore()).queryAll<{
+			session_id: string;
+			status: string;
+		}>(
+			`SELECT session_id, status FROM sessions
+			 WHERE parent_session_id = ? AND agent_id = ?
+			   AND instr(session_id, ?) > 0
+			 ORDER BY started_at DESC LIMIT 1`,
+			[rootSessionId, agentId, TEAM_TASK_MARKER],
+		)[0];
+	} catch {
+		// No session database on this host; nothing to route to.
+		return undefined;
+	}
+}

@@ -4,7 +4,11 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	type ProviderAuthInfo,
 } from "@cline/shared/browser";
-import { AttachmentDropZone } from "@cline/ui";
+import {
+	AgentTeamPanel,
+	AttachmentDropZone,
+	buildAgentTeamMembers,
+} from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
@@ -65,6 +69,7 @@ import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
+import { useTeamProgress } from "@/hooks/use-team-progress";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -2419,6 +2424,7 @@ function ChatThreadPane({
 		agents,
 		loading: agentsLoading,
 		error: agentsError,
+		refresh: refreshAgents,
 	} = useSessionAgents({
 		environmentId,
 		sessionId: isCloudSession ? null : displayedSessionId,
@@ -2439,6 +2445,70 @@ function ChatThreadPane({
 			await onOpenSessionById?.(agentSessionId, environmentId);
 		},
 		[environmentId, onOpenSessionById],
+	);
+	// A teammate's own session shows its parent's team, so moving between
+	// teammates never requires going back to the main session first.
+	const { agents: parentAgents, refresh: refreshParentAgents } =
+		useSessionAgents({
+			environmentId,
+			sessionId: isCloudSession ? null : (parentSession?.sessionId ?? null),
+			sessionActive: false,
+		});
+	const teamAgents = parentSession ? parentAgents : agents;
+	const teamRootSessionId = isCloudSession
+		? null
+		: (parentSession?.sessionId ?? displayedSessionId);
+	const { activity: teamProgress, rosterRevision } =
+		useTeamProgress(teamRootSessionId);
+	// A run the lead starts while its own turn is idle never triggers the
+	// roster's busy-session polling, so re-read it whenever the team reports a
+	// teammate joining or a run starting or ending.
+	useEffect(() => {
+		if (!teamRootSessionId || rosterRevision === 0) return;
+		const refresh = parentSession ? refreshParentAgents : refreshAgents;
+		void refresh(teamRootSessionId, { quiet: true });
+	}, [
+		parentSession,
+		refreshAgents,
+		refreshParentAgents,
+		rosterRevision,
+		teamRootSessionId,
+	]);
+	const teamMembers = useMemo(
+		() => buildAgentTeamMembers(teamAgents, teamProgress),
+		[teamAgents, teamProgress],
+	);
+	const teamName = useMemo(
+		() =>
+			teamAgents.find((agent) => agent.kind === "teamtask" && agent.teamName)
+				?.teamName,
+		[teamAgents],
+	);
+	const openTeammateSession = useCallback(
+		(agentSessionId: string) => {
+			void onOpenAgentSession(agentSessionId);
+		},
+		[onOpenAgentSession],
+	);
+	// Memoized: the composer is memoized on referentially stable props, and this
+	// pane re-renders on every stream flush.
+	const teamPanel = useMemo(
+		() =>
+			teamMembers.length > 0 ? (
+				<AgentTeamPanel
+					activeSessionId={parentSession ? displayedSessionId : null}
+					members={teamMembers}
+					onOpenSession={openTeammateSession}
+					teamName={teamName}
+				/>
+			) : null,
+		[
+			displayedSessionId,
+			openTeammateSession,
+			parentSession,
+			teamMembers,
+			teamName,
+		],
 	);
 
 	const handleRenameTitle = useCallback(
@@ -2542,6 +2612,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			aboveInput={teamPanel}
 			sessionId={sessionId}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}

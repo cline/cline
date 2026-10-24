@@ -2208,6 +2208,47 @@ describe("HubServerTransport boundaries", () => {
 		expect(events.filter((event) => event.event === "run.failed")).toEqual([]);
 	});
 
+	it("tags teammate content events with the teammate's identity", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamRole: "teammate",
+				teamAgentId: "reviewer",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Reviewing the hub",
+					agentId: "agent-reviewer",
+				},
+			},
+		});
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: { type: "content_start", contentType: "text", text: "Lead" },
+			},
+		});
+
+		const deltas = events.filter((event) => event.event === "assistant.delta");
+		expect(deltas[0]?.payload).toEqual({
+			text: "Reviewing the hub",
+			agent: expect.objectContaining({
+				kind: "teammate",
+				agentId: "agent-reviewer",
+				teamAgentId: "reviewer",
+				teamRole: "teammate",
+			}),
+		});
+		expect(deltas[1]?.payload).toEqual({ text: "Lead" });
+	});
+
 	it("projects live usage events with aggregate usage and agent identity", async () => {
 		const usage = {
 			inputTokens: 10,

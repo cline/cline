@@ -18,6 +18,21 @@ const hubIsConnectedMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 const updateCapabilitiesMock = vi.hoisted(() => vi.fn());
+const forgetTeammateSessionMock = vi.hoisted(() => vi.fn());
+const teammateRoutes = vi.hoisted(() => new Map<string, string>());
+
+vi.mock("./session-data/agents", async () => {
+	const actual = await vi.importActual<typeof import("./session-data/agents")>(
+		"./session-data/agents",
+	);
+	return {
+		...actual,
+		forgetTeammateSession: forgetTeammateSessionMock,
+		resolveTeammateSessionId: (_rootSessionId: string, agentId: string) =>
+			teammateRoutes.get(agentId) ??
+			(agentId === "reviewer" ? "child-reviewer" : undefined),
+	};
+});
 
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
@@ -1841,6 +1856,275 @@ describe("Chat chunk pipe selection", () => {
 		});
 
 		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
+	});
+
+	it("routes teammate output to its own session, never the lead's", async () => {
+		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = await createStreamingContext("session-1");
+		const teammateText = (teamAgentId: string, text: string) =>
+			({
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					teamRole: "teammate",
+					teamAgentId,
+					event: { type: "content_start", contentType: "text", text },
+				},
+			}) as never;
+
+		handleCoreSessionEvent(ctx, teammateText("reviewer", "Reviewing"));
+		handleCoreSessionEvent(ctx, teammateText("ghost", "unroutable"));
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "observer copy", agent: { teamRole: "teammate" } },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "lead"));
+
+		const textBySession = eventsFor(ctx, "chat_event")
+			.filter((payload) => payload.stream === "chat_text")
+			.map((payload) => [payload.sessionId, payload.chunk]);
+		expect(textBySession).toEqual([
+			["child-reviewer", "Reviewing"],
+			["session-1", "lead"],
+		]);
+	});
+
+	const teammate = { teamRole: "teammate", teamAgentId: "reviewer" };
+
+	it("routes observed teammate output to the teammate's session", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("session-1");
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "Reviewing", agent: teammate },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "tool.started",
+			sessionId: "session-1",
+			payload: { toolCallId: "call-1", toolName: "editor", agent: teammate },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "usage.updated",
+			sessionId: "session-1",
+			payload: { delta: { inputTokens: 10 }, agent: teammate },
+		});
+
+		expect(
+			eventsFor(ctx, "chat_event").map((payload) => [
+				payload.sessionId,
+				payload.stream,
+			]),
+		).toEqual([
+			["child-reviewer", "chat_text"],
+			["child-reviewer", "chat_tool_call_start"],
+		]);
+		expect(eventsFor(ctx, "team_progress")).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				lifecycle: {
+					eventType: "run_progress",
+					agentId: "reviewer",
+					message: "running_tool_editor",
+				},
+			}),
+		]);
+	});
+
+	it("streams a teammate whose lead is not open in this sidecar", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+		const delta = (text: string) =>
+			handleHubLiveEvent(ctx, {
+				event: "assistant.delta",
+				sessionId: "lead-elsewhere",
+				payload: { text, agent: teammate },
+			});
+
+		delta("followed");
+		ctx.liveSessions.delete("child-reviewer");
+		delta("nobody is watching");
+
+		expect(
+			eventsFor(ctx, "chat_event").map((payload) => [
+				payload.sessionId,
+				payload.chunk,
+			]),
+		).toEqual([["child-reviewer", "followed"]]);
+	});
+
+	it("forwards observed team progress and re-resolves at run boundaries", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const coreSubscriptions = new Set<string>();
+		const ctx = await createStreamingContext("session-1", coreSubscriptions);
+		forgetTeammateSessionMock.mockClear();
+		const progress = (eventType: string) =>
+			handleHubLiveEvent(ctx, {
+				event: "team.progress",
+				sessionId: "session-1",
+				payload: {
+					type: "team_progress_projection",
+					version: 1,
+					sessionId: "session-1",
+					summary: { teamName: "platform" },
+					lastEvent: { eventType, agentId: "reviewer" },
+				},
+			});
+
+		progress("task_start");
+		progress("run_progress");
+		coreSubscriptions.add("session-1");
+		progress("task_end");
+
+		expect(
+			eventsFor(ctx, "team_progress").map((payload) => [
+				payload.teamName,
+				(payload.lifecycle as { eventType: string }).eventType,
+			]),
+		).toEqual([
+			["platform", "task_start"],
+			["platform", "run_progress"],
+		]);
+		expect(forgetTeammateSessionMock.mock.calls).toEqual([
+			["session-1", "reviewer"],
+		]);
+	});
+
+	it("ends a reopened teammate chat when the teammate finishes", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+
+		handleHubLiveEvent(ctx, {
+			event: "agent.done",
+			sessionId: "lead-elsewhere",
+			payload: {
+				reason: "completed",
+				text: "Approved",
+				iterations: 3,
+				agent: teammate,
+			},
+		});
+		handleHubLiveEvent(ctx, {
+			event: "team.progress",
+			sessionId: "lead-elsewhere",
+			payload: {
+				sessionId: "lead-elsewhere",
+				summary: { teamName: "platform" },
+				lastEvent: { eventType: "task_end", agentId: "reviewer" },
+			},
+		});
+
+		expect(
+			chunksFor(ctx, "chat_done").map((chunk) => JSON.parse(chunk).reason),
+		).toEqual(["completed"]);
+		expect(ctx.liveSessions.get("child-reviewer")?.status).toBe("idle");
+	});
+
+	it("ends a teammate chat whose run failed without reporting done", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+		const taskEnd = () =>
+			handleHubLiveEvent(ctx, {
+				event: "team.progress",
+				sessionId: "lead-elsewhere",
+				payload: {
+					sessionId: "lead-elsewhere",
+					summary: { teamName: "platform" },
+					lastEvent: { eventType: "task_end", agentId: "reviewer" },
+				},
+			});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "lead-elsewhere",
+			payload: { text: "Checking", agent: teammate },
+		});
+		taskEnd();
+		taskEnd();
+
+		expect(
+			chunksFor(ctx, "chat_done").map((chunk) => JSON.parse(chunk).reason),
+		).toEqual(["error"]);
+		expect(ctx.liveSessions.get("child-reviewer")?.busy).toBe(false);
+	});
+
+	it("ends the run that produced the output, not the teammate's next one", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+		const next = { ...ctx.liveSessions.get("child-reviewer") };
+		ctx.liveSessions.set("child-reviewer-next", next as LiveSession);
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "lead-elsewhere",
+			payload: { text: "Checking", agent: teammate },
+		});
+		// The teammate's next run is already the newest child by the time the
+		// delayed end of this one arrives.
+		teammateRoutes.set("reviewer", "child-reviewer-next");
+		try {
+			handleHubLiveEvent(ctx, {
+				event: "team.progress",
+				sessionId: "lead-elsewhere",
+				payload: {
+					sessionId: "lead-elsewhere",
+					summary: { teamName: "platform" },
+					lastEvent: { eventType: "task_end", agentId: "reviewer" },
+				},
+			});
+		} finally {
+			teammateRoutes.clear();
+		}
+
+		expect(
+			eventsFor(ctx, "chat_event")
+				.filter((payload) => payload.stream === "chat_done")
+				.map((payload) => payload.sessionId),
+		).toEqual(["child-reviewer"]);
+		expect(ctx.liveSessions.get("child-reviewer-next")?.status).toBe("running");
+	});
+
+	it("reports a teammate's tool calls as team activity", async () => {
+		const { handleCoreSessionEvent } = await import("./context");
+		const ctx = await createStreamingContext("session-1");
+		forgetTeammateSessionMock.mockClear();
+
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamRole: "teammate",
+				teamAgentId: "reviewer",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "call-1",
+				},
+			},
+		} as never);
+		handleCoreSessionEvent(ctx, {
+			type: "team_progress",
+			payload: {
+				sessionId: "session-1",
+				teamName: "platform",
+				lifecycle: { eventType: "run_completed", agentId: "reviewer" },
+				summary: { teamName: "platform" },
+			},
+		} as never);
+
+		expect(
+			eventsFor(ctx, "team_progress").map(
+				(payload) => (payload.lifecycle as { message?: string }).message,
+			),
+		).toEqual(["running_tool_run_commands", undefined]);
+		expect(forgetTeammateSessionMock.mock.calls).toEqual([
+			["session-1", "reviewer"],
+		]);
 	});
 
 	it("mutes the whole observer projection, not just text", async () => {

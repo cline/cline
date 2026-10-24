@@ -152,6 +152,17 @@ interface TelemetryProgressThrottle {
 	timer?: ReturnType<typeof setTimeout>;
 	pending?: () => void;
 }
+
+/**
+ * Run progress such as `running_tool_editor` is what tells a client what a
+ * teammate is doing. It arrives a few times per tool call, unlike streamed
+ * agent events (one per chunk) or heartbeats, which say nothing new.
+ */
+function carriesActivity(event: TeamEvent): boolean {
+	if (event.type === "agent_event") return false;
+	if (event.type === "run_progress") return event.message !== "heartbeat";
+	return true;
+}
 const telemetryProgressThrottle = new WeakMap<
 	object,
 	TelemetryProgressThrottle
@@ -168,17 +179,16 @@ export function emitTeamProgress(
 	if (!teamRuntime) return;
 	const send = () => publishTeamProgress(session, rootSessionId, event, emit);
 	// Streamed chunks and heartbeats don't change the summary's counts; building
-	// it copies the whole team state, so throttle those to ~1/s per team. The
-	// latest throttled event is sent at the end of the window so its activity
-	// message is not lost.
+	// it copies the whole team state, so throttle those to ~1/s per team. Events
+	// that change state or say what a run is doing are sent as they happen.
 	let throttle = telemetryProgressThrottle.get(teamRuntime);
 	if (!throttle) {
 		throttle = { last: 0 };
 		telemetryProgressThrottle.set(teamRuntime, throttle);
 	}
-	if (isDurableTeamEvent(event)) {
-		// A newer durable event supersedes any queued telemetry progress; sending
-		// it afterwards would make e.g. a completed run look active again.
+	if (isDurableTeamEvent(event) || carriesActivity(event)) {
+		// A newer event supersedes any queued telemetry progress; sending it
+		// afterwards would make e.g. a completed run look active again.
 		throttle.pending = undefined;
 		send();
 		return;

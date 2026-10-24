@@ -31,7 +31,15 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
@@ -346,6 +354,8 @@ type ChatInputBarProps = {
 		cacheReadTokens?: number;
 		totalCostUsd?: number;
 	};
+	/** Session status strips stacked above the input, before the pull request bar. */
+	aboveInput?: ReactNode;
 };
 
 function ChatInputBarImpl({
@@ -385,6 +395,7 @@ function ChatInputBarImpl({
 	onRemovePromptInQueue,
 	onOpenModelSettings,
 	summary,
+	aboveInput,
 }: ChatInputBarProps) {
 	const {
 		workspaceRoot,
@@ -1163,6 +1174,7 @@ function ChatInputBarImpl({
 	return (
 		<AgentComposer variant={variant}>
 			{/* Input area */}
+			{aboveInput}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue

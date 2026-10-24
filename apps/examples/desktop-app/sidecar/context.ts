@@ -11,12 +11,16 @@ import {
 	type ITelemetryService,
 	NodeHubClient,
 	type RuntimeCapabilities,
+	type SessionTeamProgressEvent,
 	setHomeDirIfUnset,
+	type TeamProgressProjectionEvent,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
 import {
+	type AgentDoneEvent,
 	type AgentEvent,
+	AgentFinishReasonSchema,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
 } from "@cline/shared";
@@ -32,6 +36,10 @@ import {
 } from "./feature-flags";
 import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
+import {
+	forgetTeammateSession,
+	resolveTeammateSessionId,
+} from "./session-data/agents";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -538,6 +546,104 @@ function emitQueuedPromptStart(
 	);
 }
 
+/** Team events at which a teammate's child session starts or ends. */
+const TEAMMATE_RUN_BOUNDARIES = new Set([
+	"task_start",
+	"task_end",
+	"run_started",
+	"run_completed",
+	"run_failed",
+	"run_cancelled",
+	"run_interrupted",
+]);
+
+function forwardTeamProgress(
+	ctx: SidecarContext,
+	payload: SessionTeamProgressEvent,
+): void {
+	const { sessionId, lifecycle } = payload;
+	if (lifecycle?.agentId && TEAMMATE_RUN_BOUNDARIES.has(lifecycle.eventType)) {
+		forgetTeammateSession(sessionId, lifecycle.agentId);
+		if (lifecycle.eventType === "task_end") {
+			settleTeammateSession(ctx, sessionId, lifecycle.agentId);
+		}
+	}
+	sendEvent(ctx, "team_progress", payload);
+}
+
+/**
+ * The child session each teammate's output was last routed to, by root session
+ * and agent. Events reach the sidecar in the order they happened, so when a
+ * teammate's task ends this is the session its ending run was writing to.
+ */
+const routedTeammateSessions = new Map<string, string>();
+const teammateRouteKey = (rootSessionId: string, agentId: string) =>
+	`${rootSessionId}\u0000${agentId}`;
+
+function noteTeammateRoute(
+	rootSessionId: string,
+	agentId: string,
+	childSessionId: string,
+): void {
+	routedTeammateSessions.set(
+		teammateRouteKey(rootSessionId, agentId),
+		childSessionId,
+	);
+}
+
+/**
+ * Ends the turn of an open teammate chat whose task just ended. A teammate run
+ * that completes or is aborted reports `done` before its task ends, which is
+ * routed to the chat and settles it; one that fails reports only an error, so
+ * a chat still running here belongs to a failed run.
+ */
+function settleTeammateSession(
+	ctx: SidecarContext,
+	rootSessionId: string,
+	agentId: string,
+): void {
+	const key = teammateRouteKey(rootSessionId, agentId);
+	const childSessionId = routedTeammateSessions.get(key);
+	routedTeammateSessions.delete(key);
+	const child = childSessionId
+		? ctx.liveSessions.get(childSessionId)
+		: undefined;
+	if (
+		!childSessionId ||
+		!child ||
+		(!child.busy && child.status !== "running")
+	) {
+		return;
+	}
+	handleAgentEvent(ctx, childSessionId, {
+		type: "done",
+		reason: "error",
+		text: "",
+		iterations: 0,
+	});
+}
+
+/**
+ * Core reports what a teammate is doing (`run_progress`) only for async runs; a
+ * synchronous task has no run record. Its tool calls stream here either way,
+ * so report them in the same shape and the team panel follows both kinds.
+ */
+function sendTeammateToolActivity(
+	ctx: SidecarContext,
+	rootSessionId: string,
+	agentId: string,
+	toolName: string,
+): void {
+	sendEvent(ctx, "team_progress", {
+		sessionId: rootSessionId,
+		lifecycle: {
+			eventType: "run_progress",
+			agentId,
+			message: `running_tool_${toolName}`,
+		},
+	});
+}
+
 export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -550,7 +656,41 @@ export function handleCoreSessionEvent(
 			break;
 		}
 		case "agent_event": {
-			const { sessionId, event: agentEvent } = event.payload;
+			const {
+				sessionId,
+				event: agentEvent,
+				teamRole,
+				teamAgentId,
+			} = event.payload;
+			// Teammates stream under the root session, but their work belongs to
+			// their own child sessions. In the lead's stream it would interleave
+			// with the lead's text, and a teammate's `done` or usage would be taken
+			// for the lead's; routed to the child session, an open teammate view
+			// follows along live.
+			if (teamRole === "teammate") {
+				if (!teamAgentId) break;
+				if (
+					agentEvent.type === "content_start" &&
+					agentEvent.contentType === "tool" &&
+					agentEvent.toolName
+				) {
+					sendTeammateToolActivity(
+						ctx,
+						sessionId,
+						teamAgentId,
+						agentEvent.toolName,
+					);
+				}
+				const teammateSessionId = resolveTeammateSessionId(
+					sessionId,
+					teamAgentId,
+				);
+				if (teammateSessionId) {
+					noteTeammateRoute(sessionId, teamAgentId, teammateSessionId);
+					handleAgentEvent(ctx, teammateSessionId, agentEvent);
+				}
+				break;
+			}
 			handleAgentEvent(ctx, sessionId, agentEvent);
 			break;
 		}
@@ -644,7 +784,7 @@ export function handleCoreSessionEvent(
 			break;
 		}
 		case "team_progress": {
-			sendEvent(ctx, "team_progress", event.payload);
+			forwardTeamProgress(ctx, event.payload);
 			break;
 		}
 	}
@@ -910,14 +1050,111 @@ function requestSidecarToolApproval(
 	});
 }
 
+type HubLiveEvent = {
+	event: string;
+	sessionId?: string;
+	sequence?: number;
+	payload?: Record<string, unknown>;
+};
+
+/** Hub events that are a session's streamed output, as opposed to its state. */
+const HUB_STREAM_EVENTS = new Set([
+	"assistant.delta",
+	"assistant.media",
+	"reasoning.delta",
+	"tool.started",
+	"tool.updated",
+	"tool.finished",
+]);
+
+/** Emits a streamed-output hub event into `sessionId`; false if it is not one. */
+function emitHubStreamEvent(
+	ctx: SidecarContext,
+	sessionId: string,
+	event: HubLiveEvent,
+): boolean {
+	const toolCallId =
+		typeof event.payload?.toolCallId === "string"
+			? event.payload.toolCallId
+			: undefined;
+	const toolName =
+		typeof event.payload?.toolName === "string"
+			? event.payload.toolName
+			: "tool";
+	switch (event.event) {
+		case "assistant.delta": {
+			const text =
+				typeof event.payload?.text === "string" ? event.payload.text : "";
+			if (text) {
+				emitChunk(ctx, sessionId, "chat_text", text);
+			}
+			return true;
+		}
+		case "assistant.media": {
+			const media = event.payload?.media;
+			if (isGeneratedMedia(media)) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
+			}
+			return true;
+		}
+		case "reasoning.delta": {
+			const text =
+				typeof event.payload?.text === "string" ? event.payload.text : "";
+			const redacted = event.payload?.redacted === true;
+			if (text || redacted) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_reasoning",
+					JSON.stringify({ text, redacted }),
+				);
+			}
+			return true;
+		}
+		case "tool.started":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_start",
+				JSON.stringify({ toolCallId, toolName, input: event.payload?.input }),
+			);
+			return true;
+		case "tool.updated":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_update",
+				JSON.stringify({
+					toolCallId,
+					toolName,
+					update: event.payload?.update,
+				}),
+			);
+			return true;
+		case "tool.finished":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_end",
+				JSON.stringify({
+					toolCallId,
+					toolName,
+					output: event.payload?.output,
+					error:
+						typeof event.payload?.error === "string"
+							? event.payload.error
+							: undefined,
+				}),
+			);
+			return true;
+		default:
+			return false;
+	}
+}
+
 export function handleHubLiveEvent(
 	ctx: SidecarContext,
-	event: {
-		event: string;
-		sessionId?: string;
-		sequence?: number;
-		payload?: Record<string, unknown>;
-	},
+	event: HubLiveEvent,
 ): void {
 	if (event.event === "approval.requested") {
 		if (typeof event.payload?.agendaTaskId !== "string") return;
@@ -952,6 +1189,84 @@ export function handleHubLiveEvent(
 	if (!sessionId) {
 		return;
 	}
+	// The observer client and ClineCore's own hub client are separate sockets
+	// that both receive this session's events. This projection only exists for
+	// sessions ClineCore is not subscribed to (it subscribes as a side effect
+	// of start/send/pending_prompts and unsubscribes on stop); once it is,
+	// `handleCoreSessionEvent` carries everything below and a second copy here
+	// would double every delta, tool row, and status change.
+	const coreSubscribed =
+		ctx.runtimeBindings
+			.get(ctx.activeEnvironmentId ?? LOCAL_ENVIRONMENT_ID)
+			?.sessionManager.hasSessionSubscription(sessionId) === true;
+
+	// Team activity and teammate output stream under the lead's session, but a
+	// teammate's view can be open without the lead's (e.g. reopened after a
+	// sidecar restart), so neither depends on the lead being attached here.
+	if (event.event === "team.progress") {
+		const projection = event.payload as
+			| Partial<TeamProgressProjectionEvent>
+			| undefined;
+		if (coreSubscribed || !projection?.summary || !projection.lastEvent) {
+			return;
+		}
+		forwardTeamProgress(ctx, {
+			sessionId: projection.sessionId ?? sessionId,
+			teamName: projection.summary.teamName,
+			lifecycle: projection.lastEvent,
+			summary: projection.summary,
+		});
+		return;
+	}
+	const agent = event.payload?.agent as
+		| { teamRole?: unknown; teamAgentId?: unknown }
+		| undefined;
+	if (agent?.teamRole === "teammate") {
+		const agentId =
+			typeof agent.teamAgentId === "string" ? agent.teamAgentId : "";
+		const isDone = event.event === "agent.done";
+		if (
+			coreSubscribed ||
+			!agentId ||
+			!(isDone || HUB_STREAM_EVENTS.has(event.event))
+		) {
+			return;
+		}
+		if (
+			event.event === "tool.started" &&
+			typeof event.payload?.toolName === "string"
+		) {
+			sendTeammateToolActivity(ctx, sessionId, agentId, event.payload.toolName);
+		}
+		const teammateSessionId = resolveTeammateSessionId(sessionId, agentId);
+		if (
+			!teammateSessionId ||
+			!(
+				ctx.liveSessions.get(sessionId)?.attachedViaHub ||
+				ctx.liveSessions.has(teammateSessionId)
+			)
+		) {
+			return;
+		}
+		noteTeammateRoute(sessionId, agentId, teammateSessionId);
+		if (isDone) {
+			const reason = AgentFinishReasonSchema.safeParse(event.payload?.reason);
+			handleAgentEvent(ctx, teammateSessionId, {
+				type: "done",
+				reason: reason.success ? reason.data : "completed",
+				text: typeof event.payload?.text === "string" ? event.payload.text : "",
+				iterations:
+					typeof event.payload?.iterations === "number"
+						? event.payload.iterations
+						: 0,
+				usage: event.payload?.usage as AgentDoneEvent["usage"],
+			});
+			return;
+		}
+		emitHubStreamEvent(ctx, teammateSessionId, event);
+		return;
+	}
+
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
 		return;
@@ -972,51 +1287,14 @@ export function handleHubLiveEvent(
 		}
 		session.lastHubStatusSequence = event.sequence;
 	}
-	// The observer client and ClineCore's own hub client are separate sockets
-	// that both receive this session's events. This projection only exists for
-	// sessions ClineCore is not subscribed to (it subscribes as a side effect
-	// of start/send/pending_prompts and unsubscribes on stop); once it is,
-	// `handleCoreSessionEvent` carries everything below and a second copy here
-	// would double every delta, tool row, and status change.
-	if (
-		ctx.runtimeBindings
-			.get(ctx.activeEnvironmentId ?? LOCAL_ENVIRONMENT_ID)
-			?.sessionManager.hasSessionSubscription(sessionId)
-	) {
+	if (coreSubscribed) {
+		return;
+	}
+	if (emitHubStreamEvent(ctx, sessionId, event)) {
 		return;
 	}
 
 	switch (event.event) {
-		case "assistant.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			if (text) {
-				emitChunk(ctx, sessionId, "chat_text", text);
-			}
-			return;
-		}
-		case "assistant.media": {
-			const media = event.payload?.media;
-			if (isGeneratedMedia(media)) {
-				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
-			}
-			return;
-		}
-		case "reasoning.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			const redacted = event.payload?.redacted === true;
-			if (!text && !redacted) {
-				return;
-			}
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_reasoning",
-				JSON.stringify({ text, redacted }),
-			);
-			return;
-		}
 		case "usage.updated": {
 			const delta =
 				event.payload?.delta &&
@@ -1093,67 +1371,6 @@ export function handleHubLiveEvent(
 					? (item.userImages as string[])
 					: undefined,
 			});
-			return;
-		}
-		case "tool.started": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_start",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					input: event.payload?.input,
-				}),
-			);
-			return;
-		}
-		case "tool.updated": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_update",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					update: event.payload?.update,
-				}),
-			);
-			return;
-		}
-		case "tool.finished": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_end",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					output: event.payload?.output,
-					error:
-						typeof event.payload?.error === "string"
-							? event.payload.error
-							: undefined,
-				}),
-			);
 			return;
 		}
 		case "run.started":
