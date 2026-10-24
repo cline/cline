@@ -23,7 +23,7 @@ const ALL_SETTINGS_SECTIONS = [
 ] as const;
 
 // Everything that decides where the chat's models come from lives under one
-// "Providers" sidebar group, so users don't hunt across three pages.
+// "Provider" sidebar group, so users don't hunt across three pages.
 export const PROVIDER_SECTIONS = [
 	"Account",
 	"Local Models",

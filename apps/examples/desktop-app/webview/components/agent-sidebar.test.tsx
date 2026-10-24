@@ -14,6 +14,7 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
@@ -1303,7 +1304,7 @@ describe("AgentSidebar session organization", () => {
 		).toBeNull();
 	});
 
-	it("groups Cline Account, Local, and BYOK under a Providers row", async () => {
+	it("groups Cline Account, Local, and BYOK under a Provider row", async () => {
 		const onSettingsSectionChange = vi.fn();
 		const renderSidebar = async (
 			section: "General" | "Local Models",
@@ -1332,14 +1333,26 @@ describe("AgentSidebar session organization", () => {
 
 		const closedNav = await renderSidebar("General");
 		expect(closedNav.querySelector('[aria-label="BYOK"]')).toBeNull();
-		await click(buttonWithText("Providers", closedNav));
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
+		// The Provider row opens the sub-page for the provider the chat uses.
+		for (const [lastProvider, expected] of [
+			["", "Account"],
+			["cline-pass", "Account"],
+			["ollama", "Local Models"],
+			["anthropic", "Providers"],
+		] as const) {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({ lastProvider, lastModelByProvider: {} }),
+			);
+			await click(buttonWithText("Provider", closedNav));
+			expect(onSettingsSectionChange).toHaveBeenLastCalledWith(expected);
+		}
 
 		const openNav = await renderSidebar("Local Models");
 		expect(buttonWithText("Local", openNav).getAttribute("aria-current")).toBe(
 			"page",
 		);
-		expect(buttonWithText("Providers", openNav).className.split(" ")).toContain(
+		expect(buttonWithText("Provider", openNav).className.split(" ")).toContain(
 			"bg-surface-hover-lighter",
 		);
 		await click(buttonWithText("BYOK", openNav));

@@ -215,7 +215,7 @@ export function LocalRuntimeSetup({
 				</StatusLine>
 				<p className="text-sm text-muted-foreground">
 					Make sure the server is running and reachable from this computer, or
-					change the URL under Providers → BYOK → {name}.
+					change the URL under Provider → BYOK → {name}.
 				</p>
 			</div>
 		);

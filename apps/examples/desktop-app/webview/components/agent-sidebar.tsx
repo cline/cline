@@ -242,18 +242,18 @@ function SettingsSectionNavigation({
 		return (
 			<Fragment key="providers">
 				<Button
-					aria-label="Providers"
+					aria-label="Provider"
 					className={cn(
 						"min-w-0 justify-start",
 						open && "bg-surface-hover-lighter text-sidebar-foreground",
 					)}
 					onClick={() => onSelect(readProviderSectionInUse() ?? "Account")}
-					title="Providers"
+					title="Provider"
 					type="button"
 					variant="sidebarItem"
 				>
 					<Plug className="size-4 shrink-0" />
-					<span className="truncate">Providers</span>
+					<span className="truncate">Provider</span>
 				</Button>
 				{open
 					? PROVIDER_SECTIONS.map((section) => (

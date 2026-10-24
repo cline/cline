@@ -934,7 +934,7 @@ export function LocalModelsContent() {
 							idle.
 						</>
 					)}{" "}
-					The server URL can be changed under Providers → BYOK → {runtimeName}.
+					The server URL can be changed under Provider → BYOK → {runtimeName}.
 				</p>
 			</section>
 
