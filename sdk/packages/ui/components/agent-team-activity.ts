@@ -207,6 +207,10 @@ export function agentTeamPhaseFromLiveActivity(
 const ROSTER_EVENTS = new Set([
 	"teammate_spawned",
 	"teammate_shutdown",
+	// A teammate task's child session is created and settled at these; for a
+	// synchronous task they are the only boundaries reported.
+	"task_start",
+	"task_end",
 	"run_queued",
 	"run_started",
 	"run_completed",

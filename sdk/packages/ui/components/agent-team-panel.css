@@ -6,6 +6,6 @@
 
 .cline-ui-agent-team-panel__header:focus-visible,
 .cline-ui-agent-team-panel__row:focus-visible {
-	outline: 2px solid var(--cline-ui-ring);
+	outline: 2px solid var(--ring);
 	outline-offset: -2px;
 }

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SessionStatus } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type StoreRecord = {
@@ -40,6 +41,7 @@ vi.mock("@cline/core", async () => {
 });
 
 import {
+	forgetTeammateSession,
 	listSessionAgents,
 	readChildSessionMessages,
 	resolveTeammateSessionId,
@@ -302,68 +304,162 @@ describe("listSessionAgents last action", () => {
 });
 
 describe("resolveTeammateSessionId", () => {
-	it("routes to the teammate's latest team-task run", () => {
-		const root = "root-routing";
-		for (const row of [
-			record({
-				sessionId: `${root}__teamtask__reviewer__a`,
-				parentSessionId: root,
-				agentId: "reviewer",
-				startedAt: "2026-10-20T20:00:00.000Z",
-			}),
-			record({
-				sessionId: `${root}__teamtask__reviewer__b`,
-				parentSessionId: root,
-				agentId: "reviewer",
-				startedAt: "2026-10-20T20:05:00.000Z",
-			}),
-			record({
-				sessionId: `${root}__subagent__reviewer`,
-				parentSessionId: root,
-				agentId: "reviewer",
-				startedAt: "2026-10-20T20:09:00.000Z",
-			}),
-			record({
-				sessionId: `${root}__teamtask__ui-dev__a`,
-				parentSessionId: root,
-				agentId: "ui-dev",
-				startedAt: "2026-10-20T20:10:00.000Z",
-			}),
-		]) {
-			records.set(row.sessionId, row);
-		}
+	const ROUTING_ROOT = "root-routing";
+	let store: InstanceType<typeof import("@cline/core").SqliteSessionStore>;
 
-		expect(resolveTeammateSessionId(root, "reviewer", { now: 0 })).toBe(
-			`${root}__teamtask__reviewer__b`,
-		);
-		expect(resolveTeammateSessionId(root, "ghost", { now: 0 })).toBeUndefined();
+	beforeEach(async () => {
+		const { SqliteSessionStore } =
+			await vi.importActual<typeof import("@cline/core")>("@cline/core");
+		store = new SqliteSessionStore({ sessionsDir: dir });
 	});
 
-	it("caches briefly, then picks up the teammate's next run", () => {
-		const root = "root-cache";
-		const first = record({
-			sessionId: `${root}__teamtask__qa__a`,
-			parentSessionId: root,
-			agentId: "qa",
-			startedAt: "2026-10-20T20:00:00.000Z",
+	afterEach(() => {
+		store.close();
+	});
+
+	function addRun(
+		sessionId: string,
+		agentId: string,
+		startedAt: string,
+		status: SessionStatus = "running",
+	) {
+		store.create({
+			sessionId,
+			source: "cli",
+			pid: 1,
+			startedAt,
+			status,
+			interactive: false,
+			provider: "anthropic",
+			model: "claude-opus-5",
+			cwd: "/repo",
+			workspaceRoot: "/repo",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			parentSessionId: ROUTING_ROOT,
+			parentAgentId: "lead",
+			agentId,
+			isSubagent: true,
+			updatedAt: startedAt,
 		});
-		records.set(first.sessionId, first);
-		expect(resolveTeammateSessionId(root, "qa", { now: 1_000 })).toBe(
-			first.sessionId,
+	}
+
+	it("routes to the teammate's newest team-task run while it runs", () => {
+		addRun(
+			`${ROUTING_ROOT}__teamtask__reviewer__a`,
+			"reviewer",
+			"2026-10-20T20:00:00.000Z",
+			"completed",
+		);
+		addRun(
+			`${ROUTING_ROOT}__teamtask__reviewer__b`,
+			"reviewer",
+			"2026-10-20T20:05:00.000Z",
+		);
+		addRun(
+			`${ROUTING_ROOT}__subagent__reviewer`,
+			"reviewer",
+			"2026-10-20T20:09:00.000Z",
+		);
+		addRun(
+			`${ROUTING_ROOT}__teamtask__ui-dev__a`,
+			"ui-dev",
+			"2026-10-20T20:10:00.000Z",
 		);
 
-		const next = record({
-			sessionId: `${root}__teamtask__qa__b`,
-			parentSessionId: root,
-			agentId: "qa",
-			startedAt: "2026-10-20T20:03:00.000Z",
-		});
-		records.set(next.sessionId, next);
-		expect(resolveTeammateSessionId(root, "qa", { now: 2_000 })).toBe(
-			first.sessionId,
+		expect(
+			resolveTeammateSessionId(ROUTING_ROOT, "reviewer", { now: 0, store }),
+		).toBe(`${ROUTING_ROOT}__teamtask__reviewer__b`);
+		expect(
+			resolveTeammateSessionId(ROUTING_ROOT, "ghost", { now: 0, store }),
+		).toBeUndefined();
+	});
+
+	it("never routes into a run that has finished", () => {
+		addRun(
+			`${ROUTING_ROOT}__teamtask__writer__a`,
+			"writer",
+			"2026-10-20T20:00:00.000Z",
+			"running",
 		);
-		expect(resolveTeammateSessionId(root, "qa", { now: 3_500 })).toBe(
-			next.sessionId,
+		addRun(
+			`${ROUTING_ROOT}__teamtask__writer__b`,
+			"writer",
+			"2026-10-20T20:01:00.000Z",
+			"completed",
+		);
+		expect(
+			resolveTeammateSessionId(ROUTING_ROOT, "writer", { now: 0, store }),
+		).toBeUndefined();
+	});
+
+	it("finds the newest run beyond the first few hundred children", () => {
+		for (let index = 0; index < 250; index++) {
+			const minute = String(index % 60).padStart(2, "0");
+			const hour = String(10 + Math.floor(index / 60)).padStart(2, "0");
+			addRun(
+				`${ROUTING_ROOT}__teamtask__busy__${index}`,
+				"busy",
+				`2026-10-20T${hour}:${minute}:00.000Z`,
+				"completed",
+			);
+		}
+		addRun(
+			`${ROUTING_ROOT}__teamtask__late__a`,
+			"late",
+			"2026-10-20T23:00:00.000Z",
+		);
+		expect(
+			resolveTeammateSessionId(ROUTING_ROOT, "late", { now: 0, store }),
+		).toBe(`${ROUTING_ROOT}__teamtask__late__a`);
+	});
+
+	it("caches a hit briefly, then picks up the teammate's next run", () => {
+		const root = ROUTING_ROOT;
+		addRun(`${root}__teamtask__qa__a`, "qa", "2026-10-20T20:00:00.000Z");
+		expect(resolveTeammateSessionId(root, "qa", { now: 1_000, store })).toBe(
+			`${root}__teamtask__qa__a`,
+		);
+
+		addRun(`${root}__teamtask__qa__b`, "qa", "2026-10-20T20:03:00.000Z");
+		expect(resolveTeammateSessionId(root, "qa", { now: 2_000, store })).toBe(
+			`${root}__teamtask__qa__a`,
+		);
+		expect(resolveTeammateSessionId(root, "qa", { now: 3_500, store })).toBe(
+			`${root}__teamtask__qa__b`,
+		);
+	});
+
+	it("re-reads at once after the teammate's run starts or ends", () => {
+		const root = ROUTING_ROOT;
+		addRun(`${root}__teamtask__ops__a`, "ops", "2026-10-20T20:00:00.000Z");
+		expect(resolveTeammateSessionId(root, "ops", { now: 1_000, store })).toBe(
+			`${root}__teamtask__ops__a`,
+		);
+
+		store.update({
+			sessionId: `${root}__teamtask__ops__a`,
+			status: "completed",
+		});
+		addRun(`${root}__teamtask__ops__b`, "ops", "2026-10-20T20:03:00.000Z");
+		forgetTeammateSession(root, "ops");
+		expect(resolveTeammateSessionId(root, "ops", { now: 1_001, store })).toBe(
+			`${root}__teamtask__ops__b`,
+		);
+	});
+
+	it("retries a miss soon, since the run's row may not be written yet", () => {
+		const root = ROUTING_ROOT;
+		expect(
+			resolveTeammateSessionId(root, "new", { now: 1_000, store }),
+		).toBeUndefined();
+		addRun(`${root}__teamtask__new__a`, "new", "2026-10-20T20:00:00.000Z");
+		expect(
+			resolveTeammateSessionId(root, "new", { now: 1_100, store }),
+		).toBeUndefined();
+		expect(resolveTeammateSessionId(root, "new", { now: 1_300, store })).toBe(
+			`${root}__teamtask__new__a`,
 		);
 	});
 });

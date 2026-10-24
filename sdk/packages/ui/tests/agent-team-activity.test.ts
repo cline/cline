@@ -84,6 +84,8 @@ describe("changesAgentTeamRoster", () => {
 		expect(changesAgentTeamRoster("teammate_spawned")).toBe(true);
 		expect(changesAgentTeamRoster("run_started")).toBe(true);
 		expect(changesAgentTeamRoster("run_completed")).toBe(true);
+		expect(changesAgentTeamRoster("task_start")).toBe(true);
+		expect(changesAgentTeamRoster("task_end")).toBe(true);
 		expect(changesAgentTeamRoster("run_progress")).toBe(false);
 		expect(changesAgentTeamRoster("agent_event")).toBe(false);
 	});
