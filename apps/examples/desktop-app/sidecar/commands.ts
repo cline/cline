@@ -2138,15 +2138,20 @@ export async function handleCommand(
 			return await readSessionMessages(ctx, sessionId, maxMessages, messages);
 		}
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		const remoteMessages =
-			binding?.kind === "ssh"
-				? await binding.sessionManager.readMessages(sessionId)
-				: undefined;
+		if (binding?.kind !== "ssh") {
+			return await readSessionMessages(ctx, sessionId, maxMessages);
+		}
+		const [remoteMessages, remoteSession] = await Promise.all([
+			binding.sessionManager.readMessages(sessionId),
+			// Only refines mention chips, so a failed lookup must not fail the read.
+			binding.sessionManager.get(sessionId).catch(() => undefined),
+		]);
 		return await readSessionMessages(
 			ctx,
 			sessionId,
 			maxMessages,
 			remoteMessages,
+			remoteSession?.workspaceRoot || remoteSession?.cwd || undefined,
 		);
 	}
 	if (command === "read_session_hooks") {

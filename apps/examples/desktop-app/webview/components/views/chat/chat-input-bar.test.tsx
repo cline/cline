@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, type MouseEvent as ReactMouseEvent } from "react";
+import {
+	act,
+	Fragment,
+	type MouseEvent as ReactMouseEvent,
+	StrictMode,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
@@ -200,6 +205,7 @@ async function renderVoiceComposer({
 	executionTarget,
 	onAttachFiles = vi.fn(),
 	sessionId,
+	strictMode = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -214,47 +220,51 @@ async function renderVoiceComposer({
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
+	strictMode?: boolean;
 } = {}) {
+	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
 		root.render(
-			<WorkspaceProvider value={workspaceValue}>
-				<ChatInputBar
-					environmentId="local"
-					workspaceRoot="/workspace/cline"
-					readOnly={readOnly}
-					executionTarget={executionTarget}
-					sessionId={sessionId}
-					attachments={attachments}
-					gitBranch="main"
-					hasRunningAgents={hasRunningAgents}
-					mode="act"
-					model={model}
-					onAbort={onAbort}
-					onAttachFiles={onAttachFiles}
-					onEditPromptInQueue={vi.fn()}
-					onListGitBranches={vi.fn(async () => ({
-						current: "main",
-						branches: ["main"],
-					}))}
-					onModeToggle={vi.fn()}
-					onModelChange={vi.fn()}
-					onPromptInputChange={onPromptInputChange}
-					onProviderChange={vi.fn()}
-					onReasoningChange={vi.fn()}
-					onRemoveAttachment={vi.fn()}
-					onRemovePromptInQueue={vi.fn()}
-					onSend={onSend}
-					onSteerPromptInQueue={vi.fn()}
-					onSwitchGitBranch={vi.fn(async () => true)}
-					promptDraft={{ version: promptVersion, value: prompt }}
-					promptsInQueue={[]}
-					provider="cline"
-					reasoningEffort="low"
-					status={status}
-					summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
-					thinking
-				/>
-			</WorkspaceProvider>,
+			<Wrapper>
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						workspaceRoot="/workspace/cline"
+						readOnly={readOnly}
+						executionTarget={executionTarget}
+						sessionId={sessionId}
+						attachments={attachments}
+						gitBranch="main"
+						hasRunningAgents={hasRunningAgents}
+						mode="act"
+						model={model}
+						onAbort={onAbort}
+						onAttachFiles={onAttachFiles}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={onPromptInputChange}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: promptVersion, value: prompt }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status={status}
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>
+			</Wrapper>,
 		);
 		await Promise.resolve();
 	});
@@ -463,6 +473,73 @@ describe("ChatInputBar", () => {
 			sessionId: "session-b",
 		});
 		expect(container.textContent).not.toContain("Session A plugin");
+	});
+
+	it("loads commands up front so a skill chips before the menu opens", async () => {
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) =>
+				name === "list_plugin_commands"
+					? { status: "ready", commands: [] }
+					: {
+							runtimeCommands: [
+								{ name: "publish-skill", kind: "skill", description: "" },
+							],
+						},
+			);
+		const instructionRequests = () =>
+			invoke.mock.calls.filter(
+				([name]) => name === "list_user_instruction_configs",
+			).length;
+		// StrictMode replays the mount effect; the cancelled first load must not
+		// count as loaded (Next dev renders the app this way).
+		await renderVoiceComposer({
+			prompt: "/publish-skill ship it",
+			executionTarget: "local",
+			strictMode: true,
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		const chip = container.querySelector("[aria-hidden] span");
+		expect(chip?.textContent).toBe("/publish-skill");
+
+		const loadsBeforeMenu = instructionRequests();
+		await renderVoiceComposer({
+			prompt: "/pub",
+			promptVersion: 1,
+			executionTarget: "local",
+			strictMode: true,
+		});
+		expect(instructionRequests()).toBeGreaterThan(loadsBeforeMenu);
+	});
+
+	it("retries a plugin catalog cut off by closing the menu", async () => {
+		const firstPluginLoad = deferred<unknown>();
+		let pluginRequests = 0;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			pluginRequests++;
+			return pluginRequests === 1
+				? firstPluginLoad.promise
+				: { status: "ready", commands: [{ name: "deploy" }] };
+		});
+		await renderVoiceComposer({ prompt: "/dep", executionTarget: "local" });
+		await renderVoiceComposer({
+			prompt: "/deploy now",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		const textarea = container.querySelector("textarea");
+		// Moving the caret past the command closes the menu mid-load.
+		await act(async () => {
+			textarea?.setSelectionRange(11, 11);
+			textarea?.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		await vi.waitFor(() =>
+			expect(container.querySelector("[aria-hidden] span")?.textContent).toBe(
+				"/deploy",
+			),
+		);
 	});
 
 	it("refreshes commands on reopen without resetting cached suggestions", async () => {
@@ -818,6 +895,21 @@ describe("ChatInputBar", () => {
 		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
 		const suggestions = container.querySelector("#slash-command-suggestions");
 		expect(suggestions?.textContent).toContain("/compact");
+	});
+
+	it("opens the slash menu after leading whitespace", async () => {
+		await renderVoiceComposer({ prompt: "  /comp", executionTarget: "local" });
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+	});
+
+	it("does not open the slash menu mid-sentence", async () => {
+		await renderVoiceComposer({
+			prompt: "please /comp",
+			executionTarget: "local",
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
 	});
 
 	it("scrolls the arrow-key selected slash command into view", async () => {
@@ -1177,9 +1269,10 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("min-h-16");
-		expect(promptInput?.parentElement?.className).toContain("items-end");
-		expect(promptInput?.className).toContain("self-start");
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("min-h-16");
+		expect(field?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("self-start");
 	});
 
 	it("inserts cumulative browser fallback transcripts without duplicating text", async () => {
@@ -1744,9 +1837,10 @@ describe("ChatInputBar", () => {
 		const stopTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Stop agent"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("items-start");
-		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("items-start");
+		expect(field?.contains(sendTrigger)).toBe(true);
+		expect(field?.contains(stopTrigger)).toBe(true);
 		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
 		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");

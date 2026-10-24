@@ -47,6 +47,12 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
+import {
+	addKnownMentionPaths,
+	getComposerHighlights,
+	setKnownSlashCommands,
+	useKnownComposerTokens,
+} from "@/lib/composer-tokens";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	buildModelPickerData,
@@ -260,20 +266,15 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	if (slashIndex === -1) {
 		return null;
 	}
-	// Slash must be at the start or preceded by whitespace.
-	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+	// The sidecar only runs a command that starts the trimmed prompt, so a
+	// mid-sentence slash is plain text.
+	if (left.slice(0, slashIndex).trim() !== "") {
 		return null;
 	}
 	const query = left.slice(slashIndex + 1);
 	// No whitespace allowed inside the query — once the user typed a space
 	// the slash command has been committed.
 	if (/\s/.test(query)) {
-		return null;
-	}
-	// Don't open slash mode if there's already a completed slash command earlier in the input.
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
-	const textBeforeCurrentSlash = input.slice(0, slashIndex);
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return null;
 	}
 	return { slashIndex, query };
@@ -632,6 +633,7 @@ function ChatInputBarImpl({
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+	const knownTokens = useKnownComposerTokens();
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -695,6 +697,19 @@ function ChatInputBarImpl({
 	const slashLoading = pluginLoading || instructionLoading;
 	const slashError = pluginError ?? instructionError;
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
+	useEffect(() => {
+		setKnownSlashCommands(slashCommands.map((command) => command.name));
+	}, [slashCommands]);
+	const composerHighlights = useMemo(
+		() =>
+			executionTarget === "local"
+				? getComposerHighlights(promptInput, knownTokens.commandNames, (path) =>
+						knownTokens.mentionPaths.has(path),
+					)
+				: undefined,
+		[executionTarget, promptInput, knownTokens],
+	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -970,6 +985,7 @@ function ChatInputBarImpl({
 				const nextResults = Array.isArray(results) ? results : [];
 				mentionResultsCacheRef.current.set(requestKey, nextResults);
 				setMentionFiles(nextResults);
+				addKnownMentionPaths(nextResults);
 				setMentionSelectedIndex(0);
 			} catch {
 				if (cancelled) {
@@ -1047,16 +1063,27 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Refresh user and plugin commands whenever the slash menu opens, keeping
-	// the last results while fetching so suggestions do not flash away. Each
-	// request settles independently so one failure cannot hide the other.
+	// Load commands once per workspace/session up front (sent messages chip
+	// them too), then refresh whenever the slash menu opens, keeping the last
+	// results while fetching so suggestions do not flash away. Each request
+	// settles independently so one failure cannot hide the other.
 	useEffect(() => {
-		if (!slashOpen) {
+		const catalogKey = `${environmentId}\u0000${workspaceRoot}\u0000${sessionId ?? ""}`;
+		if (!slashOpen && loadedCommandCatalogKeyRef.current === catalogKey) {
 			setInstructionLoading(false);
 			setPluginLoading(false);
 			return;
 		}
 		let cancelled = false;
+		// Marked loaded only once both catalogs arrive: a cancelled (e.g. a
+		// StrictMode effect replay), failed, or half-finished load must be
+		// retried rather than leaving commands unchipped.
+		let pendingCatalogs = 2;
+		const catalogArrived = () => {
+			pendingCatalogs -= 1;
+			if (pendingCatalogs === 0)
+				loadedCommandCatalogKeyRef.current = catalogKey;
+		};
 		setInstructionLoading(true);
 		setPluginLoading(true);
 		desktopClient
@@ -1066,6 +1093,7 @@ function ChatInputBarImpl({
 			})
 			.then((response) => {
 				if (cancelled) return;
+				catalogArrived();
 				setInstructionResponse({ workspaceRoot, environmentId, response });
 				setInstructionError(undefined);
 			})
@@ -1083,6 +1111,7 @@ function ChatInputBarImpl({
 			})
 			.then((catalog) => {
 				if (cancelled) return;
+				if (catalog.status !== "error") catalogArrived();
 				setPluginResponse({
 					workspaceRoot,
 					environmentId,
@@ -1299,6 +1328,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
+							highlights={composerHighlights}
 							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
