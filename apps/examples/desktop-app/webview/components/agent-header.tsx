@@ -225,6 +225,7 @@ function AgentHeaderImpl({
 								className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 								onClick={() => onNewThread?.()}
 								size="icon-sm"
+								title="New session"
 								variant="ghost"
 							>
 								<Plus className="size-4" />
@@ -311,6 +312,7 @@ function AgentHeaderImpl({
 						id="show-more-btn"
 						variant="ghost"
 						size="icon-sm"
+						title="Session actions"
 						type="button"
 					>
 						<MoreHorizontal className="size-3" />

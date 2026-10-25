@@ -44,6 +44,17 @@ describe("AgentHeader title bar", () => {
 			container.querySelector('button[title="Read-only session"]'),
 		).toBeNull();
 	});
+
+	it("shows a hover tooltip on the icon-only action buttons", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="A session" />);
+		});
+
+		for (const label of ["New session", "Session actions"]) {
+			const button = container.querySelector(`button[aria-label="${label}"]`);
+			expect(button?.getAttribute("title")).toBe(label);
+		}
+	});
 });
 
 describe("AgentHeader title editor", () => {
