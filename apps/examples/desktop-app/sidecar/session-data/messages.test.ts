@@ -32,7 +32,7 @@ describe("readSessionMessages", () => {
 			}),
 		]);
 	});
-	it("hides runtime-injected hook context messages", async () => {
+	it("hides runtime-injected model-only messages", async () => {
 		const sessionId = `hook-context-${Date.now()}`;
 		const liveSessions = new Map([
 			[
@@ -48,6 +48,12 @@ describe("readSessionMessages", () => {
 									text: '<hook_context source="ToolSuccess" tool_name="ask__question">\nThe user has answered the question.\n</hook_context>',
 								},
 							],
+							metadata: { displayRole: "system", userRunSpan: 0 },
+						},
+						{
+							role: "user",
+							content:
+								"Previous turn ended unexpectedly. Continue from where you left off.",
 							metadata: { displayRole: "system", userRunSpan: 0 },
 						},
 						{ role: "assistant", content: "Spaces" },

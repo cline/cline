@@ -453,13 +453,10 @@ export function readSessionMessagesSync(
 			role: normalizeRole(message.role),
 			metadata,
 		});
-		// Hook context (e.g. the ask_question continuation) is model-facing only.
-		if (
-			role !== "assistant" &&
-			stringifyMessageContent(message.content)
-				.trimStart()
-				.startsWith("<hook_context")
-		) {
+		// The runtime stamps model-only context (hook context, continuation
+		// reminders) displayRole "system" without a kind; compaction rows that
+		// should still render always carry a kind.
+		if (role === "system" && typeof metadata?.kind !== "string") {
 			continue;
 		}
 		if (role === "user" && userRunSpan !== 1) {
