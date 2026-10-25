@@ -254,7 +254,7 @@ function SettingsSectionNavigation({
 						"min-w-0 justify-start",
 						open && "bg-surface-hover-lighter text-sidebar-foreground",
 					)}
-					onClick={() => onSelect(readProviderSectionInUse() ?? "Account")}
+					onClick={() => onSelect(readProviderSectionInUse())}
 					title="Provider"
 					type="button"
 					variant="sidebarItem"

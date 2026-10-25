@@ -45,13 +45,15 @@ export function isProviderSection(
 	return (PROVIDER_SECTIONS as readonly string[]).includes(section);
 }
 
-/** The Providers sub-page that manages the chat's current provider, if any. */
-export function readProviderSectionInUse(): ProviderSection | undefined {
+/** The Providers sub-page that manages the chat's current provider. */
+export function readProviderSectionInUse(): ProviderSection {
 	const provider = normalizeProviderId(
 		readModelSelectionStorageFromWindow().lastProvider,
 	);
-	if (!provider) return undefined;
-	if (provider === "cline" || provider === "cline-pass") return "Account";
+	// Without a saved choice the chat uses the default Cline provider.
+	if (!provider || provider === "cline" || provider === "cline-pass") {
+		return "Account";
+	}
 	return isLocalRuntime(provider) ? "Local Models" : "Providers";
 }
 
