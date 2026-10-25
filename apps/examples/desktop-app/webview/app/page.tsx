@@ -37,6 +37,7 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { normalizeTitle } from "@/components/utils";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
@@ -339,7 +340,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	if (preferredTitle) {
 		return preferredTitle.slice(0, 70);
 	}
-	const line = options.prompt?.trim().split("\n")[0]?.trim();
+	const line = normalizeTitle(options.prompt).split("\n")[0]?.trim();
 	if (line) return line.slice(0, 70);
 	return "New session";
 }
