@@ -530,6 +530,8 @@ function toApiStreamChunk(
 	event: AgentModelEvent,
 ): ApiStreamChunk | undefined {
 	switch (event.type) {
+		case "subscription-usage":
+			return undefined;
 		case "text-delta":
 			return { type: "text", id, text: event.text };
 		case "media":

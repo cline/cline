@@ -186,6 +186,44 @@ describe("RuntimeEventAdapter — suppressed events", () => {
 	});
 });
 
+it("keeps plan snapshots separate from accumulated token deltas", () => {
+	const adapter = new RuntimeEventAdapter();
+	const event: AgentRuntimeEvent = {
+		type: "subscription-usage",
+		snapshot: makeSnapshot({
+			agentId: "quota-child",
+			conversationId: "quota-conversation",
+			parentAgentId: "quota-parent",
+		}),
+		runStartedAt: 1_000,
+		usage: {
+			providerId: "openai-codex",
+			source: "codex-response-headers",
+			capturedAt: 2_000,
+			windows: [{ id: "primary", usedPercent: 42 }],
+		},
+	};
+	expect(adapter.translate(event)).toEqual([
+		{
+			type: "subscription_usage",
+			agentId: "quota-child",
+			conversationId: "quota-conversation",
+			parentAgentId: "quota-parent",
+			usage: event.usage,
+			runStartedAt: 1_000,
+		},
+	]);
+	expect(
+		adapter.translate({
+			type: "usage-updated",
+			snapshot: makeSnapshot(),
+			usage: makeUsage({ inputTokens: 7, outputTokens: 2 }),
+		}),
+	).toMatchObject([
+		{ type: "usage", inputTokens: 7, outputTokens: 2, totalInputTokens: 7 },
+	]);
+});
+
 describe("RuntimeEventAdapter — status notices", () => {
 	let adapter: RuntimeEventAdapter;
 	beforeEach(() => {

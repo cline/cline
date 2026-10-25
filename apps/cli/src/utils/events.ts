@@ -96,6 +96,8 @@ function formatResultLines(text: string, maxLines = 5): string[] {
 }
 
 export function handleEvent(event: AgentEvent, config: Config): void {
+	// Account quota observations stay on the ephemeral UI path, outside stdout.
+	if (event.type === "subscription_usage") return;
 	if (getCurrentOutputMode() === "json") {
 		emitJsonLine("stdout", { type: "agent_event", event });
 		return;
@@ -251,6 +253,8 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 // =============================================================================
 
 export function handleTeamEvent(event: TeamEvent): void {
+	if (event.type === "agent_event" && event.event.type === "subscription_usage")
+		return;
 	if (getCurrentOutputMode() === "json") {
 		emitJsonLine("stdout", { type: "team_event", event });
 		return;

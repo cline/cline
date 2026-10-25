@@ -534,6 +534,7 @@ export class AgentRuntime {
 	private config: Required<Pick<BaseAgentRuntimeConfig, "toolExecution">> &
 		BaseAgentRuntimeConfig;
 	private readonly listeners = new Set<AgentEventListener>();
+	private runStartedAt = 0;
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	private readonly tools = new Map<string, AgentTool<any, any>>();
 	private hooks: HookBag = {
@@ -789,11 +790,13 @@ export class AgentRuntime {
 	}
 
 	private async execute(input?: AgentRunInput): Promise<AgentRunResult> {
+		const runStartedAt = Date.now();
 		await this.ensureInitialized();
 		if (this.state.status === "running") {
 			throw new Error("Agent runtime is already running");
 		}
 
+		this.runStartedAt = runStartedAt;
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
 		this.modelRequestId = undefined;
@@ -1989,6 +1992,15 @@ export class AgentRuntime {
 					});
 					break;
 				}
+				case "subscription-usage": {
+					await this.emit({
+						type: "subscription-usage",
+						snapshot: this.snapshot(),
+						usage: event.usage,
+						runStartedAt: this.runStartedAt,
+					});
+					break;
+				}
 				case "usage": {
 					// Record the provider's own input-token count for this request so
 					// the prepare-turn pipeline can trigger compaction on real usage
@@ -2136,7 +2148,7 @@ export class AgentRuntime {
 		let receivedFirstChunk = false;
 		try {
 			for await (const event of stream) {
-				if (!receivedFirstChunk) {
+				if (!receivedFirstChunk && event.type !== "subscription-usage") {
 					receivedFirstChunk = true;
 					phase = "first_chunk_received";
 					this.captureTaskLifecycle(TASK_FIRST_CHUNK_RECEIVED_EVENT, {
@@ -2725,6 +2737,9 @@ export class AgentRuntime {
 	private async emit(event: AgentRuntimeEvent): Promise<void> {
 		const metadata = buildEventMetadata(event);
 		switch (event.type) {
+			case "subscription-usage":
+				// Account quota observations must not enter diagnostic logs.
+				break;
 			case "run-started":
 				// Verbatim clinee calls `logger?.info?.(...)`. sdk-re's
 				// `BasicLogger` does not declare `info` (it uses `log`), so
@@ -2784,6 +2799,9 @@ export class AgentRuntime {
 				break;
 		}
 		switch (event.type) {
+			case "subscription-usage":
+				// Account quota observations stay out of telemetry regardless of volume.
+				break;
 			// Per-token/per-chunk stream events are ~97% of agent.* telemetry
 			// volume and are never queried, so they are not mirrored to
 			// telemetry. Listeners and hooks below still receive them.

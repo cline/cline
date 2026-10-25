@@ -48,6 +48,7 @@ import {
 	createStreamErrorTelemetry,
 	isTimeoutReason,
 } from "../services/stream-error-telemetry";
+import { parseCodexSubscriptionUsage } from "./codex-subscription-usage";
 import {
 	classifyProviderError,
 	isRetryableBeyondSdkRetries,
@@ -1553,6 +1554,13 @@ async function* emitAiSdkEvents(
 				}
 				if (part.type === "finish-step") {
 					requestId = findRequestIdHeader(part.response?.headers);
+					if (request.providerId === "openai-codex") {
+						const usage = parseCodexSubscriptionUsage(
+							part.response?.headers,
+							Date.now(),
+						);
+						if (usage) yield { type: "subscription-usage", usage };
+					}
 					continue;
 				}
 				if (part.type === "text-delta") {

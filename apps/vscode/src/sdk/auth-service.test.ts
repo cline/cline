@@ -160,6 +160,7 @@ vi.mock("./provider-migration", () => ({
 
 /** Type that exposes private members for test access */
 interface AuthServiceTestAccess {
+	saveCodexCredentials(credentials: OAuthCredentials): Promise<void>
 	_clineAuthInfo: ClineAuthInfo | null
 	_authenticated: boolean
 	_activeAuthStatusUpdateHandlers: Map<string, unknown>
@@ -235,6 +236,10 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
+vi.mock("@/integrations/openai-codex/oauth", () => ({
+	openAiCodexOAuthManager: { clearCredentials: vi.fn().mockResolvedValue(undefined) },
+}))
+
 describe("AuthService", () => {
 	let authService: AuthService
 
@@ -247,6 +252,20 @@ describe("AuthService", () => {
 		mockProviderSettings.clear()
 		mockLastUsedProvider = undefined
 		vi.clearAllMocks()
+	})
+
+	it("advances the in-memory Codex auth fence before saving and clearing credentials", async () => {
+		expect(authService.codexCredentialsVersion).toBe(0)
+		const save = testAccess(authService).saveCodexCredentials({
+			access: "synthetic-access",
+			refresh: "synthetic-refresh",
+			expires: 1900000000000,
+		})
+		expect(authService.codexCredentialsVersion).toBe(1)
+		await save
+		const clear = authService.clearCodexCredentials()
+		expect(authService.codexCredentialsVersion).toBe(2)
+		await clear
 	})
 
 	describe("singleton pattern", () => {

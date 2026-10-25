@@ -3,6 +3,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
+import { Controller } from "./SdkController"
 import { SdkSessionEventCoordinator, type SdkSessionEventCoordinatorOptions } from "./sdk-session-event-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -17,6 +18,96 @@ vi.mock("@/shared/services/Logger", () => ({
 describe("SdkSessionEventCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+	})
+
+	it("projects only the latest matching active-session report without transcript or history writes", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const report = subscriptionEvent()
+		await coordinator.handleSessionEvent(report)
+		if (report.payload.event.type === "subscription_usage") report.payload.event.usage.windows[0].usedPercent = 99
+		expect(coordinator.getSubscriptionUsage()?.windows[0].usedPercent).toBe(25)
+		await coordinator.handleSessionEvent(subscriptionEvent({ capturedAt: 1500 }))
+		await coordinator.handleSessionEvent(subscriptionEvent({ providerId: "claude-code", capturedAt: 4000 }))
+		await coordinator.handleSessionEvent({ ...report, payload: { ...report.payload, sessionId: "other-session" } })
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.translateSessionEvent).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.taskHistory.updateTaskUsage).not.toHaveBeenCalled()
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+	})
+
+	it.each(["fields", "selection"])("preserves quota on unrelated fields or Codex model-only %s writes", async (kind) => {
+		const { coordinator } = makeCoordinator()
+		await coordinator.handleSessionEvent(subscriptionEvent())
+		const controller = Object.assign(Object.create(Controller.prototype), {
+			sessionEvents: coordinator,
+			scheduleProviderConfigStatePost: vi.fn(),
+			isSelectionForActiveModeProvider: () => true,
+			sessions: { updateActiveSessionModel: vi.fn().mockResolvedValue(undefined) },
+		})
+		controller.handleProviderConfigChange({
+			kind,
+			providerId: kind === "fields" ? "anthropic" : "openai-codex",
+			selection: { modelId: "new-model" },
+		} as never)
+		expect(coordinator.getSubscriptionUsage()).toBeDefined()
+	})
+
+	it("clears and fences old-auth runs, including reports first received after replacement", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(3000)
+		try {
+			const { coordinator, options } = makeCoordinator()
+			await coordinator.handleSessionEvent(subscriptionEvent())
+			options.getCodexAuthVersion.mockReturnValue(1)
+			const invalidate = vi.spyOn(coordinator, "invalidateSubscriptionUsage")
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+			expect(invalidate).not.toHaveBeenCalled()
+			await coordinator.handleSessionEvent(subscriptionEvent({ capturedAt: 4000 }))
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+			// Use the real adapter/dispatch path: a late child inherits old root credentials.
+			const source = new URL("../../../../sdk/packages/core/src/", import.meta.url)
+			const { AgentEventBridge } = await import(new URL("runtime/host/local/agent-event-bridge.ts", source).pathname)
+			const { RuntimeEventAdapter } = await import(
+				new URL("runtime/orchestration/runtime-event-adapter.ts", source).pathname
+			)
+			const emitted: CoreSessionEvent[] = []
+			const bridge = new AgentEventBridge({
+				getSession: () =>
+					({ agent: { getAgentId: () => "old-root", getConversationId: () => "root-conv" }, runtime: {} }) as never,
+				emit: (event: CoreSessionEvent) => emitted.push(event),
+			} as never)
+			const child = subscriptionEvent({ runStartedAt: 4000, capturedAt: 4500 }).payload.event
+			if (child.type !== "subscription_usage") throw new Error("expected quota fixture")
+			for (const event of new RuntimeEventAdapter().translate({
+				type: "subscription-usage",
+				usage: child.usage,
+				runStartedAt: child.runStartedAt,
+				snapshot: { agentId: "child", conversationId: "child-conv", parentAgentId: "old-root" } as never,
+			}))
+				bridge.dispatchAgentEvent("session-123", {} as never, event)
+			expect(emitted[0]).toMatchObject({
+				payload: { teamRole: undefined, event: { agentId: "child", parentAgentId: "old-root" } },
+			})
+			for (const event of emitted) await coordinator.handleSessionEvent(event)
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+			await coordinator.handleSessionEvent(subscriptionEvent({ runStartedAt: 4000, capturedAt: 4500 }))
+			expect(coordinator.getSubscriptionUsage()).toBeDefined()
+			clock.mockReturnValue(5000)
+			coordinator.invalidateSubscriptionUsage()
+			await coordinator.handleSessionEvent(subscriptionEvent({ runStartedAt: 4000, capturedAt: 6000 }))
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+			await coordinator.handleSessionEvent(subscriptionEvent({ runStartedAt: 6000, capturedAt: 6500 }))
+			expect(coordinator.getSubscriptionUsage()).toBeDefined()
+			options.getProviderId.mockReturnValue("anthropic")
+			coordinator.handleSubscriptionUsageContextChange()
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+			options.getProviderId.mockReturnValue("openai-codex")
+			await coordinator.handleSessionEvent(subscriptionEvent({ runStartedAt: 6000, capturedAt: 7000 }))
+			options.sessions.getActiveSession.mockReturnValue({ ...makeActiveSession(), sessionId: "replacement" })
+			expect(coordinator.getSubscriptionUsage()).toBeUndefined()
+		} finally {
+			clock.mockRestore()
+		}
 	})
 
 	it("translates and emits session messages, then posts state", async () => {
@@ -402,6 +493,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	} as unknown as CoreSessionEvent
 	const activeSession = input.activeSession ?? makeActiveSession()
 	const options = {
+		getProviderId: vi.fn(() => "openai-codex"),
+		getCodexAuthVersion: vi.fn(() => 0),
 		messageTranslatorState: new MessageTranslatorState(),
 		sessions: {
 			getActiveSession: vi.fn(() => activeSession),
@@ -423,6 +516,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
+		getProviderId: ReturnType<typeof vi.fn>
+		getCodexAuthVersion: ReturnType<typeof vi.fn>
 		sessions: SdkSessionEventCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
@@ -470,5 +565,26 @@ interface MakeCoordinatorInput {
 			cacheReads?: number
 			totalCost?: number
 		}
+	}
+}
+
+function subscriptionEvent(
+	input: Partial<{ capturedAt: number; runStartedAt: number; providerId: string }> = {},
+): Extract<CoreSessionEvent, { type: "agent_event" }> {
+	return {
+		type: "agent_event",
+		payload: {
+			sessionId: "session-123",
+			event: {
+				type: "subscription_usage",
+				runStartedAt: input.runStartedAt ?? 1000,
+				usage: {
+					providerId: input.providerId ?? "openai-codex",
+					source: "codex-response-headers",
+					capturedAt: input.capturedAt ?? 2000,
+					windows: [{ id: "primary", usedPercent: 25, windowMinutes: 300 }],
+				},
+			},
+		},
 	}
 }
