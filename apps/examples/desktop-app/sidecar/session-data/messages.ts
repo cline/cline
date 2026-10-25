@@ -453,6 +453,15 @@ export function readSessionMessagesSync(
 			role: normalizeRole(message.role),
 			metadata,
 		});
+		// Hook context (e.g. the ask_question continuation) is model-facing only.
+		if (
+			role !== "assistant" &&
+			stringifyMessageContent(message.content)
+				.trimStart()
+				.startsWith("<hook_context")
+		) {
+			continue;
+		}
 		if (role === "user" && userRunSpan !== 1) {
 			textMeta = {
 				...(textMeta ?? {}),
