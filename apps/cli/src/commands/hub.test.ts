@@ -301,6 +301,39 @@ describe("createHubCommand", () => {
 		expect(mockRequestHubDrain).not.toHaveBeenCalled();
 	});
 
+	it("rejects a malformed --port instead of reading its numeric prefix", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		const { cmd } = createCommand();
+		cmd.configureOutput({ writeErr: () => {} });
+		for (const sub of cmd.commands) {
+			sub.configureOutput({ writeErr: () => {} });
+		}
+		await expect(
+			cmd.parseAsync(["ensure", "--port", "8080x"], { from: "user" }),
+		).rejects.toThrow("--port requires a non-negative integer.");
+		expect(mockEnsureDetachedHubServer).not.toHaveBeenCalled();
+	});
+
+	it("accepts an integer --port", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		const { cmd } = createCommand();
+		await cmd.parseAsync(["ensure", "--port", "25463"], { from: "user" });
+		expect(mockEnsureDetachedHubServer).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({ port: 25463 }),
+		);
+	});
+
 	it("passes the selected owner to graceful stop", async () => {
 		process.env.CLINE_BUILD_ENV = "development";
 		mockReadHubDiscovery.mockResolvedValue({
