@@ -165,16 +165,13 @@ function AgentHeaderImpl({
 							<Button
 								aria-label={`${changesOpen ? "Hide" : "Show"} changes: ${additions} additions, ${deletions} deletions`}
 								aria-pressed={changesOpen}
-								className={cn(
-									"h-7 gap-1.5 px-2 text-muted-foreground transition-colors hover:text-foreground",
-									changesOpen && "bg-secondary text-foreground",
-								)}
+								className="h-7 gap-1.5 px-2"
 								id="toggle-changes"
 								onClick={onToggleChanges}
 								size="sm"
 								title={changesOpen ? "Hide changes" : "Show changes"}
 								type="button"
-								variant="ghost"
+								variant="toolbar"
 							>
 								<FileDiff className="size-4" />
 								<span className="flex items-center gap-1 font-mono text-xs">
@@ -189,16 +186,12 @@ function AgentHeaderImpl({
 									filesOpen ? "Hide project files" : "Show project files"
 								}
 								aria-pressed={filesOpen}
-								className={cn(
-									"text-muted-foreground transition-colors hover:text-foreground",
-									filesOpen && "bg-secondary text-foreground",
-								)}
 								id="toggle-project-files"
 								onClick={onToggleFiles}
-								size="icon-sm"
+								size="icon-xs"
 								title={filesOpen ? "Hide project files" : "Show project files"}
 								type="button"
-								variant="ghost"
+								variant="toolbar"
 							>
 								<FolderTree className="size-4" />
 							</Button>
@@ -207,19 +200,15 @@ function AgentHeaderImpl({
 							<Button
 								aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
 								aria-pressed={terminalOpen}
-								className={cn(
-									"text-muted-foreground transition-colors hover:text-foreground",
-									terminalOpen && "bg-secondary text-foreground",
-								)}
 								onClick={onToggleTerminal}
-								size="icon-sm"
+								size="icon-xs"
 								title={
 									terminalShortcut
 										? `Toggle terminal (${terminalShortcut})`
 										: "Toggle terminal"
 								}
 								type="button"
-								variant="ghost"
+								variant="toolbar"
 							>
 								<SquareTerminal className="size-4" />
 							</Button>
@@ -241,10 +230,9 @@ function AgentHeaderImpl({
 						) : (
 							<Button
 								aria-label="New session"
-								className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 								onClick={() => onNewThread?.()}
-								size="icon-sm"
-								variant="ghost"
+								size="icon-xs"
+								variant="toolbar"
 							>
 								<Plus className="size-4" />
 							</Button>
@@ -437,12 +425,12 @@ function AgentActivityStatus({
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={label}
-					className="flex items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-xs font-mono text-muted-foreground transition-colors hover:bg-secondary/80"
+					className="h-7 gap-1.5 px-2 font-mono text-xs"
 					id="agent-activity"
 					size="sm"
 					title={label}
 					type="button"
-					variant="secondary"
+					variant="toolbar"
 				>
 					<Bot aria-hidden="true" className="size-3 shrink-0" />
 					<span className="text-foreground">{activity.total}</span>
