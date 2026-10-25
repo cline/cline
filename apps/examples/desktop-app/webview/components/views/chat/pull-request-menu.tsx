@@ -213,12 +213,12 @@ function WorkspacePullRequestMenu({ cwd }: { cwd: string }) {
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={triggerLabel}
-					className="h-7 gap-1.5 px-2 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
+					className="h-7 gap-1.5 px-2 text-xs"
 					id="pull-request-menu"
 					size="sm"
 					title={pr?.title ?? triggerLabel}
 					type="button"
-					variant="ghost"
+					variant="toolbar"
 				>
 					{error && !pr ? (
 						<TriangleAlert className="size-3.5 text-yellow-500" />

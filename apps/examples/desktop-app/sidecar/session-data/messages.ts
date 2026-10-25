@@ -453,6 +453,12 @@ export function readSessionMessagesSync(
 			role: normalizeRole(message.role),
 			metadata,
 		});
+		// The runtime stamps model-only context (hook context, continuation
+		// reminders) displayRole "system" without a kind; compaction rows that
+		// should still render always carry a kind.
+		if (role === "system" && typeof metadata?.kind !== "string") {
+			continue;
+		}
 		if (role === "user" && userRunSpan !== 1) {
 			textMeta = {
 				...(textMeta ?? {}),

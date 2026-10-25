@@ -32,6 +32,49 @@ describe("readSessionMessages", () => {
 			}),
 		]);
 	});
+	it("hides runtime-injected model-only messages", async () => {
+		const sessionId = `hook-context-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{ role: "user", content: "Ask me tabs or spaces" },
+						{
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: '<hook_context source="ToolSuccess" tool_name="ask__question">\nThe user has answered the question.\n</hook_context>',
+								},
+							],
+							metadata: { displayRole: "system", userRunSpan: 0 },
+						},
+						{
+							role: "user",
+							content:
+								"Previous turn ended unexpectedly. Continue from where you left off.",
+							metadata: { displayRole: "system", userRunSpan: 0 },
+						},
+						{ role: "assistant", content: "Spaces" },
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "user",
+				content: "Ask me tabs or spaces",
+			}),
+			expect.objectContaining({ role: "assistant", content: "Spaces" }),
+		]);
+	});
 	it("continues past malformed persisted entries", async () => {
 		const sessionId = `malformed-projection-${Date.now()}`;
 		const liveSessions = new Map([
