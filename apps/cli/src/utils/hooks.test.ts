@@ -261,6 +261,54 @@ describe("createRuntimeHooks", () => {
 		expect(eventMocks.closeInlineStreamIfNeeded).toHaveBeenCalledTimes(2);
 	});
 
+	it("dispatches agent_abort, not agent_error, on a clean abort", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			verbose: false,
+			dispatchHookEvent,
+		});
+
+		await runtimeHooks.hooks?.afterRun?.({
+			snapshot: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				runId: "run-1",
+				parentAgentId: null,
+				status: "running",
+				iteration: 1,
+				messages: [],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+			result: {
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "aborted",
+				iterations: 1,
+				outputText: "",
+				messages: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+		});
+
+		expect(dispatchHookEvent).toHaveBeenCalledWith(
+			expect.objectContaining({ hookName: "agent_abort" }),
+		);
+	});
+
 	it("does not dispatch hooks after shutdown", async () => {
 		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
 		const runtimeHooks = createRuntimeHooks({
