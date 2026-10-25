@@ -18,6 +18,7 @@ import {
 	Filter,
 	FolderTree,
 	GitFork,
+	GitPullRequest,
 	Import,
 	Info,
 	Keyboard,
@@ -85,6 +86,7 @@ import { normalizeTitle } from "@/components/utils";
 import {
 	CUSTOMIZATION_SECTION_LABELS,
 	CUSTOMIZATION_SECTIONS,
+	SETTINGS_SECTION_LABELS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/sections";
@@ -163,6 +165,7 @@ const SETTINGS_SECTION_ICONS = {
 	Keybindings: Keyboard,
 	Channels: Radio,
 	Schedules: Clock3,
+	CodeReviews: GitPullRequest,
 	Import: Import,
 	Remote: Network,
 	Account: CircleUserRound,
@@ -179,7 +182,9 @@ function settingsSectionLabel(section: SettingsSection): string {
 	return (
 		CUSTOMIZATION_SECTION_LABELS[
 			section as keyof typeof CUSTOMIZATION_SECTION_LABELS
-		] ?? section
+		] ??
+		SETTINGS_SECTION_LABELS[section] ??
+		section
 	);
 }
 
@@ -250,13 +255,14 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{/* Schedules and Customize already have dedicated rows at the top of
-			    the expanded sidebar (Customize's Installed/Marketplace sub-tabs
-			    render under that row), so the section nav skips them there.
-			    The collapsed sidebar has no action rows and keeps them
-			    reachable. */}
+			{/* Schedules, Code Reviews, and Customize already have dedicated
+			    rows at the top of the expanded sidebar (Customize's
+			    Installed/Marketplace sub-tabs render under that row), so the
+			    section nav skips them there. The collapsed sidebar has no
+			    action rows and keeps them reachable. */}
 			{SETTINGS_SECTIONS.filter(
-				(section) => collapsed || section !== "Schedules",
+				(section) =>
+					collapsed || (section !== "Schedules" && section !== "CodeReviews"),
 			).map(renderSectionButton)}
 			{collapsed ? (
 				<>
@@ -971,6 +977,21 @@ export function AgentSidebar({
 						>
 							<Clock3 className="size-4 shrink-0" />
 							<span className="truncate">Schedule</span>
+						</Button>
+						<Button
+							aria-label="Code Reviews"
+							className={cn(
+								view === "settings" &&
+									settingsSection === "CodeReviews" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={() => openSettingsSection("CodeReviews")}
+							title="Code Reviews"
+							type="button"
+							variant="sidebarItem"
+						>
+							<GitPullRequest className="size-4 shrink-0" />
+							<span className="truncate">Code Reviews</span>
 						</Button>
 						<Button
 							aria-label="Customize"

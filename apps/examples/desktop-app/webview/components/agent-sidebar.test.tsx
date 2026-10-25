@@ -1200,7 +1200,7 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
+	it("stacks New, Schedule, Code Reviews, and Customize as full-width rows below the logo", async () => {
 		const onHome = vi.fn();
 		const onSettingsSectionChange = vi.fn();
 		await act(async () => {
@@ -1235,6 +1235,7 @@ describe("AgentSidebar session organization", () => {
 		expect(rows.map((row) => row.textContent)).toEqual([
 			"Session",
 			"Schedule",
+			"Code Reviews",
 			"Customize",
 		]);
 		for (const row of rows) {
@@ -1246,6 +1247,8 @@ describe("AgentSidebar session organization", () => {
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
+		await click(buttonWithText("Code Reviews", actionsNav as ParentNode));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("CodeReviews");
 		await click(buttonWithText("Customize", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Customize");
 	});
