@@ -344,7 +344,7 @@ cline --cloud --repo cline/cline --branch main "Summarize the open TODOs"
 Behavior:
 
 - The repository comes from this folder's git `origin`, which must be a GitHub repo your Cline account can access. The branch is your current branch if it exists on GitHub, otherwise the repo's default branch.
-- `--repo owner/name` (a GitHub URL also works) picks the repository instead, so `--cloud` works from any folder. Its branch defaults to the repo's default branch.
+- `--repo owner/name` (a GitHub URL also works) picks the repository instead, so `--cloud` works from any folder. For any repo other than this folder's own, the branch defaults to the repo's default branch.
 - `--branch name` picks the branch to start from; it must exist on GitHub. `--repo` and `--branch` only work with `--cloud`.
 - The model is your cloud pick from the TUI's `/model` if you made one, otherwise your local Cline or ClinePass model when the cloud offers it, otherwise ClinePass for ClinePass users or Cline's default usage-billed model.
 - Cloud sessions run in Act mode with tools auto-approved in their sandbox.
