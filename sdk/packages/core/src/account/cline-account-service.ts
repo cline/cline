@@ -15,6 +15,25 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * Statuses under which the current-user-plan endpoint reports no usable
+ * individual plan: 404 (none, or ended) and 402 (unpaid).
+ */
+export const NO_CURRENT_PLAN_STATUSES: ReadonlySet<number> = new Set([
+	404, 402,
+]);
+
+/** A Cline account request that reached the server and was refused with an HTTP status. */
+export class ClineAccountRequestError extends Error {
+	constructor(
+		message: string,
+		public readonly status: number,
+	) {
+		super(message);
+		this.name = "ClineAccountRequestError";
+	}
+}
+
 interface ClineApiEnvelope<T> {
 	success?: boolean;
 	error?: string;
@@ -157,8 +176,28 @@ export class ClineAccountService {
 		);
 	}
 
+	/**
+	 * The user's current individual plan (ClinePass), or undefined when there
+	 * is none. The API signals "no current plan" by status, not by payload:
+	 * 404 when the user has no plan or it has ended, 402 when it is unpaid.
+	 * Inference on a ClinePass model is refused in both cases, so callers can
+	 * treat undefined as "not subscribed". Anything else still throws. Keep
+	 * the status list in step with the server's current-user-plan handler.
+	 */
 	public async fetchCurrentUserPlan(): Promise<UserCurrentPlan | undefined> {
-		return this.request<UserCurrentPlan | undefined>("/api/v1/users/me/plan");
+		try {
+			return await this.request<UserCurrentPlan | undefined>(
+				"/api/v1/users/me/plan",
+			);
+		} catch (error) {
+			if (
+				error instanceof ClineAccountRequestError &&
+				NO_CURRENT_PLAN_STATUSES.has(error.status)
+			) {
+				return undefined;
+			}
+			throw error;
+		}
 	}
 
 	public async fetchOrganization(
@@ -301,8 +340,9 @@ export class ClineAccountService {
 
 			if (response.status === 204 || input?.expectNoContent) {
 				if (!response.ok) {
-					throw new Error(
+					throw new ClineAccountRequestError(
 						`Cline account request failed with status ${response.status}`,
+						response.status,
 					);
 				}
 				return undefined as T;
@@ -315,12 +355,13 @@ export class ClineAccountService {
 					parsed = JSON.parse(text);
 				} catch {
 					if (!response.ok) {
-						throw new Error(
+						throw new ClineAccountRequestError(
 							formatClineAccountRequestFailure(
 								response.status,
 								text,
 								undefined,
 							),
+							response.status,
 						);
 					}
 					throw new Error("Cline account response was not valid JSON");
@@ -328,8 +369,9 @@ export class ClineAccountService {
 			}
 
 			if (!response.ok) {
-				throw new Error(
+				throw new ClineAccountRequestError(
 					formatClineAccountRequestFailure(response.status, text, parsed),
+					response.status,
 				);
 			}
 
