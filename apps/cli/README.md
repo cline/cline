@@ -348,7 +348,7 @@ Behavior:
 - `--branch name` picks the branch to start from; it must exist on GitHub. `--repo` and `--branch` only work with `--cloud`.
 - The model is your cloud pick from the TUI's `/model` if you made one, otherwise your local Cline or ClinePass model when the cloud offers it, otherwise ClinePass for ClinePass users or Cline's default usage-billed model.
 - Cloud sessions run in Act mode with tools auto-approved in their sandbox.
-- With `--json`, the CLI prints one `cloud_dispatched` line with the session ID, link, repository, branch and model.
+- With `--json`, the CLI prints one `cloud_dispatched` line with the session ID, link, repository, branch and model. Failures print the usual `error` line.
 - `--cloud` can't be combined with `--tui`, `--id`, `--worktree`, or `--zen`.
 
 ## Tool approval

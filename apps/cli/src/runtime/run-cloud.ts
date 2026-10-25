@@ -41,8 +41,7 @@ export async function runCloud(input: {
 }): Promise<number> {
 	const json = input.outputMode === "json";
 	const fail = (message: string) => {
-		if (json) emitJsonLine("stderr", { type: "cloud_error", message });
-		else writeErr(`--cloud: ${message}`);
+		writeErr(`--cloud: ${message}`);
 		return 1;
 	};
 	let wanted: string | undefined;
@@ -75,10 +74,18 @@ export async function runCloud(input: {
 				`Cline Cloud can't access ${wanted}. Give it access: ${listed.connectUrl}`,
 			);
 		}
-		const hasBranch = (name: string) =>
-			client
-				.listBranches(repo.id, { query: name })
-				.then((result) => result.branches.includes(name));
+		const hasBranch = async (name: string) => {
+			let cursor: string | undefined;
+			do {
+				const page = await client.listBranches(repo.id, {
+					query: name,
+					cursor,
+				});
+				if (page.branches.includes(name)) return true;
+				cursor = page.nextToken || undefined;
+			} while (cursor);
+			return false;
+		};
 		let branch = repo.defaultBranch;
 		if (input.branch !== undefined) {
 			branch = input.branch.trim();
@@ -91,7 +98,7 @@ export async function runCloud(input: {
 			if (
 				localBranch &&
 				localBranch !== "HEAD" &&
-				(await hasBranch(localBranch).catch(() => false))
+				(await hasBranch(localBranch))
 			) {
 				branch = localBranch;
 			}
