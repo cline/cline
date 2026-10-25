@@ -62,7 +62,10 @@ import {
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
+import { isLocalRuntime } from "@/lib/local-models";
 import {
+	MODEL_SELECTION_CHANGED_EVENT,
+	type ModelSelectionChangedDetail,
 	readModelSelectionStorageFromWindow,
 	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -81,6 +84,8 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
+import { LocalModelIndicator } from "./local-model-indicator";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -339,6 +344,8 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
+	/** Opens Settings → Local Models from the local model chip. */
+	onOpenLocalModels?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -388,6 +395,7 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenModelSettings,
+	onOpenLocalModels,
 	summary,
 }: ChatInputBarProps) {
 	// The composer compacts by its own width rather than the window's: beside
@@ -456,6 +464,7 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
+	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
@@ -1699,6 +1708,17 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
+					{/* The chip controls this computer's runtime, which SSH sessions don't use. */}
+					{executionTarget !== "cloud" &&
+					environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					isLocalRuntime(localRuntime) ? (
+						<LocalModelIndicator
+							isBusy={isBusy}
+							model={model}
+							onOpenLocalModels={onOpenLocalModels}
+							runtime={localRuntime}
+						/>
+					) : null}
 				</AgentComposerSettingsGroup>
 
 				{/* Reserve room for the model and thinking controls so a long
@@ -2198,6 +2218,34 @@ const ModelSelector = memo(function ModelSelector({
 			// Ignore localStorage persistence failures.
 		}
 	}, [includeCloudModels, lastSelection]);
+
+	// A selection made mid-turn waits for the turn to end.
+	const [pendingSelection, setPendingSelection] =
+		useState<ModelSelectionChangedDetail | null>(null);
+	useEffect(() => {
+		if (includeCloudModels) return;
+		const handleSelectionChanged = (event: Event) => {
+			setPendingSelection(
+				(event as CustomEvent<ModelSelectionChangedDetail>).detail,
+			);
+			setLastSelection(readModelSelectionStorageFromWindow());
+		};
+		window.addEventListener(
+			MODEL_SELECTION_CHANGED_EVENT,
+			handleSelectionChanged,
+		);
+		return () =>
+			window.removeEventListener(
+				MODEL_SELECTION_CHANGED_EVENT,
+				handleSelectionChanged,
+			);
+	}, [includeCloudModels]);
+	useEffect(() => {
+		if (isBusy || !pendingSelection) return;
+		setPendingSelection(null);
+		onProviderChange(pendingSelection.providerId);
+		onModelChange(pendingSelection.modelId);
+	}, [isBusy, pendingSelection, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
