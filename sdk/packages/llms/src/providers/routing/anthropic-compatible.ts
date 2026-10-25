@@ -396,8 +396,11 @@ export function buildAnthropicProviderOptions(
 	return {
 		...(effort ? { effort } : {}),
 		...(thinking ? { thinking } : {}),
+		// @ai-sdk/anthropic drops a request-level `cache_control`; only
+		// `cacheControl` becomes top-level automatic caching, which keeps the
+		// cache advancing through tool-result turns.
 		...(shouldApplyAnthropicCacheBucket(request, context)
-			? createEphemeralCacheControl()
+			? { cacheControl: { type: "ephemeral" as const } }
 			: {}),
 	};
 }
