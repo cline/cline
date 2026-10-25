@@ -185,6 +185,47 @@ describe("ClineAccountService", () => {
 		expect(plan).toEqual(planPayload);
 	});
 
+	it.each([
+		[404, "no plan history found for user"],
+		[402, "subscription has not been paid"],
+	])("resolves no current plan when the plan endpoint answers %i", async (status, error) => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(JSON.stringify({ success: false, error }), {
+				status,
+				headers: { "Content-Type": "application/json" },
+			});
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchCurrentUserPlan()).resolves.toBeUndefined();
+	});
+
+	it("still throws when the plan endpoint fails for another reason", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({ success: false, error: "upstream unavailable" }),
+				{ status: 503, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchCurrentUserPlan()).rejects.toMatchObject({
+			name: "ClineAccountRequestError",
+			status: 503,
+			message: "upstream unavailable",
+		});
+	});
+
 	it("fetches remote config with fallback org selected", async () => {
 		const remoteConfigPayload = {
 			organizationId: "org-fallback",
