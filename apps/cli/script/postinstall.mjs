@@ -60,7 +60,21 @@ function main() {
 	};
 	const platform = platformMap[os.platform()] || os.platform();
 	const arch = os.arch();
-	const packageName = `@cline/cli-${platform}-${arch}`;
+	// A musl host (Alpine, OpenWrt, ...) installs the -musl package; the glibc
+	// binary would die in the loader. Node's report names the libc it linked
+	// against, so a Linux Node without a glibc runtime is a musl one.
+	let libcSuffix = "";
+	if (os.platform() === "linux") {
+		try {
+			const report = process.report?.getReport();
+			if (!report?.header?.glibcVersionRuntime) {
+				libcSuffix = "-musl";
+			}
+		} catch {
+			// Leave the glibc name; the resolve below reports the miss.
+		}
+	}
+	const packageName = `@cline/cli-${platform}-${arch}${libcSuffix}`;
 	const binaryName = "cline";
 
 	let binaryPath;
