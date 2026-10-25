@@ -63,6 +63,7 @@ type RequestCapability = (
 	payload: Record<string, unknown>,
 	targetClientId: string,
 	onProgress?: (payload: Record<string, unknown>) => void,
+	timeoutMs?: number,
 ) => Promise<Record<string, unknown> | undefined>;
 
 type CompactFunction = NonNullable<
@@ -88,6 +89,13 @@ const HOOK_NAMES = [
 ] as const satisfies readonly (keyof AgentHooks)[];
 
 type HubAgentHookName = (typeof HOOK_NAMES)[number];
+
+/**
+ * A hook that never answers its capability request used to wedge the session
+ * forever (the hub kept the request pending and the agent awaited it). Bound
+ * hook dispatch to the same budget as a blocking file hook.
+ */
+export const HOOK_CAPABILITY_TIMEOUT_MS = 120_000;
 
 export function listHubAgentHookNames(hooks: AgentHooks | undefined): string[] {
 	if (!hooks) return [];
@@ -540,6 +548,8 @@ function createHookProxies(
 				contribution.capabilityName,
 				{ context: ctx },
 				targetClientId,
+				undefined,
+				HOOK_CAPABILITY_TIMEOUT_MS,
 			);
 			return response?.control;
 		};

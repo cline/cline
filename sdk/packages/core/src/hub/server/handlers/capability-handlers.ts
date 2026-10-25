@@ -10,6 +10,7 @@ export async function requestCapability(
 	payload: Record<string, unknown>,
 	targetClientId: string,
 	onProgress?: (payload: Record<string, unknown>) => void,
+	timeoutMs?: number,
 ): Promise<Record<string, unknown> | undefined> {
 	const requestId = createSessionId("capreq_");
 	const startedAt = performance.now();
@@ -20,12 +21,20 @@ export async function requestCapability(
 		targetClientId,
 	});
 	return await new Promise((resolve, reject) => {
+		let timeout: NodeJS.Timeout | undefined;
+		const clearTimeoutIfSet = () => {
+			if (timeout) {
+				clearTimeout(timeout);
+				timeout = undefined;
+			}
+		};
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,
 			targetClientId,
 			capabilityName,
 			onProgress,
 			resolve: (result) => {
+				clearTimeoutIfSet();
 				logHubMessage(result.ok ? "info" : "warn", "capability.request.end", {
 					requestId,
 					sessionId,
@@ -47,6 +56,42 @@ export async function requestCapability(
 				resolve(result.payload);
 			},
 		});
+		if (
+			timeoutMs !== undefined &&
+			Number.isFinite(timeoutMs) &&
+			timeoutMs > 0
+		) {
+			timeout = setTimeout(() => {
+				if (!ctx.pendingCapabilityRequests.has(requestId)) return;
+				ctx.pendingCapabilityRequests.delete(requestId);
+				const error = `Capability ${capabilityName} timed out after ${timeoutMs}ms waiting for ${targetClientId}.`;
+				logHubMessage("warn", "capability.request.timeout", {
+					requestId,
+					sessionId,
+					capabilityName,
+					targetClientId,
+					timeoutMs,
+					durationMs: Math.round(performance.now() - startedAt),
+				});
+				ctx.publish(
+					ctx.buildEvent(
+						"capability.resolved",
+						{
+							requestId,
+							capabilityName,
+							targetClientId,
+							ok: false,
+							cancelled: true,
+							error,
+						},
+						sessionId,
+					),
+				);
+				reject(new Error(error));
+			}, timeoutMs);
+			// A pending hook must not keep the daemon's event loop alive on its own.
+			timeout.unref?.();
+		}
 		ctx.publish(
 			ctx.buildEvent(
 				"capability.requested",
