@@ -57,6 +57,7 @@ import {
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
@@ -179,6 +180,11 @@ import {
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
+import {
+	getSessionChanges,
+	localGit,
+	readSessionChangeContents,
+} from "./session-changes";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import {
@@ -389,6 +395,33 @@ function getCommandRuntimeBinding(
 ) {
 	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
 	return getRuntimeBinding(ctx, environmentId);
+}
+
+/**
+ * Checkpoint history from the hub's session record, falling back to the local
+ * store for sessions the hub no longer holds (finished CLI runs, restarts).
+ */
+async function readSessionCheckpoints(
+	ctx: SidecarContext,
+	sessionId: string,
+	args: Record<string, unknown> | undefined,
+) {
+	let record: { metadata?: Record<string, unknown> } | undefined;
+	try {
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		record = (await binding?.sessionManager.get(sessionId)) ?? undefined;
+	} catch {
+		// Fall through to the local store.
+	}
+	const fromHub = readSessionCheckpointHistory(record);
+	if (fromHub.length > 0) return fromHub;
+	try {
+		return readSessionCheckpointHistory(
+			new SqliteSessionStore().get(sessionId) ?? undefined,
+		);
+	} catch {
+		return [];
+	}
 }
 
 async function getCommandSessionBinding(
@@ -3635,6 +3668,56 @@ export async function handleCommand(
 			prewarmWorkspaceMetadata(cwd);
 		}
 		return { environmentId: binding.environmentId, branch };
+	}
+	// What the agent changed per turn and across the session, for the changes
+	// pane and the per-turn receipts in the transcript.
+	if (command === "get_session_changes" || command === "read_session_change") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("session changes require a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		if (binding.kind !== "local") {
+			return {
+				unavailableReason:
+					"Change tracking is not available for remote environments yet.",
+			};
+		}
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		const root = (
+			await runGitStrict(ctx, binding, cwd, [
+				"rev-parse",
+				"--show-toplevel",
+			]).catch(() => "")
+		).trim();
+		if (!root) {
+			return { unavailableReason: "This workspace is not a git repository." };
+		}
+		const git = localGit(root);
+		if (command === "read_session_change") {
+			const oid = (value: unknown) =>
+				typeof value === "string" && value ? value : undefined;
+			return await readSessionChangeContents(
+				git,
+				oid(args?.oldOid),
+				oid(args?.newOid),
+			);
+		}
+		const sessionId =
+			typeof args?.sessionId === "string" ? args.sessionId.trim() : "";
+		const checkpoints = sessionId
+			? await readSessionCheckpoints(ctx, sessionId, args)
+			: [];
+		if (checkpoints.length === 0) {
+			return {
+				root,
+				unavailableReason:
+					"No checkpoints have been recorded for this session.",
+			};
+		}
+		return await getSessionChanges(git, root, checkpoints);
 	}
 	// Source control for the workspace panel. Mutations and worktree reads
 	// share the file explorer's trusted-connection gate.
