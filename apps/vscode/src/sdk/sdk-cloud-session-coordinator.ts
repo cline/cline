@@ -102,6 +102,8 @@ function describeExpiredCloudSession(
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
+/** How long a ClinePass plan answer stands before Settings' Cloud tab re-asks. */
+const PLAN_CHECK_FRESH_MS = 60_000
 
 function cloudProvisioningRow(
 	ts: number,
@@ -245,7 +247,9 @@ export class SdkCloudSessionCoordinator {
 	 */
 	private renewPendingStartView: (() => boolean) | undefined
 	/** The cloud catalog and ClinePass plan for one account scope; see accountCloudModels. */
-	private accountCloud: { scope: string; models?: CloudModel[]; subscribed?: boolean } | undefined
+	private accountCloud:
+		| { scope: string; models?: CloudModel[]; subscribed?: boolean; planCheck?: Promise<void>; planCheckedAt?: number }
+		| undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -904,14 +908,15 @@ export class SdkCloudSessionCoordinator {
 	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
 	 * else the user's Act-mode Cline or ClinePass model, each when the cloud
 	 * catalog offers it; else the first ClinePass model when the local provider
-	 * is ClinePass, else Cline's default model. Until the catalog is known, the
-	 * Settings pick and a local Cline or ClinePass model are assumed to be
-	 * offered. Synchronous, and the only source for both
-	 * the composer label and the start path, so the sandbox runs the model the
-	 * user saw when they submitted.
+	 * is ClinePass and the account is not known to lack a plan, else Cline's
+	 * default model. Until the catalog is known, the Settings pick and a local
+	 * Cline or ClinePass model are assumed to be offered. Synchronous, and the
+	 * only source for both the composer label and the start path, so the
+	 * sandbox runs the model the user saw when they submitted.
 	 */
 	nextCloudModelId(): string {
-		const catalog = this.accountCloudModels()?.models
+		const account = this.accountCloudModels()
+		const catalog = account?.models
 		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
 		if (chosen && (!catalog || catalog.some((model) => model.id === chosen))) {
 			return chosen
@@ -930,8 +935,11 @@ export class SdkCloudSessionCoordinator {
 		if (local && offered) {
 			return local
 		}
+		// The local ClinePass provider also serves free models without a plan, so
+		// its user lands on ClinePass only while the plan check hasn't said no:
+		// the cloud refuses ClinePass inference for an account without one.
 		const firstPass =
-			apiConfig.actModeApiProvider === "cline-pass"
+			apiConfig.actModeApiProvider === "cline-pass" && account?.subscribed !== false
 				? catalog?.find((model) => model.catalogId === "cline-pass")?.id
 				: undefined
 		return firstPass ?? CLINE_DEFAULT_MODEL_ID
@@ -943,13 +951,30 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	/**
+	 * Re-asks whether the account has ClinePass, unless the last answer is
+	 * fresh. Settings calls this when its Cloud tab opens, so a subscription
+	 * bought in the browser (the Subscribe link) takes effect without a reload.
+	 * Resolves once the answer is known and state has been re-posted.
+	 */
+	async refreshClinePassSubscription(): Promise<void> {
+		const entry = this.accountCloudModels()
+		if (!entry) {
+			return
+		}
+		if (entry.planCheckedAt !== undefined && Date.now() - entry.planCheckedAt < PLAN_CHECK_FRESH_MS) {
+			return
+		}
+		await this.checkClinePass(entry)
+	}
+
+	/**
 	 * The active account's cloud catalog and ClinePass plan, filled in as each
 	 * lookup answers. The first read for an account starts both and each answer
-	 * posts state, so the composer label and Settings catch up. A failed lookup
-	 * is not retried until the account changes; the default then rests on the
-	 * local model and Cline's default model.
+	 * posts state, so the composer label and Settings catch up. A failed catalog
+	 * load is not retried until the account changes; the default then rests on
+	 * the local model and Cline's default model.
 	 */
-	private accountCloudModels(): { models?: CloudModel[]; subscribed?: boolean } | undefined {
+	private accountCloudModels(): NonNullable<typeof this.accountCloud> | undefined {
 		const scope = this.options.getAccountScope?.()
 		if (!scope) {
 			return undefined
@@ -959,26 +984,43 @@ export class SdkCloudSessionCoordinator {
 		}
 		const entry: NonNullable<typeof this.accountCloud> = { scope }
 		this.accountCloud = entry
-		const answered = () => {
-			if (!this.disposed && this.accountCloud === entry) {
-				this.options.postStateToWebview().catch(() => {})
-			}
-		}
 		this.options.loadCloudModels?.().then(
 			(models) => {
 				entry.models = models
-				answered()
+				this.postAccountCloudState(entry)
 			},
 			() => undefined,
 		)
-		this.options
-			.checkClinePassSubscription?.()
-			.catch(() => undefined)
-			.then((subscribed) => {
-				entry.subscribed = subscribed
-				if (subscribed !== undefined) answered()
-			})
+		void this.checkClinePass(entry)
 		return entry
+	}
+
+	/** One plan check at a time per account entry; a changed answer re-posts state. */
+	private checkClinePass(entry: NonNullable<typeof this.accountCloud>): Promise<void> {
+		if (entry.planCheck) {
+			return entry.planCheck
+		}
+		const check = (async () => {
+			const subscribed = await this.options.checkClinePassSubscription?.()?.catch(() => undefined)
+			entry.planCheck = undefined
+			if (subscribed === undefined) {
+				return
+			}
+			entry.planCheckedAt = Date.now()
+			const changed = entry.subscribed !== subscribed
+			entry.subscribed = subscribed
+			if (changed) {
+				this.postAccountCloudState(entry)
+			}
+		})()
+		entry.planCheck = check
+		return check
+	}
+
+	private postAccountCloudState(entry: NonNullable<typeof this.accountCloud>): void {
+		if (!this.disposed && this.accountCloud === entry) {
+			this.options.postStateToWebview().catch(() => {})
+		}
 	}
 
 	/** The model the displayed cloud task runs on, else the one a new cloud task would use. */

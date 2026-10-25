@@ -1,9 +1,9 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useClinePassPromo } from "@/hooks/useClinePassPromo"
@@ -22,7 +22,7 @@ interface ApiConfigurationSectionProps {
 }
 
 const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiConfigurationSectionProps) => {
-	const { cloudSessionsEnabled, cloudTaskTarget, currentCloudTask, clineMessages } = useExtensionState()
+	const { cloudSessionsEnabled, cloudTaskTarget, currentCloudTask, clineMessages, mode } = useExtensionState()
 	const showCloud = !!cloudSessionsEnabled || !!currentCloudTask
 	// Open on the settings for where the chat view is about to run (or is running) a task.
 	const [target, setTarget] = useState<"local" | "cloud">(() =>
@@ -31,6 +31,8 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 			: "local",
 	)
 	const isCloud = showCloud && target === "cloud"
+	// Held here so the Local pane's Plan/Act tab survives a visit to the Cloud pane.
+	const [currentTab, setCurrentTab] = useState<Mode>(mode)
 
 	return (
 		<div>
@@ -55,15 +57,22 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 						/>
 					</div>
 				)}
-				{isCloud ? <CloudModelSettings /> : <LocalModelSettings initialModelTab={initialModelTab} />}
+				{isCloud ? (
+					<CloudModelSettings />
+				) : (
+					<LocalModelSettings currentTab={currentTab} initialModelTab={initialModelTab} setCurrentTab={setCurrentTab} />
+				)}
 			</Section>
 		</div>
 	)
 }
 
-const LocalModelSettings = ({ initialModelTab }: Pick<ApiConfigurationSectionProps, "initialModelTab">) => {
+const LocalModelSettings = ({
+	initialModelTab,
+	currentTab,
+	setCurrentTab,
+}: Pick<ApiConfigurationSectionProps, "initialModelTab"> & { currentTab: Mode; setCurrentTab: (tab: Mode) => void }) => {
 	const { planActSeparateModelsSetting, mode, apiConfiguration } = useExtensionState()
-	const [currentTab, setCurrentTab] = useState<Mode>(mode)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	return (
 		<>
@@ -139,6 +148,15 @@ const CloudModelSettings = () => {
 	const { isClinePassEnabled, openSubscribePage } = useClinePassPromo()
 	const includeClinePass = isClinePassEnabled && !activeOrganization
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
+
+	// The user may have followed the Subscribe link and come back; re-ask for the plan.
+	useEffect(() => {
+		if (includeClinePass) {
+			CloudServiceClient.refreshClinePassSubscription(EmptyRequest.create({})).catch((error) =>
+				console.error("Failed to refresh ClinePass subscription:", error),
+			)
+		}
+	}, [includeClinePass])
 
 	return (
 		<>

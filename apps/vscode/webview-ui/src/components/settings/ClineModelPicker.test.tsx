@@ -165,6 +165,39 @@ describe("ClineModelPicker", () => {
 		expect(screen.queryByText("ClinePass")).not.toBeInTheDocument()
 	})
 
+	it("searches the ClinePass and ClineFree lists in cloud mode, which the local Cline catalog lacks", async () => {
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [{ id: "cline-next", name: "Cline Next", description: "", tags: [] }],
+			free: [],
+			clinePass: [{ id: "cline-pass/glm-5.3", name: "GLM 5.3", description: "", tags: [] }],
+			clineCloud: [{ id: "cline-cloud/deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", description: "", tags: [] }],
+		})
+		const onChange = vi.fn()
+		render(
+			<ClineModelPicker cloudSelection={{ modelId: "cline-next", onChange, includeClinePass: true }} currentMode="act" />,
+		)
+		await screen.findByText("Cline Next")
+
+		// The search field is a toolkit web component with no value setter in jsdom;
+		// give it a writable one before firing input.
+		const search = screen.getByRole("combobox") as HTMLInputElement
+		fireEvent.focus(search)
+		let typed = ""
+		Object.defineProperty(search, "value", {
+			configurable: true,
+			get: () => typed,
+			set: (value: string) => {
+				typed = value
+			},
+		})
+		fireEvent.input(search, { target: { value: "deepseek" } })
+
+		const option = await screen.findByRole("option")
+		expect(option).toHaveTextContent("cline-cloud/deepseek-v4.1-flash")
+		fireEvent.click(option)
+		expect(onChange).toHaveBeenCalledWith("cline-cloud/deepseek-v4.1-flash")
+	})
+
 	it("renders RPC-provided display names on featured cards, falling back to ids", async () => {
 		// Names arrive display-ready: the extension host resolves them against
 		// the model catalog in fetchClineRecommendedModels.

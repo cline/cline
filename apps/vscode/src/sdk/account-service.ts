@@ -271,8 +271,9 @@ export class ClineAccountService {
 
 	/**
 	 * Whether the user has a ClinePass subscription, or undefined when that
-	 * could not be checked. ClinePass is the only individual plan, and the API
-	 * reports "No plan found for user" when there is none.
+	 * could not be checked. ClinePass is the only individual plan. The API
+	 * answers 404 when the user has no current plan and 402 when the plan is
+	 * unpaid; inference on a ClinePass model is refused in both cases.
 	 */
 	async fetchClinePassSubscribedRPC(): Promise<boolean | undefined> {
 		try {
@@ -283,8 +284,7 @@ export class ClineAccountService {
 			)
 			return !!current?.plan
 		} catch (error) {
-			const message = axios.isAxiosError(error) ? error.response?.data?.error : (error as Error)?.message
-			if (typeof message === "string" && message.toLowerCase().includes("no plan found")) {
+			if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 402)) {
 				return false
 			}
 			Logger.error("Failed to fetch ClinePass subscription (RPC):", error)

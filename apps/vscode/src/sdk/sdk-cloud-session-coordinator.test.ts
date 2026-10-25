@@ -761,8 +761,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			stateManager: { ...makeStateManager(globalState), getApiConfiguration: () => apiConfig } as never,
 			getAccountScope: () => "user-1:",
 			loadCloudModels: () => catalog.promise,
-			// The plan check only feeds the Settings notice; the default doesn't read it.
-			checkClinePassSubscription: async () => false,
+			// An unanswered plan check leaves the ClinePass default in place.
+			checkClinePassSubscription: async () => undefined,
 		})
 
 		// Until the catalog is known, the Settings pick is assumed to be offered.
@@ -788,6 +788,69 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 		apiConfig = { actModeApiProvider: "anthropic" }
 		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
+		await coordinator.dispose()
+	})
+
+	it("sends a local ClinePass user without a plan to Cline's default instead of a ClinePass model", async () => {
+		const plan = deferred<boolean | undefined>()
+		const { coordinator, options } = makeCoordinator({
+			stateManager: {
+				...makeStateManager(),
+				getApiConfiguration: () => ({ actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }),
+			} as never,
+			getAccountScope: () => "user-1:",
+			loadCloudModels: async () => [
+				{ id: "cline-pass/first", name: "First", catalogId: "cline-pass" },
+				{ id: "usage/model", name: "Usage", catalogId: "cline" },
+			],
+			checkClinePassSubscription: () => plan.promise,
+		})
+
+		coordinator.nextCloudModelId()
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
+		// With the plan unknown, the ClinePass default stands.
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
+		plan.resolve(false)
+		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(false))
+		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+		await coordinator.dispose()
+	})
+
+	it("re-asks for the plan on request, once the last answer is stale, and re-posts state only when it changes", async () => {
+		let subscribed: boolean | undefined = false
+		const checkClinePassSubscription = vi.fn(async () => subscribed)
+		const { coordinator, options } = makeCoordinator({
+			stateManager: {
+				...makeStateManager(),
+				getApiConfiguration: () => ({ actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }),
+			} as never,
+			getAccountScope: () => "user-1:",
+			loadCloudModels: async () => [{ id: "cline-pass/first", name: "First", catalogId: "cline-pass" }],
+			checkClinePassSubscription,
+		})
+
+		coordinator.nextCloudModelId()
+		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(false))
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(2))
+
+		// A fresh answer is not re-asked.
+		await coordinator.refreshClinePassSubscription()
+		expect(checkClinePassSubscription).toHaveBeenCalledTimes(1)
+
+		// A stale answer is, and the same answer doesn't re-post state.
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 120_000)
+		await coordinator.refreshClinePassSubscription()
+		expect(checkClinePassSubscription).toHaveBeenCalledTimes(2)
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+
+		// The user subscribed in the browser: the notice clears and the default follows.
+		subscribed = true
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 240_000)
+		await coordinator.refreshClinePassSubscription()
+		expect(coordinator.clinePassSubscribed()).toBe(true)
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(3)
 		await coordinator.dispose()
 	})
 

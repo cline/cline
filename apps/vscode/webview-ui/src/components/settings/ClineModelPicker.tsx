@@ -368,10 +368,21 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		}
 	}, [])
 
-	const modelIds = useMemo(() => {
+	const catalogModelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
 	}, [effectiveClineModels, freeClineModelIds])
+
+	// The local Cline catalog has no ClinePass or ClineFree ids; the cloud offers
+	// those through the featured lists, so search covers them too. Model info
+	// still comes from the catalog alone (catalogModelIds), as the lists carry none.
+	const modelIds = useMemo(() => {
+		if (!isCloud) {
+			return catalogModelIds
+		}
+		const featuredIds = featuredTabs.flatMap((tab) => tab.models.map((model) => model.id))
+		return [...new Set([...catalogModelIds, ...featuredIds])].sort((a, b) => a.localeCompare(b))
+	}, [catalogModelIds, isCloud, featuredTabs])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -438,11 +449,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 
 	const hasInfo = useMemo(() => {
 		try {
-			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+			return catalogModelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
 		}
-	}, [modelIds, searchTerm])
+	}, [catalogModelIds, searchTerm])
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset dropdown navigation whenever the search text changes
 	useEffect(() => {

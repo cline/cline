@@ -2448,6 +2448,10 @@ export class Controller {
 		return this.cloud.resolveStatuses(sessionIds)
 	}
 
+	refreshClinePassSubscription(): Promise<void> {
+		return this.cloud.refreshClinePassSubscription()
+	}
+
 	invalidateTaskHistoryCache(): void {
 		this.taskHistory.invalidateCache()
 	}
