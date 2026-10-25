@@ -749,8 +749,9 @@ function ChatMessagesImpl({
 									<MessageScrollerItem
 										// The turn's last message floats its timestamp and
 										// actions over whatever follows; the receipt sits
-										// below them instead.
-										className="pt-6"
+										// below them, leaving the same 6px gap the actions
+										// row keeps above itself (6px offset + 32px row).
+										className="pt-7"
 										messageId="last-turn-receipt"
 									>
 										<TurnReceipt
