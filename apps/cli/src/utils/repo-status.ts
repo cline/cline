@@ -90,3 +90,10 @@ export function parseGitHubRepoFullName(
 		.match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i);
 	return match ? `${match[1]}/${match[2]}`.toLowerCase() : undefined;
 }
+
+/** "owner/name" from a `--repo` value: either "owner/name" or a GitHub URL. */
+export function parseGitHubRepoArg(value: string): string | undefined {
+	const trimmed = value.trim();
+	if (/^[\w.-]+\/[\w.-]+$/.test(trimmed)) return trimmed.toLowerCase();
+	return parseGitHubRepoFullName(trimmed);
+}

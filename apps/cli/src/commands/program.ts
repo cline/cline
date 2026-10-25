@@ -92,6 +92,18 @@ export function addRootOptions(cmd: Command): Command {
 					"Send the prompt to a new Cline Cloud session for this folder's GitHub repo and exit once it starts",
 				).hideHelp(!isCloudSessionsEnabled()),
 			)
+			.addOption(
+				new Option(
+					"--repo <repo>",
+					"With --cloud, the GitHub repo to use (owner/name or URL) instead of this folder's origin",
+				).hideHelp(!isCloudSessionsEnabled()),
+			)
+			.addOption(
+				new Option(
+					"--branch <branch>",
+					"With --cloud, the branch to start from",
+				).hideHelp(!isCloudSessionsEnabled()),
+			)
 			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run the kanban app")
 			.option("-v, --verbose", "Show verbose output")
@@ -227,6 +239,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.hooksDir !== undefined) result.hooksDir = opts.hooksDir;
 	if (opts.worktree !== undefined) result.worktree = !!opts.worktree;
 	if (opts.cloud) result.cloud = true;
+	if (opts.repo !== undefined) result.cloudRepo = opts.repo;
+	if (opts.branch !== undefined) result.cloudBranch = opts.branch;
 	if (opts.cwd !== undefined) result.cwd = opts.cwd;
 	if (opts.teamName !== undefined) result.teamName = opts.teamName;
 	if (opts.system !== undefined) result.systemPrompt = opts.system;

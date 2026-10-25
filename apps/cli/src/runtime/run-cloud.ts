@@ -1,6 +1,7 @@
 import { readCloudModelIdGlobally } from "@cline/core";
 import { c, emitJsonLine, writeErr, writeln } from "../utils/output";
 import {
+	parseGitHubRepoArg,
 	parseGitHubRepoFullName,
 	readGitOriginUrl,
 	readRepoStatus,
@@ -24,14 +25,16 @@ function cloudErrorMessage(error: unknown): string {
 }
 
 /**
- * Cloud mode: start a new Cline Cloud session for this folder's GitHub repo,
- * send the prompt, and exit once the sandbox accepts it. The task keeps running
- * in the cloud; the printed link follows it.
+ * Cloud mode: start a new Cline Cloud session for this folder's GitHub repo
+ * (or `--repo`), send the prompt, and exit once the sandbox accepts it. The
+ * task keeps running in the cloud; the printed link follows it.
  */
 export async function runCloud(input: {
 	prompt: string;
 	cwd: string;
 	workspaceRoot: string;
+	repo?: string;
+	branch?: string;
 	providerId: string;
 	modelId?: string;
 	outputMode: "text" | "json";
@@ -42,12 +45,22 @@ export async function runCloud(input: {
 		else writeErr(`--cloud: ${message}`);
 		return 1;
 	};
+	let wanted: string | undefined;
+	if (input.repo !== undefined) {
+		wanted = parseGitHubRepoArg(input.repo);
+		if (!wanted) {
+			return fail(
+				`--repo expects owner/name or a GitHub URL, got "${input.repo}".`,
+			);
+		}
+	}
 	const { client, dispose } = createCliCloudSessions(input.workspaceRoot);
 	try {
 		const origin = parseGitHubRepoFullName(await readGitOriginUrl(input.cwd));
-		if (!origin) {
+		wanted ??= origin;
+		if (!wanted) {
 			return fail(
-				"run it in a folder whose git origin is a GitHub repository.",
+				"run it in a folder whose git origin is a GitHub repository, or pass --repo owner/name.",
 			);
 		}
 		const listed = await client.listRepositories();
@@ -55,23 +68,34 @@ export async function runCloud(input: {
 			return fail(`connect GitHub to Cline first: ${listed.connectUrl}`);
 		}
 		const repo = listed.repositories.find(
-			(candidate) => candidate.fullName.toLowerCase() === origin,
+			(candidate) => candidate.fullName.toLowerCase() === wanted,
 		);
 		if (!repo) {
 			return fail(
-				`Cline Cloud can't access ${origin}. Give it access: ${listed.connectUrl}`,
+				`Cline Cloud can't access ${wanted}. Give it access: ${listed.connectUrl}`,
 			);
 		}
-		// Same default as the TUI picker: the local branch if GitHub has it.
-		const localBranch = (await readRepoStatus(input.cwd)).branch;
-		const onGitHub =
-			!!localBranch &&
-			localBranch !== "HEAD" &&
-			(await client
-				.listBranches(repo.id, { query: localBranch })
-				.then((result) => result.branches.includes(localBranch))
-				.catch(() => false));
-		const branch = onGitHub ? localBranch : repo.defaultBranch;
+		const hasBranch = (name: string) =>
+			client
+				.listBranches(repo.id, { query: name })
+				.then((result) => result.branches.includes(name));
+		let branch = repo.defaultBranch;
+		if (input.branch !== undefined) {
+			branch = input.branch.trim();
+			if (!(await hasBranch(branch))) {
+				return fail(`branch "${branch}" doesn't exist in ${repo.fullName}.`);
+			}
+		} else if (wanted === origin) {
+			// Same default as the TUI picker: the local branch if GitHub has it.
+			const localBranch = (await readRepoStatus(input.cwd)).branch;
+			if (
+				localBranch &&
+				localBranch !== "HEAD" &&
+				(await hasBranch(localBranch).catch(() => false))
+			) {
+				branch = localBranch;
+			}
+		}
 		const model = resolveCloudModel(await client.listModels(), {
 			explicitModelId: readCloudModelIdGlobally(),
 			localModelId: input.modelId,

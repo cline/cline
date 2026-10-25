@@ -819,6 +819,12 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
+	if (!args.cloud && (args.cloudRepo || args.cloudBranch)) {
+		writeErr("--repo and --branch only work with --cloud.");
+		process.exitCode = 1;
+		return;
+	}
+
 	if (args.cloud) {
 		const { isCloudSessionsEnabled } = await import(
 			"./utils/cloud-sessions-enabled"
@@ -924,6 +930,8 @@ export async function runCli(): Promise<void> {
 			prompt,
 			cwd,
 			workspaceRoot,
+			repo: args.cloudRepo,
+			branch: args.cloudBranch,
 			providerId,
 			modelId:
 				args.model ??

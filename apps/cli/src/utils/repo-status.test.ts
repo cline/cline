@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isSameRepoStatus, parseGitHubRepoFullName } from "./repo-status";
+import {
+	isSameRepoStatus,
+	parseGitHubRepoArg,
+	parseGitHubRepoFullName,
+} from "./repo-status";
 
 describe("isSameRepoStatus", () => {
 	it("treats identical statuses as equal", () => {
@@ -56,5 +60,25 @@ describe("parseGitHubRepoFullName", () => {
 		"https://gitlab.com/cline/cline.git",
 	])("ignores %s", (remote) => {
 		expect(parseGitHubRepoFullName(remote)).toBeUndefined();
+	});
+});
+
+describe("parseGitHubRepoArg", () => {
+	it.each([
+		["cline/cline", "cline/cline"],
+		[" Cline/cline.docs ", "cline/cline.docs"],
+		["https://github.com/cline/cline", "cline/cline"],
+		["git@github.com:cline/cline.git", "cline/cline"],
+	])("reads %s", (value, expected) => {
+		expect(parseGitHubRepoArg(value)).toBe(expected);
+	});
+
+	it.each([
+		"",
+		"cline",
+		"cline/cline/extra",
+		"https://gitlab.com/cline/cline",
+	])("rejects %s", (value) => {
+		expect(parseGitHubRepoArg(value)).toBeUndefined();
 	});
 });
