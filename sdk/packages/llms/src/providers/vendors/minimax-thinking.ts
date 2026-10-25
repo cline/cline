@@ -3,6 +3,14 @@ import type {
 	LanguageModelV4Middleware,
 } from "@ai-sdk/provider";
 
+import {
+	MINIMAX_EFFORTS,
+	MINIMAX_FLASH_MODEL_ID,
+	MINIMAX_MAX_OUTPUT_TOKENS,
+	MINIMAX_PROVIDER_IDS,
+} from "../../catalog/catalog-minimax";
+import { toProviderOptionsKey } from "../routing/utils";
+
 export const MINIMAX_THINKING_DISABLED_HEADER =
 	"x-cline-minimax-thinking-disabled";
 
@@ -15,10 +23,10 @@ function getMiniMaxThinkingType(providerOptions: unknown): string | undefined {
 		providerOptions && typeof providerOptions === "object"
 			? (providerOptions as Record<string, unknown>)
 			: {};
-	const minimax =
-		options.minimax && typeof options.minimax === "object"
-			? (options.minimax as Record<string, unknown>)
-			: undefined;
+	const bucket = MINIMAX_PROVIDER_IDS.map(
+		(id) => options[id] ?? options[toProviderOptionsKey(id)],
+	).find((value) => value && typeof value === "object");
+	const minimax = bucket as Record<string, unknown> | undefined;
 	const thinking =
 		minimax?.thinking && typeof minimax.thinking === "object"
 			? (minimax.thinking as Record<string, unknown>)
@@ -69,23 +77,48 @@ export function createMiniMaxThinkingFetch(baseFetch: typeof fetch = fetch) {
 	) => {
 		const headers = new Headers(init?.headers);
 		const shouldInject = headers.get(MINIMAX_THINKING_DISABLED_HEADER) === "1";
-		if (!shouldInject) {
-			return baseFetch(input, init);
-		}
-
 		headers.delete(MINIMAX_THINKING_DISABLED_HEADER);
 		const body = await readBody(init?.body);
 		const bodyRecord =
 			body && typeof body === "object" && !Array.isArray(body)
 				? (body as Record<string, unknown>)
 				: undefined;
+		const isFlash = bodyRecord?.model === MINIMAX_FLASH_MODEL_ID;
+		const isM3 = bodyRecord?.model === "MiniMax-M3";
+		if (bodyRecord && (isFlash || isM3)) {
+			const maxTokens = bodyRecord.max_tokens;
+			if (
+				maxTokens !== undefined &&
+				(typeof maxTokens !== "number" ||
+					!Number.isInteger(maxTokens) ||
+					maxTokens < 1 ||
+					maxTokens > MINIMAX_MAX_OUTPUT_TOKENS)
+			) {
+				throw new RangeError(
+					`MiniMax max_tokens must be an integer between 1 and ${MINIMAX_MAX_OUTPUT_TOKENS}`,
+				);
+			}
+			const outputConfig =
+				bodyRecord.output_config && typeof bodyRecord.output_config === "object"
+					? { ...(bodyRecord.output_config as Record<string, unknown>) }
+					: {};
+			if (isFlash) {
+				bodyRecord.thinking = { type: "adaptive" };
+				delete bodyRecord.service_tier;
+				outputConfig.effort =
+					MINIMAX_EFFORTS.find((effort) => effort === outputConfig.effort) ??
+					"max";
+				bodyRecord.output_config = outputConfig;
+			} else {
+				if (shouldInject) bodyRecord.thinking = { type: "disabled" };
+				delete outputConfig.effort;
+				if (Object.keys(outputConfig).length)
+					bodyRecord.output_config = outputConfig;
+				else delete bodyRecord.output_config;
+			}
+		}
 		const nextBody =
-			bodyRecord && bodyRecord.thinking === undefined
-				? writeBody({
-						...bodyRecord,
-						thinking: { type: "disabled" },
-					})
-				: init?.body;
+			bodyRecord && (isFlash || isM3) ? writeBody(bodyRecord) : init?.body;
 
 		return baseFetch(input, {
 			...init,

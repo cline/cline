@@ -1,5 +1,6 @@
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { buildClineClientHeaders } from "../providers/cline-client-headers";
+import { isRetiredMiniMaxTextModel } from "./catalog-minimax";
 import type { ModelInfo } from "./types";
 
 export interface ClineRecommendedModelEntry {
@@ -88,6 +89,7 @@ export function normalizeClineRecommendedProviderModels(
 	const vercelModelsByName = buildModelsNameMap(vercelModels);
 
 	clinePass.forEach((entry) => {
+		if (isRetiredMiniMaxTextModel(entry.id)) return;
 		const capabilities =
 			findModelBySlug(entry, openRouterModelsByName) ??
 			findModelBySlug(entry, vercelModelsByName) ??
@@ -107,6 +109,7 @@ export function normalizeClineRecommendedProviderModels(
 		entry: ClineRecommendedModelEntry,
 		includeInClinePass: boolean,
 	) => {
+		if (isRetiredMiniMaxTextModel(entry.id)) return;
 		const capabilities =
 			openRouterModels[entry.id] ??
 			findModelBySlug(entry, openRouterModelsByName) ??

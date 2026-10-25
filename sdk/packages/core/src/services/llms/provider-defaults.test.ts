@@ -80,7 +80,7 @@ describe("resolveProviderConfig", () => {
 		const resolved = await resolveProviderConfig("bedrock");
 
 		expect(resolved?.baseUrl).toBeUndefined();
-		expect(resolved?.modelId).toBe("minimax.minimax-m2.5");
+		expect(resolved?.modelId).toBe("anthropic.claude-haiku-5-5");
 		expect(resolved?.knownModels?.["amazon.nova-2-lite-v1:0"]?.name).toBe(
 			"Nova 2 Lite",
 		);

@@ -4,6 +4,10 @@ import type {
 } from "@cline/shared";
 import type { CallSettings } from "ai";
 import {
+	isDirectMiniMaxProvider,
+	MINIMAX_FLASH_MODEL_ID,
+} from "../../catalog/catalog-minimax";
+import {
 	getModelReasoningControls,
 	normalizeReasoningEffort,
 } from "../model-facts";
@@ -104,6 +108,14 @@ export function resolvePortableReasoning(
 	request: GatewayStreamRequest,
 	wire?: PortableReasoningWire,
 ): AiSdkReasoning | undefined {
+	if (
+		isDirectMiniMaxProvider(request.providerId) &&
+		(request.modelId === "MiniMax-M3" ||
+			request.modelId === MINIMAX_FLASH_MODEL_ID)
+	) {
+		// Preserve the native toggle and all five Flash efforts, including max.
+		return undefined;
+	}
 	const level = resolvePortableLevel(request, wire?.context);
 	if (!level || !wire) {
 		return level;
