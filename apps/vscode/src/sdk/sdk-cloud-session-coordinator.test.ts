@@ -793,14 +793,13 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 	it("sends a local ClinePass user without a plan to Cline's default instead of a ClinePass model", async () => {
 		const plan = deferred<boolean | undefined>()
+		let apiConfig: Record<string, unknown> = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }
 		const { coordinator, options } = makeCoordinator({
-			stateManager: {
-				...makeStateManager(),
-				getApiConfiguration: () => ({ actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }),
-			} as never,
+			stateManager: { ...makeStateManager(), getApiConfiguration: () => apiConfig } as never,
 			getAccountScope: () => "user-1:",
 			loadCloudModels: async () => [
 				{ id: "cline-pass/first", name: "First", catalogId: "cline-pass" },
+				{ id: "cline-pass/local", name: "Local", catalogId: "cline-pass" },
 				{ id: "usage/model", name: "Usage", catalogId: "cline" },
 			],
 			checkClinePassSubscription: () => plan.promise,
@@ -814,6 +813,9 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(false))
 		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+		// A lapsed plan keeps even an offered local ClinePass model out of the cloud.
+		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-pass/local" }
+		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 		await coordinator.dispose()
 	})
 

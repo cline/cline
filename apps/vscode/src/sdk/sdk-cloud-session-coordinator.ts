@@ -908,8 +908,8 @@ export class SdkCloudSessionCoordinator {
 	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
 	 * else the user's Act-mode Cline or ClinePass model, each when the cloud
 	 * catalog offers it; else the first ClinePass model when the local provider
-	 * is ClinePass and the account is not known to lack a plan, else Cline's
-	 * default model. Until the catalog is known, the Settings pick and a local
+	 * is ClinePass, else Cline's default model. Neither ClinePass step applies
+	 * once the plan check says the account has no plan. Until the catalog is known, the Settings pick and a local
 	 * Cline or ClinePass model are assumed to be offered. Synchronous, and the
 	 * only source for both the composer label and the start path, so the
 	 * sandbox runs the model the user saw when they submitted.
@@ -922,26 +922,24 @@ export class SdkCloudSessionCoordinator {
 			return chosen
 		}
 		const apiConfig = this.options.stateManager.getApiConfiguration()
+		// The local ClinePass provider also serves free models without a plan, so
+		// its user lands on ClinePass only while the plan check hasn't said no:
+		// the cloud refuses ClinePass inference for an account without one.
+		const clinePass = apiConfig.actModeApiProvider === "cline-pass" && account?.subscribed !== false
 		const local =
 			apiConfig.actModeApiProvider === "cline"
 				? apiConfig.actModeClineModelId?.trim()
-				: apiConfig.actModeApiProvider === "cline-pass"
+				: clinePass
 					? apiConfig.actModeClinePassModelId?.trim()
 					: undefined
-		// The local ClinePass provider also offers free models, which the cloud does not take.
+		// The local ClinePass provider's free models aren't in the cloud catalog.
 		const offered = catalog
 			? catalog.some((model) => model.id === local)
 			: apiConfig.actModeApiProvider === "cline" || !!local?.startsWith("cline-pass/")
 		if (local && offered) {
 			return local
 		}
-		// The local ClinePass provider also serves free models without a plan, so
-		// its user lands on ClinePass only while the plan check hasn't said no:
-		// the cloud refuses ClinePass inference for an account without one.
-		const firstPass =
-			apiConfig.actModeApiProvider === "cline-pass" && account?.subscribed !== false
-				? catalog?.find((model) => model.catalogId === "cline-pass")?.id
-				: undefined
+		const firstPass = clinePass ? catalog?.find((model) => model.catalogId === "cline-pass")?.id : undefined
 		return firstPass ?? CLINE_DEFAULT_MODEL_ID
 	}
 
