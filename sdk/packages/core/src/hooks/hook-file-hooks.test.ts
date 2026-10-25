@@ -898,6 +898,166 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it("dispatches prompt_submit from beforeRun for a prompt seeded in the snapshot", async () => {
+		const outputPath = join(tmpdir(), `hooks-seeded-prompt-${Date.now()}.json`);
+		const { workspace } = await createWorkspaceWithHook(
+			"UserPromptSubmit.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(outputPath)}, data);});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			// Orchestrated sessions seed the user prompt into the runtime's
+			// initial messages; it never arrives as a message-added event.
+			const snapshot = {
+				...beforeToolContext().snapshot,
+				messages: [
+					{
+						id: "msg_sys",
+						role: "user" as const,
+						content: [{ type: "text" as const, text: "earlier turn" }],
+						createdAt: 0,
+					},
+					{
+						id: "msg_hook_ctx",
+						role: "user" as const,
+						content: [
+							{
+								type: "text" as const,
+								text: '<hook_context source="RunStart">note</hook_context>',
+							},
+						],
+						createdAt: 0,
+						metadata: { userRunSpan: 0, displayRole: "system" },
+					},
+					{
+						id: "msg_prompt",
+						role: "user" as const,
+						content: [
+							{ type: "text" as const, text: "seeded prompt text" },
+						],
+						createdAt: 0,
+					},
+				],
+			};
+			await hooks?.beforeRun?.({ snapshot });
+
+			const payload = JSON.parse(await waitForFile(outputPath)) as {
+				hookName: string;
+				userPromptSubmit?: { prompt?: string };
+			};
+			expect(payload.hookName).toBe("prompt_submit");
+			expect(payload.userPromptSubmit?.prompt).toBe("seeded prompt text");
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
+	it("dispatches a seeded prompt once across repeated beforeRun calls", async () => {
+		const outputPath = join(tmpdir(), `hooks-prompt-dedup-${Date.now()}.jsonl`);
+		const { workspace } = await createWorkspaceWithHook(
+			"UserPromptSubmit.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data + '\\n');});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			// continue() re-fires beforeRun with the same seeded prompt in the
+			// snapshot; it must not dispatch a second prompt_submit.
+			const snapshot = {
+				...beforeToolContext().snapshot,
+				messages: [
+					{
+						id: "msg_prompt",
+						role: "user" as const,
+						content: [
+							{ type: "text" as const, text: "seeded prompt text" },
+						],
+						createdAt: 0,
+					},
+				],
+			};
+			await hooks?.beforeRun?.({ snapshot });
+			await hooks?.beforeRun?.({ snapshot });
+
+			const lines = (await readFile(outputPath, "utf8"))
+				.trim()
+				.split("\n");
+			expect(lines).toHaveLength(1);
+			expect(JSON.parse(lines[0] ?? "")).toMatchObject({
+				hookName: "prompt_submit",
+				userPromptSubmit: { prompt: "seeded prompt text" },
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
+	it("does not dispatch prompt_submit when the snapshot has no user prompt", async () => {
+		const outputPath = join(tmpdir(), `hooks-empty-prompt-${Date.now()}.json`);
+		const { workspace } = await createWorkspaceWithHook(
+			"UserPromptSubmit.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(outputPath)}, data);});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const snapshot = {
+				...beforeToolContext().snapshot,
+				messages: [
+					{
+						id: "msg_sys",
+						role: "user" as const,
+						content: [
+							{
+								type: "text" as const,
+								text: "[SYSTEM] run completion reminder",
+							},
+						],
+						createdAt: 0,
+						metadata: { userRunSpan: 0, displayRole: "system" },
+					},
+				],
+			};
+			await hooks?.beforeRun?.({ snapshot });
+
+			// Hooks run attached here, so a fired hook would have written
+			// already; nothing may be dispatched for a system-role message.
+			await expect(readFile(outputPath, "utf8")).rejects.toMatchObject({
+				code: "ENOENT",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
 	it("returns hooks and dispatches abort shutdown when only SessionShutdown is configured", async () => {
 		const outputPath = join(
 			tmpdir(),
