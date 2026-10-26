@@ -85,17 +85,8 @@ export class PluginUiStore {
 	 * The resident epoch and other staged ones stay as they are.
 	 */
 	begin(sessionId: string, slots: readonly PluginUiSlot[]): number {
-		const epoch = Math.max(
-			this.now(),
-			(this.lastEpoch.get(sessionId) ?? 0) + 1,
-		);
-		this.lastEpoch.set(sessionId, epoch);
-		let staged = this.starting.get(sessionId);
-		if (!staged) {
-			staged = new Map();
-			this.starting.set(sessionId, staged);
-		}
-		staged.set(epoch, {
+		const epoch = this.mint(sessionId);
+		this.stage(sessionId, {
 			epoch,
 			slots: [...slots],
 			active: false,
@@ -105,17 +96,38 @@ export class PluginUiStore {
 		return epoch;
 	}
 
-	isStaged(sessionId: string, epoch: number): boolean {
-		return this.starting.get(sessionId)?.has(epoch) ?? false;
+	/**
+	 * The epoch a staged start becomes resident under, or undefined when it is
+	 * not staged. Renderers keep the highest epoch they have seen, even one
+	 * whose session already ended, so a start that finishes after a same-id
+	 * start begun later is re-staged under a newer epoch, its stored envelopes
+	 * restamped.
+	 */
+	promote(sessionId: string, epoch: number): number | undefined {
+		const staged = this.starting.get(sessionId)?.get(epoch);
+		if (!staged) return undefined;
+		if (epoch === this.lastEpoch.get(sessionId)) return epoch;
+		this.unstage(sessionId, epoch);
+		staged.epoch = this.mint(sessionId);
+		for (const record of staged.records.values()) {
+			if (record.envelope) {
+				record.envelope = { ...record.envelope, epoch: staged.epoch };
+			}
+		}
+		this.stage(sessionId, staged);
+		return staged.epoch;
 	}
 
 	/**
 	 * Makes the staged epoch the resident one, dropping the epoch it replaces,
-	 * and emits each stored envelope once, tombstones included.
+	 * and emits each stored envelope once, tombstones included. Returns the
+	 * epoch it is resident under, as `promote` does.
 	 */
-	activate(sessionId: string, epoch: number): void {
-		const staged = this.unstage(sessionId, epoch);
-		if (!staged) return;
+	activate(sessionId: string, epoch: number): number | undefined {
+		const promoted = this.promote(sessionId, epoch);
+		const staged =
+			promoted === undefined ? undefined : this.unstage(sessionId, promoted);
+		if (!staged) return undefined;
 		const replaced = this.sessions.get(sessionId);
 		if (replaced) this.clearTimers(replaced);
 		this.sessions.set(sessionId, staged);
@@ -123,6 +135,7 @@ export class PluginUiStore {
 		for (const record of staged.records.values()) {
 			if (record.envelope) this.emit(record.envelope);
 		}
+		return staged.epoch;
 	}
 
 	epoch(sessionId: string): number | undefined {
@@ -281,6 +294,24 @@ export class PluginUiStore {
 		const resident = this.sessions.get(sessionId);
 		if (resident?.epoch === epoch) return resident;
 		return this.starting.get(sessionId)?.get(epoch);
+	}
+
+	private mint(sessionId: string): number {
+		const epoch = Math.max(
+			this.now(),
+			(this.lastEpoch.get(sessionId) ?? 0) + 1,
+		);
+		this.lastEpoch.set(sessionId, epoch);
+		return epoch;
+	}
+
+	private stage(sessionId: string, ui: SessionUi): void {
+		let staged = this.starting.get(sessionId);
+		if (!staged) {
+			staged = new Map();
+			this.starting.set(sessionId, staged);
+		}
+		staged.set(ui.epoch, ui);
 	}
 
 	private unstage(sessionId: string, epoch: number): SessionUi | undefined {

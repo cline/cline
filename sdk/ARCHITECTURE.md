@@ -931,7 +931,10 @@ its state, viewers and UI chain, and keeps serving invokes, until the
 replacement is resident. A start that fails ends only its staged epoch, so a
 failed reopen leaves the working session's slot as it was. Concurrent starts
 under one id each stage their own epoch, and the slot follows the start that
-last registers, as the session map does. Core owns `seq`,
+last registers, as the session map does. A start that registers after one
+begun later, still resident or already ended, is restamped with a newer epoch
+as it becomes resident, so the resident epoch is always the highest renderers
+have seen. Core owns `seq`,
 so a worker reinitialized after idle reclaim cannot run it backwards.
 Renderers clear their slot state on every bind, apply `get` and live events
 through `applyPluginUiState` (the highest `(epoch, seq)` wins), and re-attach

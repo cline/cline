@@ -82,14 +82,18 @@ export class PluginUiService implements PluginUiHostApi {
 	}
 
 	/**
-	 * Hands the slot to the start's epoch. The chain comes first: a renderer
-	 * may attach from the activation's own emit. Work still queued on the
-	 * replaced chain then stops at `mayProceed`.
+	 * Hands the slot to the start and returns the epoch it now holds, which is
+	 * newer than `epoch` when a same-id start begun later became resident
+	 * first. The chain comes first: a renderer may attach from the
+	 * activation's own emit. Work still queued on the replaced chain then
+	 * stops at `mayProceed`.
 	 */
-	activate(sessionId: string, epoch: number): void {
-		if (!this.store.isStaged(sessionId, epoch)) return;
-		this.chains.set(sessionId, createSessionUiChain(epoch, this.now()));
-		this.store.activate(sessionId, epoch);
+	activate(sessionId: string, epoch: number): number {
+		const resident = this.store.promote(sessionId, epoch);
+		if (resident === undefined) return epoch;
+		this.chains.set(sessionId, createSessionUiChain(resident, this.now()));
+		this.store.activate(sessionId, resident);
+		return resident;
 	}
 
 	record(sessionId: string, epoch: number, push: PluginUiStorePush): void {

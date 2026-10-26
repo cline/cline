@@ -389,16 +389,69 @@ describe("PluginUiStore", () => {
 		store.record("s1", first, push("first"));
 		store.record("s1", second, push("second"));
 
-		store.activate("s1", first);
+		const firstResident = store.activate("s1", first) ?? 0;
 		store.end("s1", second);
 		store.activate("s1", second);
 		store.record("s1", second, push("late"));
 
-		expect(store.epoch("s1")).toBe(first);
-		expect(store.isStaged("s1", second)).toBe(false);
+		expect(firstResident).toBeGreaterThan(second);
+		expect(store.epoch("s1")).toBe(firstResident);
+		expect(store.promote("s1", second)).toBeUndefined();
 		expect(revisions(emitted)).toEqual(["r1", "first"]);
-		expect(emitted.at(-1)).toMatchObject({ epoch: first, seq: 1 });
+		expect(emitted.at(-1)).toMatchObject({ epoch: firstResident, seq: 1 });
 		expect(drops.map((drop) => drop.reason)).toEqual(["stale_epoch"]);
+	});
+
+	it("restamps a start that becomes resident after a same-id start begun later, so epochs keep rising", () => {
+		const { store, emitted, drops } = createStore();
+		const resident = beginResident(store, "s1");
+		store.record("s1", resident, push("r1"));
+		const earlier = store.begin("s1", [SLOT]);
+		const later = store.begin("s1", [SLOT]);
+		store.record("s1", earlier, push("earlier"));
+		store.record("s1", later, push("later"));
+
+		expect(store.activate("s1", later)).toBe(later);
+		const restamped = store.activate("s1", earlier) ?? 0;
+		vi.advanceTimersByTime(100);
+		store.record("s1", restamped, push("earlier-r2"));
+		store.record("s1", earlier, push("stale"));
+
+		expect(restamped).toBeGreaterThan(later);
+		expect(store.epoch("s1")).toBe(restamped);
+		expect(
+			emitted.map(({ epoch, seq, state }) => ({
+				epoch,
+				seq,
+				revision: (state as { revision?: string } | null)?.revision,
+			})),
+		).toEqual([
+			{ epoch: resident, seq: 1, revision: "r1" },
+			{ epoch: later, seq: 1, revision: "later" },
+			{ epoch: restamped, seq: 1, revision: "earlier" },
+			{ epoch: restamped, seq: 2, revision: "earlier-r2" },
+		]);
+		expect(store.current("s1", SLOT)).toMatchObject({
+			epoch: restamped,
+			seq: 2,
+		});
+		expect(drops.map((drop) => drop.reason)).toEqual(["stale_epoch"]);
+	});
+
+	it("restamps a start that becomes resident after a same-id start begun later already ended", () => {
+		const { store, emitted } = createStore();
+		const earlier = store.begin("s1", [SLOT]);
+		const later = store.begin("s1", [SLOT]);
+		store.record("s1", earlier, push("earlier"));
+		store.record("s1", later, push("later"));
+
+		store.activate("s1", later);
+		store.end("s1", later);
+		const restamped = store.activate("s1", earlier) ?? 0;
+
+		expect(restamped).toBeGreaterThan(later);
+		expect(emitted.map(({ epoch }) => epoch)).toEqual([later, restamped]);
+		expect(revisions(emitted)).toEqual(["later", "earlier"]);
 	});
 
 	it("mints a later epoch for a reused session id even after the clock steps back", () => {

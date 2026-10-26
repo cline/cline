@@ -537,6 +537,50 @@ describe("LocalRuntimeHost", () => {
 			}
 		});
 
+		it("gives the same-id start that registers last the highest epoch, even when it began first", async () => {
+			const sessionId = "sess-composer-suggestions-overlapping-starts";
+			const { manager, build, service, sessions, events, epoch } =
+				await startViewedSession(sessionId);
+			try {
+				const earlierBuild = holdNextBuild(build);
+				const laterBuild = holdNextBuild(build);
+				const earlier = startFixtureSession(manager, sessionId, [SLOT]);
+				await earlierBuild.reached();
+				const later = startFixtureSession(manager, sessionId, [SLOT]);
+				await laterBuild.reached();
+
+				laterBuild.settle("built");
+				await later;
+				earlierBuild.settle("built");
+				await earlier;
+
+				const { pluginUiEpoch } = sessions.get(sessionId) as {
+					pluginUiEpoch: number;
+				};
+				expect(service.store.epoch(sessionId)).toBe(pluginUiEpoch);
+				expect(service.chains.get(sessionId)?.epoch).toBe(pluginUiEpoch);
+				await expect(
+					manager.pluginUi.invoke(skipItem(sessionId, "r1", "verify")),
+				).resolves.toMatchObject({
+					outcome: "ok",
+					epoch: pluginUiEpoch,
+					state: { epoch: pluginUiEpoch, seq: 2, state: { revision: "r2" } },
+				});
+				const order = envelopeOrder(events);
+				const laterEpoch = order[1]?.epoch ?? 0;
+				expect(laterEpoch).toBeGreaterThan(epoch);
+				expect(pluginUiEpoch).toBeGreaterThan(laterEpoch);
+				expect(order).toEqual([
+					{ epoch, seq: 1, revision: "r1" },
+					{ epoch: laterEpoch, seq: 1, revision: "r1" },
+					{ epoch: pluginUiEpoch, seq: 1, revision: "r1" },
+					{ epoch: pluginUiEpoch, seq: 2, revision: "r2" },
+				]);
+			} finally {
+				await manager.dispose();
+			}
+		});
+
 		it.each([
 			["while the bootstrap is still unset", true],
 			["after the session started", false],

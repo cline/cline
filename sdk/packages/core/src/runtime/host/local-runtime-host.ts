@@ -729,7 +729,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}),
 		);
 		const pluginUiSlots = readPluginUiSlotCatalog(startInput.uiSlots);
-		const pluginUiEpoch = this.pluginUiService.begin(sessionId, pluginUiSlots);
+		let pluginUiEpoch = this.pluginUiService.begin(sessionId, pluginUiSlots);
 		let active!: ActiveSession;
 		try {
 			bootstrap = await prepareLocalRuntimeBootstrap({
@@ -1175,7 +1175,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw error;
 		}
 		this.sessions.set(sessionId, active);
-		this.pluginUiService.activate(sessionId, pluginUiEpoch);
+		// The plugin's pushes and the teardown follow the epoch the slot was handed over under.
+		pluginUiEpoch = this.pluginUiService.activate(sessionId, pluginUiEpoch);
+		active.pluginUiEpoch = pluginUiEpoch;
 		const held = heldSessionEvents ?? [];
 		heldSessionEvents = null;
 		for (const event of held) {
