@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useClinePassPromo } from "@/hooks/useClinePassPromo"
+import { useWindowReturn } from "@/hooks/useWindowReturn"
 import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { TargetButton } from "../../cloud/TaskTargetPanel"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
@@ -142,6 +143,12 @@ const LocalModelSettings = ({
 	)
 }
 
+function refreshClinePassSubscription(force: boolean): void {
+	CloudServiceClient.refreshClinePassSubscription(BooleanRequest.create({ value: force })).catch((error) =>
+		console.error("Failed to refresh ClinePass subscription:", error),
+	)
+}
+
 const CloudModelSettings = () => {
 	const { nextCloudModelId, cloudModelId, currentCloudTask, clinePassSubscribed } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
@@ -149,29 +156,24 @@ const CloudModelSettings = () => {
 	const includeClinePass = isClinePassEnabled && !activeOrganization
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
 
-	// Re-ask for the plan when the pane opens and whenever the webview comes
-	// back into view, since the Subscribe link sends the user to the browser.
-	// A return after that click forces the check past the recent-answer window.
+	// Re-ask for the plan when the pane opens and whenever the user comes back
+	// to the webview, since the Subscribe link sends them to the browser. A
+	// return after that click forces the check past the recent-answer window.
 	const subscribeClickedRef = useRef(false)
 	useEffect(() => {
-		if (!includeClinePass) {
-			return
+		if (includeClinePass) {
+			refreshClinePassSubscription(false)
 		}
-		const refresh = (force: boolean) =>
-			CloudServiceClient.refreshClinePassSubscription(BooleanRequest.create({ value: force })).catch((error) =>
-				console.error("Failed to refresh ClinePass subscription:", error),
-			)
-		refresh(false)
-		const onVisible = () => {
-			if (document.visibilityState === "visible") {
-				const force = subscribeClickedRef.current
-				subscribeClickedRef.current = false
-				refresh(force)
-			}
-		}
-		document.addEventListener("visibilitychange", onVisible)
-		return () => document.removeEventListener("visibilitychange", onVisible)
 	}, [includeClinePass])
+	useWindowReturn(
+		includeClinePass
+			? () => {
+					const force = subscribeClickedRef.current
+					subscribeClickedRef.current = false
+					refreshClinePassSubscription(force)
+				}
+			: undefined,
+	)
 	const onSubscribe = useCallback(() => {
 		subscribeClickedRef.current = true
 		openSubscribePage()
