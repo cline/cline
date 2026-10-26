@@ -79,25 +79,13 @@ function fixture() {
 				emit = listener;
 				return () => {};
 			},
-			provision: vi.fn(
-				async (_input: Parameters<CloudSessionController["create"]>[0]) => ({
+			create: vi.fn(
+				async (
+					_input: Parameters<CloudSessionController["create"]>[0],
+				): ReturnType<CloudSessionController["create"]> => ({
 					sessionId: "ses-one",
 					status: "ready",
 				}),
-			),
-			create: vi.fn(
-				async (input: Parameters<CloudSessionController["create"]>[0]) => {
-					const target = await controller.provision(input);
-					if (!input.initialMessage) return target;
-					const send = await controller.send(
-						target.sessionId,
-						input.initialMessage.text,
-						"queue",
-						input.modelId,
-						input.initialMessage.images,
-					);
-					return { ...target, initialSend: send };
-				},
 			),
 			attach: vi.fn(async (sessionId: string) => {
 				emit({
@@ -396,9 +384,9 @@ describe("hub-owned cloud sessions", () => {
 					"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
 			});
 		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
-		expect(f.controllers[0]?.controller.send).toHaveBeenCalledTimes(
-			operation === "create-only" ? 0 : 1,
-		);
+		expect(
+			f.controllers[0]?.controller[operation === "send" ? "send" : "create"],
+		).toHaveBeenCalledOnce();
 	});
 
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
@@ -705,7 +693,7 @@ describe("cloud RPC over a shared hub socket", () => {
 		return { root, server };
 	}
 
-	it("keeps one publication through send after viewer disconnect and rejects origin-only Git requests", async () => {
+	it("keeps one publication and creation after viewer disconnect and rejects origin-only Git requests", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -745,6 +733,11 @@ describe("cloud RPC over a shared hub socket", () => {
 				{ id: "model", name: "Model", catalogId: "cline" },
 			]);
 			const input = localGitInput(root);
+			controller.create.mockResolvedValue({
+				sessionId: "ses-one",
+				status: "ready",
+				initialSend: { sessionId: "ses-one", ok: true },
+			});
 			await expect(browserViewer.create(input)).rejects.toThrow(
 				"token-authenticated",
 			);
@@ -788,13 +781,6 @@ describe("cloud RPC over a shared hub socket", () => {
 				organizationId: "org-one",
 				sandboxType: "resumable",
 			});
-			expect(controller.send).toHaveBeenCalledExactlyOnceWith(
-				"ses-one",
-				"Captured summary",
-				"queue",
-				"model",
-				undefined,
-			);
 			expect((await observer.command("hub.status")).payload).toMatchObject({
 				activeCloudCommands: 0,
 				idle: true,
@@ -868,7 +854,7 @@ describe("cloud RPC over a shared hub socket", () => {
 		}
 	});
 
-	it("keeps creation and sending active after the requesting viewer disconnects", async () => {
+	it("keeps creation active after the requesting viewer disconnects", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -892,10 +878,9 @@ describe("cloud RPC over a shared hub socket", () => {
 			await observer.connect();
 			const controller = f.controllers[0]?.controller;
 			if (!controller) throw new Error("Missing connected controller");
-			const provisioning = deferred<{ sessionId: string; status: string }>();
-			const sending = deferred<{ sessionId: string; ok: true }>();
-			controller.provision.mockReturnValueOnce(provisioning.promise);
-			controller.send.mockReturnValueOnce(sending.promise);
+			const completion =
+				deferred<Awaited<ReturnType<CloudSessionController["create"]>>>();
+			controller.create.mockReturnValueOnce(completion.promise);
 			const created = viewer
 				.create({
 					modelId: "model",
@@ -918,16 +903,6 @@ describe("cloud RPC over a shared hub socket", () => {
 			await viewer.dispose();
 			await client.dispose();
 			expect(await created).toMatchObject({ code: "request_failed" });
-			provisioning.resolve({ sessionId: "ses-one", status: "ready" });
-			await vi.waitFor(() =>
-				expect(controller.send).toHaveBeenCalledExactlyOnceWith(
-					"ses-one",
-					"Summary and next instruction",
-					"queue",
-					"model",
-					["image"],
-				),
-			);
 			expect((await observer.command("session.list")).payload).toMatchObject({
 				activeCloudCommands: 1,
 			});
@@ -942,7 +917,11 @@ describe("cloud RPC over a shared hub socket", () => {
 				workspaceRelativePath: "packages/app",
 				sandboxType: "resumable",
 			});
-			sending.resolve({ sessionId: "ses-one", ok: true });
+			completion.resolve({
+				sessionId: "ses-one",
+				status: "ready",
+				initialSend: { sessionId: "ses-one", ok: true },
+			});
 			await vi.waitFor(async () =>
 				expect((await observer.command("session.list")).payload).toMatchObject({
 					activeCloudCommands: 0,

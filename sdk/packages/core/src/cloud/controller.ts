@@ -20,10 +20,6 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
-import {
-	type CloudSendFailure,
-	serializeCloudSendFailure,
-} from "./hub-protocol";
 import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
@@ -56,6 +52,12 @@ import type {
 	CloudSessionState,
 	JsonRecord,
 } from "./types";
+
+type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
 
 function isHubReconnectableTransportError(error: unknown): boolean {
 	return (
@@ -1100,7 +1102,15 @@ export class CloudSessionController {
 			settle();
 			return { ...target, initialSend: send };
 		} catch (error) {
-			const send = serializeCloudSendFailure(error, dispatched);
+			const send: CloudSendFailure = {
+				dispatched,
+				message: error instanceof Error ? error.message : String(error),
+				...(error instanceof Error &&
+				"detail" in error &&
+				typeof error.detail === "string"
+					? { detail: error.detail }
+					: {}),
+			};
 			settle(send);
 			return { ...target, initialSend: send };
 		} finally {
