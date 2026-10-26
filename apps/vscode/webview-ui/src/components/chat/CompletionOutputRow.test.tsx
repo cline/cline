@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
@@ -65,6 +66,26 @@ describe("CompletionOutputRow", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Copy response" }))
 
 		await waitFor(() => expect(writeText).toHaveBeenCalledWith("All done!"))
+	})
+
+	it("reports text selection on the element the quote button is positioned against", () => {
+		const contentRef = createRef<HTMLDivElement>()
+		const onMouseUp = vi.fn()
+		render(
+			<CompletionOutputRow
+				contentRef={contentRef}
+				handleQuoteClick={vi.fn()}
+				onMouseUp={onMouseUp}
+				quoteButtonState={{ visible: true, top: 0, left: 0, selectedText: "done" }}
+				text="All done!"
+			/>,
+		)
+
+		fireEvent.mouseUp(screen.getByText("All done!"))
+
+		expect(onMouseUp).toHaveBeenCalledTimes(1)
+		expect(contentRef.current).toContainElement(screen.getByText("All done!"))
+		expect(contentRef.current).toContainElement(screen.getByRole("button", { name: "Quote selection" }))
 	})
 })
 

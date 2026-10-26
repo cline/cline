@@ -1,6 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
-import { memo, useEffect, useState } from "react"
+import { MouseEvent, memo, Ref, useEffect, useState } from "react"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -22,6 +22,11 @@ interface CompletionOutputRowProps {
 	 * simply renders no button.
 	 */
 	showViewChanges?: boolean
+	// QuoteButton coordinates are computed relative to this element's rect, and the
+	// button is absolutely positioned against it — keep ref, onMouseUp, and `relative`
+	// on the same element.
+	contentRef?: Ref<HTMLDivElement>
+	onMouseUp?: (event: MouseEvent<HTMLDivElement>) => void
 }
 
 /**
@@ -32,7 +37,7 @@ interface CompletionOutputRowProps {
  * rather than a definitive task completion.
  */
 export const CompletionOutputRow = memo(
-	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
+	({ text, quoteButtonState, handleQuoteClick, showViewChanges, contentRef, onMouseUp }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
 		// undefined = still checking; the button stays hidden until the host
 		// confirms the latest run actually changed files. A count of 0 also
@@ -73,7 +78,10 @@ export const CompletionOutputRow = memo(
 					<span className="text-xs font-medium uppercase tracking-wider text-success/70">Completed</span>
 					<CopyButton ariaLabel="Copy response" className="text-success/70" textToCopy={text} />
 				</div>
-				<div className="completion-output-content relative p-2 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm">
+				<div
+					className="completion-output-content relative p-2 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm"
+					onMouseUp={onMouseUp}
+					ref={contentRef}>
 					<MarkdownRow markdown={text} />
 					{quoteButtonState.visible && (
 						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
