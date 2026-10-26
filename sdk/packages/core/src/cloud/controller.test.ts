@@ -78,12 +78,16 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 			payload?: Record<string, unknown>,
 			sessionId?: string,
 			opts?: {
+				requiredCapability?: string;
 				beforeDispatch?: () => void;
 				onDispatch?: (requestId: string) => void;
 			},
 		) => {
 			opts?.beforeDispatch?.();
-			if (name === "session.create" && payload?.historySource === "stored")
+			if (
+				name === "session.create" &&
+				opts?.requiredCapability === "session.create.stored_history"
+			)
 				throw new HubCommandError(
 					name,
 					"unsupported_feature",
@@ -705,7 +709,10 @@ describe("CloudSessionController neutral host contract", () => {
 				throw Object.assign(new Error("Missing runtime"), {
 					code: "session_not_found",
 				});
-			if (args[0] === "session.create" && args[1]?.historySource === "stored")
+			if (
+				args[0] === "session.create" &&
+				args[3]?.requiredCapability === "session.create.stored_history"
+			)
 				return {
 					version: "v1",
 					ok: true,
@@ -716,8 +723,9 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.attach(record.id);
 		const calls = f.command.mock.calls;
 		const resumeIndex = calls.findIndex(
-			([name, payload]) =>
-				name === "session.create" && payload?.historySource === "stored",
+			([name, , , options]) =>
+				name === "session.create" &&
+				options?.requiredCapability === "session.create.stored_history",
 		);
 		expect(resumeIndex).toBeGreaterThan(-1);
 		expect(calls[resumeIndex]?.[1]).toMatchObject({
@@ -749,16 +757,19 @@ describe("CloudSessionController neutral host contract", () => {
 				throw Object.assign(new Error("Missing runtime"), {
 					code: "session_not_found",
 				});
-			if (args[0] === "session.create" && args[1]?.historySource === "stored")
+			if (
+				args[0] === "session.create" &&
+				args[3]?.requiredCapability === "session.create.stored_history"
+			)
 				throw failure;
 			return original(...args);
 		});
 		await expect(f.controller.attach(record.id)).rejects.toBe(failure);
 		expect(
 			f.command.mock.calls.some(
-				([name, payload]) =>
+				([name, , , options]) =>
 					name === "session.messages" ||
-					(name === "session.create" && payload?.historySource !== "stored"),
+					(name === "session.create" && !options?.requiredCapability),
 			),
 		).toBe(false);
 		await f.controller.dispose();
@@ -775,7 +786,7 @@ describe("CloudSessionController neutral host contract", () => {
 					code: "session_not_found",
 				});
 			}
-			if (args[0] === "session.create" && args[1]?.historySource !== "stored") {
+			if (args[0] === "session.create" && !args[3]?.requiredCapability) {
 				throw Object.assign(new Error("Already restored"), {
 					code: "session_already_exists",
 				});

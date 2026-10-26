@@ -2695,7 +2695,9 @@ export class CloudSessionController {
 					: {}),
 			};
 			const reply = await connection.client
-				.command("session.create", { ...payload, historySource: "stored" })
+				.command("session.create", payload, undefined, {
+					requiredCapability: "session.create.stored_history",
+				})
 				.catch(async (error: unknown) => {
 					if (
 						!(error instanceof HubCommandError) ||
