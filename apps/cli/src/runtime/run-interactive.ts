@@ -520,6 +520,7 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
+		mouse: config.mouse,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,

@@ -253,6 +253,35 @@ describe("parseArgs", () => {
 		expect(parsed.retries).toBeUndefined();
 		expect(parsed.invalidRetries).toBe("0");
 	});
+
+	it("parses --no-mouse flag correctly", () => {
+		expect(parseArgs([]).mouse).toBeUndefined();
+		expect(parseArgs(["--no-mouse"]).mouse).toBe(false);
+	});
+
+	it("respects CLINE_NO_MOUSE and CLINE_MOUSE environment variables when flag is not passed", () => {
+		const originalNoMouse = process.env.CLINE_NO_MOUSE;
+		const originalMouse = process.env.CLINE_MOUSE;
+		try {
+			process.env.CLINE_NO_MOUSE = "1";
+			expect(parseArgs([]).mouse).toBe(false);
+
+			delete process.env.CLINE_NO_MOUSE;
+			process.env.CLINE_MOUSE = "0";
+			expect(parseArgs([]).mouse).toBe(false);
+		} finally {
+			if (originalNoMouse !== undefined) {
+				process.env.CLINE_NO_MOUSE = originalNoMouse;
+			} else {
+				delete process.env.CLINE_NO_MOUSE;
+			}
+			if (originalMouse !== undefined) {
+				process.env.CLINE_MOUSE = originalMouse;
+			} else {
+				delete process.env.CLINE_MOUSE;
+			}
+		}
+	});
 });
 
 describe("format helpers", () => {

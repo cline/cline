@@ -234,7 +234,7 @@ These hooks fire when the terminal emulator window gains or loses operating syst
 
 ### useSelectionHandler(handler)
 
-Handle text selection events. Fires when the user finishes a mouse selection (mouse-up). Solid-only hook - React does not have this.
+Handle text selection events. Fires when the user finishes a mouse selection (mouse-up). Also available in React as `useSelectionHandler` from `@opentui/react`.
 
 ```tsx
 import { useSelectionHandler } from "@opentui/solid"
