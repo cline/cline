@@ -2,6 +2,7 @@ import {
 	APICallError,
 	NoOutputGeneratedError,
 	RetryError,
+	StreamProviderError,
 	TypeValidationError,
 } from "ai";
 import { describe, expect, it } from "vitest";
@@ -550,5 +551,55 @@ describe("isRetryableBeyondSdkRetries", () => {
 		expect(isRetryableBeyondSdkRetries("fetch failed: socket closed")).toBe(
 			false,
 		);
+	});
+});
+
+describe("isRetryableProviderError: capacity failures without an HTTP status", () => {
+	const overloadedMessage =
+		"Our servers are currently overloaded. Please try again later.";
+
+	it("retries an OpenAI-compatible server_is_overloaded payload", () => {
+		expect(
+			isRetryableProviderError({
+				error: {
+					type: "service_unavailable_error",
+					code: "server_is_overloaded",
+					message: overloadedMessage,
+					param: null,
+				},
+			}),
+		).toBe(true);
+	});
+
+	it("retries the same payload forwarded as a JSON string", () => {
+		expect(
+			isRetryableProviderError(
+				JSON.stringify({
+					error: { code: "server_is_overloaded", message: overloadedMessage },
+				}),
+			),
+		).toBe(true);
+	});
+
+	it("retries an AI SDK stream error that only carries the overloaded message", () => {
+		expect(
+			isRetryableProviderError(
+				new StreamProviderError({ message: overloadedMessage }),
+			),
+		).toBe(true);
+	});
+
+	it("retries a prose-only overload report", () => {
+		expect(
+			isRetryableProviderError(
+				"The service may be temporarily overloaded, please try again later",
+			),
+		).toBe(true);
+	});
+
+	it("lets a visible client status override an overloaded message", () => {
+		expect(
+			isRetryableProviderError({ error: { message: "overloaded", code: 400 } }),
+		).toBe(false);
 	});
 });

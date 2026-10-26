@@ -239,6 +239,11 @@ export interface AgentModelRequest {
 	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
+	/** Progress shown to the user while the request is in flight, such as a retry wait. */
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
 }
 
 export interface AgentRuntimePrepareTurnContext {
