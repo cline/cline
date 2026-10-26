@@ -16,6 +16,11 @@ import type {
 	DesktopTransportResponse,
 	DesktopTransportState,
 } from "@/lib/desktop-transport";
+import {
+	hostShellHandlesCommand,
+	invokeHostShell,
+	isHostShellAvailable,
+} from "@/lib/host-shell";
 
 // Lazily import the Tauri invoke API only when available. When running in
 // sidecar/web mode (without Tauri), this module may not exist or the bridge
@@ -631,6 +636,23 @@ class DesktopClient {
 		args?: Record<string, unknown>,
 		options?: DesktopInvokeOptions,
 	): Promise<T> {
+		// An embedding host (e.g. the VS Code extension) can claim commands it
+		// answers natively — directory picker, notifications, opening files in
+		// the host editor. Checked first so a host can also override sidecar
+		// commands such as open_file_in_editor.
+		if (isHostShellAvailable() && hostShellHandlesCommand(command)) {
+			try {
+				return await invokeHostShell<T>(command, args);
+			} catch (error) {
+				this.reportError({
+					operation: "webview.host_command",
+					error,
+					command,
+				});
+				throw error;
+			}
+		}
+
 		// Route native OS commands (directory picker, file opener) through Tauri
 		// only when running inside the full Tauri app shell. In sidecar/web mode
 		// these are handled by the sidecar over WebSocket.
@@ -849,6 +871,11 @@ export const desktopClient = new DesktopClient();
  * browser handles it directly.
  */
 export async function openExternalUrl(url: string): Promise<void> {
+	// Embedded hosts (VS Code webviews) block window.open; let the host open it.
+	if (isHostShellAvailable() && hostShellHandlesCommand("open_external_url")) {
+		await desktopClient.invoke("open_external_url", { url });
+		return;
+	}
 	if (isTauriAvailable()) {
 		await desktopClient.invoke("open_external_url", { url });
 		return;

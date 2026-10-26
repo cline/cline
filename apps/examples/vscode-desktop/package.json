@@ -1,0 +1,84 @@
+{
+	"name": "@cline/vscode-desktop",
+	"displayName": "Cline Desktop (VS Code)",
+	"description": "Prototype: the Cline desktop app's UI and backend hosted inside a VS Code extension.",
+	"version": "0.0.1",
+	"private": true,
+	"publisher": "cline",
+	"icon": "media/icon.png",
+	"license": "Apache-2.0",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"main": "./dist/extension.js",
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "clineDesktop.open",
+				"title": "Cline Desktop: Open"
+			},
+			{
+				"command": "clineDesktop.restartBackend",
+				"title": "Cline Desktop: Restart Backend"
+			},
+			{
+				"command": "clineDesktop.showLogs",
+				"title": "Cline Desktop: Show Backend Logs"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "clineDesktop",
+					"title": "Cline Desktop",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"clineDesktop": [
+				{
+					"type": "webview",
+					"id": "clineDesktop.sidebar",
+					"name": "Cline",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Cline Desktop",
+			"properties": {
+				"clineDesktop.bunPath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the bun (or compiled cline CLI) binary used to run the desktop backend. Leave empty to resolve `bun` from PATH."
+				},
+				"clineDesktop.backendEntry": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the desktop backend entrypoint (sidecar/index.ts or a built bundle). Leave empty to use the copy bundled with this extension / repo checkout."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"build:webview": "bun run scripts/build-webview.ts",
+		"build:extension": "bun build ./src/extension.ts --outdir ./dist --target=node --format=cjs --external=vscode --sourcemap=linked",
+		"build": "bun run build:webview && bun run build:extension",
+		"watch": "bun build ./src/extension.ts --outdir ./dist --target=node --format=cjs --external=vscode --sourcemap=linked --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run --config vitest.config.ts"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.5",
+		"@types/vscode": "^1.90.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.18"
+	}
+}

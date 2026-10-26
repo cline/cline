@@ -68,9 +68,26 @@ function readOrigin(req: Request): string | undefined {
 	return origin ? origin : undefined;
 }
 
+// Entries ending in "://*" trust every origin with that scheme. Embedded
+// hosts such as VS Code mint a fresh `vscode-webview://<uuid>` origin per
+// webview, so the exact origin cannot be known when the sidecar starts.
+const TRUSTED_ORIGIN_SCHEMES = new Set(
+	EXTRA_TRUSTED_ORIGINS.filter((origin) => origin.endsWith("://*")).map(
+		(origin) => origin.slice(0, -1),
+	),
+);
+
+export function isTrustedOrigin(origin: string): boolean {
+	if (TRUSTED_BROWSER_ORIGINS.has(origin)) return true;
+	for (const prefix of TRUSTED_ORIGIN_SCHEMES) {
+		if (origin.startsWith(prefix)) return true;
+	}
+	return false;
+}
+
 function isTrustedRequestOrigin(req: Request): boolean {
 	const origin = readOrigin(req);
-	return !origin || TRUSTED_BROWSER_ORIGINS.has(origin);
+	return !origin || isTrustedOrigin(origin);
 }
 
 function corsHeaders(req: Request): Record<string, string> {
@@ -78,7 +95,7 @@ function corsHeaders(req: Request): Record<string, string> {
 	return {
 		"access-control-allow-headers": "accept, content-type",
 		"access-control-allow-methods": "GET, POST, OPTIONS",
-		...(origin && TRUSTED_BROWSER_ORIGINS.has(origin)
+		...(origin && isTrustedOrigin(origin)
 			? {
 					"access-control-allow-origin": origin,
 					vary: "Origin",
