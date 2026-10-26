@@ -12,7 +12,7 @@ import {
 	type Message,
 } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
-import { afterEach, beforeEach, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, expect, type Mock, vi } from "vitest";
 import { FileSessionService } from "../../session/services/file-session-service";
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
@@ -172,15 +172,11 @@ export function pluginUiSlotHelpers(homeDir: () => string) {
 		> = {},
 	) {
 		const agents: Array<ReturnType<typeof createSlotAgent>> = [];
+		const build: Mock = vi.fn().mockReturnValue(createRuntime());
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
 			sessionService: new FileSessionService(join(homeDir(), "sessions")),
-			runtimeBuilder: {
-				build: vi.fn().mockReturnValue({
-					tools: [],
-					shutdown: vi.fn().mockResolvedValue(undefined),
-				}),
-			} as never,
+			runtimeBuilder: { build } as never,
 			createAgent: (config) => {
 				const agent = createSlotAgent(config);
 				agents.push(agent);
@@ -190,18 +186,44 @@ export function pluginUiSlotHelpers(homeDir: () => string) {
 		});
 		const service = Reflect.get(manager, "pluginUiService") as {
 			begin(sessionId: string, slots: readonly string[]): number;
+			activate(sessionId: string, epoch: number): void;
 			record(
 				sessionId: string,
 				epoch: number,
 				push: { plugin: string; slot: string; state: unknown },
 			): void;
 			closeSession(sessionId: string, epoch: number): Promise<void>;
-			store: { epoch(sessionId: string): number | undefined };
-			chains: Map<string, unknown>;
+			store: {
+				epoch(sessionId: string): number | undefined;
+				viewers(sessionId: string): unknown[];
+			};
+			chains: Map<string, { epoch: number }>;
 		};
-		const isResident = (sessionId: string) =>
-			(Reflect.get(manager, "sessions") as Map<string, unknown>).has(sessionId);
-		return { manager, agents, service, isResident };
+		const sessions = Reflect.get(manager, "sessions") as Map<string, unknown>;
+		const isResident = (sessionId: string) => sessions.has(sessionId);
+		return { manager, agents, build, service, sessions, isResident };
+	}
+
+	function createRuntime() {
+		return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+	}
+
+	/** Holds the next runtime build until the test settles it. */
+	function holdNextBuild(build: Mock) {
+		let settle: ((outcome: "built" | "failed") => void) | undefined;
+		build.mockImplementationOnce(
+			() =>
+				new Promise((resolve, reject) => {
+					settle = (outcome) =>
+						outcome === "built"
+							? resolve(createRuntime())
+							: reject(new Error("runtime build failed"));
+				}),
+		);
+		return {
+			reached: () => vi.waitFor(() => expect(settle).toBeDefined()),
+			settle: (outcome: "built" | "failed") => settle?.(outcome),
+		};
 	}
 
 	function startFixtureSession(
@@ -273,6 +295,7 @@ export function pluginUiSlotHelpers(homeDir: () => string) {
 		attach,
 		use,
 		createSlotHost,
+		holdNextBuild,
 		startFixtureSession,
 		writeHangingSlotPlugin,
 		uiStates,

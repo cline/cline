@@ -898,7 +898,13 @@ session again.
 
 **Epoch and ordering.** `begin` mints the epoch inside `startResolvedSession`
 as `max(now, the id's last epoch + 1)`, so a restart under the same id always
-supersedes the previous copy, even after the clock steps back. Core owns `seq`,
+supersedes the previous copy, even after the clock steps back. The new epoch
+is only staged until `activate`: a session still resident under the id keeps
+its state, viewers and UI chain, and keeps serving invokes, until the
+replacement is resident. A start that fails ends only its staged epoch, so a
+failed reopen leaves the working session's slot as it was. Concurrent starts
+under one id each stage their own epoch, and the slot follows the start that
+last registers, as the session map does. Core owns `seq`,
 so a worker reinitialized after idle reclaim cannot run it backwards.
 Renderers clear their slot state on every bind, apply `get` and live events
 through `applyPluginUiState` (the highest `(epoch, seq)` wins), and re-attach

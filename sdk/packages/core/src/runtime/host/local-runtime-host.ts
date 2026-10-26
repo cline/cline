@@ -730,7 +730,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 					// Before the bootstrap guard: a plugin that pushed in setup and then
 					// failed while bootstrapping must not leave its state visible.
 					if (issue.state === "failed" || issue.state === "disabled") {
-						this.pluginUiService.clearPlugin(sessionId, issue.name);
+						this.pluginUiService.clearPlugin(
+							sessionId,
+							pluginUiEpoch,
+							issue.name,
+						);
 					}
 					// Setup runs on the first turn, after the start result went out;
 					// surface later plugin failures as a status notice instead.
@@ -1120,8 +1124,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				active.compactionState = undefined;
 			}
 		} catch (error) {
-			// The session never registers, so no teardown would end its UI epoch.
-			await this.pluginUiService.closeSession(sessionId, pluginUiEpoch);
+			// The session never registers or activates, so no teardown ends its staged
+			// UI epoch, and a resident session under the same id keeps its slot.
 			this.pluginUiService.release(sessionId, pluginUiEpoch);
 			throw error;
 		}

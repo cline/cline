@@ -27,6 +27,7 @@ describe("LocalRuntimeHost", () => {
 			fixturePath,
 			attach,
 			createSlotHost,
+			holdNextBuild,
 			startFixtureSession,
 			uiStates,
 		} = pluginUiSlotHelpers(homeDir);
@@ -251,7 +252,12 @@ describe("LocalRuntimeHost", () => {
 			],
 		])("emits nothing for a start that fails in %s after its epoch began, and ends that epoch", async (_, hostOptions, message) => {
 			const sessionId = "sess-composer-suggestions-failed-start";
-			const { manager, service } = createSlotHost(hostOptions);
+			const telemetry = new TelemetryService();
+			const capture = vi.spyOn(telemetry, "capture");
+			const { manager, service } = createSlotHost({
+				telemetry,
+				...hostOptions,
+			});
 			const begin = vi.spyOn(service, "begin");
 			const record = vi.spyOn(service, "record");
 			const events: CoreSessionEvent[] = [];
@@ -263,6 +269,16 @@ describe("LocalRuntimeHost", () => {
 				expect(begin).toHaveBeenCalledTimes(1);
 				// The fixture's setup state reached the store, yet nothing was emitted.
 				expect(record).toHaveBeenCalled();
+				expect(uiStates(events)).toEqual([]);
+				// An epoch that never activated has nothing to summarize.
+				expect(capture).not.toHaveBeenCalledWith(
+					expect.objectContaining({
+						event: CORE_TELEMETRY_EVENTS.PLUGIN_UI.SESSION_SUMMARY,
+					}),
+				);
+
+				const failed: number = begin.mock.results[0]?.value;
+				service.activate(sessionId, failed);
 				expect(uiStates(events)).toEqual([]);
 				expect(service.store.epoch(sessionId)).toBeUndefined();
 				expect(service.chains.has(sessionId)).toBe(false);
@@ -286,6 +302,236 @@ describe("LocalRuntimeHost", () => {
 				expect(begin).not.toHaveBeenCalled();
 				expect(service.store.epoch(sessionId)).toBeUndefined();
 				expect(service.chains.has(sessionId)).toBe(false);
+			} finally {
+				await manager.dispose();
+			}
+		});
+
+		const skipItem = (sessionId: string, revision: string, itemId: string) =>
+			({
+				sessionId,
+				slot: SLOT,
+				action: { verb: "skip", input: "key", revision, itemId },
+			}) as const;
+
+		/** A resident fixture session with one attached viewer, recording every event. */
+		async function startViewedSession(sessionId: string) {
+			const host = createSlotHost();
+			const events: CoreSessionEvent[] = [];
+			host.manager.subscribe((event) => events.push(event));
+			await startFixtureSession(host.manager, sessionId, [SLOT]);
+			const [setupState] = await host.manager.pluginUi.get({ sessionId });
+			await host.manager.pluginUi.invoke({ ...attach, sessionId });
+			return {
+				...host,
+				events,
+				setupState,
+				epoch: setupState?.epoch ?? 0,
+				resident: host.sessions.get(sessionId),
+			};
+		}
+
+		function envelopeOrder(events: CoreSessionEvent[]) {
+			return uiStates(events).map(({ epoch, seq, state }) => ({
+				epoch,
+				seq,
+				revision: state?.revision ?? null,
+			}));
+		}
+
+		it.each<
+			[string, string, (host: ReturnType<typeof createSlotHost>) => void]
+		>([
+			[
+				"prepareLocalRuntimeBootstrap",
+				"provider settings unreadable",
+				(host) => {
+					vi.spyOn(
+						Reflect.get(host.manager, "providerSettingsManager"),
+						"getProviderSettings",
+					).mockImplementationOnce(() => {
+						throw new Error("provider settings unreadable");
+					});
+				},
+			],
+			[
+				"the runtime build",
+				"runtime build failed",
+				(host) => {
+					host.build.mockRejectedValueOnce(new Error("runtime build failed"));
+				},
+			],
+			[
+				"the runtime build after its copy of the plugin failed",
+				"runtime build failed",
+				(host) => {
+					const registry = getProcessPluginRegistry();
+					const loadForSession = registry.loadForSession.bind(registry);
+					vi.spyOn(registry, "loadForSession").mockImplementationOnce(
+						async (input) => {
+							const loaded = await loadForSession(input);
+							input.onIssue?.({
+								name: FIXTURE,
+								pluginPath: fixturePath,
+								state: "failed",
+								reason: "error",
+							});
+							return loaded;
+						},
+					);
+					host.build.mockRejectedValueOnce(new Error("runtime build failed"));
+				},
+			],
+		])("keeps the resident session's slot, viewers and actions when a same-id start fails in %s", async (_, message, failNextStart) => {
+			const sessionId = "sess-composer-suggestions-failed-reopen";
+			const session = await startViewedSession(sessionId);
+			const { manager, service, sessions, events, setupState, epoch } = session;
+			const begin = vi.spyOn(service, "begin");
+			try {
+				failNextStart(session);
+				await expect(
+					startFixtureSession(manager, sessionId, [SLOT]),
+				).rejects.toThrow(message);
+				const failed: number = begin.mock.results[0]?.value;
+				service.activate(sessionId, failed);
+
+				expect(service.store.epoch(sessionId)).toBe(epoch);
+				expect(sessions.get(sessionId)).toBe(session.resident);
+				await expect(manager.pluginUi.get({ sessionId })).resolves.toEqual([
+					setupState,
+				]);
+				expect(service.store.viewers(sessionId)).toEqual([
+					{ id: "local", surface: "desktop" },
+				]);
+				await expect(
+					manager.pluginUi.invoke(skipItem(sessionId, "r1", "verify")),
+				).resolves.toMatchObject({
+					outcome: "ok",
+					epoch,
+					state: { epoch, seq: 2, state: { revision: "r2" } },
+				});
+				expect(envelopeOrder(events)).toEqual([
+					{ epoch, seq: 1, revision: "r1" },
+					{ epoch, seq: 2, revision: "r2" },
+				]);
+			} finally {
+				vi.restoreAllMocks();
+				await manager.dispose();
+			}
+		});
+
+		it("serves the resident session while a same-id start is pending and after it fails", async () => {
+			const sessionId = "sess-composer-suggestions-pending-fails";
+			const { manager, build, events, setupState, epoch } =
+				await startViewedSession(sessionId);
+			try {
+				const pendingBuild = holdNextBuild(build);
+				const replacement = startFixtureSession(manager, sessionId, [SLOT]);
+				replacement.catch(() => undefined);
+				await pendingBuild.reached();
+
+				// The replacement's setup state is held back; the resident session answers.
+				await expect(manager.pluginUi.get({ sessionId })).resolves.toEqual([
+					setupState,
+				]);
+				await expect(
+					manager.pluginUi.invoke(skipItem(sessionId, "r1", "verify")),
+				).resolves.toMatchObject({
+					outcome: "ok",
+					epoch,
+					state: { epoch, seq: 2, state: { revision: "r2" } },
+				});
+
+				pendingBuild.settle("failed");
+				await expect(replacement).rejects.toThrow("runtime build failed");
+				await expect(
+					manager.pluginUi.invoke(skipItem(sessionId, "r2", "commit")),
+				).resolves.toMatchObject({
+					outcome: "ok",
+					epoch,
+					state: { epoch, seq: 3, state: { revision: "r3" } },
+				});
+				expect(envelopeOrder(events)).toEqual([
+					{ epoch, seq: 1, revision: "r1" },
+					{ epoch, seq: 2, revision: "r2" },
+					{ epoch, seq: 3, revision: "r3" },
+				]);
+			} finally {
+				await manager.dispose();
+			}
+		});
+
+		it("hands the slot to a same-id start once it is resident", async () => {
+			const sessionId = "sess-composer-suggestions-pending-succeeds";
+			const { manager, build, service, events, setupState, epoch } =
+				await startViewedSession(sessionId);
+			try {
+				const pendingBuild = holdNextBuild(build);
+				const replacement = startFixtureSession(manager, sessionId, [SLOT]);
+				await pendingBuild.reached();
+				await expect(manager.pluginUi.get({ sessionId })).resolves.toEqual([
+					setupState,
+				]);
+
+				pendingBuild.settle("built");
+				await replacement;
+				const replacedEpoch = service.store.epoch(sessionId) ?? 0;
+				expect(replacedEpoch).toBeGreaterThan(epoch);
+				expect(service.chains.get(sessionId)?.epoch).toBe(replacedEpoch);
+				expect(service.store.viewers(sessionId)).toEqual([]);
+				service.record(sessionId, epoch, {
+					plugin: FIXTURE,
+					slot: SLOT,
+					state: { status: "hidden", title: "Old", revision: "old", items: [] },
+				});
+				expect(envelopeOrder(events)).toEqual([
+					{ epoch, seq: 1, revision: "r1" },
+					{ epoch: replacedEpoch, seq: 1, revision: "r1" },
+				]);
+				await expect(
+					manager.pluginUi.invoke({ ...attach, sessionId }),
+				).resolves.toMatchObject({ outcome: "ok", epoch: replacedEpoch });
+			} finally {
+				await manager.dispose();
+			}
+		});
+
+		it("hands the slot to the same-id start that registers when a later-begun one fails", async () => {
+			const sessionId = "sess-composer-suggestions-concurrent-starts";
+			const { manager, build, service, sessions, events, epoch } =
+				await startViewedSession(sessionId);
+			try {
+				const registering = holdNextBuild(build);
+				const failing = holdNextBuild(build);
+				const registered = startFixtureSession(manager, sessionId, [SLOT]);
+				await registering.reached();
+				const failed = startFixtureSession(manager, sessionId, [SLOT]);
+				failed.catch(() => undefined);
+				await failing.reached();
+
+				registering.settle("built");
+				await registered;
+				failing.settle("failed");
+				await expect(failed).rejects.toThrow("runtime build failed");
+
+				const { pluginUiEpoch } = sessions.get(sessionId) as {
+					pluginUiEpoch: number;
+				};
+				expect(pluginUiEpoch).toBeGreaterThan(epoch);
+				expect(service.store.epoch(sessionId)).toBe(pluginUiEpoch);
+				expect(service.chains.get(sessionId)?.epoch).toBe(pluginUiEpoch);
+				await expect(
+					manager.pluginUi.invoke(skipItem(sessionId, "r1", "verify")),
+				).resolves.toMatchObject({
+					outcome: "ok",
+					epoch: pluginUiEpoch,
+					state: { epoch: pluginUiEpoch, seq: 2, state: { revision: "r2" } },
+				});
+				expect(envelopeOrder(events)).toEqual([
+					{ epoch, seq: 1, revision: "r1" },
+					{ epoch: pluginUiEpoch, seq: 1, revision: "r1" },
+					{ epoch: pluginUiEpoch, seq: 2, revision: "r2" },
+				]);
 			} finally {
 				await manager.dispose();
 			}

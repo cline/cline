@@ -195,7 +195,7 @@ describe("PluginUiService", () => {
 		const burst = await Promise.all(
 			Array.from({ length: 21 }, () => harness.invoke("booting", attach)),
 		);
-		expect(burst.at(-1)).toEqual({ outcome: "rejected" });
+		expect(burst.at(-1)).toEqual({ outcome: "unavailable" });
 		expect(harness.emitted).toEqual([]);
 	});
 

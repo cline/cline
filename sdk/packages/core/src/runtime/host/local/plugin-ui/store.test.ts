@@ -43,6 +43,12 @@ function revisions(envelopes: PluginUiStateEnvelope[]): Array<string | null> {
 	return envelopes.map((envelope) => envelope.state?.revision ?? null);
 }
 
+function beginResident(store: PluginUiStore, sessionId: string) {
+	const epoch = store.begin(sessionId, [SLOT]);
+	store.activate(sessionId, epoch);
+	return epoch;
+}
+
 describe("PluginUiStore", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
@@ -155,7 +161,7 @@ describe("PluginUiStore", () => {
 		store.record("s1", epoch, push("r2"));
 		expect(vi.getTimerCount()).toBe(0);
 		expect(emitted).toEqual([]);
-		expect(store.current("s1", SLOT)).toMatchObject({ seq: 2 });
+		expect(store.current("s1", SLOT)).toBeUndefined();
 
 		store.activate("s1", epoch + 1);
 		expect(emitted).toEqual([]);
@@ -177,7 +183,7 @@ describe("PluginUiStore", () => {
 		const { store, emitted } = createStore();
 		const epoch = store.begin("s1", [SLOT]);
 		store.record("s1", epoch, push("r1", "failing"));
-		store.clearPlugin("s1", "failing");
+		store.clearPlugin("s1", epoch, "failing");
 
 		expect(emitted).toEqual([]);
 		store.activate("s1", epoch);
@@ -188,9 +194,8 @@ describe("PluginUiStore", () => {
 
 	it("drops pushes from another epoch as stale", () => {
 		const { store, emitted, drops } = createStore();
-		const oldEpoch = store.begin("s1", [SLOT]);
-		const epoch = store.begin("s1", [SLOT]);
-		store.activate("s1", epoch);
+		const oldEpoch = beginResident(store, "s1");
+		const epoch = beginResident(store, "s1");
 
 		store.record("s1", oldEpoch, push("old"));
 		store.record("unknown", epoch, push("r1"));
@@ -247,11 +252,11 @@ describe("PluginUiStore", () => {
 		store.activate("s1", epoch);
 		store.record("s1", epoch, push("r1", "next-turn"));
 
-		store.clearPlugin("s1", "someone-else");
+		store.clearPlugin("s1", epoch, "someone-else");
 		expect(emitted).toHaveLength(1);
 
-		store.clearPlugin("s1", "next-turn");
-		store.clearPlugin("s1", "next-turn");
+		store.clearPlugin("s1", epoch, "next-turn");
+		store.clearPlugin("s1", epoch, "next-turn");
 		expect(emitted).toHaveLength(2);
 		expect(emitted[1]).toMatchObject({ seq: 2, state: null });
 		expect(store.get("s1")).toEqual([emitted[1]]);
@@ -259,7 +264,7 @@ describe("PluginUiStore", () => {
 
 	it("counts viewers per session, one lease per viewer id", () => {
 		const { store } = createStore();
-		store.begin("s1", [SLOT]);
+		beginResident(store, "s1");
 
 		expect(store.attachViewer("s1", { id: "a", surface: "cli" })).toBe(1);
 		expect(store.attachViewer("s1", { id: "b", surface: "desktop" })).toBe(2);
@@ -273,8 +278,8 @@ describe("PluginUiStore", () => {
 
 	it("scopes leases to the connection that attached them", () => {
 		const { store } = createStore();
-		store.begin("s1", [SLOT]);
-		store.begin("s2", [SLOT]);
+		beginResident(store, "s1");
+		beginResident(store, "s2");
 		store.attachViewer("s1", { id: "client" }, "conn-old");
 		store.attachViewer("s2", { id: "client" }, "conn-old");
 
@@ -290,14 +295,16 @@ describe("PluginUiStore", () => {
 		expect(store.detachViewer("s2", "client")).toBe(0);
 	});
 
-	it("records the catalog of each epoch", () => {
+	it("records the catalog of each resident epoch", () => {
 		const { store } = createStore();
 		expect(store.slots("s1")).toEqual([]);
 
-		store.begin("s1", [SLOT]);
+		beginResident(store, "s1");
 		expect(store.slots("s1")).toEqual([SLOT]);
 
-		store.begin("s1", []);
+		const next = store.begin("s1", []);
+		expect(store.slots("s1")).toEqual([SLOT]);
+		store.activate("s1", next);
 		expect(store.slots("s1")).toEqual([]);
 	});
 
@@ -322,6 +329,78 @@ describe("PluginUiStore", () => {
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
+	it("stages a same-id epoch while the resident one keeps its state, viewers and pushes", () => {
+		const { store, emitted, drops } = createStore();
+		const resident = beginResident(store, "s1");
+		store.attachViewer("s1", { id: "a" });
+		store.record("s1", resident, push("r1"));
+		const [residentState] = store.get("s1");
+
+		const staged = store.begin("s1", [SLOT]);
+		store.record("s1", staged, push("staged"));
+		expect(store.epoch("s1")).toBe(resident);
+		expect(store.get("s1")).toEqual([residentState]);
+		expect(store.viewers("s1")).toEqual([{ id: "a" }]);
+		vi.advanceTimersByTime(100);
+		store.record("s1", resident, push("r2"));
+		expect(emitted.map(({ epoch, seq }) => ({ epoch, seq }))).toEqual([
+			{ epoch: resident, seq: 1 },
+			{ epoch: resident, seq: 2 },
+		]);
+
+		store.activate("s1", staged);
+		store.record("s1", resident, push("late"));
+		expect(store.epoch("s1")).toBe(staged);
+		expect(store.viewers("s1")).toEqual([]);
+		expect(revisions(emitted)).toEqual(["r1", "r2", "staged"]);
+		expect(emitted.at(-1)).toMatchObject({ epoch: staged, seq: 1 });
+		expect(drops.map((drop) => drop.reason)).toEqual(["stale_epoch"]);
+	});
+
+	it("ends and clears a staged epoch without touching the resident one", () => {
+		const { store, emitted } = createStore();
+		const resident = beginResident(store, "s1");
+		store.attachViewer("s1", { id: "a" });
+		store.record("s1", resident, push("r1"));
+		store.record("s1", resident, push("r2"));
+		const staged = store.begin("s1", [SLOT]);
+		store.record("s1", staged, push("staged"));
+
+		store.clearPlugin("s1", staged, "next-turn");
+		store.end("s1", staged);
+		store.activate("s1", staged);
+		vi.advanceTimersByTime(100);
+
+		expect(store.epoch("s1")).toBe(resident);
+		expect(store.viewers("s1")).toEqual([{ id: "a" }]);
+		expect(revisions(emitted)).toEqual(["r1", "r2"]);
+		expect(store.current("s1", SLOT)).toMatchObject({
+			epoch: resident,
+			seq: 2,
+		});
+	});
+
+	it("keeps each concurrent same-id start staged until it activates or ends", () => {
+		const { store, emitted, drops } = createStore();
+		const resident = beginResident(store, "s1");
+		store.record("s1", resident, push("r1"));
+		const first = store.begin("s1", [SLOT]);
+		const second = store.begin("s1", [SLOT]);
+		store.record("s1", first, push("first"));
+		store.record("s1", second, push("second"));
+
+		store.activate("s1", first);
+		store.end("s1", second);
+		store.activate("s1", second);
+		store.record("s1", second, push("late"));
+
+		expect(store.epoch("s1")).toBe(first);
+		expect(store.isStaged("s1", second)).toBe(false);
+		expect(revisions(emitted)).toEqual(["r1", "first"]);
+		expect(emitted.at(-1)).toMatchObject({ epoch: first, seq: 1 });
+		expect(drops.map((drop) => drop.reason)).toEqual(["stale_epoch"]);
+	});
+
 	it("mints a later epoch for a reused session id even after the clock steps back", () => {
 		const { store } = createStore();
 		const first = store.begin("s1", [SLOT]);
@@ -335,14 +414,14 @@ describe("PluginUiStore", () => {
 		expect(other).toBe(500_000);
 	});
 
-	it("drops a superseded epoch's pending push when a new epoch begins", () => {
+	it("drops a superseded epoch's pending push when a new epoch activates", () => {
 		const { store, emitted } = createStore();
 		const oldEpoch = store.begin("s1", [SLOT]);
 		store.activate("s1", oldEpoch);
 		store.record("s1", oldEpoch, push("r1"));
 		store.record("s1", oldEpoch, push("r2"));
 
-		store.begin("s1", [SLOT]);
+		store.activate("s1", store.begin("s1", [SLOT]));
 		vi.advanceTimersByTime(200);
 
 		expect(revisions(emitted)).toEqual(["r1"]);

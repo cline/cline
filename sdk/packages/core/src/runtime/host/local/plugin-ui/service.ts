@@ -56,6 +56,7 @@ function rawVerb(action: unknown): string | undefined {
  */
 export class PluginUiService implements PluginUiHostApi {
 	private readonly store: PluginUiStore;
+	/** The resident epoch's chain; the session it belongs to keeps serving on it through a same-id start. */
 	private readonly chains = new Map<string, SessionUiChain>();
 	private readonly now: () => number;
 	private readonly telemetry: PluginUiTelemetry;
@@ -77,12 +78,17 @@ export class PluginUiService implements PluginUiHostApi {
 	}
 
 	begin(sessionId: string, slots: readonly PluginUiSlot[]): number {
-		const epoch = this.store.begin(sessionId, slots);
-		this.chains.set(sessionId, createSessionUiChain(epoch, this.now()));
-		return epoch;
+		return this.store.begin(sessionId, slots);
 	}
 
+	/**
+	 * Hands the slot to the start's epoch. The chain comes first: a renderer
+	 * may attach from the activation's own emit. Work still queued on the
+	 * replaced chain then stops at `mayProceed`.
+	 */
 	activate(sessionId: string, epoch: number): void {
+		if (!this.store.isStaged(sessionId, epoch)) return;
+		this.chains.set(sessionId, createSessionUiChain(epoch, this.now()));
 		this.store.activate(sessionId, epoch);
 	}
 
@@ -90,8 +96,8 @@ export class PluginUiService implements PluginUiHostApi {
 		this.store.record(sessionId, epoch, push);
 	}
 
-	clearPlugin(sessionId: string, plugin: string): void {
-		this.store.clearPlugin(sessionId, plugin);
+	clearPlugin(sessionId: string, epoch: number, plugin: string): void {
+		this.store.clearPlugin(sessionId, epoch, plugin);
 	}
 
 	/**
@@ -107,7 +113,7 @@ export class PluginUiService implements PluginUiHostApi {
 		return chain.closed;
 	}
 
-	/** Drops a closed chain once the session is gone. */
+	/** Drops a closed chain once the session is gone, or a start that never became resident. */
 	release(sessionId: string, epoch: number): void {
 		if (this.chains.get(sessionId)?.epoch === epoch) {
 			this.chains.delete(sessionId);

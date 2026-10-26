@@ -62,7 +62,14 @@ interface SessionUi {
  * owned by one plugin and ordered by `(epoch, seq)`. Synchronous; never throws.
  */
 export class PluginUiStore {
+	/** The resident epoch of each session: what reads, viewers and ownership see. */
 	private readonly sessions = new Map<string, SessionUi>();
+	/**
+	 * Epochs whose start has not finished, by session and epoch. A same-id
+	 * start can still fail, so the resident epoch keeps its state and viewers
+	 * until `activate`; concurrent starts each keep their own entry.
+	 */
+	private readonly starting = new Map<string, Map<number, SessionUi>>();
 	/** Survives `end`, so a restart under the same id always mints a later epoch, even after the clock steps back. */
 	private readonly lastEpoch = new Map<string, number>();
 	private readonly now: () => number;
@@ -73,16 +80,22 @@ export class PluginUiStore {
 		this.throttleMs = options.throttleMs ?? PLUGIN_UI_LIMITS.pushIntervalMs;
 	}
 
-	/** Starts a new epoch for the session; `slots` is its catalog, already read. */
+	/**
+	 * Stages a new epoch for the session; `slots` is its catalog, already read.
+	 * The resident epoch and other staged ones stay as they are.
+	 */
 	begin(sessionId: string, slots: readonly PluginUiSlot[]): number {
-		const previous = this.sessions.get(sessionId);
-		if (previous) this.clearTimers(previous);
 		const epoch = Math.max(
 			this.now(),
 			(this.lastEpoch.get(sessionId) ?? 0) + 1,
 		);
 		this.lastEpoch.set(sessionId, epoch);
-		this.sessions.set(sessionId, {
+		let staged = this.starting.get(sessionId);
+		if (!staged) {
+			staged = new Map();
+			this.starting.set(sessionId, staged);
+		}
+		staged.set(epoch, {
 			epoch,
 			slots: [...slots],
 			active: false,
@@ -92,12 +105,22 @@ export class PluginUiStore {
 		return epoch;
 	}
 
-	/** Marks the session resident and emits each stored envelope once, tombstones included. */
+	isStaged(sessionId: string, epoch: number): boolean {
+		return this.starting.get(sessionId)?.has(epoch) ?? false;
+	}
+
+	/**
+	 * Makes the staged epoch the resident one, dropping the epoch it replaces,
+	 * and emits each stored envelope once, tombstones included.
+	 */
 	activate(sessionId: string, epoch: number): void {
-		const ui = this.sessionAt(sessionId, epoch);
-		if (!ui || ui.active) return;
-		ui.active = true;
-		for (const record of ui.records.values()) {
+		const staged = this.unstage(sessionId, epoch);
+		if (!staged) return;
+		const replaced = this.sessions.get(sessionId);
+		if (replaced) this.clearTimers(replaced);
+		this.sessions.set(sessionId, staged);
+		staged.active = true;
+		for (const record of staged.records.values()) {
 			if (record.envelope) this.emit(record.envelope);
 		}
 	}
@@ -133,9 +156,9 @@ export class PluginUiStore {
 		this.write(sessionId, ui, normalized.slot, record, normalized.state);
 	}
 
-	/** Clears every slot the plugin owns with a `state: null` tombstone. */
-	clearPlugin(sessionId: string, plugin: string): void {
-		const ui = this.sessions.get(sessionId);
+	/** Clears every slot the plugin owns in that epoch with a `state: null` tombstone. */
+	clearPlugin(sessionId: string, epoch: number, plugin: string): void {
+		const ui = this.sessionAt(sessionId, epoch);
 		if (!ui) return;
 		for (const [slot, record] of ui.records) {
 			if (record.owner !== plugin) continue;
@@ -238,10 +261,14 @@ export class PluginUiStore {
 		return ui ? [...ui.leases.values()].map((lease) => lease.viewer) : [];
 	}
 
-	/** Flushes pending pushes, then drops the epoch's entries, timers and viewers. */
+	/**
+	 * Flushes pending pushes, then drops the epoch's entries, timers and
+	 * viewers. Ending a staged epoch leaves the resident one as it was.
+	 */
 	end(sessionId: string, epoch: number): void {
-		const ui = this.sessionAt(sessionId, epoch);
-		if (!ui) return;
+		if (this.unstage(sessionId, epoch)) return;
+		const ui = this.sessions.get(sessionId);
+		if (ui?.epoch !== epoch) return;
 		for (const [slot, record] of ui.records) {
 			this.flush(sessionId, ui, slot, record);
 		}
@@ -249,9 +276,20 @@ export class PluginUiStore {
 		this.sessions.delete(sessionId);
 	}
 
+	/** The resident or staged epoch's entry; writes land on the epoch they were made for. */
 	private sessionAt(sessionId: string, epoch: number): SessionUi | undefined {
-		const ui = this.sessions.get(sessionId);
-		return ui?.epoch === epoch ? ui : undefined;
+		const resident = this.sessions.get(sessionId);
+		if (resident?.epoch === epoch) return resident;
+		return this.starting.get(sessionId)?.get(epoch);
+	}
+
+	private unstage(sessionId: string, epoch: number): SessionUi | undefined {
+		const staged = this.starting.get(sessionId);
+		const ui = staged?.get(epoch);
+		if (!staged || !ui) return undefined;
+		staged.delete(epoch);
+		if (staged.size === 0) this.starting.delete(sessionId);
+		return ui;
 	}
 
 	private slotRecord(ui: SessionUi, slot: PluginUiSlot): SlotRecord {

@@ -268,6 +268,27 @@ describe("PluginUiService", () => {
 		});
 	});
 
+	it("ends a same-id start that never became resident without touching the resident epoch", async () => {
+		const harness = createHarness();
+		const { epoch, onAction } = harness.start("s1");
+		await harness.invoke("s1", attach, { id: "a" });
+		onAction.mockClear();
+
+		const staged = harness.service.begin("s1", [SLOT]);
+		await harness.service.closeSession("s1", staged);
+		harness.service.release("s1", staged);
+		harness.service.activate("s1", staged);
+
+		expect(onAction).not.toHaveBeenCalled();
+		expect(harness.store.viewers("s1")).toEqual([
+			{ id: "a", surface: "desktop" },
+		]);
+		expect(await harness.invoke("s1", skip, { id: "a" })).toEqual({
+			outcome: "ok",
+			epoch,
+		});
+	});
+
 	/** Closes, deletes and releases the session the way the host's teardown does. */
 	async function tearDown(
 		harness: ReturnType<typeof createHarness>,
