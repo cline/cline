@@ -33,6 +33,8 @@ export type ActiveSession = {
 	turnsInFlight: number;
 	/** The session row being created for the first turn, so teardown can land its status on it. */
 	persistInFlight?: Promise<void>;
+	/** Callers waiting for the in-flight turn to create the session row, or to end without one. */
+	artifactWaiters?: Array<() => void>;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;

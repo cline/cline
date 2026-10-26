@@ -523,7 +523,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// run keeps going unreachable (no abort, no queue) and its transcript
 		// writes resolve to the replacement's stale snapshot. Reattach instead.
 		const live = this.sessions.get(sessionId);
-		if (live && !live.agent.canStartRun()) {
+		if (live && this.hasActiveTurn(live)) {
 			if (input.prompt?.trim()) {
 				throw new Error(
 					`Session ${sessionId} already has a run in progress; queue the prompt instead.`,
@@ -563,6 +563,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async liveSessionStartResult(
 		session: ActiveSession,
 	): Promise<StartSessionResult> {
+		// A turn still preparing has not created the session row yet; it
+		// will within its own preparation, so wait for it rather than fail.
+		await this.waitForSessionRow(session);
 		const artifacts = session.artifacts;
 		if (!artifacts) {
 			throw new Error(
@@ -2069,7 +2072,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return await this.prepareAndRunTurn(session, input);
 		} finally {
 			session.turnsInFlight -= 1;
+			this.notifySessionRowWaiters(session);
 		}
+	}
+
+	private waitForSessionRow(session: ActiveSession): Promise<void> {
+		if (session.artifacts || session.turnsInFlight === 0) {
+			return Promise.resolve();
+		}
+		return new Promise((resolve) => {
+			(session.artifactWaiters ??= []).push(resolve);
+		});
+	}
+
+	private notifySessionRowWaiters(session: ActiveSession): void {
+		const waiters = session.artifactWaiters;
+		session.artifactWaiters = undefined;
+		for (const resolve of waiters ?? []) resolve();
 	}
 
 	/** True while a turn is being prepared or the agent has a run in progress. */
@@ -2569,6 +2588,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await persist;
 		} finally {
 			session.persistInFlight = undefined;
+			this.notifySessionRowWaiters(session);
 		}
 	}
 
