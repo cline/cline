@@ -1,16 +1,10 @@
 # What's new in Cline
 
-Covers everything merged since the Oct 16 releases (Desktop 0.0.48, CLI 3.0.73, SDK 0.0.95, VS Code 4.1.25). About 60 PRs.
-
-**Update (Oct 25):** now also covers 8 more PRs merged on Oct 25, including the new Local Models page, the Changes pane, and a cloud model picker in VS Code.
+Covers everything merged since the Oct 16 releases (Desktop 0.0.48, CLI 3.0.73, SDK 0.0.95, VS Code 4.1.25). About 70 PRs.
 
 ---
 
 ## Cline Desktop
-
-![Desktop overview](desktop-hero.png)
-
-![Desktop overview with the Changes pane and terminal](desktop-hero-changes.png)
 
 ### Run models on your own machine
 New **Settings → Provider → Local** page for running models locally with Ollama or LM Studio, no terminal needed.
