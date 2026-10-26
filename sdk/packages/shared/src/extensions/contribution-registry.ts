@@ -236,6 +236,8 @@ export type AgentExtensionCapability =
 
 export interface PluginManifest {
 	paths?: string[];
+	/** Exclude this extension from delegated subagent and teammate runtimes. */
+	rootOnly?: boolean;
 	capabilities: AgentExtensionCapability[];
 	providerIds?: string[];
 	modelIds?: string[];

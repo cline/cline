@@ -51,6 +51,15 @@ function finishedTurn(
 	return messages.slice(prompt + 1);
 }
 
+function operationFailed(output: unknown): boolean {
+	if (Array.isArray(output)) return output.some(operationFailed);
+	return (
+		output !== null &&
+		typeof output === "object" &&
+		(output as { success?: unknown }).success === false
+	);
+}
+
 export function factsOf(
 	messages: readonly AgentMessage[],
 	result: AgentRunResult,
@@ -61,7 +70,10 @@ export function factsOf(
 		for (const part of message.content) {
 			if (part.type === "tool-call" && WRITE_TOOLS.has(part.toolName)) {
 				edits.set(part.toolCallId, editedPaths(part.input));
-			} else if (part.type === "tool-result" && part.isError) {
+			} else if (
+				part.type === "tool-result" &&
+				(part.isError || operationFailed(part.output))
+			) {
 				toolErrored = true;
 				edits.delete(part.toolCallId);
 			}
@@ -130,9 +142,8 @@ export function createNextTurnPlugin(): AgentPlugin {
 	let candidates: readonly NextTurnCandidate[] = [];
 	return {
 		name: "next-turn",
-		manifest: { capabilities: ["hooks", "commands"] },
+		manifest: { capabilities: ["hooks", "commands"], rootOnly: true },
 		setup(api) {
-			candidates = [];
 			api.registerCommand({
 				name: "next",
 				description: "Use the best next-turn suggestion",

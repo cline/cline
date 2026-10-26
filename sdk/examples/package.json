@@ -5,6 +5,7 @@
 	"private": true,
 	"scripts": {
 		"typecheck": "tsc --noEmit",
+		"test": "bun test plugins",
 		"clean": "rm -rf node_modules dist"
 	},
 	"devDependencies": {
