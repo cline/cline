@@ -64,9 +64,11 @@ const handoffRequests = new WeakMap<
 const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
 
 export type HandoffResult = Awaited<ReturnType<typeof handleHandoffOnce>>;
+export type HandoffResponse = HandoffResult | { cancelled: true };
 export type PrepareHandoffResult =
 	| { gitPreparation: HandoffGitPreview }
-	| { previousHandoff: { handoffAttemptId: string; result: HandoffResult } };
+	| { previousHandoff: { handoffAttemptId: string; result: HandoffResult } }
+	| { cancelled: true };
 
 function assertCloudHandoffAvailable(): void {
 	if (!isCloudAgentsEnabled())
@@ -130,19 +132,26 @@ async function prepareCloudHandoff(
 	return { manager, config, cwd };
 }
 
+function isHandoffAccountCurrent(
+	ctx: SidecarContext,
+	cloud: CloudSessionManager,
+	scope: CloudHubScope | undefined,
+): boolean {
+	return (
+		getSidecarContextOwner(ctx).cloudSessionManager === cloud &&
+		(!scope ||
+			(cloud.scope?.serviceId === scope.serviceId &&
+				cloud.scope?.scopeGeneration === scope.scopeGeneration))
+	);
+}
+
 function assertHandoffAccount(
 	ctx: SidecarContext,
 	cloud: CloudSessionManager,
 	scope: CloudHubScope,
 ): void {
-	if (
-		getSidecarContextOwner(ctx).cloudSessionManager !== cloud ||
-		cloud.scope?.serviceId !== scope.serviceId ||
-		cloud.scope?.scopeGeneration !== scope.scopeGeneration
-	)
-		throw new Error(
-			"The cloud account changed. Run /cloud again to review the preparation plan.",
-		);
+	if (!isHandoffAccountCurrent(ctx, cloud, scope))
+		throw new Error("The cloud account changed.");
 }
 
 async function resolveCloudModel(
@@ -179,9 +188,7 @@ export async function handlePrepareHandoff(
 	const previous = handoffRequests.get(ctx)?.get(sessionId);
 	if (
 		previous?.status === "complete" &&
-		previous.cloud === getSidecarContextOwner(ctx).cloudSessionManager &&
-		previous.scope.serviceId === previous.cloud.scope?.serviceId &&
-		previous.scope.scopeGeneration === previous.cloud.scope?.scopeGeneration &&
+		isHandoffAccountCurrent(ctx, previous.cloud, previous.scope) &&
 		previous.id !== request.completedHandoffAttemptId
 	) {
 		return {
@@ -196,12 +203,13 @@ export async function handlePrepareHandoff(
 		active = new Map();
 		gitPreparations.set(ctx, active);
 	}
+	const cloud = getCloudSessionManager(ctx);
+	let scope = cloud.scope;
 	active.set(sessionId, "capturing");
 	try {
-		const cloud = getCloudSessionManager(ctx);
 		const source = await prepareCloudHandoff(ctx, { ...request, sessionId });
 		await cloud.connect();
-		const scope = cloud.scope;
+		scope ??= cloud.scope;
 		if (!scope) throw new Error("Cloud account is unavailable.");
 		const config = structuredClone(source.config);
 		const messages = structuredClone(
@@ -225,6 +233,9 @@ export async function handlePrepareHandoff(
 		}
 		plans.set(sessionId, { cloud, scope, plan, messages, config });
 		return { gitPreparation: previewHandoffGit(plan) };
+	} catch (error) {
+		if (!isHandoffAccountCurrent(ctx, cloud, scope)) return { cancelled: true };
+		throw error;
 	} finally {
 		active.delete(sessionId);
 	}
@@ -338,8 +349,7 @@ async function handleHandoffOnce(
 		if (
 			sessionId ||
 			event.type !== "snapshot" ||
-			cloud.scope?.serviceId !== scope.serviceId ||
-			cloud.scope?.scopeGeneration !== scope.scopeGeneration ||
+			!isHandoffAccountCurrent(ctx, cloud, scope) ||
 			event.snapshot.record?.repoContext.repoUrl !== plan.repoUrl ||
 			event.snapshot.record.repoContext.branch !== plan.branch
 		)
@@ -415,7 +425,7 @@ export async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 	summarize: Summarize,
-): Promise<HandoffResult> {
+): Promise<HandoffResponse> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	if (gitPreparations.get(ctx)?.has(sessionId))
@@ -444,6 +454,7 @@ export async function handleHandoff(
 		return result;
 	} catch (error) {
 		requests.delete(sessionId);
+		if (!isHandoffAccountCurrent(ctx, cloud, scope)) return { cancelled: true };
 		throw error;
 	}
 }

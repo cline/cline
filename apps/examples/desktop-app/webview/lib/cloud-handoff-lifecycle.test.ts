@@ -17,9 +17,11 @@ function harness() {
 		state = cloudHandoffUiReducer(state, action);
 	});
 	const toast = vi.fn();
+	const dismissConfirmation = vi.fn();
 	const lifecycle = createHandoffLifecycle({
 		dispatch,
 		toast,
+		dismissConfirmation,
 	});
 	const start = (attachments: File[] = []) => {
 		const id = lifecycle.onRpcStarted("local", attachments);
@@ -29,12 +31,41 @@ function harness() {
 	return {
 		lifecycle,
 		toast,
+		dismissConfirmation,
 		start,
 		state: () => state,
 	};
 }
 
 describe("summary handoff lifecycle", () => {
+	it.each([
+		"provisioning",
+		"complete",
+	] as const)("clears %s links on account change and ignores late results", async (phase) => {
+		const h = harness();
+		const handoffAttemptId = h.start();
+		await h.lifecycle.onEvent({ ...result, handoffAttemptId, phase });
+		const preparation = h.lifecycle.onPreparationStarted("local");
+		h.lifecycle.reset();
+		expect(h.dismissConfirmation).toHaveBeenCalledOnce();
+		expect(preparation?.aborted).toBe(true);
+		expect(h.state()).toEqual({});
+		await h.lifecycle.onEvent({
+			...result,
+			handoffAttemptId,
+			phase: "complete",
+		});
+		await h.lifecycle.onRpcResolved("local", { handoffAttemptId, result });
+		await h.lifecycle.onRpcRejected("local", {
+			handoffAttemptId,
+			error: new Error("Viewer disposed"),
+			nextCommand: "Continue",
+			sourceAttachments: [],
+		});
+		expect(h.state()).toEqual({});
+		expect(h.toast).not.toHaveBeenCalled();
+		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
+	});
 	it("keeps the draft and warns to check cloud tasks when submission has no known target", async () => {
 		const h = harness();
 		const attachments = [new File(["image"], "image.png")];
@@ -78,7 +109,7 @@ describe("summary handoff lifecycle", () => {
 				sourceAttachments: aFiles,
 			});
 		expect(h.lifecycle.getCompletedAttemptId("local")).toBeUndefined();
-		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
 		h.lifecycle.onPreparationRejected("local", {
 			error: new Error("Check the existing task"),
 			nextCommand: "B",
@@ -98,7 +129,7 @@ describe("summary handoff lifecycle", () => {
 		if (reload)
 			expect(h.state().local.message).toContain("Reattach any images");
 		expect(h.lifecycle.getCompletedAttemptId("local")).toBe(id);
-		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
 	});
 	it.each([
 		"before",
@@ -114,7 +145,7 @@ describe("summary handoff lifecycle", () => {
 			nextCommand: "A",
 			sourceAttachments: aFiles,
 		});
-		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
 		const complete = () =>
 			h.lifecycle.onEvent({
 				...result,
@@ -124,7 +155,7 @@ describe("summary handoff lifecycle", () => {
 				unsentPrompt: "Summary A",
 			});
 		if (order === "after") await complete();
-		expect(h.lifecycle.onPreparationStarted("local")).toBe(false);
+		expect(h.lifecycle.onPreparationStarted("local")).toBeUndefined();
 		h.lifecycle.onPreparationRejected("local", {
 			error: new Error("Preparation already in progress"),
 			nextCommand: "Edited B",
@@ -137,7 +168,7 @@ describe("summary handoff lifecycle", () => {
 			unsentDraft: { text: "Summary A", attachments: aFiles },
 			preparationFailure: { draft: { text: "Edited B", attachments: bFiles } },
 		});
-		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
 		const newer = h.start(bFiles);
 		const pending = h.state();
 		await complete();

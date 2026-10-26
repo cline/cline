@@ -210,10 +210,17 @@ describe("Cloud sessions sidecar wiring", () => {
 		"local",
 		"ssh-remote",
 	])("shares cloud manager ownership with the %s context", async (environmentId) => {
-		const { ctx } = createContext();
+		const { ctx, events } = createContext();
 		const scoped = getEnvironmentContext(ctx, environmentId);
 		const manager = getCloudSessionManager(scoped);
-		const dispose = vi.spyOn(manager, "dispose");
+		const originalDispose = manager.dispose.bind(manager);
+		const dispose = vi
+			.spyOn(manager, "dispose")
+			.mockImplementation(async () => {
+				expect(ctx.cloudSessionManager).toBeNull();
+				expect(events.at(-1)?.name).toBe("cloud_sessions_changed");
+				await originalDispose();
+			});
 		expect(getCloudSessionManager(ctx)).toBe(manager);
 		await resetCloudSessionManager(ctx);
 		expect(dispose).toHaveBeenCalledOnce();

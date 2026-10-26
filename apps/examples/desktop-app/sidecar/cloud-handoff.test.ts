@@ -283,7 +283,7 @@ describe("summary cloud handoff", () => {
 		"publication",
 		"verification",
 		"model",
-	] as const)("rejects an account reset during %s before further publication or creation", async (stage) => {
+	] as const)("silently stops an account reset during %s before further publication or creation", async (stage) => {
 		const f = await fixture();
 		await handlePrepareHandoff(f.ctx, f.request);
 		if (stage === "preview") await resetCloudSessionManager(f.ctx);
@@ -306,9 +306,7 @@ describe("summary cloud handoff", () => {
 				await resetCloudSessionManager(f.ctx);
 				return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
 			});
-		await expect(f.handoff(f.request)).rejects.toThrow(
-			/account changed|viewer is disposed/,
-		);
+		await expect(f.handoff(f.request)).resolves.toEqual({ cancelled: true });
 		if (stage === "preview" || stage === "summary")
 			expect(f.apply).not.toHaveBeenCalled();
 		expect(f.ctx.cloudSessionManager).toBeNull();
@@ -327,10 +325,41 @@ describe("summary cloud handoff", () => {
 			});
 			return "Captured summary";
 		});
-		await expect(f.handoff()).rejects.toThrow("account changed");
+		await expect(f.handoff()).resolves.toEqual({ cancelled: true });
 		expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.send).not.toHaveBeenCalled();
+	});
+	it("does not return a preview after the account changes during capture", async () => {
+		const f = await fixture();
+		f.readLiveMessages.mockImplementation(async () => {
+			await resetCloudSessionManager(f.ctx);
+			return f.messages;
+		});
+		await expect(handlePrepareHandoff(f.ctx, f.request)).resolves.toEqual({
+			cancelled: true,
+		});
+		expect(f.apply).not.toHaveBeenCalled();
+		expect(f.create).not.toHaveBeenCalled();
+	});
+	it("hides a submitted handoff after account reset without cancelling the Hub task", async () => {
+		const f = await fixture();
+		const events: Array<{ name: string; payload: { phase?: string } }> = [];
+		f.ctx.wsClients.add({
+			data: { canApproveTools: true },
+			send: (message) => events.push(JSON.parse(message).event),
+		});
+		await f.prepare();
+		f.create.mockImplementation(async () => {
+			await resetCloudSessionManager(f.ctx);
+			return { sessionId: "ses-target", status: "ready", sandboxUrl: "" };
+		});
+		await expect(f.handoff()).resolves.toEqual({ cancelled: true });
+		await vi.waitFor(() => expect(f.send).toHaveBeenCalledOnce());
+		expect(f.create).toHaveBeenCalledOnce();
+		expect(events.some((event) => event.payload.phase === "complete")).toBe(
+			false,
+		);
 	});
 	it("does not expose a completed handoff after the same viewer changes account", async () => {
 		const f = await fixture();
@@ -531,9 +560,14 @@ describe("summary cloud handoff", () => {
 		});
 		vi.mocked(summarizeConversation).mockResolvedValue("Prepared summary");
 		const { handleCommand } = await import("./commands");
-		await expect(
-			handleCommand(f.ctx, "chat_session_command", { request: f.request }),
-		).rejects.toThrow("trusted desktop connection");
+		for (const action of ["prepare_handoff", "discard_handoff", "handoff"]) {
+			await expect(
+				handleCommand(f.ctx, "chat_session_command", {
+					request: { ...f.request, action },
+				}),
+			).rejects.toThrow("trusted desktop connection");
+		}
+		expect(gitPreparation.inspectHandoffGit).toHaveBeenCalledOnce();
 		expect(summarizeConversation).not.toHaveBeenCalled();
 		expect(f.apply).not.toHaveBeenCalled();
 		await handleCommand(

@@ -206,5 +206,6 @@ export async function resetCloudSessionManager(
 	ctx = getSidecarContextOwner(ctx);
 	const manager = ctx.cloudSessionManager;
 	ctx.cloudSessionManager = null;
+	sendEvent(ctx, "cloud_sessions_changed", {});
 	await manager?.dispose();
 }

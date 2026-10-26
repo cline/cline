@@ -79,7 +79,6 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	HANDOFF_PROGRESS_LABELS,
-	type HandoffResult,
 	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
 	validateHandoffAttachments,
@@ -201,7 +200,10 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
-import type { PrepareHandoffResult } from "../../sidecar/cloud-handoff";
+import type {
+	HandoffResponse,
+	PrepareHandoffResult,
+} from "../../sidecar/cloud-handoff";
 import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
@@ -1121,6 +1123,7 @@ function App() {
 	if (handoffLifecycleRef.current === null) {
 		handoffLifecycleRef.current = createHandoffLifecycle({
 			dispatch: dispatchHandoffUi,
+			dismissConfirmation: () => finishGitConfirmation(false),
 			toast: ({ connectUrl, ...toastFields }) =>
 				toast({
 					...toastFields,
@@ -1136,6 +1139,13 @@ function App() {
 		});
 	}
 	const handoffLifecycle = handoffLifecycleRef.current;
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_sessions_changed", () => {
+				handoffLifecycle.reset();
+			}),
+		[handoffLifecycle],
+	);
 	useEffect(
 		() =>
 			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
@@ -2435,10 +2445,11 @@ function ChatThreadPane({
 				return;
 			}
 
-			if (
-				handoffUi?.status === "progress" ||
-				!handoffLifecycle.onPreparationStarted(sourceSessionId)
-			) {
+			const signal =
+				handoffUi?.status === "progress"
+					? undefined
+					: handoffLifecycle.onPreparationStarted(sourceSessionId);
+			if (!signal) {
 				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Handoff is already starting",
@@ -2449,13 +2460,14 @@ function ChatThreadPane({
 			const sourceAttachments = [...pendingAttachments];
 			let handoffAttemptId: string | undefined;
 			setPendingAttachments([]);
+			const restoreDraft = clearPromptForSend();
 			try {
-				setPromptInput("");
 				onHandoffUiAction({
 					type: "prepare",
 					sourceSessionId,
 				});
 				const attachments = await serializeAttachments(sourceAttachments);
+				if (signal.aborted) return;
 				const preparation = await desktopClient.invoke<PrepareHandoffResult>(
 					"chat_session_command",
 					{
@@ -2467,8 +2479,13 @@ function ChatThreadPane({
 							config,
 						},
 					},
-					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS },
+					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS, signal },
 				);
+				if (signal.aborted) return;
+				if ("cancelled" in preparation) {
+					handoffLifecycle.reset();
+					return;
+				}
 				if ("previousHandoff" in preparation) {
 					handoffLifecycle.onPreparationRejected(sourceSessionId, {
 						error: new Error(
@@ -2485,7 +2502,9 @@ function ChatThreadPane({
 					return;
 				}
 				const { gitPreparation } = preparation;
-				if (!(await confirmHandoffGit(gitPreparation))) {
+				const approved = await confirmHandoffGit(gitPreparation);
+				if (signal.aborted) return;
+				if (!approved) {
 					await desktopClient.invoke("chat_session_command", {
 						request: {
 							action: "discard_handoff",
@@ -2493,6 +2512,7 @@ function ChatThreadPane({
 							gitPreparationId: gitPreparation.id,
 						},
 					});
+					if (signal.aborted) return;
 					handoffLifecycle.onPreparationRejected(sourceSessionId, {
 						error: new Error("Cloud preparation cancelled."),
 						nextCommand,
@@ -2512,7 +2532,7 @@ function ChatThreadPane({
 					phase: "checking",
 					message: "Preparing the summary and approved Git checkpoint...",
 				});
-				const result = await desktopClient.invoke<HandoffResult>(
+				const result = await desktopClient.invoke<HandoffResponse>(
 					"chat_session_command",
 					{
 						request: {
@@ -2526,13 +2546,19 @@ function ChatThreadPane({
 								: undefined,
 						},
 					},
-					{ timeoutMs: 2 * HANDOFF_STAGE_TIMEOUT_MS },
+					{ timeoutMs: 2 * HANDOFF_STAGE_TIMEOUT_MS, signal },
 				);
+				if (signal.aborted) return;
+				if ("cancelled" in result) {
+					handoffLifecycle.reset();
+					return;
+				}
 				await handoffLifecycle.onRpcResolved(sourceSessionId, {
 					handoffAttemptId,
 					result,
 				});
 			} catch (error) {
+				if (signal.aborted) return;
 				if (handoffAttemptId) {
 					await handoffLifecycle.onRpcRejected(sourceSessionId, {
 						handoffAttemptId,
@@ -2547,11 +2573,21 @@ function ChatThreadPane({
 						sourceAttachments,
 					});
 				}
+			} finally {
+				if (
+					signal.aborted &&
+					!handoffAttemptId &&
+					!draftRef.current.attachments.length &&
+					restoreDraft(nextCommand ? `/cloud ${nextCommand}` : "/cloud")
+				)
+					setPendingAttachments(sourceAttachments);
 			}
 		},
 		[
+			clearPromptForSend,
 			confirmHandoffGit,
 			config,
+			draftRef,
 			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,

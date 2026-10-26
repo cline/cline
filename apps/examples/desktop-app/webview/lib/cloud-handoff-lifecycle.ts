@@ -16,6 +16,7 @@ export type HandoffOpenResult = { opened: boolean };
 type HandoffLifecycleEffects = {
 	dispatch: (action: CloudHandoffUiAction) => void;
 	toast: (toast: HandoffLifecycleToast) => void;
+	dismissConfirmation: () => void;
 };
 
 export type HandoffProgressEventPayload = {
@@ -53,6 +54,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		attachments: File[];
 	};
 	const sources = new Map<string, { attempt?: Attempt; preparing: boolean }>();
+	let account = new AbortController();
 	const current = (source: string, id?: string) => {
 		const attempt = sources.get(source)?.attempt;
 		return attempt && attempt.id === id ? attempt : undefined;
@@ -88,6 +90,14 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			});
 	};
 	return {
+		reset(): void {
+			account.abort();
+			account = new AbortController();
+			effects.dismissConfirmation();
+			for (const sourceSessionId of sources.keys())
+				effects.dispatch({ type: "dismiss", sourceSessionId });
+			sources.clear();
+		},
 		getCompletedAttemptId(sourceSessionId: string): string | undefined {
 			const attempt = sources.get(sourceSessionId)?.attempt;
 			return attempt?.completed ? attempt.id : undefined;
@@ -114,11 +124,11 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			}
 			complete(sourceSessionId, attempt, result);
 		},
-		onPreparationStarted(sourceSessionId: string): boolean {
+		onPreparationStarted(sourceSessionId: string): AbortSignal | undefined {
 			const source = sources.get(sourceSessionId);
-			if (source?.preparing) return false;
+			if (source?.preparing) return undefined;
 			sources.set(sourceSessionId, { ...source, preparing: true });
-			return true;
+			return account.signal;
 		},
 		onPreparationRejected(
 			sourceSessionId: string,

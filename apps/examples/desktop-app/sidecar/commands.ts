@@ -2217,7 +2217,9 @@ export async function handleCommand(
 	if (command === "chat_session_command") {
 		const request = (args?.request ?? args) as ChatSessionCommandRequest;
 		if (
-			request.action === "handoff" &&
+			["prepare_handoff", "discard_handoff", "handoff"].includes(
+				request.action,
+			) &&
 			!options?.connection?.data?.canApproveTools
 		) {
 			throw new Error("Git preparation requires a trusted desktop connection");
@@ -2963,6 +2965,7 @@ export async function handleCommand(
 			accountService,
 		);
 		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
 			if (isCloudAgentsEnabled()) {
 				try {
 					await getCloudSessionManager(ctx).refreshOrganization();
@@ -2973,10 +2976,6 @@ export async function handleCommand(
 					);
 				}
 			}
-			await resetCloudSessionManager(ctx);
-			// The sidebar must re-scope immediately (personal ⇄ org), not on
-			// the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
@@ -3288,7 +3287,6 @@ export async function handleCommand(
 				!isDeepStrictEqual(previous?.auth, current?.auth)
 			) {
 				await resetCloudSessionManager(ctx);
-				broadcastEvent(ctx, "cloud_sessions_changed", {});
 			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
@@ -3380,7 +3378,6 @@ export async function handleCommand(
 		if (storageProviderId === "cline") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}
