@@ -6,10 +6,10 @@ import {
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
-	CloudSessionApi,
-	CloudSessionManager,
-	type CloudSessionRecord,
-} from "./cloud-sessions";
+	createCloudSessionTestRuntime,
+	type TestCloudSessionController,
+} from "./cloud-session-test-runtime";
+import { CloudSessionApi, type CloudSessionRecord } from "./cloud-sessions";
 import { createSidecarContext } from "./context";
 import type { LiveSession } from "./types";
 
@@ -43,7 +43,7 @@ async function createFixture() {
 	});
 	vi.spyOn(api, "list").mockResolvedValue([remote]);
 	const updateTitle = vi.spyOn(api, "updateTitle").mockResolvedValue(remote);
-	const manager = new CloudSessionManager(ctx, { ...options, api });
+	const manager = await createCloudSessionTestRuntime(ctx, { ...options, api });
 	const replies: Record<string, Record<string, unknown>> = {
 		"session.get": { session: { status: "idle" } },
 		"session.messages": { messages: [] },
@@ -66,7 +66,7 @@ async function createFixture() {
 		},
 	);
 	const connection: Awaited<
-		ReturnType<CloudSessionManager["ensureConnection"]>
+		ReturnType<TestCloudSessionController["ensureConnection"]>
 	> = {
 		remote,
 		innerSessionId: "inner-1",
@@ -113,7 +113,7 @@ const transportError = () =>
 	new HubTransportError("hub_connection_closed", "socket closed");
 
 describe("CloudSessionManager state", () => {
-	it("honors the dispatch hook before sending through the desktop adapter", async () => {
+	it("honors the dispatch hook in the hub-owned controller", async () => {
 		const { manager, command, reply, updateTitle, live } =
 			await createFixture();
 		const dispatch = vi.fn();

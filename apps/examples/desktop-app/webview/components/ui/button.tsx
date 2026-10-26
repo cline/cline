@@ -19,6 +19,12 @@ const buttonVariants = cva(
 				ghost:
 					"hover:bg-surface-hover hover:text-foreground dark:hover:bg-surface-hover",
 				link: "text-primary underline-offset-4 hover:underline",
+				// Header toggles and menu triggers. Each state is one neutral alpha
+				// step darker (hover a3, selected a4, selected + hovered a5), so a
+				// selected button never reads as merely hovered. Toggles mark
+				// "selected" with aria-pressed, menu triggers with data-state=open.
+				toolbar:
+					"text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground aria-pressed:bg-(--neutral-a4) aria-pressed:text-foreground aria-pressed:hover:bg-(--neutral-a5) data-[state=open]:bg-(--neutral-a4) data-[state=open]:text-foreground data-[state=open]:hover:bg-(--neutral-a5)",
 				sidebar:
 					"w-full text-left gap-2 rounded-none text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground self-start",
 				sidebarItem:
@@ -36,6 +42,7 @@ const buttonVariants = cva(
 				lg: "h-10 rounded-md px-6 has-[>svg]:px-4 text-lg",
 				icon: "size-5",
 				"icon-sm": "size-3 p-1",
+				"icon-xs": "size-7",
 				"icon-lg": "size-10",
 			},
 		},

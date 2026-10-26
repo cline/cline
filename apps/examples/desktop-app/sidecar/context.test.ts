@@ -4,7 +4,8 @@ import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
-import { CloudSessionManager, type CloudSessionRecord } from "./cloud-sessions";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
+import type { CloudSessionManager, CloudSessionRecord } from "./cloud-sessions";
 import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
@@ -60,16 +61,17 @@ function readEvents(ctx: SidecarContext): Array<{
 	);
 }
 
-function createSearchCloudManager(
+async function createSearchCloudManager(
 	ctx: SidecarContext,
 	list: () => Promise<CloudSessionRecord[]>,
-): CloudSessionManager {
+): Promise<CloudSessionManager> {
 	vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
-	return new CloudSessionManager(ctx, {
+	await createCloudSessionTestRuntime(ctx, {
 		api: { list } as never,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "token",
 	});
+	return ctx.cloudSessionManager as CloudSessionManager;
 }
 
 function cloudSearchRecord(
@@ -314,7 +316,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -367,7 +372,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
 		]);
 
@@ -412,7 +417,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -454,7 +462,10 @@ describe("Code sidecar runtime capabilities", () => {
 				sessionManager: { list } as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+			ctx.cloudSessionManager = await createSearchCloudManager(
+				ctx,
+				async () => [],
+			);
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -492,7 +503,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, list);
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, list);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "UNIQUE-CLOUD-TITLE",
@@ -544,7 +555,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("shared", "match"),
 			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
 			cloudSearchRecord("cloud-3", "match third", "2026-01-02T00:00:00.000Z"),
@@ -590,7 +601,7 @@ describe("Code sidecar runtime capabilities", () => {
 				} as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(
+			ctx.cloudSessionManager = await createSearchCloudManager(
 				ctx,
 				async () => await new Promise<CloudSessionRecord[]>(() => {}),
 			);
@@ -622,7 +633,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(
+		ctx.cloudSessionManager = await createSearchCloudManager(
 			ctx,
 			() =>
 				new Promise((resolve) => {

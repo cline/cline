@@ -135,6 +135,65 @@ the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
 
+### Hub-owned cloud viewers
+
+`HubCloudSessionClient` from `@cline/core/cloud` uses an authenticated,
+registered `NodeHubClient` from `@cline/core/hub`. Reuse the host's existing
+Hub connection, or create and connect a `NodeHubClient` with the Hub URL,
+auth token, client ID, and workspace root. The cloud client accepts an async
+connection factory and connects lazily; `connect()` explicitly hydrates it.
+
+```ts
+import { HubCloudSessionClient } from "@cline/core/cloud";
+import type { NodeHubClient } from "@cline/core/hub";
+
+async function openCloudSession(hub: NodeHubClient, sessionId: string) {
+  const viewer = new HubCloudSessionClient(async () => {
+    await hub.connect();
+    return hub;
+  });
+  const unsubscribe = viewer.subscribe((event) => console.log(event));
+  try {
+    await viewer.attach(sessionId);
+    return await viewer.readMessages(sessionId);
+  } finally {
+    unsubscribe();
+    await viewer.dispose();
+  }
+}
+```
+
+The Hub owns the account-scoped controller, credentials, organization lookup,
+provisioning, and sandbox connections. Disposing a viewer releases its subscription
+and projected state; admitted cloud work and sandbox connections continue. The
+host retains ownership of its shared `NodeHubClient`. Account changes retire the
+old controller; Hub shutdown disposes it. Direct controller hosts instead own
+and dispose their controller and its connections.
+
+The viewer supports the serializable operations in `CLOUD_HUB_OPERATIONS`,
+with arguments/results described by `CloudHubArgs` and `CloudHubResult`.
+`CloudHubScope` binds commands to the observed Hub instance and account generation;
+callers use the viewer methods rather than constructing RPC envelopes. Snapshot
+recovery includes empty sets, removes deleted sessions, and rejects stale revisions.
+Dispatched actions are not automatically resent after an uncertain reply.
+Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
+features and cannot cross this RPC boundary. Hub-backed creation defaults to
+`"resumable"` sandboxes.
+
+Discovery caches, pending listing requests, and newly created fallback rows are
+scoped to their organization; switching the sidebar preserves other organizations’
+task state without displaying their rows. Discovery’s `timeoutMs` covers both
+organization resolution and listing. If the organization is still unknown at
+the deadline, discovery returns no cloud rows; cached rows are used only after
+establishing their matching organization.
+
+After a successful organization switch, `refreshOrganization()` invalidates the
+Hub's cached organization before fetching the current one. A fetch failure leaves
+the old cache invalidated. Account-switch success and desktop cleanup must not
+depend on this optional refresh; cloud-disabled hosts skip it. A new viewer's
+watch also invalidates the cache, covering switches made while the Hub was
+unreachable without interrupting existing cloud work.
+
 ## Experimental cloud handoff
 
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
@@ -422,6 +481,12 @@ standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
 
+## Tool success context
+
+`AgentTool` and `createTool` accept optional `successContext` text. The agent runtime appends it after the iteration’s tool results, once after-tool hooks have run, without changing the tool output. It reaches the model as a user-role context message with `displayRole: "system"`, hidden from client transcripts. Errors, skipped calls, and hooks that stop execution do not add it. It is retained as conversation history and remains subject to context compaction.
+
+`createAskQuestionTool` and the question tool from `createDefaultTools` use this field to remind the model to continue after an answer, in both direct `Agent` and `ClineCore` sessions.
+
 ## Symlinked instruction files
 
 Rules and workflows can be symbolic links to regular files. Source paths and
@@ -471,6 +536,38 @@ malformed replies throw. It is optional on `McpManager` and
 tool calls on an already connected server. A read that starts while the server
 is being disconnected or re-registered can fail with a disconnect error; retry
 it.
+
+For sessions, set `mcpApps: true` in the session config (`CoreRuntimeFeatures`).
+The runtime builder then advertises the extension to every settings and Agent
+Plugin MCP server it connects, and the session gains an MCP Apps runtime that
+uses those same connections. Hosts reach it through `ClineCore`:
+
+- `resolveMcpAppTool(sessionId, toolName)` maps an agent tool name (as it
+  appears in tool events, for example `weather__show_weather`) to
+  `{ serverName, toolName, resourceUri }`. It returns `undefined` for tools with
+  no `ui://` resource, for sessions without MCP Apps, and for runtimes or hub
+  daemons that do not support MCP Apps.
+- `readMcpAppResource(sessionId, { serverName, uri })` reads a `ui://` resource
+  from one of the session's MCP servers. Other URI schemes are rejected.
+- `callMcpAppTool(sessionId, { serverName, toolName, arguments })` calls a tool
+  on the app's behalf. It rejects tools whose visibility lacks `"app"`, tools
+  the server does not list, servers outside the session, and tools the session
+  disables through `toolPolicies` or the global `disabledTools` setting (matched
+  by agent tool name, such as `weather__refresh_view`). App calls are recorded
+  as tool usage telemetry, but do not request tool approval and do not run tool
+  hooks; a host that wants consent must ask before calling.
+
+Reads and calls reach every enabled settings and Agent Plugin server, including
+ones that failed to list tools at startup; the manager reconnects on demand.
+`resolveMcpAppTool` only searches servers that loaded tools at startup, since
+the agent can only call tools from those. Neither method checks which server an
+app came from, so a host bridging app requests must pass the `serverName` from
+the app's `resolveMcpAppTool` binding rather than one the app supplies.
+
+`readMcpAppResource` and `callMcpAppTool` throw when the session was started
+without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the
+`session.mcp_apps.*` commands, so the hub daemon serves them from the session's
+own MCP manager.
 
 ## Run stall telemetry
 

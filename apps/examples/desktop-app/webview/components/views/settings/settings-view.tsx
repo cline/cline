@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { useAccount } from "@/contexts/account-context";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -29,12 +30,14 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
 	runProviderOAuthLogin,
 } from "@/lib/provider-connection";
+import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
@@ -69,6 +72,8 @@ import { CustomizeView } from "./customize-view";
 import { DebugContent } from "./debug-view";
 import { HubPanel } from "./hub-panel";
 import { ImportContent } from "./import-view";
+import { KeybindingsContent } from "./keybindings-view";
+import { LocalModelsContent } from "./local-models-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
@@ -116,6 +121,7 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const { refreshAccount } = useAccount();
 	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
 		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
@@ -138,6 +144,9 @@ export function SettingsView({
 	>(null);
 	const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
 		null,
+	);
+	const [inUseProviderId] = useState(() =>
+		normalizeProviderId(readModelSelectionStorageFromWindow().lastProvider),
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
 	// Bumped by every optimistic provider mutation and catalog load. An
@@ -345,6 +354,10 @@ export function SettingsView({
 
 	const updateProvider = useCallback(
 		(id: string, updates: ProviderSettingsUpdate) => {
+			const clineKeyChanged =
+				(id === "cline" || id === "cline-pass") &&
+				Boolean(updates.apiKey) &&
+				updates.apiKey !== providers.find((p) => p.id === id)?.apiKey;
 			// Saving settings creates the provider's persisted entry, which is
 			// what "connected" means for keyless providers — reflect it locally.
 			catalogGenerationRef.current++;
@@ -369,9 +382,16 @@ export function SettingsView({
 				apiKey: updates.apiKey,
 				baseUrl: updates.baseUrl,
 				configValues: updates.configValues,
+			}).then((saved) => {
+				// A new Cline key may belong to a different account than the
+				// stored identity; fetchMe writes the key's own account back
+				// (mirrors onboarding's save-then-verify).
+				if (saved && clineKeyChanged) {
+					void refreshAccount();
+				}
 			});
 		},
-		[persistProviderSettings, setProvidersWithCache],
+		[persistProviderSettings, providers, refreshAccount, setProvidersWithCache],
 	);
 
 	const loadProviderModels = useCallback(
@@ -428,9 +448,13 @@ export function SettingsView({
 	);
 
 	// The detail panel is always open: with no explicit selection, default to
-	// the first connected provider (the one in use), then the first provider.
+	// the provider the chat uses, then the first connected one, then the first.
 	const effectiveSelectedProviderId =
 		selectedProviderId ??
+		providers.find(
+			(provider) =>
+				provider.id === inUseProviderId && isProviderConnected(provider),
+		)?.id ??
 		providers.find(isProviderConnected)?.id ??
 		providers[0]?.id ??
 		null;
@@ -610,10 +634,14 @@ export function SettingsView({
 				{providerContent}
 				{addProviderDialog}
 			</>
+		) : activeNav === "Local Models" ? (
+			<LocalModelsContent />
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
+		) : activeNav === "Keybindings" ? (
+			<KeybindingsContent />
 		) : activeNav === "Customize" ? (
 			<CustomizeView
 				onOpenModelProviders={() => onNavigateSection("Providers")}

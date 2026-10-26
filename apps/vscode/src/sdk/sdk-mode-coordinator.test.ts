@@ -84,6 +84,66 @@ describe("SdkModeCoordinator", () => {
 			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "plan", to: "act" })
 		})
 
+		it("seeds the replacement with the first prompt once the aborted turn has added it", async () => {
+			const planSession = makeActiveSession({ mode: "plan", isRunning: true })
+			const { coordinator, options } = makeCoordinator({
+				activeSession: planSession,
+				mode: "plan",
+				task: makeTask("new-task"),
+			})
+			const messages: unknown[] = []
+			options.loadInitialMessages.mockImplementation(async () => [...messages])
+			options.sessions.waitForTurnSend.mockImplementationOnce(async () => {
+				// Core adds the just-sent prompt only as the aborted turn ends.
+				messages.push({ role: "user", content: "first prompt" })
+				return true
+			})
+
+			await coordinator.togglePlanActMode("act")
+
+			expect(options.sessions.waitForTurnSend).toHaveBeenCalledWith(planSession)
+			expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+				expect.objectContaining({ initialMessages: [{ role: "user", content: "first prompt" }] }),
+			)
+		})
+
+		it("keeps the session and its mode when the aborted turn does not settle in time", async () => {
+			const actSession = makeActiveSession({ mode: "act", isRunning: true })
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: actSession,
+				mode: "act",
+				task: makeTask("new-task"),
+			})
+			options.sessions.waitForTurnSend.mockResolvedValueOnce(false)
+
+			await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false)
+
+			expect(actSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
+			expect(options.loadInitialMessages).not.toHaveBeenCalled()
+			expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+			expect(state.mode).toBe("act")
+			expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", expect.any(Number))
+			expect(coordinator.consumeModeSwitchNotice("old-session")).toBeNull()
+		})
+
+		it("does not rebuild an idle session whose aborted turn is still in flight", async () => {
+			// A previous switch timed out waiting for the turn and marked it idle.
+			const planSession = makeActiveSession({ mode: "plan" })
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: planSession,
+				mode: "plan",
+				task: makeTask("new-task"),
+			})
+			options.sessions.waitForTurnSend.mockResolvedValueOnce(false)
+
+			await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+			expect(options.sessions.waitForTurnSend).toHaveBeenCalledWith(planSession)
+			expect(options.loadInitialMessages).not.toHaveBeenCalled()
+			expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+			expect(state.mode).toBe("plan")
+		})
+
 		it("rebuilds when the setting already matches but the session was built for the other mode", async () => {
 			const planSession = makeActiveSession({ mode: "plan" })
 			const { coordinator, options, state } = makeCoordinator({
@@ -896,6 +956,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			fireAndForgetSend: vi.fn(),
 			setRunning: vi.fn(),
 			waitForSessionStarts: vi.fn().mockResolvedValue(undefined),
+			waitForTurnSend: vi.fn().mockResolvedValue(true),
 		},
 		interactions: {
 			clearPending: vi.fn(),
@@ -935,6 +996,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			replaceActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
 			waitForSessionStarts: ReturnType<typeof vi.fn>
+			waitForTurnSend: ReturnType<typeof vi.fn>
 		}
 		interactions: SdkModeCoordinatorOptions["interactions"] & {
 			clearPending: ReturnType<typeof vi.fn>
