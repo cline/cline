@@ -6,12 +6,14 @@ import type {
 import type {
 	HubCommandTransport,
 	HubConnectionAuthority,
+	HubConnectionContext,
 } from "./command-transport";
 
 export interface NativeHubTransport {
 	handleCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority | null,
+		connection?: HubConnectionContext,
 	): Promise<HubReplyEnvelope>;
 	subscribe(
 		clientId: string,
@@ -31,8 +33,9 @@ export class NativeHubTransportAdapter implements HubCommandTransport {
 	command(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority | null,
+		connection?: HubConnectionContext,
 	): Promise<HubReplyEnvelope> {
-		return this.transport.handleCommand(envelope, authority);
+		return this.transport.handleCommand(envelope, authority, connection);
 	}
 
 	subscribe(

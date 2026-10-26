@@ -51,7 +51,10 @@ import {
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import { HubCloudSessionService } from "./cloud-session-service";
-import type { HubConnectionAuthority } from "./command-transport";
+import type {
+	HubConnectionAuthority,
+	HubConnectionContext,
+} from "./command-transport";
 import {
 	handleApprovalRespond,
 	pendingApprovalEvents,
@@ -804,6 +807,7 @@ export class HubServerTransport implements NativeHubTransport {
 	async handleCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority | null,
+		connection?: HubConnectionContext,
 	): Promise<HubReplyEnvelope> {
 		try {
 			if (
@@ -832,7 +836,17 @@ export class HubServerTransport implements NativeHubTransport {
 							}
 						: undefined
 					: (authority ?? undefined);
-			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
+			// Token holders may register any workspace, so an unregistered token
+			// connection keeps full session authority; origin-only ones do not.
+			const sessionAuthority =
+				authority === null && connection?.tokenAuthenticated
+					? { clientId: clientId ?? "", crossWorkspace: true }
+					: authority;
+			const reply = await this.dispatchCommand(
+				envelope,
+				effectiveAuthority,
+				sessionAuthority,
+			);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -851,6 +865,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority,
+		// Unlike `authority`, keeps `null` (unregistered remote connection)
+		// distinct from `undefined` (trusted in-process caller).
+		connectionAuthority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
@@ -926,6 +943,7 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					connectionAuthority,
 				);
 			case "session.restore":
 				return await handleSessionRestore(
@@ -933,6 +951,7 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					connectionAuthority,
 				);
 			case "session.attach":
 				return await handleSessionAttach(this.ctx, envelope);

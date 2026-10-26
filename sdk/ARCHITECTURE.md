@@ -370,6 +370,15 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
+A loopback hub also accepts `/hub` upgrades without the token when the request
+carries a loopback `Origin`, so browser pages served from localhost can connect.
+Non-browser processes can forge that header, so these connections only get
+workspace-confined authority: registration pins them to the hub's workspace, and
+`session.create` / `session.restore` reject them until they register, then
+refuse any session or restore source whose directories fall outside that
+workspace (`authorizeSessionWorkspace`). Token connections keep full session
+authority whether or not they have registered.
+
 Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
 headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every
 new socket, including reconnects, so hosts can refresh short-lived credentials.
