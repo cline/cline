@@ -360,6 +360,153 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("routes MCP Apps requests to the session runtime", async () => {
+		const mcpApps = {
+			resolveTool: vi.fn().mockResolvedValue({
+				serverName: "weather",
+				toolName: "show_weather",
+				resourceUri: "ui://weather/view.html",
+			}),
+			readResource: vi.fn().mockResolvedValue({ contents: [] }),
+			callTool: vi.fn().mockResolvedValue({ content: [] }),
+		};
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockReturnValueOnce({
+					tools: [],
+					mcpApps,
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-mcp-apps"),
+			getConversationId: vi.fn().mockReturnValue("conv-mcp-apps"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const telemetry = { capture: vi.fn(), setDistinctId: vi.fn() };
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			telemetry: telemetry as never,
+			sessionService: new FileSessionService(
+				join(isolatedHomeDir, "sessions-mcp-apps"),
+			),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const config = {
+			providerId: "mock-provider",
+			modelId: "mock-model",
+			systemPrompt: "You are a test agent",
+			cwd: isolatedHomeDir,
+			enableTools: false,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		};
+
+		try {
+			const withApps = await manager.startSession({
+				config: { ...config, sessionId: "with-apps", mcpApps: true },
+			});
+			const withoutApps = await manager.startSession({
+				config: { ...config, sessionId: "without-apps" },
+			});
+
+			expect(runtimeBuilder.build).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					config: expect.objectContaining({ mcpApps: true }),
+				}),
+			);
+			await expect(
+				manager.resolveMcpAppTool(withApps.sessionId, "weather__show_weather"),
+			).resolves.toMatchObject({ resourceUri: "ui://weather/view.html" });
+			await manager.readMcpAppResource(withApps.sessionId, {
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			await manager.callMcpAppTool(withApps.sessionId, {
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+			mcpApps.callTool.mockRejectedValueOnce(new Error("server failed"));
+			await expect(
+				manager.callMcpAppTool(withApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("server failed");
+			expect(
+				telemetry.capture.mock.calls
+					.map(([event]) => event)
+					.filter(
+						({ event }) => event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					),
+			).toEqual([
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({
+						ulid: "with-apps",
+						tool: "weather__refresh_view",
+						success: true,
+					}),
+				},
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({ success: false }),
+				},
+			]);
+			expect(mcpApps.resolveTool).toHaveBeenCalledWith("weather__show_weather");
+			expect(mcpApps.readResource).toHaveBeenCalledWith({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			expect(mcpApps.callTool).toHaveBeenCalledWith({
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+
+			await expect(
+				manager.resolveMcpAppTool(
+					withoutApps.sessionId,
+					"weather__show_weather",
+				),
+			).resolves.toBeUndefined();
+			await expect(
+				manager.callMcpAppTool(withoutApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("MCP Apps is not enabled");
+
+			const withoutServers = await manager.startSession({
+				config: { ...config, sessionId: "without-servers", mcpApps: true },
+			});
+			await expect(
+				manager.readMcpAppResource(withoutServers.sessionId, {
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				}),
+			).rejects.toThrow("has no MCP servers available to MCP Apps");
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");
 		mkdirSync(workspaceRoot, { recursive: true });

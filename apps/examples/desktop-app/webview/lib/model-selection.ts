@@ -87,6 +87,34 @@ export function writeModelSelectionStorageToWindow(
 	);
 }
 
+export const MODEL_SELECTION_CHANGED_EVENT = "cline:model-selection-changed";
+
+export type ModelSelectionChangedDetail = {
+	providerId: string;
+	modelId: string;
+};
+
+/**
+ * Makes a model the default for new chats and switches the open composer to
+ * it, for selections made outside the composer (e.g. Settings → Local Models).
+ */
+export function selectChatModel(providerId: string, modelId: string): void {
+	const selection = readModelSelectionStorageFromWindow();
+	writeModelSelectionStorageToWindow({
+		lastProvider: providerId,
+		lastModelByProvider: {
+			...selection.lastModelByProvider,
+			[providerId]: modelId,
+		},
+	});
+	window.dispatchEvent(
+		new CustomEvent<ModelSelectionChangedDetail>(
+			MODEL_SELECTION_CHANGED_EVENT,
+			{ detail: { providerId, modelId } },
+		),
+	);
+}
+
 export const REASONING_SELECTION_STORAGE_KEY =
 	"cline.code.reasoning-selection.v1";
 

@@ -744,7 +744,7 @@ export function RoutineSchedulesContent({
 					!mountedRef.current ||
 					requestId !== overviewRequestSequence.current
 				)
-					return;
+					return response;
 				const schedules = response.schedules;
 				const activeExecutions = response.activeExecutions;
 				const upcomingRuns = response.upcomingRuns;

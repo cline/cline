@@ -50,6 +50,7 @@ import {
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import { HubCloudSessionService } from "./cloud-session-service";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
@@ -81,6 +82,11 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import {
+	handleSessionMcpAppsCallTool,
+	handleSessionMcpAppsReadResource,
+	handleSessionMcpAppsResolveTool,
+} from "./handlers/mcp-apps-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
@@ -298,7 +304,18 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
 
+	private readonly cloud: HubCloudSessionService;
+
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.cloud = new HubCloudSessionService({
+			...options.cloudSessionOptions,
+			logger: options.logger,
+			telemetry: options.telemetry,
+			publish: (event, version) =>
+				this.publish(
+					buildHubEvent("cloud.event", { event, ...version }, event?.sessionId),
+				),
+		});
 		this.plugins.setLogger(hubPluginLogger);
 		this.unsubscribePluginStatus = this.plugins.subscribe((status) => {
 			this.publish(
@@ -765,6 +782,7 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.cloud.dispose();
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
@@ -788,6 +806,16 @@ export class HubServerTransport implements NativeHubTransport {
 		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope> {
 		try {
+			if (
+				authority === null &&
+				(envelope.command === "cloud.command" ||
+					envelope.command === "cloud.watch")
+			)
+				return errorReply(
+					envelope,
+					"client_not_registered",
+					"Register before accessing cloud sessions",
+				);
 			const clientId = envelope.clientId?.trim();
 			// Omitted authority is reserved for trusted in-process callers. A remote
 			// transport passes null until registration so caller-controlled envelope
@@ -829,6 +857,47 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 		if (isAgendaTaskCommand(envelope.command)) {
 			return await this.taskCommands.handleCommand(envelope, authority);
+		}
+		if (
+			envelope.command === "cloud.command" ||
+			envelope.command === "cloud.watch"
+		) {
+			const clientId = envelope.clientId?.trim();
+			if (
+				!clientId ||
+				!this.clients.has(clientId) ||
+				(authority && authority.clientId !== clientId)
+			) {
+				return errorReply(
+					envelope,
+					"client_not_registered",
+					"Register before accessing cloud sessions",
+				);
+			}
+			if (
+				this.draining &&
+				envelope.command === "cloud.command" &&
+				["create", "attach", "send"].includes(
+					String(envelope.payload?.operation),
+				)
+			)
+				return drainingReply(envelope);
+			try {
+				if (envelope.command === "cloud.watch")
+					return okReply(envelope, this.cloud.watch());
+				const result = await this.cloud.command(
+					String(envelope.payload?.operation ?? ""),
+					envelope.payload?.args,
+					envelope.payload?.scope,
+				);
+				return okReply(envelope, result);
+			} catch (error) {
+				return errorReply(
+					envelope,
+					"cloud_command_failed",
+					error instanceof Error ? error.message : String(error),
+				);
+			}
 		}
 		switch (envelope.command) {
 			case "client.register": {
@@ -882,6 +951,7 @@ export class HubServerTransport implements NativeHubTransport {
 					payload: {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
+						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
 			}
@@ -891,6 +961,12 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionUpdate(this.ctx, envelope);
 			case "session.update_connection":
 				return await handleSessionUpdateConnection(this.ctx, envelope);
+			case "session.mcp_apps.resolve_tool":
+				return await handleSessionMcpAppsResolveTool(this.ctx, envelope);
+			case "session.mcp_apps.read_resource":
+				return await handleSessionMcpAppsReadResource(this.ctx, envelope);
+			case "session.mcp_apps.call_tool":
+				return await handleSessionMcpAppsCallTool(this.ctx, envelope);
 			case "session.compaction.update":
 				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":
@@ -1218,6 +1294,7 @@ export class HubServerTransport implements NativeHubTransport {
 			hubId: this.hubId,
 			draining: this.draining,
 			activeRpcTurns,
+			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
@@ -1226,6 +1303,7 @@ export class HubServerTransport implements NativeHubTransport {
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
 			idle:
 				activeRpcTurns === 0 &&
+				this.cloud.activeCommands === 0 &&
 				this.pendingPluginCommands.size === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
@@ -1268,6 +1346,32 @@ export class HubServerTransport implements NativeHubTransport {
 		// request raised while it was away instead of leaving the turn parked,
 		// and deliver capability requests that waited for this client to
 		// reconnect.
+		const cloud = this.cloud.snapshot();
+		queueMicrotask(() => {
+			if (!this.listeners.get(clientId)?.has(entry)) return;
+			try {
+				entry.listener(
+					buildHubEvent(
+						"cloud.event",
+						{
+							...cloud,
+							snapshots: entry.sessionId
+								? cloud.snapshots.filter(
+										(snapshot) => snapshot.sessionId === entry.sessionId,
+									)
+								: cloud.snapshots,
+							...(entry.sessionId ? { sessionId: entry.sessionId } : {}),
+						},
+						entry.sessionId,
+					),
+				);
+			} catch (error) {
+				logHubBoundaryError(
+					"listener threw while recovering cloud state",
+					error,
+				);
+			}
+		});
 		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
 		queueMicrotask(() => {
 			const listeners = this.listeners.get(clientId);
@@ -1328,7 +1432,8 @@ export class HubServerTransport implements NativeHubTransport {
 		// Durability before delivery: append to the event log and fan out the
 		// sequence-stamped envelope, so live listeners and replaying clients
 		// observe identical frames and the cursor is always meaningful.
-		if (this.eventLog) {
+		// Cloud snapshots are recovered with cloud.watch, never from an old account event log.
+		if (this.eventLog && event.event !== "cloud.event") {
 			try {
 				event = this.eventLog.append(event);
 			} catch (error) {

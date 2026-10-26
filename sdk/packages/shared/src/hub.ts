@@ -621,6 +621,8 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
+	| "cloud.command"
+	| "cloud.watch"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -641,6 +643,9 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.mcp_apps.resolve_tool"
+	| "session.mcp_apps.read_resource"
+	| "session.mcp_apps.call_tool"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
@@ -757,6 +762,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"
@@ -916,6 +922,7 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
 	kind: "tool";
 	name: string;
 	description: string;

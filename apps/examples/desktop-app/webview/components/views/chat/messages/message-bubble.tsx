@@ -16,7 +16,7 @@ import {
 	SplitIcon,
 	UndoIcon,
 } from "lucide-react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { resolveCredentialFailureAction } from "@/hooks/chat-session/helpers";
 import type {
@@ -24,6 +24,10 @@ import type {
 	ChatMessageImage,
 	ChatMessageMedia,
 } from "@/lib/chat-schema";
+import {
+	getComposerHighlights,
+	useKnownComposerTokens,
+} from "@/lib/composer-tokens";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
@@ -66,6 +70,30 @@ function MessageImages({
 			))}
 		</div>
 	);
+}
+
+// Chips the same tokens the composer did: known commands, plus mentions the
+// composer saw in search results or the history recorded as attached files.
+function UserMessageMarkdown({
+	content,
+	attachedFiles,
+}: {
+	content: string;
+	attachedFiles?: string[];
+}) {
+	const { commandNames, mentionPaths } = useKnownComposerTokens();
+	const tokenKey = getComposerHighlights(
+		content,
+		commandNames,
+		(path) => mentionPaths.has(path) || Boolean(attachedFiles?.includes(path)),
+	)
+		.map(({ start, end }) => content.slice(start, end))
+		.join("\n");
+	const chipTokens = useMemo(
+		() => new Set(tokenKey ? tokenKey.split("\n") : []),
+		[tokenKey],
+	);
+	return <MemoizedMarkdown chipTokens={chipTokens} content={content} />;
 }
 
 function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
@@ -258,10 +286,17 @@ export const MessageBubble = memo(function MessageBubble({
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">
-						<MemoizedMarkdown
-							content={displayContent}
-							streaming={isStreaming && message.role === "assistant"}
-						/>
+						{isUser ? (
+							<UserMessageMarkdown
+								attachedFiles={message.meta?.attachedFiles}
+								content={displayContent}
+							/>
+						) : (
+							<MemoizedMarkdown
+								content={displayContent}
+								streaming={isStreaming && message.role === "assistant"}
+							/>
+						)}
 					</div>
 				) : null}
 

@@ -713,7 +713,6 @@ function buildCoreSessionConfig(
 		// runs and long desktop sessions overflow the context window.
 		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -1081,7 +1080,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn

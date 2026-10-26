@@ -230,6 +230,11 @@ describe("starting SSH sessions", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: transcript }),
 		);
+		// The hub sends config and top-level initialMessages in one frame, so a
+		// second copy in config doubles it past the hub's 16 MiB limit.
+		expect(
+			(start.mock.calls[0]?.[0] as { config: object }).config,
+		).not.toHaveProperty("initialMessages");
 	});
 });
 
