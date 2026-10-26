@@ -681,27 +681,3 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
-re-attach when they see a newer epoch for their session. Live states arrive as
-`plugin_ui_state` events through `subscribe`, only once the session is
-resident. They are ephemeral and never written to a durable log. Pushes are
-coalesced per slot (100 ms) and identical states are dropped. Telemetry
-carries counts and outcomes only, never state text or plugin error messages.
-
-**Over the hub.** A hub advertises the `plugins.ui` capability. Its commands
-take `envelope.sessionId` and never fail for plugin reasons:
-
-- `plugins.ui.get` with `{}` replies `{ states }`, as `get` does;
-- `plugins.ui.invoke` with `{ slot, action }` replies the invoke result. The
-  hub stamps the viewer with the registered connection's `clientId` and
-  `clientType`, ignores any `viewerId` in the payload, and answers
-  `unavailable` to a socket that has not registered.
-
-Live states arrive as the `plugins.ui.state` event, with `sessionId` set and
-no `sequence`: it never enters the replay log, and a session-scoped subscribe
-re-issues each slot's current state instead. A viewer's lease belongs to the
-connection that attached it, so a disconnect detaches only the leases that
-connection holds, and clients re-attach after they reconnect. A client
-declares its catalog with `uiSlots` on `session.create` and `session.restore`;
-without the key the session has none. `HubRuntimeHost.pluginUi` and
-`HubSessionClient.pluginUi` expose the same never-throwing API; against an
-older hub that lacks the commands they return `[]` and `unavailable`.
