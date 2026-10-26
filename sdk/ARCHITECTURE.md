@@ -1320,3 +1320,19 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Local CLI shell environment
+
+The CLI explicitly supplies an environment capture callback when selecting a
+discovered, authenticated loopback Hub. Explicit endpoints, remote hosts and
+other SDK/desktop clients do not capture their ambient environment. At session
+creation (including checkpoint restore), the callback produces a validated copy
+in `runtimeOptions.shellEnvironment`. This field is ephemeral: it is not part
+of session config, metadata, manifests, snapshots or provider settings.
+
+The Hub passes it through local bootstrap into the normal runtime builder and
+delegated built-in tools. Those shell children replace, rather than overlay, the
+daemon environment, so absent client keys stay absent and daemon-only secrets
+are not inherited. The execution controller still owns command proceed/detach.
+Provider, hook and MCP processes keep their existing host environment. Clients
+that omit the field retain the existing inheritance behavior.

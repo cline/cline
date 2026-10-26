@@ -30,6 +30,8 @@ export type { RuntimeHostMode } from "../runtime/host/runtime-host";
 export type { ClineCoreSettingsApi } from "../settings";
 
 export interface HubOptions {
+	/** CLI-only, ephemeral shell inheritance on discovered local Hub routes. */
+	captureShellEnvironment?: () => Readonly<Record<string, string | undefined>>;
 	endpoint?: string;
 	authToken?: string;
 	strategy?: "prefer-hub" | "require-hub";

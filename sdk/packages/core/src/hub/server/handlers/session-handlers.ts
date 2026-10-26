@@ -22,6 +22,7 @@ import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
 } from "../../../runtime/host/runtime-host";
+import { parseShellEnvironment } from "../../../services/shell-environment";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -313,6 +314,9 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
+	const shellEnvironment = parseShellEnvironment(
+		runtimeOptions.shellEnvironment,
+	);
 	const clientContext = readHubClientContext(runtimeOptions.clientContext);
 	const userContext = readHubUserContext(runtimeOptions.userContext);
 	const initialCompactionState = parseSessionCompactionState(
@@ -416,6 +420,7 @@ export async function handleSessionCreate(
 			: undefined,
 		initialCompactionState,
 		localRuntime: {
+			shellEnvironment,
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
 				loadPrivateOnAuth: true,
@@ -636,6 +641,9 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
+		const shellEnvironment = parseShellEnvironment(
+			runtimeOptions.shellEnvironment,
+		);
 		const clientContext = readHubClientContext(runtimeOptions.clientContext);
 		const userContext = readHubUserContext(runtimeOptions.userContext);
 		const initialCompactionState = parseSessionCompactionState(
@@ -738,6 +746,7 @@ export async function handleSessionRestore(
 					initialMessages: context.initialMessages,
 					initialCompactionState,
 					localRuntime: {
+						shellEnvironment,
 						modelCatalogDefaults: {
 							loadLatestOnInit: true,
 							loadPrivateOnAuth: true,

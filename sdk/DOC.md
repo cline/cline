@@ -593,3 +593,5 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+The CLI opts into `hub.captureShellEnvironment` for discovered local Hub routes. The callback is evaluated at session creation, including checkpoint restore; explicit endpoints, remote runtimes and non-CLI clients do not receive this opt-in. `localRuntime.shellEnvironment` is an ephemeral replacement environment for built-in shell children and delegated tools, separate from persisted session configuration. Omission preserves inherited host behavior. Environment input is bounded to 4096 entries and 256 KiB, with non-empty names of at most 256 characters, no equals/NUL in names and no NUL in string values. Validation errors never include environment contents.

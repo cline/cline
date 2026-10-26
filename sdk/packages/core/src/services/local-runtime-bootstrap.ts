@@ -354,6 +354,7 @@ export async function prepareLocalRuntimeBootstrap(
 		userInstructionService,
 		configExtensions,
 		onTeamRestored,
+		shellEnvironment,
 		...localConfigFields
 	} = localRuntime ?? {};
 	const localConfig =
@@ -650,6 +651,7 @@ export async function prepareLocalRuntimeBootstrap(
 			agentPluginMcpServers: loadedAgentPluginPackages?.mcpServers,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			shellEnvironment,
 			toolPolicies,
 			workspaceManager,
 			logger: config.logger,

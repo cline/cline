@@ -762,6 +762,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+					{
+						executionController: this.runCommandExecutionController,
+						...(input.localRuntime?.shellEnvironment
+							? { env: input.localRuntime.shellEnvironment, inheritEnv: false }
+							: {}),
+					},
 				),
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(

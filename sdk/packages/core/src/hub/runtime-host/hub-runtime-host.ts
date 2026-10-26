@@ -55,6 +55,7 @@ import type {
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
 import type { PluginCommandsApi } from "../../services/plugin-command-api";
+import { captureShellEnvironment } from "../../services/shell-environment";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
@@ -596,6 +597,8 @@ function hubReplyErrorMessage(
 }
 
 export interface HubRuntimeHostOptions {
+	/** Explicit host opt-in; never capture ambient SDK environment by default. */
+	captureShellEnvironment?: () => Readonly<Record<string, string | undefined>>;
 	url: string;
 	authToken?: string;
 	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
@@ -794,12 +797,14 @@ export class HubRuntimeHost implements RuntimeHost {
 	>();
 	private readonly defaultCapabilities: RuntimeCapabilities;
 	private readonly telemetry?: ITelemetryService;
+	private readonly captureShellEnvironment?: HubRuntimeHostOptions["captureShellEnvironment"];
 
 	constructor(
 		options: HubRuntimeHostOptions,
 		clientContext?: { workspaceRoot?: string; cwd?: string },
 	) {
 		this.clientContext = clientContext;
+		this.captureShellEnvironment = options.captureShellEnvironment;
 		this.clientOptions = {
 			authToken: options.authToken,
 			resolveConnectionHeaders: options.resolveConnectionHeaders,
@@ -885,6 +890,9 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const capabilities = this.resolveCapabilities(input);
+		const shellEnvironment = this.captureShellEnvironment
+			? captureShellEnvironment(this.captureShellEnvironment())
+			: undefined;
 		const clientContributions = buildClientContributionRegistration(
 			input.localRuntime,
 			capabilities,
@@ -906,6 +914,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				),
 				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
+					...(shellEnvironment ? { shellEnvironment } : {}),
 					...(clientContext ? { clientContext } : {}),
 					...(userContext ? { userContext } : {}),
 					...(clientContributions.manifest.length > 0
@@ -1004,6 +1013,10 @@ export class HubRuntimeHost implements RuntimeHost {
 			throw new Error("start is required when restore.messages is true");
 		}
 		const startConfig = input.start;
+		const shellEnvironment =
+			startConfig && this.captureShellEnvironment
+				? captureShellEnvironment(this.captureShellEnvironment())
+				: undefined;
 		const capabilities = startConfig
 			? this.resolveCapabilities(startConfig)
 			: undefined;
@@ -1059,6 +1072,7 @@ export class HubRuntimeHost implements RuntimeHost {
 								sessionConfig: toJsonRecord(startSessionConfig),
 								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
+									...(shellEnvironment ? { shellEnvironment } : {}),
 									...(clientContext ? { clientContext } : {}),
 									...(userContext ? { userContext } : {}),
 									...(clientContributions.manifest.length > 0
