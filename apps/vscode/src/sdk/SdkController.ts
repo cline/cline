@@ -2448,8 +2448,8 @@ export class Controller {
 		return this.cloud.resolveStatuses(sessionIds)
 	}
 
-	refreshClinePassSubscription(): Promise<void> {
-		return this.cloud.refreshClinePassSubscription()
+	refreshClinePassSubscription(options?: { force?: boolean }): Promise<void> {
+		return this.cloud.refreshClinePassSubscription(options)
 	}
 
 	invalidateTaskHistoryCache(): void {
