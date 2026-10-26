@@ -2,6 +2,7 @@ import { type GitHubConnection, GitHubConnectionRequest } from "@shared/proto/cl
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { CloudServiceClient } from "@/services/grpc-client"
+import { useWindowReturn } from "./useWindowReturn"
 
 const DISCONNECTED_POLL_MS = 6_000
 
@@ -9,8 +10,9 @@ const DISCONNECTED_POLL_MS = 6_000
  * GitHub App connection status for cloud sessions. The connection belongs to
  * the active account (personal or organization), so it is re-read whenever
  * that changes. While the user is signed in but GitHub is not connected (or
- * grants no repositories), the status is re-checked periodically and on window
- * focus so finishing the connect flow in the browser flips the UI on its own.
+ * grants no repositories), the status is re-checked periodically and when the
+ * user returns to the webview, so finishing the connect flow in the browser
+ * flips the UI on its own.
  */
 export function useGitHubConnection(enabled: boolean) {
 	const { clineUser, activeOrganization, accountSwitch } = useClineAuth()
@@ -91,14 +93,10 @@ export function useGitHubConnection(enabled: boolean) {
 		if (!needsPolling) {
 			return
 		}
-		const recheck = () => void load({ refresh: true })
-		const timer = setInterval(recheck, DISCONNECTED_POLL_MS)
-		window.addEventListener("focus", recheck)
-		return () => {
-			clearInterval(timer)
-			window.removeEventListener("focus", recheck)
-		}
+		const timer = setInterval(() => void load({ refresh: true }), DISCONNECTED_POLL_MS)
+		return () => clearInterval(timer)
 	}, [needsPolling, load])
+	useWindowReturn(needsPolling ? () => void load({ refresh: true }) : undefined)
 
 	return { connection, loading, refresh }
 }
