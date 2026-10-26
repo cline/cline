@@ -36,6 +36,7 @@ import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
+	McpAppsRuntimeService,
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
@@ -681,4 +682,24 @@ export class ClineCore {
 			const service = this.host as RuntimeHostServiceExtensions;
 			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
 		};
+	resolveMcpAppTool: McpAppsRuntimeService["resolveMcpAppTool"] = (...args) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return service.resolveMcpAppTool?.(...args) ?? Promise.resolve(undefined);
+	};
+	readMcpAppResource: McpAppsRuntimeService["readMcpAppResource"] = (
+		...args
+	) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return (
+			service.readMcpAppResource?.(...args) ??
+			Promise.reject(new Error("This runtime does not support MCP Apps."))
+		);
+	};
+	callMcpAppTool: McpAppsRuntimeService["callMcpAppTool"] = (...args) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return (
+			service.callMcpAppTool?.(...args) ??
+			Promise.reject(new Error("This runtime does not support MCP Apps."))
+		);
+	};
 }

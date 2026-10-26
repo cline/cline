@@ -52,6 +52,17 @@ interface ClineModelPickerProps {
 	currentMode: Mode
 	showProviderRouting?: boolean
 	initialTab?: "recommended" | "free"
+	/**
+	 * Picks the model new cloud tasks run on instead of the Plan/Act model, from
+	 * the cloud catalogs: Usage-Billing, ClinePass (personal accounts only) and ClineFree.
+	 */
+	cloudSelection?: {
+		modelId: string
+		onChange: (modelId: string) => void
+		includeClinePass: boolean
+		/** Shown above the ClinePass models, e.g. a subscribe prompt. */
+		clinePassNotice?: React.ReactNode
+	}
 }
 
 interface FeaturedModelCardEntry {
@@ -60,6 +71,8 @@ interface FeaturedModelCardEntry {
 	description: string
 	label: string
 }
+
+type FeaturedTabId = "recommended" | "free" | "clinePass" | "clineCloud"
 
 const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
 
@@ -70,6 +83,7 @@ function normalizeModelId(modelId: string): string {
 function toFeaturedModelCardEntry(
 	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
 	fallbackLabel: string,
+	fallbackDescription = fallbackLabel === "FREE" ? "Free model" : "Recommended model",
 ): FeaturedModelCardEntry | null {
 	if (!model.id) {
 		return null
@@ -81,7 +95,7 @@ function toFeaturedModelCardEntry(
 	return {
 		id: model.id,
 		name: model.name,
-		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
+		description: model.description || fallbackDescription,
 		label: normalizedLabel || fallbackLabel,
 	}
 }
@@ -94,7 +108,13 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
-const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
+const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	showProviderRouting,
+	initialTab,
+	cloudSelection,
+}) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
@@ -103,18 +123,21 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const effectiveClineModels = catalogClineModels
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
-	const currentClineModelId =
-		committedSelection?.modelId ||
-		modeFields.clineModelId ||
-		clineDefaultModelId ||
-		Object.keys(effectiveClineModels ?? {})[0] ||
-		""
+	const currentClineModelId = cloudSelection
+		? cloudSelection.modelId
+		: committedSelection?.modelId ||
+			modeFields.clineModelId ||
+			clineDefaultModelId ||
+			Object.keys(effectiveClineModels ?? {})[0] ||
+			""
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
+	const [clinePassModels, setClinePassModels] = useState<FeaturedModelCardEntry[]>([])
+	const [clineCloudModels, setClineCloudModels] = useState<FeaturedModelCardEntry[]>([])
 	const freeClineModelIds = useMemo(() => {
 		const freeModelIds =
 			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
@@ -124,12 +147,29 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
 		[freeClineModelIds],
 	)
-	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
+	const [activeTab, setActiveTab] = useState<FeaturedTabId>(initialTab ?? "recommended")
 	const recommendedModels = useMemo(
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
 	)
 	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const isCloud = cloudSelection !== undefined
+	const includeClinePass = cloudSelection?.includeClinePass ?? false
+	const featuredTabs = useMemo<{ id: FeaturedTabId; label: string; models: FeaturedModelCardEntry[] }[]>(
+		() =>
+			isCloud
+				? [
+						{ id: "recommended", label: "Usage-Billing", models: recommendedModels },
+						...(includeClinePass ? [{ id: "clinePass" as const, label: "ClinePass", models: clinePassModels }] : []),
+						{ id: "clineCloud", label: "ClineFree", models: clineCloudModels },
+					]
+				: [
+						{ id: "recommended", label: "Recommended", models: recommendedModels },
+						{ id: "free", label: "Free", models: freeModels },
+					],
+		[isCloud, includeClinePass, recommendedModels, freeModels, clinePassModels, clineCloudModels],
+	)
+	const visibleTab = featuredTabs.find((tab) => tab.id === activeTab) ?? featuredTabs[0]
 	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
 	const isFetchingClineRecommendedModelsRef = useRef(false)
 	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
@@ -150,6 +190,16 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				.filter((model): model is FeaturedModelCardEntry => model !== null)
 			setClineRecommendedModels(recommended)
 			setClineFreeModels(free)
+			setClinePassModels(
+				(response.clinePass ?? [])
+					.map((model) => toFeaturedModelCardEntry(model, "", "Included with ClinePass"))
+					.filter((model): model is FeaturedModelCardEntry => model !== null),
+			)
+			setClineCloudModels(
+				(response.clineCloud ?? [])
+					.map((model) => toFeaturedModelCardEntry(model, "FREE", "Free in the cloud with limited usage"))
+					.filter((model): model is FeaturedModelCardEntry => model !== null),
+			)
 			return true
 		} catch (error) {
 			console.error("Failed to refresh Cline recommended models:", error)
@@ -202,8 +252,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		if (initialTab) {
 			return
 		}
-		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentClineModelId)) ? "free" : "recommended")
-	}, [currentClineModelId, freeClineModelIdSet, initialTab])
+		const current = normalizeModelId(currentClineModelId)
+		const owner = featuredTabs.find((tab) => tab.models.some((model) => normalizeModelId(model.id) === current))
+		setActiveTab(owner?.id ?? featuredTabs[0].id)
+	}, [currentClineModelId, featuredTabs, initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -211,6 +263,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const handleModelChange = (newModelId: string) => {
 		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
+
+		if (cloudSelection) {
+			cloudSelection.onChange(newModelId)
+			return
+		}
 
 		const modelInfo = effectiveClineModels?.[newModelId] ?? {
 			...openAiModelInfoSafeDefaults,
@@ -253,7 +310,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					...selected,
 					selectedModelId: currentClineModelId,
 					selectedModelInfo: (() => {
-						const persistedModelInfo = committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
+						const persistedModelInfo = isCloud
+							? openAiModelInfoSafeDefaults
+							: committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
 						const liveModelInfo = effectiveClineModels?.[currentClineModelId]
 						// Persisted Cline model info is a snapshot from selection time. When the
 						// model is still in the catalog, refresh metadata/capability flags from
@@ -283,6 +342,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		effectiveClineModels,
 		freeClineModelIdSet,
 		modeFields.clineModelInfo,
+		isCloud,
 	])
 
 	useEffect(() => {
@@ -308,10 +368,21 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		}
 	}, [])
 
-	const modelIds = useMemo(() => {
+	const catalogModelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
 	}, [effectiveClineModels, freeClineModelIds])
+
+	// The local Cline catalog has no ClinePass or ClineFree ids; the cloud offers
+	// those through the featured lists, so search covers them too. Model info
+	// still comes from the catalog alone (catalogModelIds), as the lists carry none.
+	const modelIds = useMemo(() => {
+		if (!isCloud) {
+			return catalogModelIds
+		}
+		const featuredIds = featuredTabs.flatMap((tab) => tab.models.map((model) => model.id))
+		return [...new Set([...catalogModelIds, ...featuredIds])].sort((a, b) => a.localeCompare(b))
+	}, [catalogModelIds, isCloud, featuredTabs])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -378,11 +449,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const hasInfo = useMemo(() => {
 		try {
-			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+			return catalogModelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
 		}
-	}, [modelIds, searchTerm])
+	}, [catalogModelIds, searchTerm])
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset dropdown navigation whenever the search text changes
 	useEffect(() => {
@@ -430,44 +501,29 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 				{/* Tabs */}
 				<TabsContainer style={{ marginTop: 4 }}>
-					<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
-						Recommended
-					</Tab>
-					<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-						Free
-					</Tab>
+					{featuredTabs.map((tab) => (
+						<Tab active={visibleTab.id === tab.id} key={tab.id} onClick={() => setActiveTab(tab.id)}>
+							{tab.label}
+						</Tab>
+					))}
 				</TabsContainer>
 
 				{/* Model Cards */}
 				<div style={{ marginBottom: "6px" }}>
-					{activeTab === "recommended" &&
-						recommendedModels.map((model) => (
-							<FeaturedModelCard
-								description={model.description}
-								displayName={model.name || model.id}
-								isSelected={selectedModelId === model.id}
-								key={model.id}
-								label={model.label}
-								onClick={() => {
-									handleModelChange(model.id)
-									setIsDropdownVisible(false)
-								}}
-							/>
-						))}
-					{activeTab === "free" &&
-						freeModels.map((model) => (
-							<FeaturedModelCard
-								description={model.description}
-								displayName={model.name || model.id}
-								isSelected={selectedModelId === model.id}
-								key={model.id}
-								label={model.label}
-								onClick={() => {
-									handleModelChange(model.id)
-									setIsDropdownVisible(false)
-								}}
-							/>
-						))}
+					{visibleTab.id === "clinePass" && cloudSelection?.clinePassNotice}
+					{visibleTab.models.map((model) => (
+						<FeaturedModelCard
+							description={model.description}
+							displayName={model.name || model.id}
+							isSelected={selectedModelId === model.id}
+							key={model.id}
+							label={model.label}
+							onClick={() => {
+								handleModelChange(model.id)
+								setIsDropdownVisible(false)
+							}}
+						/>
+					))}
 				</div>
 
 				<DropdownWrapper ref={dropdownRef}>
@@ -559,7 +615,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 			{hasInfo ? (
 				<>
-					{showReasoningEffort && (
+					{showReasoningEffort && !isCloud && (
 						<ReasoningEffortSelector
 							allowedEfforts={
 								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
@@ -592,7 +648,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						showProviderRouting={showProviderRouting}
 					/>
 				</>
-			) : (
+			) : isCloud ? null : (
 				<p
 					style={{
 						fontSize: "12px",

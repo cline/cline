@@ -417,6 +417,8 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	/** Why the tracker stopped the run; returned as stop control from the hooks. */
+	private trackerStopReason: string | undefined;
 	private readonly handleExternalAbort = (): void => {
 		this.abort(this.config.abortSignal?.reason);
 	};
@@ -921,6 +923,7 @@ export class SessionRuntime {
 		this.currentTurnFailureDetails = [];
 		this.activeTrackerWork = Promise.resolve();
 		this.trackerAbortInFlight = false;
+		this.trackerStopReason = undefined;
 
 		const startedAt = new Date();
 		const effectiveUserMessage = input.userMessage;
@@ -1180,9 +1183,28 @@ export class SessionRuntime {
 				.getValidatedExtensions()
 				.map((extension) => extension.hooks),
 		]);
+		// Mistake-limit decisions run on activeTrackerWork, off the agent loop.
+		// Holding each model/tool boundary on it pauses the run while the
+		// onConsecutiveMistakeLimitReached callback (e.g. a user prompt) decides;
+		// it is already settled in every other turn. Failures are logged by the
+		// end-of-run drain, not raised here. A Stop decision is returned as stop
+		// control: abort alone does not keep the rest of a tool batch from running.
+		const trackerSettled = async () => {
+			await this.activeTrackerWork.catch(() => undefined);
+			return this.trackerAbortInFlight
+				? { stop: true as const, reason: this.trackerStopReason }
+				: undefined;
+		};
 		return {
 			...hooks,
+			beforeTool: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
+				return hooks.beforeTool?.(ctx);
+			},
 			afterTool: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
 				const control = await hooks.afterTool?.(ctx);
 				const result = control?.result ?? ctx.result;
 				if (ctx.tool.resultPolicy === "cache-oversized") {
@@ -1201,6 +1223,8 @@ export class SessionRuntime {
 				return control;
 			},
 			beforeModel: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
 					return control;
@@ -1550,6 +1574,7 @@ export class SessionRuntime {
 			const outcome = await this.mistakeTracker.record(input);
 			if (outcome.action === "stop") {
 				this.trackerAbortInFlight = true;
+				this.trackerStopReason = outcome.reason ?? outcome.message;
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: outcome.message }],

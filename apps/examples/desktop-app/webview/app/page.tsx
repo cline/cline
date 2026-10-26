@@ -1,11 +1,8 @@
 "use client";
 
-import {
-	CLINE_DEFAULT_MODEL_ID,
-	type ProviderAuthInfo,
-} from "@cline/shared/browser";
+import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
-import { Loader2, LoaderCircle } from "lucide-react";
+import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	Activity,
@@ -32,6 +29,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -40,6 +38,7 @@ import {
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ToastAction } from "@/components/ui/toast";
+import { normalizeTitle } from "@/components/utils";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import {
@@ -62,7 +61,10 @@ import {
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { serializeAttachments } from "@/hooks/chat-session/attachments";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	getInitialChatConfig,
+	getInitialCloudModel,
+} from "@/hooks/chat-session/constants";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -105,7 +107,11 @@ import {
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	isTauriAvailable,
+	openExternalUrl,
+} from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
@@ -120,16 +126,13 @@ import {
 } from "@/lib/image-attachments";
 import {
 	areShortcutsSuspended,
+	formatAccelerator,
 	matchesAccelerator,
 	useKeybindings,
 } from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
-import {
-	readModelSelectionStorageFromWindow,
-	writeExecutionTargetToWindow,
-	writeModelSelectionStorageToWindow,
-} from "@/lib/model-selection";
+import { writeExecutionTargetToWindow } from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -153,6 +156,11 @@ import {
 	mergeAgentActivity,
 } from "@/lib/session-agents";
 import {
+	type ChangesScope,
+	sumChanges,
+	useSessionChanges,
+} from "@/lib/session-changes";
+import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
@@ -160,7 +168,14 @@ import {
 import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
+import {
+	clampTerminalPanelHeight,
+	readTerminalPanelState,
+	type TerminalPanelState,
+	writeTerminalPanelState,
+} from "@/lib/terminal-panel-state";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import {
 	markCurrentWhatsNewSeen,
 	markWhatsNewSeen,
@@ -175,6 +190,7 @@ import {
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
 import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
+import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -214,6 +230,15 @@ const SessionsView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+// xterm.js is only needed once the panel opens.
+const TerminalPanel = dynamic(
+	() =>
+		import("@/components/terminal-panel").then(
+			(module) => module.TerminalPanel,
+		),
+	{ ssr: false },
+);
+
 const OnboardingView = dynamic(
 	() =>
 		import("@/components/views/onboarding/onboarding-view").then(
@@ -225,12 +250,28 @@ const OnboardingView = dynamic(
 	},
 );
 
-const DiffView = dynamic(
-	() =>
-		import("@/components/views/chat/diff-view").then(
-			(module) => module.DiffView,
-		),
-	{ loading: viewLoading, ssr: false },
+const loadProjectFilesPanel = () =>
+	import("@/components/views/chat/project-files-panel");
+const loadChangesPanel = () => import("@/components/views/chat/changes-panel");
+
+// Holds a workspace panel's grid cell at its final width while the chunk
+// loads; an empty cell would let the composer flow into it for a few frames.
+const workspacePanelLoading = () => (
+	<aside
+		aria-hidden
+		className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+		style={{ width: readWorkspacePanelWidth() }}
+	/>
+);
+
+const ProjectFilesPanel = dynamic(
+	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
+	{ loading: workspacePanelLoading, ssr: false },
+);
+
+const ChangesPanel = dynamic(
+	() => loadChangesPanel().then((module) => module.ChangesPanel),
+	{ loading: workspacePanelLoading, ssr: false },
 );
 
 function makeThreadId(): string {
@@ -335,9 +376,25 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	if (preferredTitle) {
 		return preferredTitle.slice(0, 70);
 	}
-	const line = options.prompt?.trim().split("\n")[0]?.trim();
+	const line = normalizeTitle(options.prompt).split("\n")[0]?.trim();
 	if (line) return line.slice(0, 70);
 	return "New session";
+}
+
+// A reload discards every terminal tab, so shells from the previous page
+// load are unreachable. Memoized per page load: Activity re-runs App's effects
+// on a backend reconnect, when the live tabs still own their shells. The
+// terminal is only offered once this resolves, so a restored panel's new
+// shell cannot be caught by the reap.
+let terminalReap: Promise<void> | null = null;
+function reapOrphanedTerminals(): Promise<void> {
+	terminalReap ??= import("@tauri-apps/api/core")
+		.then(({ invoke }) => invoke("terminal_kill_all"))
+		.then(
+			() => undefined,
+			() => undefined,
+		);
+	return terminalReap;
 }
 
 export default function Home() {
@@ -408,6 +465,53 @@ function App() {
 	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
+	// The terminal panel is app-level so it stays open across session
+	// switches; the PTY needs the native shell, so browser mode never offers it.
+	const [terminalAvailable, setTerminalAvailable] = useState(false);
+	const [terminalPanel, setTerminalPanel] = useState<TerminalPanelState>({
+		open: false,
+		height: 280,
+	});
+	useEffect(() => {
+		if (isTauriAvailable()) {
+			void reapOrphanedTerminals().then(() => setTerminalAvailable(true));
+		}
+		const stored = readTerminalPanelState();
+		setTerminalPanel({
+			...stored,
+			height: clampTerminalPanelHeight(stored.height, window.innerHeight),
+		});
+	}, []);
+	const updateTerminalPanel = useCallback(
+		(patch: Partial<TerminalPanelState>) => {
+			setTerminalPanel((current) => {
+				const next = { ...current, ...patch };
+				writeTerminalPanelState(next);
+				return next;
+			});
+		},
+		[],
+	);
+	const handleToggleTerminal = useCallback(() => {
+		setTerminalPanel((current) => {
+			const next = { ...current, open: !current.open };
+			writeTerminalPanelState(next);
+			if (!next.open) requestPromptInputFocus();
+			return next;
+		});
+	}, []);
+	const handleCloseTerminal = useCallback(() => {
+		updateTerminalPanel({ open: false });
+		requestPromptInputFocus();
+	}, [updateTerminalPanel]);
+	const handleTerminalHeightChange = useCallback(
+		(height: number) => {
+			updateTerminalPanel({
+				height: clampTerminalPanelHeight(height, window.innerHeight),
+			});
+		},
+		[updateTerminalPanel],
+	);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -889,13 +993,28 @@ function App() {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				handleViewChange("settings");
+			} else if (
+				terminalAvailable &&
+				matchesAccelerator(event, keybindings["toggle-terminal"].key)
+			) {
+				// Capture phase, so this also wins while focus is inside xterm.
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				handleToggleTerminal();
 			}
 		};
 		// Consume app shortcuts before React's local input handlers can act on
 		// the same event (for example, Mod+Enter submitting a prompt).
 		window.addEventListener("keydown", handleKeyDown, true);
 		return () => window.removeEventListener("keydown", handleKeyDown, true);
-	}, [handleNewThread, handleViewChange, keybindings, showOnboarding]);
+	}, [
+		handleNewThread,
+		handleToggleTerminal,
+		handleViewChange,
+		keybindings,
+		showOnboarding,
+		terminalAvailable,
+	]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
@@ -1219,11 +1338,30 @@ function App() {
 											onOpenModelSettings={() =>
 												handleSettingsSectionChange("Providers")
 											}
+											onOpenLocalModels={() =>
+												handleSettingsSectionChange("Local Models")
+											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
 											onThreadStarted={handleThreadStarted}
+											terminal={
+												terminalAvailable
+													? {
+															open: terminalPanel.open,
+															height: terminalPanel.height,
+															shortcut: keybindings["toggle-terminal"].key
+																? formatAccelerator(
+																		keybindings["toggle-terminal"].key,
+																	)
+																: undefined,
+															onToggle: handleToggleTerminal,
+															onClose: handleCloseTerminal,
+															onHeightChange: handleTerminalHeightChange,
+														}
+													: undefined
+											}
 										/>
 									</div>
 								) : null}
@@ -1336,6 +1474,7 @@ function ChatThreadPane({
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenLocalModels,
 	onOpenAccountSettings,
 	onPickRemoteWorkspaceDirectory,
 	onSelectEnvironment,
@@ -1344,6 +1483,7 @@ function ChatThreadPane({
 	onThreadStarted,
 	handoffUiState,
 	onHandoffUiAction,
+	terminal,
 }: {
 	threadId: string;
 	promptDrafts: Map<string, PromptDraft>;
@@ -1379,12 +1519,23 @@ function ChatThreadPane({
 	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenLocalModels?: () => void;
 	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string, sessionId?: string) => void;
 	handoffUiState: CloudHandoffUiState;
 	onHandoffUiAction: (action: CloudHandoffUiAction) => void;
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
+	/** Absent when the integrated terminal cannot run (browser mode). */
+	terminal?: {
+		open: boolean;
+		height: number;
+		/** Display form of the toggle shortcut; undefined when unbound. */
+		shortcut?: string;
+		onToggle: () => void;
+		onClose: () => void;
+		onHeightChange: (height: number) => void;
+	};
 }) {
 	const {
 		sessionId,
@@ -1441,7 +1592,27 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	const [showDiffView, setShowDiffView] = useState(false);
+	// The Changes pane and the Files + Git panel share the right-hand column.
+	const [workspacePanel, setWorkspacePanel] = useState<
+		"changes" | "files" | null
+	>(null);
+	const [changesScope, setChangesScope] = useState<ChangesScope>("session");
+	const [changesPath, setChangesPath] = useState<string | null>(null);
+	const toggleFilesPanel = useCallback(
+		() =>
+			setWorkspacePanel((current) => (current === "files" ? null : "files")),
+		[],
+	);
+	const toggleChangesPanel = useCallback(() => {
+		setChangesScope("session");
+		setChangesPath(null);
+		setWorkspacePanel((current) => (current === "changes" ? null : "changes"));
+	}, []);
+	const reviewLastTurn = useCallback((path?: string) => {
+		setChangesScope("last-turn");
+		setChangesPath(path ?? null);
+		setWorkspacePanel("changes");
+	}, []);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -1613,6 +1784,34 @@ function ChatThreadPane({
 	const activeWorkspaceCwd = isCloudSession
 		? ""
 		: (config.cwd || config.workspaceRoot || "").trim();
+	// Shells are spawned by the native app on this machine, so only local
+	// sessions get a terminal; cloud sandboxes and SSH hosts do not.
+	const terminalEnabled =
+		terminal !== undefined &&
+		!isCloudSession &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const terminalTitle = terminal?.shortcut
+		? `Toggle terminal (${terminal.shortcut})`
+		: "Toggle terminal";
+	const terminalToggle =
+		terminalEnabled && terminal ? (
+			<Button
+				aria-label={terminal.open ? "Hide terminal" : "Show terminal"}
+				aria-pressed={terminal.open}
+				className={cn(
+					"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover",
+					terminal.open && "border-primary/40 bg-primary/10",
+				)}
+				onClick={terminal.onToggle}
+				size="sm"
+				title={terminalTitle}
+				type="button"
+				variant="ghost"
+			>
+				<SquareTerminal className="size-3.5" />
+				Terminal
+			</Button>
+		) : undefined;
 	// Threads opened on Cloud have no captured Local config.
 	const localConfigRef = useRef<Pick<
 		ChatSessionConfig,
@@ -2576,7 +2775,6 @@ function ChatThreadPane({
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
-			setShowDiffView(false);
 			void reset();
 		} catch (error) {
 			const description =
@@ -2618,14 +2816,11 @@ function ChatThreadPane({
 						workspaceRoot: prev.workspaceRoot,
 						cwd: prev.cwd,
 					};
-					const remembered = readModelSelectionStorageFromWindow("cloud");
 					return {
 						...prev,
 						executionTarget: "cloud",
 						provider: "cline",
-						model:
-							remembered.lastModelByProvider.cline ||
-							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
+						model: getInitialCloudModel(prev.provider, prev.model),
 						apiKey: providerCredentials.cline?.apiKey ?? "",
 						workspaceRoot: "",
 						cwd: "",
@@ -2654,7 +2849,6 @@ function ChatThreadPane({
 			});
 			if (target === "cloud") {
 				setPendingAttachments([]);
-				setShowDiffView(false);
 			}
 		},
 		[
@@ -2740,25 +2934,11 @@ function ChatThreadPane({
 	}, [abort]);
 	const handleModelChange = useCallback(
 		(nextModel: string) => {
-			// The shared model picker only persists Local selections.
-			if (config.executionTarget === "cloud") {
-				try {
-					writeModelSelectionStorageToWindow(
-						{
-							lastProvider: "cline",
-							lastModelByProvider: { cline: nextModel },
-						},
-						"cloud",
-					);
-				} catch {
-					// Ignore localStorage persistence failures.
-				}
-			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
 			);
 		},
-		[config.executionTarget, setConfig],
+		[setConfig],
 	);
 	const handleModeToggle = useCallback(
 		() =>
@@ -2828,20 +3008,6 @@ function ChatThreadPane({
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const hasDiffChanges = summary.additions + summary.deletions > 0;
-	const headerDiff = useMemo(
-		() => ({
-			additions: summary.additions,
-			deletions: summary.deletions,
-		}),
-		[summary.additions, summary.deletions],
-	);
-	const handleOpenDiff = useCallback(() => {
-		if (summary.additions + summary.deletions > 0) {
-			setShowDiffView(true);
-		}
-	}, [summary.additions, summary.deletions]);
-
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
@@ -2955,12 +3121,6 @@ function ChatThreadPane({
 		],
 	);
 
-	useEffect(() => {
-		if (!hasDiffChanges) {
-			setShowDiffView(false);
-		}
-	}, [hasDiffChanges]);
-
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
 		() => ({
@@ -2981,6 +3141,53 @@ function ChatThreadPane({
 			pickWorkspaceDirectory,
 			selectChat,
 		],
+	);
+
+	const pullRequestSource = useMemo(
+		() => ({ cwd: resolvedWorkspaceRoot, branch: gitBranch }),
+		[resolvedWorkspaceRoot, gitBranch],
+	);
+
+	// Fetch the panel's code as soon as a session could show it, so the first
+	// toggle opens it without waiting on the chunk.
+	const mayBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	useEffect(() => {
+		if (mayBrowseFiles) {
+			void loadProjectFilesPanel();
+			void loadChangesPanel();
+		}
+	}, [mayBrowseFiles]);
+
+	// Each turn adds a user message and each tool call a tool message, so the
+	// key changes with every turn and every edit mid-turn.
+	const activityKey = useMemo(() => {
+		let users = 0;
+		let tools = 0;
+		for (const message of messages) {
+			if (message.role === "user") users++;
+			else if (message.role === "tool") tools++;
+		}
+		return `${users}:${tools}`;
+	}, [messages]);
+	const { changes: sessionChanges, current: sessionChangesCurrent } =
+		useSessionChanges({
+			enabled: mayBrowseFiles,
+			environmentId,
+			sessionId,
+			cwd: config.cwd || resolvedWorkspaceRoot,
+			// Tool calls and turn boundaries both move the working tree; the tool-event
+			// diff only refreshes when a turn ends, so it can't drive this.
+			refreshKey: `${status}:${activityKey}`,
+		});
+	// Git checkpoints when the workspace has them, otherwise the tool-event
+	// reconstruction.
+	const headerDiff = useMemo(
+		() =>
+			sessionChanges?.session
+				? sumChanges(sessionChanges.session.files)
+				: { additions: summary.additions, deletions: summary.deletions },
+		[sessionChanges, summary.additions, summary.deletions],
 	);
 
 	const isAppReady =
@@ -3023,6 +3230,7 @@ function ChatThreadPane({
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
+			onOpenLocalModels={onOpenLocalModels}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -3067,6 +3275,11 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	// Cloud runs have no reachable workspace, and the welcome state has no
+	// session to browse alongside yet.
+	const canBrowseFiles = mayBrowseFiles;
+	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
+	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -3075,7 +3288,11 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: filesPanelVisible || changesPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				disabled={isCloudSessionExpired}
 				description={
@@ -3105,11 +3322,22 @@ function ChatThreadPane({
 								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
+								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+								filesOpen={filesPanelVisible}
+								pullRequest={isCloudSession ? undefined : pullRequestSource}
+								onToggleChanges={
+									canBrowseFiles ? toggleChangesPanel : undefined
+								}
+								changesOpen={changesPanelVisible}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}
 								title={threadTitle}
+								onToggleTerminal={
+									terminalEnabled ? terminal?.onToggle : undefined
+								}
+								terminalOpen={terminalEnabled && terminal?.open}
+								terminalShortcut={terminal?.shortcut}
 							/>
 						</div>
 					</WindowTitleBarContent>
@@ -3122,13 +3350,6 @@ function ChatThreadPane({
 						displayedMessages.length === 0 ? (
 							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
-						) : showDiffView && !isCloudSession ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								environmentId={environmentId}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
 						) : (
 							<ChatMessages
 								onAnswerAskQuestion={handleAnswerAskQuestion}
@@ -3163,6 +3384,12 @@ function ChatThreadPane({
 											: undefined
 								}
 								onFixCredentials={handleFixCredentials}
+								lastTurnChanges={
+									canBrowseFiles && sessionChangesCurrent
+										? sessionChanges?.lastTurn
+										: undefined
+								}
+								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -3220,8 +3447,44 @@ function ChatThreadPane({
 					}
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
+					terminalToggle={terminalToggle}
+					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
 				/>
+				{changesPanelVisible ? (
+					<ChangesPanel
+						changes={sessionChanges}
+						cwd={config.cwd || resolvedWorkspaceRoot}
+						environmentId={environmentId}
+						fallbackFileDiffs={fileDiffs}
+						onClose={toggleChangesPanel}
+						onOpenGit={() => setWorkspacePanel("files")}
+						onScopeChange={(scope) => {
+							setChangesScope(scope);
+							setChangesPath(null);
+						}}
+						onSelectPath={setChangesPath}
+						scope={changesScope}
+						selectedPath={changesPath}
+					/>
+				) : null}
+				{filesPanelVisible ? (
+					<ProjectFilesPanel
+						cwd={config.cwd || config.workspaceRoot}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onClose={toggleFilesPanel}
+						workspaceRoot={resolvedWorkspaceRoot}
+					/>
+				) : null}
 			</AttachmentDropZone>
+			{terminalEnabled && terminal?.open ? (
+				<TerminalPanel
+					cwd={activeWorkspaceCwd}
+					height={terminal.height}
+					onClose={terminal.onClose}
+					onHeightChange={terminal.onHeightChange}
+				/>
+			) : null}
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {
