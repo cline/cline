@@ -67,7 +67,6 @@ export function useComposerSuggestions(
 		enabled,
 		environmentId,
 		sessionId,
-		busy,
 		attachDue: local.attachDue,
 		attachDueFor: local.attachDueFor,
 		dispatch,

@@ -20,6 +20,8 @@ import {
 	READY_R1,
 	readyState,
 	SEND_KEYS,
+	SESSION_ID,
+	SLOT,
 	scriptHub,
 } from "./composer-suggestions/test-support/fixtures";
 import {
@@ -150,12 +152,47 @@ describe("useComposerSuggestions", () => {
 		expect(options(tray.container)).toHaveLength(3);
 	});
 
-	it("still counts a run under way at bind when the chat is not loading", async () => {
-		scriptHub({ states: READY_R1 });
+	it("counts a turn the sidecar reports under way at bind, when it did not see it start", async () => {
+		scriptHub({ states: READY_R1, turns: { [SESSION_ID]: {} } });
 		const tray = await mountTray({ status: "starting", loadingChat: false });
 		await tray.update({ status: "idle" });
 
 		expect(options(tray.container)).toHaveLength(0);
+	});
+
+	it("hides a set from before the running turn once it ends without another", async () => {
+		scriptHub({
+			states: READY_R1,
+			turns: {
+				[SESSION_ID]: { turnStart: { [SLOT]: { epoch: 100, seq: 1 } } },
+			},
+		});
+		const tray = await mountTray({ status: "running" });
+		await tray.update({ status: "idle" });
+
+		expect(options(tray.container)).toHaveLength(0);
+	});
+
+	it.each([
+		["the slot had no state when the turn started", {}],
+		[
+			"the set is newer than the slot's state at the turn's start",
+			{ [SLOT]: { epoch: 100, seq: 0 } },
+		],
+	])("keeps a set the running turn published before the bind, when %s", async (_, turnStart) => {
+		scriptHub({ states: READY_R1, turns: { [SESSION_ID]: { turnStart } } });
+		const tray = await mountTray({ status: "running" });
+		await tray.update({ status: "idle" });
+
+		expect(options(tray.container)).toHaveLength(3);
+	});
+
+	it("keeps a set the Hub published as the turn ended, while the page still showed the chat running", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray({ status: "running" });
+		await tray.update({ status: "idle" });
+
+		expect(options(tray.container)).toHaveLength(3);
 	});
 
 	it("counts no run when an idle chat reloads, and a run once loading ends", async () => {

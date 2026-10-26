@@ -2,6 +2,7 @@ import {
 	type ComposerSuggestionItem,
 	type ComposerSuggestionsAction,
 	type ComposerSuggestionsState,
+	type PluginUiOrder,
 	type PluginUiStateEnvelope,
 	parsePluginUiAction,
 } from "@cline/shared/browser";
@@ -12,7 +13,7 @@ import { fakeDesktop } from "./fake-client";
 export const SESSION_ID = "ses-b";
 export const OLDER_SESSION_ID = "ses-a";
 export const ENVIRONMENT_ID = "local";
-const SLOT = "composer.suggestions";
+export const SLOT = "composer.suggestions";
 const PLUGIN = "composer-suggestions";
 
 export const ITEMS: ComposerSuggestionItem[] = [
@@ -70,8 +71,10 @@ export function envelope(
 }
 
 export type HubScript = {
-	/** `plugin_ui_get`'s reply, per session. */
+	/** `plugin_ui_get`'s states, per session. */
 	states?: Record<string, PluginUiStateEnvelope[]>;
+	/** A turn under way at `plugin_ui_get`, per session, with the slot orders it started at when the sidecar saw that. */
+	turns?: Record<string, { turnStart?: Record<string, PluginUiOrder> }>;
 	/** A verb's reply, or undefined for the default: `attach` gets epoch 100, everything else `ok`. */
 	reply?: (
 		sessionId: string,
@@ -82,7 +85,14 @@ export type HubScript = {
 export function scriptHub(script: HubScript = {}): void {
 	fakeDesktop.invoke.mockImplementation(async (command, args) => {
 		const sessionId = String(args?.sessionId ?? "");
-		if (command === "plugin_ui_get") return script.states?.[sessionId] ?? [];
+		if (command === "plugin_ui_get") {
+			const turn = script.turns?.[sessionId];
+			return {
+				states: script.states?.[sessionId] ?? [],
+				running: turn !== undefined,
+				...(turn?.turnStart ? { turnStart: turn.turnStart } : {}),
+			};
+		}
 		if (command !== "plugin_ui_invoke") return undefined;
 		const action = args?.action as ComposerSuggestionsAction;
 		const scripted = script.reply?.(sessionId, action);

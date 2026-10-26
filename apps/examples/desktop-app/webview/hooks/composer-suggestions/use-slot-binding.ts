@@ -2,7 +2,9 @@
 
 import {
 	type ComposerSuggestionsAction,
+	comparePluginUiOrder,
 	type PluginUiInvokeOutcome,
+	type PluginUiOrder,
 	readPluginUiEnvelope,
 } from "@cline/shared/browser";
 import {
@@ -40,6 +42,44 @@ function readSuggestionsEnvelope(
 	return envelope?.slot === SLOT ? envelope : undefined;
 }
 
+type StatesReply = {
+	states: unknown[];
+	running: boolean;
+	turnStart?: Record<string, PluginUiOrder>;
+};
+
+function readStatesReply(value: unknown): StatesReply {
+	const record =
+		value && typeof value === "object"
+			? (value as Record<string, unknown>)
+			: {};
+	const turnStart =
+		record.turnStart && typeof record.turnStart === "object"
+			? (record.turnStart as Record<string, PluginUiOrder>)
+			: undefined;
+	return {
+		states: Array.isArray(record.states) ? record.states : [],
+		running: record.running === true,
+		...(turnStart ? { turnStart } : {}),
+	};
+}
+
+/**
+ * Whether a set fetched at bind is from before the chat's running turn, so
+ * the turn's end hides it unless the turn publishes another. The sidecar
+ * applies the Hub's statuses and states in order; the page's own busy flag
+ * can trail a turn that already ended with a new set.
+ */
+function predatesTurn(
+	reply: StatesReply,
+	envelope: SuggestionsEnvelope | undefined,
+): boolean {
+	if (!reply.running || !envelope) return false;
+	if (!reply.turnStart) return true;
+	const start = reply.turnStart[SLOT];
+	return start !== undefined && comparePluginUiOrder(envelope, start) <= 0;
+}
+
 function readInvokeResult(value: unknown): SuggestionsResult {
 	const record =
 		value && typeof value === "object"
@@ -62,7 +102,6 @@ export function useSlotBinding({
 	enabled,
 	environmentId,
 	sessionId,
-	busy,
 	attachDue,
 	attachDueFor,
 	dispatch,
@@ -71,7 +110,6 @@ export function useSlotBinding({
 	enabled: boolean;
 	environmentId: string;
 	sessionId: string | null;
-	busy: boolean;
 	attachDue: boolean;
 	attachDueFor: number | undefined;
 	dispatch: SuggestionsDispatch;
@@ -79,8 +117,6 @@ export function useSlotBinding({
 }) {
 	const [connectedEpoch, setConnectedEpoch] = useState(0);
 
-	const busyRef = useRef(busy);
-	busyRef.current = busy;
 	/**
 	 * The session verbs go to; empty while unbound or disabled. An unmount
 	 * leaves it set, so a Send the person already made still reaches the chat they left.
@@ -191,21 +227,25 @@ export function useSlotBinding({
 		}
 		if (!boundSessionId) return;
 		void (async () => {
-			let states: unknown;
+			let reply: unknown;
 			try {
-				states = await desktopClient.invoke("plugin_ui_get", {
+				reply = await desktopClient.invoke("plugin_ui_get", {
 					environmentId,
 					sessionId: boundSessionId,
 				});
 			} catch {
-				states = [];
+				reply = undefined;
 			}
 			if (generation !== generationRef.current) return;
-			for (const value of Array.isArray(states) ? states : []) {
+			const states = readStatesReply(reply);
+			let fetched: SuggestionsEnvelope | undefined;
+			for (const value of states.states) {
 				const envelope = readSuggestionsEnvelope(value);
-				if (envelope) dispatch({ type: "state", envelope, now: Date.now() });
+				if (!envelope) continue;
+				fetched = envelope;
+				dispatch({ type: "state", envelope, now: Date.now() });
 			}
-			if (busyRef.current) dispatch({ type: "run_started" });
+			if (predatesTurn(states, fetched)) dispatch({ type: "run_started" });
 			await attach(boundSessionId, generation);
 		})();
 		return () => {

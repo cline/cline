@@ -2,11 +2,13 @@ import type { ClineCore } from "@cline/core";
 import type {
 	PluginUiInvokeInput,
 	PluginUiInvokeResult,
+	PluginUiOrder,
 	PluginUiStateEnvelope,
 } from "@cline/shared";
 import {
 	getRuntimeBinding,
 	getSessionRuntimeBinding,
+	isTurnStatus,
 	sendEvent,
 } from "./context";
 import type {
@@ -82,14 +84,36 @@ function removePluginUiViewer(
 	return viewers.environmentId;
 }
 
+export type PluginUiStatesReply = {
+	states: PluginUiStateEnvelope[];
+	/** A turn was under way when the Hub answered, by the statuses applied before its reply. */
+	running: boolean;
+	/**
+	 * While running: each slot's order when the turn started, a slot with no
+	 * state then left out. Unset when the sidecar did not see the turn start.
+	 */
+	turnStart?: Record<string, PluginUiOrder>;
+};
+
 export async function getPluginUiStates(
 	ctx: SidecarContext,
 	args: Record<string, unknown> | undefined,
-): Promise<PluginUiStateEnvelope[]> {
+): Promise<PluginUiStatesReply> {
 	const sessionId = readSessionId(args);
-	return await sessionBinding(ctx, sessionId, args).sessionManager.pluginUi.get(
-		{ sessionId },
-	);
+	const states = await sessionBinding(
+		ctx,
+		sessionId,
+		args,
+	).sessionManager.pluginUi.get({ sessionId });
+	const session = ctx.liveSessions.get(sessionId);
+	const turnStart = session?.pluginUiTurnStart;
+	return {
+		states,
+		running: Boolean(
+			turnStart || session?.busy || isTurnStatus(session?.status ?? ""),
+		),
+		...(turnStart ? { turnStart: Object.fromEntries(turnStart) } : {}),
+	};
 }
 
 /**

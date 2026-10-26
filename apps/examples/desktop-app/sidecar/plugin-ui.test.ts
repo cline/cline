@@ -1,7 +1,7 @@
 import type { PluginUiInvokeInput } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
-import { createSidecarContext } from "./context";
+import { createSidecarContext, handleCoreSessionEvent } from "./context";
 import {
 	desktopUiSlots,
 	invokePluginUi,
@@ -89,7 +89,10 @@ describe("plugin UI sidecar commands", () => {
 				{ environmentId: "local", sessionId: SESSION_ID },
 				{ connection: socket },
 			),
-		).resolves.toEqual([expect.objectContaining({ sessionId: SESSION_ID })]);
+		).resolves.toEqual({
+			states: [expect.objectContaining({ sessionId: SESSION_ID })],
+			running: false,
+		});
 		await handleCommand(
 			ctx,
 			"plugin_ui_invoke",
@@ -218,6 +221,82 @@ describe("plugin UI sidecar commands", () => {
 		releasePluginUiViewer(bare, socket);
 
 		expect(forwardedVerbs(invoke)).toEqual(["attach"]);
+	});
+});
+
+describe("the turn a page binding mid-turn fetches into", () => {
+	function liveContext(busy = false) {
+		const context = createContext();
+		context.ctx.liveSessions.set(SESSION_ID, {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy,
+			startedAt: 0,
+			status: busy ? "running" : "idle",
+		});
+		const state = (seq: number) =>
+			handleCoreSessionEvent(context.ctx, {
+				type: "plugin_ui_state",
+				payload: {
+					sessionId: SESSION_ID,
+					slot: "composer.suggestions",
+					plugin: "demo",
+					epoch: 1,
+					seq,
+					state: null,
+				},
+			} as never);
+		const status = (value: string) =>
+			handleCoreSessionEvent(context.ctx, {
+				type: "status",
+				payload: { sessionId: SESSION_ID, status: value },
+			} as never);
+		const fetch = () =>
+			handleCommand(
+				context.ctx,
+				"plugin_ui_get",
+				{ environmentId: "local", sessionId: SESSION_ID },
+				{ connection: trustedSocket() },
+			);
+		return { ...context, state, status, fetch };
+	}
+
+	it("reports the slot orders a running turn started at, so a state it published is its own", async () => {
+		const { state, status, fetch } = liveContext();
+		state(1);
+		status("running");
+		state(2);
+
+		await expect(fetch()).resolves.toMatchObject({
+			running: true,
+			turnStart: { "composer.suggestions": { epoch: 1, seq: 1 } },
+		});
+	});
+
+	it("keeps the turn's start through an approval wait, and drops it once the turn ends", async () => {
+		const { state, status, fetch } = liveContext();
+		status("running");
+		status("pending");
+		state(1);
+		status("running");
+		await expect(fetch()).resolves.toMatchObject({
+			running: true,
+			turnStart: {},
+		});
+
+		status("idle");
+		const idle = await fetch();
+		expect(idle).toMatchObject({ running: false });
+		expect(idle).not.toHaveProperty("turnStart");
+	});
+
+	it("reports a turn it did not see start as running, with no start", async () => {
+		const { fetch } = liveContext(true);
+
+		const reply = await fetch();
+		expect(reply).toMatchObject({ running: true });
+		expect(reply).not.toHaveProperty("turnStart");
 	});
 });
 

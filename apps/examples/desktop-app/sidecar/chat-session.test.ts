@@ -707,6 +707,64 @@ describe("environment-bound session attach", () => {
 		expect(remoteGet).toHaveBeenCalledWith(sessionId);
 		expect(localGet).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		["keeps its turn start while the Hub reports it running", "running", true],
+		["drops its turn start once the Hub reports it idle", "idle", false],
+	])("keeps a re-attached chat's plugin UI orders, and %s", async (_, status, keepsTurn) => {
+		const sessionId = "reattached-session";
+		const orders = new Map([["composer.suggestions", { epoch: 1, seq: 5 }]]);
+		const turnStart = new Map(orders);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: {},
+						messages: [],
+						promptsInQueue: [],
+						busy: true,
+						startedAt: 0,
+						status: "running",
+						pluginUiOrders: orders,
+						pluginUiTurnStart: turnStart,
+					},
+				],
+			]),
+			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
+			activeEnvironmentId: "local",
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						environmentId: "local",
+						kind: "local",
+						workspaceRoot: "/local/project",
+						sessionManager: {
+							get: vi.fn(async () => ({
+								sessionId,
+								status,
+								provider: "cline",
+								model: "anthropic/claude-sonnet-4.6",
+								cwd: "/local/project",
+								workspaceRoot: "/local/project",
+							})),
+						},
+						hubClient: { command: vi.fn() },
+						unsubscribeSessionEvents: () => {},
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, { action: "attach", sessionId });
+
+		const reattached = ctx.liveSessions.get(sessionId);
+		expect(reattached?.pluginUiOrders).toBe(orders);
+		expect(reattached?.pluginUiTurnStart).toBe(
+			keepsTurn ? turnStart : undefined,
+		);
+	});
 });
 
 describe("session forks", () => {

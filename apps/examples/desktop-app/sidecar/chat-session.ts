@@ -56,6 +56,7 @@ import {
 	findSessionRuntimeBinding,
 	getEnvironmentContext,
 	getSessionRuntimeBinding,
+	isTurnStatus,
 	nowMs,
 	requestSidecarAskQuestion,
 	sendEvent,
@@ -481,6 +482,8 @@ function createLiveSession(
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
 		pluginsStale: overrides?.pluginsStale,
+		pluginUiOrders: overrides?.pluginUiOrders,
+		pluginUiTurnStart: overrides?.pluginUiTurnStart,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1236,6 +1239,12 @@ async function handleAttach(
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
 			pluginsStale: existing?.pluginsStale,
+			// ClineCore stays subscribed through a re-attach, so the Hub does not
+			// resend the slot states these orders were taken from.
+			pluginUiOrders: existing?.pluginUiOrders,
+			...(isTurnStatus(session.status)
+				? { pluginUiTurnStart: existing?.pluginUiTurnStart }
+				: {}),
 			// Preserve tracked attachment files so re-attach (called on every
 			// webview hydrate) does not orphan materialized files still awaiting
 			// cleanup.

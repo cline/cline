@@ -10,7 +10,7 @@ import type {
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import type { UserContext } from "@cline/shared";
+import type { PluginUiOrder, UserContext } from "@cline/shared";
 import type { HubStartup } from "./hub-startup";
 
 export const LOCAL_ENVIRONMENT_ID = "local";
@@ -70,6 +70,13 @@ export type LiveSession = {
 	 * turn restarts it first.
 	 */
 	pluginsStale?: boolean;
+	/** The order of each plugin UI slot's latest state, as the Hub sent them. */
+	pluginUiOrders?: Map<string, PluginUiOrder>;
+	/**
+	 * While the Hub reports a turn under way: each slot's order when the
+	 * sidecar first saw it running. Unset otherwise.
+	 */
+	pluginUiTurnStart?: Map<string, PluginUiOrder>;
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
