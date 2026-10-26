@@ -21,6 +21,15 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import type {
+	McpAppResourceReadRequest,
+	McpAppsRuntime,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
+import { defaultMcpToolNameTransform } from "../../extensions/mcp/name-transform";
 import {
 	formatSessionPluginIssue,
 	isPluginCommand,
@@ -59,6 +68,7 @@ import {
 	captureConversationTurnEvent,
 	captureModeSwitch,
 	captureTaskCompleted,
+	captureToolUsage,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { classifyBumpText } from "../../services/telemetry/stall-signals";
@@ -492,6 +502,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		// Starting a session that is mid-run must not replace it: the replaced
+		// run keeps going unreachable (no abort, no queue) and its transcript
+		// writes resolve to the replacement's stale snapshot. Reattach instead.
+		const live = this.sessions.get(sessionId);
+		if (live && !live.agent.canStartRun()) {
+			if (input.prompt?.trim()) {
+				throw new Error(
+					`Session ${sessionId} already has a run in progress; queue the prompt instead.`,
+				);
+			}
+			return await this.liveSessionStartResult(live);
+		}
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&
@@ -519,6 +541,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			requestedSessionId.length > 0,
 			existingResumeManifest,
 		);
+	}
+
+	private async liveSessionStartResult(
+		session: ActiveSession,
+	): Promise<StartSessionResult> {
+		const artifacts = session.artifacts;
+		if (!artifacts) {
+			throw new Error(
+				`Session ${session.sessionId} is running but was never persisted`,
+			);
+		}
+		const manifest =
+			(await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				session.sessionId,
+			)) ?? artifacts.manifest;
+		return {
+			sessionId: session.sessionId,
+			manifest,
+			manifestPath: artifacts.manifestPath,
+			messagesPath: artifacts.messagesPath,
+		};
 	}
 
 	private async startResolvedSession(
@@ -1348,6 +1392,60 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 			session.agent.abort(reason);
 		}
+	}
+
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		return this.getSessionOrThrow(sessionId).runtime.mcpApps?.resolveTool(
+			toolName,
+		);
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		return this.requireMcpApps(sessionId).readResource(request);
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const mcpApps = this.requireMcpApps(sessionId);
+		const config = this.getSessionOrThrow(sessionId).config;
+		let success = false;
+		try {
+			const result = await mcpApps.callTool(request);
+			success = true;
+			return result;
+		} finally {
+			captureToolUsage(config.telemetry ?? this.defaultTelemetry, {
+				ulid: sessionId,
+				tool: defaultMcpToolNameTransform({
+					serverName: request.serverName,
+					toolName: request.toolName,
+				}),
+				success,
+				modelId: config.modelId,
+				provider: config.providerId,
+			});
+		}
+	}
+
+	private requireMcpApps(sessionId: string): McpAppsRuntime {
+		const session = this.getSessionOrThrow(sessionId);
+		const mcpApps = session.runtime.mcpApps;
+		if (!mcpApps) {
+			throw new Error(
+				session.config.mcpApps
+					? `Session "${sessionId}" has no MCP servers available to MCP Apps.`
+					: `MCP Apps is not enabled for session "${sessionId}".`,
+			);
+		}
+		return mcpApps;
 	}
 
 	async proceedWhileRunning(

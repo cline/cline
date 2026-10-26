@@ -11,6 +11,26 @@ import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 // 50, so the first page never needs an extra request.
 export const INITIAL_VISIBLE_THREAD_COUNT = 30;
 
+export const SIDEBAR_SORT_STORAGE_KEY = "cline.code.sidebar-sort.v1";
+
+export type SidebarSortMode = "time" | "project";
+
+export function readSidebarSortModeFromWindow(): SidebarSortMode {
+	if (typeof window === "undefined") {
+		return "time";
+	}
+	return window.localStorage.getItem(SIDEBAR_SORT_STORAGE_KEY) === "project"
+		? "project"
+		: "time";
+}
+
+export function writeSidebarSortModeToWindow(value: SidebarSortMode): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	window.localStorage.setItem(SIDEBAR_SORT_STORAGE_KEY, value);
+}
+
 export type SidebarProjectGroup = {
 	id: string;
 	label: string;

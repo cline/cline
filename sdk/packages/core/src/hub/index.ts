@@ -53,6 +53,7 @@ export * from "./discovery/instance-lock";
 export * from "./discovery/workspace";
 export * from "./server";
 export * from "./server/browser-websocket";
+export * from "./server/cloud-session-service";
 export * from "./server/command-transport";
 export * from "./server/hub-event-log";
 export * from "./server/hub-run-queue";

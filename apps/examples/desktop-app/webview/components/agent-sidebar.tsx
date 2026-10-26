@@ -15,11 +15,13 @@ import {
 	CircleUserRound,
 	Clock3,
 	Cloud,
+	Cpu,
 	Filter,
 	FolderTree,
 	GitFork,
 	Import,
 	Info,
+	Keyboard,
 	Loader2,
 	Mic,
 	Network,
@@ -36,6 +38,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import {
+	Fragment,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -84,6 +87,10 @@ import { normalizeTitle } from "@/components/utils";
 import {
 	CUSTOMIZATION_SECTION_LABELS,
 	CUSTOMIZATION_SECTIONS,
+	isProviderSection,
+	PROVIDER_SECTION_LABELS,
+	PROVIDER_SECTIONS,
+	readProviderSectionInUse,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/sections";
@@ -100,6 +107,7 @@ import {
 	productNameForVersion,
 } from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
+import { formatAccelerator, useKeybindings } from "@/lib/keybindings";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -110,11 +118,14 @@ import {
 	groupScheduledThreads,
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
+	readSidebarSortModeFromWindow,
 	type SidebarListRow,
 	type SidebarScheduleGroup,
+	type SidebarSortMode,
 	scheduleGroupKey,
 	scheduleRunLabel,
 	workspaceDisplayName,
+	writeSidebarSortModeToWindow,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
@@ -125,7 +136,6 @@ type AppView = "chat" | "sessions" | "settings";
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
-type SidebarSortMode = "time" | "project";
 type SessionCategory = "pinned" | "scheduled" | "tasks";
 type DesktopProcessContext = {
 	appVersion?: unknown;
@@ -155,7 +165,9 @@ function hubPort(url: string | null): string | null {
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Providers: Plug,
+	"Local Models": Cpu,
 	Voice: Mic,
+	Keybindings: Keyboard,
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
@@ -232,6 +244,50 @@ function SettingsSectionNavigation({
 		);
 	};
 
+	const renderProvidersGroup = () => {
+		const open = isProviderSection(activeSection);
+		return (
+			<Fragment key="providers">
+				<Button
+					aria-label="Provider"
+					className={cn(
+						"min-w-0 justify-start",
+						open && "bg-surface-hover-lighter text-sidebar-foreground",
+					)}
+					onClick={() => onSelect(readProviderSectionInUse())}
+					title="Provider"
+					type="button"
+					variant="sidebarItem"
+				>
+					<Plug className="size-4 shrink-0" />
+					<span className="truncate">Provider</span>
+				</Button>
+				{open
+					? PROVIDER_SECTIONS.map((section) => (
+							<Button
+								aria-current={activeSection === section ? "page" : undefined}
+								aria-label={PROVIDER_SECTION_LABELS[section]}
+								className={cn(
+									"min-w-0 justify-start pl-8!",
+									activeSection === section &&
+										"bg-surface-hover text-sidebar-foreground",
+								)}
+								key={section}
+								onClick={() => onSelect(section)}
+								title={PROVIDER_SECTION_LABELS[section]}
+								type="button"
+								variant="sidebarItem"
+							>
+								<span className="truncate">
+									{PROVIDER_SECTION_LABELS[section]}
+								</span>
+							</Button>
+						))
+					: null}
+			</Fragment>
+		);
+	};
+
 	return (
 		<nav
 			aria-label="Settings sections"
@@ -252,7 +308,12 @@ function SettingsSectionNavigation({
 			    reachable. */}
 			{SETTINGS_SECTIONS.filter(
 				(section) => collapsed || section !== "Schedules",
-			).map(renderSectionButton)}
+			).map((section) => {
+				if (collapsed || !isProviderSection(section)) {
+					return renderSectionButton(section);
+				}
+				return section === "Account" ? renderProvidersGroup() : null;
+			})}
 			{collapsed ? (
 				<>
 					<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
@@ -285,7 +346,7 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	/** Opens the global session search command bar (also bound to Cmd/Ctrl+P). */
+	/** Opens the global session search command bar. */
 	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -294,6 +355,9 @@ export function AgentSidebar({
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
 }) {
+	const keybindings = useKeybindings();
+	const searchKey = keybindings["command-bar"].key;
+	const searchHint = searchKey ? formatAccelerator(searchKey) : null;
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
 	const { user, activeOrganization } = useAccount();
@@ -322,6 +386,11 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	// Read after mount: the page is pre-rendered with the default, so reading
+	// localStorage during the first render would mismatch the server HTML.
+	useEffect(() => {
+		setSortMode(readSidebarSortModeFromWindow());
+	}, []);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
@@ -679,9 +748,11 @@ export function AgentSidebar({
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
 			className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
-			onClick={() =>
-				setSortMode((current) => (current === "time" ? "project" : "time"))
-			}
+			onClick={() => {
+				const next = sortMode === "time" ? "project" : "time";
+				setSortMode(next);
+				writeSidebarSortModeToWindow(next);
+			}}
 			size="icon"
 			title={
 				sortMode === "time"
@@ -909,7 +980,11 @@ export function AgentSidebar({
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
 								onClick={onOpenSearch}
-								title="Search sessions (Cmd/Ctrl+P)"
+								title={
+									searchHint
+										? `Search sessions (${searchHint})`
+										: "Search sessions"
+								}
 								type="button"
 								variant="sidebarItem"
 							>

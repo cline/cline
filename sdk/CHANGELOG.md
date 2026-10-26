@@ -1,5 +1,30 @@
 # Cline SDK Changelog
 
+## 0.2.0
+
+- Starting a session that already has a run in progress now reattaches to the live session instead of replacing its runtime. Before, the original run kept going but couldn't be reached, and its transcript writes landed on a stale snapshot. A start that includes a prompt while a run is in progress is rejected
+- The hub records every client that registered a capability for a session, including clients that join a task that's already running, and sends each request to the first one still connected. If none is left, the request fails quickly with a message the user can act on, instead of waiting forever
+- A turn whose connection drops after the model has streamed only reasoning is now retried, and the partial reasoning is discarded. Turns with text, media or tool calls are still never retried
+- Model requests retry at most 3 times after the first attempt (down from 5). Failed attempts are recorded in Langfuse traces, and cancelled requests are no longer reported as Langfuse errors
+- AI SDK updated to `ai` 7.0.136 / `@ai-sdk/provider-utils` 5.0.58. `max` reasoning now reaches the provider: the gateway no longer turns it into `xhigh`, and Kimi K3 gets `max` for Extra High and Max. Empty Anthropic turns are still retried despite the new `anthropic.*` custom stream parts
+- The `gemini` provider no longer sends native Google Search. On Gemini 3+, free-tier keys failed every turn with a 429 quota error, and on Gemini 2.x it dropped every Cline tool. Vertex keeps native search
+- Auto-compaction no longer runs when the model's input limit is unknown. Manual and overflow-recovery compaction still work
+- After the first compaction, the size estimate now uses the messages as they are actually sent, with tool results truncated. Before, it overestimated about 7x and compaction ran again every few tool calls
+- Checkpoint diffs read file contents with a single `git cat-file --batch` process instead of up to two `git show` processes per file. Workspaces with many untracked files used to spawn thousands of git processes
+- SSH remotes work behind a ProxyJump alias. The connect budget goes from 10s to 30s, the per-command limit to 60s, and tunnel readiness to 40s. When ssh exits mid-upload, its real error is reported instead of `EPIPE`, and a `LocalForward` on the alias no longer collides with the tunnel
+- `ask_question` answers are framed so the model keeps going after a bare choice. Empty answers are rejected, and an answer with only an attachment counts as answered
+- `run_commands` rejects an empty `commands` list with a tool error, and its schema now advertises `minItems: 1`
+- On PowerShell, the `run_commands` description explains backtick escaping, single-quoting literal paths, preferring cmdlets over `cmd /c`, and confirming recursive deletes first
+- Plugin commands run in the active session runtime and the hub. Plugin watches start working again when discovery directories appear
+- Compiled binaries load embedded plugin and dashboard resources straight from the binary, and every declared SDK runtime export is packaged
+- A configured `CLINE_PLUGIN_RUNTIME_DIR` is resolved to an absolute path
+- When OpenRouter has no match for a Cline recommended model, its capabilities are filled in from the Vercel catalog
+- Desktop cloud session orchestration moved into the hub. `session.list` reports `activeCloudCommands`, and the hub isn't replaced while cloud commands are still running
+- Core adds conversation summaries and cloud continuation support
+- Run stall telemetry: `agent.run-finished` and `agent.run-failed` carry stall signals from a new `RunHealthObserver`
+- `@cline/ui` now ships with the SDK packages on the shared version. It adds a `Kbd` component and token chips for slash commands and file mentions in `AgentComposer`
+- Refreshed the model catalog (7,041 → 6,457 models). Adds the Liquid Inference, Munito AI and Munito AI (EU) providers and drops CrofAI, iFlow and Llama. The Cline free list adds Reflection Beam, Nemotron 3.5 Lightning and Laguna S 2.1 and drops Mimo V2.6 Flash and Muse Spark 1.3 Contributor. ClinePass adds Kimi K3.1 Pro (now its default), MiniMax M3.1 Flash and DeepSeek V4.1 Flash 1017, and drops Mimo V2.5 and V2.5 Pro. Default models change for 56 other providers, mostly to Kimi K3.1 Pro, MiniMax M3.1 Flash or DeepSeek V4.1 Flash 1017
+
 ## 0.0.95
 
 - OpenAI-compatible requests for GPT-6 models (`gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-1-sol`, and later gpt-5 through gpt-9 ids) send `max_completion_tokens` instead of `max_tokens`, so OpenAI and Azure no longer reject them. Azure's `gpt-35-turbo` keeps `max_tokens`

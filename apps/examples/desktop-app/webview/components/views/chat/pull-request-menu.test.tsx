@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { PullRequestStatus } from "@/lib/pull-request";
-import { PullRequestBar } from "./pull-request-bar";
+import { PullRequestMenu } from "./pull-request-menu";
 
 const { invoke, openExternalUrl } = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -54,26 +54,69 @@ afterEach(async () => {
 });
 async function render(cwd = "/repo", branch = "feature") {
 	await act(async () =>
-		root.render(<PullRequestBar cwd={cwd} branch={branch} />),
+		root.render(<PullRequestMenu cwd={cwd} branch={branch} />),
 	);
 }
-async function click(label: string) {
+function trigger() {
+	return container.querySelector<HTMLButtonElement>("#pull-request-menu");
+}
+async function openMenu() {
 	await act(async () =>
-		container
-			.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
-			.click(),
+		trigger()?.dispatchEvent(
+			new MouseEvent("pointerdown", {
+				bubbles: true,
+				cancelable: true,
+				button: 0,
+			}),
+		),
 	);
+}
+function menuItem(text: string) {
+	const item = [
+		...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+	].find((element) => element.textContent?.includes(text));
+	if (!item) throw new Error(`Expected menu item "${text}"`);
+	return item;
+}
+async function select(text: string) {
+	await act(async () => menuItem(text).click());
 }
 
-it("opens the PR, shows conflicts and expands CI details", async () => {
+it("opens the PR from the menu", async () => {
 	await render();
-	expect(container.textContent).toContain("Conflicts");
-	expect(container.textContent).toContain("+1,234");
-	expect(container.textContent).toContain("CI failed");
-	await click("Open pull request #42: Feature");
-	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest!.url);
-	await click("CI failed");
-	expect(document.body.textContent).toContain("Tests");
+	expect(trigger()?.getAttribute("aria-label")).toBe(
+		"Pull request #42: Conflicts",
+	);
+	await openMenu();
+	expect(document.body.textContent).toContain("Feature");
+	expect(document.body.textContent).toContain("+1,234");
+	expect(document.body.textContent).toContain("1 of 1 checks failed");
+	await select("Open on GitHub");
+	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.url);
+});
+
+it("lists checks in a submenu, failures first, and opens a check", async () => {
+	invoke.mockResolvedValue({
+		...data,
+		pullRequest: {
+			...data.pullRequest,
+			checks: [
+				{ name: "Lint", state: "success" },
+				...(data.pullRequest?.checks ?? []),
+			],
+		},
+	});
+	await render();
+	await openMenu();
+	await select("1 of 2 checks failed");
+	const checks = [
+		...document.body.querySelectorAll(
+			'[data-slot="dropdown-menu-sub-content"] [role="menuitem"]',
+		),
+	].map((item) => item.textContent);
+	expect(checks).toEqual(["Testsfailure", "Lintsuccess"]);
+	await select("Tests");
+	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.checks[0].url);
 });
 
 it.each<{
@@ -99,22 +142,12 @@ it.each<{
 	{
 		status: { mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN" },
 		label: "Merge status pending",
-		color: "text-cline-ui-muted-foreground",
-	},
-	{
-		status: { mergeable: "UNKNOWN" },
-		label: "Merge status pending",
-		color: "text-cline-ui-muted-foreground",
+		color: "text-muted-foreground",
 	},
 	{
 		status: { mergeStateStatus: "UNKNOWN" },
 		label: "No conflicts",
-		color: "text-cline-ui-muted-foreground",
-	},
-	{
-		status: { mergeStateStatus: "DIRTY" },
-		label: "Conflicts",
-		color: "text-red-400",
+		color: "text-muted-foreground",
 	},
 	{
 		status: { mergeable: "CONFLICTING" },
@@ -124,7 +157,7 @@ it.each<{
 	{
 		status: { isDraft: true, mergeable: "CONFLICTING" },
 		label: "Draft",
-		color: "text-cline-ui-muted-foreground",
+		color: "text-muted-foreground",
 	},
 	{
 		status: { state: "MERGED", mergeable: "CONFLICTING" },
@@ -156,24 +189,39 @@ it.each<{
 		},
 	});
 	await render();
-	const statusLabel = [...container.querySelectorAll("span")].find(
+	expect(trigger()?.querySelector("svg")?.classList.contains(color)).toBe(true);
+	await openMenu();
+	const statusLabel = [...document.body.querySelectorAll("span")].find(
 		(element) => element.textContent === label,
 	);
-	expect(statusLabel).toBeDefined();
 	expect(statusLabel?.classList.contains(color)).toBe(true);
-	expect(container.querySelector("svg")?.classList.contains(color)).toBe(true);
 });
 
 it("offers the compare form when no PR exists", async () => {
 	invoke.mockResolvedValue({ ...data, pullRequest: null });
 	await render();
-	await act(async () =>
-		[...container.querySelectorAll("button")]
-			.find((button) => button.textContent?.includes("Create PR"))!
-			.click(),
-	);
+	expect(trigger()?.getAttribute("aria-label")).toBe("Create a pull request");
+	await openMenu();
+	await select("Create pull request");
 	expect(openExternalUrl).toHaveBeenCalledWith(data.createUrl);
 });
+
+it("copies the branch name", async () => {
+	const writeText = vi.fn().mockResolvedValue(undefined);
+	Object.assign(navigator, { clipboard: { writeText } });
+	await render();
+	await openMenu();
+	await select("Copy branch name");
+	expect(writeText).toHaveBeenCalledWith("feature");
+});
+
+it("renders nothing without a PR or compare form", async () => {
+	invoke.mockResolvedValue({ ...data, pullRequest: null, createUrl: null });
+	await render();
+	expect(container.textContent).toBe("");
+	expect(trigger()).toBeNull();
+});
+
 it("discards late responses after switching workspaces", async () => {
 	let finish!: (value: PullRequestStatus) => void;
 	invoke
@@ -188,64 +236,72 @@ it("discards late responses after switching workspaces", async () => {
 	await act(async () => finish(data));
 	expect(container.textContent).toBe("");
 });
+
 it("refreshes and replaces stale status with an actionable error on failure", async () => {
 	await render();
 	invoke.mockRejectedValue(new Error("Check GitHub CLI access"));
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(30_000);
 	});
-	expect(container.textContent).toContain("Check GitHub CLI access");
-	expect(container.textContent).not.toContain("#42");
+	expect(trigger()?.getAttribute("aria-label")).toBe(
+		"Pull request status unavailable",
+	);
+	await openMenu();
+	expect(document.body.textContent).toContain("Check GitHub CLI access");
 	invoke.mockResolvedValue(data);
-	await click("Refresh pull request status");
-	expect(container.textContent).toContain("#42");
+	await select("Refresh status");
+	expect(trigger()?.textContent).toContain("#42");
 });
 
 it("silently hides initial lookup failures and can recover on a later refresh", async () => {
 	invoke.mockRejectedValue(new Error("GitHub unavailable"));
 	await render();
-	expect(container.textContent).toBe("");
+	expect(trigger()).toBeNull();
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(30_000);
 	});
-	expect(container.textContent).toBe("");
+	expect(trigger()).toBeNull();
 	invoke.mockResolvedValue(data);
-	await clickRefreshViaFocus();
-	expect(container.textContent).toContain("#42");
+	await refreshViaFocus();
+	expect(trigger()?.textContent).toContain("#42");
 });
 
 it("keeps a dismissed error hidden through polling and focus until recovery", async () => {
 	await render();
 	invoke.mockRejectedValue(new Error("Connection failed"));
-	await clickRefreshViaFocus();
-	expect(container.textContent).toContain("Connection failed");
-	await click("Dismiss pull request error");
-	expect(container.textContent).toBe("");
-	await clickRefreshViaFocus();
+	await refreshViaFocus();
+	await openMenu();
+	expect(document.body.textContent).toContain("Connection failed");
+	await select("Dismiss");
+	expect(trigger()).toBeNull();
+	await refreshViaFocus();
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(30_000);
 	});
-	expect(container.textContent).toBe("");
+	expect(trigger()).toBeNull();
 	invoke.mockResolvedValue(data);
-	await clickRefreshViaFocus();
-	expect(container.textContent).toContain("#42");
+	await refreshViaFocus();
+	expect(trigger()?.textContent).toContain("#42");
 	invoke.mockRejectedValue(new Error("New connection failure"));
-	await clickRefreshViaFocus();
-	expect(container.textContent).toContain("New connection failure");
+	await refreshViaFocus();
+	await openMenu();
+	expect(document.body.textContent).toContain("New connection failure");
 });
 
-it("hides a formerly working row when GitHub becomes unavailable", async () => {
+it("hides a formerly working menu when GitHub becomes unavailable", async () => {
 	await render();
 	invoke.mockResolvedValue(null);
-	await clickRefreshViaFocus();
-	expect(container.textContent).toBe("");
+	await refreshViaFocus();
+	expect(trigger()).toBeNull();
 	invoke.mockRejectedValue(new Error("Connection failed"));
-	await clickRefreshViaFocus();
-	expect(container.textContent).toBe("");
+	await refreshViaFocus();
+	expect(trigger()).toBeNull();
 });
+
 it("does not fetch for a non-repository", async () => {
 	await render("/repo", "no-git");
 	expect(invoke).not.toHaveBeenCalled();
+	expect(container.textContent).toBe("");
 });
 
 function telemetryEvents() {
@@ -276,15 +332,13 @@ it("reports exposure once per workspace/branch, without polling impressions", as
 
 it("reports PR, CI, check, and refresh interactions without identifying data", async () => {
 	await render();
-	await click("Open pull request #42: Feature");
-	await click("CI failed");
-	const check = [...document.querySelectorAll("button")].find(
-		(button) => button.textContent?.trim() === "Tests",
-	);
-	if (!check) throw new Error("Expected check link");
-	await act(async () => check.click());
-	await click("CI failed"); // Closing the popover is not another expansion.
-	await click("Refresh pull request status");
+	await openMenu();
+	await select("Open on GitHub");
+	await openMenu();
+	await select("1 of 1 checks failed");
+	await select("Tests");
+	await openMenu();
+	await select("Refresh status");
 	expect(telemetryEvents().map((event) => event.action)).toEqual([
 		"shown",
 		"open_clicked",
@@ -305,11 +359,8 @@ it("reports PR, CI, check, and refresh interactions without identifying data", a
 it("records create intent without claiming a PR was created", async () => {
 	invoke.mockResolvedValue({ ...data, pullRequest: null });
 	await render();
-	const create = [...container.querySelectorAll("button")].find((button) =>
-		button.textContent?.includes("Create PR"),
-	);
-	if (!create) throw new Error("Expected create button");
-	await act(async () => create.click());
+	await openMenu();
+	await select("Create pull request");
 	expect(telemetryEvents()).toEqual([
 		{
 			action: "shown",
@@ -333,20 +384,21 @@ it("keeps PR links usable when telemetry delivery fails", async () => {
 		return data;
 	});
 	await render();
-	await click("Open pull request #42: Feature");
+	await openMenu();
+	await select("Open on GitHub");
 	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.url);
 });
 
-it("does not record exposure for hidden or failed status rows", async () => {
+it("does not record exposure for hidden or failed status", async () => {
 	invoke.mockResolvedValue(null);
 	await render();
 	expect(telemetryEvents()).toEqual([]);
 	invoke.mockRejectedValue(new Error("GitHub unavailable"));
-	await clickRefreshViaFocus();
+	await refreshViaFocus();
 	expect(telemetryEvents()).toEqual([]);
 });
 
-async function clickRefreshViaFocus() {
+async function refreshViaFocus() {
 	await act(async () => {
 		window.dispatchEvent(new Event("focus"));
 	});
