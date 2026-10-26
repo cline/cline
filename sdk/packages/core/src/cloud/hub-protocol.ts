@@ -1,4 +1,4 @@
-import type { CreateCloudSessionInput } from "./api";
+import type { HandoffGitPublication } from "../services/cloud-handoff/git-preparation";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
@@ -22,13 +22,48 @@ export const CLOUD_HUB_OPERATIONS = [
 	"respondApproval",
 	"restoreCreationOptions",
 	"refreshOrganization",
+	"prepareHandoffRepository",
 ] as const;
 export type CloudHubScope = { serviceId: string; scopeGeneration: number };
 
+export type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
+
+export function serializeCloudSendFailure(
+	error: unknown,
+	dispatched: boolean,
+): CloudSendFailure {
+	return {
+		dispatched,
+		message: error instanceof Error ? error.message : String(error),
+		...(error instanceof Error &&
+		"detail" in error &&
+		typeof error.detail === "string"
+			? { detail: error.detail }
+			: {}),
+	};
+}
+
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
+type CloudCreateInput = Omit<
+	Parameters<CloudSessionController["create"]>[0],
+	"handoff"
+>;
+export type CloudHubCreateInput = CloudCreateInput &
+	(
+		| { localGit?: never }
+		| {
+				localGit: HandoffGitPublication;
+				requestId: string;
+				initialMessage: { text: string; images?: string[] };
+		  }
+	);
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
-	? [input: Omit<CreateCloudSessionInput, "handoff">]
+	? [input: CloudHubCreateInput]
 	: K extends "send"
 		? [
 				sessionId: string,
