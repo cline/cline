@@ -4,7 +4,7 @@ import { SquareArrowOutUpRightIcon } from "lucide-react"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import remarkGfm from "remark-gfm"
 import type { Node } from "unist"
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { localFileLink } from "@/utils/localFileLink"
 import { WithCopyButton } from "./CopyButton"
 import UnsafeImage from "./UnsafeImage"
 
@@ -24,6 +25,18 @@ function parseMarkdownIntoBlocks(markdown: string): string[] {
 	} catch {
 		return [markdown]
 	}
+}
+
+// react-markdown drops an href with a scheme it does not know, which includes `file:` and a `C:` drive.
+function keepLocalFileHref(url: string, key: string): string {
+	return key === "href" && localFileLink(url) ? url : defaultUrlTransform(url)
+}
+
+function openLocalFile(link: NonNullable<ReturnType<typeof localFileLink>>) {
+	const request = StringRequest.create({ value: link.path })
+	const opened =
+		link.kind === "absolute" ? FileServiceClient.openFile(request) : FileServiceClient.openFileRelativePath(request)
+	opened.catch((err) => console.error(`Failed to open ${link.path}:`, err))
 }
 
 const MemoizedMarkdownBlock = memo(
@@ -75,6 +88,28 @@ const MemoizedMarkdownBlock = memo(
 						return <strong {...props} />
 					},
 					img: (props) => <UnsafeImage {...props} />,
+					a: ({ href, children, node: _node, ...props }: ComponentProps<"a"> & { node?: unknown }) => {
+						const link = href ? localFileLink(href) : undefined
+						if (!link) {
+							return (
+								<a href={href} {...props}>
+									{children}
+								</a>
+							)
+						}
+						return (
+							<a
+								href={href}
+								{...props}
+								onClick={(event) => {
+									event.preventDefault()
+									openLocalFile(link)
+								}}
+								title={`Open ${link.path} in editor`}>
+								{children}
+							</a>
+						)
+					},
 				}}
 				rehypePlugins={[[rehypeHighlight as any, {} as Options]]}
 				remarkPlugins={[
@@ -94,7 +129,8 @@ const MemoizedMarkdownBlock = memo(
 							})
 						}
 					},
-				]}>
+				]}
+				urlTransform={keepLocalFileHref}>
 				{content}
 			</ReactMarkdown>
 		)
