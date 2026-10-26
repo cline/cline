@@ -30,20 +30,23 @@ const creationOptions = z.object({
 	thinking: z.boolean().optional(),
 	reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
 });
+const createInput = creationOptions
+	.extend({
+		sandboxType: z.enum(["standard", "resumable"]).optional(),
+		requestId: id.optional(),
+		modelId: id,
+		repoUrl: id,
+		initialPrompt: z.string().optional(),
+		initialMessage: z
+			.object({ text: id, images: z.array(z.string()).optional() })
+			.strict()
+			.optional(),
+		branch: id.optional(),
+		organizationId: id.nullable().optional(),
+	})
+	.strict();
 const schemas = {
-	create: z.tuple([
-		creationOptions
-			.extend({
-				sandboxType: z.enum(["standard", "resumable"]).optional(),
-				requestId: id.optional(),
-				modelId: id,
-				repoUrl: id,
-				initialPrompt: z.string().optional(),
-				branch: id.optional(),
-				organizationId: id.nullable().optional(),
-			})
-			.strict(),
-	]),
+	create: z.tuple([createInput]),
 	attach: z.tuple([id, creationOptions.nullish()]),
 	send: z.tuple([
 		id,
@@ -89,6 +92,7 @@ const schemas = {
 		z.object({ approved: z.boolean(), reason: z.string().optional() }).strict(),
 	]),
 	refreshOrganization: z.tuple([]),
+	prepareHandoffRepository: z.tuple([id]),
 	restoreCreationOptions: z.tuple([id, creationOptions.strict()]),
 } satisfies Record<CloudHubOperation, z.ZodType>;
 

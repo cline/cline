@@ -555,3 +555,9 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+### Cloud handoff snapshots
+
+`@cline/core/cloud` exports `inspectHandoffGit`, `previewHandoffGit`, `applyHandoffGit`, and `verifyPublishedHandoffGit`. Capture a plan, show its preview for approval, then publish the captured tree from an isolated checkout. The source branch, files, and index remain unchanged.
+
+`HubCloudSessionClient.create` accepts an `initialMessage` with text and optional images. The Hub dispatches that message and reports the result in `initialSend`; a failure includes `dispatched` to distinguish a confirmed unsent prompt from an uncertain outcome. Follow-up sends wait for the initial send to settle. Pass the client's captured `scope` to bind creation and handoff repository/model lookup to the same account.
