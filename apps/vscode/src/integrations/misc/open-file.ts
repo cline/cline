@@ -1,6 +1,7 @@
 import { writeFile } from "@utils/fs"
 import * as os from "os"
 import * as path from "path"
+import { fileURLToPath } from "url"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 
@@ -29,10 +30,14 @@ export async function openImage(dataUri: string) {
 	}
 }
 
+/**
+ * Opens a file in the editor. The location is an absolute path or a `file:` URL, which is turned into
+ * the platform's path here, where the file lives (drive letters and UNC hosts included).
+ */
 export async function openFile(absolutePath: string, preserveFocus: boolean = false, preview: boolean = false) {
 	try {
 		await HostProvider.window.showTextDocument({
-			path: absolutePath,
+			path: absolutePath.startsWith("file:") ? fileURLToPath(absolutePath) : absolutePath,
 			options: { preserveFocus, preview },
 		})
 	} catch (_error) {
