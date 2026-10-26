@@ -37,7 +37,7 @@ export async function openImage(dataUri: string) {
 export async function openFile(absolutePath: string, preserveFocus: boolean = false, preview: boolean = false) {
 	try {
 		await HostProvider.window.showTextDocument({
-			path: absolutePath.startsWith("file:") ? fileURLToPath(absolutePath) : absolutePath,
+			path: /^file:/i.test(absolutePath) ? fileURLToPath(absolutePath) : absolutePath,
 			options: { preserveFocus, preview },
 		})
 	} catch (_error) {

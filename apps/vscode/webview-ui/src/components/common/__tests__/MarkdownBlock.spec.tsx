@@ -67,11 +67,20 @@ describe("MarkdownBlock links to local files", () => {
 	it("leaves web links to the host", () => {
 		const link = renderLink("[Docs](https://example.com/docs)", "Docs")
 		expect(link.getAttribute("href")).toBe("https://example.com/docs")
+		const protocolRelative = renderLink("[CDN](//example.com/docs)", "CDN")
+		expect(protocolRelative.getAttribute("href")).toBe("//example.com/docs")
 
-		const navigates = fireEvent.click(link)
-
-		expect(navigates).toBe(true)
+		expect(fireEvent.click(link)).toBe(true)
+		expect(fireEvent.click(protocolRelative)).toBe(true)
 		expect(grpcMocks.openFile).not.toHaveBeenCalled()
 		expect(grpcMocks.openFileRelativePath).not.toHaveBeenCalled()
+	})
+
+	it("opens a section link's file without the fragment", () => {
+		const link = renderLink("[Setup](docs/setup.md#install)", "Setup")
+
+		fireEvent.click(link)
+
+		expect(grpcMocks.openFileRelativePath).toHaveBeenCalledWith({ value: "docs/setup.md" })
 	})
 })
