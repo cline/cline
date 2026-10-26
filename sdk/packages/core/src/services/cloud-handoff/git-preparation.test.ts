@@ -194,6 +194,7 @@ describe("cloud handoff Git preparation", () => {
 			"Git fetch failed",
 		],
 	])("stops preparation with safe diagnostics when fetching fails (%j)", async (details, message) => {
+		git("commit", "--allow-empty", "-m", "local only");
 		transport.rejectFetch = true;
 		Object.assign(transport.rejection, details);
 		const refs = git("show-ref");
@@ -263,6 +264,7 @@ describe("cloud handoff Git preparation", () => {
 		const originalHead = git("rev-parse", "HEAD");
 		const originalStatus = git("status", "--porcelain");
 		transport.pushUrl = "https://synthetic-token@github.com/cline/todo-app";
+		transport.rejectFetch = true;
 		const plan = await inspectHandoffGit(join(repo, "sub"));
 		expect(plan.files.map((file) => file.path).sort()).toEqual([
 			"new file.txt",
@@ -331,6 +333,7 @@ describe("cloud handoff Git preparation", () => {
 	});
 
 	it("captures file contents before remote inspection while local edits continue", async () => {
+		git("commit", "--allow-empty", "-m", "local only");
 		writeFileSync(join(repo, "tracked.txt"), "captured with conversation\n");
 		const captured = vi.fn();
 		transport.beforeFetch = () => {
