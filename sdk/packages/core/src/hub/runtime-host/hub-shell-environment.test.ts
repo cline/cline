@@ -69,6 +69,11 @@ describe("Hub session shell environment", () => {
 						} as never,
 						onPluginEvent: () => {},
 						onTeamEvent: () => {},
+						// Fixture sessions set enableSpawnAgent: false; fail fast if a
+						// spawn tool is ever requested so the fixture cannot drift.
+						createSpawnTool: () => {
+							throw new Error("Unexpected spawn tool in shell-only fixture");
+						},
 						readSessionMetadata: async () => undefined,
 						writeSessionMetadata: async (value) => {
 							persisted.push(value);
