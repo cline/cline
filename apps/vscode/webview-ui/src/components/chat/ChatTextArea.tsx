@@ -1158,7 +1158,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// A cloud task runs on a Cline model in the sandbox, whatever the
 			// local provider is; the extension reports which one.
 			if (cloudActOnly) {
-				return `cline:${cloudModelId || unknownModel}`
+				const cloudModel = cloudModelId || unknownModel
+				return cloudModel.startsWith("cline-pass/")
+					? `cline-pass:${cloudModel.replace(/^cline-pass\//, "")}`
+					: `cline:${cloudModel}`
 			}
 			if (!apiConfiguration) {
 				return unknownModel

@@ -565,17 +565,18 @@ function RowAction({
 	);
 }
 
-function ChangeRow({
+export function ChangeRow({
 	file,
 	selected,
-	session,
+	session = false,
 	actions,
 	onOpen,
 }: {
-	file: SourceControlFile;
+	file: Pick<SourceControlFile, "path" | "status" | "additions" | "deletions"> &
+		Partial<Pick<SourceControlFile, "originalPath">>;
 	selected: boolean;
-	session: boolean;
-	actions: ReactNode;
+	session?: boolean;
+	actions?: ReactNode;
 	onOpen: () => void;
 }) {
 	const directory = directoryOf(file.path);
@@ -614,9 +615,11 @@ function ChangeRow({
 					) : null}
 				</span>
 			</button>
-			<span className="hidden shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex">
-				{actions}
-			</span>
+			{actions ? (
+				<span className="hidden shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex">
+					{actions}
+				</span>
+			) : null}
 			{session ? (
 				<span
 					className="size-1.5 shrink-0 rounded-full bg-primary"
