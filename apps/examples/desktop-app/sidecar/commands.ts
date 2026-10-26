@@ -175,7 +175,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import { listPluginCommands } from "./plugin-commands";
+import { listPluginCommands, readNextTurnSuggestions } from "./plugin-commands";
 import {
 	listProjectEntries,
 	readLocalProjectFile,
@@ -3941,6 +3941,16 @@ export async function handleCommand(
 			typeof args?.sessionId === "string" ? args.sessionId : undefined,
 			requestedEnvironmentId(args),
 		);
+	}
+	if (command === "next_turn_suggestions") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		return await readNextTurnSuggestions(ctx, {
+			workspacePath:
+				String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
+			sessionId,
+			environmentId: requestedEnvironmentId(args),
+		});
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

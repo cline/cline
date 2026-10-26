@@ -41,6 +41,70 @@ export async function listPluginCommands(
 	});
 }
 
+const NEXT_TURN_COMMAND = "/next --format=json";
+const MAX_NEXT_TURN_SUGGESTIONS = 3;
+const MAX_NEXT_TURN_PROMPT_CHARS = 2_000;
+
+/** Parses the plugin's small wire reply into the only data the composer needs. */
+export function parseNextTurnSuggestionsReply(
+	reply: string | undefined,
+): readonly string[] {
+	if (!reply) return [];
+	try {
+		const value: unknown = JSON.parse(reply);
+		if (!value || typeof value !== "object" || Array.isArray(value)) {
+			return [];
+		}
+		const { v, suggestions } = value as Record<string, unknown>;
+		if (
+			v !== 1 ||
+			!Array.isArray(suggestions) ||
+			suggestions.length > MAX_NEXT_TURN_SUGGESTIONS ||
+			!suggestions.every(
+				(prompt) =>
+					typeof prompt === "string" &&
+					prompt.trim().length > 0 &&
+					prompt.length <= MAX_NEXT_TURN_PROMPT_CHARS,
+			)
+		) {
+			return [];
+		}
+		return suggestions.map((prompt: string) => prompt.trim());
+	} catch {
+		return [];
+	}
+}
+
+/** Reads the current set without creating chat output or submitting a prompt. */
+export async function readNextTurnSuggestions(
+	ctx: SidecarContext,
+	input: {
+		workspacePath: string;
+		sessionId: string;
+		environmentId?: string;
+	},
+): Promise<readonly string[]> {
+	try {
+		const commands = createHubPluginCommandsApi(
+			getSessionRuntimeBinding(ctx, input.sessionId, input.environmentId)
+				.hubClient,
+		);
+		const result = await commands.run({
+			workspacePath: sessionWorkspacePath(
+				ctx,
+				input.sessionId,
+				input.workspacePath,
+			),
+			sessionId: input.sessionId,
+			prompt: NEXT_TURN_COMMAND,
+		});
+		return parseNextTurnSuggestionsReply(result?.reply);
+	} catch (error) {
+		ctx.logger?.debug("Next Turn suggestion lookup failed", { error });
+		return [];
+	}
+}
+
 export async function runPluginSlashCommand(
 	ctx: SidecarContext,
 	input: {
