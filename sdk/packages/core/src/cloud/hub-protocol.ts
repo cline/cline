@@ -26,27 +26,6 @@ export const CLOUD_HUB_OPERATIONS = [
 ] as const;
 export type CloudHubScope = { serviceId: string; scopeGeneration: number };
 
-export type CloudSendFailure = {
-	dispatched: boolean;
-	message: string;
-	detail?: string;
-};
-
-export function serializeCloudSendFailure(
-	error: unknown,
-	dispatched: boolean,
-): CloudSendFailure {
-	return {
-		dispatched,
-		message: error instanceof Error ? error.message : String(error),
-		...(error instanceof Error &&
-		"detail" in error &&
-		typeof error.detail === "string"
-			? { detail: error.detail }
-			: {}),
-	};
-}
-
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
 type CloudCreateInput = Omit<
