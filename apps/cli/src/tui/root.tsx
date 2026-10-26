@@ -27,6 +27,7 @@ import {
 } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
+import { CloudHandoffStatusBar } from "./components/cloud-handoff-status";
 import { DialogThemeSync } from "./components/dialog-theme-sync";
 import {
 	CheckpointConfirmContent,
@@ -62,6 +63,7 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudHandoff } from "./hooks/use-cloud-handoff";
 import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
@@ -152,6 +154,7 @@ function App(props: TuiProps) {
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		subscribeAdditionalSlashCommands: props.subscribeAdditionalSlashCommands,
 		canFork: canForkSession,
+		cloudEnabled: !!props.cloudSessions && !!props.onPrepareCloudHandoff,
 	});
 
 	const autocomplete = useAutocomplete({
@@ -336,6 +339,13 @@ function App(props: TuiProps) {
 		setIsRunning: session.setIsRunning,
 		showToast,
 		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+	const handoff = useCloudHandoff({
+		prepare: props.onPrepareCloudHandoff,
+		cloudActive: cloud.active,
+		isLocalBusy: session.isRunning || queuedPrompts.length > 0,
+		dialog,
+		termHeight,
 	});
 	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
 	const propsOnResumeSession = props.onResumeSession;
@@ -914,6 +924,7 @@ function App(props: TuiProps) {
 		slashCommandRegistry,
 		handleSlashCommand,
 		onSubmit: cloud.active ? cloud.submit : props.onSubmit,
+		onCloudCommand: handoff.run,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
@@ -1139,6 +1150,20 @@ function App(props: TuiProps) {
 	return wrapWithBridge(
 		<box flexDirection="column" width="100%" height="100%">
 			{content}
+			{handoff.status && (
+				<CloudHandoffStatusBar
+					status={handoff.status}
+					disabled={isDialogOpen || isRuntimeInteractionOpen}
+					onDismiss={handoff.dismiss}
+					onRetry={handoff.retry}
+					onRestore={(draft) => {
+						if (!promptInput.restoreCloudDraft(draft))
+							showToast(
+								"The input already has a draft. Clear or send it before restoring this one.",
+							);
+					}}
+				/>
+			)}
 			<Toast toast={toast} />
 		</box>,
 	);

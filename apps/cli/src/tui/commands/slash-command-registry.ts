@@ -20,6 +20,7 @@ export type LocalSlashCommandName =
 	| "theme"
 	| "compact"
 	| "skills"
+	| "cloud"
 	| "fork"
 	| "undo"
 	| "clear"
@@ -89,6 +90,11 @@ const TUI_LOCAL_COMMANDS: Array<{
 		preserveInput: true,
 	},
 	{
+		name: "cloud",
+		description: "Continue this conversation in Cline Cloud",
+		preserveInput: true,
+	},
+	{
 		name: "fork",
 		description: "Create a named fork of the current session",
 	},
@@ -123,6 +129,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"plugins",
 	"compact",
 	"skills",
+	"cloud",
 	"fork",
 	"undo",
 	"clear",
@@ -187,13 +194,16 @@ export function buildSlashCommandRegistry(input: {
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	additionalSlashCommands?: InteractiveSlashCommand[];
 	canFork?: boolean;
+	cloudEnabled?: boolean;
 }): SlashCommandRegistry {
 	const byName = new Map<string, SlashCommandRegistryEntry>();
 
 	for (const command of TUI_LOCAL_COMMANDS) {
 		const isFork = command.name === "fork";
 		const visible =
-			(command.visible ?? true) && (!isFork || input.canFork === true);
+			(command.visible ?? true) &&
+			(!isFork || input.canFork === true) &&
+			(command.name !== "cloud" || input.cloudEnabled === true);
 		addEntry(byName, {
 			name: command.name,
 			description: command.description,

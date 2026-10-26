@@ -13,6 +13,10 @@ import type {
 } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import type {
+	CloudHandoffDraft,
+	PreparedCloudHandoff,
+} from "../runtime/interactive/cloud-handoff";
+import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
@@ -263,6 +267,9 @@ export interface TuiProps {
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
 	/** Omitted when cloud sessions are unavailable. */
 	cloudSessions?: CloudSessionsClient;
+	onPrepareCloudHandoff?: (
+		draft: CloudHandoffDraft,
+	) => Promise<PreparedCloudHandoff>;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;

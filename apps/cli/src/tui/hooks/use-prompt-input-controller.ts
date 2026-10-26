@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import type { CloudHandoffDraft } from "../../runtime/interactive/cloud-handoff";
 import { shouldExpandSkillSlashCommands } from "../../runtime/prompt";
 import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
@@ -37,6 +38,7 @@ export function usePromptInputController(input: {
 		invocation?: LocalSlashCommandInvocation,
 	) => boolean | Promise<boolean>;
 	onSubmit: TuiProps["onSubmit"];
+	onCloudCommand?: (draft: CloudHandoffDraft) => Promise<boolean>;
 	initialPrompt?: string;
 	providerId: string;
 	modelId?: string;
@@ -50,6 +52,7 @@ export function usePromptInputController(input: {
 		slashCommandRegistry,
 		handleSlashCommand,
 		onSubmit,
+		onCloudCommand,
 		initialPrompt,
 		providerId,
 		modelId,
@@ -145,6 +148,26 @@ export function usePromptInputController(input: {
 		clearPastedImages();
 		clearPastedTextSnippets();
 	}, [clearPastedImages, clearPastedTextSnippets]);
+
+	const restoreCloudDraft = useCallback((draft: CloudHandoffDraft): boolean => {
+		if (inputValueRef.current.trim()) return false;
+		pastedImagesRef.current = draft.images.map((dataUrl, i) => ({
+			marker: `[Image ${i + 1}]`,
+			dataUrl,
+		}));
+		pastedTextSnippetsRef.current = [];
+		setInputValue(
+			[
+				"/cloud",
+				draft.instruction,
+				...pastedImagesRef.current.map((image) => image.marker),
+			]
+				.filter(Boolean)
+				.join(" "),
+		);
+		setInputKey((k) => k + 1);
+		return true;
+	}, []);
 
 	const handleImagePaste = useCallback((dataUrl: string) => {
 		const marker = `[Image ${pastedImagesRef.current.length + 1}]`;
@@ -266,6 +289,38 @@ export function usePromptInputController(input: {
 
 			const prompt = inputValueRef.current.trim();
 			if (!prompt) return;
+
+			if (/^\/cloud(?:\s|$)/i.test(prompt) && onCloudCommand) {
+				localCommandInFlightRef.current = true;
+				try {
+					const images = pastedImagesRef.current.filter((image) =>
+						prompt.includes(image.marker),
+					);
+					let expanded = expandPastedTextSnippets(
+						prompt,
+						pastedTextSnippetsRef.current,
+					);
+					for (const image of images)
+						expanded = expanded.replaceAll(image.marker, "");
+					const accepted = await onCloudCommand({
+						instruction: expanded.replace(/^\/cloud\b/i, "").trim(),
+						images: images.map((image) => image.dataUrl),
+					});
+					if (accepted) {
+						textareaRef.current?.setText("");
+						inputValueRef.current = "";
+						setInputValue("");
+						clearPasteAttachments();
+					}
+				} finally {
+					localCommandInFlightRef.current = false;
+					setPendingCursorOffset(
+						textareaRef.current?.cursorOffset ?? inputValueRef.current.length,
+					);
+					refocusTextarea();
+				}
+				return;
+			}
 
 			if (!delivery && prompt.startsWith("/")) {
 				const parts = prompt.split(/\s+/);
@@ -404,6 +459,8 @@ export function usePromptInputController(input: {
 			inputHistory,
 			modelId,
 			onSubmit,
+			onCloudCommand,
+			refocusTextarea,
 			providerId,
 			refreshRepoStatus,
 			runSlashCommand,
@@ -503,6 +560,7 @@ export function usePromptInputController(input: {
 		submitInitialPrompt,
 		selectAutocompleteOption,
 		handleImagePaste,
+		restoreCloudDraft,
 		handleLargeTextPaste,
 		handleSubmit,
 		handleContentChange,

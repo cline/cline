@@ -350,6 +350,16 @@ Approve tool "<tool_name>" with input <preview>? [y/N]
 
 Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_APPROVAL_MODE=desktop` and `CLINE_TOOL_APPROVAL_DIR=<path>`). In desktop mode, CLI writes a request JSON file and waits for a matching decision JSON file.
 
+## Continue a local conversation in Cloud
+
+With `CLINE_CLOUD_SESSIONS=1`, enter `/cloud` or `/cloud <next instruction>` in an idle local conversation. You can include up to five pasted images. The selected model must be available to your signed-in Cline Cloud account.
+
+Review the repository, proposed branch, changed files, and unpublished commits, then choose **Push and continue**. Cline summarizes the captured conversation and publishes a Git snapshot from a temporary checkout. Your local branch, files, and staging stay unchanged. Cancel keeps the input and its images.
+
+The cloud task receives the summary, optional instruction, and attached images. Progress and a task link appear below the chat while you keep working locally. Later local messages and edits are not sent to that task. Use `Alt+O` to open it, `Alt+R` to restore a failed draft or retry a confirmed unsent prompt, and `Alt+D` to dismiss a finished status. Restoring a draft does not overwrite newer input. A retry sends to the existing task; uncertain delivery requires checking that task before resending.
+
+Keep Cline open until the cloud task accepts the prompt. After acceptance, the shared Hub owns the cloud work. Unsent drafts and retry actions are kept in memory and are lost when the TUI exits. Repository hooks run in the temporary checkout and may need dependencies or generated files that are absent there.
+
 ## Environment variables
 
 - `ANTHROPIC_API_KEY` - API key for Anthropic
