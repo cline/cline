@@ -2,6 +2,7 @@ import type {
 	AgentModelEvent,
 	GatewayProviderContext,
 	GatewayStreamRequest,
+	ITelemetryService,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
@@ -62,50 +63,69 @@ async function collect(
 	return events;
 }
 
+async function run(input: {
+	bodies: string[];
+	signal?: AbortSignal;
+	emitStatusNotice: ReturnType<typeof vi.fn>;
+}) {
+	const fetchMock = queuedFetch(input.bodies);
+	const config = {
+		providerId: "openai-compatible",
+		apiKey: "test-key",
+		baseUrl: "http://fake.local/v1",
+		fetch: fetchMock as unknown as typeof fetch,
+	};
+	const provider = await createOpenAICompatibleProvider(config);
+	const request = {
+		providerId: "openai-compatible",
+		modelId: "test-model",
+		messages: [
+			{
+				id: "msg_user",
+				role: "user",
+				content: [{ type: "text", text: "do the thing" }],
+				createdAt: new Date(),
+			},
+		],
+		tools: [],
+		signal: input.signal,
+		emitStatusNotice: input.emitStatusNotice,
+	} as unknown as GatewayStreamRequest;
+	const model = {
+		id: "test-model",
+		providerId: "openai-compatible",
+		name: "test-model",
+	};
+	const capture = vi.fn();
+	const context = {
+		provider: {
+			id: "openai-compatible",
+			name: "openai-compatible",
+			defaultModelId: "test-model",
+			models: [model],
+		},
+		model,
+		config,
+		telemetry: { capture } as unknown as ITelemetryService,
+	} as unknown as GatewayProviderContext;
+
+	const startedAt = performance.now();
+	const events = await collect(await provider.stream(request, context));
+	return {
+		fetchMock,
+		capture,
+		events,
+		elapsedMs: performance.now() - startedAt,
+	};
+}
+
 describe("stream retry backoff over the OpenAI-compatible wire format", () => {
 	it("holds the SDK's re-dial for the backoff and streams the retry", async () => {
-		const fetchMock = queuedFetch([overloadedSse, textSse]);
-		const config = {
-			providerId: "openai-compatible",
-			apiKey: "test-key",
-			baseUrl: "http://fake.local/v1",
-			fetch: fetchMock as unknown as typeof fetch,
-		};
-		const provider = await createOpenAICompatibleProvider(config);
 		const emitStatusNotice = vi.fn();
-		const request = {
-			providerId: "openai-compatible",
-			modelId: "test-model",
-			messages: [
-				{
-					id: "msg_user",
-					role: "user",
-					content: [{ type: "text", text: "do the thing" }],
-					createdAt: new Date(),
-				},
-			],
-			tools: [],
+		const { fetchMock, events, elapsedMs } = await run({
+			bodies: [overloadedSse, textSse],
 			emitStatusNotice,
-		} as unknown as GatewayStreamRequest;
-		const model = {
-			id: "test-model",
-			providerId: "openai-compatible",
-			name: "test-model",
-		};
-		const context = {
-			provider: {
-				id: "openai-compatible",
-				name: "openai-compatible",
-				defaultModelId: "test-model",
-				models: [model],
-			},
-			model,
-			config,
-		} as unknown as GatewayProviderContext;
-
-		const startedAt = performance.now();
-		const events = await collect(await provider.stream(request, context));
-		const elapsedMs = performance.now() - startedAt;
+		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(emitStatusNotice).toHaveBeenCalledTimes(1);
@@ -122,5 +142,24 @@ describe("stream retry backoff over the OpenAI-compatible wire format", () => {
 		const finish = events.find((event) => event.type === "finish");
 		expect(finish).toMatchObject({ requestId: "request-2" });
 		expect(finish).not.toMatchObject({ reason: "error" });
+	});
+
+	it("ends promptly when the request is cancelled during the wait", async () => {
+		const controller = new AbortController();
+		const emitStatusNotice = vi.fn(() => controller.abort());
+		const { fetchMock, capture, events, elapsedMs } = await run({
+			bodies: [overloadedSse, textSse],
+			signal: controller.signal,
+			emitStatusNotice,
+		});
+
+		expect(emitStatusNotice).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(elapsedMs).toBeLessThan(900);
+		expect(events.some((event) => event.type === "text-delta")).toBe(false);
+		expect(events.at(-1)?.type).toBe("finish");
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "sdk.error" }),
+		);
 	});
 });

@@ -603,3 +603,27 @@ describe("isRetryableProviderError: capacity failures without an HTTP status", (
 		).toBe(false);
 	});
 });
+
+describe("isRetryableProviderError: capacity codes decide without the message", () => {
+	it.each([
+		{ code: "server_is_overloaded" },
+		{ code: "service_unavailable" },
+		{ type: "service_unavailable_error" },
+		{ code: "model_overloaded" },
+		{ type: "overloaded_error" },
+	])("retries %o with a neutral message", (fields) => {
+		expect(
+			isRetryableProviderError({
+				error: { ...fields, message: "request failed, see provider status" },
+			}),
+		).toBe(true);
+	});
+
+	it("does not retry an unknown code with a neutral message", () => {
+		expect(
+			isRetryableProviderError({
+				error: { code: "upstream_error", message: "request failed" },
+			}),
+		).toBe(false);
+	});
+});

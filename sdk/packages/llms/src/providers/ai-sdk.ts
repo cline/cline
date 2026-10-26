@@ -19,6 +19,7 @@ import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
+	captureSdkStreamRetry,
 	createMediaBudgetState,
 	formatMessagesForAiSdk,
 	GeneratedMediaSchema,
@@ -27,6 +28,7 @@ import {
 	modelSupportsToolCalling,
 	parseJsonStream,
 	sanitizeSurrogates,
+	type TelemetryProperties,
 	usesImageGenerationOperation,
 	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
@@ -2188,7 +2190,7 @@ function createAiSdkProvider(
 			let getAiSdkCallId: (() => string | undefined) | undefined;
 			let reportedError: CapturedStreamError | undefined;
 			let streamRetryBackoff: StreamRetryBackoff | undefined;
-			const correlationProperties = () => {
+			const correlationProperties = (): TelemetryProperties => {
 				const runtimeContext = buildAiSdkRuntimeContext(request, context);
 				return Object.fromEntries(
 					[
@@ -2203,7 +2205,7 @@ function createAiSdkProvider(
 							? []
 							: [[key, runtimeContext[key]]],
 					),
-				);
+				) as TelemetryProperties;
 			};
 			const reportError = async (
 				captured: CapturedStreamError,
@@ -2515,17 +2517,14 @@ function createAiSdkProvider(
 										modelId: request.modelId,
 									},
 								);
-								context.telemetry?.capture({
-									event: "sdk.stream_retry",
-									properties: {
-										...correlationProperties(),
-										providerId: request.providerId,
-										modelId: request.modelId,
-										providerKind: kind,
-										attempt: wait.attempt,
-										delayMs: wait.delayMs,
-										errorClass: captured.errorClass,
-									},
+								captureSdkStreamRetry(context.telemetry, {
+									providerId: request.providerId,
+									modelId: request.modelId,
+									providerKind: kind,
+									attempt: wait.attempt,
+									delayMs: wait.delayMs,
+									errorClass: captured.errorClass,
+									context: correlationProperties(),
 								});
 								await sleep(wait.delayMs, request.signal);
 							},
