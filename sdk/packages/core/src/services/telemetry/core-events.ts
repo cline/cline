@@ -79,6 +79,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		PROVIDER_API_ERROR: "task.provider_api_error",
 		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
+		CAPABILITY_OWNER_GONE: "task.capability_owner_gone",
 		PROVIDER_REQUEST_STARTED: TASK_PROVIDER_REQUEST_STARTED_EVENT,
 		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
 		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
@@ -644,6 +645,22 @@ export function captureMistakeLimitReached(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/**
+ * Records when a run's hook, client tool, or other client callback fails
+ * because the app that owns it disconnected or left the task.
+ */
+export function captureCapabilityOwnerGone(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		sessionId: string;
+		capabilityName: string;
+		/** disconnected / detached: failed before asking; cancelled_while_waiting: the app left mid-request. */
+		reason: "disconnected" | "detached" | "cancelled_while_waiting";
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CAPABILITY_OWNER_GONE, properties);
 }
 
 /**

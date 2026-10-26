@@ -648,12 +648,8 @@ export function createDesktopMistakeRecovery(
 ) {
 	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
 	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	const waitForDecision = async () => {
-		const decision = await pendingDecision;
-		return decision?.action === "stop"
-			? { stop: true, reason: decision.reason }
-			: undefined;
-	};
+	// The SDK holds the run at its next model/tool boundary until this
+	// decision settles, so no per-step hooks are needed to pause it.
 	return {
 		onConsecutiveMistakeLimitReached: (
 			context: ConsecutiveMistakeLimitContext,
@@ -664,15 +660,6 @@ export function createDesktopMistakeRecovery(
 				});
 			}
 			return pendingDecision;
-		},
-		hooks: {
-			// The decision callback alone does not pause the SDK. These existing
-			// awaited hooks hold desktop runs at tool/model boundaries until the
-			// user answers. afterTool holds before the next iteration consumes
-			// the recovery guidance queued by the prompt's Continue action.
-			beforeModel: waitForDecision,
-			beforeTool: waitForDecision,
-			afterTool: waitForDecision,
 		},
 	};
 }
