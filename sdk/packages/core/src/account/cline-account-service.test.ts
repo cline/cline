@@ -249,6 +249,43 @@ describe("ClineAccountService", () => {
 		);
 	});
 
+	it("replaces HTML rate limit pages with a readable message", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				'<!doctype html><meta charset="utf-8"><title>429</title>429 Too Many Requests',
+				{ status: 429 },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchMe()).rejects.toThrow(
+			"Cline is receiving too many requests from your network. Please wait a moment and try again.",
+		);
+	});
+
+	it("omits HTML gateway error pages from failure messages", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response("<html><body>502 Bad Gateway</body></html>", {
+				status: 502,
+			});
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchMe()).rejects.toThrow(
+			/^Cline account request failed with status 502$/,
+		);
+	});
+
 	it("surfaces invalid success payloads without JSON parse internals", async () => {
 		const fetchImpl = vi.fn(async () => {
 			return new Response("Account service unavailable", { status: 200 });

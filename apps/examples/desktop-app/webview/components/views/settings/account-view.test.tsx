@@ -48,8 +48,6 @@ describe("AccountView usage table", () => {
 						};
 					case "fetchBalance":
 						return { balance: 5_000_000 };
-					case "fetchUserOrganizations":
-						return [];
 					case "fetchUsageTransactions":
 						return [];
 					default:
@@ -171,19 +169,17 @@ describe("AccountView signed-out state", () => {
 							displayName: "Beatrix",
 							createdAt: "2024-01-01T00:00:00Z",
 							updatedAt: "2024-01-01T00:00:00Z",
-							organizations: [],
+							organizations: [
+								{
+									organizationId: "org-1",
+									name: "Cline",
+									active: true,
+									roles: ["member"],
+								},
+							],
 						};
 					case "fetchBalance":
 						return { balance: 5_000_000 };
-					case "fetchUserOrganizations":
-						return [
-							{
-								organizationId: "org-1",
-								name: "Cline",
-								active: true,
-								roles: ["member"],
-							},
-						];
 					case "fetchOrganizationBalance":
 						return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
 					default:
@@ -217,8 +213,6 @@ describe("AccountView signed-out state", () => {
 						};
 					case "fetchBalance":
 						return { balance: 5_000_000 };
-					case "fetchUserOrganizations":
-						return [];
 					default:
 						return {};
 				}
@@ -233,5 +227,13 @@ describe("AccountView signed-out state", () => {
 			expect(container.textContent).toContain("Beatrix");
 		});
 		expect(container.textContent).not.toContain("Sign in to Cline");
+		const operations = invoke.mock.calls.map(([, args]) => args?.operation);
+		expect(operations.filter((op) => op === "fetchMe")).toHaveLength(1);
+		expect(operations).not.toContain("fetchUserOrganizations");
+		expect(invoke).toHaveBeenCalledWith("cline_account", {
+			action: "clineAccount",
+			operation: "fetchBalance",
+			userId: "user-1",
+		});
 	});
 });

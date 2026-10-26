@@ -39,8 +39,13 @@ function formatClineAccountRequestFailure(
 		return envelopeError;
 	}
 
+	if (status === 429) {
+		return "Cline is receiving too many requests from your network. Please wait a moment and try again.";
+	}
+
 	const body = bodyText.trim();
-	if (body) {
+	// Gateway error pages are HTML and unreadable as an inline message.
+	if (body && !body.startsWith("<")) {
 		const preview = body.length > 200 ? `${body.slice(0, 200)}...` : body;
 		return `Cline account request failed with status ${status}: ${preview}`;
 	}

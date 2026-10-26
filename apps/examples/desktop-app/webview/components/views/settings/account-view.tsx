@@ -84,23 +84,14 @@ async function fetchAccountUser(): Promise<ClineAccountUser> {
 	});
 }
 
-async function fetchAccountBalance(): Promise<ClineAccountBalance> {
+async function fetchAccountBalance(
+	userId: string,
+): Promise<ClineAccountBalance> {
 	return await desktopClient.invoke<ClineAccountBalance>("cline_account", {
 		action: "clineAccount",
 		operation: "fetchBalance",
+		userId,
 	});
-}
-
-async function fetchAccountOrganizations(): Promise<
-	ClineAccountOrganization[]
-> {
-	return await desktopClient.invoke<ClineAccountOrganization[]>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchUserOrganizations",
-		},
-	);
 }
 
 async function fetchOrganizationBalance(
@@ -271,14 +262,9 @@ export function AccountView() {
 				},
 				() => {},
 			);
-			const [balanceData, orgsData] = await Promise.all([
-				fetchAccountBalance(),
-				fetchAccountOrganizations(),
-			]);
-			if (
-				isClineAccountNotAuthenticatedResult(balanceData) ||
-				isClineAccountNotAuthenticatedResult(orgsData)
-			) {
+			const balanceData = await fetchAccountBalance(userData.id);
+			const orgsData = userData.organizations ?? [];
+			if (isClineAccountNotAuthenticatedResult(balanceData)) {
 				resetAccountData();
 				setSignedOut(true);
 				return;
