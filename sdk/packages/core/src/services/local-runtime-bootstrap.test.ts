@@ -66,8 +66,6 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		const bootstrap = await prepareLocalRuntimeBootstrap({
 			input: createStartInput(),
 			localRuntime: {
-				rejectExistingSession: true,
-				onStartAdmitted: vi.fn(),
 				modelCatalogDefaults: {
 					loadLatestOnInit: true,
 					loadPrivateOnAuth: true,
@@ -88,8 +86,6 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			loadLatestOnInit: true,
 			loadPrivateOnAuth: true,
 		});
-		expect(bootstrap.config).not.toHaveProperty("rejectExistingSession");
-		expect(bootstrap.config).not.toHaveProperty("onStartAdmitted");
 	});
 
 	it("discovers user Agent Plugins on the execution host and ignores workspace packages", async () => {

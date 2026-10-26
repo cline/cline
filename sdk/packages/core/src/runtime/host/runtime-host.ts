@@ -29,15 +29,6 @@ import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import type { ConnectionUpdate } from "../config/connection-update";
 
-export class SessionAlreadyExistsError extends Error {
-	readonly code = "session_already_exists";
-
-	constructor(readonly sessionId: string) {
-		super(`session already exists: ${sessionId}`);
-		this.name = "SessionAlreadyExistsError";
-	}
-}
-
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
 export class SessionNotFoundError extends Error {
@@ -148,10 +139,6 @@ export type LocalRuntimeBootstrapConfig = Pick<
 };
 
 export interface LocalRuntimeStartOptions {
-	/** Local host only: reject replacing a resident runtime during saved-session resume. */
-	rejectExistingSession?: boolean;
-	/** Runs after local start admission, before initialization can request client capabilities. */
-	onStartAdmitted?: () => void;
 	hooks?: LocalRuntimeBootstrapConfig["hooks"];
 	logger?: LocalRuntimeBootstrapConfig["logger"];
 	telemetry?: LocalRuntimeBootstrapConfig["telemetry"];

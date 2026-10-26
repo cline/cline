@@ -429,9 +429,7 @@ export async function handleSessionCreate(
 	});
 	// Re-creating after a detach makes this client the owner again, including
 	// for callbacks raised while the session starts.
-	const activateClient = () =>
-		ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
-	if (envelope.command === "session.create") activateClient();
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
@@ -472,9 +470,6 @@ export async function handleSessionCreate(
 		initialMessages,
 		initialCompactionState,
 		localRuntime: {
-			rejectExistingSession: envelope.command === "session.resume",
-			onStartAdmitted:
-				envelope.command === "session.resume" ? activateClient : undefined,
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
 				loadPrivateOnAuth: true,

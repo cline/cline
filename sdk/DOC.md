@@ -98,7 +98,7 @@ host presentation.
 
 The caller owns execution configuration. Other options follow `session.create` defaults, including enabled tools/spawn/teams and disabled checkpointing; callers must supply saved overrides they want to preserve. This operation does not recover credentials or reconstruct execution settings from disk. Stored history, workspace paths when omitted, and saved compaction state use the existing same-ID initialization path.
 
-Resume rejects missing or empty saved history before admission. Otherwise a local resident runtime returns `session_already_exists`; callers can attach to it rather than recreate it. `HubRuntimeHost` and `RemoteRuntimeHost` cannot enforce guarded starts and reject them without forwarding `session.create`. An older Hub returns `unsupported_command`; only that error permits a client to choose the legacy history-transfer flow, which lacks the new atomic nonreplacement guarantee.
+Resume rejects missing or empty saved history before starting. After loading history, it uses the same startup, idle-runtime rebuild, busy-runtime reattachment, ownership, and persistence behavior as `session.create` with supplied history. An older Hub returns `unsupported_command`; clients can fall back to the existing history-download and create flow only for that error.
 
 ## Cloud sessions (experimental)
 

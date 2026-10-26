@@ -4,7 +4,6 @@ import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
-	SessionAlreadyExistsError,
 	SessionNotFoundError,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -18,7 +17,6 @@ import {
 	requestToolApproval,
 } from "./handlers/approval-handlers";
 import {
-	CAPABILITY_OWNER_GONE_MESSAGE,
 	CAPABILITY_OWNER_RECONNECT_GRACE_MS,
 	requestCapability,
 } from "./handlers/capability-handlers";
@@ -1157,7 +1155,7 @@ describe("HubServerTransport boundaries", () => {
 	it.each([
 		"session.create",
 		"session.resume",
-	] as const)("preserves capability-backed tools through %s and resume conflicts", async (command) => {
+	] as const)("preserves capability-backed tools through %s", async (command) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1255,22 +1253,6 @@ describe("HubServerTransport boundaries", () => {
 		expect(reply.ok).toBe(true);
 		const sessionId = capturedStartInput?.config.sessionId?.trim() || "";
 		expect(sessionId).toMatch(/^[0-9]/);
-		if (command === "session.resume") {
-			expect(sessionId).toBe("123-saved-session");
-			startSession.mockRejectedValueOnce(
-				new SessionAlreadyExistsError(sessionId),
-			);
-			const duplicate = await transport.handleCommand({
-				version: "v1",
-				command,
-				clientId: "client-2",
-				payload: { sessionConfig: { ...resumeConfig, sessionId } },
-			});
-			expect(duplicate.error?.code).toBe("session_already_exists");
-			expect(
-				getContext(transport).sessionState.get(sessionId)?.createdByClientId,
-			).toBe("client-1");
-		}
 		const askQuestion =
 			capturedStartInput?.capabilities?.toolExecutors?.askQuestion;
 		if (!askQuestion) {
@@ -1316,40 +1298,6 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		await expect(answerPromise).resolves.toBe("Use hub");
-
-		await transport.handleCommand({
-			version: "v1",
-			command: "session.detach",
-			clientId: "client-1",
-			sessionId,
-		});
-		startSession.mockRejectedValueOnce(
-			new SessionAlreadyExistsError(sessionId),
-		);
-		const conflict = await transport.handleCommand({
-			version: "v1",
-			command: "session.resume",
-			clientId: "client-1",
-			payload: { sessionConfig: { ...resumeConfig, sessionId } },
-		});
-		expect(conflict.error?.code).toBe("session_already_exists");
-		const requestsBefore = events.filter(
-			(event) => event.event === "capability.requested",
-		).length;
-		const failedQuestion = expect(
-			askQuestion("After failed resume?", [], toolContext),
-		).rejects.toThrow(CAPABILITY_OWNER_GONE_MESSAGE);
-		const requestsAfter = events.filter(
-			(event) => event.event === "capability.requested",
-		).length;
-		await transport.handleCommand({
-			version: "v1",
-			command: "session.detach",
-			clientId: "client-1",
-			sessionId,
-		});
-		await failedQuestion;
-		expect(requestsAfter).toBe(requestsBefore);
 	});
 
 	it("does not transfer capability ownership to attached clients", async () => {
