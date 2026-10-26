@@ -54,7 +54,7 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
-const ResumeSessionConfigSchema = z.object({
+const StoredHistorySessionConfigSchema = z.object({
 	sessionId: z.string().trim().min(1),
 	providerId: z.string().trim().min(1),
 	modelId: z.string().trim().min(1),
@@ -375,7 +375,17 @@ export async function handleSessionCreate(
 	let initialMessages = Array.isArray(payload.initialMessages)
 		? (payload.initialMessages as MessageWithMetadata[])
 		: undefined;
-	if (envelope.command === "session.resume") {
+	if (
+		payload.historySource !== undefined &&
+		payload.historySource !== "stored"
+	) {
+		return errorReply(
+			envelope,
+			"invalid_history_source",
+			"Unknown history source",
+		);
+	}
+	if (payload.historySource === "stored") {
 		if (
 			!requestedSessionId ||
 			(envelope.sessionId !== undefined &&
@@ -387,16 +397,17 @@ export async function handleSessionCreate(
 		) {
 			return errorReply(
 				envelope,
-				"invalid_resume",
-				"session.resume requires a matching saved session id and no supplied history",
+				"invalid_history_source",
+				"Stored history requires a matching saved session id and no supplied history",
 			);
 		}
-		const resumeConfig = ResumeSessionConfigSchema.safeParse(sessionConfig);
+		const resumeConfig =
+			StoredHistorySessionConfigSchema.safeParse(sessionConfig);
 		if (!resumeConfig.success) {
 			return errorReply(
 				envelope,
-				"invalid_resume",
-				"session.resume requires sessionConfig with sessionId, providerId, modelId, mode, and systemPrompt",
+				"invalid_history_source",
+				"Stored history requires sessionConfig with sessionId, providerId, modelId, mode, and systemPrompt",
 			);
 		}
 		sessionConfig = { ...sessionConfig, ...resumeConfig.data };
@@ -412,7 +423,7 @@ export async function handleSessionCreate(
 		if (savedMessages.length === 0) {
 			return errorReply(
 				envelope,
-				"invalid_resume",
+				"invalid_history_source",
 				"The saved conversation is empty or unavailable",
 			);
 		}

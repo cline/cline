@@ -3,7 +3,7 @@ import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+import { createSessionId, HUB_CAPABILITIES } from "@cline/shared";
 import {
 	asPlainRecord,
 	errorReply,
@@ -41,7 +41,7 @@ export function handleClientRegister(
 			connectedAt: Date.now(),
 		}),
 	);
-	return okReply(envelope, { clientId });
+	return okReply(envelope, { clientId, serverCapabilities: HUB_CAPABILITIES });
 }
 
 export function handleClientUpdate(

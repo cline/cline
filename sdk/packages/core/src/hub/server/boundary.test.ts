@@ -85,9 +85,10 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
+				command: "session.create",
 				clientId: "resume-client",
 				payload: {
+					historySource: "stored",
 					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
 				},
 			});
@@ -147,10 +148,10 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
-				payload,
+				command: "session.create",
+				payload: { ...payload, historySource: "stored" },
 			});
-			expect(reply.error?.code).toBe("invalid_resume");
+			expect(reply.error?.code).toBe("invalid_history_source");
 			expect(startSession).not.toHaveBeenCalled();
 			expect(readSessionMessages).not.toHaveBeenCalled();
 		} finally {
@@ -175,12 +176,31 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
-				payload: { sessionConfig: resumeConfig },
+				command: "session.create",
+				payload: { historySource: "stored", sessionConfig: resumeConfig },
 			});
 			expect(reply.error?.code).toBe(
-				messages === undefined ? "session_not_found" : "invalid_resume",
+				messages === undefined ? "session_not_found" : "invalid_history_source",
 			);
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		null,
+		"unknown",
+	])("rejects an unsupported history source: %j", async (historySource) => {
+		const startSession = vi.fn();
+		const transport = createTransport({ sessionHost: { startSession } });
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				payload: { historySource, sessionConfig: resumeConfig },
+			});
+			expect(reply.error?.code).toBe("invalid_history_source");
 			expect(startSession).not.toHaveBeenCalled();
 		} finally {
 			await transport.stop();
@@ -1153,9 +1173,9 @@ describe("HubServerTransport boundaries", () => {
 	});
 
 	it.each([
-		"session.create",
-		"session.resume",
-	] as const)("preserves capability-backed tools through %s", async (command) => {
+		undefined,
+		"stored",
+	] as const)("preserves capability-backed tools with history source %s", async (historySource) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1222,14 +1242,15 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command,
+			command: "session.create",
 			clientId: "client-1",
 			payload: {
+				historySource,
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
 					sessionId:
-						command === "session.resume" ? "123-saved-session" : undefined,
+						historySource === "stored" ? "123-saved-session" : undefined,
 					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",
