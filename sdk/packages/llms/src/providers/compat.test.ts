@@ -431,7 +431,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
-	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
+	it("passes max effort through for unlisted OpenRouter models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -456,7 +456,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				reasoning: "xhigh",
+				reasoning: "max",
 			}),
 		);
 	});
