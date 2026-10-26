@@ -70,7 +70,7 @@ async function mountReady(
 async function sendFirstSuggestion(tray: MountedTray): Promise<void> {
 	await settle(400);
 	await press(tray.composer(), SEND);
-	expect(tray.options().onSend).toHaveBeenCalledWith(SENT_PROMPT);
+	expect(tray.options().onSend).toHaveBeenCalledWith(SENT_PROMPT, []);
 	await emitState(
 		envelope(readyState("r2", { status: "loading", items: [] }), { seq: 2 }),
 	);
@@ -136,7 +136,7 @@ describe("useSuggestionTrayKeys", () => {
 		await press(tray.composer(), UP);
 		await press(tray.composer(), SEND);
 
-		expect(onSend).toHaveBeenCalledWith(ITEMS[1]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[1]?.prompt, []);
 		expect(actions("send")).toMatchObject([
 			{ verb: "send", revision: "r1", itemId: "review", input: "key" },
 		]);
@@ -329,12 +329,23 @@ describe("useSuggestionTrayKeys", () => {
 		expect(onUndoTurn).not.toHaveBeenCalled();
 	});
 
-	it("Ctrl+3 takes back a queued sent prompt that went with a file, and puts the file back", async () => {
+	it("Ctrl+3 takes back a queued sent prompt that went with a file, and puts back only that file", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: { [SESSION_ID]: [envelope(readyState("r1"))] },
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
 		const notes = new File(["hello"], "notes.txt");
-		const tray = await mountReady({ pendingAttachments: [notes] });
-		await sendFirstSuggestion(tray);
+		const pasted = new File(["png"], "screenshot.png", { type: "image/png" });
+		const tray = await mountTray({ pendingAttachments: [notes] });
+		await settle(400);
+		await press(tray.composer(), SEND);
+		await tray.update({ pendingAttachments: [notes, pasted] });
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await settle();
 		await tray.update({
-			pendingAttachments: [],
+			pendingAttachments: [pasted],
 			promptsInQueue: [
 				{
 					id: "q1",

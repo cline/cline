@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 
+import type {
+	ComposerSuggestionItem,
+	ComposerSuggestionsAction,
+} from "@cline/shared/browser";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { exposedSuggestionMemory } from "./exposed-memory";
@@ -21,7 +25,9 @@ import {
 import {
 	click,
 	emitState,
+	highlightedPrompt,
 	legendButton,
+	type MountedTray,
 	mountTray,
 	options,
 	pointerDown,
@@ -48,6 +54,15 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 const USE_KEYS = { code: "Digit1", key: "1", ctrlKey: true };
+const SKIP_KEYS = { code: "Digit2", key: "2", ctrlKey: true };
+const DOWN_KEYS = { code: "ArrowDown", key: "ArrowDown" };
+const NEXT_STEP: ComposerSuggestionItem = {
+	id: "next",
+	label: "Next step",
+	tone: "finish",
+	prompt: "Plan the next step",
+	sendable: true,
+};
 
 function menuItem(label: string): HTMLElement {
 	const item = Array.from(
@@ -55,6 +70,35 @@ function menuItem(label: string): HTMLElement {
 	).find((element) => element.textContent?.includes(label));
 	expect(item).toBeDefined();
 	return item as HTMLElement;
+}
+
+async function openMoreMenu(tray: MountedTray): Promise<void> {
+	await pointerDown(
+		tray.container.querySelector('[data-testid="suggestion-more"]') as Element,
+	);
+}
+
+async function highlightRow(tray: MountedTray, prompt: string): Promise<void> {
+	for (let moves = 0; moves < 4; moves += 1) {
+		if (highlightedPrompt(tray.container) === prompt) return;
+		await press(tray.composer(), DOWN_KEYS);
+	}
+	expect(highlightedPrompt(tray.container)).toBe(prompt);
+}
+
+/** The hub's reply to `refresh`, carrying the set the plugin published for it. */
+function refreshReply(reply: unknown) {
+	return (_sessionId: string, action: ComposerSuggestionsAction) =>
+		action.verb === "refresh" ? reply : undefined;
+}
+
+function servedSet(revision: string, items: ComposerSuggestionItem[]) {
+	return {
+		outcome: "ok",
+		state: envelope(readyState(revision, { items, canRefresh: false }), {
+			seq: Number(revision.slice(1)),
+		}),
+	};
 }
 
 beforeEach(() => {
@@ -116,7 +160,7 @@ describe("useComposerSuggestions", () => {
 		expect(invokedActions("send")).toMatchObject([
 			{ action: { verb: "send", revision: "r1", itemId: "verify" } },
 		]);
-		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt, []);
 
 		await tray.update({
 			status: "running",
@@ -130,6 +174,54 @@ describe("useComposerSuggestions", () => {
 		expect(
 			tray.container.querySelector('[data-testid="suggestion-undo"]'),
 		).not.toBeNull();
+	});
+
+	it.each([
+		["its verdict lands", true],
+		["its verdict wait runs out", false],
+	])("leaves a file added during a one-key Send's wait on the composer when %s", async (_when, verdictLands) => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const spec = new File(["spec"], "spec.txt");
+		const pasted = new File(["png"], "screenshot.png", { type: "image/png" });
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend, pendingAttachments: [spec] });
+		await settle(400);
+
+		await press(tray.composer(), SEND_KEYS);
+		await tray.update({ pendingAttachments: [spec, pasted] });
+		if (verdictLands) {
+			await act(async () => verdict.resolve({ outcome: "ok" }));
+		}
+		await settle(verdictLands ? 0 : 300);
+
+		expect(onSend).toHaveBeenCalledExactlyOnceWith(ITEMS[0]?.prompt, [spec]);
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+	});
+
+	it("leaves out a file removed from the composer while a one-key Send waited for its verdict", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const spec = new File(["spec"], "spec.txt");
+		const notes = new File(["notes"], "notes.txt");
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend, pendingAttachments: [spec, notes] });
+		await settle(400);
+
+		await press(tray.composer(), SEND_KEYS);
+		await tray.update({ pendingAttachments: [notes] });
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await settle();
+
+		expect(onSend).toHaveBeenCalledExactlyOnceWith(ITEMS[0]?.prompt, [notes]);
 	});
 
 	it("ignores a second Send, by key or by button, while the first waits for its verdict", async () => {
@@ -155,7 +247,7 @@ describe("useComposerSuggestions", () => {
 		expect(invokedActions("send")).toHaveLength(1);
 		expect(invokedActions("signal")).toEqual([]);
 		expect(onSend).toHaveBeenCalledTimes(1);
-		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt, []);
 		await act(async () => verdict.resolve({ outcome: "ok" }));
 	});
 
@@ -241,7 +333,7 @@ describe("useComposerSuggestions", () => {
 
 		expect(invokedActions("send")).toHaveLength(1);
 		expect(onSend).toHaveBeenCalledTimes(1);
-		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt, []);
 	});
 
 	it("sends nothing when the plugin refuses a one-key Send after its pane left", async () => {
@@ -367,7 +459,7 @@ describe("useComposerSuggestions", () => {
 		).toContain("From a suggestion");
 		await press(tray.composer(), { key: "Enter", code: "Enter" });
 
-		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt, []);
 		expect(invokedActions("send").map(({ action }) => action)).toEqual([
 			{ verb: "send", revision: "r1", itemId: "verify", input: "key" },
 		]);
@@ -381,8 +473,105 @@ describe("useComposerSuggestions", () => {
 		).toContain("Edited suggestion");
 		await press(tray.composer(), { key: "Enter", code: "Enter" });
 
-		expect(onSend).toHaveBeenLastCalledWith(`${ITEMS[0]?.prompt} please`);
+		expect(onSend).toHaveBeenLastCalledWith(`${ITEMS[0]?.prompt} please`, []);
 		expect(invokedActions("send")).toHaveLength(1);
 		expect(invokedActions("clear")).toEqual([]);
+	});
+
+	it("offers Undo skip for a last row whose Skip asked for more and that the plugin dropped", async () => {
+		scriptHub({
+			states: READY_R1,
+			reply: refreshReply(servedSet("r2", ITEMS.slice(0, 2))),
+		});
+		const tray = await mountTray();
+		await highlightRow(tray, ITEMS[2]?.prompt ?? "");
+
+		await press(tray.composer(), SKIP_KEYS);
+		expect(invokedActions("refresh").map(({ action }) => action)).toEqual([
+			{ verb: "refresh", revision: "r1", input: "key", cause: "more" },
+		]);
+		await openMoreMenu(tray);
+		await click(menuItem("Undo skip"));
+
+		expect(invokedActions("unskip").map(({ action }) => action)).toEqual([
+			{ verb: "unskip", revision: "r1", itemId: "commit", input: "pointer" },
+		]);
+	});
+
+	it("names the last row a later more dropped in Undo skip, not the row skipped before it", async () => {
+		scriptHub({
+			states: READY_R1,
+			reply: refreshReply(servedSet("r3", ITEMS.slice(1))),
+		});
+		const tray = await mountTray();
+		await press(tray.composer(), SKIP_KEYS);
+		await emitState(
+			envelope(readyState("r2", { items: [...ITEMS.slice(1), NEXT_STEP] }), {
+				seq: 2,
+			}),
+		);
+		await highlightRow(tray, NEXT_STEP.prompt);
+
+		await press(tray.composer(), SKIP_KEYS);
+		expect(invokedActions("refresh").map(({ action }) => action)).toEqual([
+			{ verb: "refresh", revision: "r2", input: "key", cause: "more" },
+		]);
+		await openMoreMenu(tray);
+		await click(menuItem("Undo skip"));
+
+		expect(invokedActions("unskip").map(({ action }) => action)).toEqual([
+			{ verb: "unskip", revision: "r2", itemId: "next", input: "pointer" },
+		]);
+	});
+
+	it.each([
+		[
+			"pages on, still offering that row",
+			servedSet("r2", [...ITEMS.slice(2), NEXT_STEP]),
+		],
+		["serves a whole new set", servedSet("r2", [NEXT_STEP])],
+		["refuses as stale", { outcome: "refused", reason: "stale" }],
+		[
+			"answers with a set still loading",
+			{
+				outcome: "ok",
+				state: envelope(readyState("r2", { status: "loading", items: [] }), {
+					seq: 2,
+				}),
+			},
+		],
+	])("keeps the earlier Undo skip target when the plugin %s for a last-row more", async (_answer, reply) => {
+		scriptHub({ states: READY_R1, reply: refreshReply(reply) });
+		const tray = await mountTray();
+		await press(tray.composer(), SKIP_KEYS);
+		await highlightRow(tray, ITEMS[2]?.prompt ?? "");
+
+		await press(tray.composer(), SKIP_KEYS);
+		expect(invokedActions("refresh").map(({ action }) => action)).toEqual([
+			{ verb: "refresh", revision: "r1", input: "key", cause: "more" },
+		]);
+		await act(async () => tray.controller().unskip("pointer"));
+		await settle();
+
+		expect(invokedActions("unskip").map(({ action }) => action)).toEqual([
+			{ verb: "unskip", revision: "r1", itemId: "verify", input: "pointer" },
+		]);
+	});
+
+	it("records no Undo skip target from a last-row more answered after the pane switched sessions", async () => {
+		const moreReply = deferred<unknown>();
+		scriptHub({ states: READY_R1, reply: refreshReply(moreReply.promise) });
+		const tray = await mountTray();
+		await highlightRow(tray, ITEMS[2]?.prompt ?? "");
+		await press(tray.composer(), SKIP_KEYS);
+
+		await tray.update({ sessionId: OLDER_SESSION_ID });
+		await act(async () =>
+			moreReply.resolve(servedSet("r2", ITEMS.slice(0, 2))),
+		);
+		await settle();
+
+		expect(invokedActions("refresh")).toHaveLength(1);
+		expect(tray.controller().canUnskip).toBe(false);
 	});
 });

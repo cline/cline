@@ -10,5 +10,16 @@ export function usePendingAttachments() {
 		currentFiles.current = next;
 		setFiles(next);
 	}, []);
-	return [files, updateFiles] as const;
+	/** Detaches and returns those of `wanted` still attached; files added since stay. */
+	const takeFiles = useCallback(
+		(wanted: readonly File[]): File[] => {
+			const taken = currentFiles.current.filter((file) =>
+				wanted.includes(file),
+			);
+			updateFiles((current) => current.filter((file) => !taken.includes(file)));
+			return taken;
+		},
+		[updateFiles],
+	);
+	return [files, updateFiles, takeFiles] as const;
 }

@@ -1252,7 +1252,8 @@ function ChatThreadPane({
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
-	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
+	const [pendingAttachments, setPendingAttachments, takePendingAttachments] =
+		usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1934,9 +1935,13 @@ function ChatThreadPane({
 	);
 
 	const handleSend = useCallback(
-		async (prompt: string, takeDraft: () => RestorePrompt) => {
+		async (
+			prompt: string,
+			takeDraft: () => RestorePrompt,
+			attachments: readonly File[],
+		) => {
 			const trimmed = prompt.trim();
-			if (!trimmed && pendingAttachments.length === 0) {
+			if (!trimmed && attachments.length === 0) {
 				return;
 			}
 			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
@@ -1944,8 +1949,7 @@ function ChatThreadPane({
 			}
 			onThreadStarted?.(threadId);
 			const restorePrompt = takeDraft();
-			const toSend = [...pendingAttachments];
-			setPendingAttachments([]);
+			const toSend = takePendingAttachments(attachments);
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
@@ -1962,10 +1966,9 @@ function ChatThreadPane({
 			isCloudSession,
 			isNewThread,
 			onThreadStarted,
-			pendingAttachments,
 			sendPrompt,
 			sessionId,
-			setPendingAttachments,
+			takePendingAttachments,
 			threadId,
 			workIn,
 		],
@@ -2348,11 +2351,13 @@ function ChatThreadPane({
 	// local copy, but a stale non-empty draft would repopulate the input if the
 	// composer remounts (e.g. a transport blip re-showing the loader).
 	const handleSendPrompt = useCallback(
-		(prompt: string) => void handleSend(prompt, clearPromptForSend),
-		[clearPromptForSend, handleSend],
+		(prompt: string) =>
+			void handleSend(prompt, clearPromptForSend, pendingAttachments),
+		[clearPromptForSend, handleSend, pendingAttachments],
 	);
 	const handleSendSuggestion = useCallback(
-		(prompt: string) => void handleSend(prompt, holdPromptForSend),
+		(prompt: string, attachments: readonly File[]) =>
+			void handleSend(prompt, holdPromptForSend, attachments),
 		[handleSend, holdPromptForSend],
 	);
 

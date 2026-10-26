@@ -50,8 +50,12 @@ export type ComposerSuggestionsOptions = {
 	pendingAttachments: readonly File[];
 	/** Puts files back on the composer, as a send that never left does. */
 	onAttachFiles: (files: File[]) => void;
-	/** Submits a one-key Send's prompt. It never came from the box, which may hold text typed during the verdict wait, so the box stays as it is. */
-	onSend: (prompt: string) => void;
+	/**
+	 * Submits a one-key Send's prompt with the files that were on the composer
+	 * at the press and are still there. The prompt never came from the box, so
+	 * text typed and files added during the verdict wait stay in it.
+	 */
+	onSend: (prompt: string, attachments: readonly File[]) => void;
 	/** Forks the session from before `runCount` with `content` as the new draft. */
 	onUndoTurn: (
 		messageId: string,

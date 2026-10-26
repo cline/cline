@@ -86,7 +86,7 @@ function Harness({
 					if (!prompt) return;
 					suggestions.submitted(prompt);
 					setDraft("");
-					options.onSend(prompt);
+					options.onSend(prompt, options.pendingAttachments);
 				}}
 				ref={composerInputRef}
 				value={draft}

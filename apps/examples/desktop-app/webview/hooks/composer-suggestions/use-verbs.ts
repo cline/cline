@@ -2,6 +2,7 @@
 
 import {
 	type ComposerSuggestionItem,
+	type ComposerSuggestionsStatus,
 	type PluginUiInput,
 	SUGGESTION_SEND_VERDICT_MS,
 	type SuggestionRef,
@@ -23,7 +24,30 @@ import type {
 	SuggestionComposer,
 	SuggestionsDispatch,
 	SuggestionsInvoke,
+	SuggestionsResult,
 } from "./types";
+
+const SERVED_STATUSES: ReadonlySet<ComposerSuggestionsStatus> = new Set([
+	"ready",
+	"empty",
+	"exhausted",
+]);
+
+/**
+ * A plugin may answer "more" on the last row by dropping that row or by
+ * serving other rows. Only a served set that still offers the rows above it
+ * but not that row makes it the Undo skip target.
+ */
+function answeredAsSkip(
+	result: SuggestionsResult | undefined,
+	itemId: string,
+	rowsAbove: readonly string[],
+): boolean {
+	const set = result?.outcome === "ok" ? result.state?.state : undefined;
+	if (!set || !SERVED_STATUSES.has(set.status)) return false;
+	const offered = new Set(set.items.map((row) => row.id));
+	return !offered.has(itemId) && rowsAbove.every((id) => offered.has(id));
+}
 
 export function useSuggestionVerbs({
 	invoke,
@@ -116,6 +140,7 @@ export function useSuggestionVerbs({
 				label: item.label,
 				tone: item.tone,
 			};
+			const attachedAtPress = latest.current.pendingAttachments;
 			sendInFlightRef.current = true;
 			setSendingItemId(item.id);
 			try {
@@ -131,8 +156,12 @@ export function useSuggestionVerbs({
 				]);
 				if (verdict?.outcome === "refused") return;
 				if (boundRef.current !== boundSessionId) return;
-				sendSnapshotRef.current = snapshotAtSend(latest.current);
-				latest.current.onSend(ref.prompt);
+				const { messages, onSend, pendingAttachments } = latest.current;
+				const attachments = pendingAttachments.filter((file) =>
+					attachedAtPress.includes(file),
+				);
+				sendSnapshotRef.current = snapshotAtSend(messages, attachments);
+				onSend(ref.prompt, attachments);
 				dispatch({ type: "sent", ref });
 			} finally {
 				sendInFlightRef.current = false;
@@ -159,7 +188,18 @@ export function useSuggestionVerbs({
 			const at = Date.now();
 			if (view.skipMeans === "more") {
 				dispatch({ type: "refresh_pending", now: at });
-				void invoke({ verb: "refresh", revision, input, cause: "more" });
+				const boundSessionId = boundRef.current;
+				const rowsAbove = view.rows
+					.map((row) => row.item.id)
+					.filter((id) => id !== item.id);
+				void invoke({ verb: "refresh", revision, input, cause: "more" }).then(
+					(result) => {
+						if (boundRef.current !== boundSessionId) return;
+						if (answeredAsSkip(result, item.id, rowsAbove)) {
+							setLastSkip({ revision, itemId: item.id });
+						}
+					},
+				);
 				return;
 			}
 			dispatch({ type: "skip_pending", itemId: item.id, now: at });
@@ -172,7 +212,7 @@ export function useSuggestionVerbs({
 				...msSinceExposed(current),
 			});
 		},
-		[dispatch, invoke, localRef, setLastSkip],
+		[boundRef, dispatch, invoke, localRef, setLastSkip],
 	);
 
 	const refresh = useCallback(
@@ -264,7 +304,10 @@ export function useSuggestionVerbs({
 				itemId: used.itemId,
 				input: "key",
 			});
-			sendSnapshotRef.current = snapshotAtSend(latest.current);
+			sendSnapshotRef.current = snapshotAtSend(
+				latest.current.messages,
+				latest.current.pendingAttachments,
+			);
 			dispatch({ type: "sent" });
 		},
 		[dispatch, invoke, latest, localRef, sendSnapshotRef],

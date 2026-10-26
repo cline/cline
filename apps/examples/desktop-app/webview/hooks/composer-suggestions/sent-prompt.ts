@@ -2,7 +2,6 @@ import { formatDisplayUserInput } from "@cline/shared/browser";
 import { buildUserRunCountMap } from "@/components/views/chat/messages/group-messages";
 import { withoutAttachedFilesLabel } from "@/lib/attached-files-label";
 import type { ChatMessage } from "@/lib/chat-schema";
-import type { ComposerSuggestionsOptions } from "./types";
 
 /** A prompt taken back from the queue goes in front of anything typed since, never over it. */
 export function takenBackDraft(prompt: string, draft: string): string {
@@ -21,16 +20,13 @@ export function samePrompt(text: string, prompt: string): boolean {
 /** Taken when a suggestion is sent: its message will follow `runCount`, and `attachments` went with it. */
 export type SendSnapshot = { runCount: number; attachments: readonly File[] };
 
-export function snapshotAtSend({
-	messages,
-	pendingAttachments,
-}: Pick<
-	ComposerSuggestionsOptions,
-	"messages" | "pendingAttachments"
->): SendSnapshot {
+export function snapshotAtSend(
+	messages: ChatMessage[],
+	attachments: readonly File[],
+): SendSnapshot {
 	return {
 		runCount: Math.max(0, ...buildUserRunCountMap(messages).values()),
-		attachments: pendingAttachments,
+		attachments,
 	};
 }
 

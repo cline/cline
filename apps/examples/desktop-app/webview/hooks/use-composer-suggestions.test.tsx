@@ -208,7 +208,7 @@ describe("useComposerSuggestions", () => {
 		]);
 
 		await press(tray.composer(), SEND_KEYS);
-		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt, []);
 	});
 
 	it("counts no exposure for the time the app hid the tray behind the Hub startup screen", async () => {

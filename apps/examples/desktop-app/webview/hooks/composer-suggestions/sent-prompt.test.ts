@@ -13,7 +13,7 @@ const earlierTurns = [
 	userMessage("m-between", "Refactor the parser", 2),
 ];
 const sentAfter = (messages: typeof earlierTurns) =>
-	snapshotAtSend({ messages, pendingAttachments: [] }).runCount;
+	snapshotAtSend(messages, []).runCount;
 
 describe("findSentMessage", () => {
 	it("finds the prompt's own message after the run count it was sent at, never an earlier copy", () => {
@@ -38,13 +38,11 @@ describe("findSentMessage", () => {
 describe("snapshotAtSend", () => {
 	it("takes the newest user turn's run count, or 0 for an empty chat, and the files going with the send", () => {
 		const notes = new File(["hello"], "notes.txt");
-		expect(snapshotAtSend({ messages: [], pendingAttachments: [] })).toEqual({
-			runCount: 0,
-			attachments: [],
+		expect(snapshotAtSend([], [])).toEqual({ runCount: 0, attachments: [] });
+		expect(snapshotAtSend(earlierTurns, [notes])).toEqual({
+			runCount: 2,
+			attachments: [notes],
 		});
-		expect(
-			snapshotAtSend({ messages: earlierTurns, pendingAttachments: [notes] }),
-		).toEqual({ runCount: 2, attachments: [notes] });
 	});
 });
 
