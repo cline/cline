@@ -50,20 +50,15 @@ describe("parseCloudSessionError", () => {
 		expect(parseCloudSessionError("CLOUD_SESSION_ERROR:not-json")).toBeNull();
 	});
 
-	it("shows the cloud message without exposing the transport envelope", () => {
+	it.each([
+		["request_failed", "Switch to Personal and try again."],
+		["session_failed", "Repository clone failed."],
+	])("shows %s without exposing the transport envelope", (code, message) => {
 		expect(
 			humanizeCloudSessionError(
-				'CLOUD_SESSION_ERROR:{"code":"request_failed","message":"Switch to Personal and try again."}',
+				`CLOUD_SESSION_ERROR:${JSON.stringify({ code, message })}`,
 			),
-		).toBe("Switch to Personal and try again.");
-	});
-
-	it("shows terminal provisioning failure details without the transport envelope", () => {
-		expect(
-			humanizeCloudSessionError(
-				'CLOUD_SESSION_ERROR:{"code":"session_failed","message":"Repository clone failed."}',
-			),
-		).toBe("Repository clone failed.");
+		).toBe(message);
 	});
 
 	it("reassures handoff users when Cline Cloud is unreachable", () => {

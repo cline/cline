@@ -197,7 +197,6 @@ describe("desktop settings commands", () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = enabled;
 		const local = (await handleCommand(ctx, "list_provider_models", {
 			provider: "cline",
-			includeCloudModels: true,
 		})) as { models: Array<{ id: string }> };
 		expect(
 			local.models.some((model) => model.id.startsWith("cline-cloud/")),
