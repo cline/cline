@@ -206,7 +206,14 @@ describe("Hub session shell environment", () => {
 			expect(await run("session-legacy", true)).toContain(
 				"daemon-only-synthetic",
 			);
-			expect(process.env).toEqual(serverEnvironment);
+			// Compare as a boolean so a failure never prints the real server environment.
+			expect(
+				Object.keys(process.env).length ===
+					Object.keys(serverEnvironment).length &&
+					Object.entries(serverEnvironment).every(
+						([key, value]) => process.env[key] === value,
+					),
+			).toBe(true);
 			expect(JSON.stringify([persisted, published, starts])).not.toContain(
 				"fresh-A",
 			);
