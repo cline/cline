@@ -4,6 +4,13 @@ import type {
 	AgentResult,
 	RuntimeConfigExtensionKind,
 } from "@cline/shared";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
@@ -143,6 +150,8 @@ export type LocalRuntimeBootstrapConfig = Pick<
 export interface LocalRuntimeStartOptions {
 	/** Local host only: reject replacing a resident runtime during saved-session resume. */
 	rejectExistingSession?: boolean;
+	/** Runs after local start admission, before initialization can request client capabilities. */
+	onStartAdmitted?: () => void;
 	hooks?: LocalRuntimeBootstrapConfig["hooks"];
 	logger?: LocalRuntimeBootstrapConfig["logger"];
 	telemetry?: LocalRuntimeBootstrapConfig["telemetry"];
@@ -352,6 +361,21 @@ export interface SessionConnectionRuntimeService {
 		sessionId: string,
 		updates: SessionConnectionUpdate,
 	): Promise<void>;
+}
+
+export interface McpAppsRuntimeService {
+	resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined>;
+	readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult>;
+	callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult>;
 }
 
 export interface CommandExecutionRuntimeService {

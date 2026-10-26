@@ -212,6 +212,11 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
+| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
+| `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
+| `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |
+| `pull_local_model` / `cancel_local_model_pull` | `ollama` SDK `pull`, or LM Studio `POST /api/v1/models/download` polled until done (not cancellable); progress is broadcast as `local_model_pull_progress` events and survives closing the page |
+| `load_local_model` / `unload_local_model` / `delete_local_model` | Ollama: `generate` (`keep_alive` -1 / 0) and `delete`. LM Studio: `POST /api/v1/models/load` / `unload`, and deleting a Hub model's files listed in its manifest |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
@@ -231,6 +236,8 @@ Supported commands:
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
+| `get_session_changes` | `session-changes.ts`: the first and latest checkpoints (each tree plus its untracked-files parent) and the working tree (via a temp copy of the index) become git trees; `diff-tree` against the working tree gives the session's and the last turn's files and line counts. Local only |
+| `read_session_change` | `session-changes.ts`: both sides of one change by blob id, capped at 1 MiB, binary-aware |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |

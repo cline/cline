@@ -644,6 +644,9 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.mcp_apps.resolve_tool"
+	| "session.mcp_apps.read_resource"
+	| "session.mcp_apps.call_tool"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
@@ -920,6 +923,7 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
 	kind: "tool";
 	name: string;
 	description: string;

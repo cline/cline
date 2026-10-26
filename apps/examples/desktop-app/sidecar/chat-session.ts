@@ -648,12 +648,8 @@ export function createDesktopMistakeRecovery(
 ) {
 	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
 	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	const waitForDecision = async () => {
-		const decision = await pendingDecision;
-		return decision?.action === "stop"
-			? { stop: true, reason: decision.reason }
-			: undefined;
-	};
+	// The SDK holds the run at its next model/tool boundary until this
+	// decision settles, so no per-step hooks are needed to pause it.
 	return {
 		onConsecutiveMistakeLimitReached: (
 			context: ConsecutiveMistakeLimitContext,
@@ -664,15 +660,6 @@ export function createDesktopMistakeRecovery(
 				});
 			}
 			return pendingDecision;
-		},
-		hooks: {
-			// The decision callback alone does not pause the SDK. These existing
-			// awaited hooks hold desktop runs at tool/model boundaries until the
-			// user answers. afterTool holds before the next iteration consumes
-			// the recovery guidance queued by the prompt's Continue action.
-			beforeModel: waitForDecision,
-			beforeTool: waitForDecision,
-			afterTool: waitForDecision,
 		},
 	};
 }
@@ -726,7 +713,6 @@ function buildCoreSessionConfig(
 		// runs and long desktop sessions overflow the context window.
 		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -1094,7 +1080,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
