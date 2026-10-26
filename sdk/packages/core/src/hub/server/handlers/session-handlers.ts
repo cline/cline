@@ -14,7 +14,6 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
-import { z } from "zod";
 import {
 	isCoreBuiltinToolAvailable,
 	resolveToolClientType,
@@ -53,14 +52,6 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
-
-const StoredHistorySessionConfigSchema = z.object({
-	sessionId: z.string().trim().min(1),
-	providerId: z.string().trim().min(1),
-	modelId: z.string().trim().min(1),
-	mode: z.enum(["act", "plan", "yolo", "zen"]),
-	systemPrompt: z.string(),
-});
 
 function readHubContextString(
 	record: Record<string, unknown> | undefined,
@@ -313,7 +304,7 @@ export async function handleSessionCreate(
 		payload.metadata && typeof payload.metadata === "object"
 			? JSON.parse(JSON.stringify(payload.metadata))
 			: {};
-	let sessionConfig =
+	const sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
 			? (JSON.parse(
 					JSON.stringify(payload.sessionConfig),
@@ -376,58 +367,12 @@ export async function handleSessionCreate(
 		? (payload.initialMessages as MessageWithMetadata[])
 		: undefined;
 	if (
-		payload.historySource !== undefined &&
-		payload.historySource !== "stored"
+		requestedSessionId &&
+		payload.initialMessages === undefined &&
+		(await ctx.sessionHost.getSession(requestedSessionId))
 	) {
-		return errorReply(
-			envelope,
-			"invalid_history_source",
-			"Unknown history source",
-		);
-	}
-	if (payload.historySource === "stored") {
-		if (
-			!requestedSessionId ||
-			(envelope.sessionId !== undefined &&
-				envelope.sessionId.trim() !== requestedSessionId) ||
-			(payload.sessionId !== undefined &&
-				payload.sessionId !== requestedSessionId) ||
-			Object.hasOwn(payload, "initialMessages") ||
-			Object.hasOwn(payload, "initialCompactionState")
-		) {
-			return errorReply(
-				envelope,
-				"invalid_history_source",
-				"Stored history requires a matching saved session id and no supplied history",
-			);
-		}
-		const resumeConfig =
-			StoredHistorySessionConfigSchema.safeParse(sessionConfig);
-		if (!resumeConfig.success) {
-			return errorReply(
-				envelope,
-				"invalid_history_source",
-				"Stored history requires sessionConfig with sessionId, providerId, modelId, mode, and systemPrompt",
-			);
-		}
-		sessionConfig = { ...sessionConfig, ...resumeConfig.data };
-		if (!(await ctx.sessionHost.getSession(requestedSessionId))) {
-			return errorReply(
-				envelope,
-				"session_not_found",
-				`Unknown session: ${requestedSessionId}`,
-			);
-		}
-		const savedMessages =
+		initialMessages =
 			await ctx.sessionHost.readSessionMessages(requestedSessionId);
-		if (savedMessages.length === 0) {
-			return errorReply(
-				envelope,
-				"invalid_history_source",
-				"The saved conversation is empty or unavailable",
-			);
-		}
-		initialMessages = savedMessages;
 	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(

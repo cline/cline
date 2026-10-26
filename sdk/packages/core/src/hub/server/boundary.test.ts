@@ -88,7 +88,6 @@ describe("HubServerTransport boundaries", () => {
 				command: "session.create",
 				clientId: "resume-client",
 				payload: {
-					historySource: "stored",
 					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
 				},
 			});
@@ -115,92 +114,79 @@ describe("HubServerTransport boundaries", () => {
 	});
 
 	it.each([
-		{ payload: {} },
-		{ payload: { sessionConfig: { sessionId: "session-1" } } },
-		{ payload: { sessionConfig: { ...resumeConfig, providerId: " " } } },
-		{ payload: { sessionConfig: { ...resumeConfig, mode: "invalid" } } },
+		{ label: "new ID", exists: false, initialMessages: undefined, saved: [] },
 		{
-			payload: {
-				sessionConfig: resumeConfig,
-				sessionId: "other",
-			},
+			label: "explicit empty history",
+			exists: true,
+			initialMessages: [],
+			saved: [{ role: "user", content: "saved" }],
 		},
 		{
-			payload: {
-				sessionConfig: resumeConfig,
-				initialMessages: [],
-			},
+			label: "explicit replacement history",
+			exists: true,
+			initialMessages: [{ role: "user", content: "replacement" }],
+			saved: [{ role: "user", content: "saved" }],
 		},
 		{
-			payload: {
-				sessionConfig: resumeConfig,
-				initialCompactionState: {},
-			},
+			label: "empty saved history",
+			exists: true,
+			initialMessages: undefined,
+			saved: [],
 		},
-	])("rejects invalid resume input before starting: $payload", async ({
-		payload,
+	])("preserves create with $label", async ({
+		exists,
+		initialMessages,
+		saved,
 	}) => {
-		const startSession = vi.fn();
-		const readSessionMessages = vi.fn();
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(saved);
 		const transport = createTransport({
-			sessionHost: { startSession, readSessionMessages },
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId: "session-1" } : undefined),
+			},
 		});
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
 				command: "session.create",
-				payload: { ...payload, historySource: "stored" },
+				payload: { sessionConfig: { sessionId: "session-1" }, initialMessages },
 			});
-			expect(reply.error?.code).toBe("invalid_history_source");
-			expect(startSession).not.toHaveBeenCalled();
-			expect(readSessionMessages).not.toHaveBeenCalled();
+			expect(reply.ok).toBe(true);
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: initialMessages ?? (exists ? saved : undefined),
+				}),
+			);
+			expect(readSessionMessages).toHaveBeenCalledTimes(
+				exists && initialMessages === undefined ? 1 : 0,
+			);
 		} finally {
 			await transport.stop();
 		}
 	});
 
-	it.each([
-		undefined,
-		[],
-	])("rejects unavailable saved resume history: %j", async (messages) => {
+	it("does not start a runtime when reading saved history fails", async () => {
 		const startSession = vi.fn();
 		const transport = createTransport({
 			sessionHost: {
 				startSession,
-				readSessionMessages: vi.fn().mockResolvedValue(messages),
-				...(messages === undefined
-					? { getSession: vi.fn().mockResolvedValue(undefined) }
-					: {}),
+				readSessionMessages: vi
+					.fn()
+					.mockRejectedValue(new Error("history unavailable")),
 			},
 		});
 		try {
-			const reply = await transport.handleCommand({
-				version: "v1",
-				command: "session.create",
-				payload: { historySource: "stored", sessionConfig: resumeConfig },
-			});
-			expect(reply.error?.code).toBe(
-				messages === undefined ? "session_not_found" : "invalid_history_source",
-			);
-			expect(startSession).not.toHaveBeenCalled();
-		} finally {
-			await transport.stop();
-		}
-	});
-
-	it.each([
-		null,
-		"unknown",
-	])("rejects an unsupported history source: %j", async (historySource) => {
-		const startSession = vi.fn();
-		const transport = createTransport({ sessionHost: { startSession } });
-		try {
-			const reply = await transport.handleCommand({
-				version: "v1",
-				command: "session.create",
-				payload: { historySource, sessionConfig: resumeConfig },
-			});
-			expect(reply.error?.code).toBe("invalid_history_source");
+			await expect(
+				transport.handleCommand({
+					version: "v1",
+					command: "session.create",
+					payload: { sessionConfig: resumeConfig },
+				}),
+			).rejects.toThrow("history unavailable");
 			expect(startSession).not.toHaveBeenCalled();
 		} finally {
 			await transport.stop();
@@ -1174,8 +1160,8 @@ describe("HubServerTransport boundaries", () => {
 
 	it.each([
 		undefined,
-		"stored",
-	] as const)("preserves capability-backed tools with history source %s", async (historySource) => {
+		"123-saved-session",
+	] as const)("preserves capability-backed tools when creating session %s", async (savedSessionId) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1245,12 +1231,10 @@ describe("HubServerTransport boundaries", () => {
 			command: "session.create",
 			clientId: "client-1",
 			payload: {
-				historySource,
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
-					sessionId:
-						historySource === "stored" ? "123-saved-session" : undefined,
+					sessionId: savedSessionId,
 					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",

@@ -1,6 +1,7 @@
 import {
 	createSessionId,
 	ensureLoopbackProxyBypass,
+	type HubCapabilityName,
 	type HubClientRegistration,
 	type HubCommandEnvelope,
 	type HubEventEnvelope,
@@ -49,6 +50,7 @@ type HubCommandOptions = {
 	/** Whether transport recovery may resend a request after dispatch. */
 	retryAfterDispatch?: boolean;
 	timeoutMs?: number | null;
+	requiredCapability?: HubCapabilityName;
 	/** Synchronous local guard, checked after connection before each dispatch. */
 	beforeDispatch?: () => void;
 	/** Observes this attempt's correlation id after the local guard, before sending.
@@ -380,7 +382,7 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
-	private supportsStoredHistory = false;
+	private serverCapabilities: readonly string[] = [];
 	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
@@ -448,7 +450,7 @@ export class NodeHubClient {
 			);
 		}
 
-		this.supportsStoredHistory = false;
+		this.serverCapabilities = [];
 		const generation = ++this.connectGeneration;
 		const connectPromise = this.openSocket(url, authToken, generation);
 		let attemptSocket: WebSocketLike | undefined;
@@ -487,9 +489,11 @@ export class NodeHubClient {
 				throw this.lastCloseError;
 			}
 			const serverCapabilities = registration.payload?.serverCapabilities;
-			this.supportsStoredHistory =
-				Array.isArray(serverCapabilities) &&
-				serverCapabilities.includes("session.create.stored_history");
+			this.serverCapabilities = Array.isArray(serverCapabilities)
+				? serverCapabilities.filter(
+						(capability) => typeof capability === "string",
+					)
+				: [];
 			this.registered = true;
 			for (const key of this.subscriptionCounts.keys()) {
 				this.sendSubscriptionFrame(
@@ -510,7 +514,7 @@ export class NodeHubClient {
 			if (attemptSocket && this.socket === attemptSocket) {
 				this.lastCloseError = normalizeWebSocketConnectError(error, url);
 				this.registered = false;
-				this.supportsStoredHistory = false;
+				this.serverCapabilities = [];
 				this.sawSocketClose = false;
 				this.socket = undefined;
 				try {
@@ -691,7 +695,7 @@ export class NodeHubClient {
 				this.sawSocketClose = true;
 			}
 			this.registered = false;
-			this.supportsStoredHistory = false;
+			this.serverCapabilities = [];
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(this.lastCloseError);
 			}
@@ -773,21 +777,15 @@ export class NodeHubClient {
 			await this.connect();
 		}
 		options?.beforeDispatch?.();
-		if (command === "session.create" && payload?.historySource !== undefined) {
-			if (payload.historySource !== "stored") {
-				throw new HubCommandError(
-					command,
-					"invalid_history_source",
-					"Unknown history source",
-				);
-			}
-			if (!this.supportsStoredHistory) {
-				throw new HubCommandError(
-					command,
-					"unsupported_feature",
-					"Hub does not support stored session history",
-				);
-			}
+		if (
+			options?.requiredCapability &&
+			!this.serverCapabilities.includes(options.requiredCapability)
+		) {
+			throw new HubCommandError(
+				command,
+				"unsupported_feature",
+				`Hub does not support ${options.requiredCapability}`,
+			);
 		}
 		const requestId = createSessionId("hubreq_");
 		options?.onDispatch?.(requestId);
@@ -962,7 +960,7 @@ export class NodeHubClient {
 		this.connectGeneration += 1;
 		this.clearReconnectTimer();
 		this.registered = false;
-		this.supportsStoredHistory = false;
+		this.serverCapabilities = [];
 		// Preserve the last failure when close() has no live socket.
 		if (socket) {
 			this.lastCloseError = new HubTransportError(

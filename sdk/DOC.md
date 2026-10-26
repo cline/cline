@@ -94,11 +94,9 @@ host presentation.
 
 ## Starting a runtime from saved Hub history
 
-`session.create` with `historySource: "stored"` reads the saved conversation on the Hub instead of requiring `initialMessages` from the client. Supply a `sessionConfig` with nonblank `sessionId`, `providerId`, and `modelId`, a `mode` (`act`, `plan`, `yolo`, or `zen`), and a string `systemPrompt`. Supplied history or compaction state cannot be combined with stored history. Missing or empty saved history is rejected.
+`session.create` loads saved conversation history when `sessionConfig.sessionId` identifies an existing session and `initialMessages` is omitted. A new ID starts a fresh session. Explicit `initialMessages`, including `[]`, take precedence. The caller still supplies execution configuration; existing startup, tool setup, and compaction handling apply.
 
-The caller supplies execution configuration, including any saved tool, plugin, or checkpoint overrides. History, omitted workspace paths, and compaction state use the existing same-ID initialization path. Startup, idle-runtime rebuild, busy-runtime reattachment, ownership, and persistence behavior remain the same as create with supplied history. Calls without `historySource` retain existing behavior, including explicitly supplied empty history.
-
-The Hub advertises `session.create.stored_history` in the `client.register` reply's `serverCapabilities`. Clients must check support on the connection that sends the request, including after reconnecting. `NodeHubClient` does this before dispatch and throws `unsupported_feature` when support is absent; callers can then use the existing history-download and create flow without `historySource`. Other errors must not trigger that fallback.
+The Hub advertises `session.create.stored_history` in the `client.register` reply's `serverCapabilities`. Restore callers can pass `{ requiredCapability: "session.create.stored_history" }` in `NodeHubClient.command` options to check support on the current connection before dispatch. This option is local to the client and is not sent in the request. If an older Hub lacks support, the client throws `unsupported_feature` so the caller can download history and supply it to ordinary `session.create`. Other errors must not trigger that fallback.
 
 ## Cloud sessions (experimental)
 
