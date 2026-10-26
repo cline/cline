@@ -122,6 +122,31 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 	});
 });
 
+describe("AgentEventBridge.handlePluginEvent", () => {
+	it("forwards next-turn suggestions to session subscribers", async () => {
+		const emit = vi.fn();
+		const bridge = new AgentEventBridge({
+			getSession: () => undefined,
+			emit,
+		} as unknown as AgentEventBridgeDeps);
+		const payload = { runId: "run-1", suggestions: [] };
+
+		await bridge.handlePluginEvent("session-1", {
+			name: "next_turn.suggestions",
+			payload,
+		});
+
+		expect(emit).toHaveBeenCalledWith({
+			type: "plugin_event",
+			payload: {
+				sessionId: "session-1",
+				name: "next_turn.suggestions",
+				payload,
+			},
+		});
+	});
+});
+
 describe("AgentEventBridge.handlePluginTelemetry", () => {
 	it("routes plugin capture calls into the session telemetry service", () => {
 		const telemetry = createTelemetryStub();
