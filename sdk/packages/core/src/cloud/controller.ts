@@ -2695,11 +2695,11 @@ export class CloudSessionController {
 					: {}),
 			};
 			const reply = await connection.client
-				.command("session.resume", payload)
+				.command("session.create", { ...payload, historySource: "stored" })
 				.catch(async (error: unknown) => {
 					if (
 						!(error instanceof HubCommandError) ||
-						error.code !== "unsupported_command"
+						error.code !== "unsupported_feature"
 					)
 						throw error;
 					this.assertSessionActive(connection.remote.id, connection);
