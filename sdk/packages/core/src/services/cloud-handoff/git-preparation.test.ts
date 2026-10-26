@@ -13,9 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	applyHandoffGit,
 	inspectHandoffGit,
-	previewHandoffGit,
 	verifyPublishedHandoffGit,
-} from "./cloud-handoff-git";
+} from "./git-preparation";
 
 const transport = vi.hoisted(() => ({
 	remote: "",
@@ -264,6 +263,7 @@ describe("cloud handoff Git preparation", () => {
 		const beforeIndex = git("write-tree");
 		const originalHead = git("rev-parse", "HEAD");
 		const originalStatus = git("status", "--porcelain");
+		transport.pushUrl = "https://synthetic-token@github.com/cline/todo-app";
 		const plan = await inspectHandoffGit(join(repo, "sub"));
 		expect(plan.files.map((file) => file.path).sort()).toEqual([
 			"new file.txt",
@@ -273,7 +273,8 @@ describe("cloud handoff Git preparation", () => {
 		expect(plan.commits).toEqual([]);
 		expect(git("write-tree")).toBe(beforeIndex);
 		expect(git("branch", "--show-current")).toBe("main");
-		expect(previewHandoffGit(plan)).not.toHaveProperty("pushUrl");
+		expect(plan).not.toHaveProperty("pushUrl");
+		transport.pushUrl = "git@github.com:cline/todo-app.git";
 		const published = await applyHandoffGit(plan);
 		expect(git("status", "--porcelain")).toBe(originalStatus);
 		expect(git("write-tree")).toBe(beforeIndex);
@@ -348,9 +349,20 @@ describe("cloud handoff Git preparation", () => {
 		);
 	});
 
-	it("rejects a changed publication destination", async () => {
+	it.each([
+		{ fetchUrl: "https://github.com/cline/another" },
+		{ pushUrl: "https://github.com/cline/another" },
+		{
+			fetchUrl:
+				"https://github.com/cline/todo-app#fragment\nhttps://github.com/cline/another",
+		},
+		{
+			pushUrl:
+				"https://github.com/cline/todo-app#fragment\nhttps://github.com/cline/another",
+		},
+	])("rejects changed or multiple publication destinations: %j", async (changed) => {
 		const plan = await inspectHandoffGit(repo);
-		transport.fetchUrl = transport.pushUrl = "https://github.com/cline/another";
+		Object.assign(transport, changed);
 		await expect(applyHandoffGit(plan)).rejects.toThrow(
 			"changed after confirmation",
 		);

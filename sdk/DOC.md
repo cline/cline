@@ -128,6 +128,9 @@ A failed `initialSend` includes `dispatched`; only `false` means the prompt can 
 retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
 disconnects. A lost reply raises `request_failed` with a warning that the task may
 have started; check cloud tasks before retrying.
+Hub clients can pass an approved Git plan as `localGit`, omitting the preview-only
+`sourceBranch`, `files`, and `commits` fields, to publish a frozen checkpoint before
+creation. This requires token-authenticated workspace access.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { HandoffGitPreview } from "@cline/core/cloud";
 import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
@@ -68,7 +69,7 @@ import {
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
-import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -204,7 +205,6 @@ import type {
 	HandoffResponse,
 	PrepareHandoffResult,
 } from "../../sidecar/cloud-handoff";
-import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
 // chat shell, so keeping them out of the entry chunk shortens app startup.
@@ -428,7 +428,7 @@ export default function Home() {
 function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
-	const { current: promptDrafts } = useRef(new Map<string, PromptDraft>());
+	const { current: promptDrafts } = useRef(new PromptDraftCache());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -1496,7 +1496,7 @@ function ChatThreadPane({
 	terminal,
 }: {
 	threadId: string;
-	promptDrafts: Map<string, PromptDraft>;
+	promptDrafts: PromptDraftCache;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -1592,6 +1592,7 @@ function ChatThreadPane({
 		pendingAttachments,
 		setPendingAttachments,
 		clearPromptForSend,
+		clearDraftForHandoff,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -2459,8 +2460,9 @@ function ChatThreadPane({
 			}
 			const sourceAttachments = [...pendingAttachments];
 			let handoffAttemptId: string | undefined;
-			setPendingAttachments([]);
-			const restoreDraft = clearPromptForSend();
+			const restoreDraft = clearDraftForHandoff(
+				nextCommand ? `/cloud ${nextCommand}` : "/cloud",
+			);
 			try {
 				onHandoffUiAction({
 					type: "prepare",
@@ -2530,7 +2532,7 @@ function ChatThreadPane({
 					type: "progress",
 					sourceSessionId,
 					phase: "checking",
-					message: "Preparing the summary and approved Git checkpoint...",
+					message: "Publishing the approved Git checkpoint...",
 				});
 				const result = await desktopClient.invoke<HandoffResponse>(
 					"chat_session_command",
@@ -2574,20 +2576,13 @@ function ChatThreadPane({
 					});
 				}
 			} finally {
-				if (
-					signal.aborted &&
-					!handoffAttemptId &&
-					!draftRef.current.attachments.length &&
-					restoreDraft(nextCommand ? `/cloud ${nextCommand}` : "/cloud")
-				)
-					setPendingAttachments(sourceAttachments);
+				if (signal.aborted && !handoffAttemptId) restoreDraft();
 			}
 		},
 		[
-			clearPromptForSend,
+			clearDraftForHandoff,
 			confirmHandoffGit,
 			config,
-			draftRef,
 			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,
@@ -2595,7 +2590,6 @@ function ChatThreadPane({
 			pendingAttachments,
 			promptsInQueue.length,
 			sessionId,
-			setPendingAttachments,
 			setPromptInput,
 			status,
 			onHandoffUiAction,

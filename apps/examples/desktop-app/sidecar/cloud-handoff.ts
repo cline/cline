@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { buildCloudHandoffDashboardUrl, type ClineCore } from "@cline/core";
-import type { CloudCreationOptions, CloudHubScope } from "@cline/core/cloud";
+import {
+	type CloudCreationOptions,
+	type CloudHubScope,
+	type HandoffGitPlan,
+	type HandoffGitPreview,
+	inspectHandoffGit,
+	previewHandoffGit,
+} from "@cline/core/cloud";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentMode,
@@ -8,14 +15,6 @@ import {
 	getClineEnvironmentConfig,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-import {
-	applyHandoffGit,
-	type HandoffGitPlan,
-	type HandoffGitPreview,
-	inspectHandoffGit,
-	previewHandoffGit,
-	verifyPublishedHandoffGit,
-} from "./cloud-handoff-git";
 import {
 	type CloudSessionManager,
 	getCloudSessionManager,
@@ -43,14 +42,16 @@ type HandoffSnapshot = {
 	cloud: CloudSessionManager;
 	scope: CloudHubScope;
 	plan: HandoffGitPlan;
-	messages: MessageWithMetadata[];
+	summary: string;
+	modelId: string;
+	organizationId?: string;
 	config: JsonRecord;
 };
 
 const gitPlans = new WeakMap<SidecarContext, Map<string, HandoffSnapshot>>();
 const gitPreparations = new WeakMap<
 	SidecarContext,
-	Map<string, "capturing" | "changed" | "captured">
+	Map<string, { status: "capturing" | "changed" | "captured"; cwd?: string }>
 >();
 type HandoffRequest = {
 	id: string;
@@ -180,6 +181,7 @@ async function resolveCloudModel(
 export async function handlePrepareHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
+	summarize: Summarize,
 ): Promise<PrepareHandoffResult> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
@@ -205,9 +207,16 @@ export async function handlePrepareHandoff(
 	}
 	const cloud = getCloudSessionManager(ctx);
 	let scope = cloud.scope;
-	active.set(sessionId, "capturing");
+	const capture: {
+		status: "capturing" | "changed" | "captured";
+		cwd?: string;
+	} = {
+		status: "capturing",
+	};
+	active.set(sessionId, capture);
 	try {
 		const source = await prepareCloudHandoff(ctx, { ...request, sessionId });
+		capture.cwd = source.cwd;
 		await cloud.connect();
 		scope ??= cloud.scope;
 		if (!scope) throw new Error("Cloud account is unavailable.");
@@ -218,20 +227,45 @@ export async function handlePrepareHandoff(
 		if (!messages.length)
 			throw new Error("Start a conversation before using /cloud.");
 		const plan = await inspectHandoffGit(source.cwd, () => {
-			if (active.get(sessionId) === "changed")
+			if (
+				capture.status === "changed" ||
+				[...ctx.restoringWorkspacePaths].some((path) =>
+					workspacePathsOverlap(source.cwd, path),
+				)
+			)
 				throw new Error(
-					"The local conversation changed during capture. Run /cloud again when the turn finishes.",
+					"The local conversation or workspace changed during capture. Run /cloud again when the change finishes.",
 				);
-			active.set(sessionId, "captured");
+			capture.status = "captured";
 		});
-		await resolveCloudModel(ctx, cloud, scope, config, plan.repoUrl);
+		const { modelId, organizationId } = await resolveCloudModel(
+			ctx,
+			cloud,
+			scope,
+			config,
+			plan.repoUrl,
+		);
 		assertHandoffAccount(ctx, cloud, scope);
+		const summary = (await summarize(messages, config)).trim();
+		assertHandoffAccount(ctx, cloud, scope);
+		if (!summary)
+			throw new Error(
+				"The conversation summary was empty. Nothing was published or started in cloud.",
+			);
 		let plans = gitPlans.get(ctx);
 		if (!plans) {
 			plans = new Map();
 			gitPlans.set(ctx, plans);
 		}
-		plans.set(sessionId, { cloud, scope, plan, messages, config });
+		plans.set(sessionId, {
+			cloud,
+			scope,
+			plan,
+			summary,
+			modelId,
+			organizationId,
+			config,
+		});
 		return { gitPreparation: previewHandoffGit(plan) };
 	} catch (error) {
 		if (!isHandoffAccountCurrent(ctx, cloud, scope)) return { cancelled: true };
@@ -262,7 +296,6 @@ async function handleHandoffOnce(
 		sessionId: string;
 		handoffAttemptId: string;
 	},
-	summarize: Summarize,
 	approved: HandoffSnapshot,
 ) {
 	if (request.attachments?.userFiles?.length)
@@ -282,7 +315,8 @@ async function handleHandoffOnce(
 	assertCloudHandoffAvailable();
 	const sourceSessionId = request.sessionId;
 	gitPlans.get(ctx)?.delete(sourceSessionId);
-	const { cloud, scope, config, messages, plan } = approved;
+	const { cloud, scope, config, summary, modelId, organizationId, plan } =
+		approved;
 	assertHandoffAccount(ctx, cloud, scope);
 	const emitProgress = (phase: string, message: string, sessionId?: string) =>
 		sendEvent(ctx, "cloud_handoff_progress", {
@@ -300,27 +334,7 @@ async function handleHandoffOnce(
 					}
 				: {}),
 		});
-	const { modelId, organizationId } = await resolveCloudModel(
-		ctx,
-		cloud,
-		scope,
-		config,
-		plan.repoUrl,
-	);
-	assertHandoffAccount(ctx, cloud, scope);
-	emitProgress("summarizing", "Preparing a summary of this conversation.");
-	const summary = (await summarize(messages, config)).trim();
-	assertHandoffAccount(ctx, cloud, scope);
-	if (!summary)
-		throw new Error(
-			"The conversation summary was empty. Nothing was published or started in cloud.",
-		);
 	emitProgress("checking", "Publishing the approved Git checkpoint.");
-	const headSha = await applyHandoffGit(plan);
-	assertHandoffAccount(ctx, cloud, scope);
-	assertCloudHandoffAvailable();
-	await verifyPublishedHandoffGit(plan, headSha);
-	assertHandoffAccount(ctx, cloud, scope);
 	const followUp = request.nextCommand?.trim();
 	const command = [
 		summary,
@@ -332,7 +346,6 @@ async function handleHandoffOnce(
 		config.mode === "plan" || config.mode === "yolo" || config.mode === "zen"
 			? config.mode
 			: "act";
-	emitProgress("creating", "Starting a new cloud session.");
 	const initialTask: CloudCreationOptions = {
 		workspaceRelativePath: plan.workspaceRelativePath || undefined,
 		mode,
@@ -361,10 +374,17 @@ async function handleHandoffOnce(
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	let failure: { dispatched: boolean; detail?: string } | undefined;
+	const {
+		files: _files,
+		commits: _commits,
+		sourceBranch: _sourceBranch,
+		...localGit
+	} = plan;
 	try {
 		const result = await cloud.create(
 			{
 				requestId: request.handoffAttemptId,
+				localGit,
 				repoUrl: plan.repoUrl,
 				branch: plan.branch,
 				modelId,
@@ -424,7 +444,6 @@ async function handleHandoffOnce(
 export async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
-	summarize: Summarize,
 ): Promise<HandoffResponse> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
@@ -447,7 +466,6 @@ export async function handleHandoff(
 		const result = await handleHandoffOnce(
 			ctx,
 			{ ...request, sessionId, handoffAttemptId: id },
-			summarize,
 			approved,
 		);
 		requests.set(sessionId, { id, cloud, scope, status: "complete", result });
@@ -464,9 +482,8 @@ export function beginActiveSessionSend(
 	sessionId: string,
 ): () => void {
 	ctx = getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local");
-	const preparation = gitPreparations.get(ctx);
-	if (preparation?.get(sessionId) === "capturing")
-		preparation.set(sessionId, "changed");
+	const preparation = gitPreparations.get(ctx)?.get(sessionId);
+	if (preparation?.status === "capturing") preparation.status = "changed";
 	let sends = activeSendRequests.get(ctx);
 	if (!sends) {
 		sends = new Map();
@@ -478,6 +495,21 @@ export function beginActiveSessionSend(
 		if (remaining > 0) sends.set(sessionId, remaining);
 		else sends.delete(sessionId);
 	};
+}
+
+export function invalidateHandoffCaptureForWorkspace(
+	ctx: SidecarContext,
+	workspacePath: string,
+): void {
+	for (const capture of gitPreparations.get(ctx)?.values() ?? []) {
+		if (
+			capture.status === "capturing" &&
+			capture.cwd &&
+			workspacePathsOverlap(capture.cwd, workspacePath)
+		) {
+			capture.status = "changed";
+		}
+	}
 }
 
 function hasActiveSessionSend(ctx: SidecarContext, sessionId: string): boolean {

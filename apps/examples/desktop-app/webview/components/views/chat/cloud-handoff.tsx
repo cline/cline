@@ -1,5 +1,6 @@
 "use client";
 
+import type { HandoffGitPreview } from "@cline/core/cloud";
 import { Cloud, ExternalLink, Loader2, X } from "lucide-react";
 import {
 	AlertDialog,
@@ -14,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { HANDOFF_PROGRESS_LABELS } from "@/lib/cloud-handoff";
 import type { CloudHandoffUiEntry } from "@/lib/cloud-handoff-ui-state";
-import type { HandoffGitPreview } from "../../../../sidecar/cloud-handoff-git";
 
 export function CloudHandoffGitConfirmation({
 	plan,

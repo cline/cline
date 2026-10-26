@@ -9,18 +9,11 @@ type ParsedHandoffCommand = {
 
 export type { HandoffResult } from "../../sidecar/cloud-handoff";
 
-export type HandoffProgressPhase =
-	| "checking"
-	| "summarizing"
-	| "creating"
-	| "provisioning"
-	| "complete";
+export type HandoffProgressPhase = "checking" | "provisioning" | "complete";
 
 export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
 	checking: "Checking the local session...",
-	creating: "Creating the cloud session...",
 	provisioning: "Preparing the cloud workspace...",
-	summarizing: "Summarizing the local conversation...",
 	complete: "Cloud handoff complete.",
 };
 

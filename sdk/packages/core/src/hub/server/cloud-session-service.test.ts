@@ -11,6 +11,7 @@ import {
 	type CloudHubConnection,
 	HubCloudSessionClient,
 } from "../../cloud/hub-client";
+import type { CloudModel } from "../../cloud/models";
 import type {
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -19,6 +20,7 @@ import {
 	OAuthReauthRequiredError,
 	RuntimeOAuthTokenManager,
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
+import * as handoffGit from "../../services/cloud-handoff/git-preparation";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	emptyStoredProviderSettings,
@@ -115,7 +117,7 @@ function fixture() {
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
-			listModels: vi.fn(async () => []),
+			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
@@ -194,7 +196,133 @@ function fixture() {
 	};
 }
 
+function localGitInput(root = tmpdir()) {
+	const localGit: handoffGit.HandoffGitPublication = {
+		id: "preparation",
+		root,
+		workspaceRelativePath: "",
+		repoUrl: "https://github.com/example/project",
+		remote: "origin",
+		branch: "cline/handoff-12345678-abc",
+		headSha: "a".repeat(40),
+		treeSha: "b".repeat(40),
+	};
+	return {
+		localGit,
+		repoUrl: localGit.repoUrl,
+		branch: localGit.branch,
+		requestId: "handoff-attempt",
+		modelId: "model",
+		organizationId: "org-one",
+		initialMessage: { text: "Captured summary" },
+	};
+}
+
 describe("hub-owned cloud sessions", () => {
+	it.each([
+		{ requestId: undefined },
+		{ initialMessage: undefined },
+		{ initialMessage: { text: "Summary", images: ["invalid-image"] } },
+		{
+			initialMessage: {
+				text: "Summary",
+				images: Array(6).fill("invalid-image"),
+			},
+		},
+		{ branch: "main" },
+		{ localGit: { ...localGitInput().localGit, root: "relative" } },
+		{ localGit: { ...localGitInput().localGit, treeSha: "HEAD" } },
+		{
+			repoUrl: "git@github.com:example/project",
+			localGit: {
+				...localGitInput().localGit,
+				repoUrl: "git@github.com:example/project",
+			},
+		},
+	])("rejects invalid publication input before Git executes: %j", async (invalid) => {
+		const f = fixture();
+		const apply = vi.spyOn(handoffGit, "applyHandoffGit");
+		await expect(
+			command(f.service, "create", [{ ...localGitInput(), ...invalid }]),
+		).rejects.toThrow();
+		expect(apply).not.toHaveBeenCalled();
+		expect(f.service.activeCommands).toBe(0);
+	});
+
+	it("does not publish a prepared handoff under a different organization", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		controller.prepareHandoffRepository.mockResolvedValue({
+			organizationId: "org-two",
+		});
+		controller.listModels.mockResolvedValue([
+			{ id: "model", name: "Model", catalogId: "cline" },
+		]);
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockResolvedValue("c".repeat(40));
+		vi.spyOn(handoffGit, "verifyPublishedHandoffGit").mockResolvedValue();
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("organization changed");
+		expect(apply).not.toHaveBeenCalled();
+		expect(controller.create).not.toHaveBeenCalled();
+	});
+
+	it("revalidates the model before publication and refuses create after verification failure", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockResolvedValue("c".repeat(40));
+		const verify = vi
+			.spyOn(handoffGit, "verifyPublishedHandoffGit")
+			.mockRejectedValue(new Error("Published branch changed"));
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("selected model");
+		expect(apply).not.toHaveBeenCalled();
+		controller.listModels.mockResolvedValue([
+			{ id: "model", name: "Model", catalogId: "cline" },
+		]);
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("Published branch changed");
+		expect(verify).toHaveBeenCalledExactlyOnceWith(
+			localGitInput().localGit,
+			"c".repeat(40),
+		);
+		expect(controller.create).not.toHaveBeenCalled();
+		expect(f.service.activeCommands).toBe(0);
+	});
+
+	it("stops after publication if the account changes without using a replacement controller", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		controller.listModels.mockResolvedValue([
+			{ id: "model", name: "Model", catalogId: "cline" },
+		]);
+		const pushed = deferred<string>();
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockReturnValue(pushed.promise);
+		const verify = vi.spyOn(handoffGit, "verifyPublishedHandoffGit");
+		const creation = command(f.service, "create", [localGitInput()]);
+		const rejected = expect(creation).rejects.toThrow("account changed");
+		await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+		f.changeScope("account-two");
+		pushed.resolve("c".repeat(40));
+		await rejected;
+		expect(verify).not.toHaveBeenCalled();
+		expect(controller.create).not.toHaveBeenCalled();
+		expect(f.controllers).toHaveLength(1);
+	});
 	it("pins every handoff operation to its prepared account scope", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
@@ -576,6 +704,114 @@ describe("cloud RPC over a shared hub socket", () => {
 		});
 		return { root, server };
 	}
+
+	it("keeps one publication through send after viewer disconnect and rejects origin-only Git requests", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
+		const client = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "publisher",
+			workspaceRoot: root,
+		});
+		const observer = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "observer",
+			workspaceRoot: root,
+		});
+		const browser = new NodeHubClient({
+			url: server.url,
+			clientId: "browser",
+			workspaceRoot: root,
+			resolveConnectionHeaders: () => ({ Origin: "http://localhost:3000" }),
+		});
+		const viewer = new HubCloudSessionClient(async () => client);
+		const browserViewer = new HubCloudSessionClient(async () => browser);
+		const pushed = deferred<string>();
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockReturnValue(pushed.promise);
+		const verify = vi
+			.spyOn(handoffGit, "verifyPublishedHandoffGit")
+			.mockResolvedValue();
+		try {
+			await viewer.connect();
+			await observer.connect();
+			await browserViewer.connect();
+			const controller = f.controllers[0]?.controller;
+			if (!controller) throw new Error("Missing cloud controller");
+			controller.listModels.mockResolvedValue([
+				{ id: "model", name: "Model", catalogId: "cline" },
+			]);
+			const input = localGitInput(root);
+			await expect(browserViewer.create(input)).rejects.toThrow(
+				"token-authenticated",
+			);
+			expect(apply).not.toHaveBeenCalled();
+			const creation = viewer.create(input).catch((error: unknown) => error);
+			await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+			const repeated = observer.command(
+				"cloud.command",
+				{ operation: "create", args: [input], scope: viewer.scope },
+				undefined,
+				{ timeoutMs: null },
+			);
+			await vi.waitFor(async () =>
+				expect((await observer.command("hub.status")).payload).toMatchObject({
+					activeCloudCommands: 2,
+					idle: false,
+				}),
+			);
+			expect(controller.create).not.toHaveBeenCalled();
+			await viewer.dispose();
+			await client.dispose();
+			expect(await creation).toMatchObject({ code: "request_failed" });
+			pushed.resolve("c".repeat(40));
+			await expect(repeated).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					result: { sessionId: "ses-one", initialSend: { ok: true } },
+				},
+			});
+			expect(apply).toHaveBeenCalledOnce();
+			expect(verify).toHaveBeenCalledExactlyOnceWith(
+				input.localGit,
+				"c".repeat(40),
+			);
+			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
+				repoUrl: input.repoUrl,
+				branch: input.branch,
+				requestId: input.requestId,
+				modelId: input.modelId,
+				initialMessage: input.initialMessage,
+				organizationId: "org-one",
+				sandboxType: "resumable",
+			});
+			expect(controller.send).toHaveBeenCalledExactlyOnceWith(
+				"ses-one",
+				"Captured summary",
+				"queue",
+				"model",
+				undefined,
+			);
+			expect((await observer.command("hub.status")).payload).toMatchObject({
+				activeCloudCommands: 0,
+				idle: true,
+			});
+		} finally {
+			pushed.resolve("c".repeat(40));
+			await viewer.dispose();
+			await browserViewer.dispose();
+			await Promise.all([
+				client.dispose(),
+				observer.dispose(),
+				browser.dispose(),
+			]);
+			await server.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
 
 	it("preserves repository preparation and ordinary send results over the socket", async () => {
 		const f = fixture();

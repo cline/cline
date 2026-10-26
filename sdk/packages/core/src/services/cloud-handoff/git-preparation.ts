@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeGitHubRemoteUrl } from "@cline/core";
+import { normalizeGitHubRemoteUrl } from "./git-preflight";
 
 const isolatedHookNotice =
 	"If a repository hook failed, it ran in an isolated checkout without your local dependencies or generated files.";
@@ -13,7 +13,6 @@ export type HandoffGitPlan = {
 	root: string;
 	workspaceRelativePath: string;
 	repoUrl: string;
-	pushUrl: string;
 	remote: string;
 	branch: string;
 	sourceBranch: string;
@@ -26,6 +25,11 @@ export type HandoffGitPlan = {
 export type HandoffGitPreview = Pick<
 	HandoffGitPlan,
 	"id" | "repoUrl" | "remote" | "branch" | "sourceBranch" | "files" | "commits"
+>;
+
+export type HandoffGitPublication = Omit<
+	HandoffGitPlan,
+	"sourceBranch" | "files" | "commits"
 >;
 
 export function previewHandoffGit(plan: HandoffGitPlan): HandoffGitPreview {
@@ -274,7 +278,6 @@ export async function inspectHandoffGit(
 		root,
 		workspaceRelativePath,
 		repoUrl,
-		pushUrl,
 		remote,
 		branch: `cline/handoff-${randomUUID().slice(0, 12)}`,
 		sourceBranch,
@@ -286,32 +289,30 @@ export async function inspectHandoffGit(
 }
 
 async function assertPublicationDestination(
-	plan: HandoffGitPlan,
-): Promise<void> {
-	const fetchUrl = await git(plan.root, [
-		"remote",
-		"get-url",
-		"--all",
-		plan.remote,
-	]);
-	const pushUrl = await git(plan.root, [
-		"remote",
-		"get-url",
-		"--push",
-		"--all",
-		plan.remote,
-	]);
+	plan: HandoffGitPublication,
+): Promise<string> {
+	const fetchUrls = (
+		await git(plan.root, ["remote", "get-url", "--all", plan.remote])
+	).split("\n");
+	const pushUrls = (
+		await git(plan.root, ["remote", "get-url", "--push", "--all", plan.remote])
+	).split("\n");
+	const pushUrl = pushUrls[0];
 	if (
-		normalizeGitHubRemoteUrl(fetchUrl) !== plan.repoUrl ||
-		pushUrl !== plan.pushUrl
+		fetchUrls.length !== 1 ||
+		pushUrls.length !== 1 ||
+		!pushUrl ||
+		normalizeGitHubRemoteUrl(fetchUrls[0] ?? "") !== plan.repoUrl ||
+		normalizeGitHubRemoteUrl(pushUrl) !== plan.repoUrl
 	)
 		throw new Error(
 			"The remote changed after confirmation. Run /cloud again to review the destination.",
 		);
+	return pushUrl;
 }
 
 export async function verifyPublishedHandoffGit(
-	plan: HandoffGitPlan,
+	plan: HandoffGitPublication,
 	headSha: string,
 ): Promise<void> {
 	await assertPublicationDestination(plan);
@@ -327,8 +328,10 @@ export async function verifyPublishedHandoffGit(
 		);
 }
 
-export async function applyHandoffGit(plan: HandoffGitPlan): Promise<string> {
-	await assertPublicationDestination(plan);
+export async function applyHandoffGit(
+	plan: HandoffGitPublication,
+): Promise<string> {
+	const pushUrl = await assertPublicationDestination(plan);
 	const hooksPath = await git(plan.root, [
 		"rev-parse",
 		"--path-format=absolute",
@@ -405,7 +408,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<string> {
 				"-c",
 				"push.recurseSubmodules=no",
 				"push",
-				plan.pushUrl,
+				pushUrl,
 				`${commit}:refs/heads/${plan.branch}`,
 			],
 			{ timeout: 10 * 60_000, hooksPath },

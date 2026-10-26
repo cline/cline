@@ -11,7 +11,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -279,7 +279,7 @@ function DraftComposer({
 	threadId,
 	sendPrompt,
 }: {
-	drafts: Map<string, PromptDraft>;
+	drafts: PromptDraftCache;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
 }) {
@@ -327,7 +327,7 @@ function DraftComposer({
 
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
-		const drafts = new Map<string, PromptDraft>([
+		const drafts = new PromptDraftCache([
 			["A", { text: "Try again", attachments: [] }],
 		]);
 		const response = deferred<boolean>();
@@ -352,7 +352,7 @@ describe("ChatInputBar draft navigation", () => {
 	});
 
 	it("restores typed text on return and does not restore it after sending", async () => {
-		const drafts = new Map<string, PromptDraft>();
+		const drafts = new PromptDraftCache();
 		const showThread = async (threadId: string) => {
 			await act(async () => {
 				root.render(

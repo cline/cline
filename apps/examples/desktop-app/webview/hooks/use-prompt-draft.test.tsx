@@ -8,11 +8,11 @@ import {
 	type DesktopAppAction,
 	desktopAppReducer,
 } from "../lib/desktop-app-state";
-import { type PromptDraft, usePromptDraft } from "./use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
 
 let container: HTMLDivElement;
 let root: Root;
-let drafts: Map<string, PromptDraft>;
+let drafts: PromptDraftCache;
 let current: ReturnType<typeof usePromptDraft>;
 let renders: number;
 let appState: ReturnType<typeof createDesktopAppState<"General">>;
@@ -72,7 +72,7 @@ beforeEach(() => {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	drafts = new Map();
+	drafts = new PromptDraftCache();
 	renders = 0;
 	appState = createDesktopAppState("new-session", "General", "local");
 });
@@ -83,6 +83,59 @@ afterEach(async () => {
 });
 
 describe("usePromptDraft", () => {
+	it.each([
+		false,
+		true,
+	])("restores cancelled cloud text and images after navigation (remounted: %s)", async (remounted) => {
+		await navigate();
+		const image = new File(["synthetic"], "draft.png", { type: "image/png" });
+		const pane = current;
+		let restore!: ReturnType<typeof current.clearDraftForHandoff>;
+		act(() => {
+			pane.setPromptInput("/cloud Continue");
+			pane.setPendingAttachments([image]);
+			restore = pane.clearDraftForHandoff("/cloud Continue");
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		if (remounted) await navigate({ type: "back" });
+		act(() => {
+			expect(restore()).toBe(true);
+		});
+		if (!remounted) await navigate({ type: "back" });
+		expect(current.promptDraft.value).toBe("/cloud Continue");
+		expect(current.pendingAttachments).toEqual([image]);
+	});
+
+	it.each([
+		"erased text",
+		"new image",
+	])("preserves %s when cancelled cloud preparation belongs to an old pane", async (edit) => {
+		await navigate();
+		let restore!: ReturnType<typeof current.clearDraftForHandoff>;
+		act(() => {
+			restore = current.clearDraftForHandoff("/cloud Continue");
+		});
+		await openSession();
+		await navigate({ type: "back" });
+		const image = new File(["new"], "new.png", { type: "image/png" });
+		act(() => {
+			if (edit === "erased text") {
+				current.handlePromptInputChange("Changed my mind");
+				current.handlePromptInputChange("");
+			} else {
+				current.setPendingAttachments([image]);
+			}
+			expect(restore()).toBe(false);
+		});
+		expect(current.draftRef.current.text).toBe("");
+		expect(current.pendingAttachments).toEqual(
+			edit === "new image" ? [image] : [],
+		);
+	});
+
 	it("restores an unchanged draft after a failed send, including the composer's clear acknowledgement", async () => {
 		await navigate();
 		let send!: ReturnType<typeof pendingSend>;

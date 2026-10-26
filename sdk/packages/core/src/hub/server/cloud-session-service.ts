@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	createMediaBudgetState,
+	getClineEnvironmentConfig,
+	validateAndReserveImageMedia,
+} from "@cline/shared";
 import { z } from "zod";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
@@ -18,11 +23,47 @@ import {
 	OAuthReauthRequiredError,
 	RuntimeOAuthTokenManager,
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
+import { normalizeGitHubRemoteUrl } from "../../services/cloud-handoff/git-preflight";
+import {
+	applyHandoffGit,
+	verifyPublishedHandoffGit,
+} from "../../services/cloud-handoff/git-preparation";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { captureAuthRefreshSoftFailure } from "../../services/telemetry/core-events";
 
 const id = z.string().trim().min(1);
 const optionalString = z.string().nullish();
+const gitValue = z
+	.string()
+	.min(1)
+	.refine((value) => !value.startsWith("-") && !/\p{Cc}/u.test(value));
+const gitSha = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+const localGitPlan = z
+	.object({
+		id,
+		root: gitValue.refine(isAbsolute),
+		workspaceRelativePath: z
+			.string()
+			.refine(
+				(value) =>
+					!value ||
+					(!isAbsolute(value) &&
+						!value
+							.split(/[\\/]/)
+							.some((part) => !part || part === "." || part === "..") &&
+						!/\p{Cc}/u.test(value)),
+			),
+		repoUrl: gitValue,
+		remote: gitValue,
+		branch: z.string().regex(/^cline\/handoff-[0-9a-f-]{12}$/),
+		headSha: gitSha,
+		treeSha: gitSha,
+	})
+	.strict()
+	.refine(
+		(plan) => normalizeGitHubRemoteUrl(plan.repoUrl) === plan.repoUrl,
+		"Git publication must target the selected GitHub repository",
+	);
 const creationOptions = z.object({
 	mode: z.enum(["act", "plan", "yolo", "zen"]).optional(),
 	workspaceRelativePath: z.string().optional(),
@@ -43,8 +84,27 @@ const createInput = creationOptions
 			.optional(),
 		branch: id.optional(),
 		organizationId: id.nullable().optional(),
+		localGit: localGitPlan.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((input, ctx) => {
+		if (!input.localGit) return;
+		if (!input.requestId || !input.initialMessage)
+			ctx.addIssue({
+				code: "custom",
+				message: "Local Git publication requires requestId and initialMessage",
+			});
+		if (
+			input.repoUrl !== input.localGit.repoUrl ||
+			input.branch !== input.localGit.branch ||
+			(input.workspaceRelativePath ?? "") !==
+				input.localGit.workspaceRelativePath
+		)
+			ctx.addIssue({
+				code: "custom",
+				message: "Cloud workspace must match the approved Git preparation",
+			});
+	});
 const schemas = {
 	create: z.tuple([createInput]),
 	attach: z.tuple([id, creationOptions.nullish()]),
@@ -130,6 +190,10 @@ export class HubCloudSessionService {
 	private readonly settings = new ProviderSettingsManager();
 	private readonly scopeTimer: ReturnType<typeof setInterval>;
 	private readonly retiring = new Set<Promise<void>>();
+	private readonly publications = new Map<
+		string,
+		{ planId: string; result: ReturnType<CloudSessionController["create"]> }
+	>();
 	activeCommands = 0;
 	constructor(private readonly options: HubCloudSessionServiceOptions) {
 		this.tokenManager = new RuntimeOAuthTokenManager({
@@ -358,8 +422,13 @@ export class HubCloudSessionService {
 		const controller = this.getController();
 		this.activeCommands++;
 		try {
-			const method = controller[name] as (...args: unknown[]) => unknown;
-			const result = await method.apply(controller, normalized);
+			const result =
+				name === "create"
+					? await this.create(controller, createInput.parse(normalized[0]))
+					: await (controller[name] as (...args: unknown[]) => unknown).apply(
+							controller,
+							normalized,
+						);
 			this.checkScope();
 			if (this.controller !== controller)
 				throw new Error("Cline account changed during cloud operation");
@@ -372,6 +441,61 @@ export class HubCloudSessionService {
 		} finally {
 			this.activeCommands--;
 		}
+	}
+	private create(
+		controller: CloudSessionController,
+		input: z.infer<typeof createInput>,
+	): ReturnType<CloudSessionController["create"]> {
+		const { localGit, ...creation } = input;
+		if (!localGit) return controller.create(creation);
+		const key = `${this.scopeGeneration}:${input.requestId}`;
+		const existing = this.publications.get(key);
+		if (existing) {
+			if (existing.planId !== localGit.id)
+				throw new Error("The request already has a different Git preparation");
+			return existing.result;
+		}
+		const assertCurrent = () => {
+			this.checkScope();
+			if (this.closed || this.controller !== controller)
+				throw new Error("Cline account changed during cloud publication");
+		};
+		const result = Promise.resolve()
+			.then(async () => {
+				assertCurrent();
+				const images = input.initialMessage?.images ?? [];
+				if (images.length > 5) throw new Error("Attach up to 5 images.");
+				const budget = createMediaBudgetState();
+				for (const image of images) {
+					const validation = validateAndReserveImageMedia(
+						undefined,
+						image,
+						{},
+						budget,
+					);
+					if (!validation.ok) throw new Error(validation.message);
+				}
+				const { organizationId } = await controller.prepareHandoffRepository(
+					localGit.repoUrl,
+				);
+				assertCurrent();
+				if ((organizationId ?? null) !== (creation.organizationId ?? null))
+					throw new Error("The cloud organization changed before publication");
+				const models = await controller.listModels();
+				assertCurrent();
+				if (!models.some((model) => model.id === input.modelId))
+					throw new Error(
+						"The selected model is not available in Cline Cloud for this account",
+					);
+				const headSha = await applyHandoffGit(localGit);
+				assertCurrent();
+				await verifyPublishedHandoffGit(localGit, headSha);
+				assertCurrent();
+				return controller.create(creation);
+			})
+			.finally(() => this.publications.delete(key));
+		this.publications.set(key, { planId: localGit.id, result });
+		return result;
 	}
 	async dispose(): Promise<void> {
 		this.closed = true;

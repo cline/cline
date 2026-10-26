@@ -52,6 +52,7 @@ import {
 	handleDiscardHandoff,
 	handleHandoff,
 	handlePrepareHandoff,
+	invalidateHandoffCaptureForWorkspace,
 } from "./cloud-handoff";
 import {
 	getCloudSessionManager,
@@ -336,6 +337,7 @@ async function withWorkspaceRestoreLock<T>(
 	}
 
 	ctx.restoringWorkspacePaths.add(key);
+	invalidateHandoffCaptureForWorkspace(ctx, key);
 	try {
 		return await work();
 	} finally {
@@ -2485,10 +2487,8 @@ const ACTION_HANDLERS: Record<
 	start: handleStart,
 	attach: handleAttach,
 	send: handleSend,
-	prepare_handoff: handlePrepareHandoff,
-	discard_handoff: handleDiscardHandoff,
-	handoff: (ctx, request) =>
-		handleHandoff(ctx, request, async (messages, config) => {
+	prepare_handoff: (ctx, request) =>
+		handlePrepareHandoff(ctx, request, async (messages, config) => {
 			const connection = buildSessionConnectionUpdate(
 				await withRemoteProviderCredentials(config),
 			);
@@ -2506,6 +2506,8 @@ const ACTION_HANDLERS: Record<
 				},
 			});
 		}),
+	discard_handoff: handleDiscardHandoff,
+	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,
