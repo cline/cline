@@ -3645,4 +3645,92 @@ describe("ChatInputBar compact layout", () => {
 			vi.unstubAllGlobals();
 		}
 	});
+
+	describe("Next Turn inline suggestions", () => {
+		function mockSuggestions(suggestions: string[]) {
+			return vi
+				.spyOn(desktopClient, "invoke")
+				.mockImplementation(async (name) => {
+					if (name === "next_turn_suggestions") return suggestions;
+					if (name === "list_plugin_commands") {
+						return { status: "ready", commands: [] };
+					}
+					return { runtimeCommands: [] };
+				});
+		}
+
+		async function press(key: string, init: KeyboardEventInit = {}) {
+			const textarea = container.querySelector("textarea");
+			expect(textarea).not.toBeNull();
+			const event = new KeyboardEvent("keydown", {
+				key,
+				bubbles: true,
+				cancelable: true,
+				...init,
+			});
+			await act(async () => {
+				textarea?.dispatchEvent(event);
+				await Promise.resolve();
+			});
+			return event;
+		}
+
+		it("cycles with Down Arrow and inserts with Tab without sending or touching attachments", async () => {
+			const invoke = mockSuggestions(["verify", "review", "wrap up"]);
+			const onSend = vi.fn();
+			const onAttachFiles = vi.fn();
+			await renderVoiceComposer({
+				sessionId: "session-1",
+				onSend,
+				onAttachFiles,
+				attachments: [{ id: "notes", name: "notes.txt", isImage: false }],
+			});
+			const textarea = container.querySelector("textarea");
+			expect(textarea?.placeholder).toContain("Next 1/3: verify");
+			expect(textarea?.placeholder).toContain("↓ to skip");
+
+			await press("ArrowDown");
+			expect(textarea?.placeholder).toContain("Next 2/3: review");
+			await press("ArrowDown");
+			expect(textarea?.placeholder).toContain("Next 3/3: wrap up");
+			await press("ArrowDown");
+			expect(textarea?.placeholder).toContain("Next 1/3: verify");
+			expect(
+				invoke.mock.calls.filter(([name]) => name === "next_turn_suggestions"),
+			).toHaveLength(1);
+
+			await press("Tab");
+			expect(textarea?.value).toBe("verify");
+			expect(onSend).not.toHaveBeenCalled();
+			expect(onAttachFiles).not.toHaveBeenCalled();
+			expect(container.textContent).toContain("notes.txt");
+		});
+
+		it("accepts with Right Arrow and sends only through the normal Enter path", async () => {
+			mockSuggestions(["verify"]);
+			const onSend = vi.fn();
+			await renderVoiceComposer({ sessionId: "session-1", onSend });
+
+			await press("ArrowRight");
+			expect(container.querySelector("textarea")?.value).toBe("verify");
+			expect(onSend).not.toHaveBeenCalled();
+			await press("Enter");
+			expect(onSend).toHaveBeenCalledWith("verify");
+		});
+
+		it("dismisses with Escape without aborting, and otherwise leaves Tab alone", async () => {
+			mockSuggestions(["verify"]);
+			const onAbort = vi.fn();
+			await renderVoiceComposer({ sessionId: "session-1", onAbort });
+			await press("Escape");
+			expect(onAbort).not.toHaveBeenCalled();
+			expect(container.querySelector("textarea")?.placeholder).not.toContain(
+				"Next 1/1",
+			);
+
+			const tab = await press("Tab");
+			expect(tab.defaultPrevented).toBe(false);
+			expect(container.querySelector("textarea")?.value).toBe("");
+		});
+	});
 });

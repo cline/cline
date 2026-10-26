@@ -43,6 +43,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { useNextTurnSuggestion } from "@/hooks/use-next-turn-suggestion";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
@@ -638,6 +639,27 @@ function ChatInputBarImpl({
 	);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
+	const nextTurn = useNextTurnSuggestion({
+		enabled: executionTarget === "local" && !readOnly,
+		environmentId,
+		sessionId,
+		workspaceRoot,
+		busy: isBusy || speechInputActive || speechInputProcessing,
+		draft: promptInput,
+	});
+	const acceptNextTurn = useCallback(() => {
+		const prompt = nextTurn.prompt;
+		if (!prompt) return;
+		setPromptInput(prompt);
+		nextTurn.dismiss();
+		requestAnimationFrame(() => {
+			const input = promptInputRef.current;
+			if (!input) return;
+			input.focus();
+			input.setSelectionRange(prompt.length, prompt.length);
+			setCursorIndex(prompt.length);
+		});
+	}, [nextTurn.prompt, nextTurn.dismiss, setPromptInput]);
 	// Mention/slash detection is derived synchronously from the input +
 	// cursor. Deriving (rather than syncing through effects) keeps a keystroke
 	// at a single render commit; only an explicit Escape dismissal is state.
@@ -889,6 +911,9 @@ function ChatInputBarImpl({
 		variant === "welcome" || promptInputFocused
 			? PROMPT_INPUT_EXPANDED_ROWS
 			: PROMPT_INPUT_COLLAPSED_ROWS;
+	const nextTurnPlaceholder = nextTurn.prompt
+		? `Next ${nextTurn.position}/${nextTurn.count}: ${nextTurn.prompt}\nTab/→ to use · ↓ to skip`
+		: undefined;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -1350,6 +1375,11 @@ function ChatInputBarImpl({
 										: undefined
 							}
 							aria-autocomplete="list"
+							aria-description={
+								nextTurn.prompt
+									? `Next suggestion ${nextTurn.position} of ${nextTurn.count}. Tab or Right Arrow inserts it. Down Arrow shows another. Escape dismisses it.`
+									: undefined
+							}
 							aria-controls={
 								slashOpen
 									? "slash-command-suggestions"
@@ -1450,6 +1480,28 @@ function ChatInputBarImpl({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
+								if (nextTurn.prompt) {
+									const unmodified =
+										!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+									if (e.key === "ArrowDown" && unmodified) {
+										e.preventDefault();
+										nextTurn.cycle();
+										return;
+									}
+									if (
+										(e.key === "Tab" || e.key === "ArrowRight") &&
+										unmodified
+									) {
+										e.preventDefault();
+										acceptNextTurn();
+										return;
+									}
+									if (e.key === "Escape") {
+										e.preventDefault();
+										nextTurn.dismiss();
+										return;
+									}
+								}
 								if (e.key === "Escape" && canAbort) {
 									e.preventDefault();
 									onAbort();
@@ -1477,7 +1529,8 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-								speechInputProcessing
+								nextTurnPlaceholder ??
+								(speechInputProcessing
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
@@ -1489,7 +1542,7 @@ function ChatInputBarImpl({
 												? "Describe what Cline should do in this repository."
 												: variant === "welcome"
 													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+													: "Enter your question or type / for commands or @ for context")
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
