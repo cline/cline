@@ -157,6 +157,10 @@ export interface ExtensionState {
 	currentCloudTask?: CurrentCloudTaskInfo
 	/** Cline model the displayed cloud task runs on, else the one a new cloud task would use. */
 	cloudModelId?: string
+	/** Cline model a new cloud task would run on; Settings edits this one. */
+	nextCloudModelId?: string
+	/** Whether the account has ClinePass for cloud tasks; unset until checked, or when the check failed. */
+	clinePassSubscribed?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }
 

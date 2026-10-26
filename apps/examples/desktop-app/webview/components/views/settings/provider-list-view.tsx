@@ -49,6 +49,7 @@ import type {
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import { AudioModelBadges } from "./audio-model-badges";
+import { InUseBadge } from "./in-use-badge";
 
 // Inputs nested inside a composed bordered box (icon + input + buttons in
 // one rounded frame) must strip the Input component's own chrome — border,
@@ -344,14 +345,17 @@ export function ProviderListContent({
 				)}
 			>
 				<div className="min-w-0">
-					<h1
-						className={cn(
-							"truncate font-semibold leading-[1.15] text-foreground",
-							isPanel ? "text-2xl" : "text-3xl",
-						)}
-					>
-						Model Providers
-					</h1>
+					<div className="flex min-w-0 items-center gap-3">
+						<h1
+							className={cn(
+								"truncate font-semibold leading-[1.15] text-foreground",
+								isPanel ? "text-2xl" : "text-3xl",
+							)}
+						>
+							Bring your own key
+						</h1>
+						<InUseBadge section="Providers" />
+					</div>
 					<p className="mt-3 text-base leading-6 text-muted-foreground">
 						{connectedCount === 0
 							? "Connect a provider to start using models."

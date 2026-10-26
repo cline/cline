@@ -2866,6 +2866,119 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("holds model and tool boundaries until the mistake-limit decision settles", async () => {
+		let decide!: (decision: { action: "continue" }) => void;
+		const decision = new Promise<{ action: "continue" }>((resolve) => {
+			decide = resolve;
+		});
+		const order: string[] = [];
+		let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+		let hooks: AgentRuntimeConfig["hooks"];
+		const runtime = {
+			async run() {
+				for (const e of failedToolTurnEvents()) listener?.(e);
+				// The next boundary after the failed turn must wait for the user.
+				await hooks?.beforeTool?.({} as never);
+				order.push("next tool");
+				return {
+					agentId: "agent_fake",
+					runId: "run_fake",
+					status: "completed",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+				} satisfies AgentRunResult;
+			},
+			abort() {},
+			subscribe(l: (e: AgentRuntimeEvent) => void) {
+				listener = l;
+				return () => {
+					listener = undefined;
+				};
+			},
+			snapshot: makeSnapshot,
+		} as unknown as AgentRuntime;
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 1 },
+				onConsecutiveMistakeLimitReached: () => decision,
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					hooks = config.hooks;
+					return runtime;
+				},
+			},
+		);
+		const running = session.run("go");
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(order).toEqual([]);
+		order.push("user decided");
+		decide({ action: "continue" });
+		await running;
+		expect(order).toEqual(["user decided", "next tool"]);
+	});
+
+	it("returns stop control to the rest of a tool batch once the decision is Stop", async () => {
+		let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+		let hooks: AgentRuntimeConfig["hooks"];
+		let nextToolControl: unknown;
+		const runtime = {
+			async run() {
+				for (const e of failedToolTurnEvents()) listener?.(e);
+				// A later tool in the same batch must not run after Stop.
+				nextToolControl = await hooks?.afterTool?.({} as never);
+				return {
+					agentId: "agent_fake",
+					runId: "run_fake",
+					status: "aborted",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+				} satisfies AgentRunResult;
+			},
+			abort() {},
+			subscribe(l: (e: AgentRuntimeEvent) => void) {
+				listener = l;
+				return () => {
+					listener = undefined;
+				};
+			},
+			snapshot: makeSnapshot,
+		} as unknown as AgentRuntime;
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 1 },
+				onConsecutiveMistakeLimitReached: async () => ({
+					action: "stop",
+					reason: "User chose Stop",
+				}),
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					hooks = config.hooks;
+					return runtime;
+				},
+			},
+		);
+		await session.run("go");
+		expect(nextToolControl).toMatchObject({ stop: true });
+	});
+
 	it("does not abort on productive turns (successful tool calls)", async () => {
 		const events: AgentRuntimeEvent[] = [
 			{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
