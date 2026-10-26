@@ -377,7 +377,7 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("releases startup admission before the initial prompt finishes", async () => {
+	it("protects the first turn while preparation is pending without delaying resume conflicts", async () => {
 		let releaseTurn: (() => void) | undefined;
 		const turnResult = new Promise<AgentResult>((resolve) => {
 			releaseTurn = () => resolve(createResult());
@@ -385,9 +385,26 @@ describe("LocalRuntimeHost", () => {
 		const run = vi
 			.spyOn(SessionRuntime.prototype, "run")
 			.mockImplementationOnce(() => turnResult);
+		const service = new FileSessionService(join(isolatedHomeDir, "sessions"));
+		const persist = service.createRootSessionWithArtifacts.bind(service);
+		let markPersistenceStarted: (() => void) | undefined;
+		const persistenceStarted = new Promise<void>((resolve) => {
+			markPersistenceStarted = resolve;
+		});
+		let releasePersistence: (() => void) | undefined;
+		const persistenceGate = new Promise<void>((resolve) => {
+			releasePersistence = resolve;
+		});
+		vi.spyOn(service, "createRootSessionWithArtifacts").mockImplementationOnce(
+			async (...args) => {
+				markPersistenceStarted?.();
+				await persistenceGate;
+				return persist(...args);
+			},
+		);
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
-			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			sessionService: service,
 		});
 		const input: StartSessionInput = {
 			config: createConfig({
@@ -403,9 +420,24 @@ describe("LocalRuntimeHost", () => {
 			localRuntime: { configExtensions: [] },
 			interactive: true,
 		};
+		const replacement = {
+			...input,
+			config: { ...input.config, modelId: "gpt-4.1-mini" },
+		};
 		const first = manager.startSession({ ...input, prompt: "held prompt" });
+		const waiting = manager.startSession(replacement);
 		try {
-			await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+			await persistenceStarted;
+			await expect(waiting).resolves.toMatchObject({
+				sessionId: "initial-prompt",
+			});
+			expect(await manager.getSession("initial-prompt")).toMatchObject({
+				model: "gpt-4.1",
+			});
+			expect(run).not.toHaveBeenCalled();
+			await expect(
+				manager.startSession({ ...input, prompt: "second prompt" }),
+			).rejects.toThrow(/already has a run in progress/);
 			let conflict: unknown;
 			const resume = manager
 				.startSession({
@@ -419,9 +451,23 @@ describe("LocalRuntimeHost", () => {
 				expect(conflict).toMatchObject({ code: "session_already_exists" }),
 			);
 			await resume;
-		} finally {
+			releasePersistence?.();
+			await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+			await manager.startSession(replacement);
+			expect(await manager.getSession("initial-prompt")).toMatchObject({
+				model: "gpt-4.1",
+			});
 			releaseTurn?.();
 			await first;
+			await manager.startSession(replacement);
+			expect(await manager.getSession("initial-prompt")).toMatchObject({
+				model: "gpt-4.1-mini",
+			});
+		} finally {
+			releasePersistence?.();
+			releaseTurn?.();
+			await first;
+			await waiting;
 			run.mockRestore();
 			await manager.dispose();
 		}

@@ -322,6 +322,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		string,
 		Promise<InitializedSession>
 	>();
+	private readonly initialTurns = new WeakMap<
+		ActiveSession,
+		StartSessionResult
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -529,13 +533,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// run keeps going unreachable (no abort, no queue) and its transcript
 		// writes resolve to the replacement's stale snapshot. Reattach instead.
 		const live = this.sessions.get(sessionId);
-		if (live && !live.agent.canStartRun()) {
+		const initialTurn = live && this.initialTurns.get(live);
+		if (live && (initialTurn || !live.agent.canStartRun())) {
 			if (input.prompt?.trim()) {
 				throw new Error(
 					`Session ${sessionId} already has a run in progress; queue the prompt instead.`,
 				);
 			}
-			return await this.liveSessionStartResult(live);
+			return initialTurn
+				? { ...initialTurn }
+				: await this.liveSessionStartResult(live);
 		}
 		// Reserve the ID before initialization can yield to another start.
 		const starting = Promise.resolve().then(async () => {
@@ -572,6 +579,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let initialized: InitializedSession;
 		try {
 			initialized = await starting;
+			if (input.prompt?.trim()) {
+				// Protect preparation too: agent.run is idle and artifacts may not exist yet.
+				this.initialTurns.set(initialized.active, initialized.started);
+			}
 		} finally {
 			this.startingSessions.delete(sessionId);
 		}
@@ -618,6 +629,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 				throw error;
 			}
+		} finally {
+			this.initialTurns.delete(active);
 		}
 
 		return { ...started, result };
