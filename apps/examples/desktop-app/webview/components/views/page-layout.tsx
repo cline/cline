@@ -20,6 +20,7 @@ export function PageFrame({
 					"px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5",
 					className,
 				)}
+				data-slot="page-frame"
 			>
 				<div className={cn("max-w-344", contentClassName)}>{children}</div>
 			</div>

@@ -112,6 +112,46 @@ function resolvePostMessage(): HostPostMessage {
 	throw new Error("host shell is not initialised");
 }
 
+// ── Host → webview actions ────────────────────────────────────────────────
+//
+// The host can drive the app too, e.g. VS Code keybindings bound to
+// "new session" or "open settings". Message shape:
+//   host → webview: { type: "cline-host-action", action, payload? }
+
+export type HostAction =
+	| "new-session"
+	| "command-bar"
+	| "open-settings"
+	| "focus-input";
+
+type HostActionMessage = {
+	type: "cline-host-action";
+	action: HostAction;
+	payload?: unknown;
+};
+
+function isHostAction(value: unknown): value is HostActionMessage {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		(value as { type?: unknown }).type === "cline-host-action" &&
+		typeof (value as { action?: unknown }).action === "string"
+	);
+}
+
+export function subscribeToHostActions(
+	handler: (action: HostAction, payload?: unknown) => void,
+): () => void {
+	if (typeof window === "undefined" || !isHostShellAvailable()) {
+		return () => {};
+	}
+	const listener = (event: MessageEvent) => {
+		if (isHostAction(event.data)) handler(event.data.action, event.data.payload);
+	};
+	window.addEventListener("message", listener);
+	return () => window.removeEventListener("message", listener);
+}
+
 /**
  * Send a native command to the embedding host. Rejects when no host shell is
  * installed, the host reports an error, or no answer arrives in time.

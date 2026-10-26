@@ -150,6 +150,10 @@ import {
 	type TerminalPanelState,
 	writeTerminalPanelState,
 } from "@/lib/terminal-panel-state";
+import { syncHostAppearance } from "@/lib/host-appearance";
+import { openSessionChangeInHost } from "@/lib/host-diff";
+import { useHostCapabilities } from "@/lib/host-mode";
+import { subscribeToHostActions } from "@/lib/host-shell";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
@@ -524,11 +528,19 @@ function App() {
 			window.removeEventListener(ONBOARDING_RESET_EVENT, handleReset);
 	}, []);
 
+	const host = useHostCapabilities();
+
 	useEffect(() => {
 		syncHubTheme();
 		syncHubAccent();
 		syncAppFontSize();
-		return watchSystemHubTheme();
+		const stopSystemTheme = watchSystemHubTheme();
+		// Inside VS Code the editor's theme/zoom win over the stored preference.
+		const stopHostAppearance = syncHostAppearance();
+		return () => {
+			stopSystemTheme();
+			stopHostAppearance();
+		};
 	}, []);
 
 	useEffect(() => {
@@ -891,7 +903,33 @@ function App() {
 	);
 	// App shortcuts come from keybindings.json (Settings → Keybindings).
 	const keybindings = useKeybindings();
+	// Hosts that own keybindings (VS Code) drive the same actions by message.
+	useEffect(
+		() =>
+			subscribeToHostActions((action) => {
+				if (showOnboarding) return;
+				switch (action) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "command-bar":
+						setCommandBarOpen((current) => !current);
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "focus-input":
+						document
+							.querySelector<HTMLTextAreaElement>("textarea")
+							?.focus();
+						break;
+				}
+			}),
+		[handleNewThread, handleViewChange, showOnboarding],
+	);
 	useEffect(() => {
+		// The host's own keybindings apply instead; don't double-handle.
+		if (host.ownsKeybindings) return;
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding || areShortcutsSuspended()) {
 				return;
@@ -926,6 +964,7 @@ function App() {
 		handleNewThread,
 		handleToggleTerminal,
 		handleViewChange,
+		host.ownsKeybindings,
 		keybindings,
 		showOnboarding,
 		terminalAvailable,
@@ -1230,7 +1269,7 @@ function App() {
 				onOpenChange={setExportDiagnosticsOpen}
 				open={exportDiagnosticsOpen}
 			/>
-			<QuitHoldHandler bindings={keybindings} />
+			{host.canQuit ? <QuitHoldHandler bindings={keybindings} /> : null}
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {
@@ -1399,6 +1438,7 @@ function ChatThreadPane({
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
+	const host = useHostCapabilities();
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1427,6 +1467,7 @@ function ChatThreadPane({
 		setChangesPath(path ?? null);
 		setWorkspacePanel("changes");
 	}, []);
+
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2714,6 +2755,32 @@ function ChatThreadPane({
 			// diff only refreshes when a turn ends, so it can't drive this.
 			refreshKey: `${status}:${activityKey}`,
 		});
+	// In VS Code there is no in-webview changes pane: a file row opens the
+	// editor's own diff view, and the receipt header opens the first file.
+	const reviewLastTurnInHost = useCallback(
+		(path?: string) => {
+			const lastTurn = sessionChanges?.lastTurn;
+			const root = sessionChanges?.root ?? resolvedWorkspaceRoot;
+			const file = path
+				? lastTurn?.files.find((candidate) => candidate.path === path)
+				: lastTurn?.files[0];
+			if (!file || !root) return;
+			void openSessionChangeInHost({ environmentId, root, file }).catch(
+				(error: unknown) => {
+					toast({
+						variant: "destructive",
+						title: "Could not open diff",
+						description:
+							error instanceof Error ? error.message : String(error),
+					});
+				},
+			);
+		},
+		[environmentId, resolvedWorkspaceRoot, sessionChanges],
+	);
+	const reviewLastTurnForHost = host.opensDiffsExternally
+		? reviewLastTurnInHost
+		: reviewLastTurn;
 	// Git checkpoints when the workspace has them, otherwise the tool-event
 	// reconstruction.
 	const headerDiff = useMemo(
@@ -2795,7 +2862,11 @@ function ChatThreadPane({
 			: undefined;
 	// Cloud runs have no reachable workspace, and the welcome state has no
 	// session to browse alongside yet.
-	const canBrowseFiles = mayBrowseFiles;
+	// Change tracking (turn receipts) works wherever there is a workspace; the
+	// in-webview Files/Changes panes only when the host has no file browser
+	// of its own.
+	const canTrackChanges = mayBrowseFiles;
+	const canBrowseFiles = mayBrowseFiles && host.hasFileBrowser;
 	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
 	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
 
@@ -2901,11 +2972,13 @@ function ChatThreadPane({
 								}
 								onFixCredentials={handleFixCredentials}
 								lastTurnChanges={
-									canBrowseFiles && sessionChangesCurrent
+									canTrackChanges && sessionChangesCurrent
 										? sessionChanges?.lastTurn
 										: undefined
 								}
-								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
+								onReviewLastTurn={
+									canTrackChanges ? reviewLastTurnForHost : undefined
+								}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

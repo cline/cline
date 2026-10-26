@@ -81,6 +81,7 @@ import {
 } from "./provider-list-view";
 import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
+import { useHostCapabilities } from "@/lib/host-mode";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
 import { VoiceInputContent } from "./voice-input-view";
@@ -698,6 +699,9 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 ];
 
 function GeneralSettingsContent() {
+	// Hosts like VS Code own theme, font size, app icon and updates; those rows
+	// are hidden so the user changes them in the host's own settings.
+	const host = useHostCapabilities();
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -850,6 +854,7 @@ function GeneralSettingsContent() {
 			/>
 			<section className="max-w-344">
 				<NotificationSettings />
+				{!host.ownsTheme ? (
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Dark mode</p>
@@ -863,6 +868,8 @@ function GeneralSettingsContent() {
 						onCheckedChange={updateTheme}
 					/>
 				</div>
+				) : null}
+				{!host.ownsFontSize ? (
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Font size</p>
@@ -910,6 +917,7 @@ function GeneralSettingsContent() {
 						</output>
 					</div>
 				</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
@@ -938,6 +946,7 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
+				{host.hasAppIcon ? (
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">App icon</p>
@@ -986,6 +995,8 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
+				) : null}
+				{host.hasAutoUpdate ? (
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
@@ -1009,6 +1020,7 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>

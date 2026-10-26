@@ -21,6 +21,22 @@
 	}
 }
 
+/*
+ * Embedded hosts (VS Code sidebar) are narrow and already supply their own
+ * window chrome. `data-cline-host` is set by lib/host-mode.ts at boot.
+ */
+html[data-cline-host="vscode"] {
+	/* No macOS traffic lights to clear; the compact (max-md) height is enough. */
+	--window-title-bar-height: 2.25rem;
+}
+
+/* Settings/Customize pages assume a wide desktop window; pull the gutters in. */
+html[data-cline-host="vscode"] [data-slot="page-frame"] {
+	padding-left: 1rem;
+	padding-right: 1rem;
+	padding-top: 1.25rem;
+}
+
 @layer base {
 	html,
 	body {

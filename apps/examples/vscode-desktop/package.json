@@ -30,6 +30,47 @@
 			{
 				"command": "clineDesktop.showLogs",
 				"title": "Cline Desktop: Show Backend Logs"
+			},
+			{
+				"command": "clineDesktop.newSession",
+				"title": "Cline Desktop: New Session"
+			},
+			{
+				"command": "clineDesktop.searchSessions",
+				"title": "Cline Desktop: Search Sessions"
+			},
+			{
+				"command": "clineDesktop.openSettings",
+				"title": "Cline Desktop: Open Settings"
+			},
+			{
+				"command": "clineDesktop.focusInput",
+				"title": "Cline Desktop: Focus Chat Input"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "clineDesktop.newSession",
+				"key": "ctrl+shift+n",
+				"mac": "cmd+shift+n",
+				"when": "focusedView == clineDesktop.sidebar || activeWebviewPanelId == clineDesktop.panel"
+			},
+			{
+				"command": "clineDesktop.searchSessions",
+				"key": "ctrl+shift+k",
+				"mac": "cmd+shift+k",
+				"when": "focusedView == clineDesktop.sidebar || activeWebviewPanelId == clineDesktop.panel"
+			},
+			{
+				"command": "clineDesktop.openSettings",
+				"key": "ctrl+shift+,",
+				"mac": "cmd+shift+,",
+				"when": "focusedView == clineDesktop.sidebar || activeWebviewPanelId == clineDesktop.panel"
+			},
+			{
+				"command": "clineDesktop.focusInput",
+				"key": "ctrl+shift+l",
+				"mac": "cmd+shift+l"
 			}
 		],
 		"viewsContainers": {

@@ -78,6 +78,72 @@ export function buildBootstrapScript(options: {
 	var vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null;
 	window.__SIDECAR_WS_ENDPOINT__ = ${escapeForInlineScript(options.wsEndpoint)};
 	window.__CLINE_HOST_SHELL__ = { kind: "vscode", commands: ${escapeForInlineScript(options.hostCommands)} };
+	document.documentElement.dataset.clineHost = "vscode";
+	// VS Code publishes its theme on <body data-vscode-theme-kind> and its
+	// colours/font as inline --vscode-* custom properties on <html>. React
+	// hydration replaces both elements' attributes, wiping them. Snapshot
+	// them into a stylesheet + a stable <meta> before any chunk runs, and
+	// refresh whenever VS Code re-applies them (theme change, zoom).
+	// One <style> carries both the copied variables and (as data-*) the theme
+	// kind / font size. React removes unknown <meta> tags from <head> during
+	// hydration but leaves this element alone.
+	var sheet = document.createElement("style");
+	sheet.id = "cline-host-appearance";
+	var mirror = sheet;
+	var snapshot = function () {
+		var root = document.documentElement;
+		var inline = root.style;
+		var decls = [];
+		for (var i = 0; i < inline.length; i++) {
+			var prop = inline[i];
+			if (prop.indexOf("--vscode-") === 0) {
+				decls.push(prop + ":" + inline.getPropertyValue(prop));
+			}
+		}
+		// React hydration clears <html style>; keep the last real snapshot then.
+		if (!decls.length && !(document.body && document.body.dataset.vscodeThemeKind)) return;
+		if (decls.length) sheet.textContent = ":root{" + decls.join(";") + "}";
+		var kind = document.body && document.body.dataset.vscodeThemeKind;
+		if (!kind) {
+			// <body> may not exist yet, or React may have rewritten it. Derive
+			// the kind from the editor background VS Code always provides.
+			var bg = inline.getPropertyValue("--vscode-editor-background").trim();
+			var m = /^#([0-9a-f]{6})/i.exec(bg);
+			if (m) {
+				var n = parseInt(m[1], 16);
+				var lum = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+				kind = lum < 0.5 ? "vscode-dark" : "vscode-light";
+			}
+		}
+		if (kind) mirror.dataset.themeKind = kind;
+		var cs = getComputedStyle(root);
+		var size = cs.getPropertyValue("--vscode-font-size").trim();
+		if (size) mirror.dataset.fontSize = size;
+		if (root.dataset.clineHost !== "vscode") root.dataset.clineHost = "vscode";
+		document.dispatchEvent(new Event("cline-host-appearance"));
+	};
+	document.head.appendChild(sheet);
+	snapshot();
+	var scheduled = false;
+	var schedule = function () {
+		if (scheduled) return;
+		scheduled = true;
+		requestAnimationFrame(function () { scheduled = false; snapshot(); });
+	};
+	new MutationObserver(function (records) {
+		// Only VS Code's own updates carry --vscode-* vars; React's rewrites
+		// of <html style> (font-size) must not re-snapshot an empty set.
+		for (var r = 0; r < records.length; r++) {
+			var target = records[r].target;
+			if (target === document.body) { schedule(); return; }
+			if (target.style && target.style.getPropertyValue("--vscode-font-size")) { schedule(); return; }
+		}
+	}).observe(document.documentElement, { attributes: true, subtree: false });
+	document.addEventListener("DOMContentLoaded", function () {
+		// <body> did not exist for the first snapshot; take its theme kind now.
+		snapshot();
+		new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ["data-vscode-theme-kind", "class"] });
+	});
 	window.__CLINE_HOST_POST_MESSAGE__ = function (message) {
 		if (!vscode) { throw new Error("VS Code API unavailable"); }
 		vscode.postMessage(message);

@@ -85,6 +85,18 @@ export const SETTINGS_SECTIONS = ALL_SETTINGS_SECTIONS.filter(
 	(section) => !HIDDEN_SECTIONS.has(section),
 );
 
+/**
+ * Sections that only make sense when the shell has nothing equivalent. A
+ * host that owns keybindings (VS Code) configures shortcuts in its own UI.
+ */
+export function settingsSectionsForHost(host: {
+	ownsKeybindings: boolean;
+}): readonly SettingsSection[] {
+	return SETTINGS_SECTIONS.filter(
+		(section) => !(host.ownsKeybindings && section === "Keybindings"),
+	);
+}
+
 export const CUSTOMIZATION_SECTIONS = ALL_CUSTOMIZATION_SECTIONS.filter(
 	(section) => !HIDDEN_SECTIONS.has(section),
 );

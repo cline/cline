@@ -9,12 +9,15 @@
  */
 import { isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
+import { openFileDiff } from "./diff-provider";
 import { invokeSidecar } from "./sidecar-client";
 
 export type HostCommandContext = {
 	workspaceRoot: string;
 	restartBackend: () => Promise<unknown>;
 	backendWsEndpoint: () => string | undefined;
+	/** Bring the webview that issued the command back into view. */
+	revealWebview: () => void;
 };
 
 type HostCommandHandler = (
@@ -67,6 +70,23 @@ const handlers: Record<string, HostCommandHandler> = {
 		return { path: filePath, editor: "vscode" };
 	},
 
+	async open_file_diff(args) {
+		const path = stringArg(args, "path");
+		if (!path) throw new Error("path is required");
+		const oldText = typeof args?.oldText === "string" ? args.oldText : "";
+		const newText = typeof args?.newText === "string" ? args.newText : "";
+		const status = args?.status;
+		await openFileDiff({
+			path,
+			title: stringArg(args, "title"),
+			oldText,
+			newText,
+			status:
+				status === "A" || status === "M" || status === "D" ? status : undefined,
+		});
+		return { opened: true };
+	},
+
 	async list_available_editors() {
 		return [{ id: "vscode", name: vscode.env.appName, available: true }];
 	},
@@ -87,10 +107,14 @@ const handlers: Record<string, HostCommandHandler> = {
 		return path;
 	},
 
-	async show_session_notification(args) {
+	async show_session_notification(args, ctx) {
 		const title = stringArg(args, "title") ?? "Cline";
 		const body = stringArg(args, "body");
-		void vscode.window.showInformationMessage(body ? `${title}: ${body}` : title);
+		void vscode.window
+			.showInformationMessage(body ? `${title}: ${body}` : title, "Show")
+			.then((choice) => {
+				if (choice === "Show") ctx.revealWebview();
+			});
 		return null;
 	},
 

@@ -91,9 +91,10 @@ import {
 	PROVIDER_SECTION_LABELS,
 	PROVIDER_SECTIONS,
 	readProviderSectionInUse,
-	SETTINGS_SECTIONS,
 	type SettingsSection,
+	settingsSectionsForHost,
 } from "@/components/views/settings/sections";
+import { useHostCapabilities } from "@/lib/host-mode";
 import { useAccount } from "@/contexts/account-context";
 import { useHasConnectedProvider } from "@/hooks/use-has-connected-provider";
 import type {
@@ -202,6 +203,7 @@ function SettingsSectionNavigation({
 	// Voice input only works with a connected model provider, so its section
 	// stays disabled until one is set up (null = catalog still loading).
 	const hasConnectedProvider = useHasConnectedProvider();
+	const host = useHostCapabilities();
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
 		const label = settingsSectionLabel(section);
@@ -306,7 +308,7 @@ function SettingsSectionNavigation({
 			    render under that row), so the section nav skips them there.
 			    The collapsed sidebar has no action rows and keeps them
 			    reachable. */}
-			{SETTINGS_SECTIONS.filter(
+			{settingsSectionsForHost(host).filter(
 				(section) => collapsed || section !== "Schedules",
 			).map((section) => {
 				if (collapsed || !isProviderSection(section)) {

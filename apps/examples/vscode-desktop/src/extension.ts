@@ -16,6 +16,7 @@ import { readFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import * as vscode from "vscode";
 import { DesktopBackend, resolveDefaultBackendEntry } from "./backend";
+import { registerDiffProvider } from "./diff-provider";
 import {
 	HOST_COMMANDS,
 	type HostCommandContext,
@@ -125,12 +126,29 @@ ${isError ? "<p>See the <b>Cline Desktop</b> output channel for backend logs.</p
 </body></html>`;
 }
 
+/** Live webviews, most recently focused last; host actions go to the last one. */
+const activeWebviews = new Set<DesktopWebview>();
+
+type HostAction = "new-session" | "command-bar" | "open-settings" | "focus-input";
+
+function postHostAction(action: HostAction): void {
+	const target = [...activeWebviews].at(-1);
+	if (!target) {
+		// Nothing open yet: open the sidebar, which will render fresh state.
+		void vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+		return;
+	}
+	target.reveal();
+	void target.postHostAction(action);
+}
+
 class DesktopWebview {
 	private disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly webview: vscode.Webview,
 		private readonly context: vscode.ExtensionContext,
+		readonly reveal: () => void,
 	) {
 		webview.options = {
 			enableScripts: true,
@@ -139,12 +157,28 @@ class DesktopWebview {
 		this.disposables.push(
 			webview.onDidReceiveMessage((message) => void this.onMessage(message)),
 		);
+		activeWebviews.add(this);
 		void this.render();
 	}
 
 	dispose(): void {
+		activeWebviews.delete(this);
 		for (const disposable of this.disposables) disposable.dispose();
 		this.disposables = [];
+	}
+
+	/** Mark this webview as the most recently used target for host actions. */
+	touch(): void {
+		activeWebviews.delete(this);
+		activeWebviews.add(this);
+	}
+
+	postHostAction(action: HostAction, payload?: unknown): Thenable<boolean> {
+		return this.webview.postMessage({
+			type: "cline-host-action",
+			action,
+			payload,
+		});
 	}
 
 	private distDir(): vscode.Uri {
@@ -156,6 +190,7 @@ class DesktopWebview {
 			workspaceRoot: resolveWorkspaceRoot(),
 			restartBackend: () => ensureBackend(this.context).restart(),
 			backendWsEndpoint: () => backend?.current?.wsEndpoint,
+			revealWebview: () => this.reveal(),
 		};
 	}
 
@@ -231,7 +266,13 @@ class SidebarProvider implements vscode.WebviewViewProvider {
 
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		this.view?.dispose();
-		this.view = new DesktopWebview(webviewView.webview, this.context);
+		const view = new DesktopWebview(webviewView.webview, this.context, () =>
+			webviewView.show(true),
+		);
+		this.view = view;
+		webviewView.onDidChangeVisibility(() => {
+			if (webviewView.visible) view.touch();
+		});
 		webviewView.onDidDispose(() => {
 			this.view?.dispose();
 			this.view = undefined;
@@ -251,7 +292,13 @@ function openPanel(context: vscode.ExtensionContext): void {
 		{ retainContextWhenHidden: true },
 	);
 	panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
-	const view = new DesktopWebview(panel.webview, context);
+	const openedPanel = panel;
+	const view = new DesktopWebview(panel.webview, context, () =>
+		openedPanel.reveal(undefined, true),
+	);
+	panel.onDidChangeViewState((event) => {
+		if (event.webviewPanel.active) view.touch();
+	});
 	panel.onDidDispose(() => {
 		view.dispose();
 		panel = undefined;
@@ -285,6 +332,21 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand("clineDesktop.showLogs", () =>
 			logs?.show(),
 		),
+		// Keyboard shortcuts live in VS Code's keybindings (see package.json);
+		// each one forwards an action the app also exposes to its own shortcuts.
+		vscode.commands.registerCommand("clineDesktop.newSession", () =>
+			postHostAction("new-session"),
+		),
+		vscode.commands.registerCommand("clineDesktop.searchSessions", () =>
+			postHostAction("command-bar"),
+		),
+		vscode.commands.registerCommand("clineDesktop.openSettings", () =>
+			postHostAction("open-settings"),
+		),
+		vscode.commands.registerCommand("clineDesktop.focusInput", () =>
+			postHostAction("focus-input"),
+		),
+		registerDiffProvider(),
 	);
 	// Warm the backend so the first webview open is fast.
 	void ensureBackend(context)

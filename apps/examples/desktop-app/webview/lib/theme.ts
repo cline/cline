@@ -12,12 +12,22 @@ export const HUB_THEME_BOOTSTRAP_SCRIPT = `(() => {
 	const root = document.documentElement;
 	let theme;
 
+	// An embedding host that owns the theme (VS Code) mirrors it here before
+	// this runs; it wins over the stored preference so there is no flash.
 	try {
-		const stored = window.localStorage.getItem(${JSON.stringify(HUB_THEME_STORAGE_KEY)});
-		if (stored === "light" || stored === "dark") {
-			theme = stored;
-		}
+		const kind = document.getElementById("cline-host-appearance")?.dataset.themeKind;
+		if (kind === "vscode-dark" || kind === "vscode-high-contrast") theme = "dark";
+		else if (kind === "vscode-light" || kind === "vscode-high-contrast-light") theme = "light";
 	} catch {}
+
+	if (!theme) {
+		try {
+			const stored = window.localStorage.getItem(${JSON.stringify(HUB_THEME_STORAGE_KEY)});
+			if (stored === "light" || stored === "dark") {
+				theme = stored;
+			}
+		} catch {}
+	}
 
 	if (!theme) {
 		try {
