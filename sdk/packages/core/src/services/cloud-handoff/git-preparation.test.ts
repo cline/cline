@@ -253,11 +253,10 @@ describe("cloud handoff Git preparation", () => {
 		);
 	});
 
-	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
+	it("publishes staged, unstaged, and new files from a subdirectory without changing the source checkout", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged\n");
 		git("add", ".");
 		writeFileSync(join(repo, "tracked.txt"), "working copy\n");
-		writeFileSync(join(repo, "unstaged.txt"), "working\n");
 		writeFileSync(join(repo, "new file.txt"), "new\n");
 		mkdirSync(join(repo, "sub"));
 		const beforeIndex = git("write-tree");
@@ -268,7 +267,6 @@ describe("cloud handoff Git preparation", () => {
 		expect(plan.files.map((file) => file.path).sort()).toEqual([
 			"new file.txt",
 			"tracked.txt",
-			"unstaged.txt",
 		]);
 		expect(plan.commits).toEqual([]);
 		expect(git("write-tree")).toBe(beforeIndex);
@@ -496,12 +494,6 @@ describe("cloud handoff Git preparation", () => {
 		expect(readFileSync(join(repo, ".git/index"))).toEqual(index);
 		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
-	it("allows credential templates in the checkpoint", async () => {
-		writeFileSync(join(repo, ".netrc.example"), "machine example.com\n");
-		const plan = await inspectHandoffGit(repo);
-		expect(plan.files.map(({ path }) => path)).toContain(".netrc.example");
-	});
-
 	it("rejects different push repositories before any local mutation", async () => {
 		transport.pushUrl = "https://github.com/other/repo";
 		await expect(inspectHandoffGit(repo)).rejects.toThrow(
@@ -510,11 +502,15 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("branch", "--show-current")).toBe("main");
 	});
 
-	it("never adds ignored files", async () => {
+	it("publishes credential templates but excludes ignored files", async () => {
+		writeFileSync(join(repo, ".netrc.example"), "machine example.com\n");
 		writeFileSync(join(repo, ".gitignore"), "private.txt\n");
 		writeFileSync(join(repo, "private.txt"), "keep local");
 		const plan = await inspectHandoffGit(repo);
-		expect(plan.files.map((file) => file.path)).toEqual([".gitignore"]);
+		expect(plan.files.map((file) => file.path)).toEqual([
+			".gitignore",
+			".netrc.example",
+		]);
 		await applyHandoffGit(plan);
 		expect(
 			git(
@@ -525,7 +521,7 @@ describe("cloud handoff Git preparation", () => {
 				"--name-only",
 				plan.branch,
 			),
-		).not.toContain("private.txt");
+		).toBe(".gitignore\n.netrc.example\ntracked.txt");
 	});
 	it("refuses an untracked nested repository instead of publishing a gitlink without its files", async () => {
 		const nested = join(repo, "nested");

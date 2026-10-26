@@ -121,16 +121,15 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
-`create({ ...input, initialMessage: { text, images } })` creates and submits the
-first message, returning the session attachment plus `initialSend`. Without
-`initialMessage`, creation does not send; `initialPrompt` remains metadata only.
-A failed `initialSend` includes `dispatched`; only `false` means the prompt can be
-retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
-disconnects. A lost reply raises `request_failed` with a warning that the task may
-have started; check cloud tasks before retrying.
-Hub clients can pass an approved Git plan as `localGit`, omitting the preview-only
-`sourceBranch`, `files`, and `commits` fields, to publish a frozen checkpoint before
-creation. This requires token-authenticated workspace access.
+`create({ ...input, initialMessage: { text, images } })` creates the task and sends
+the first message, returning the session attachment and `initialSend`. Without
+`initialMessage`, creation does not send; `initialPrompt` is metadata only.
+Retry a failed initial send on the created target only when `dispatched` is `false`.
+The Hub continues after viewer disconnects. A lost reply raises `request_failed`;
+check cloud tasks before retrying.
+Hub clients can publish an approved snapshot before creation with `localGit`.
+Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
+This requires token-authenticated workspace access.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

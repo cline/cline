@@ -245,13 +245,9 @@ describe("hub-owned cloud sessions", () => {
 		controller.prepareHandoffRepository.mockResolvedValue({
 			organizationId: "org-two",
 		});
-		controller.listModels.mockResolvedValue([
-			{ id: "model", name: "Model", catalogId: "cline" },
-		]);
 		const apply = vi
 			.spyOn(handoffGit, "applyHandoffGit")
 			.mockResolvedValue("c".repeat(40));
-		vi.spyOn(handoffGit, "verifyPublishedHandoffGit").mockResolvedValue();
 		await expect(
 			command(f.service, "create", [localGitInput()]),
 		).rejects.toThrow("organization changed");
@@ -881,18 +877,17 @@ describe("cloud RPC over a shared hub socket", () => {
 			const completion =
 				deferred<Awaited<ReturnType<CloudSessionController["create"]>>>();
 			controller.create.mockReturnValueOnce(completion.promise);
-			const created = viewer
-				.create({
-					modelId: "model",
-					repoUrl: "https://github.com/example/project",
-					initialMessage: {
-						text: "Summary and next instruction",
-						images: ["image"],
-					},
-					mode: "plan",
-					workspaceRelativePath: "packages/app",
-				})
-				.catch((error: unknown) => error);
+			const input: Parameters<CloudSessionController["create"]>[0] = {
+				modelId: "model",
+				repoUrl: "https://github.com/example/project",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["image"],
+				},
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+			};
+			const created = viewer.create(input).catch((error: unknown) => error);
 			await vi.waitFor(() => expect(controller.create).toHaveBeenCalled());
 			expect((await observer.command("session.list")).payload).toMatchObject({
 				activeCloudCommands: 1,
@@ -907,14 +902,7 @@ describe("cloud RPC over a shared hub socket", () => {
 				activeCloudCommands: 1,
 			});
 			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
-				modelId: "model",
-				repoUrl: "https://github.com/example/project",
-				initialMessage: {
-					text: "Summary and next instruction",
-					images: ["image"],
-				},
-				mode: "plan",
-				workspaceRelativePath: "packages/app",
+				...input,
 				sandboxType: "resumable",
 			});
 			completion.resolve({
