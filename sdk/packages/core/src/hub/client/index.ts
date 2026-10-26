@@ -380,6 +380,7 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
+	private supportsStoredHistory = false;
 	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
@@ -447,12 +448,13 @@ export class NodeHubClient {
 			);
 		}
 
+		this.supportsStoredHistory = false;
 		const generation = ++this.connectGeneration;
 		const connectPromise = this.openSocket(url, authToken, generation);
 		let attemptSocket: WebSocketLike | undefined;
 		this.connectPromise = connectPromise.then(async (socket) => {
 			attemptSocket = socket;
-			await this.commandOnce(
+			const registration = await this.commandOnce(
 				"client.register",
 				{
 					clientId: this.clientId,
@@ -484,6 +486,10 @@ export class NodeHubClient {
 				}
 				throw this.lastCloseError;
 			}
+			const serverCapabilities = registration.payload?.serverCapabilities;
+			this.supportsStoredHistory =
+				Array.isArray(serverCapabilities) &&
+				serverCapabilities.includes("session.create.stored_history");
 			this.registered = true;
 			for (const key of this.subscriptionCounts.keys()) {
 				this.sendSubscriptionFrame(
@@ -504,6 +510,7 @@ export class NodeHubClient {
 			if (attemptSocket && this.socket === attemptSocket) {
 				this.lastCloseError = normalizeWebSocketConnectError(error, url);
 				this.registered = false;
+				this.supportsStoredHistory = false;
 				this.sawSocketClose = false;
 				this.socket = undefined;
 				try {
@@ -684,6 +691,7 @@ export class NodeHubClient {
 				this.sawSocketClose = true;
 			}
 			this.registered = false;
+			this.supportsStoredHistory = false;
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(this.lastCloseError);
 			}
@@ -765,6 +773,22 @@ export class NodeHubClient {
 			await this.connect();
 		}
 		options?.beforeDispatch?.();
+		if (command === "session.create" && payload?.historySource !== undefined) {
+			if (payload.historySource !== "stored") {
+				throw new HubCommandError(
+					command,
+					"invalid_history_source",
+					"Unknown history source",
+				);
+			}
+			if (!this.supportsStoredHistory) {
+				throw new HubCommandError(
+					command,
+					"unsupported_feature",
+					"Hub does not support stored session history",
+				);
+			}
+		}
 		const requestId = createSessionId("hubreq_");
 		options?.onDispatch?.(requestId);
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
@@ -938,6 +962,7 @@ export class NodeHubClient {
 		this.connectGeneration += 1;
 		this.clearReconnectTimer();
 		this.registered = false;
+		this.supportsStoredHistory = false;
 		// Preserve the last failure when close() has no live socket.
 		if (socket) {
 			this.lastCloseError = new HubTransportError(

@@ -162,6 +162,70 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it("renegotiates stored history support on reconnect without changing legacy create", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const supported = {
+				serverCapabilities: ["session.create.stored_history"],
+			};
+			MockWebSocket.commandPayloads.set("client.register", supported);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const payload = {
+				historySource: "stored",
+				sessionConfig: { sessionId: "saved" },
+			};
+			try {
+				await expect(
+					client.command("session.create", payload),
+				).resolves.toMatchObject({ ok: true });
+				await client.updateCapabilities([]);
+				await expect(
+					client.command("session.create", payload),
+				).resolves.toMatchObject({ ok: true });
+				MockWebSocket.commandPayloads.set("client.register", {});
+				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
+				const onDispatch = vi.fn();
+				await expect(
+					client.command("session.create", payload, undefined, { onDispatch }),
+				).rejects.toMatchObject({ code: "unsupported_feature" });
+				expect(onDispatch).not.toHaveBeenCalled();
+				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({ command: "session.create" }),
+					}),
+				);
+				await expect(
+					client.command("session.create", { initialMessages: [] }),
+				).resolves.toMatchObject({ ok: true });
+				MockWebSocket.commandPayloads.set("client.register", supported);
+				MockWebSocket.instances[1].emit("close", { code: 1006, reason: "" });
+				await expect(
+					client.command("session.create", payload),
+				).resolves.toMatchObject({ ok: true });
+			} finally {
+				await client.dispose();
+			}
+		});
+
+		it.each([
+			null,
+			"unknown",
+		])("rejects invalid history source before sending: %j", async (historySource) => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			try {
+				await expect(
+					client.command("session.create", { historySource }),
+				).rejects.toMatchObject({ code: "invalid_history_source" });
+				expect(MockWebSocket.instances[0].sentFrames).not.toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({ command: "session.create" }),
+					}),
+				);
+			} finally {
+				await client.dispose();
+			}
+		});
+
 		it.each([
 			undefined,
 			"1.2.3",

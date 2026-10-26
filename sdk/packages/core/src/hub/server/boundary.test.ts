@@ -4,7 +4,6 @@ import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
-	SessionAlreadyExistsError,
 	SessionNotFoundError,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -18,7 +17,6 @@ import {
 	requestToolApproval,
 } from "./handlers/approval-handlers";
 import {
-	CAPABILITY_OWNER_GONE_MESSAGE,
 	CAPABILITY_OWNER_RECONNECT_GRACE_MS,
 	requestCapability,
 } from "./handlers/capability-handlers";
@@ -87,9 +85,10 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
+				command: "session.create",
 				clientId: "resume-client",
 				payload: {
+					historySource: "stored",
 					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
 				},
 			});
@@ -149,10 +148,10 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
-				payload,
+				command: "session.create",
+				payload: { ...payload, historySource: "stored" },
 			});
-			expect(reply.error?.code).toBe("invalid_resume");
+			expect(reply.error?.code).toBe("invalid_history_source");
 			expect(startSession).not.toHaveBeenCalled();
 			expect(readSessionMessages).not.toHaveBeenCalled();
 		} finally {
@@ -177,12 +176,31 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.resume",
-				payload: { sessionConfig: resumeConfig },
+				command: "session.create",
+				payload: { historySource: "stored", sessionConfig: resumeConfig },
 			});
 			expect(reply.error?.code).toBe(
-				messages === undefined ? "session_not_found" : "invalid_resume",
+				messages === undefined ? "session_not_found" : "invalid_history_source",
 			);
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		null,
+		"unknown",
+	])("rejects an unsupported history source: %j", async (historySource) => {
+		const startSession = vi.fn();
+		const transport = createTransport({ sessionHost: { startSession } });
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				payload: { historySource, sessionConfig: resumeConfig },
+			});
+			expect(reply.error?.code).toBe("invalid_history_source");
 			expect(startSession).not.toHaveBeenCalled();
 		} finally {
 			await transport.stop();
@@ -1155,9 +1173,9 @@ describe("HubServerTransport boundaries", () => {
 	});
 
 	it.each([
-		"session.create",
-		"session.resume",
-	] as const)("preserves capability-backed tools through %s and resume conflicts", async (command) => {
+		undefined,
+		"stored",
+	] as const)("preserves capability-backed tools with history source %s", async (historySource) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1224,14 +1242,15 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command,
+			command: "session.create",
 			clientId: "client-1",
 			payload: {
+				historySource,
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
 					sessionId:
-						command === "session.resume" ? "123-saved-session" : undefined,
+						historySource === "stored" ? "123-saved-session" : undefined,
 					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",
@@ -1255,22 +1274,6 @@ describe("HubServerTransport boundaries", () => {
 		expect(reply.ok).toBe(true);
 		const sessionId = capturedStartInput?.config.sessionId?.trim() || "";
 		expect(sessionId).toMatch(/^[0-9]/);
-		if (command === "session.resume") {
-			expect(sessionId).toBe("123-saved-session");
-			startSession.mockRejectedValueOnce(
-				new SessionAlreadyExistsError(sessionId),
-			);
-			const duplicate = await transport.handleCommand({
-				version: "v1",
-				command,
-				clientId: "client-2",
-				payload: { sessionConfig: { ...resumeConfig, sessionId } },
-			});
-			expect(duplicate.error?.code).toBe("session_already_exists");
-			expect(
-				getContext(transport).sessionState.get(sessionId)?.createdByClientId,
-			).toBe("client-1");
-		}
 		const askQuestion =
 			capturedStartInput?.capabilities?.toolExecutors?.askQuestion;
 		if (!askQuestion) {
@@ -1316,40 +1319,6 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		await expect(answerPromise).resolves.toBe("Use hub");
-
-		await transport.handleCommand({
-			version: "v1",
-			command: "session.detach",
-			clientId: "client-1",
-			sessionId,
-		});
-		startSession.mockRejectedValueOnce(
-			new SessionAlreadyExistsError(sessionId),
-		);
-		const conflict = await transport.handleCommand({
-			version: "v1",
-			command: "session.resume",
-			clientId: "client-1",
-			payload: { sessionConfig: { ...resumeConfig, sessionId } },
-		});
-		expect(conflict.error?.code).toBe("session_already_exists");
-		const requestsBefore = events.filter(
-			(event) => event.event === "capability.requested",
-		).length;
-		const failedQuestion = expect(
-			askQuestion("After failed resume?", [], toolContext),
-		).rejects.toThrow(CAPABILITY_OWNER_GONE_MESSAGE);
-		const requestsAfter = events.filter(
-			(event) => event.event === "capability.requested",
-		).length;
-		await transport.handleCommand({
-			version: "v1",
-			command: "session.detach",
-			clientId: "client-1",
-			sessionId,
-		});
-		await failedQuestion;
-		expect(requestsAfter).toBe(requestsBefore);
 	});
 
 	it("does not transfer capability ownership to attached clients", async () => {

@@ -350,8 +350,6 @@ export async function prepareLocalRuntimeBootstrap(
 	} = options;
 	const workspacePath = resolveWorkspacePath(input.config);
 	const {
-		rejectExistingSession: _rejectExistingSession,
-		onStartAdmitted: _onStartAdmitted,
 		modelCatalogDefaults,
 		userInstructionService,
 		configExtensions,
