@@ -207,6 +207,16 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("requires an approved organization before starting Git publication", async () => {
+		const f = fixture();
+		await expect(
+			command(f.service, "create", [
+				{ ...localGitInput(), organizationId: undefined },
+			]),
+		).rejects.toThrow("Local Git publication requires organizationId");
+		expect(f.controllers).toHaveLength(0);
+	});
+
 	it.each([
 		{ requestId: undefined },
 		{ initialMessage: undefined },

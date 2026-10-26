@@ -37,6 +37,7 @@ export type CloudHubCreateInput = CloudCreateInput &
 		| { localGit?: never }
 		| {
 				localGit: HandoffGitPublication;
+				organizationId: string | null;
 				requestId: string;
 				initialMessage: { text: string; images?: string[] };
 		  }
