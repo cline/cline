@@ -4573,6 +4573,82 @@ describe("LocalRuntimeHost", () => {
 		expect(f.submitted).toEqual(["second"]);
 	});
 
+	it("reattaches instead of replacing a session whose turn is still preparing", async () => {
+		const sessionId = "sess-live-takeover-while-preparing";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdFirstRunningWrite: true,
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		// The turn is parked before the agent has a run, so the agent alone
+		// would report the session as idle and let a second start replace it.
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.held;
+		await expect(
+			f.manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+					prompt: "takeover",
+				}),
+			),
+		).rejects.toThrow("already has a run in progress");
+		const reattached = await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		expect(reattached.sessionId).toBe(sessionId);
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).toHaveBeenCalledTimes(1);
+
+		f.release();
+		await expect(turn).resolves.toMatchObject({ finishReason: "completed" });
+		expect(f.agent.run).toHaveBeenCalledTimes(1);
+	});
+
+	it("reattaches to a session whose first turn has not created its row yet", async () => {
+		const sessionId = "sess-live-takeover-before-first-persist";
+		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.held;
+		// The reattach must wait for the row the turn is creating, not fail
+		// because it does not exist yet.
+		let settled = false;
+		const reattaching = f.manager
+			.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			)
+			.finally(() => {
+				settled = true;
+			});
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(settled).toBe(false);
+
+		f.release();
+		await expect(reattaching).resolves.toMatchObject({ sessionId });
+		await expect(turn).resolves.toMatchObject({ finishReason: "completed" });
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).toHaveBeenCalledTimes(1);
+		expect(f.agent.run).toHaveBeenCalledTimes(1);
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;
