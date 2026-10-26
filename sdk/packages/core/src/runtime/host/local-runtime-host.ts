@@ -581,6 +581,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifest,
 			manifestPath: artifacts.manifestPath,
 			messagesPath: artifacts.messagesPath,
+			reattached: true,
 		};
 	}
 

@@ -213,6 +213,9 @@ turn leaves such gates blocked with nothing to clear them.
 Starting a session that already has a run in flight joins it rather than
 replacing it: `LocalRuntimeHost.startSession` returns the live session, and a
 start that also carries a prompt is rejected so the caller queues it instead.
+The result is marked `reattached` (and `session.create` replies carry it), so a
+caller restarting a session to apply new config or plugins can tell none of it
+took effect.
 The running agent keeps the client-owned capabilities (hooks, tool executors,
 the mistake-limit prompt) it was built with and never hands them to a client
 that joined later, since a same-named hook or tool may follow different rules.

@@ -2241,6 +2241,29 @@ describe("first-send connection updates", () => {
 			expect(session.pluginsStale).toBe(false);
 		});
 
+		it("keeps the restart pending when the Hub joined it to a run already in flight", async () => {
+			const { ctx, send, sessionId, start } = createContext();
+			const session = markPluginsStale(ctx, sessionId);
+			start.mockResolvedValueOnce({ sessionId, reattached: true } as never);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			expect(start).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledOnce();
+			expect(session.pluginsStale).toBe(true);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello again",
+			});
+			expect(start).toHaveBeenCalledTimes(2);
+			expect(session.pluginsStale).toBe(false);
+		});
+
 		it("keeps the restart pending when the restart and its rollback both fail", async () => {
 			const { ctx, sessionId, start } = createContext();
 			const session = markPluginsStale(ctx, sessionId);

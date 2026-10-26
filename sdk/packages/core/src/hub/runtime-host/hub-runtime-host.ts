@@ -998,6 +998,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			messagesPath: "",
 			result: undefined,
 			...(pluginIssues?.length ? { pluginIssues } : {}),
+			...(reply.payload?.reattached === true ? { reattached: true } : {}),
 		};
 	}
 

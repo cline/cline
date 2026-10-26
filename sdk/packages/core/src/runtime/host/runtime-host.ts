@@ -269,6 +269,12 @@ export interface StartSessionResult {
 	 * are disabled. Clients should show these to the user.
 	 */
 	pluginIssues?: import("@cline/shared").SessionPluginIssue[];
+	/**
+	 * The id already had a run in progress, so the start returned that live
+	 * session instead of a new runtime: none of the start's config, plugins or
+	 * messages took effect.
+	 */
+	reattached?: boolean;
 }
 
 export interface SendSessionInput {

@@ -581,6 +581,7 @@ export async function handleSessionCreate(
 		session,
 		...(snapshot ? { snapshot } : {}),
 		...pluginIssuePayload,
+		...(started.reattached ? { reattached: true } : {}),
 	});
 }
 

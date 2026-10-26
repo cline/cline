@@ -1266,7 +1266,7 @@ async function startRebuiltSession(
 	systemPrompt: string,
 	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
-): Promise<void> {
+): Promise<{ reattached: boolean }> {
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
@@ -1305,6 +1305,7 @@ async function startRebuiltSession(
 	}
 	emitPluginFailureNotices(ctx, sessionId, restarted.pluginIssues);
 	reattachPluginUiViewers(ctx, manager, sessionId);
+	return { reattached: restarted.reattached === true };
 }
 
 async function rebuildSessionForProviderChange(
@@ -1313,7 +1314,7 @@ async function rebuildSessionForProviderChange(
 	sessionId: string,
 	previousConfig: JsonRecord,
 	nextConfig: JsonRecord,
-): Promise<void> {
+): Promise<{ reattached: boolean }> {
 	const manager = binding.sessionManager;
 	const effectivePreviousConfig =
 		binding.kind === "ssh"
@@ -1346,7 +1347,7 @@ async function rebuildSessionForProviderChange(
 	await manager.stop(sessionId);
 	let replacementStarted = false;
 	try {
-		await startRebuiltSession(
+		const replacement = await startRebuiltSession(
 			manager,
 			ctx,
 			sessionId,
@@ -1363,6 +1364,7 @@ async function rebuildSessionForProviderChange(
 			sessionId,
 			buildSessionConnectionUpdate(effectiveNextConfig),
 		);
+		return replacement;
 	} catch (replacementError) {
 		try {
 			if (replacementStarted) {
@@ -1802,13 +1804,16 @@ async function sendPrompt(
 			const pluginsWereStale = session.pluginsStale === true;
 			session.pluginsStale = false;
 			try {
-				await rebuildSessionForProviderChange(
+				const { reattached } = await rebuildSessionForProviderChange(
 					ctx,
 					binding,
 					sessionId,
 					session.config,
 					nextConfig,
 				);
+				// A run that started in the Hub before the restart reached it kept
+				// the session, and with it the old plugins, so a later send retries.
+				if (reattached && pluginsWereStale) session.pluginsStale = true;
 			} catch (error) {
 				if (pluginsWereStale) session.pluginsStale = true;
 				throw error;
