@@ -1323,8 +1323,10 @@ effect when constructing child tools. Inherited runtime hooks are unchanged.
 
 ### Local CLI shell environment
 
-The CLI explicitly supplies an environment capture callback when selecting a
-discovered, authenticated loopback Hub. Explicit endpoints, remote hosts and
+The CLI explicitly supplies an environment capture callback when discovery
+reaches a loopback Hub, which the client authenticates to with the 0600
+discovery token (client-to-Hub only; the Hub is not authenticated to the
+client). Explicit endpoints, remote hosts and
 other SDK/desktop clients do not capture their ambient environment. At session
 creation (including checkpoint restore), the callback produces a validated copy
 in `runtimeOptions.shellEnvironment`. This field is ephemeral: it is not part

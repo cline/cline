@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
@@ -128,12 +128,38 @@ describe("Hub session shell environment", () => {
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
 		});
+		// A replaced environment on Windows still needs the system variables
+		// the child runtime requires to start; they are not asserted on.
+		const windowsBase: Record<string, string> =
+			process.platform === "win32"
+				? Object.fromEntries(
+						[
+							"SystemRoot",
+							"SYSTEMROOT",
+							"windir",
+							"PATH",
+							"Path",
+							"PATHEXT",
+							"COMSPEC",
+							"TEMP",
+							"TMP",
+						].flatMap((key) => {
+							const value = process.env[key];
+							return value === undefined ? [] : [[key, value]];
+						}),
+					)
+				: {};
 		const clientA = {
+			...windowsBase,
 			CLINE_TEST_CANARY: "fresh-A",
 			CLINE_TEST_ONLY_A: "A",
 			EMPTY: "",
 		};
-		const clientB = { CLINE_TEST_CANARY: "fresh-B", CLINE_TEST_ONLY_B: "B" };
+		const clientB = {
+			...windowsBase,
+			CLINE_TEST_CANARY: "fresh-B",
+			CLINE_TEST_ONLY_B: "B",
+		};
 		const a = new HubRuntimeHost({
 			url: "ws://127.0.0.1/hub",
 			captureShellEnvironment: () => clientA,
@@ -166,15 +192,19 @@ describe("Hub session shell environment", () => {
 			"CLINE_TEST_DAEMON_SECRET",
 			"EMPTY",
 		];
+		// An owned probe file passed by argv avoids native-argument quoting
+		// differences (Windows PowerShell 5.1 drops embedded double quotes).
 		const script = `process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map(k=>[k,process.env[k]??null]))))`;
+		const probePath = join(root, "probe.js");
+		writeFileSync(probePath, script);
 		const run = async (id: string, structured: boolean) => {
 			const tool = runtimes
 				.get(id)
 				?.tools.find((tool) => tool.name === "run_commands");
 			if (!tool) throw new Error("Expected built-in shell tool");
 			const command = structured
-				? { command: process.execPath, args: ["-e", script] }
-				: `${process.platform === "win32" ? "& " : ""}"${process.execPath.replaceAll("\\", "/")}" -e '${script}'`;
+				? { command: process.execPath, args: [probePath] }
+				: `"${process.execPath}" -e '${script}'`;
 			return JSON.stringify(
 				await tool.execute(
 					{ commands: [command] },
@@ -196,7 +226,12 @@ describe("Hub session shell environment", () => {
 			expect(outA).not.toContain("fresh-B");
 			expect(outB).toContain("fresh-B");
 			expect(outB).not.toContain("fresh-A");
-			for (const output of [outA, outB, await run("session-A", false)]) {
+			// The shell-string path stays POSIX-only: createWindowsExecutor tests
+			// cover PowerShell command-string handling.
+			const outputs = [outA, outB];
+			if (process.platform !== "win32")
+				outputs.push(await run("session-A", false));
+			for (const output of outputs) {
 				expect(output).not.toContain("daemon-only-synthetic");
 				expect(output).not.toContain("old-pane");
 				expect(output).not.toContain("changed-after-create");

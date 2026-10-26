@@ -165,7 +165,31 @@ describe("createShellExecutor", () => {
 			timeoutMs: 2_000,
 			executionController: controller,
 			...(replaceEnvironment
-				? { env: { CLINE_DETACH_CANARY: "owned-session" }, inheritEnv: false }
+				? {
+						env: {
+							// Windows children need these system variables to start.
+							...Object.fromEntries(
+								process.platform === "win32"
+									? [
+											"SystemRoot",
+											"SYSTEMROOT",
+											"windir",
+											"PATH",
+											"Path",
+											"PATHEXT",
+											"COMSPEC",
+											"TEMP",
+											"TMP",
+										].flatMap((key) => {
+											const value = process.env[key];
+											return value === undefined ? [] : [[key, value]];
+										})
+									: [],
+							),
+							CLINE_DETACH_CANARY: "owned-session",
+						},
+						inheritEnv: false,
+					}
 				: {}),
 			detachedLogRetentionMs: 250,
 			processStartTokenProbe: (pid) => ({

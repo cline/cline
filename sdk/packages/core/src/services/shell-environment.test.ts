@@ -3,6 +3,7 @@ import {
 	captureShellEnvironment,
 	MAX_SHELL_ENVIRONMENT_BYTES,
 	parseShellEnvironment,
+	SHELL_ENVIRONMENT_ERRORS,
 } from "./shell-environment";
 
 describe("session shell environment validation", () => {
@@ -16,21 +17,41 @@ describe("session shell environment validation", () => {
 		expect(parseShellEnvironment({})).toEqual({});
 	});
 	it.each([
-		null,
-		[],
-		"secret-sentinel",
-		{ CANARY: 42 },
-		{ "": "secret-sentinel" },
-		{ "BAD=NAME": "secret-sentinel" },
-		{ "BAD\0NAME": "secret-sentinel" },
-		{ CANARY: "secret-sentinel\0" },
-		{ CANARY: "x".repeat(MAX_SHELL_ENVIRONMENT_BYTES) },
-		Object.fromEntries(
-			Array.from({ length: 4097 }, (_, i) => [`KEY${i}`, "secret-sentinel"]),
-		),
-	])("rejects invalid wire input without echoing contents (%#)", (value) => {
-		expect(() => parseShellEnvironment(value)).toThrow(
-			/^Invalid session shell environment\.$/,
+		[null, SHELL_ENVIRONMENT_ERRORS.object],
+		[[], SHELL_ENVIRONMENT_ERRORS.object],
+		["secret-sentinel", SHELL_ENVIRONMENT_ERRORS.object],
+		[
+			Object.fromEntries(
+				Array.from({ length: 4097 }, (_, i) => [`KEY${i}`, "secret-sentinel"]),
+			),
+			SHELL_ENVIRONMENT_ERRORS.count,
+		],
+		[{ "": "secret-sentinel" }, SHELL_ENVIRONMENT_ERRORS.name],
+		[{ "BAD=NAME": "secret-sentinel" }, SHELL_ENVIRONMENT_ERRORS.name],
+		[{ "BAD\0NAME": "secret-sentinel" }, SHELL_ENVIRONMENT_ERRORS.name],
+		[{ ["N".repeat(257)]: "secret-sentinel" }, SHELL_ENVIRONMENT_ERRORS.name],
+		[{ CANARY: 42 }, SHELL_ENVIRONMENT_ERRORS.value],
+		[{ CANARY: "secret-sentinel\0" }, SHELL_ENVIRONMENT_ERRORS.value],
+		[
+			{ CANARY: "x".repeat(MAX_SHELL_ENVIRONMENT_BYTES) },
+			SHELL_ENVIRONMENT_ERRORS.bytes,
+		],
+	])("rejects invalid wire input with a distinct constant message and no contents (%#)", (value, message) => {
+		let thrown: unknown;
+		try {
+			parseShellEnvironment(value);
+		} catch (error) {
+			thrown = error;
+		}
+		expect(thrown).toBeInstanceOf(Error);
+		expect((thrown as Error).message).toBe(message);
+		expect((thrown as Error).message).not.toMatch(
+			/secret-sentinel|CANARY|KEY\d|BAD|N{10}/,
+		);
+	});
+	it("keeps each failure class message distinct", () => {
+		expect(new Set(Object.values(SHELL_ENVIRONMENT_ERRORS)).size).toBe(
+			Object.keys(SHELL_ENVIRONMENT_ERRORS).length,
 		);
 	});
 	it("handles prototype-like names as data", () => {

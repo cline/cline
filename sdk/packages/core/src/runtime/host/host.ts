@@ -134,10 +134,15 @@ export async function resolveSessionBackend(
 	return await backendInitPromise;
 }
 
-/** Only the CLI opts in, after authenticated local discovery selected a Hub. */
+/**
+ * Only the CLI opts in, after local discovery reached a loopback Hub. The client
+ * authenticates to the Hub with the 0600 discovery token; the Hub does not
+ * authenticate itself to the client.
+ */
 function localCliShellEnvironment(options: ClineCoreOptions, url: string) {
 	if (options.hub?.endpoint?.trim() || options.hub?.clientType !== "cli")
 		return undefined;
+	if (!URL.canParse(url)) return undefined;
 	const endpoint = new URL(url);
 	if (
 		!["ws:", "wss:"].includes(endpoint.protocol) ||

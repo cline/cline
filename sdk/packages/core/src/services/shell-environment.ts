@@ -3,7 +3,15 @@ export type ShellEnvironment = Readonly<Record<string, string>>;
 
 export const MAX_SHELL_ENVIRONMENT_BYTES = 256 * 1024;
 const MAX_SHELL_ENVIRONMENT_ENTRIES = 4096;
-const INVALID_ENVIRONMENT = "Invalid session shell environment.";
+
+/** Constant per failure class: never include a variable name or value. */
+export const SHELL_ENVIRONMENT_ERRORS = {
+	object: "Session shell environment must be an object.",
+	count: "Session shell environment has too many entries.",
+	name: "Session shell environment has an invalid variable name.",
+	value: "Session shell environment has an invalid variable value.",
+	bytes: "Session shell environment exceeds 256 KiB.",
+} as const;
 
 /** Validate untrusted wire input without including names or values in errors. */
 export function parseShellEnvironment(
@@ -11,27 +19,24 @@ export function parseShellEnvironment(
 ): ShellEnvironment | undefined {
 	if (value === undefined) return undefined;
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error(INVALID_ENVIRONMENT);
+		throw new Error(SHELL_ENVIRONMENT_ERRORS.object);
 	}
 	const entries = Object.entries(value);
 	if (entries.length > MAX_SHELL_ENVIRONMENT_ENTRIES) {
-		throw new Error(INVALID_ENVIRONMENT);
+		throw new Error(SHELL_ENVIRONMENT_ERRORS.count);
 	}
 	const environment: Record<string, string> = Object.create(null);
 	let bytes = 0;
 	for (const [name, entry] of entries) {
-		if (
-			!name ||
-			name.length > 256 ||
-			/[=\0]/.test(name) ||
-			typeof entry !== "string" ||
-			entry.includes("\0")
-		) {
-			throw new Error(INVALID_ENVIRONMENT);
+		if (!name || name.length > 256 || /[=\0]/.test(name)) {
+			throw new Error(SHELL_ENVIRONMENT_ERRORS.name);
+		}
+		if (typeof entry !== "string" || entry.includes("\0")) {
+			throw new Error(SHELL_ENVIRONMENT_ERRORS.value);
 		}
 		bytes += Buffer.byteLength(name) + Buffer.byteLength(entry) + 2;
 		if (bytes > MAX_SHELL_ENVIRONMENT_BYTES) {
-			throw new Error(INVALID_ENVIRONMENT);
+			throw new Error(SHELL_ENVIRONMENT_ERRORS.bytes);
 		}
 		environment[name] = entry;
 	}
@@ -47,6 +52,6 @@ export function captureShellEnvironment(
 			Object.entries(environment).filter((entry) => entry[1] !== undefined),
 		),
 	);
-	if (!snapshot) throw new Error(INVALID_ENVIRONMENT);
+	if (!snapshot) throw new Error(SHELL_ENVIRONMENT_ERRORS.object);
 	return snapshot;
 }

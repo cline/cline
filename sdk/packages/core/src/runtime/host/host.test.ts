@@ -282,6 +282,25 @@ describe("runtime host resolution", () => {
 		);
 	});
 
+	it("falls back to local runtime without capturing when a discovered hub URL is malformed", async () => {
+		const { createRuntimeHost } = await import("./host");
+		const { LocalRuntimeHost } = await import("./local-runtime-host");
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue("not a url");
+		hubConnectMock.mockRejectedValue(new Error("connect failed"));
+		const captureShellEnvironment = vi.fn(() => ({
+			SYNTHETIC_CANARY: "value",
+		}));
+
+		const host = await createRuntimeHost({
+			backendMode: "auto",
+			logger,
+			hub: { clientType: "cli", captureShellEnvironment },
+		});
+
+		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(captureShellEnvironment).not.toHaveBeenCalled();
+	});
+
 	it("uses a hub runtime host when backendMode is hub", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { HubRuntimeHost } = await import(
