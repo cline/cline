@@ -31,4 +31,10 @@ describe("openFile", () => {
 
 		expect(showTextDocument.firstCall.args[0].path).to.equal(path.normalize("/Users/jay/my project/index.html"))
 	})
+
+	it("accepts the file scheme in any case", async () => {
+		await openFile("FILE:///Users/jay/project/index.html")
+
+		expect(showTextDocument.firstCall.args[0].path).to.equal(path.normalize("/Users/jay/project/index.html"))
+	})
 })

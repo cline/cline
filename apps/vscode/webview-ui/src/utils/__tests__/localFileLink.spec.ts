@@ -29,8 +29,17 @@ describe("localFileLink", () => {
 		expect(localFileLink("docs/release%20notes.md")).toEqual({ kind: "relative", path: "docs/release notes.md" })
 	})
 
+	it("drops a fragment but keeps an encoded # that belongs to the file name", () => {
+		expect(localFileLink("docs/setup.md#install")).toEqual({ kind: "relative", path: "docs/setup.md" })
+		expect(localFileLink("/Users/jay/notes/a%23b.md#top")).toEqual({ kind: "absolute", path: "/Users/jay/notes/a#b.md" })
+	})
+
 	it("passes file URLs on as URLs", () => {
-		for (const href of ["file:///Users/jay/my%20project/index.html", "file:///C:/Users/jay/project/index.html"]) {
+		for (const href of [
+			"file:///Users/jay/my%20project/index.html",
+			"file:///C:/Users/jay/project/index.html",
+			"FILE:///Users/jay/project/index.html",
+		]) {
 			expect(localFileLink(href), href).toEqual({ kind: "absolute", path: href })
 		}
 	})
@@ -42,7 +51,14 @@ describe("localFileLink", () => {
 	})
 
 	it("leaves web links, other schemes, anchors and empty hrefs alone", () => {
-		for (const href of ["https://example.com/index.html", "mailto:jay@example.com", "vscode://file/x", "#top", ""]) {
+		for (const href of [
+			"https://example.com/index.html",
+			"//example.com/docs",
+			"mailto:jay@example.com",
+			"vscode://file/x",
+			"#top",
+			"",
+		]) {
 			expect(localFileLink(href), href).toBeUndefined()
 		}
 	})

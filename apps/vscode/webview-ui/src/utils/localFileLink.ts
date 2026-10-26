@@ -10,17 +10,17 @@ const URL_WITH_SCHEME = /^[a-z][a-z0-9+.-]*:/i
  * file lives on.
  *
  * The markdown parser percent-encodes a link destination (`C:\x` arrives as `C:%5Cx`, a space as
- * `%20`), so a path is decoded back to what was written. A `file:` URL is a URL already and is passed
- * on as is.
+ * `%20`), so a path is decoded back to what was written, after dropping a `#fragment` (a `#` that
+ * belongs to the file name arrives as `%23`). A `file:` URL is a URL already and is passed on as is.
  */
 export function localFileLink(href: string): { kind: "absolute" | "relative"; path: string } | undefined {
-	if (!href || href.startsWith("#")) {
+	if (!href || href.startsWith("#") || href.startsWith("//")) {
 		return undefined
 	}
 	if (/^file:/i.test(href)) {
 		return { kind: "absolute", path: href }
 	}
-	const path = decode(href)
+	const path = decode(href.replace(/#.*$/, ""))
 	if (ABSOLUTE_PATH.test(path)) {
 		return { kind: "absolute", path }
 	}
