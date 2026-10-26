@@ -5,6 +5,9 @@ import {
 	captureAgentUnexpectedReasoningTokens,
 	captureTaskLifecycleEvent,
 	type ITelemetryService,
+	type PluginUiDropReason,
+	type PluginUiInvokeOutcome,
+	type PluginUiSurface,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
@@ -112,6 +115,12 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	FEATURE_FLAGS: {
 		FLAG_CALLED: "$feature_flag_called",
+	},
+	PLUGIN_UI: {
+		STATE_DROPPED: "plugin_ui.state_dropped",
+		INVOKE: "plugin_ui.invoke",
+		SESSION_SUMMARY: "plugin_ui.session_summary",
+		VIEWERS_CHANGED: "plugin_ui.viewers_changed",
 	},
 } as const;
 
@@ -1011,4 +1020,87 @@ export function captureScheduleRun(
 	} catch {
 		// Observability must never prevent scheduled work from running or completing.
 	}
+}
+
+// Plugin UI events are content-free: no state text, prompt, label, URL or
+// plugin error message ever travels.
+
+function emitPluginUiEvent(
+	telemetry: ITelemetryService | undefined,
+	event: string,
+	properties: TelemetryProperties,
+): void {
+	try {
+		emit(telemetry, event, properties);
+	} catch {
+		// Plugin UI calls promise never to throw; a failing telemetry sink must not break them.
+	}
+}
+
+export function capturePluginUiStateDropped(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		plugin_name: string;
+		slot: string;
+		reason: PluginUiDropReason;
+	},
+): void {
+	emitPluginUiEvent(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.PLUGIN_UI.STATE_DROPPED,
+		properties,
+	);
+}
+
+/** Sent only for gestures (use, send, skip, unskip, refresh, hide, show, undo, clear). */
+export function capturePluginUiInvoke(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		plugin_name?: string;
+		slot: string;
+		verb: string;
+		outcome: PluginUiInvokeOutcome;
+		reason?: string;
+		latency_ms: number;
+		surface?: PluginUiSurface;
+	},
+): void {
+	emitPluginUiEvent(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.PLUGIN_UI.INVOKE,
+		properties,
+	);
+}
+
+/** Presence, `exposed` and `signal` fire on every bind, show and set, so they are only counted here. */
+export function capturePluginUiSessionSummary(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		plugin_name?: string;
+		slot: string;
+		attaches: number;
+		detaches: number;
+		exposed: number;
+		key_inert: number;
+		peak_viewers: number;
+		surfaces: PluginUiSurface[];
+	},
+): void {
+	emitPluginUiEvent(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.PLUGIN_UI.SESSION_SUMMARY,
+		properties,
+	);
+}
+
+/** Only when a session's viewer count crosses zero. */
+export function capturePluginUiViewersChanged(
+	telemetry: ITelemetryService | undefined,
+	properties: { slot: string; count: number; surface?: PluginUiSurface },
+): void {
+	emitPluginUiEvent(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.PLUGIN_UI.VIEWERS_CHANGED,
+		properties,
+	);
 }

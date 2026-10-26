@@ -1,3 +1,54 @@
+## Plugin slash commands
+
+Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
+`client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
+`NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
+These APIs reuse the runtime and connection; clients do not load plugins or own
+a separate command sandbox. Pass the active `sessionId` so a command runs in
+that session's plugin instance and retains the state and context shared with
+its hooks.
+
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
+
+```ts
+const target = { workspacePath: workspaceRoot, sessionId };
+const catalog = await core.pluginCommands.list(target);
+const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
+// Display result?.reply; submit only result?.submitPrompt to the agent.
+// undefined means no registered command handled the input.
+```
+
+Omit `sessionId`, or pass one the runtime does not have, to use the workspace
+catalog. Every call checks the enabled plugins and their sources and reloads the
+catalog when they change, so call `list` again whenever the command menu needs to be
+current. A failed load lists healthy commands with `status: "error"` and is
+retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
+plugin workers.
+
+For a resident session, listing and execution use its initialized contribution
+registry and existing plugin sandbox. Workspace file changes apply to new
+sessions, not an active session's commands. Built-in command precedence and
+rendering remain host responsibilities. Preserve the original arguments when
+dispatching.
+
+## Model request retries and Langfuse
+
+AI SDK text requests allow three retries after the initial request (four total
+attempts) for retryable request-start failures. Provider errors received after
+streaming starts have a separate budget of three stream retries. Exhausting
+either budget does not trigger another whole-turn retry.
+
+When Langfuse tracing is enabled, each failed request-start or stream attempt
+records its error on its model-call span, including attempts followed by a
+successful retry. Request-start failures close their attempt spans before retry
+backoff begins. A recovered request keeps a successful overall trace; exhausted
+retries mark the overall operation as failed. Span export follows the configured
+telemetry processor's flushing policy.
+
+Caller cancellation closes model-call spans without recording an exception or
+marking a provider failure, including cancellation before the response opens.
+Timeout cancellations remain failures.
 
 ## Oversized tool result recovery
 
@@ -43,6 +94,15 @@ host presentation.
 
 ## Cloud sessions (experimental)
 
+`summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
+a continuation note without changing session history or compaction state.
+Top-level credentials in `config` override those in `providerConfig`.
+The request retains the prior summary, latest instruction, and its most recent
+response. It shortens older context to fit the model's input limit and rejects
+requests if the retained context cannot fit. It also rejects
+empty, incomplete, failed, or cancelled output. Claude Code, Codex CLI, OpenCode,
+and Dify are unsupported because they may execute their own tools.
+
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
 The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API
@@ -57,6 +117,10 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+The optional sixth argument to `send` accepts a `beforeDispatch` callback.
+The callback runs before submission and can throw to prevent it. A successful
+return without `recoveredAfterDisconnect` confirms acknowledgement.
+The callback does not confirm acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
@@ -70,6 +134,65 @@ through `restoreCreationOptions`, until the inner task is found or created (or
 the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
+
+### Hub-owned cloud viewers
+
+`HubCloudSessionClient` from `@cline/core/cloud` uses an authenticated,
+registered `NodeHubClient` from `@cline/core/hub`. Reuse the host's existing
+Hub connection, or create and connect a `NodeHubClient` with the Hub URL,
+auth token, client ID, and workspace root. The cloud client accepts an async
+connection factory and connects lazily; `connect()` explicitly hydrates it.
+
+```ts
+import { HubCloudSessionClient } from "@cline/core/cloud";
+import type { NodeHubClient } from "@cline/core/hub";
+
+async function openCloudSession(hub: NodeHubClient, sessionId: string) {
+  const viewer = new HubCloudSessionClient(async () => {
+    await hub.connect();
+    return hub;
+  });
+  const unsubscribe = viewer.subscribe((event) => console.log(event));
+  try {
+    await viewer.attach(sessionId);
+    return await viewer.readMessages(sessionId);
+  } finally {
+    unsubscribe();
+    await viewer.dispose();
+  }
+}
+```
+
+The Hub owns the account-scoped controller, credentials, organization lookup,
+provisioning, and sandbox connections. Disposing a viewer releases its subscription
+and projected state; admitted cloud work and sandbox connections continue. The
+host retains ownership of its shared `NodeHubClient`. Account changes retire the
+old controller; Hub shutdown disposes it. Direct controller hosts instead own
+and dispose their controller and its connections.
+
+The viewer supports the serializable operations in `CLOUD_HUB_OPERATIONS`,
+with arguments/results described by `CloudHubArgs` and `CloudHubResult`.
+`CloudHubScope` binds commands to the observed Hub instance and account generation;
+callers use the viewer methods rather than constructing RPC envelopes. Snapshot
+recovery includes empty sets, removes deleted sessions, and rejects stale revisions.
+Dispatched actions are not automatically resent after an uncertain reply.
+Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
+features and cannot cross this RPC boundary. Hub-backed creation defaults to
+`"resumable"` sandboxes.
+
+Discovery caches, pending listing requests, and newly created fallback rows are
+scoped to their organization; switching the sidebar preserves other organizations’
+task state without displaying their rows. Discovery’s `timeoutMs` covers both
+organization resolution and listing. If the organization is still unknown at
+the deadline, discovery returns no cloud rows; cached rows are used only after
+establishing their matching organization.
+
+After a successful organization switch, `refreshOrganization()` invalidates the
+Hub's cached organization before fetching the current one. A fetch failure leaves
+the old cache invalidated. Account-switch success and desktop cleanup must not
+depend on this optional refresh; cloud-disabled hosts skip it. A new viewer's
+watch also invalidates the cache, covering switches made while the Hub was
+unreachable without interrupting existing cloud work.
 
 ## Experimental cloud handoff
 
@@ -177,6 +300,8 @@ only manages SSH and forwards the authenticated hub connection.
 Clients whose own process cannot host the Hub daemon can call
 `setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
 start are launched through the Cline CLI.
+
+The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
 ### Provider authentication metadata for host UIs
 
@@ -356,6 +481,12 @@ standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
 
+## Tool success context
+
+`AgentTool` and `createTool` accept optional `successContext` text. The agent runtime appends it after the iteration’s tool results, once after-tool hooks have run, without changing the tool output. It reaches the model as a user-role context message with `displayRole: "system"`, hidden from client transcripts. Errors, skipped calls, and hooks that stop execution do not add it. It is retained as conversation history and remains subject to context compaction.
+
+`createAskQuestionTool` and the question tool from `createDefaultTools` use this field to remind the model to continue after an answer, in both direct `Agent` and `ClineCore` sessions.
+
 ## Symlinked instruction files
 
 Rules and workflows can be symbolic links to regular files. Source paths and
@@ -378,6 +509,94 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Plugin UI slots
+
+A plugin can fill a Cline-owned UI slot that each host renders with its own
+components. v1 has one slot, `composer.suggestions`: up to three suggested
+prompts above the message box. Its state and verbs are typed in `@cline/shared`
+(`ComposerSuggestionsState`, `ComposerSuggestionsAction`).
+
+**The session's slot catalog.** The client that starts a session declares the
+slots it renders with `StartSessionInput.uiSlots`. Core keeps only the ids it
+knows (`readPluginUiSlotCatalog`), and the catalog is fixed for the session's
+epoch. `ClineCore.start`, `ClineCore.restore` and `LocalRuntimeHost.restoreSession`
+carry it unchanged. A session without a catalog offers plugins no slot API.
+
+**Plugins.** When the catalog is non-empty, worker plugins get
+`api.registerUiSlot({ slot, onAction })` and `ctx.ui`; otherwise neither is
+present. In-process `extensions` always have `registerUiSlot` but never
+`ctx.ui`, so test `ctx.ui?.slots.includes(slot)` before relying on a renderer,
+and import slot types type-only. Register the slot before calling
+`ctx.ui.update(slot, state | null)`. `update` is fire-and-forget and never
+throws: invalid, unregistered or oversized states (over 64 KiB) are dropped
+and logged. `onAction` returns only a verdict, `{ outcome: "ok" }` or
+`{ outcome: "refused", reason: "stale" | "unsendable" }`; state changes go
+through `update`. Its `context.viewers` counts the viewers attached after the
+action; plugins should do no model or network work while it is 0.
+
+**Hosts.** `ClineCore.pluginUi` (and `LocalRuntimeHost.pluginUi`) never throw.
+`get({ sessionId })` returns the last envelope of every slot that has state,
+tombstones (`state: null`) included, and `[]` for a session that is not
+resident. `invoke({ sessionId, slot, action })` validates the action, stamps
+the viewer (`"local"` unless `viewerId` is passed) and replies
+`{ outcome, reason?, state?, epoch? }`:
+
+- `ok` or `refused`: the plugin's verdict;
+- `rejected`: invalid action, rate limited (10 per second per session, burst
+  20), or the handler threw;
+- `unavailable`: no such session, the slot is not in its catalog, no plugin
+  fills it, extensions failed to initialize, or the session is closing;
+- `timeout`: the action did not reach the plugin within 10 s of arriving, or
+  the plugin took more than 10 s, so every reply arrives within 20 s.
+
+`state` is the slot's envelope after the action, and `epoch` the session's
+current epoch; both are present only while the session is resident and not
+closing. Renderers send `{ verb: "attach", surface }` whenever they bind and
+`{ verb: "detach" }` when they unbind. Session teardown queues a `detach` for
+every remaining viewer, counting `viewers` down to 0, and waits up to 2 s for
+them and the action in flight. Detaches still queued behind a slower handler
+are dropped with the session, so a plugin that persists a "viewed" flag must
+treat it as a hint, as it would after a crash.
+
+Envelopes carry `(epoch, seq)`. The epoch is minted when the session starts,
+and a restart under the same id always gets a later one; `seq` counts the
+states stored for a slot within an epoch. On every bind, renderers clear local
+state, then apply `get` and live events through `applyPluginUiState`, and
+re-attach when they see a newer epoch for their session. After an `attach`
+whose reply carried no epoch (the session was not resident yet) or timed out,
+they also re-attach on the first state at or above that epoch, and when the
+next run ends, each once per epoch. Live states arrive as
+`plugin_ui_state` events through `subscribe`, only once the session is
+resident. They are ephemeral and never written to a durable log. Pushes are
+coalesced per slot (100 ms) and identical states are dropped. Telemetry
+carries counts and outcomes only, never state text or plugin error messages.
+
+**Over the hub.** A hub advertises the `plugins.ui` capability. Its commands
+take `envelope.sessionId` and never fail for plugin reasons:
+
+- `plugins.ui.get` with `{}` replies `{ states }`, as `get` does;
+- `plugins.ui.invoke` with `{ slot, action }` replies the invoke result. The
+  hub stamps the viewer with the registered connection's `clientId` and
+  `clientType`, ignores any `viewerId` in the payload, and answers
+  `unavailable` to a socket that has not registered.
+
+Live states arrive as the `plugins.ui.state` event, with `sessionId` set and
+no `sequence`: it never enters the replay log, and a session-scoped subscribe
+re-issues each slot's current state instead. A viewer's lease belongs to the
+connection that attached it, so a disconnect detaches only the leases that
+connection holds, along with its attaches still queued, and clients re-attach
+after they reconnect. A client declares its catalog with `uiSlots` on
+`session.create` and `session.restore`; without the key the session has none.
+`HubRuntimeHost.pluginUi` and `HubSessionClient.pluginUi` expose the same
+never-throwing API; against an older hub that lacks the commands they return
+`[]` and `unavailable`. `HubRuntimeHost` delivers live states as
+`plugin_ui_state` events through `subscribe`.
+`HubSessionClient.streamPluginUi({ sessionId }, handlers)` passes `onState`
+each slot's current state, read with `plugins.ui.get` once connected and again
+after every reconnect, and every live push for that session; it returns the
+unsubscribe. It listens on the client's global subscription, so `streamEvents`
+on the same client still sees each event once.
 
 ## MCP Apps (experimental)
 
@@ -405,3 +624,84 @@ malformed replies throw. It is optional on `McpManager` and
 tool calls on an already connected server. A read that starts while the server
 is being disconnected or re-registered can fail with a disconnect error; retry
 it.
+
+For sessions, set `mcpApps: true` in the session config (`CoreRuntimeFeatures`).
+The runtime builder then advertises the extension to every settings and Agent
+Plugin MCP server it connects, and the session gains an MCP Apps runtime that
+uses those same connections. Hosts reach it through `ClineCore`:
+
+- `resolveMcpAppTool(sessionId, toolName)` maps an agent tool name (as it
+  appears in tool events, for example `weather__show_weather`) to
+  `{ serverName, toolName, resourceUri }`. It returns `undefined` for tools with
+  no `ui://` resource, for sessions without MCP Apps, and for runtimes or hub
+  daemons that do not support MCP Apps.
+- `readMcpAppResource(sessionId, { serverName, uri })` reads a `ui://` resource
+  from one of the session's MCP servers. Other URI schemes are rejected.
+- `callMcpAppTool(sessionId, { serverName, toolName, arguments })` calls a tool
+  on the app's behalf. It rejects tools whose visibility lacks `"app"`, tools
+  the server does not list, servers outside the session, and tools the session
+  disables through `toolPolicies` or the global `disabledTools` setting (matched
+  by agent tool name, such as `weather__refresh_view`). App calls are recorded
+  as tool usage telemetry, but do not request tool approval and do not run tool
+  hooks; a host that wants consent must ask before calling.
+
+Reads and calls reach every enabled settings and Agent Plugin server, including
+ones that failed to list tools at startup; the manager reconnects on demand.
+`resolveMcpAppTool` only searches servers that loaded tools at startup, since
+the agent can only call tools from those. Neither method checks which server an
+app came from, so a host bridging app requests must pass the `serverName` from
+the app's `resolveMcpAppTool` binding rather than one the app supplies.
+
+`readMcpAppResource` and `callMcpAppTool` throw when the session was started
+without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the
+`session.mcp_apps.*` commands, so the hub daemon serves them from the session's
+own MCP manager.
+
+## Run stall telemetry
+
+`@cline/core` measures stalls with a `RunHealthObserver`
+(`packages/core/src/services/telemetry/run-health.ts`). `SessionRuntime`
+creates one per run, for root agents and subagents, when telemetry is
+configured. It watches only the run's runtime events and is disposed when the
+run returns.
+
+- `task.run_idle` fires at most once per run, while it is still running and has
+  emitted no runtime event for 60s.
+- When the run ends, `AgentRuntime` calls the optional
+  `AgentRuntimeConfig.runEndTelemetryProperties()` once, while capturing
+  `agent.run-finished` or `agent.run-failed`, and merges the result into that
+  event. Core uses it to add `maxIdleMs`, `maxIdleAfter`, `msSinceLastEvent`,
+  `lastEventType`, `finishReason`, `idleReported`, `endedOn` and
+  `textSignature`. The observer stops its idle check at that point.
+- `tool-call-delta` is a runtime event emitted for each streamed tool-call
+  argument chunk. It carries no arguments and exists so that a slow tool-call
+  stream is not mistaken for a silent one. It is not mirrored to telemetry and
+  is not forwarded as hub hook traffic.
+
+No message text leaves the client: `textSignature` and `session.input_sent`'s
+`bumpKind` are enums computed locally
+(`packages/core/src/services/telemetry/stall-signals.ts`).
+re-attach when they see a newer epoch for their session. Live states arrive as
+`plugin_ui_state` events through `subscribe`, only once the session is
+resident. They are ephemeral and never written to a durable log. Pushes are
+coalesced per slot (100 ms) and identical states are dropped. Telemetry
+carries counts and outcomes only, never state text or plugin error messages.
+
+**Over the hub.** A hub advertises the `plugins.ui` capability. Its commands
+take `envelope.sessionId` and never fail for plugin reasons:
+
+- `plugins.ui.get` with `{}` replies `{ states }`, as `get` does;
+- `plugins.ui.invoke` with `{ slot, action }` replies the invoke result. The
+  hub stamps the viewer with the registered connection's `clientId` and
+  `clientType`, ignores any `viewerId` in the payload, and answers
+  `unavailable` to a socket that has not registered.
+
+Live states arrive as the `plugins.ui.state` event, with `sessionId` set and
+no `sequence`: it never enters the replay log, and a session-scoped subscribe
+re-issues each slot's current state instead. A viewer's lease belongs to the
+connection that attached it, so a disconnect detaches only the leases that
+connection holds, and clients re-attach after they reconnect. A client
+declares its catalog with `uiSlots` on `session.create` and `session.restore`;
+without the key the session has none. `HubRuntimeHost.pluginUi` and
+`HubSessionClient.pluginUi` expose the same never-throwing API; against an
+older hub that lacks the commands they return `[]` and `unavailable`.
