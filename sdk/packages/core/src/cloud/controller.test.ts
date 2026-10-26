@@ -1117,10 +1117,38 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
-	it("creates and sends one initial prompt with images without a second caller action", async () => {
+	it.each([
+		"creation",
+		"initial send",
+	])("shares overlapping creation and initial prompt delivery during %s", async (stage) => {
 		const f = fixture();
+		let entered!: () => void;
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const create = f.api.create.getMockImplementation()!;
+		f.api.create.mockImplementation(async (input) => {
+			if (stage === "creation") {
+				entered();
+				await gate;
+			}
+			return create(input);
+		});
+		const command = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (stage === "initial send" && args[0] === "session.send_input") {
+				entered();
+				await gate;
+			}
+			return command(...args);
+		});
 		try {
-			const result = await f.controller.create({
+			const input = {
+				requestId: "shared-start",
 				repoUrl: "https://github.com/example/project",
 				branch: "qa/summary",
 				modelId: "model",
@@ -1128,7 +1156,14 @@ describe("CloudSessionController neutral host contract", () => {
 					text: "Summary and next instruction",
 					images: ["data:image/png;base64,aW1hZ2U="],
 				},
-			});
+			};
+			const first = f.controller.create(input);
+			await blocked;
+			const second = f.controller.create(input);
+			release();
+			const [result, repeated] = await Promise.all([first, second]);
+			expect(f.api.create).toHaveBeenCalledOnce();
+			expect(repeated).toEqual(result);
 			expect(result).toMatchObject({
 				sessionId: record.id,
 				branch: "qa/summary",
@@ -1148,6 +1183,7 @@ describe("CloudSessionController neutral host contract", () => {
 				},
 			]);
 		} finally {
+			release();
 			await f.controller.dispose();
 		}
 	});

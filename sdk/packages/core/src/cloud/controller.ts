@@ -453,7 +453,7 @@ export class CloudSessionController {
 	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
 		string,
-		Promise<CloudSessionAttachment>
+		ReturnType<CloudSessionController["create"]>
 	>();
 	private readonly initialSends = new Map<
 		string,
@@ -1040,27 +1040,6 @@ export class CloudSessionController {
 		return listed;
 	}
 
-	private async createSession(
-		input: CreateCloudSessionInput,
-		beforePublish?: (sessionId: string) => void,
-	): Promise<CloudSessionAttachment> {
-		const key = input.requestId?.trim();
-		if (!key) return await this.createOnce(input, beforePublish);
-		const existing = this.createRequests.get(key);
-		if (existing) {
-			const target = await existing;
-			beforePublish?.(target.sessionId);
-			return target;
-		}
-		const creating = this.createOnce(input, beforePublish).finally(() => {
-			if (this.createRequests.get(key) === creating) {
-				this.createRequests.delete(key);
-			}
-		});
-		this.createRequests.set(key, creating);
-		return await creating;
-	}
-
 	async create(
 		input: CreateCloudSessionInput & {
 			initialMessage?: { text: string; images?: string[] };
@@ -1072,8 +1051,24 @@ export class CloudSessionController {
 				| CloudSendFailure;
 		}
 	> {
+		const key = input.requestId?.trim();
+		if (!key) return this.createSession(input);
+		const existing = this.createRequests.get(key);
+		if (existing) return existing;
+		const creating = this.createSession(input).finally(() => {
+			if (this.createRequests.get(key) === creating) {
+				this.createRequests.delete(key);
+			}
+		});
+		this.createRequests.set(key, creating);
+		return creating;
+	}
+
+	private async createSession(
+		input: Parameters<CloudSessionController["create"]>[0],
+	): ReturnType<CloudSessionController["create"]> {
 		const { initialMessage, ...creation } = input;
-		if (!initialMessage) return this.createSession(creation);
+		if (!initialMessage) return this.createOnce(creation);
 		let dispatched = false;
 		let settle!: (failure?: CloudSendFailure) => void;
 		const initial = {
@@ -1086,7 +1081,7 @@ export class CloudSessionController {
 				settle = resolve;
 			}),
 		};
-		const target = await this.createSession(
+		const target = await this.createOnce(
 			{ ...creation, initialPrompt: initialMessage.text },
 			(sessionId) => {
 				if (!this.initialSends.has(sessionId))
