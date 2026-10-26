@@ -53,7 +53,11 @@ import {
 	isRetryableBeyondSdkRetries,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
-import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
+import {
+	createRetryEmptyResponseMiddleware,
+	getRetryAttemptUsageRecords,
+	getRetryAttemptUsages,
+} from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -1208,6 +1212,50 @@ export function normalizeUsage(
 	pricingValue?: unknown,
 	selection?: Pick<GatewayStreamRequest, "providerId" | "modelId">,
 ): GatewayNormalizedUsage {
+	const attempts = getRetryAttemptUsageRecords(usageValue);
+	if (!attempts) {
+		return normalizeSingleUsage(
+			usageValue,
+			providerMetadata,
+			pricingValue,
+			selection,
+		);
+	}
+	const usages = attempts.map((attempt) =>
+		normalizeSingleUsage(
+			attempt.usage,
+			attempt.providerMetadata,
+			pricingValue,
+			selection,
+		),
+	);
+	const sum = (field: keyof GatewayNormalizedUsage) =>
+		usages.reduce((total, usage) => total + (usage[field] ?? 0), 0);
+	const reasoningTokenCount = sum("reasoningTokenCount");
+	return {
+		inputTokens: sum("inputTokens"),
+		outputTokens: sum("outputTokens"),
+		cacheReadTokens: sum("cacheReadTokens"),
+		cacheWriteTokens: sum("cacheWriteTokens"),
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
+		// A partial billed sum must not look like the cost of the whole turn.
+		// Each attempt can independently use explicit cost or pricing fallback.
+		...(usages.every((usage) => usage.totalCost !== undefined)
+			? { totalCost: sum("totalCost") }
+			: {}),
+	};
+}
+
+function normalizeSingleUsage(
+	usageValue:
+		| AiSdkStreamUsage
+		| AiSdkStreamTotalUsage
+		| Record<string, unknown>
+		| undefined,
+	providerMetadata?: unknown,
+	pricingValue?: unknown,
+	selection?: Pick<GatewayStreamRequest, "providerId" | "modelId">,
+): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
 			? (usageValue as Record<string, unknown>)
@@ -1526,6 +1574,7 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	let requestInputTokens: number | null = null;
 	let streamAborted = false;
 	let sawVisibleContent = false;
 	const mediaBudget = createMediaBudgetState();
@@ -1549,10 +1598,26 @@ async function* emitAiSdkEvents(
 			for await (const part of stream.fullStream) {
 				if (part.type === "start-step") {
 					requestId = undefined;
+					requestInputTokens = null;
 					continue;
 				}
 				if (part.type === "finish-step") {
 					requestId = findRequestIdHeader(part.response?.headers);
+					// A step can include hidden retries; its billed input total is
+					// not the size of the final actual prompt used by compaction.
+					const usage = getRetryAttemptUsages(part.usage)?.at(-1) ?? part.usage;
+					const input =
+						usage && typeof usage === "object" && "inputTokens" in usage
+							? usage.inputTokens
+							: undefined;
+					const total =
+						typeof input === "object" && input !== null && "total" in input
+							? input.total
+							: input;
+					requestInputTokens =
+						typeof total === "number" && Number.isFinite(total) && total >= 0
+							? total
+							: null;
 					continue;
 				}
 				if (part.type === "text-delta") {
@@ -2032,6 +2097,7 @@ async function* emitAiSdkEvents(
 		yield {
 			type: "usage",
 			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
+			requestInputTokens,
 		};
 	}
 

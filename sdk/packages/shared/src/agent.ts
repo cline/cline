@@ -348,6 +348,14 @@ export type AgentModelEvent =
 	| {
 			type: "usage";
 			usage: Partial<AgentUsage>;
+			/**
+			 * Full input size of the last actual provider request, including cached
+			 * tokens. Billing usage can span hidden retries or internal model steps.
+			 * Omitted: legacy providers may use usage.inputTokens as the request size.
+			 * Null: request size is unavailable; do not use billing totals or a stale
+			 * prior size to calibrate compaction.
+			 */
+			requestInputTokens?: number | null;
 	  }
 	| {
 			type: "finish";

@@ -1990,14 +1990,20 @@ export class AgentRuntime {
 					break;
 				}
 				case "usage": {
-					// Record the provider's own input-token count for this request so
-					// the prepare-turn pipeline can trigger compaction on real usage
-					// rather than a character-based estimate.
-					if (
-						typeof event.usage.inputTokens === "number" &&
-						event.usage.inputTokens > 0
-					) {
-						this.state.lastRequestInputTokens = event.usage.inputTokens;
+					// Billing totals may include hidden retries or internal model steps.
+					// Compaction needs one actual prompt size; explicit unknown clears
+					// stale evidence, while omitted fields preserve legacy providers.
+					const requestInputTokens =
+						event.requestInputTokens !== undefined
+							? event.requestInputTokens
+							: event.usage.inputTokens;
+					if (requestInputTokens !== undefined) {
+						this.state.lastRequestInputTokens =
+							typeof requestInputTokens === "number" &&
+							Number.isFinite(requestInputTokens) &&
+							requestInputTokens > 0
+								? requestInputTokens
+								: 0;
 					}
 					await this.updateUsage(event.usage);
 					break;
