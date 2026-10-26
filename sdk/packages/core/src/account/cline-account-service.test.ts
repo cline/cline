@@ -185,6 +185,42 @@ describe("ClineAccountService", () => {
 		expect(plan).toEqual(planPayload);
 	});
 
+	it.each([
+		[404, "no plan history found for user"],
+		[402, "payment required"],
+	])("resolves no current plan, rather than failing, on %i", async (status, error) => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(JSON.stringify({ success: false, error }), {
+				status,
+				headers: { "Content-Type": "application/json" },
+			});
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchCurrentUserPlan()).resolves.toBeUndefined();
+	});
+
+	it("still fails the plan request on other errors", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response("Authentication failed", { status: 401 });
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchCurrentUserPlan()).rejects.toThrow(
+			"Cline account request failed with status 401: Authentication failed",
+		);
+	});
+
 	it("fetches remote config with fallback org selected", async () => {
 		const remoteConfigPayload = {
 			organizationId: "org-fallback",

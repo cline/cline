@@ -157,8 +157,16 @@ export class ClineAccountService {
 		);
 	}
 
+	/**
+	 * The user's current plan, or undefined when they have none. The API
+	 * answers 404 when the user has never had a plan ("no plan history found
+	 * for user") and 402 when the plan is unpaid; both mean "not subscribed",
+	 * not a failed request (VSCode's account service treats them the same).
+	 */
 	public async fetchCurrentUserPlan(): Promise<UserCurrentPlan | undefined> {
-		return this.request<UserCurrentPlan | undefined>("/api/v1/users/me/plan");
+		return this.request<UserCurrentPlan | undefined>("/api/v1/users/me/plan", {
+			absentOnStatus: [402, 404],
+		});
 	}
 
 	public async fetchOrganization(
@@ -272,6 +280,8 @@ export class ClineAccountService {
 			method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 			body?: unknown;
 			expectNoContent?: boolean;
+			/** Statuses that mean "no such resource": resolve undefined instead of throwing. */
+			absentOnStatus?: readonly number[];
 		},
 	): Promise<T> {
 		const token = (await this.getAuthTokenFn())?.trim();
@@ -298,6 +308,10 @@ export class ClineAccountService {
 					signal: controller.signal,
 				},
 			);
+
+			if (input?.absentOnStatus?.includes(response.status)) {
+				return undefined as T;
+			}
 
 			if (response.status === 204 || input?.expectNoContent) {
 				if (!response.ok) {
