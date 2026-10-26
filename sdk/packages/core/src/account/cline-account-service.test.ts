@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClineAccountService } from "./cline-account-service";
+import {
+	ClineAccountRequestError,
+	ClineAccountService,
+	NO_CURRENT_PLAN_STATUSES,
+} from "./cline-account-service";
 
 describe("ClineAccountService", () => {
 	it("fetches current user balance and sends auth header", async () => {
@@ -203,6 +207,12 @@ describe("ClineAccountService", () => {
 		});
 
 		await expect(service.fetchCurrentUserPlan()).resolves.toBeUndefined();
+	});
+
+	it("exposes the plan error class and statuses at the package root, so SDK consumers can branch on them", async () => {
+		const root = await import("../index");
+		expect(root.ClineAccountRequestError).toBe(ClineAccountRequestError);
+		expect(root.NO_CURRENT_PLAN_STATUSES).toBe(NO_CURRENT_PLAN_STATUSES);
 	});
 
 	it("still throws when the plan endpoint fails for another reason", async () => {

@@ -1,9 +1,9 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useClinePassPromo } from "@/hooks/useClinePassPromo"
@@ -149,14 +149,33 @@ const CloudModelSettings = () => {
 	const includeClinePass = isClinePassEnabled && !activeOrganization
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
 
-	// The user may have followed the Subscribe link and come back; re-ask for the plan.
+	// Re-ask for the plan when the pane opens and whenever the webview comes
+	// back into view, since the Subscribe link sends the user to the browser.
+	// A return after that click forces the check past the recent-answer window.
+	const subscribeClickedRef = useRef(false)
 	useEffect(() => {
-		if (includeClinePass) {
-			CloudServiceClient.refreshClinePassSubscription(EmptyRequest.create({})).catch((error) =>
+		if (!includeClinePass) {
+			return
+		}
+		const refresh = (force: boolean) =>
+			CloudServiceClient.refreshClinePassSubscription(BooleanRequest.create({ value: force })).catch((error) =>
 				console.error("Failed to refresh ClinePass subscription:", error),
 			)
+		refresh(false)
+		const onVisible = () => {
+			if (document.visibilityState === "visible") {
+				const force = subscribeClickedRef.current
+				subscribeClickedRef.current = false
+				refresh(force)
+			}
 		}
+		document.addEventListener("visibilitychange", onVisible)
+		return () => document.removeEventListener("visibilitychange", onVisible)
 	}, [includeClinePass])
+	const onSubscribe = useCallback(() => {
+		subscribeClickedRef.current = true
+		openSubscribePage()
+	}, [openSubscribePage])
 
 	return (
 		<>
@@ -181,7 +200,7 @@ const CloudModelSettings = () => {
 								a low-cost monthly plan for the latest open-weights models.{" "}
 								<button
 									className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
-									onClick={openSubscribePage}
+									onClick={onSubscribe}
 									type="button">
 									Subscribe
 								</button>
