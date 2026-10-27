@@ -35,8 +35,8 @@ export function CloudHandoffGitConfirmation({
 					<AlertDialogTitle>Continue in cloud?</AlertDialogTitle>
 					<AlertDialogDescription>
 						Cline will push a snapshot to a new GitHub branch and start a cloud
-						task with a summary of this conversation. Your local branch, files,
-						and staging stay unchanged. Later messages and edits stay local.
+						task with a summary of this conversation. You can keep working
+						locally. Later messages and edits stay local.
 						{plan.commits.length > 0 && (
 							<span className="mt-2 block">
 								This includes {plan.commits.length} local{" "}

@@ -296,7 +296,7 @@ describe("CloudHandoffGitConfirmation", () => {
 		expect(details?.open).toBe(false);
 		expect(details?.textContent).toContain("new.txt");
 		expect(details?.textContent).toContain("abc local commit");
-		expect(dialog?.textContent).toContain("staging stay unchanged");
+		expect(dialog?.textContent).toContain("You can keep working locally");
 		expect(onDecision).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(dialog?.querySelectorAll("button") ?? [])
