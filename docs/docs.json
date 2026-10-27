@@ -113,7 +113,13 @@
 									"usage/cline-desktop-local-models"
 								]
 							},
-							"usage/cloud-agents",
+							{
+								"group": "Cloud Agents",
+								"pages": [
+									"usage/cloud-agents",
+									"usage/cloud-agents-vscode"
+								]
+							},
 							"usage/ide",
 							"usage/tui",
 							{
