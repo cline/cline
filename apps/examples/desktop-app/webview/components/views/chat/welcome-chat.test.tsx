@@ -213,6 +213,54 @@ describe("WelcomeScreen", () => {
 	});
 
 	it.each([
+		"",
+		"main",
+	])("restores an empty repository saved with branch %j", async (branch) => {
+		accountRef.user = { id: "user-1" };
+		const scope = JSON.stringify([
+			getClineEnvironmentConfig().appBaseUrl,
+			"user-1",
+			null,
+		]);
+		const repoUrl = "https://github.com/org/empty";
+		writeCloudRepositorySelection(scope, { repoUrl, branch });
+		const branchCheck = Promise.withResolvers<unknown>();
+		invokeMock.mockImplementation((command) =>
+			command === "list_cloud_repositories"
+				? Promise.resolve({
+						connected: true,
+						repositories: [
+							{
+								id: 7,
+								name: "empty",
+								fullName: "org/empty",
+								url: repoUrl,
+								defaultBranch: "main",
+							},
+						],
+					})
+				: branchCheck.promise,
+		);
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		await renderWelcomeScreen({
+			workspaceRoot: "",
+			workspaces: [],
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			onRepoUrlChange,
+			onCloudBranchChange,
+		});
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) => command === "list_cloud_branches",
+			),
+		).toBe(false);
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("");
+	});
+
+	it.each([
 		"none",
 		"retry",
 		"manual",
@@ -303,7 +351,7 @@ describe("WelcomeScreen", () => {
 				await clickButton("Select repository");
 				await clickButton("org/repo");
 				expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
-				expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
+				expect(onCloudBranchChange).toHaveBeenLastCalledWith("");
 				await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
 				expect(readCloudRepositorySelection(scope)).toEqual({
 					repoUrl,

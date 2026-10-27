@@ -141,7 +141,11 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		expect(props.onSignIn).toHaveBeenCalledOnce();
 	});
 
-	it("selects a connected GitHub repository and its default branch", async () => {
+	it("uses the server default immediately after choosing a repository", async () => {
+		const branches = Promise.withResolvers<{
+			available: boolean;
+			branches: string[];
+		}>();
 		const onRepoUrlChange = vi.fn();
 		const onCloudBranchChange = vi.fn();
 		const props = renderControls({
@@ -150,6 +154,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			onWorkInChange: vi.fn(),
 			onRepoUrlChange,
 			onCloudBranchChange,
+			onListCloudBranches: () => branches.promise,
 		});
 		expect(container.querySelector('[role="switch"]')).toBeNull();
 		await act(async () => {
@@ -161,6 +166,10 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		await click(button("cline/cline"));
 		expect(onRepoUrlChange).toHaveBeenLastCalledWith(
 			"https://github.com/cline/cline",
+		);
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("");
+		await act(async () =>
+			branches.resolve({ available: true, branches: ["main"] }),
 		);
 		expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
 	});
@@ -228,6 +237,47 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
 		expect(onCloudBranchChange).toHaveBeenCalledWith("feature/only");
+	});
+
+	it.each([
+		{ selected: "main", branches: [], nextToken: "", expected: "" },
+		{
+			selected: "feature",
+			branches: [],
+			nextToken: "page-2",
+			expected: undefined,
+		},
+		{
+			selected: "",
+			branches: ["feature"],
+			nextToken: "page-2",
+			expected: undefined,
+		},
+	])("only reconciles a complete browse: %j", async ({
+		selected,
+		branches,
+		nextToken,
+		expected,
+	}) => {
+		const onCloudBranchChange = vi.fn();
+		const onListCloudBranches = vi.fn(async () => ({
+			available: true,
+			branches,
+			nextToken,
+		}));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: selected,
+			onCloudBranchChange,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		if (expected === undefined)
+			expect(onCloudBranchChange).not.toHaveBeenCalled();
+		else expect(onCloudBranchChange).toHaveBeenCalledWith(expected);
 	});
 
 	it.each([
@@ -572,44 +622,27 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		);
 	});
 
-	it("uses and labels the repository default when branch selection is unavailable", async () => {
+	it.each([
+		"",
+		"feature/cloud",
+	])("preserves %s when branch selection is unavailable", async (branch) => {
 		const onCloudBranchChange = vi.fn();
 		const onListCloudBranches = vi.fn(async () => ({
 			available: false,
 			branches: [],
 		}));
-		const props = renderControls({
-			executionTarget: "cloud",
-			onCloudBranchChange,
-			onListCloudBranches,
-		});
-		await act(async () => {
-			button("Select repository").click();
-			await Promise.resolve();
-			await Promise.resolve();
-		});
-		await click(button("cline/cline"));
 		renderControls({
 			executionTarget: "cloud",
 			repoUrl: "https://github.com/cline/cline",
-			cloudBranch: "main",
+			cloudBranch: branch,
 			onCloudBranchChange,
-			onListCloudRepositories: props.onListCloudRepositories,
 			onListCloudBranches,
 		});
-		await act(async () => {
-			await vi.waitFor(() => {
-				expect(onListCloudBranches).toHaveBeenCalledWith(42);
-				expect(container.textContent).toContain("main (default)");
-			});
-		});
-
-		const branchButton = button("main (default)");
-		expect(branchButton.disabled).toBe(true);
-		expect(branchButton.title).toBe(
-			"Using the repository default branch: main",
+		await vi.waitFor(() =>
+			expect(button(branch || "Default branch").disabled).toBe(true),
 		);
-		expect(container.textContent).not.toContain("Could not load branches.");
+		expect(onCloudBranchChange).not.toHaveBeenCalled();
+		expect(container.textContent).not.toContain("(default)");
 	});
 
 	it("links to GitHub setup when no integration is connected", async () => {
