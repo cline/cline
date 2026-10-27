@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TeamRuntimeState } from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SqliteTeamStore } from "./sqlite-team-store";
 import {
 	fixedNow,
@@ -13,6 +13,9 @@ import {
 	task,
 	V1_SCHEMA_SQL,
 } from "./sqlite-team-store.fixtures";
+
+// Disk-backed migration checks validate stored contents, not execution time.
+if (process.platform === "win32") vi.setConfig({ testTimeout: 60_000 });
 
 describe("SqliteTeamStore v1 -> v2 migration", () => {
 	let dir: string;
@@ -27,32 +30,37 @@ describe("SqliteTeamStore v1 -> v2 migration", () => {
 
 	function seedV1Database(state: TeamRuntimeState): void {
 		const db = loadSqliteDb(join(dir, "teams.db"));
-		db.exec(V1_SCHEMA_SQL);
-		db.prepare("INSERT INTO team_runtime_snapshot VALUES (?, ?, ?, ?)").run(
-			TEAM,
-			JSON.stringify(state),
-			JSON.stringify([{ agentId: "worker", rolePrompt: "p" }]),
-			fixedNow.toISOString(),
-		);
-		const insertEvent = db.prepare(
-			"INSERT INTO team_events (team_name, ts, event_type, payload_json) VALUES (?, ?, ?, ?)",
-		);
-		const ts = new Date().toISOString();
-		insertEvent.run(TEAM, ts, "agent_event", "{}");
-		insertEvent.run(TEAM, ts, "run_progress", '{"message":"heartbeat"}');
-		insertEvent.run(
-			TEAM,
-			ts,
-			"task_end",
-			JSON.stringify({
-				type: "task_end",
-				agentId: "worker",
-				result: fullAgentResult,
-				messages: fullAgentResult.messages,
-			}),
-		);
-		insertEvent.run(TEAM, ts, "team_message", '{"ok":true}');
-		db.close?.();
+		try {
+			db.exec("BEGIN;");
+			db.exec(V1_SCHEMA_SQL);
+			db.prepare("INSERT INTO team_runtime_snapshot VALUES (?, ?, ?, ?)").run(
+				TEAM,
+				JSON.stringify(state),
+				JSON.stringify([{ agentId: "worker", rolePrompt: "p" }]),
+				fixedNow.toISOString(),
+			);
+			const insertEvent = db.prepare(
+				"INSERT INTO team_events (team_name, ts, event_type, payload_json) VALUES (?, ?, ?, ?)",
+			);
+			const ts = new Date().toISOString();
+			insertEvent.run(TEAM, ts, "agent_event", "{}");
+			insertEvent.run(TEAM, ts, "run_progress", '{"message":"heartbeat"}');
+			insertEvent.run(
+				TEAM,
+				ts,
+				"task_end",
+				JSON.stringify({
+					type: "task_end",
+					agentId: "worker",
+					result: fullAgentResult,
+					messages: fullAgentResult.messages,
+				}),
+			);
+			insertEvent.run(TEAM, ts, "team_message", '{"ok":true}');
+			db.exec("COMMIT;");
+		} finally {
+			db.close?.();
+		}
 	}
 
 	const legacyState = (): TeamRuntimeState => ({
