@@ -1320,10 +1320,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		// A turn still preparing counts as busy, so a second send during that
 		// window is queued behind it instead of racing it to the agent.
-		const canStartRun = !this.hasActiveTurn(session);
+		const sessionIdle = !this.hasActiveTurn(session);
 		const delivery =
 			input.delivery ??
-			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
+			(session.interactive && !sessionIdle ? ("queue" as const) : undefined);
 		session.config.telemetry?.capture({
 			event: "session.input_sent",
 			properties: {
@@ -1339,7 +1339,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				...(replayingQueuedPrompt
 					? {}
 					: {
-							agentBusy: !canStartRun,
+							agentBusy: !sessionIdle,
 							bumpKind: classifyBumpText(input.prompt),
 							...(session.lastTurnEndedAt === undefined
 								? {}
