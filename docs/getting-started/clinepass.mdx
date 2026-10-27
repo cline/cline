@@ -72,7 +72,7 @@ You can use ClinePass models from your own scripts, apps, or automation through 
 
 To get started, create an API key from **Settings > API Keys** in [app.cline.bot](https://app.cline.bot). For the complete walkthrough, see the [Cline API Getting Started guide](/api/getting-started).
 
-Use the full ClinePass model slug in the `model` field:
+Use the full ClinePass model slug in the `model` field, and send the `X-Response-Format: openai` header so non-streaming responses use the standard OpenAI shape:
 
 ```bash
 export CLINE_API_KEY="your_api_key_here"
@@ -80,6 +80,7 @@ export CLINE_API_KEY="your_api_key_here"
 curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer $CLINE_API_KEY" \
   -H "Content-Type: application/json" \
+  -H "X-Response-Format: openai" \
   -d '{
     "model": "cline-pass/qwen3.7-max",
     "messages": [
@@ -89,6 +90,9 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   }'
 ```
 
+<Note>
+If you use ClinePass through an OpenAI-compatible client or proxy (such as the OpenAI SDKs or LiteLLM), configure it to send the `X-Response-Format: openai` header. Without it, non-streaming responses nest the completion under a `data` field, and clients that expect `choices` at the top level fail to parse them. Streaming responses are unaffected. See [Non-Streaming Response](/api/chat-completions#non-streaming-response) for details.
+</Note>
 
 ## Reference pricing
 
