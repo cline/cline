@@ -210,6 +210,19 @@ workspace-wide operations on busy sessions (for example the desktop's
 checkpoint-restore gate) depend on this: a defaulted `running` with no owning
 turn leaves such gates blocked with nothing to clear them.
 
+Starting a session that already has a run in flight joins it rather than
+replacing it: `LocalRuntimeHost.startSession` returns the live session, and a
+start that also carries a prompt is rejected so the caller queues it instead.
+The running agent keeps the client-owned capabilities (hooks, tool executors,
+the mistake-limit prompt) it was built with and never hands them to a client
+that joined later, since a same-named hook or tool may follow different rules.
+If the owning client unregisters or detaches, its pending requests are
+cancelled. Later requests to a detached client fail immediately; requests to a
+disconnected client wait a few seconds for it to reconnect under the same id
+(riding out a brief socket drop) and then fail instead of waiting forever, so
+the run ends with an error telling the user to reopen the task
+(`task.capability_owner_gone` records each case).
+
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
 `AgentToolContext.emitUpdate`; the agent runtime projects them as tool

@@ -149,9 +149,14 @@ function TokenSpans({ tokens }: { tokens: Token[] | undefined }) {
 	);
 }
 
-const ROW = "flex min-w-max font-mono text-xs leading-5";
+const ROW = "flex font-mono text-xs leading-5";
 const GUTTER =
-	"sticky left-0 shrink-0 select-none bg-inherit pr-3 text-right text-muted-foreground/60 tabular-nums";
+	"shrink-0 select-none pr-3 text-right text-muted-foreground/60 tabular-nums";
+// Wrapped continuations hang 2ch in so they don't read as new lines;
+// `hanging` (unlike padding plus a negative indent) keeps the first line's
+// tab stops where they were.
+const CODE =
+	"min-w-0 flex-1 whitespace-pre-wrap wrap-anywhere pr-4 [text-indent:2ch_hanging]";
 
 export function CodeFile({
 	path,
@@ -172,19 +177,16 @@ export function CodeFile({
 	const gutterWidth = `${String(lines.length).length + 2}ch`;
 	return (
 		<div
-			className="cline-chat-selectable min-w-full bg-background py-2"
+			className="cline-chat-selectable bg-background py-2"
 			data-testid="file-contents"
 		>
 			{lines.map((tokens, index) => (
 				// biome-ignore lint/suspicious/noArrayIndexKey: line positions are the identity
 				<div className={ROW} key={index}>
-					<span
-						className={cn(GUTTER, "bg-background")}
-						style={{ width: gutterWidth }}
-					>
+					<span className={GUTTER} style={{ width: gutterWidth }}>
 						{index + 1}
 					</span>
-					<span className="whitespace-pre pr-4">
+					<span className={CODE}>
 						<TokenSpans tokens={full.get(index) ?? head.get(index) ?? tokens} />
 					</span>
 				</div>
@@ -312,13 +314,13 @@ export function CodeDiff({
 	const numberWidth = `${digits + 1}ch`;
 	return (
 		<div
-			className="cline-chat-selectable min-w-full bg-background py-2"
+			className="cline-chat-selectable bg-background py-2"
 			data-testid="file-diff"
 		>
 			{rows.map((row, index) =>
 				row.kind === "gap" ? (
 					<div
-						className="my-1 flex min-w-full items-center bg-muted/50 px-3 py-0.5 font-mono text-[11px] text-muted-foreground"
+						className="my-1 flex items-center bg-muted/50 px-3 py-0.5 font-mono text-[11px] text-muted-foreground"
 						// biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
 						key={index}
 					>
@@ -334,16 +336,7 @@ export function CodeDiff({
 						// biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
 						key={index}
 					>
-						<span
-							className={cn(
-								"sticky left-0 flex shrink-0 select-none tabular-nums text-muted-foreground/60",
-								row.kind === "addition"
-									? "bg-[color-mix(in_oklab,var(--chart-2)_12%,var(--background))]"
-									: row.kind === "deletion"
-										? "bg-[color-mix(in_oklab,var(--destructive)_12%,var(--background))]"
-										: "bg-background",
-							)}
-						>
+						<span className="flex shrink-0 select-none tabular-nums text-muted-foreground/60">
 							{fragment ? null : (
 								<>
 									<span
@@ -374,7 +367,7 @@ export function CodeDiff({
 										: ""}
 							</span>
 						</span>
-						<span className="whitespace-pre pr-4">
+						<span className={CODE}>
 							<TokenSpans
 								tokens={
 									row.kind === "deletion" && row.oldIndex !== null
