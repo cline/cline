@@ -98,7 +98,7 @@ host presentation.
 
 A missing session returns `session_not_found`; empty or unavailable history returns `session_messages_not_found` before starting a runtime. `session.create` retains its existing behavior, including empty context when `initialMessages` is omitted.
 
-Older Hubs reject `session.resume` with `unsupported_command`. Clients can then use the existing `session.messages` followed by `session.create` with explicit history. Other errors must not trigger that fallback.
+When a Hub returns `unsupported_command`, clients can use the existing `session.messages` followed by `session.create` with explicit history. Other errors must not trigger that fallback.
 
 ## Cloud sessions (experimental)
 
