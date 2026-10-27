@@ -227,8 +227,10 @@ export class HubCloudSessionService {
 		const environment = getClineEnvironmentConfig();
 		const scope = this.scope;
 		const apiBaseUrl =
-			this.settings.getProviderSettings("cline")?.baseUrl?.trim() ||
-			environment.apiBaseUrl;
+			this.settings
+				.getProviderSettings("cline")
+				?.baseUrl?.trim()
+				.replace(/\/api\/v1\/*$/, "") || environment.apiBaseUrl;
 		const getAuthToken = async () => {
 			if (!this.isCurrentScope(scope)) throw new Error("Cline account changed");
 			let token: string | undefined;
