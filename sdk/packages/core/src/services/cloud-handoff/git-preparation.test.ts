@@ -208,6 +208,54 @@ describe("cloud handoff Git preparation", () => {
 	});
 
 	it.each([
+		false,
+		true,
+	])("checks only new sensitive merge content (new resolution: %s)", async (newResolution) => {
+		git("switch", "-c", "published");
+		writeFileSync(
+			join(repo, "credentials.json"),
+			"synthetic published value\n",
+		);
+		git("add", ".");
+		git("commit", "-m", "published credentials");
+		git("push", "origin", "published");
+		git("switch", "main");
+		writeFileSync(join(repo, "tracked.txt"), "local change\n");
+		git("commit", "-am", "local change");
+		git("merge", "--no-ff", "--no-commit", "published");
+		if (newResolution) {
+			writeFileSync(
+				join(repo, "credentials.json"),
+				"synthetic unpublished value\n",
+			);
+			git("add", "credentials.json");
+		}
+		git("commit", "-m", "merge published");
+		const remoteRefs = git("ls-remote", "origin");
+		if (newResolution) {
+			await expect(inspectHandoffGit(repo)).rejects.toThrow(
+				"unpublished history",
+			);
+			expect(git("ls-remote", "origin")).toBe(remoteRefs);
+		} else {
+			const plan = await inspectHandoffGit(repo);
+			expect(plan.commits).toEqual([
+				expect.stringContaining("merge published"),
+				expect.stringContaining("local change"),
+			]);
+			await applyHandoffGit(plan);
+			expect(
+				git(
+					"--git-dir",
+					transport.remote,
+					"show",
+					`${plan.branch}:credentials.json`,
+				),
+			).toBe("synthetic published value");
+		}
+	});
+
+	it.each([
 		["--skip-worktree", false],
 		["--assume-unchanged", false],
 		["--skip-worktree", true],
@@ -400,6 +448,27 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 	});
 
+	it("completes publication when Git configuration becomes locked during push", async () => {
+		writeFileSync(join(repo, "tracked.txt"), "approved\n");
+		const plan = await inspectHandoffGit(repo);
+		writeFileSync(
+			join(repo, ".git/hooks/pre-push"),
+			'#!/bin/sh\ntouch "$(git rev-parse --git-common-dir)/config.lock"\n',
+			{ mode: 0o755 },
+		);
+		const published = await applyHandoffGit(plan);
+		expect(git("--git-dir", transport.remote, "rev-parse", plan.branch)).toBe(
+			published,
+		);
+		expect(
+			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
+		).toBe("approved");
+		expect(git("config", `branch.${plan.branch}.merge`)).toBe(
+			`refs/heads/${plan.branch}`,
+		);
+		expect(git("branch", "--show-current")).toBe("main");
+	});
+
 	it.each([
 		"reject",
 		"modify",
@@ -476,7 +545,11 @@ describe("cloud handoff Git preparation", () => {
 		[".env", true],
 		[".npmrc", true],
 		[".aws/credentials", true],
-	] as const)("rejects sensitive unpublished %s history (deleted later: %s) without mutation", async (path, deleted) => {
+		[".env", true, "replace"],
+		[".env", true, "graft"],
+	] as const)("rejects sensitive unpublished %s history (deleted later: %s, overlay: %s) without mutation", async (path, deleted, overlay?:
+		| "replace"
+		| "graft") => {
 		mkdirSync(dirname(join(repo, path)), { recursive: true });
 		writeFileSync(join(repo, path), "SYNTHETIC_LOCAL_ONLY=value\n");
 		git("add", path);
@@ -486,6 +559,14 @@ describe("cloud handoff Git preparation", () => {
 			git("commit", "-m", "remove credentials");
 		}
 		const head = git("rev-parse", "HEAD");
+		if (overlay === "replace") {
+			git("replace", "--graft", head, "origin/main");
+		} else if (overlay === "graft") {
+			writeFileSync(
+				join(repo, ".git/info/grafts"),
+				`${head} ${git("rev-parse", "origin/main")}\n`,
+			);
+		}
 		const index = readFileSync(join(repo, ".git/index"));
 		const remoteRefs = git("ls-remote", "origin");
 		expect(git("status", "--porcelain")).toBe("");
