@@ -752,7 +752,7 @@ export class Controller {
 		this.accountService.onAccountChange((change) => this.changeHandoffAccount(() => this.cloud.reset(change)))
 		this.cloudHandoff = new SdkCloudHandoffCoordinator({
 			capture: (sourceTaskId, signal) => this.captureCloudHandoffSource(sourceTaskId, signal),
-			getCloud: async (cwd) => (this.handoffHub ??= new VscodeCloudHub(cwd)).cloud,
+			getCloud: (cwd) => (this.handoffHub ??= new VscodeCloudHub(cwd)).cloud,
 			getAccount: () => {
 				if (this.handoffAccountChanges > 0) return undefined
 				const user = this.authService.getInfo().user

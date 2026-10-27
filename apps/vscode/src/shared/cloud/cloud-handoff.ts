@@ -11,7 +11,7 @@ export type CloudHandoffView = { id: string; sourceTaskId: string } & (
 			imageCount: number
 	  }
 	| { phase: "launching"; sessionId?: string }
-	| { phase: "complete"; sessionId: string; delivery: "sent" | "unsent" | "unconfirmed"; message?: string }
+	| { phase: "complete"; sessionId: string; delivery: "sent" | "unsent" | "unconfirmed" }
 	| { phase: "failed"; message: string }
 )
 

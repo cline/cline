@@ -1,12 +1,12 @@
 import type { McpServer } from "@shared/mcp"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
 import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
+	cloudHandoffEnabled: boolean
 	onSelect: (command: SlashCommand) => void
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
@@ -30,9 +30,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	remoteWorkflowToggles,
 	remoteWorkflows,
 	mcpServers = [],
+	cloudHandoffEnabled,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
-	const { cloudSessionsEnabled, currentCloudTask, clineMessages } = useExtensionState()
 
 	// Filter commands based on query
 	const filteredCommands = getMatchingSlashCommands(
@@ -42,7 +42,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		remoteWorkflowToggles,
 		remoteWorkflows,
 		mcpServers,
-		!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
+		cloudHandoffEnabled,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")

@@ -2,7 +2,7 @@ import * as cloudCore from "@cline/core/cloud"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
@@ -912,6 +912,8 @@ describe("cloud tasks stay in the cloud", () => {
 })
 
 describe("cloud handoff source capture", () => {
+	afterEach(() => vi.restoreAllMocks())
+
 	function setup(active = true) {
 		const messages = [{ role: "user" as const, content: "Finish the widget" }]
 		const host = {
@@ -967,16 +969,12 @@ describe("cloud handoff source capture", () => {
 
 	it("copies the live transcript without changing or disposing the local session", async () => {
 		const { capture, host, messages, inspect } = setup()
-		try {
-			const snapshot = await capture()
-			messages[0].content = "Later local edit"
-			expect(snapshot.messages[0].content).toBe("Finish the widget")
-			expect(host.readMessages).not.toHaveBeenCalled()
-			expect(host.dispose).not.toHaveBeenCalled()
-			expect(inspect).toHaveBeenCalledWith("/workspace", expect.any(Function))
-		} finally {
-			inspect.mockRestore()
-		}
+		const snapshot = await capture()
+		messages[0].content = "Later local edit"
+		expect(snapshot.messages[0].content).toBe("Finish the widget")
+		expect(host.readMessages).not.toHaveBeenCalled()
+		expect(host.dispose).not.toHaveBeenCalled()
+		expect(inspect).toHaveBeenCalledWith("/workspace", expect.any(Function))
 	})
 
 	it("rejects a turn that starts and finishes while the transcript is being read", async () => {
@@ -985,35 +983,23 @@ describe("cloud handoff source capture", () => {
 			controller.sessions.captureState.generation++
 			return messages
 		})
-		try {
-			await expect(capture()).rejects.toThrow("conversation changed")
-			expect(inspect).not.toHaveBeenCalled()
-		} finally {
-			inspect.mockRestore()
-		}
+		await expect(capture()).rejects.toThrow("conversation changed")
+		expect(inspect).not.toHaveBeenCalled()
 	})
 
 	it("refuses capture while a workspace command is running", async () => {
 		const { controller, host, inspect, capture } = setup()
 		controller.foregroundCommands.isRunning = true
-		try {
-			await expect(capture()).rejects.toThrow("workspace operation")
-			expect(host.readLiveMessages).not.toHaveBeenCalled()
-			expect(inspect).not.toHaveBeenCalled()
-		} finally {
-			inspect.mockRestore()
-		}
+		await expect(capture()).rejects.toThrow("workspace operation")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(inspect).not.toHaveBeenCalled()
 	})
 
 	it("reads a saved conversation without activating it and disposes its temporary host", async () => {
-		const { controller, host, inspect, capture } = setup(false)
-		try {
-			expect((await capture()).messages).toEqual([{ role: "user", content: "Finish the widget" }])
-			expect(controller.sessionHistory.loadInitialMessages).toHaveBeenCalledWith(host, "local-task")
-			expect(host.readLiveMessages).not.toHaveBeenCalled()
-			expect(host.dispose).toHaveBeenCalledWith("cloudHandoffCapture")
-		} finally {
-			inspect.mockRestore()
-		}
+		const { controller, host, capture } = setup(false)
+		expect((await capture()).messages).toEqual([{ role: "user", content: "Finish the widget" }])
+		expect(controller.sessionHistory.loadInitialMessages).toHaveBeenCalledWith(host, "local-task")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(host.dispose).toHaveBeenCalledWith("cloudHandoffCapture")
 	})
 })

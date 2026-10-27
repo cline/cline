@@ -48,12 +48,13 @@ function setup() {
 	}
 	const capture = vi.fn(async () => source)
 	const summarize = vi.fn(async () => "Widget implemented; tests remain.")
+	const changed = vi.fn(async () => {})
 	const coordinator = new SdkCloudHandoffCoordinator({
 		capture,
-		getCloud: async () => cloud,
+		getCloud: () => cloud,
 		getAccount: () => account,
 		assertEnabled: () => {},
-		changed: async () => {},
+		changed,
 		summarize,
 	})
 	const id = () => {
@@ -67,6 +68,7 @@ function setup() {
 		source,
 		capture,
 		summarize,
+		changed,
 		id,
 		switchAccount: () => {
 			account = { ...account, key: "other-account" }
@@ -75,6 +77,17 @@ function setup() {
 }
 
 describe("cloud conversation handoff", () => {
+	it("settles a failed state update so preparation can be dismissed and restarted", async () => {
+		const { coordinator, changed, capture, id } = setup()
+		changed.mockRejectedValueOnce(new Error("Webview unavailable"))
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message: "Webview unavailable" })
+		expect(capture).not.toHaveBeenCalled()
+		await coordinator.discard(id())
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)?.phase).toBe("ready")
+	})
+
 	it.each([
 		[
 			new Error(new CloudSessionError("github_not_connected", "Connect GitHub before handing off.").message),
@@ -202,6 +215,24 @@ describe("cloud conversation handoff", () => {
 			phase: "complete",
 			delivery: failure ? "unconfirmed" : "sent",
 		})
+	})
+
+	it("keeps a safe retry when state publication fails before sending", async () => {
+		const { coordinator, cloud, changed, id } = setup()
+		cloud.create.mockResolvedValue({
+			sessionId: "ses_example",
+			status: "idle",
+			initialSend: { dispatched: false, message: "unavailable" },
+		})
+		await coordinator.prepare(input)
+		await coordinator.confirm(id())
+		changed.mockRejectedValueOnce(new Error("Webview unavailable"))
+		await expect(coordinator.retryMessage(id())).rejects.toThrow("Webview unavailable")
+		expect(cloud.send).not.toHaveBeenCalled()
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "unsent" })
+		await coordinator.retryMessage(id())
+		expect(cloud.send).toHaveBeenCalledTimes(1)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "sent" })
 	})
 
 	it("does not retry an unsent continuation after the Hub scope changes", async () => {

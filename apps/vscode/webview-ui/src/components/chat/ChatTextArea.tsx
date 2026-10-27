@@ -235,6 +235,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// the mode is pinned to Act and the toggle is hidden; the stored mode is untouched.
 		const cloudActOnly =
 			!!currentCloudTask || (clineMessages.length === 0 && !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
+		const cloudHandoffEnabled = !!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0
 		const mode = cloudActOnly ? "act" : selectedMode
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -504,7 +505,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
-								!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
+								cloudHandoffEnabled,
 							)
 
 							if (allCommands.length === 0) {
@@ -530,7 +531,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
-							!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
+							cloudHandoffEnabled,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
@@ -694,9 +695,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
-				cloudSessionsEnabled,
-				currentCloudTask,
-				clineMessages.length,
+				cloudHandoffEnabled,
 			],
 		)
 
@@ -1009,7 +1008,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					remoteWorkflowToggles,
 					remoteConfigSettings?.remoteGlobalWorkflows,
 					mcpServers,
-					!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
+					cloudHandoffEnabled,
 				)
 
 				if (isValidCommand) {
@@ -1029,9 +1028,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			remoteWorkflowToggles,
 			remoteConfigSettings,
 			mcpServers,
-			cloudSessionsEnabled,
-			currentCloudTask,
-			clineMessages.length,
+			cloudHandoffEnabled,
 		])
 
 		useLayoutEffect(() => {
@@ -1468,6 +1465,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
+								cloudHandoffEnabled={cloudHandoffEnabled}
 								globalWorkflowToggles={globalWorkflowToggles}
 								localWorkflowToggles={localWorkflowToggles}
 								mcpServers={mcpServers}

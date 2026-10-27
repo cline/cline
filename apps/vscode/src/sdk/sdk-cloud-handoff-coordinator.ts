@@ -41,27 +41,26 @@ type HandoffCloud = Pick<
 interface PreparedHandoff {
 	cloud: HandoffCloud
 	scope: CloudHubScope
-	input: Parameters<HubCloudSessionClient["create"]>[0]
+	input: Parameters<HubCloudSessionClient["create"]>[0] & {
+		initialMessage: NonNullable<Parameters<HubCloudSessionClient["create"]>[0]["initialMessage"]>
+	}
 }
 
 interface UnsentContinuation {
 	cloud: HandoffCloud
 	scope: CloudHubScope
 	modelId: string
-	initialMessage: NonNullable<PreparedHandoff["input"]["initialMessage"]>
+	initialMessage: PreparedHandoff["input"]["initialMessage"]
 }
 
 type Attempt = { id: string; sourceTaskId: string; accountKey: string } & (
 	| { phase: "preparing"; abort: AbortController }
 	| { phase: "ready"; prepared: PreparedHandoff; preview: Extract<CloudHandoffView, { phase: "ready" }> }
-	| { phase: "launching"; completion: Promise<void>; sessionId?: string }
-	| {
-			phase: "complete"
-			sessionId: string
-			delivery: "sent" | "unsent" | "unconfirmed"
-			message?: string
-			unsent?: UnsentContinuation
-	  }
+	| { phase: "launching"; sessionId?: string }
+	| ({ phase: "complete"; sessionId: string } & (
+			| { delivery: "unsent"; unsent: UnsentContinuation }
+			| { delivery: "sent" | "unconfirmed" }
+	  ))
 	| { phase: "failed"; message: string }
 )
 
@@ -71,7 +70,7 @@ export class SdkCloudHandoffCoordinator {
 	constructor(
 		private readonly options: {
 			capture(sourceTaskId: string, signal: AbortSignal): Promise<CapturedHandoffSource>
-			getCloud(cwd: string): Promise<HandoffCloud>
+			getCloud(cwd: string): HandoffCloud
 			getAccount(): { key: string; organizationId: string | null; organizationName: string } | undefined
 			assertEnabled(): void
 			changed(): Promise<void>
@@ -92,7 +91,7 @@ export class SdkCloudHandoffCoordinator {
 			case "launching":
 				return { ...base, phase, sessionId: attempt.sessionId }
 			case "complete":
-				return { ...base, phase, sessionId: attempt.sessionId, delivery: attempt.delivery, message: attempt.message }
+				return { ...base, phase, sessionId: attempt.sessionId, delivery: attempt.delivery }
 			case "failed":
 				return { ...base, phase, message: attempt.message }
 		}
@@ -115,11 +114,11 @@ export class SdkCloudHandoffCoordinator {
 		const base = { id: randomUUID(), sourceTaskId: input.sourceTaskId, accountKey: account.key }
 		const attempt: Attempt = { ...base, phase: "preparing", abort: new AbortController() }
 		this.attempts.set(input.sourceTaskId, attempt)
-		await this.options.changed()
 		try {
+			await this.options.changed()
 			const source = await this.options.capture(input.sourceTaskId, attempt.abort.signal)
 			this.assertCurrent(attempt)
-			const cloud = await this.options.getCloud(source.plan.root)
+			const cloud = this.options.getCloud(source.plan.root)
 			await cloud.connect()
 			const scope = cloud.scope
 			if (!scope) throw new Error("Cloud account is unavailable.")
@@ -200,43 +199,30 @@ export class SdkCloudHandoffCoordinator {
 	async confirm(id: string): Promise<void> {
 		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
 		if (!attempt) throw new Error("This preparation has expired. Run /cloud again.")
-		if (attempt.phase === "launching") return attempt.completion
 		if (attempt.phase !== "ready") return
 		this.options.assertEnabled()
 		this.assertCurrent(attempt)
-		const { prepared } = attempt
-		// A settled Hub request is not replay-safe, even with the same request ID.
-		const completion = Promise.resolve().then(() => this.launch(launching, prepared))
-		const launching: Attempt & { phase: "launching" } = {
-			id: attempt.id,
-			sourceTaskId: attempt.sourceTaskId,
-			accountKey: attempt.accountKey,
-			phase: "launching",
-			completion,
-		}
+		const { cloud, scope, input } = attempt.prepared
+		const base = { id: attempt.id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey }
+		// Hub create deduplicates in-flight calls only; completed attempts must not replay.
+		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching" }
 		this.attempts.set(attempt.sourceTaskId, launching)
-		await this.options.changed()
-		await completion
-	}
-
-	private async launch(attempt: Attempt & { phase: "launching" }, prepared: PreparedHandoff): Promise<void> {
-		const { cloud, scope, input } = prepared
 		const unsubscribe = cloud.subscribe((event) => {
 			if (
 				event.type !== "snapshot" ||
 				event.snapshot.record?.repoContext.branch !== input.branch ||
 				event.snapshot.record?.repoContext.repoUrl !== input.repoUrl ||
-				this.attempts.get(attempt.sourceTaskId) !== attempt
+				this.attempts.get(attempt.sourceTaskId) !== launching
 			)
 				return
-			attempt.sessionId = event.sessionId
+			launching.sessionId = event.sessionId
 			void this.options.changed()
 		})
-		const base = { id: attempt.id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey }
 		try {
-			this.assertCurrent(attempt)
+			await this.options.changed()
+			this.assertCurrent(launching)
 			const result = await cloud.create(input, scope)
-			this.assertCurrent(attempt)
+			this.assertCurrent(launching)
 			const send = result.initialSend
 			const delivery =
 				!send ||
@@ -250,30 +236,20 @@ export class SdkCloudHandoffCoordinator {
 				...base,
 				phase: "complete",
 				sessionId: result.sessionId,
-				delivery,
-				unsent:
-					delivery === "unsent" && input.initialMessage
-						? { cloud, scope, modelId: input.modelId, initialMessage: input.initialMessage }
-						: undefined,
-				message:
-					delivery === "sent"
-						? undefined
-						: delivery === "unsent"
-							? "The cloud task was created, but the continuation was not sent. Retry here while this window stays open. Your draft has been kept."
-							: "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept.",
+				...(delivery === "unsent"
+					? { delivery, unsent: { cloud, scope, modelId: input.modelId, initialMessage: input.initialMessage } }
+					: { delivery }),
 			})
 		} catch (error) {
-			if (this.attempts.get(attempt.sourceTaskId) !== attempt) return
+			if (this.attempts.get(attempt.sourceTaskId) !== launching) return
 			this.attempts.set(
 				attempt.sourceTaskId,
-				attempt.sessionId
+				launching.sessionId
 					? {
 							...base,
 							phase: "complete",
-							sessionId: attempt.sessionId,
+							sessionId: launching.sessionId,
 							delivery: "unconfirmed",
-							message:
-								"The connection was interrupted. Check the cloud task before resending. Your draft has been kept.",
 						}
 					: {
 							...base,
@@ -290,43 +266,35 @@ export class SdkCloudHandoffCoordinator {
 	async retryMessage(id: string): Promise<void> {
 		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
 		if (!attempt) throw new Error("This handoff has expired.")
-		if (attempt.phase === "launching") return attempt.completion
-		if (attempt.phase !== "complete" || attempt.delivery !== "unsent" || !attempt.unsent) return
+		if (attempt.phase !== "complete" || attempt.delivery !== "unsent") return
 		this.options.assertEnabled()
 		this.assertCurrent(attempt)
 		const { cloud, scope, modelId, initialMessage } = attempt.unsent
 		if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
 			throw new Error("The cloud account changed. Check the cloud task before resending.")
 		const base = { id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey, sessionId: attempt.sessionId }
-		const completion = Promise.resolve().then(async () => {
+		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching" }
+		this.attempts.set(attempt.sourceTaskId, launching)
+		let settled: Attempt = attempt
+		try {
+			await this.options.changed()
+			this.assertCurrent(launching)
+			if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
+				throw new Error("Cloud account changed")
 			let delivery: "sent" | "unconfirmed" = "unconfirmed"
 			try {
-				this.assertCurrent(launching)
-				if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
-					throw new Error("Cloud account changed")
 				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
 				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
 			} catch {
 				// A send error does not prove the message stayed unsent.
-			} finally {
-				if (this.attempts.get(attempt.sourceTaskId) === launching) {
-					this.attempts.set(attempt.sourceTaskId, {
-						...base,
-						phase: "complete",
-						delivery,
-						message:
-							delivery === "unconfirmed"
-								? "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept."
-								: undefined,
-					})
-					await this.options.changed()
-				}
 			}
-		})
-		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching", completion }
-		this.attempts.set(attempt.sourceTaskId, launching)
-		await this.options.changed()
-		await completion
+			settled = { ...base, phase: "complete", delivery }
+		} finally {
+			if (this.attempts.get(attempt.sourceTaskId) === launching) {
+				this.attempts.set(attempt.sourceTaskId, settled)
+				await this.options.changed()
+			}
+		}
 	}
 
 	async discard(id: string): Promise<void> {

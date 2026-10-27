@@ -244,31 +244,15 @@ export function validateSlashCommand(
 		return null
 	}
 
-	const workflowCommands = getWorkflowCommands(
+	const matches = getMatchingSlashCommands(
+		command,
 		localWorkflowToggles,
 		globalWorkflowToggles,
 		remoteWorkflowToggles,
 		remoteWorkflows,
+		mcpServers,
+		cloudHandoffEnabled,
 	)
-	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [
-		...DEFAULT_SLASH_COMMANDS.filter((command) => command.name !== "cloud" || cloudHandoffEnabled),
-		...workflowCommands,
-		...mcpPromptCommands,
-	]
-
-	// case insensitive matching
-	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())
-
-	if (exactMatch) {
-		return "full"
-	}
-
-	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(command.toLowerCase()))
-
-	if (partialMatch) {
-		return "partial"
-	}
-
-	return null // no match
+	if (matches.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())) return "full"
+	return matches.length ? "partial" : null
 }

@@ -14,7 +14,6 @@ import {
 	V1_SCHEMA_SQL,
 } from "./sqlite-team-store.fixtures";
 
-// Disk-backed migration checks validate stored contents, not execution time.
 if (process.platform === "win32") vi.setConfig({ testTimeout: 60_000 });
 
 describe("SqliteTeamStore v1 -> v2 migration", () => {

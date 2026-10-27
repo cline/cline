@@ -1,9 +1,29 @@
+import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CloudServiceClient } from "@/services/grpc-client"
+
+function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): string {
+	switch (view.phase) {
+		case "preparing":
+			return "Preparing conversation summary and Git snapshot…"
+		case "launching":
+			return view.sessionId
+				? "Sending cloud continuation… You can continue locally."
+				: "Starting cloud task… You can continue locally."
+		case "complete":
+			return {
+				sent: "Cloud task started. Your local task is still open.",
+				unsent: "The cloud task was created, but the continuation was not sent. Retry here while this window stays open. Your draft has been kept.",
+				unconfirmed: "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept.",
+			}[view.delivery]
+		case "failed":
+			return view.message
+	}
+}
 
 export function CloudHandoff({ error: preparationError }: { error?: string }) {
 	const { cloudHandoff: view } = useExtensionState()
@@ -112,17 +132,7 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 			)}
 			{view.phase !== "ready" && (
 				<section aria-label="Cloud handoff" className="m-2 p-3 border border-input-border rounded text-sm">
-					<div role="status">
-						{view.phase === "preparing"
-							? "Preparing conversation summary and Git snapshot…"
-							: view.phase === "launching"
-								? view.sessionId
-									? "Sending cloud continuation… You can continue locally."
-									: "Starting cloud task… You can continue locally."
-								: view.phase === "complete" && view.delivery === "sent"
-									? "Cloud task started. Your local task is still open."
-									: view.message}
-					</div>
+					<div role="status">{handoffStatus(view)}</div>
 					{errorText && (
 						<div className="text-error mt-2" role="alert">
 							{errorText}
