@@ -1,0 +1,19 @@
+# Precondition: bot.cline.app.e2e has a newly created connected fixture Cloud chat.
+appId: bot.cline.app.e2e
+name: Deterministic structured question option and custom answer
+---
+- tapOn: "Message composer"
+- inputText: "ask-question"
+- tapOn: "Send"
+- assertVisible: "Which fixture response should Cline use?"
+- tapOn: "A. Use the existing design"
+- assertVisible: "Selected.*Use the existing design.*"
+- tapOn: "Message composer"
+- inputText: "ask-question"
+- tapOn: "Send"
+- assertVisible: "Which fixture response should Cline use?"
+- tapOn: "Custom answer"
+- inputText: "Native custom answer"
+- tapOn: "Submit"
+- assertVisible: "Selected.*Native custom answer.*"
+- takeScreenshot: fixture-question-custom

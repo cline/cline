@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <application
+    android:label="Cline E2E"
+    android:networkSecurityConfig="@xml/native_fixture_network_security"
+    tools:replace="android:label,android:networkSecurityConfig" />
+</manifest>

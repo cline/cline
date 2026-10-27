@@ -1,0 +1,20 @@
+# Precondition: a connected fixture Cloud chat. These tools never run OS commands.
+appId: bot.cline.app.e2e
+name: Deterministic Cloud approval grant and reasoned denial
+---
+- tapOn: "Message composer"
+- inputText: "approval-fixture"
+- tapOn: "Send"
+- assertVisible: "Tool approval required"
+- tapOn: "Approve"
+- assertVisible: "Displayed the synthetic diff; no workspace command ran."
+- tapOn: "Message composer"
+- inputText: "approval-fixture"
+- tapOn: "Send"
+- assertVisible: "Tool approval required"
+- tapOn: "Deny"
+- tapOn: "Denial reason"
+- inputText: "Native denial fixture"
+- tapOn: "Confirm deny"
+- assertVisible: "Tool bash was denied.*Native denial fixture.*"
+- takeScreenshot: fixture-approval-denied

@@ -1,0 +1,23 @@
+// Explicit --init-script build only. No shipping Gradle configuration changes.
+if (System.getenv('CLINE_NATIVE_FIXTURE_BUILD') != '1') {
+    throw new GradleException('Native fixture init script requires CLINE_NATIVE_FIXTURE_BUILD=1')
+}
+def fixtureDir = System.getenv('CLINE_NATIVE_FIXTURE_DIR')
+def fixtureBuildDir = System.getenv('CLINE_NATIVE_FIXTURE_ANDROID_BUILD_DIR')
+if (!fixtureDir || !fixtureBuildDir) {
+    throw new GradleException('Set isolated fixture tooling and app build directories')
+}
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.layout.buildDirectory.set(new File(fixtureBuildDir))
+        project.plugins.withId('com.android.application') {
+            project.extensions.getByName('androidComponents').finalizeDsl { android ->
+                android.defaultConfig.applicationId = 'bot.cline.app.e2e'
+                // Merge a fixture-only label and loopback network policy over the
+                // ordinary manifest; all activities, permissions and guards stay.
+                android.sourceSets.getByName('release').manifest.srcFile(new File(fixtureDir, 'android/AndroidManifest.xml'))
+                android.sourceSets.getByName('release').res.srcDir(new File(fixtureDir, 'android/res'))
+            }
+        }
+    }
+}
