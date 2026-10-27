@@ -1431,6 +1431,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				success,
 				modelId: config.modelId,
 				provider: config.providerId,
+				mode: config.mode,
 			});
 		}
 	}
