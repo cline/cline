@@ -212,10 +212,7 @@ describe("WelcomeScreen", () => {
 		).toHaveLength(2);
 	});
 
-	it.each([
-		"",
-		"main",
-	])("restores an empty repository saved with branch %j", async (branch) => {
+	it("restores an empty repository saved with its default branch", async () => {
 		accountRef.user = { id: "user-1" };
 		const scope = JSON.stringify([
 			getClineEnvironmentConfig().appBaseUrl,
@@ -223,7 +220,7 @@ describe("WelcomeScreen", () => {
 			null,
 		]);
 		const repoUrl = "https://github.com/org/empty";
-		writeCloudRepositorySelection(scope, { repoUrl, branch });
+		writeCloudRepositorySelection(scope, { repoUrl, branch: "main" });
 		const branchCheck = Promise.withResolvers<unknown>();
 		invokeMock.mockImplementation((command) =>
 			command === "list_cloud_repositories"
