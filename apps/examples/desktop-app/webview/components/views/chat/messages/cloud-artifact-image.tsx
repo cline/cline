@@ -47,7 +47,7 @@ function ArtifactImage({
 	const container = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 	const [attempt, setAttempt] = useState(0);
-	const [download, setDownload] = useState<CloudArtifactDownload>();
+	const [url, setUrl] = useState<string>();
 	const [failed, setFailed] = useState(false);
 
 	useEffect(() => {
@@ -70,7 +70,7 @@ function ArtifactImage({
 	useEffect(() => {
 		if (!visible) return;
 		let cancelled = false;
-		setDownload(undefined);
+		setUrl(undefined);
 		setFailed(false);
 		void desktopClient
 			.invoke<CloudArtifactDownload>("get_cloud_artifact_url", {
@@ -79,7 +79,7 @@ function ArtifactImage({
 			})
 			.then((result) => {
 				if (cancelled) return;
-				setDownload(result);
+				setUrl(result.url);
 			})
 			.catch(() => {
 				if (!cancelled) setFailed(true);
@@ -101,11 +101,11 @@ function ArtifactImage({
 						Retry
 					</button>
 				</output>
-			) : download ? (
+			) : url ? (
 				// biome-ignore lint/performance/noImgElement: The signed URL must load directly, without the Next image proxy.
 				<img
 					alt={media.name ?? "Published image"}
-					src={download.url}
+					src={url}
 					className={classNames?.image ?? className}
 					referrerPolicy="no-referrer"
 					onError={() => {

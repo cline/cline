@@ -13,16 +13,14 @@ describe("readSessionMessages", () => {
 			mediaType: "image/png",
 			source: { type: "artifact", artifactId: "frame-one" },
 		};
-		const messages = JSON.parse(
-			JSON.stringify([
-				{
-					id: "assistant",
-					role: "assistant",
-					ts: 123,
-					content: [{ type: "media", media }],
-				},
-			]),
-		);
+		const messages = [
+			{
+				id: "assistant",
+				role: "assistant",
+				ts: 123,
+				content: [{ type: "media", media }],
+			},
+		];
 		expect(
 			readSessionMessagesSync(
 				{ liveSessions: new Map() },

@@ -89,16 +89,9 @@ it("loads a signed URL when the client clock is ahead of its expiry", async () =
 	expect(mocks.invoke).toHaveBeenCalledTimes(1);
 });
 
-it("refreshes an expired image URL once and offers an explicit retry after another failure", async () => {
-	const now = Date.parse("2029-01-01T00:00:00Z");
-	const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-	mocks.invoke.mockResolvedValueOnce({
-		...download,
-		expiresAt: new Date(now + 1000).toISOString(),
-	});
+it("refreshes a failed image URL once and offers an explicit retry after another failure", async () => {
 	await render();
 	await act(async () => reveal());
-	clock.mockReturnValue(now + 2000);
 	await act(async () =>
 		container.querySelector("img")?.dispatchEvent(new Event("error")),
 	);

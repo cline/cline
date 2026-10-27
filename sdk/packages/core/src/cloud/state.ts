@@ -1,4 +1,5 @@
 import {
+	type ContentBlock,
 	formatDisplayUserInput,
 	type HubEventEnvelope,
 	isGeneratedMedia,
@@ -163,6 +164,11 @@ export function reduceCloudEvent(
 		if (last?.type === type) last[key] = `${last[key] ?? ""}${text}`;
 		else content.push({ type, [key]: text });
 	};
+	const hasContentPart = (predicate: (part: ContentBlock) => boolean) =>
+		state.messages.some(
+			(message) =>
+				Array.isArray(message.content) && message.content.some(predicate),
+		);
 	switch (event.event) {
 		case "assistant.delta":
 			if (typeof payload.text === "string")
@@ -181,12 +187,8 @@ export function reduceCloudEvent(
 			const media = payload.media;
 			if (!isGeneratedMedia(media)) return;
 			if (
-				state.messages.some(
-					(message) =>
-						Array.isArray(message.content) &&
-						message.content.some(
-							(part) => part.type === "media" && part.media.id === media.id,
-						),
+				hasContentPart(
+					(part) => part.type === "media" && part.media.id === media.id,
 				)
 			)
 				return;
@@ -200,13 +202,7 @@ export function reduceCloudEvent(
 			const id = String(payload.toolCallId ?? "");
 			if (
 				id &&
-				!state.messages.some(
-					(message) =>
-						Array.isArray(message.content) &&
-						message.content.some(
-							(part) => part.type === "tool_use" && part.id === id,
-						),
-				)
+				!hasContentPart((part) => part.type === "tool_use" && part.id === id)
 			) {
 				assistant().push({
 					type: "tool_use",
@@ -221,12 +217,8 @@ export function reduceCloudEvent(
 			const id = String(payload.toolCallId ?? "");
 			if (
 				id &&
-				!state.messages.some(
-					(message) =>
-						Array.isArray(message.content) &&
-						message.content.some(
-							(part) => part.type === "tool_result" && part.tool_use_id === id,
-						),
+				!hasContentPart(
+					(part) => part.type === "tool_result" && part.tool_use_id === id,
 				)
 			) {
 				state.messages.push({
