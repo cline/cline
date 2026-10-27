@@ -1,5 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseGitStatusV2, readGitFacts } from "./git";
@@ -7,8 +13,8 @@ import { buildPlannerInput } from "./prompt";
 import {
 	documentedCommands,
 	makeTargets,
-	readRepoFacts,
 	RepoReader,
+	readRepoFacts,
 	verifyScripts,
 } from "./repo";
 
@@ -75,9 +81,21 @@ test("a clean tree says so; not a repository has no section; any other failure i
 	);
 	expect(
 		await readGitFacts(async () => {
-			throw Object.assign(new Error("fatal"), { code: 128 });
+			throw Object.assign(new Error("fatal"), {
+				code: 128,
+				stderr:
+					"fatal: not a git repository (or any of the parent directories): .git",
+			});
 		}, "/w"),
 	).toBeUndefined();
+	expect(
+		await readGitFacts(async () => {
+			throw Object.assign(new Error("fatal"), {
+				code: 128,
+				stderr: "fatal: bad config line 3 in file .git/config",
+			});
+		}, "/w"),
+	).toBe("unknown");
 	expect(
 		await readGitFacts(async () => {
 			throw new Error("timed out");

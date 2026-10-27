@@ -57,6 +57,31 @@ const run = (
 		},
 	}) as AgentRunResult;
 
+test("a patch naming files and an edit naming none both count", () => {
+	const facts = factsOf(
+		[
+			message("user", [{ type: "text", text: "edit" }]),
+			message("assistant", [
+				{
+					type: "tool-call",
+					toolCallId: "patch-1",
+					toolName: "apply_patch",
+					input:
+						"*** Update File: a.ts\n*** Update File: b.ts\n*** Add File: c.ts",
+				},
+				{
+					type: "tool-call",
+					toolCallId: "edit-2",
+					toolName: "editor",
+					input: {},
+				},
+			]),
+		],
+		run("completed"),
+	);
+	expect(facts.filesEdited).toBe(4);
+});
+
 test("a completed edit produces verify and review suggestions", () => {
 	const facts = factsOf(
 		[message("user", [{ type: "text", text: "edit a.ts" }]), edited],
@@ -600,6 +625,8 @@ test("subagent runs are not planned and ending the session aborts the call", asy
 test("a workspace that is not a repository still plans, with no git section", async () => {
 	const failure = Object.assign(new Error("not a git repository"), {
 		code: 128,
+		stderr:
+			"fatal: not a git repository (or any of the parent directories): .git",
 	});
 	const { pending, finish } = harness({
 		run: async () => {

@@ -123,7 +123,7 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 });
 
 describe("AgentEventBridge.handlePluginEvent", () => {
-	it("forwards next-turn suggestions to session subscribers", async () => {
+	it("forwards a plugin's own event to session subscribers", async () => {
 		const emit = vi.fn();
 		const bridge = new AgentEventBridge({
 			getSession: () => undefined,
@@ -132,7 +132,7 @@ describe("AgentEventBridge.handlePluginEvent", () => {
 		const payload = { runId: "run-1", suggestions: [] };
 
 		await bridge.handlePluginEvent("session-1", {
-			name: "next_turn.suggestions",
+			name: "example.custom_event",
 			payload,
 		});
 
@@ -140,7 +140,7 @@ describe("AgentEventBridge.handlePluginEvent", () => {
 			type: "plugin_event",
 			payload: {
 				sessionId: "session-1",
-				name: "next_turn.suggestions",
+				name: "example.custom_event",
 				payload,
 			},
 		});
