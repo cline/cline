@@ -1224,16 +1224,13 @@ describe("createShellExecutor with inherited stdio", () => {
 			expect(logPath).toBeDefined();
 
 			const completedAtPath = join(dirname(logPath as string), "completed-at");
-			const deadline = Date.now() + 10_000;
-			while (!(await fileExists(completedAtPath)) && Date.now() < deadline) {
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
-			const logText = await readFile(logPath as string, "utf8");
-			expect(logText).toContain(
-				terminateBySignal
-					? "[Command terminated by signal SIGTERM]"
-					: "[Command exited with code 0]",
-			);
+			await expect
+				.poll(() => readFile(logPath as string, "utf8"), { timeout: 10_000 })
+				.toContain(
+					terminateBySignal
+						? "[Command terminated by signal SIGTERM]"
+						: "[Command exited with code 0]",
+				);
 			expect(await fileExists(completedAtPath)).toBe(true);
 		},
 	);
