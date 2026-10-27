@@ -33,6 +33,7 @@ const services: HubCloudSessionService[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
 	await Promise.all(services.splice(0).map((service) => service.dispose()));
 });
 function command(
@@ -572,6 +573,56 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
+	it.each([
+		["https://api.example", "https://api.example"],
+		["https://api.example/api/v1", "https://api.example"],
+		[" https://api.example/api/v1/// ", "https://api.example"],
+		["http://localhost:7777/api/v1", "http://localhost:7777"],
+		["https://api.example/gateway/api/v1", "https://api.example/gateway"],
+		["https://api.example/gateway", "https://api.example/gateway"],
+		[undefined, "https://environment.example/gateway"],
+		[" ", "https://environment.example/gateway"],
+	])("resolves cloud requests from provider base %s", async (baseUrl, expectedBase) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://environment.example/gateway");
+		const settings: NonNullable<
+			ReturnType<ProviderSettingsManager["getProviderSettings"]>
+		> = { provider: "cline", apiKey: "key", baseUrl };
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue(settings);
+		vi.spyOn(
+			RuntimeOAuthTokenManager.prototype,
+			"resolveProviderApiKey",
+		).mockResolvedValue(null);
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+			const url = String(input);
+			if (url === new URL("/api/v1/users/me", expectedBase).href)
+				return Response.json({ data: { id: "user-one", organizations: [] } });
+			if (url === `${expectedBase}/api/v1/session`)
+				return Response.json({ data: [{ id: "ses-one", status: "ready" }] });
+			if (url === `${expectedBase}/api/v1/ai/cline/models`)
+				return Response.json({
+					data: [{ id: "model-one", name: "Model One" }],
+				});
+			if (url === `${expectedBase}/api/v1/ai/cline/recommended-models`)
+				return Response.json({ data: {} });
+			return new Response(null, { status: 404 });
+		});
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		const discovered = await command(service, "listForDiscovery", [
+			{ timeoutMs: 500 },
+		]);
+		expect(discovered.result).toMatchObject([{ sessionId: "ses-one" }]);
+		const models = await command(service, "listModels", []);
+		expect(models.result).toEqual([
+			{ id: "model-one", name: "Model One", catalogId: "cline" },
+		]);
+
+		expect(settings.baseUrl).toBe(baseUrl);
+	});
+
 	it.each([
 		"failed refresh",
 		"returning viewer",
