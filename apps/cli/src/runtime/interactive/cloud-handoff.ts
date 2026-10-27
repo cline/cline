@@ -91,7 +91,10 @@ export async function prepareCloudHandoff(input: {
 	}
 	const modelId = input.connection.modelId;
 	assertAccount();
-	const { organizationId } = await cloud.prepareHandoffRepository(plan.repoUrl, scope);
+	const { organizationId } = await cloud.prepareHandoffRepository(
+		plan.repoUrl,
+		scope,
+	);
 	const models = await cloud.listModels(scope);
 	assertAccount();
 	if (!models.some((model) => model.id === modelId)) {
