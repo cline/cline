@@ -1,5 +1,5 @@
 import { describe, it } from "bun:test"
-import "should"
+import should from "should"
 import type { McpServer } from "../../mcp"
 import { convertMcpServersToProtoMcpServers, convertProtoMcpServersToMcpServers } from "./mcp-server-conversion"
 
@@ -21,7 +21,7 @@ describe("MCP tool annotations over the proto boundary", () => {
 			]),
 		)
 
-		server.tools?.[0].annotations?.should.deepEqual({
+		should(server.tools?.[0].annotations).deepEqual({
 			title: "Get file text",
 			readOnlyHint: true,
 			destructiveHint: false,
@@ -35,6 +35,6 @@ describe("MCP tool annotations over the proto boundary", () => {
 			convertMcpServersToProtoMcpServers([serverWithTools([{ name: "execute_code", inputSchema: { type: "object" } }])]),
 		)
 
-		;(server.tools?.[0].annotations === undefined).should.be.true()
+		should(server.tools?.[0].annotations).be.undefined()
 	})
 })
