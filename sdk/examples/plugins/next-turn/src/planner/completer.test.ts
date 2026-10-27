@@ -22,11 +22,6 @@ function fakeCore(options: {
 				return options.stored?.[providerId];
 			}
 		},
-		RuntimeOAuthTokenManager: class {
-			async resolveProviderApiKey() {
-				return undefined;
-			}
-		},
 		toProviderConfig: (stored: { providerId: string; apiKey?: string }) => ({
 			providerId: stored.providerId,
 			apiKey: stored.apiKey,
