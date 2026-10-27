@@ -21,7 +21,6 @@ export type HubCapabilityName =
 	| "client.register"
 	| "client.list"
 	| "session.create"
-	| "session.create.stored_history"
 	| "session.list"
 	| "session.get"
 	| "session.run"
@@ -55,7 +54,6 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
 	"client.list",
 	"session.create",
-	"session.create.stored_history",
 	"session.list",
 	"session.get",
 	"session.run",
@@ -637,6 +635,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.search"
 	| "session.create"
+	| "session.resume"
 	| "session.attach"
 	| "session.detach"
 	| "session.get"

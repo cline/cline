@@ -94,17 +94,11 @@ host presentation.
 
 ## Starting a runtime from saved Hub history
 
-`session.create` loads saved conversation history when `sessionConfig.sessionId` identifies an existing session and `initialMessages` is omitted. A new ID starts a fresh session. Explicit `initialMessages`, including `[]`, take precedence. The caller still supplies execution configuration; existing startup, tool setup, and compaction handling apply.
+`session.resume` starts a runtime for an existing `sessionConfig.sessionId` using its stored conversation. Supply the same execution configuration as `session.create`; the Hub loads the history and uses the existing startup, tool setup, compaction, and accounting paths. Its reply and session events match `session.create`.
 
-This changes the previous default for existing IDs: omitting `initialMessages` now loads saved history instead of starting with empty context. Callers that require empty context must supply `initialMessages: []`. Explicit-history callers keep their existing behavior.
+A missing session returns `session_not_found`; empty or unavailable history returns `session_messages_not_found` before starting a runtime. `session.create` retains its existing behavior, including empty context when `initialMessages` is omitted.
 
-`HubRuntimeHost.startSession` preserves the existing runtime API default: omitted history is sent as `initialMessages: []`, matching `LocalRuntimeHost`. Stored-history loading is requested through the raw `session.create` command.
-
-Older SDK clients that send an existing ID without history still receive the new command behavior when connected to an upgraded Hub.
-
-An existing ID with omitted `initialMessages` requires nonempty saved history. If the reader returns no messages, creation returns `session_messages_not_found` before starting a runtime, preserving the saved artifacts. Explicit `initialMessages: []` still requests empty context.
-
-The Hub advertises `session.create.stored_history` in the `client.register` reply's `serverCapabilities`. Restore callers can pass `{ requiredCapability: "session.create.stored_history" }` in `NodeHubClient.command` options to check support on the current connection before dispatch. This option is local to the client and is not sent in the request. If an older Hub lacks support, the client throws `unsupported_feature` so the caller can download history and supply it to ordinary `session.create`. Other errors must not trigger that fallback.
+Older Hubs reject `session.resume` with `unsupported_command`. Clients can then use the existing `session.messages` followed by `session.create` with explicit history. Other errors must not trigger that fallback.
 
 ## Cloud sessions (experimental)
 

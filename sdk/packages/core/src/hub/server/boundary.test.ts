@@ -73,10 +73,8 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
-	it.each([
-		"plan",
-		"zen",
-	])("resumes saved history with explicit %s configuration", async (mode) => {
+	it("resumes saved history with the supplied configuration", async () => {
+		const mode = "plan";
 		const messages = [{ role: "user", content: "saved conversation" }];
 		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
 		const readSessionMessages = vi.fn().mockResolvedValue(messages);
@@ -86,7 +84,7 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.create",
+				command: "session.resume",
 				clientId: "resume-client",
 				payload: {
 					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
@@ -116,6 +114,12 @@ describe("HubServerTransport boundaries", () => {
 
 	it.each([
 		{ label: "new ID", exists: false, initialMessages: undefined, saved: [] },
+		{
+			label: "existing ID without history",
+			exists: true,
+			initialMessages: undefined,
+			saved: [{ role: "user", content: "saved" }],
+		},
 		{
 			label: "explicit empty history",
 			exists: true,
@@ -153,12 +157,42 @@ describe("HubServerTransport boundaries", () => {
 			expect(reply.ok).toBe(true);
 			expect(startSession).toHaveBeenCalledWith(
 				expect.objectContaining({
-					initialMessages: initialMessages ?? (exists ? saved : undefined),
+					initialMessages,
 				}),
 			);
-			expect(readSessionMessages).toHaveBeenCalledTimes(
-				exists && initialMessages === undefined ? 1 : 0,
-			);
+			expect(readSessionMessages).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ sessionId: undefined, exists: false, code: "invalid_resume" },
+		{ sessionId: "missing", exists: false, code: "session_not_found" },
+		{ sessionId: "empty", exists: true, code: "session_messages_not_found" },
+	])("rejects resume with $code without creating a runtime", async ({
+		sessionId,
+		exists,
+		code,
+	}) => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId } : undefined),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: { sessionId } },
+			});
+			expect(reply).toMatchObject({ ok: false, error: { code } });
+			expect(startSession).not.toHaveBeenCalled();
 		} finally {
 			await transport.stop();
 		}
@@ -178,7 +212,7 @@ describe("HubServerTransport boundaries", () => {
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
-				command: "session.create",
+				command: "session.resume",
 				payload: { sessionConfig: resumeConfig },
 			});
 			expect(reply).toMatchObject({
@@ -206,7 +240,7 @@ describe("HubServerTransport boundaries", () => {
 			await expect(
 				transport.handleCommand({
 					version: "v1",
-					command: "session.create",
+					command: "session.resume",
 					payload: { sessionConfig: resumeConfig },
 				}),
 			).rejects.toThrow("history unavailable");
@@ -596,25 +630,22 @@ describe("HubServerTransport boundaries", () => {
 		const transport = createTransport({
 			sessionHost: {
 				startSession,
-				getSession: vi
-					.fn()
-					.mockResolvedValueOnce(undefined)
-					.mockImplementation(async (sessionId: string) => ({
-						sessionId,
-						source: "core",
-						status: "running",
-						startedAt: new Date(0).toISOString(),
-						updatedAt: new Date(0).toISOString(),
-						interactive: true,
-						provider: "cline",
-						model: "test-model",
-						cwd: resolvedWorkspace,
-						workspaceRoot: resolvedWorkspace,
-						enableTools: true,
-						enableSpawn: true,
-						enableTeams: false,
-						isSubagent: false,
-					})),
+				getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
+					sessionId,
+					source: "core",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: resolvedWorkspace,
+					workspaceRoot: resolvedWorkspace,
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					isSubagent: false,
+				})),
 			},
 		});
 
@@ -1187,7 +1218,7 @@ describe("HubServerTransport boundaries", () => {
 	it.each([
 		undefined,
 		"123-saved-session",
-	] as const)("preserves capability-backed tools when creating session %s", async (savedSessionId) => {
+	] as const)("preserves capability-backed tools when starting session %s", async (savedSessionId) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1254,7 +1285,7 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command: "session.create",
+			command: savedSessionId ? "session.resume" : "session.create",
 			clientId: "client-1",
 			payload: {
 				workspaceRoot: "/tmp/project",

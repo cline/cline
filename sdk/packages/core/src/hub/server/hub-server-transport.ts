@@ -114,6 +114,7 @@ import {
 	handleSessionPendingPrompts,
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
+	handleSessionResume,
 	handleSessionSearch,
 	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
@@ -922,6 +923,13 @@ export class HubServerTransport implements NativeHubTransport {
 				return handleClientList(this.ctx, envelope);
 			case "session.create":
 				return await handleSessionCreate(
+					this.ctx,
+					envelope,
+					(request: ToolApprovalRequest) =>
+						requestToolApprovalHandler(this.ctx, request),
+				);
+			case "session.resume":
+				return await handleSessionResume(
 					this.ctx,
 					envelope,
 					(request: ToolApprovalRequest) =>
