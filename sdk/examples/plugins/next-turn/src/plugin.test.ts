@@ -17,6 +17,7 @@ import {
 	NEXT_TURN_SUGGESTIONS_EVENT,
 	pool,
 } from "./plugin";
+import { summarizeTurn } from "./turn";
 import type { NextTurnSuggestionsEvent } from "./types";
 
 const message = (role: "user" | "assistant", parts: unknown[]): AgentMessage =>
@@ -71,6 +72,65 @@ test("a completed edit produces verify and review suggestions", () => {
 			.slice(0, 3)
 			.map((row) => row.kind),
 	).toEqual(["verify", "review_diff", "wrap_up"]);
+});
+
+test("a tool result with success false is a failure and not an edit", () => {
+	const messages = [
+		message("user", [{ type: "text", text: "run it" }]),
+		message("assistant", [
+			{
+				type: "tool-call",
+				toolCallId: "c1",
+				toolName: "run_commands",
+				input: { commands: ["bun test"] },
+			},
+			{
+				type: "tool-result",
+				toolCallId: "c1",
+				toolName: "run_commands",
+				output: [
+					{
+						query: "bun test",
+						result: "",
+						error: "exit 1",
+						success: false,
+					},
+				],
+			},
+			{
+				type: "tool-call",
+				toolCallId: "e1",
+				toolName: "editor",
+				input: { path: "a.ts" },
+			},
+			{
+				type: "tool-result",
+				toolCallId: "e1",
+				toolName: "editor",
+				output: {
+					query: "edit:a.ts",
+					result: "",
+					error: "conflict",
+					success: false,
+				},
+			},
+		]),
+	];
+	expect(factsOf(messages, run("completed"))).toEqual({
+		status: "completed",
+		filesEdited: 0,
+		toolErrored: true,
+	});
+	expect(
+		summarizeTurn(messages, run("completed")).context.tools.map((tool) => [
+			tool.name,
+			tool.failed,
+			tool.error,
+		]),
+	).toEqual([
+		["run_commands", true, "exit 1"],
+		["editor", true, "conflict"],
+	]);
 });
 
 test("afterRun emits a bounded backend suggestion event for the root run", async () => {

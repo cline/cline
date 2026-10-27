@@ -471,6 +471,47 @@ describe("ChatInputBar next-turn suggestions", () => {
 		},
 	);
 
+	it("does not accept a suggestion from Shift+Tab", async () => {
+		const onAcceptNextTurnSuggestion = vi.fn();
+		await renderVoiceComposer({
+			nextTurnSuggestion: suggestion,
+			onAcceptNextTurnSuggestion,
+		});
+		const textarea = container.querySelector("textarea");
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Tab",
+					bubbles: true,
+					shiftKey: true,
+				}),
+			);
+		});
+
+		expect(textarea?.value).toBe("");
+		expect(onAcceptNextTurnSuggestion).not.toHaveBeenCalled();
+	});
+
+	it("does not accept a suggestion while the composer is read-only", async () => {
+		const onAcceptNextTurnSuggestion = vi.fn();
+		await renderVoiceComposer({
+			nextTurnSuggestion: suggestion,
+			onAcceptNextTurnSuggestion,
+			readOnly: true,
+		});
+		const textarea = container.querySelector("textarea");
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+			);
+		});
+
+		expect(textarea?.value).toBe("");
+		expect(onAcceptNextTurnSuggestion).not.toHaveBeenCalled();
+	});
+
 	it("leaves ArrowUp unchanged when the field is not empty", async () => {
 		const onNavigateNextTurnSuggestion = vi.fn();
 		await renderVoiceComposer({
