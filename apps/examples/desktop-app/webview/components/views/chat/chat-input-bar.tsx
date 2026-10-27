@@ -1456,7 +1456,16 @@ function ChatInputBarImpl({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
-								if (promptInput === "" && nextTurnSuggestion) {
+								if (
+									promptInput === "" &&
+									nextTurnSuggestion &&
+									!readOnly &&
+									!speechInputActive &&
+									!e.shiftKey &&
+									!e.altKey &&
+									!e.ctrlKey &&
+									!e.metaKey
+								) {
 									if (e.key === "Tab" || e.key === "ArrowRight") {
 										e.preventDefault();
 										setPromptInput(nextTurnSuggestion);
