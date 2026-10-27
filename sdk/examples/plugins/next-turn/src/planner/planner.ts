@@ -15,7 +15,7 @@ import type { Complete } from "./completer";
 import { readGitFacts } from "./git";
 import { parsePlannerOutput, withFailureLead } from "./output";
 import { buildPlannerInput } from "./prompt";
-import { readRepoFacts, type RepoReader } from "./repo";
+import { type RepoReader, readRepoFacts } from "./repo";
 import type { RunCommand } from "./run";
 
 /**

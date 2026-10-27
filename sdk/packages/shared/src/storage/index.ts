@@ -27,7 +27,6 @@ export {
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
 	resolveClineDir,
-	withHostClineDirEnv,
 	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
 	resolveConnectorLogPath,
@@ -67,4 +66,5 @@ export {
 	setHomeDirIfUnset,
 	type TaskSpecsScope,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
+	withHostClineDirEnv,
 } from "./paths";

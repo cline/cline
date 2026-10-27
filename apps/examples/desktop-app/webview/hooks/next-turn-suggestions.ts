@@ -1,3 +1,12 @@
+import {
+	type RefObject,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
+import { desktopClient } from "@/lib/desktop-client";
+
 export type NextTurnSuggestionState = {
 	prompts: string[];
 	index: number;
@@ -128,4 +137,65 @@ export function cycleNextTurnSuggestions(
 		...state,
 		index: (state.index + offset + state.prompts.length) % state.prompts.length,
 	};
+}
+
+/**
+ * Ghost-text suggestions for one chat pane. The pane remounts per thread, so
+ * only a session change, a new turn, or a run starting retires the stored set.
+ */
+export function useNextTurnSuggestions(input: {
+	sessionId: string | null | undefined;
+	status: string;
+	turnEpoch: number;
+	promptInputRef: RefObject<string>;
+	setPromptInput: (value: string) => void;
+}) {
+	const { sessionId, turnEpoch, promptInputRef, setPromptInput } = input;
+	const runInFlight = nextTurnRunInFlight(input.status);
+	const [suggestions, setSuggestions] = useState<NextTurnSuggestionState>();
+	const memoryRef = useRef(EMPTY_NEXT_TURN_THREAD);
+	const [tracked, setTracked] = useState({ sessionId, turnEpoch, runInFlight });
+	if (
+		tracked.sessionId !== sessionId ||
+		tracked.turnEpoch !== turnEpoch ||
+		tracked.runInFlight !== runInFlight
+	) {
+		setTracked({ sessionId, turnEpoch, runInFlight });
+		if (tracked.sessionId !== sessionId) {
+			memoryRef.current = EMPTY_NEXT_TURN_THREAD;
+			setSuggestions(undefined);
+		} else if (tracked.turnEpoch !== turnEpoch || runInFlight) {
+			memoryRef.current = markNewerNextTurnRun(memoryRef.current);
+			setSuggestions(undefined);
+		}
+	}
+
+	useEffect(() => {
+		return desktopClient.subscribe("next_turn_suggestions", (payload) => {
+			const accepted = acceptNextTurnSuggestions({
+				sessionId,
+				draft: promptInputRef.current,
+				payload,
+				memory: memoryRef.current,
+			});
+			if (!accepted) return;
+			memoryRef.current = accepted.memory;
+			setSuggestions(accepted.state);
+		});
+	}, [promptInputRef, sessionId]);
+
+	const suggestion = currentNextTurnPrompt(
+		visibleNextTurnSuggestions(suggestions, runInFlight),
+	);
+	const accept = useCallback(() => {
+		if (!suggestion) return;
+		setPromptInput(suggestion);
+		setSuggestions(undefined);
+	}, [suggestion, setPromptInput]);
+	const navigate = useCallback((direction: "next" | "previous") => {
+		setSuggestions((current) =>
+			current ? cycleNextTurnSuggestions(current, direction) : current,
+		);
+	}, []);
+	return { suggestion, accept, navigate };
 }

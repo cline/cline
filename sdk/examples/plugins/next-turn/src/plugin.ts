@@ -12,18 +12,18 @@ import { runCommand } from "./planner/run";
 import { factsOf } from "./turn";
 import type {
 	NextTurnKind,
+	NextTurnSource,
 	NextTurnStatus,
 	NextTurnSuggestion,
 	NextTurnSuggestionsEvent,
-	NextTurnSource,
 	TurnFacts,
 } from "./types";
 
 export { factsOf } from "./turn";
 export type {
+	NextTurnStatus,
 	NextTurnSuggestion,
 	NextTurnSuggestionsEvent,
-	NextTurnStatus,
 } from "./types";
 
 export const NEXT_TURN_SUGGESTIONS_EVENT = "next_turn.suggestions";

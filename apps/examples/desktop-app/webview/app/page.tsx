@@ -66,17 +66,7 @@ import {
 	getInitialChatConfig,
 	getInitialCloudModel,
 } from "@/hooks/chat-session/constants";
-import {
-	acceptNextTurnSuggestions,
-	currentNextTurnPrompt,
-	cycleNextTurnSuggestions,
-	EMPTY_NEXT_TURN_THREAD,
-	markNewerNextTurnRun,
-	type NextTurnSuggestionState,
-	type NextTurnThreadMemory,
-	nextTurnRunInFlight,
-	visibleNextTurnSuggestions,
-} from "@/hooks/next-turn-suggestions";
+import { useNextTurnSuggestions } from "@/hooks/next-turn-suggestions";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -1623,31 +1613,13 @@ function ChatThreadPane({
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
-	const [nextTurnSuggestions, setNextTurnSuggestions] =
-		useState<NextTurnSuggestionState>();
-	const nextTurnMemoryRef = useRef<NextTurnThreadMemory>(
-		EMPTY_NEXT_TURN_THREAD,
-	);
-	const runInFlight = nextTurnRunInFlight(status);
-	const [nextTurnTrackedFlight, setNextTurnTrackedFlight] =
-		useState(runInFlight);
-	const [nextTurnTrackedEpoch, setNextTurnTrackedEpoch] = useState(turnEpoch);
-	if (runInFlight !== nextTurnTrackedFlight) {
-		setNextTurnTrackedFlight(runInFlight);
-		if (runInFlight) {
-			nextTurnMemoryRef.current = markNewerNextTurnRun(
-				nextTurnMemoryRef.current,
-			);
-			setNextTurnSuggestions(undefined);
-		}
-	}
-	if (turnEpoch !== nextTurnTrackedEpoch) {
-		setNextTurnTrackedEpoch(turnEpoch);
-		nextTurnMemoryRef.current = markNewerNextTurnRun(
-			nextTurnMemoryRef.current,
-		);
-		setNextTurnSuggestions(undefined);
-	}
+	const nextTurn = useNextTurnSuggestions({
+		sessionId,
+		status,
+		turnEpoch,
+		promptInputRef,
+		setPromptInput,
+	});
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1828,39 +1800,6 @@ function ChatThreadPane({
 			}
 		});
 	}, [sessionId]);
-	useEffect(() => {
-		nextTurnMemoryRef.current = EMPTY_NEXT_TURN_THREAD;
-		setNextTurnSuggestions(undefined);
-	}, [sessionId, threadId]);
-	useEffect(() => {
-		return desktopClient.subscribe("next_turn_suggestions", (payload) => {
-			const accepted = acceptNextTurnSuggestions({
-				sessionId,
-				draft: promptInputRef.current,
-				payload,
-				memory: nextTurnMemoryRef.current,
-			});
-			if (!accepted) return;
-			nextTurnMemoryRef.current = accepted.memory;
-			setNextTurnSuggestions(accepted.state);
-		});
-	}, [promptInputRef, sessionId]);
-	const nextTurnSuggestion = currentNextTurnPrompt(
-		visibleNextTurnSuggestions(nextTurnSuggestions, runInFlight),
-	);
-	const acceptNextTurnSuggestion = useCallback(() => {
-		if (!nextTurnSuggestion) return;
-		setPromptInput(nextTurnSuggestion);
-		setNextTurnSuggestions(undefined);
-	}, [nextTurnSuggestion, setPromptInput]);
-	const navigateNextTurnSuggestion = useCallback(
-		(direction: "next" | "previous") => {
-			setNextTurnSuggestions((current) =>
-				current ? cycleNextTurnSuggestions(current, direction) : current,
-			);
-		},
-		[],
-	);
 	const isProvisioningCloudSession =
 		isCloudSession &&
 		status === "starting" &&
@@ -3347,9 +3286,9 @@ function ChatThreadPane({
 			onSwitchGitBranch={switchGitBranch}
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
-			nextTurnSuggestion={nextTurnSuggestion}
-			onAcceptNextTurnSuggestion={acceptNextTurnSuggestion}
-			onNavigateNextTurnSuggestion={navigateNextTurnSuggestion}
+			nextTurnSuggestion={nextTurn.suggestion}
+			onAcceptNextTurnSuggestion={nextTurn.accept}
+			onNavigateNextTurnSuggestion={nextTurn.navigate}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
 			onOpenLocalModels={onOpenLocalModels}

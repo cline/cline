@@ -667,7 +667,7 @@ export function handleCoreSessionEvent(
 		}
 		default: {
 			const _exhaustive: never = event;
-			return _exhaustive;
+			break;
 		}
 	}
 }
