@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
@@ -8,6 +8,7 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { readPersistedMessagesFile } from "../../runtime/host/runtime-host-support";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
@@ -127,12 +128,6 @@ describe("HubServerTransport boundaries", () => {
 			initialMessages: [{ role: "user", content: "replacement" }],
 			saved: [{ role: "user", content: "saved" }],
 		},
-		{
-			label: "empty saved history",
-			exists: true,
-			initialMessages: undefined,
-			saved: [],
-		},
 	])("preserves create with $label", async ({
 		exists,
 		initialMessages,
@@ -166,6 +161,46 @@ describe("HubServerTransport boundaries", () => {
 			);
 		} finally {
 			await transport.stop();
+		}
+	});
+
+	it.each([
+		undefined,
+		"{invalid",
+		'{"messages":[]}',
+		"{}",
+	])("rejects unavailable saved history without changing artifacts: %j", async (contents) => {
+		const dir = await mkdtemp(join(tmpdir(), "hub-saved-history-"));
+		const messagesPath = join(dir, "messages.json");
+		if (contents !== undefined) await writeFile(messagesPath, contents);
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: () => readPersistedMessagesFile(messagesPath),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				payload: { sessionConfig: resumeConfig },
+			});
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_history_unavailable" },
+			});
+			expect(startSession).not.toHaveBeenCalled();
+			if (contents === undefined) {
+				await expect(readFile(messagesPath)).rejects.toMatchObject({
+					code: "ENOENT",
+				});
+			} else {
+				expect(await readFile(messagesPath, "utf8")).toBe(contents);
+			}
+		} finally {
+			await transport.stop();
+			await rm(dir, { recursive: true, force: true });
 		}
 	});
 
@@ -573,22 +608,25 @@ describe("HubServerTransport boundaries", () => {
 		const transport = createTransport({
 			sessionHost: {
 				startSession,
-				getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
-					sessionId,
-					source: "core",
-					status: "running",
-					startedAt: new Date(0).toISOString(),
-					updatedAt: new Date(0).toISOString(),
-					interactive: true,
-					provider: "cline",
-					model: "test-model",
-					cwd: resolvedWorkspace,
-					workspaceRoot: resolvedWorkspace,
-					enableTools: true,
-					enableSpawn: true,
-					enableTeams: false,
-					isSubagent: false,
-				})),
+				getSession: vi
+					.fn()
+					.mockResolvedValueOnce(undefined)
+					.mockImplementation(async (sessionId: string) => ({
+						sessionId,
+						source: "core",
+						status: "running",
+						startedAt: new Date(0).toISOString(),
+						updatedAt: new Date(0).toISOString(),
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: resolvedWorkspace,
+						workspaceRoot: resolvedWorkspace,
+						enableTools: true,
+						enableSpawn: true,
+						enableTeams: false,
+						isSubagent: false,
+					})),
 			},
 		});
 
