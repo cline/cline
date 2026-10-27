@@ -166,6 +166,15 @@ export function resolveClineDir(): string {
 	return join(HOME_DIR, ".cline");
 }
 
+/** Workers and child processes do not see `setClineDir`. Copy the host's resolved directory into their env. */
+export function withHostClineDirEnv(
+	env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+	const dir = resolveClineDir();
+	if (env.CLINE_DIR === dir) return env;
+	return { ...env, CLINE_DIR: dir };
+}
+
 export function resolveDocumentsClineDirectoryPath(): string {
 	return join(HOME_DIR, "Documents", "Cline");
 }
