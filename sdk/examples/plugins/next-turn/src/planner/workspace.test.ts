@@ -140,17 +140,20 @@ test("the repository's commands come from scripts, make targets and documented s
 	]);
 });
 
-test("a command file that cannot be read is unknown, not an empty command list", () => {
-	const dir = tempDir();
-	const path = join(dir, "package.json");
-	writeFileSync(path, JSON.stringify({ scripts: { test: "bun test" } }));
-	chmodSync(path, 0);
-	try {
-		expect(readRepoFacts(dir, new RepoReader())).toBe("unknown");
-	} finally {
-		chmodSync(path, 0o644);
-	}
-});
+test.skipIf(process.platform === "win32")(
+	"a command file that cannot be read is unknown, not an empty command list",
+	() => {
+		const dir = tempDir();
+		const path = join(dir, "package.json");
+		writeFileSync(path, JSON.stringify({ scripts: { test: "bun test" } }));
+		chmodSync(path, 0);
+		try {
+			expect(readRepoFacts(dir, new RepoReader())).toBe("unknown");
+		} finally {
+			chmodSync(path, 0o644);
+		}
+	},
+);
 
 test("a folder with no command files has no section", () => {
 	expect(readRepoFacts(tempDir(), new RepoReader())).toBeUndefined();
