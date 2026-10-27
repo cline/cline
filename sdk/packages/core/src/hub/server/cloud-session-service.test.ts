@@ -598,7 +598,10 @@ describe("hub cloud credentials", () => {
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
 			const url = String(input);
 			if (url === new URL("/api/v1/users/me", expectedBase).href)
-				return Response.json({ data: { id: "user-one", organizations: [] } });
+				return Response.json({
+					success: true,
+					data: { id: "user-one", organizations: [] },
+				});
 			if (url === `${expectedBase}/api/v1/session`)
 				return Response.json({ data: [{ id: "ses-one", status: "ready" }] });
 			if (url === `${expectedBase}/api/v1/ai/cline/models`)
