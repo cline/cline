@@ -132,8 +132,12 @@ Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for 
 Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
 This requires token-authenticated workspace access.
 Attachments must be image data URLs within the shared media-size limits.
-Repository hooks run in an isolated checkout and can fail without local tooling.
-Published checkpoint branches remain if verification or cloud creation fails.
+New checkpoint commits are unsigned and skip commit hooks, including pre-commit secret scans.
+Pre-push hooks run in the live source checkout and can modify it.
+Git supplies the captured commit SHA to those hooks on stdin.
+The sensitive-path checks inspect filenames, not file contents.
+Publication creates no local branch or tracking configuration.
+Remote branches remain if verification or cloud creation fails.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
