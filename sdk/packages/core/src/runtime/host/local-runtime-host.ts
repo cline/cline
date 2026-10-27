@@ -117,10 +117,7 @@ import {
 	type SessionStatus,
 } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
-import type {
-	CoreSessionEvent,
-	SessionPendingPrompt,
-} from "../../types/events";
+import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
@@ -1436,7 +1433,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// brought to a full stop.
 		session.aborting = true;
 		if (session.drainingPendingPrompts) {
-			this.discardPendingPrompts(session, "queue_abort");
+			this.reportDiscardedPrompts(
+				session,
+				this.pendingPromptsController.takeQueue(session),
+				"queue_abort",
+			);
 		}
 		const teamRuntime = session.runtime.teamRuntime;
 		try {
@@ -2253,11 +2254,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		input: TurnInput,
 	): AgentResult {
 		if (input.drained) {
-			this.recordDiscardedPrompts(
-				session,
-				this.pendingPromptsController.emitDiscarded(session, [input.drained]),
-				"session_teardown",
-			);
+			this.reportDiscardedPrompts(session, [input.drained], "session_teardown");
 		}
 		return this.abortedTurnResult(session, {
 			messages: session.agent.getMessages(),
@@ -2805,7 +2802,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finalStatus?: SessionStatus,
 	): void {
 		session.shuttingDown = true;
-		this.discardPendingPrompts(session, "session_teardown");
+		this.reportDiscardedPrompts(
+			session,
+			this.pendingPromptsController.takeQueue(session),
+			"session_teardown",
+		);
 		session.pluginCommandsClosing = true;
 		// Fallback `task.completed` emission for completed sessions that did
 		// not observe an explicit `submit_and_exit` tool call, routed through
@@ -2842,26 +2843,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessions.delete(session.sessionId);
 	}
 
-	private discardPendingPrompts(
+	/** Announces entries that left the queue without being sent, and counts them. */
+	private reportDiscardedPrompts(
 		session: ActiveSession,
+		entries: PendingPromptEntry[],
 		reason: "queue_abort" | "session_teardown",
 	): void {
-		this.recordDiscardedPrompts(
-			session,
-			this.pendingPromptsController.discardQueue(session),
-			reason,
-		);
-	}
-
-	private recordDiscardedPrompts(
-		session: ActiveSession,
-		discarded: SessionPendingPrompt[],
-		reason: "queue_abort" | "session_teardown",
-	): void {
-		if (discarded.length === 0) return;
+		if (entries.length === 0) return;
+		this.pendingPromptsController.emitPrompts(session, entries);
 		capturePendingPromptsDiscarded(session.config.telemetry, {
 			sessionId: session.sessionId,
-			count: discarded.length,
+			count: entries.length,
 			reason,
 		});
 	}

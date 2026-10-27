@@ -275,7 +275,7 @@ describe("PendingPromptService", () => {
 		// Teardown starts while the send is out, clears the queue, and the
 		// send then fails for its own reason.
 		session.shuttingDown = true;
-		controller.discardQueue(session);
+		controller.takeQueue(session);
 		failSend?.(new Error("send failed"));
 		await draining;
 
