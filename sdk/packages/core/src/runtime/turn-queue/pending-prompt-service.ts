@@ -294,39 +294,26 @@ export class PendingPromptsController {
 	}
 
 	/**
-	 * Drops every queued prompt. Called when the user aborts a
+	 * Empties the queue and returns what it held, without announcing it; the
+	 * caller reports the entries as discarded. Used when the user aborts a
 	 * queue-initiated turn — that gesture means "stop the queued work", not
 	 * just "stop this response", so the remainder must not auto-run — and
 	 * when the session starts tearing down.
 	 */
-	discardQueue(session: ActiveSession): SessionPendingPrompt[] {
-		if (session.pendingPrompts.length === 0) return [];
-		const discarded = snapshotPrompts(session);
-		this.service.clear(session);
-		this.emitPrompts(session, discarded);
-		return discarded;
+	takeQueue(session: ActiveSession): PendingPromptEntry[] {
+		return session.pendingPrompts.splice(0);
 	}
 
-	/** Reports entries that left the queue but were never sent to the agent. */
-	emitDiscarded(
-		session: ActiveSession,
-		entries: PendingPromptEntry[],
-	): SessionPendingPrompt[] {
-		const discarded = entries.map(snapshotPrompt);
-		this.emitPrompts(session, discarded);
-		return discarded;
-	}
-
-	emitPrompts(
-		session: ActiveSession,
-		discarded?: SessionPendingPrompt[],
-	): void {
+	/** `discarded` lists entries that left the queue without being sent. */
+	emitPrompts(session: ActiveSession, discarded?: PendingPromptEntry[]): void {
 		this.deps.emit({
 			type: "pending_prompts",
 			payload: {
 				sessionId: session.sessionId,
 				prompts: snapshotPrompts(session),
-				...(discarded?.length ? { discarded } : {}),
+				...(discarded?.length
+					? { discarded: discarded.map(snapshotPrompt) }
+					: {}),
 			},
 		});
 	}
