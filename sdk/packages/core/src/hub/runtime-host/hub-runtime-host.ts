@@ -923,7 +923,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
 						}
 					: {}),
-				initialMessages: input.initialMessages,
+				initialMessages: input.initialMessages ?? [],
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
 					: {}),
