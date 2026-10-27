@@ -9,7 +9,10 @@ import {
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
+import type {
+	ToolLabelPart,
+	ToolSummary,
+} from "@cline/ui/components/agent-chat/tool-summary";
 import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
@@ -22,6 +25,10 @@ import {
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
+import {
+	TranscriptFileLink,
+	useTranscriptFileOpener,
+} from "../transcript-file-links";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
@@ -40,16 +47,25 @@ type ProceedWhileRunningHandler = (
 function ToolLabel({
 	parts,
 	isRunning,
+	filePath,
 }: {
 	parts: ToolLabelPart[];
 	isRunning: boolean;
+	/** Set when the row is about one file; its code part links to it. */
+	filePath?: { path: string; line?: number };
 }) {
 	return (
 		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
 			{parts.map((part, index) =>
 				part.code ? (
 					<span className="font-mono" key={`${index}_${part.text}`}>
-						{part.text}
+						{filePath ? (
+							<TranscriptFileLink line={filePath.line} path={filePath.path}>
+								{part.text}
+							</TranscriptFileLink>
+						) : (
+							part.text
+						)}
 					</span>
 				) : (
 					<span key={`${index}_${part.text}`}>{part.text}</span>
@@ -57,6 +73,20 @@ function ToolLabel({
 			)}
 		</span>
 	);
+}
+
+type FileItem = Extract<ToolSummary["items"][number], { type: "file" }>;
+
+/**
+ * The file a single-file row (read/edit/write one file) refers to. Grouped
+ * rows ("Read 3 files") have no code part in the label, so nothing links.
+ */
+function singleFileTarget(
+	items: ToolSummary["items"],
+): { path: string; line?: number } | undefined {
+	const files = items.filter((item): item is FileItem => item.type === "file");
+	if (files.length !== 1) return undefined;
+	return { path: files[0].path, line: files[0].startLine };
 }
 
 const ToolCallRow = memo(function ToolCallRow({
@@ -188,8 +218,23 @@ const ToolCallRow = memo(function ToolCallRow({
 
 	const hasError = Boolean(payload?.isError);
 	const Icon = getToolNameIcon(toolName);
+	// Read/edit rows list one detail line per file item, in item order, so a
+	// detail can link to its file. Other kinds (commands, searches, URLs)
+	// never do. Inert unless the transcript has a file opener.
+	const canLinkFiles = useTranscriptFileOpener() !== null;
+	const fileItems = summary.items.filter(
+		(item): item is FileItem => item.type === "file",
+	);
+	const detailFiles =
+		canLinkFiles &&
+		(summary.kind === "read" || summary.kind === "edit") &&
+		fileItems.length === summary.details.length
+			? fileItems
+			: null;
+	const labelFile = canLinkFiles ? singleFileTarget(summary.items) : undefined;
 	const details = summary.details.map((detail, index) => ({
 		detail,
+		file: detailFiles?.[index],
 		key: `${message.id}_${index}`,
 	}));
 	const inputPreview =
@@ -221,7 +266,13 @@ const ToolCallRow = memo(function ToolCallRow({
 						<Icon className="size-4" />
 					)
 				}
-				label={<ToolLabel isRunning={isRunning} parts={labelParts} />}
+				label={
+					<ToolLabel
+						filePath={isSubmit ? undefined : labelFile}
+						isRunning={isRunning}
+						parts={labelParts}
+					/>
+				}
 				showDisclosureIcon={false}
 				status={hasError ? "error" : isRunning ? "running" : "success"}
 			/>
@@ -233,8 +284,18 @@ const ToolCallRow = memo(function ToolCallRow({
 							isCommand && "font-mono text-xs",
 						)}
 					>
-						{details.map(({ detail, key }) => (
-							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+						{details.map(({ detail, file, key }) => (
+							<div key={key}>
+								{file ? (
+									<TranscriptFileLink line={file.startLine} path={file.path}>
+										{detail}
+									</TranscriptFileLink>
+								) : isCommand ? (
+									`$ ${detail}`
+								) : (
+									detail
+								)}
+							</div>
 						))}
 					</ToolActivityDetails>
 				) : null}

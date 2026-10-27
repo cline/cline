@@ -21,6 +21,11 @@ import {
 	type LinkSafetyModalProps,
 	Streamdown,
 } from "streamdown";
+import {
+	parseInlineFilePath,
+	TranscriptFileLink,
+	useTranscriptFileOpener,
+} from "@/components/views/chat/transcript-file-links";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import {
@@ -318,6 +323,40 @@ const markdownComponents = {
 } satisfies Components;
 
 /**
+ * Inline code that links file paths to the editor. Only installed when the
+ * transcript has a file opener (see `TranscriptFileLinkProvider`); without
+ * one Streamdown's built-in inline code renders as before. Mirrors that
+ * built-in's markup so non-path tokens look identical.
+ */
+function LinkedInlineCode({
+	children,
+	className,
+	node: _node,
+	...props
+}: ComponentProps<"code"> & ExtraProps) {
+	const code = (
+		<code
+			className={cn(
+				"rounded bg-muted px-1.5 py-0.5 font-mono text-sm",
+				className,
+			)}
+			data-streamdown="inline-code"
+			{...props}
+		>
+			{children}
+		</code>
+	);
+	const target =
+		typeof children === "string" ? parseInlineFilePath(children) : null;
+	if (!target) return code;
+	return (
+		<TranscriptFileLink line={target.line} path={target.path}>
+			{code}
+		</TranscriptFileLink>
+	);
+}
+
+/**
  * Diagram links never reach {@link SafeMarkdownLink}: Streamdown injects the
  * rendered Mermaid SVG with `dangerouslySetInnerHTML`, so React component
  * overrides do not apply inside it. `@cline/ui` strips the navigable href from
@@ -380,6 +419,14 @@ const chipTokenComponents = {
 		<span className={agentComposerTokenClassName}>{children}</span>
 	),
 } as Components;
+const linkedMarkdownComponents = {
+	...markdownComponents,
+	inlineCode: LinkedInlineCode,
+} satisfies Components;
+const linkedChipTokenComponents = {
+	...chipTokenComponents,
+	inlineCode: LinkedInlineCode,
+} as Components;
 const chipTokenAllowedTags = { [CHIP_TOKEN_TAG]: [] };
 
 export const MemoizedMarkdown = memo(
@@ -401,6 +448,7 @@ export const MemoizedMarkdown = memo(
 			recordDiagramLinkPress,
 			setPendingUrl,
 		} = useDiagramLinkTarget();
+		const linkFiles = useTranscriptFileOpener() !== null;
 		const remarkPlugins = useMemo(
 			() =>
 				chipTokens?.size
@@ -425,7 +473,15 @@ export const MemoizedMarkdown = memo(
 				<Streamdown
 					allowedTags={remarkPlugins ? chipTokenAllowedTags : undefined}
 					className={cn("cline-markdown", classNames)}
-					components={remarkPlugins ? chipTokenComponents : markdownComponents}
+					components={
+						remarkPlugins
+							? linkFiles
+								? linkedChipTokenComponents
+								: chipTokenComponents
+							: linkFiles
+								? linkedMarkdownComponents
+								: markdownComponents
+					}
 					controls={agentMarkdownControls}
 					dir="auto"
 					isAnimating={streaming}

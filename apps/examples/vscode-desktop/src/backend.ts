@@ -116,7 +116,6 @@ export function buildBackendLaunch(options: {
 	};
 }
 
-
 export class DesktopBackend {
 	private child: ChildProcess | undefined;
 	private endpoint: BackendEndpoint | undefined;
@@ -221,9 +220,7 @@ export class DesktopBackend {
 				if (settled) return;
 				settled = true;
 				clearTimeout(timeout);
-				reject(
-					new Error(`failed to start desktop backend: ${error.message}`),
-				);
+				reject(new Error(`failed to start desktop backend: ${error.message}`));
 			});
 			child.once("exit", (code, signal) => {
 				logger.log(`desktop backend exited (code=${code}, signal=${signal})`);

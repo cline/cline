@@ -8,9 +8,9 @@ describe("isCompiledCli", () => {
 		expect(isCompiledCli("C:\\bun\\bun.exe")).toBe(false);
 	});
 	it("treats anything else as a compiled cline CLI", () => {
-		expect(isCompiledCli("/Applications/Cline.app/Contents/MacOS/cline-cli")).toBe(
-			true,
-		);
+		expect(
+			isCompiledCli("/Applications/Cline.app/Contents/MacOS/cline-cli"),
+		).toBe(true);
 	});
 });
 

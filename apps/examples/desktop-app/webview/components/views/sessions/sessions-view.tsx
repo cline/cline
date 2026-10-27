@@ -65,6 +65,23 @@ type SessionsViewProps = {
 
 const PAGE_SIZE = 10;
 
+// The table sizes to its own width (a VS Code panel can be a few hundred
+// pixels wide), dropping the least useful columns first: tokens, then model
+// and cost, then workspace. At 64rem and up it is the full desktop layout.
+// Rows are separate grids, so every tier uses fixed or fr tracks (never
+// `auto`) to keep the columns aligned across rows.
+const SESSION_TABLE_COLUMNS = cn(
+	// Relative times are at most four characters ("23h", "12d"), so the
+	// narrow tiers give the title the space a 6rem time column would take.
+	"grid grid-cols-[minmax(0,1fr)_2.75rem_1.75rem] gap-x-2",
+	"@lg/sessions:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_3.5rem_1.75rem] @lg/sessions:gap-x-4",
+	"@3xl/sessions:grid-cols-[minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,1fr)_5rem_6rem_1.75rem]",
+	"@5xl/sessions:grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem]",
+);
+const WORKSPACE_COLUMN = "hidden @lg/sessions:flex";
+const MODEL_COST_COLUMN = "hidden @3xl/sessions:block";
+const TOKENS_COLUMN = "hidden @5xl/sessions:block";
+
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
 		return `${thread.provider}:${thread.model}`;
@@ -340,16 +357,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5">
+		<div className="@container/sessions-page flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5 @max-2xl/sessions-page:flex-col @max-2xl/sessions-page:items-stretch @max-2xl/sessions-page:gap-4 @max-2xl/sessions-page:px-4 @max-2xl/sessions-page:pb-4 @max-2xl/sessions-page:pt-5">
 				<div className="min-w-0">
-					<h1 className="text-3xl font-semibold">Sessions</h1>
-					<p className="mt-3 text-base leading-6 text-muted-foreground">
+					<h1 className="text-3xl font-semibold @max-md/sessions-page:text-2xl">
+						Sessions
+					</h1>
+					<p className="mt-3 text-base leading-6 text-muted-foreground @max-md/sessions-page:mt-1 @max-md/sessions-page:text-sm">
 						Recent sessions across clients and workspaces.
 					</p>
 				</div>
-				<div className="flex min-w-0 items-center gap-2">
-					<div className="relative min-w-44 max-w-72 flex-1">
+				<div className="flex min-w-0 flex-wrap items-center gap-2">
+					<div className="relative min-w-44 max-w-72 flex-1 @max-md/sessions-page:min-w-0 @max-md/sessions-page:max-w-none @max-md/sessions-page:basis-full">
 						<Search className="-translate-y-1/2 pointer-events-none absolute left-2.5 top-1/2 size-4 text-muted-foreground" />
 						<Input
 							aria-label="Search sessions"
@@ -452,14 +471,19 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 				</div>
 			</header>
 
-			<section className="min-h-0 flex-1 overflow-auto px-18 pb-10 max-[1200px]:px-8 max-[720px]:px-4">
-				<div className="min-w-240 overflow-hidden rounded-lg border bg-card">
-					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
+			<section className="min-h-0 flex-1 overflow-auto px-18 pb-10 max-[1200px]:px-8 max-[720px]:px-4 @max-2xl/sessions-page:px-4 @max-2xl/sessions-page:pb-4">
+				<div className="@container/sessions overflow-hidden rounded-lg border bg-card">
+					<div
+						className={cn(
+							SESSION_TABLE_COLUMNS,
+							"bg-muted/40 px-3 py-3 text-sm font-medium text-muted-foreground @lg/sessions:px-4",
+						)}
+					>
 						<span>Title</span>
-						<span>Workspace</span>
-						<span>Model</span>
-						<span>Tokens</span>
-						<span>Cost</span>
+						<span className={WORKSPACE_COLUMN}>Workspace</span>
+						<span className={MODEL_COST_COLUMN}>Model</span>
+						<span className={TOKENS_COLUMN}>Tokens</span>
+						<span className={MODEL_COST_COLUMN}>Cost</span>
 						<span>Time</span>
 						<span className="sr-only">Actions</span>
 					</div>
@@ -498,7 +522,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 									className={cn(
 										// Fixed height: every row is the same size so the table
 										// never reflows as long values wrap or hydrate in.
-										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
+										`${SESSION_TABLE_COLUMNS} h-14 items-center border-t px-3 text-sm transition-colors @lg/sessions:px-4`,
 										activeSessionId === thread.id
 											? "bg-surface-hover"
 											: "hover:bg-surface-hover-lighter",
@@ -507,13 +531,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								>
 									{isEditing ? (
 										<form
-											className="col-span-6 grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4"
+											className="col-[1/-2] grid grid-cols-subgrid items-center"
 											onSubmit={(event) => {
 												event.preventDefault();
 												void submitRename(thread);
 											}}
 										>
-											<div className="col-span-2 flex min-w-0 items-center gap-2">
+											<div className="flex min-w-0 items-center gap-2 @lg/sessions:col-span-2">
 												<Input
 													aria-label={`Rename ${thread.title}`}
 													autoFocus
@@ -558,15 +582,25 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</Button>
 											</div>
 											<span
-												className="truncate text-muted-foreground"
+												className={cn(
+													"truncate text-muted-foreground",
+													MODEL_COST_COLUMN,
+												)}
 												title={modelLabel(thread)}
 											>
 												{modelLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span
+												className={cn("text-muted-foreground", TOKENS_COLUMN)}
+											>
 												{tokensLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span
+												className={cn(
+													"text-muted-foreground",
+													MODEL_COST_COLUMN,
+												)}
+											>
 												{formatCostUsd(thread.totalCostUsd) ?? "-"}
 											</span>
 											<span className="text-muted-foreground">
@@ -582,7 +616,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 										<div
 											aria-disabled={Boolean(pendingKind)}
 											className={cn(
-												"col-span-6 grid select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+												"col-[1/-2] grid select-text grid-cols-subgrid items-center text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 												pendingKind ? "cursor-default" : "cursor-pointer",
 											)}
 											onClick={() => openRow(thread)}
@@ -596,7 +630,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											role="button"
 											tabIndex={pendingKind ? -1 : 0}
 										>
-											<span className="flex min-w-0 items-center gap-3 font-semibold">
+											<span className="flex min-w-0 items-center gap-2 font-semibold @lg/sessions:gap-3">
 												<span className="sr-only">Open session: </span>
 												<SessionStatus
 													className="shrink-0"
@@ -624,7 +658,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													/>
 												) : null}
 											</span>
-											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+											<span
+												className={cn(
+													"min-w-0 items-center gap-2 text-muted-foreground",
+													WORKSPACE_COLUMN,
+												)}
+											>
 												{thread.origin === "cloud" ? (
 													<Cloud className="size-3.5 shrink-0" />
 												) : (
@@ -642,15 +681,28 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</span>
 											</span>
 											<span
-												className="truncate text-muted-foreground"
+												className={cn(
+													"truncate text-muted-foreground",
+													MODEL_COST_COLUMN,
+												)}
 												title={modelLabel(thread)}
 											>
 												{modelLabel(thread)}
 											</span>
-											<span className="truncate text-muted-foreground">
+											<span
+												className={cn(
+													"truncate text-muted-foreground",
+													TOKENS_COLUMN,
+												)}
+											>
 												{tokensLabel(thread)}
 											</span>
-											<span className="truncate text-muted-foreground">
+											<span
+												className={cn(
+													"truncate text-muted-foreground",
+													MODEL_COST_COLUMN,
+												)}
+											>
 												{formatCostUsd(thread.totalCostUsd) ?? "-"}
 											</span>
 											<span className="truncate text-muted-foreground">
@@ -720,7 +772,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							);
 						})}
 						{filteredThreads.length > 0 ? (
-							<div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
+							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
 								<span>
 									{`${pageStart + 1}-${pageStart + visibleThreads.length} of ${filteredThreads.length}`}
 									{history.mayHaveMoreSessions ? "+" : ""}

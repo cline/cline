@@ -15,7 +15,9 @@ describe("rewriteAssetUrls", () => {
 			'<script src="/_next/static/chunks/a.js"></script><link href="/_next/static/chunks/a.css"/><img src="/icon.png"/>';
 		const out = rewriteAssetUrls(html, resolveAsset);
 		expect(out).toContain(`src="${resolveAsset("_next/static/chunks/a.js")}"`);
-		expect(out).toContain(`href="${resolveAsset("_next/static/chunks/a.css")}"`);
+		expect(out).toContain(
+			`href="${resolveAsset("_next/static/chunks/a.css")}"`,
+		);
 		expect(out).toContain(`src="${resolveAsset("icon.png")}"`);
 	});
 
@@ -37,7 +39,8 @@ describe("rewriteAssetUrls", () => {
 });
 
 describe("buildWebviewHtml", () => {
-	const html = '<!DOCTYPE html><html><head><title>Cline</title></head><body></body></html>';
+	const html =
+		"<!DOCTYPE html><html><head><title>Cline</title></head><body></body></html>";
 	const built = buildWebviewHtml({
 		html,
 		resolveAsset,

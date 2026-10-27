@@ -30,6 +30,7 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { useHostCapabilities } from "@/lib/host-mode";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
@@ -81,7 +82,6 @@ import {
 } from "./provider-list-view";
 import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
-import { useHostCapabilities } from "@/lib/host-mode";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
 import { VoiceInputContent } from "./voice-input-view";
@@ -855,68 +855,73 @@ function GeneralSettingsContent() {
 			<section className="max-w-344">
 				<NotificationSettings />
 				{!host.ownsTheme ? (
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Dark mode</p>
-						<p className="text-sm text-muted-foreground">
-							Keep the desktop interface in dark mode on this browser.
-						</p>
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								Dark mode
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Keep the desktop interface in dark mode on this browser.
+							</p>
+						</div>
+						<Switch
+							aria-label="Dark mode"
+							checked={theme === "dark"}
+							onCheckedChange={updateTheme}
+						/>
 					</div>
-					<Switch
-						aria-label="Dark mode"
-						checked={theme === "dark"}
-						onCheckedChange={updateTheme}
-					/>
-				</div>
 				) : null}
 				{!host.ownsFontSize ? (
-				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Font size</p>
-						<p className="text-sm text-muted-foreground">
-							Adjust the size of text and interface elements throughout the app.
-						</p>
+					<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								Font size
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Adjust the size of text and interface elements throughout the
+								app.
+							</p>
+						</div>
+						<div className="flex w-64 shrink-0 items-center gap-3 max-[720px]:w-full">
+							<Button
+								aria-label="Decrease font size"
+								className="size-7"
+								disabled={fontSize === MIN_APP_FONT_SIZE}
+								onClick={() => updateFontSizePreference(fontSize - 1)}
+								size="icon"
+								type="button"
+								variant="outline"
+							>
+								<Minus />
+							</Button>
+							<Slider
+								aria-label="Font size"
+								aria-valuetext={`${fontSize} pixels`}
+								max={MAX_APP_FONT_SIZE}
+								min={MIN_APP_FONT_SIZE}
+								onValueChange={updateFontSize}
+								step={1}
+								value={[fontSize]}
+							/>
+							<Button
+								aria-label="Increase font size"
+								className="size-7"
+								disabled={fontSize === MAX_APP_FONT_SIZE}
+								onClick={() => updateFontSizePreference(fontSize + 1)}
+								size="icon"
+								type="button"
+								variant="outline"
+							>
+								<Plus />
+							</Button>
+							<output
+								aria-label="Selected font size"
+								className="w-10 shrink-0 text-right font-mono text-sm tabular-nums text-foreground"
+							>
+								{fontSize}px
+							</output>
+						</div>
 					</div>
-					<div className="flex w-64 shrink-0 items-center gap-3 max-[720px]:w-full">
-						<Button
-							aria-label="Decrease font size"
-							className="size-7"
-							disabled={fontSize === MIN_APP_FONT_SIZE}
-							onClick={() => updateFontSizePreference(fontSize - 1)}
-							size="icon"
-							type="button"
-							variant="outline"
-						>
-							<Minus />
-						</Button>
-						<Slider
-							aria-label="Font size"
-							aria-valuetext={`${fontSize} pixels`}
-							max={MAX_APP_FONT_SIZE}
-							min={MIN_APP_FONT_SIZE}
-							onValueChange={updateFontSize}
-							step={1}
-							value={[fontSize]}
-						/>
-						<Button
-							aria-label="Increase font size"
-							className="size-7"
-							disabled={fontSize === MAX_APP_FONT_SIZE}
-							onClick={() => updateFontSizePreference(fontSize + 1)}
-							size="icon"
-							type="button"
-							variant="outline"
-						>
-							<Plus />
-						</Button>
-						<output
-							aria-label="Selected font size"
-							className="w-10 shrink-0 text-right font-mono text-sm tabular-nums text-foreground"
-						>
-							{fontSize}px
-						</output>
-					</div>
-				</div>
 				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
@@ -947,79 +952,83 @@ function GeneralSettingsContent() {
 					</div>
 				</div>
 				{host.hasAppIcon ? (
-				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">App icon</p>
-						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the {appIconLocation}.
-						</p>
-						{appIconError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to change app icon: {appIconError}
+					<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								App icon
 							</p>
-						) : null}
-					</div>
-					<div className="flex shrink-0 items-start gap-2.5">
-						{APP_ICONS.map((icon) => (
-							<button
-								aria-label={icon.label}
-								aria-pressed={appIcon === icon.id}
-								className="group flex flex-col items-center gap-2"
-								key={icon.id}
-								onClick={() => void updateAppIcon(icon.id)}
-								type="button"
-							>
-								<img
-									alt=""
-									className={cn(
-										"size-14 rounded-2xl transition-transform group-hover:scale-105",
-										appIcon === icon.id &&
-											"ring-2 ring-ring ring-offset-2 ring-offset-background",
-									)}
-									draggable={false}
-									height={112}
-									src={appIconAssetPath(icon.id)}
-									width={112}
-								/>
-								<span
-									className={cn(
-										"text-xs",
-										appIcon === icon.id
-											? "font-medium text-foreground"
-											: "text-muted-foreground",
-									)}
+							<p className="text-sm text-muted-foreground">
+								Pick the icon Cline shows in the {appIconLocation}.
+							</p>
+							{appIconError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to change app icon: {appIconError}
+								</p>
+							) : null}
+						</div>
+						<div className="flex shrink-0 items-start gap-2.5">
+							{APP_ICONS.map((icon) => (
+								<button
+									aria-label={icon.label}
+									aria-pressed={appIcon === icon.id}
+									className="group flex flex-col items-center gap-2"
+									key={icon.id}
+									onClick={() => void updateAppIcon(icon.id)}
+									type="button"
 								>
-									{icon.label}
-								</span>
-							</button>
-						))}
+									<img
+										alt=""
+										className={cn(
+											"size-14 rounded-2xl transition-transform group-hover:scale-105",
+											appIcon === icon.id &&
+												"ring-2 ring-ring ring-offset-2 ring-offset-background",
+										)}
+										draggable={false}
+										height={112}
+										src={appIconAssetPath(icon.id)}
+										width={112}
+									/>
+									<span
+										className={cn(
+											"text-xs",
+											appIcon === icon.id
+												? "font-medium text-foreground"
+												: "text-muted-foreground",
+										)}
+									>
+										{icon.label}
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
-				</div>
 				) : null}
 				{host.hasAutoUpdate ? (
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
-							Keep CLI up to date
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Automatically update the cline terminal command, which shares your
-							sessions and settings with this app. The app itself updates
-							separately.
-						</p>
-						{autoUpdateError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update CLI auto-update setting: {autoUpdateError}
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								Keep CLI up to date
 							</p>
-						) : null}
+							<p className="text-sm text-muted-foreground">
+								Automatically update the cline terminal command, which shares
+								your sessions and settings with this app. The app itself updates
+								separately.
+							</p>
+							{autoUpdateError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update CLI auto-update setting: {autoUpdateError}
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Keep CLI up to date"
+							checked={autoUpdateEnabled}
+							disabled={autoUpdateLoading || autoUpdateSaving}
+							onCheckedChange={(checked) =>
+								void updateAutoUpdateEnabled(checked)
+							}
+						/>
 					</div>
-					<Switch
-						aria-label="Keep CLI up to date"
-						checked={autoUpdateEnabled}
-						disabled={autoUpdateLoading || autoUpdateSaving}
-						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
-					/>
-				</div>
 				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">

@@ -37,6 +37,14 @@ html[data-cline-host="vscode"] [data-slot="page-frame"] {
 	padding-top: 1.25rem;
 }
 
+/* No app sidebar in VS Code (HostCapabilities.hasAppSidebar), so the
+   header's left inset reserved for the sidebar trigger is dead space. */
+html[data-cline-host="vscode"]
+	[data-slot="window-title-bar-content-host"]
+	header {
+	padding-left: 0.75rem;
+}
+
 @layer base {
 	html,
 	body {

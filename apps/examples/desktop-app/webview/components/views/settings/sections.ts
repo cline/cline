@@ -100,3 +100,17 @@ export function settingsSectionsForHost(host: {
 export const CUSTOMIZATION_SECTIONS = ALL_CUSTOMIZATION_SECTIONS.filter(
 	(section) => !HIDDEN_SECTIONS.has(section),
 );
+
+/**
+ * Display label for a section in navigation. Customize is the installed
+ * inventory, so its row reads "Installed" next to Marketplace; provider
+ * sub-pages use their short labels under the "Provider" group.
+ */
+export function settingsSectionLabel(section: SettingsSection): string {
+	if (isProviderSection(section)) return PROVIDER_SECTION_LABELS[section];
+	return (
+		CUSTOMIZATION_SECTION_LABELS[
+			section as keyof typeof CUSTOMIZATION_SECTION_LABELS
+		] ?? section
+	);
+}

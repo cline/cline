@@ -27,7 +27,11 @@ export function registerDiffProvider(): vscode.Disposable {
 	);
 }
 
-function snapshotUri(path: string, side: "old" | "new", text: string): vscode.Uri {
+function snapshotUri(
+	path: string,
+	side: "old" | "new",
+	text: string,
+): vscode.Uri {
 	const uri = vscode.Uri.from({
 		scheme: DIFF_SCHEME,
 		path: `/${side}/${++counter}${path}`,
@@ -43,6 +47,7 @@ export async function openFileDiff(options: {
 	oldText: string;
 	newText: string;
 	status?: "A" | "M" | "D";
+	viewColumn?: vscode.ViewColumn;
 }): Promise<void> {
 	const left = snapshotUri(options.path, "old", options.oldText);
 	const fileOnDisk = options.status !== "D" && existsSync(options.path);
@@ -54,6 +59,6 @@ export async function openFileDiff(options: {
 		left,
 		right,
 		options.title ?? `${options.path} (Cline changes)`,
-		{ preview: true },
+		{ preview: true, viewColumn: options.viewColumn },
 	);
 }

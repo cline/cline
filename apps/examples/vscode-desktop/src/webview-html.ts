@@ -61,7 +61,8 @@ export function rewriteAssetUrls(
 		})
 		.replace(
 			FLIGHT_CHUNK_REF,
-			(_match, relativePath) => `\\"${resolveAsset(`_next/${relativePath}`)}\\"`,
+			(_match, relativePath) =>
+				`\\"${resolveAsset(`_next/${relativePath}`)}\\"`,
 		);
 }
 

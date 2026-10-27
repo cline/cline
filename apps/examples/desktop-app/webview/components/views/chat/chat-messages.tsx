@@ -52,6 +52,10 @@ import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
 import { TurnReceipt } from "./messages/turn-receipt";
 import { WorkBlock } from "./messages/work-block";
+import {
+	TranscriptFileLinkProvider,
+	type TranscriptFileOpener,
+} from "./transcript-file-links";
 import { TranscriptOutline } from "./transcript-outline";
 
 type ChatMessagesProps = {
@@ -99,6 +103,13 @@ type ChatMessagesProps = {
 	 */
 	lastTurnChanges?: SessionChangeSet;
 	onReviewLastTurn?: (path?: string) => void;
+	/**
+	 * The receipt lists every changed file in place (hosts without an
+	 * in-app changes pane) instead of deferring to `onReviewLastTurn()`.
+	 */
+	expandLastTurnFiles?: boolean;
+	/** Makes file paths in the transcript open the file. */
+	onOpenFile?: TranscriptFileOpener;
 };
 
 type AskQuestionRequestItem = {
@@ -138,6 +149,8 @@ function ChatMessagesImpl({
 	onFixCredentials,
 	lastTurnChanges,
 	onReviewLastTurn,
+	expandLastTurnFiles = false,
+	onOpenFile,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -563,7 +576,7 @@ function ChatMessagesImpl({
 		[onForkSession],
 	);
 
-	return (
+	const transcript = (
 		<MessageScrollerProvider
 			key={sessionId ?? "new-chat"}
 			autoScroll
@@ -756,6 +769,7 @@ function ChatMessagesImpl({
 									>
 										<TurnReceipt
 											changes={lastTurnChanges}
+											expandable={expandLastTurnFiles}
 											onReview={onReviewLastTurn}
 										/>
 									</MessageScrollerItem>
@@ -957,6 +971,13 @@ function ChatMessagesImpl({
 				</AlertDialog>
 			</MessageScroller>
 		</MessageScrollerProvider>
+	);
+	// A null opener renders no DOM and leaves every consumer on its plain
+	// path; always mounting it keeps the tree stable if the prop changes.
+	return (
+		<TranscriptFileLinkProvider onOpenFile={onOpenFile}>
+			{transcript}
+		</TranscriptFileLinkProvider>
 	);
 }
 

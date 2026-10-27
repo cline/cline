@@ -159,6 +159,30 @@ describe("SessionsView table", () => {
 		expect(row?.parentElement?.className).not.toContain("min-h-14");
 	});
 
+	it("fits a narrow panel by dropping secondary columns, not by scrolling", async () => {
+		const view = renderView();
+		await view.render();
+
+		const table = container.querySelector(".\\@container\\/sessions");
+		expect(table).not.toBeNull();
+		// No fixed minimum width that forces horizontal scrolling.
+		expect(table?.className).not.toMatch(/\bmin-w-\d/);
+
+		const headers = Array.from(table?.firstElementChild?.children ?? []);
+		const hiddenWhenNarrow = headers
+			.filter((node) => node.className.includes("hidden"))
+			.map((node) => node.textContent);
+		expect(hiddenWhenNarrow).toEqual(["Workspace", "Model", "Tokens", "Cost"]);
+
+		// Title and time always show.
+		const row = container.querySelector<HTMLDivElement>('[role="button"]');
+		const cells = Array.from(row?.children ?? []);
+		expect(cells[0]?.className).not.toContain("hidden");
+		expect(cells.at(-1)?.className).not.toContain("hidden");
+		// Header and rows share one column template so they stay aligned.
+		expect(row?.className).toContain("grid-cols-subgrid");
+	});
+
 	it("marks pinned sessions with a pin icon", async () => {
 		const plain = renderView();
 		await plain.render();

@@ -122,7 +122,77 @@ export type HostAction =
 	| "new-session"
 	| "command-bar"
 	| "open-settings"
-	| "focus-input";
+	| "show-sessions"
+	| "focus-input"
+	/** Payload: {@link HostPromptContext}. Appends to the composer. */
+	| "add-to-prompt";
+
+/**
+ * Editor context the host hands to the composer (VS Code: "Add to Cline" on
+ * a selection). `path` is workspace-relative when the file is inside the
+ * workspace; lines are 1-based and inclusive.
+ */
+export type HostPromptContext = {
+	path: string;
+	startLine?: number;
+	endLine?: number;
+	language?: string;
+	text: string;
+};
+
+export function parseHostPromptContext(
+	value: unknown,
+): HostPromptContext | null {
+	if (!value || typeof value !== "object") return null;
+	const record = value as Record<string, unknown>;
+	if (typeof record.path !== "string" || typeof record.text !== "string") {
+		return null;
+	}
+	const line = (key: string) =>
+		typeof record[key] === "number" && Number.isInteger(record[key])
+			? (record[key] as number)
+			: undefined;
+	return {
+		path: record.path,
+		text: record.text,
+		startLine: line("startLine"),
+		endLine: line("endLine"),
+		language: typeof record.language === "string" ? record.language : undefined,
+	};
+}
+
+/**
+ * Markdown block for a host-provided selection: the file as an `@path`
+ * mention (so the composer chips it and the SDK attaches the file), the line
+ * range in prose, then the selected lines fenced. The mention must stay a
+ * bare path: the SDK matches the whole `@token` against the file index, so a
+ * `:12-20` suffix would silently drop the attachment. Paths with whitespace
+ * can't be mentions and are written as code instead. The fence grows past
+ * any backtick run inside the selection.
+ */
+export function formatHostPromptContext(context: HostPromptContext): string {
+	const { path, startLine, endLine, language, text } = context;
+	const file = /\s/.test(path) ? `\`${path}\`` : `@${path}`;
+	const range =
+		startLine === undefined
+			? ""
+			: endLine === undefined || endLine === startLine
+				? ` (line ${startLine})`
+				: ` (lines ${startLine}-${endLine})`;
+	const longestRun = Math.max(
+		2,
+		...[...text.matchAll(/`+/g)].map((match) => match[0].length),
+	);
+	const fence = "`".repeat(longestRun + 1);
+	const body = text.endsWith("\n") ? text : `${text}\n`;
+	return `${file}${range}\n${fence}${language ?? ""}\n${body}${fence}\n`;
+}
+
+/** Appends `block` to an existing draft, separated by a blank line. */
+export function appendToPromptDraft(draft: string, block: string): string {
+	if (!draft.trim()) return block;
+	return `${draft.replace(/\s+$/, "")}\n\n${block}`;
+}
 
 type HostActionMessage = {
 	type: "cline-host-action";
@@ -146,9 +216,18 @@ export function subscribeToHostActions(
 		return () => {};
 	}
 	const listener = (event: MessageEvent) => {
-		if (isHostAction(event.data)) handler(event.data.action, event.data.payload);
+		if (isHostAction(event.data))
+			handler(event.data.action, event.data.payload);
 	};
 	window.addEventListener("message", listener);
+	// Tell the host someone is listening, so actions it queued while the
+	// app was still booting (e.g. "Add to Cline" before the view opened) are
+	// delivered now instead of being dropped.
+	try {
+		resolvePostMessage()({ type: "cline-host-ready" });
+	} catch {
+		// No post bridge (tests); nothing was queued either.
+	}
 	return () => window.removeEventListener("message", listener);
 }
 

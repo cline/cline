@@ -53,6 +53,15 @@ describe("hostCapabilitiesFor", () => {
 			ownsKeybindings: false,
 			hasAppIcon: true,
 			hasAutoUpdate: true,
+			hasAppSidebar: true,
+			transcriptFileLinks: false,
+		});
+	});
+
+	it("keeps the browser build on desktop's layout", () => {
+		expect(hostCapabilitiesFor("web")).toMatchObject({
+			hasAppSidebar: true,
+			transcriptFileLinks: false,
 		});
 	});
 
@@ -70,6 +79,8 @@ describe("hostCapabilitiesFor", () => {
 			hasAutoUpdate: false,
 			ownsWorkspace: true,
 			compactLayout: true,
+			hasAppSidebar: false,
+			transcriptFileLinks: true,
 		});
 	});
 

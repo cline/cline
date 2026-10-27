@@ -18,7 +18,9 @@ type SidecarResponse = {
 const REQUEST_TIMEOUT_MS = 30_000;
 
 declare const WebSocket: {
-	new (url: string): {
+	new (
+		url: string,
+	): {
 		readonly readyState: number;
 		onopen: ((event: unknown) => void) | null;
 		onerror: ((event: unknown) => void) | null;
@@ -52,11 +54,16 @@ export async function invokeSidecar<T>(
 			fn();
 		};
 		const timer = setTimeout(
-			() => finish(() => reject(new Error(`sidecar command timed out: ${command}`))),
+			() =>
+				finish(() =>
+					reject(new Error(`sidecar command timed out: ${command}`)),
+				),
 			REQUEST_TIMEOUT_MS,
 		);
 		socket.onerror = () =>
-			finish(() => reject(new Error(`sidecar connection failed for ${command}`)));
+			finish(() =>
+				reject(new Error(`sidecar connection failed for ${command}`)),
+			);
 		socket.onopen = () => {
 			socket.send(JSON.stringify({ type: "command", id, command, args }));
 		};
@@ -71,7 +78,10 @@ export async function invokeSidecar<T>(
 			if (message.type !== "response" || message.id !== id) return;
 			finish(() => {
 				if (message.ok) resolve(message.result as T);
-				else reject(new Error(message.error ?? `sidecar command failed: ${command}`));
+				else
+					reject(
+						new Error(message.error ?? `sidecar command failed: ${command}`),
+					);
 			});
 		};
 	});

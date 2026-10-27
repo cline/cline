@@ -21,31 +21,53 @@
 		"commands": [
 			{
 				"command": "clineDesktop.open",
-				"title": "Cline Desktop: Open"
+				"title": "Open in Editor Tab",
+				"category": "Cline Desktop",
+				"icon": "$(link-external)"
 			},
 			{
 				"command": "clineDesktop.restartBackend",
-				"title": "Cline Desktop: Restart Backend"
+				"title": "Restart Backend",
+				"category": "Cline Desktop"
 			},
 			{
 				"command": "clineDesktop.showLogs",
-				"title": "Cline Desktop: Show Backend Logs"
+				"title": "Show Backend Logs",
+				"category": "Cline Desktop"
 			},
 			{
 				"command": "clineDesktop.newSession",
-				"title": "Cline Desktop: New Session"
+				"title": "New Session",
+				"category": "Cline Desktop",
+				"icon": "$(add)"
 			},
 			{
 				"command": "clineDesktop.searchSessions",
-				"title": "Cline Desktop: Search Sessions"
+				"title": "Search Sessions",
+				"category": "Cline Desktop",
+				"icon": "$(search)"
 			},
 			{
 				"command": "clineDesktop.openSettings",
-				"title": "Cline Desktop: Open Settings"
+				"title": "Settings",
+				"category": "Cline Desktop",
+				"icon": "$(gear)"
 			},
 			{
 				"command": "clineDesktop.focusInput",
-				"title": "Cline Desktop: Focus Chat Input"
+				"title": "Focus Chat Input",
+				"category": "Cline Desktop"
+			},
+			{
+				"command": "clineDesktop.showSessions",
+				"title": "Session History",
+				"category": "Cline Desktop",
+				"icon": "$(history)"
+			},
+			{
+				"command": "clineDesktop.addToCline",
+				"title": "Add to Cline",
+				"category": "Cline Desktop"
 			}
 		],
 		"keybindings": [
@@ -71,6 +93,12 @@
 				"command": "clineDesktop.focusInput",
 				"key": "ctrl+shift+l",
 				"mac": "cmd+shift+l"
+			},
+			{
+				"command": "clineDesktop.addToCline",
+				"key": "ctrl+alt+l",
+				"mac": "cmd+alt+l",
+				"when": "editorTextFocus && editorHasSelection"
 			}
 		],
 		"viewsContainers": {
@@ -106,12 +134,76 @@
 					"description": "Path to the desktop backend entrypoint (sidecar/index.ts or a built bundle). Leave empty to use the copy bundled with this extension / repo checkout."
 				}
 			}
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "clineDesktop.newSession",
+					"when": "view == clineDesktop.sidebar",
+					"group": "navigation@1"
+				},
+				{
+					"command": "clineDesktop.showSessions",
+					"when": "view == clineDesktop.sidebar",
+					"group": "navigation@2"
+				},
+				{
+					"command": "clineDesktop.openSettings",
+					"when": "view == clineDesktop.sidebar",
+					"group": "navigation@3"
+				},
+				{
+					"command": "clineDesktop.open",
+					"when": "view == clineDesktop.sidebar",
+					"group": "navigation@4"
+				},
+				{
+					"command": "clineDesktop.restartBackend",
+					"when": "view == clineDesktop.sidebar",
+					"group": "z_backend@1"
+				},
+				{
+					"command": "clineDesktop.showLogs",
+					"when": "view == clineDesktop.sidebar",
+					"group": "z_backend@2"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "clineDesktop.newSession",
+					"when": "activeWebviewPanelId == clineDesktop.panel",
+					"group": "navigation@1"
+				},
+				{
+					"command": "clineDesktop.showSessions",
+					"when": "activeWebviewPanelId == clineDesktop.panel",
+					"group": "navigation@2"
+				},
+				{
+					"command": "clineDesktop.openSettings",
+					"when": "activeWebviewPanelId == clineDesktop.panel",
+					"group": "navigation@3"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "clineDesktop.addToCline",
+					"when": "editorHasSelection",
+					"group": "0_cline@1"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "clineDesktop.addToCline",
+					"when": "editorHasSelection"
+				}
+			]
 		}
 	},
 	"scripts": {
 		"build:webview": "bun run scripts/build-webview.ts",
 		"build:extension": "bun build ./src/extension.ts --outdir ./dist --target=node --format=cjs --external=vscode --sourcemap=linked",
-		"build": "bun run build:webview && bun run build:extension",
+		"build": "bun run build:webview --build && bun run build:extension",
 		"watch": "bun build ./src/extension.ts --outdir ./dist --target=node --format=cjs --external=vscode --sourcemap=linked --watch",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run --config vitest.config.ts",

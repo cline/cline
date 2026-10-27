@@ -68,7 +68,12 @@ export function TranscriptOutline({ messages }: { messages: ChatMessage[] }) {
 		<nav
 			ref={outlineRef}
 			aria-label="Transcript outline"
-			className="absolute left-2 top-1/2 z-10 flex max-h-[calc(100%-3rem)] -translate-y-1/2 flex-col overflow-y-auto rounded-md bg-background/90 p-1"
+			// The transcript's left gutter (pl-12) is sized for the 34px rail.
+			// Once there are more turns than fit, a visible scrollbar would
+			// widen the rail by its own width and cover the start of every
+			// line, so the overflow scrolls without one (wheel / keyboard,
+			// and the effect above keeps the current entry in view).
+			className="absolute left-2 top-1/2 z-10 flex max-h-[calc(100%-3rem)] -translate-y-1/2 flex-col overflow-y-auto rounded-md bg-background/90 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 		>
 			{userMessages.map((message, index) => (
 				<TranscriptOutlineEntry

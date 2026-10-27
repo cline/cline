@@ -43,6 +43,18 @@ export type HostCapabilities = {
 	ownsWorkspace: boolean;
 	/** Tight horizontal space: prefer stacked layouts over side-by-side. */
 	compactLayout: boolean;
+	/**
+	 * The app renders its own navigation sidebar (sessions, settings
+	 * sections, account). When false the host supplies the entry points
+	 * instead (VS Code: view-title toolbar → `new-session`, `show-sessions`,
+	 * `open-settings` host actions) and pages carry their own sub-navigation.
+	 */
+	hasAppSidebar: boolean;
+	/**
+	 * File paths in the transcript (tool rows, inline code) open the file in
+	 * the host's editor via `open_file_in_editor`.
+	 */
+	transcriptFileLinks: boolean;
 };
 
 let cachedMode: HostMode | null = null;
@@ -78,6 +90,8 @@ export function hostCapabilitiesFor(mode: HostMode): HostCapabilities {
 				hasAutoUpdate: false,
 				ownsWorkspace: true,
 				compactLayout: true,
+				hasAppSidebar: false,
+				transcriptFileLinks: true,
 			};
 		case "desktop":
 			return {
@@ -93,6 +107,8 @@ export function hostCapabilitiesFor(mode: HostMode): HostCapabilities {
 				hasAutoUpdate: true,
 				ownsWorkspace: false,
 				compactLayout: false,
+				hasAppSidebar: true,
+				transcriptFileLinks: false,
 			};
 		default:
 			return {
@@ -108,6 +124,8 @@ export function hostCapabilitiesFor(mode: HostMode): HostCapabilities {
 				hasAutoUpdate: false,
 				ownsWorkspace: false,
 				compactLayout: false,
+				hasAppSidebar: true,
+				transcriptFileLinks: false,
 			};
 	}
 }

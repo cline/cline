@@ -22,6 +22,7 @@ import {
 	type HostCommandContext,
 	runHostCommand,
 } from "./host-commands";
+import { buildPromptContext, type PromptContext } from "./prompt-context";
 import { buildWebviewHtml } from "./webview-html";
 
 const VIEW_ID = "clineDesktop.sidebar";
@@ -138,26 +139,43 @@ ${isError ? "<p>See the <b>Cline Desktop</b> output channel for backend logs.</p
 /** Live webviews, most recently focused last; host actions go to the last one. */
 const activeWebviews = new Set<DesktopWebview>();
 
-type HostAction = "new-session" | "command-bar" | "open-settings" | "focus-input";
+/** Mirrors `HostAction` in desktop-app/webview/lib/host-shell.ts. */
+type HostAction =
+	| "new-session"
+	| "command-bar"
+	| "open-settings"
+	| "show-sessions"
+	| "focus-input"
+	| "add-to-prompt";
 
-function postHostAction(action: HostAction): void {
+type QueuedAction = { action: HostAction; payload?: unknown };
+
+/** Actions requested before any webview existed; flushed to the first one. */
+const unclaimedActions: QueuedAction[] = [];
+
+function postHostAction(action: HostAction, payload?: unknown): void {
 	const target = [...activeWebviews].at(-1);
 	if (!target) {
-		// Nothing open yet: open the sidebar, which will render fresh state.
+		// Nothing open yet: open the view and deliver once the app listens.
+		unclaimedActions.push({ action, payload });
 		void vscode.commands.executeCommand(`${VIEW_ID}.focus`);
 		return;
 	}
 	target.reveal();
-	void target.postHostAction(action);
+	target.sendHostAction({ action, payload });
 }
 
 class DesktopWebview {
 	private disposables: vscode.Disposable[] = [];
+	/** True once the app has subscribed to host actions (`cline-host-ready`). */
+	private listening = false;
+	private queued: QueuedAction[] = [];
 
 	constructor(
 		private readonly webview: vscode.Webview,
 		private readonly context: vscode.ExtensionContext,
 		readonly reveal: () => void,
+		private readonly editorColumn: () => vscode.ViewColumn,
 	) {
 		webview.options = {
 			enableScripts: true,
@@ -167,6 +185,8 @@ class DesktopWebview {
 			webview.onDidReceiveMessage((message) => void this.onMessage(message)),
 		);
 		activeWebviews.add(this);
+		// Anything requested before the view existed goes to this one.
+		this.queued.push(...unclaimedActions.splice(0));
 		void this.render();
 	}
 
@@ -182,12 +202,16 @@ class DesktopWebview {
 		activeWebviews.add(this);
 	}
 
-	postHostAction(action: HostAction, payload?: unknown): Thenable<boolean> {
-		return this.webview.postMessage({
-			type: "cline-host-action",
-			action,
-			payload,
-		});
+	/**
+	 * Deliver now if the app is listening; otherwise hold until it says so
+	 * (it boots after the backend starts, which can take seconds).
+	 */
+	sendHostAction(entry: QueuedAction): void {
+		if (!this.listening) {
+			this.queued.push(entry);
+			return;
+		}
+		void this.webview.postMessage({ type: "cline-host-action", ...entry });
 	}
 
 	private distDir(): vscode.Uri {
@@ -200,15 +224,19 @@ class DesktopWebview {
 			restartBackend: () => ensureBackend(this.context).restart(),
 			backendWsEndpoint: () => backend?.current?.wsEndpoint,
 			revealWebview: () => this.reveal(),
+			editorColumn: this.editorColumn,
 		};
 	}
 
 	private async onMessage(message: unknown): Promise<void> {
-		if (
-			!message ||
-			typeof message !== "object" ||
-			(message as { type?: unknown }).type !== "cline-host-command"
-		) {
+		if (!message || typeof message !== "object") return;
+		const type = (message as { type?: unknown }).type;
+		if (type === "cline-host-ready") {
+			this.listening = true;
+			for (const entry of this.queued.splice(0)) this.sendHostAction(entry);
+			return;
+		}
+		if (type !== "cline-host-command") {
 			return;
 		}
 		const { id, command, args } = message as {
@@ -235,6 +263,8 @@ class DesktopWebview {
 	}
 
 	async render(): Promise<void> {
+		// A (re)render reloads the app; it will announce itself again.
+		this.listening = false;
 		this.webview.html = loadingHtml("Starting Cline Desktop backend…");
 		try {
 			const endpoint = await ensureBackend(this.context).ready();
@@ -269,14 +299,47 @@ class DesktopWebview {
 	}
 }
 
+/**
+ * The editor's selection as `HostPromptContext` (desktop-app/webview/lib/
+ * host-shell.ts). Paths inside the workspace are workspace-relative so the
+ * composer can chip them as `@mentions`; anything else stays absolute.
+ */
+function selectionPromptContext(
+	editor: vscode.TextEditor | undefined,
+): PromptContext | undefined {
+	if (!editor) return undefined;
+	const { document, selection } = editor;
+	if (selection.isEmpty) return undefined;
+	const text = document.getText(selection);
+	if (!text.trim()) return undefined;
+	return buildPromptContext({
+		absolutePath: document.uri.fsPath,
+		relativePath: vscode.workspace.getWorkspaceFolder(document.uri)
+			? vscode.workspace.asRelativePath(document.uri, false)
+			: undefined,
+		languageId: document.languageId,
+		startLine: selection.start.line,
+		// A selection ending at column 0 doesn't include that line.
+		endLine:
+			selection.end.character === 0 && selection.end.line > selection.start.line
+				? selection.end.line - 1
+				: selection.end.line,
+		text,
+	});
+}
+
 class SidebarProvider implements vscode.WebviewViewProvider {
 	private view: DesktopWebview | undefined;
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		this.view?.dispose();
-		const view = new DesktopWebview(webviewView.webview, this.context, () =>
-			webviewView.show(true),
+		const view = new DesktopWebview(
+			webviewView.webview,
+			this.context,
+			() => webviewView.show(true),
+			// The side bar isn't an editor group, so the active one is free.
+			() => vscode.ViewColumn.Active,
 		);
 		this.view = view;
 		webviewView.onDidChangeVisibility(() => {
@@ -300,10 +363,20 @@ function openPanel(context: vscode.ExtensionContext): void {
 		vscode.ViewColumn.Beside,
 		{ retainContextWhenHidden: true },
 	);
-	panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
+	panel.iconPath = vscode.Uri.joinPath(
+		context.extensionUri,
+		"media",
+		"icon.png",
+	);
 	const openedPanel = panel;
-	const view = new DesktopWebview(panel.webview, context, () =>
-		openedPanel.reveal(undefined, true),
+	const view = new DesktopWebview(
+		panel.webview,
+		context,
+		() => openedPanel.reveal(undefined, true),
+		// Clicking a file inside the panel makes the panel active; open beside
+		// it rather than replacing it.
+		() =>
+			openedPanel.active ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
 	);
 	panel.onDidChangeViewState((event) => {
 		if (event.webviewPanel.active) view.touch();
@@ -352,9 +425,22 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand("clineDesktop.openSettings", () =>
 			postHostAction("open-settings"),
 		),
+		vscode.commands.registerCommand("clineDesktop.showSessions", () =>
+			postHostAction("show-sessions"),
+		),
 		vscode.commands.registerCommand("clineDesktop.focusInput", () =>
 			postHostAction("focus-input"),
 		),
+		vscode.commands.registerCommand("clineDesktop.addToCline", () => {
+			const context = selectionPromptContext(vscode.window.activeTextEditor);
+			if (!context) {
+				void vscode.window.showInformationMessage(
+					"Select some code to add it to Cline.",
+				);
+				return;
+			}
+			postHostAction("add-to-prompt", context);
+		}),
 		registerDiffProvider(),
 	);
 	// Warm the backend so the first webview open is fast.
@@ -372,4 +458,3 @@ export async function deactivate(): Promise<void> {
 	await backend?.stop();
 	backend = undefined;
 }
-

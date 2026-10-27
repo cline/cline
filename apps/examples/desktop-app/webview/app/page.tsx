@@ -94,6 +94,15 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { syncHostAppearance } from "@/lib/host-appearance";
+import { openSessionChangeInHost } from "@/lib/host-diff";
+import { useHostCapabilities } from "@/lib/host-mode";
+import {
+	appendToPromptDraft,
+	formatHostPromptContext,
+	parseHostPromptContext,
+	subscribeToHostActions,
+} from "@/lib/host-shell";
 import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
@@ -114,7 +123,11 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
-import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
+import {
+	requestPromptInputAppend,
+	requestPromptInputFocus,
+	subscribeToPromptInputAppend,
+} from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -150,10 +163,6 @@ import {
 	type TerminalPanelState,
 	writeTerminalPanelState,
 } from "@/lib/terminal-panel-state";
-import { syncHostAppearance } from "@/lib/host-appearance";
-import { openSessionChangeInHost } from "@/lib/host-diff";
-import { useHostCapabilities } from "@/lib/host-mode";
-import { subscribeToHostActions } from "@/lib/host-shell";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
@@ -206,6 +215,16 @@ const SessionsView = dynamic(
 			(module) => module.SessionsView,
 		),
 	{ loading: viewLoading, ssr: false },
+);
+
+// Only hosts without the app sidebar render it; keep it out of the desktop
+// chat bundle.
+const SettingsHostLayout = dynamic(
+	() =>
+		import("@/components/views/settings/settings-host-layout").then(
+			(module) => module.SettingsHostLayout,
+		),
+	{ ssr: false },
 );
 
 // xterm.js is only needed once the panel opens.
@@ -906,7 +925,7 @@ function App() {
 	// Hosts that own keybindings (VS Code) drive the same actions by message.
 	useEffect(
 		() =>
-			subscribeToHostActions((action) => {
+			subscribeToHostActions((action, payload) => {
 				if (showOnboarding) return;
 				switch (action) {
 					case "new-session":
@@ -918,14 +937,26 @@ function App() {
 					case "open-settings":
 						handleViewChange("settings");
 						break;
-					case "focus-input":
-						document
-							.querySelector<HTMLTextAreaElement>("textarea")
-							?.focus();
+					case "show-sessions":
+						handleViewChange("sessions");
 						break;
+					case "focus-input":
+						if (view !== "chat") handleViewChange("chat");
+						requestPromptInputFocus();
+						break;
+					case "add-to-prompt": {
+						const context = parseHostPromptContext(payload);
+						if (!context) break;
+						// Settings/Sessions cover the thread pane; come back to it
+						// first and append once it is interactive again.
+						if (view !== "chat") handleViewChange("chat");
+						const text = formatHostPromptContext(context);
+						window.setTimeout(() => requestPromptInputAppend(text), 0);
+						break;
+					}
 				}
 			}),
-		[handleNewThread, handleViewChange, showOnboarding],
+		[handleNewThread, handleViewChange, showOnboarding, view],
 	);
 	useEffect(() => {
 		// The host's own keybindings apply instead; don't double-handle.
@@ -1119,29 +1150,36 @@ function App() {
 						inert={showOnboarding ? true : undefined}
 						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<Sidebar
-							className="border-r border-sidebar-border"
-							collapsible="icon"
-						>
-							<AgentSidebar
-								activeSessionId={activeHistorySessionId}
-								newTaskActive={newTaskActive}
-								onHome={handleHome}
-								onNavigateBack={handleNavigateBack}
-								onNavigateForward={handleNavigateForward}
-								onOpenSearch={handleOpenCommandBar}
-								onSettingsSectionChange={handleSettingsSectionChange}
-								sessionHistory={sessionHistory}
-								setView={handleViewChange}
-								settingsSection={settingsSection}
-								view={view}
-								canNavigateBack={navigation.back.length > 0}
-								canNavigateForward={navigation.forward.length > 0}
-							/>
-							<SidebarRail />
-						</Sidebar>
+						{/* Hosts without the app sidebar (VS Code) put New session,
+						    History and Settings in their own toolbar and drive
+						    them through host actions; see HostCapabilities. */}
+						{host.hasAppSidebar ? (
+							<Sidebar
+								className="border-r border-sidebar-border"
+								collapsible="icon"
+							>
+								<AgentSidebar
+									activeSessionId={activeHistorySessionId}
+									newTaskActive={newTaskActive}
+									onHome={handleHome}
+									onNavigateBack={handleNavigateBack}
+									onNavigateForward={handleNavigateForward}
+									onOpenSearch={handleOpenCommandBar}
+									onSettingsSectionChange={handleSettingsSectionChange}
+									sessionHistory={sessionHistory}
+									setView={handleViewChange}
+									settingsSection={settingsSection}
+									view={view}
+									canNavigateBack={navigation.back.length > 0}
+									canNavigateForward={navigation.forward.length > 0}
+								/>
+								<SidebarRail />
+							</Sidebar>
+						) : null}
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							{host.hasAppSidebar ? (
+								<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							) : null}
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
@@ -1237,14 +1275,37 @@ function App() {
 									</div>
 								) : null}
 								{view === "settings" ? (
-									<div className="absolute inset-0 z-30 bg-background text-foreground">
-										<SettingsView
-											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
-											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
-											section={settingsSection}
-										/>
-									</div>
+									host.hasAppSidebar ? (
+										<div className="absolute inset-0 z-30 bg-background text-foreground">
+											<SettingsView
+												onExportDiagnostics={() =>
+													setExportDiagnosticsOpen(true)
+												}
+												onNavigateSection={handleSettingsSectionChange}
+												onOpenSession={handleOpenSessionById}
+												section={settingsSection}
+											/>
+										</div>
+									) : (
+										// No app sidebar: settings brings its own section
+										// list, the same one the sidebar shows.
+										<div className="absolute inset-0 z-30 bg-background text-foreground">
+											<SettingsHostLayout
+												onBack={handleNavigateBack}
+												onSelect={handleSettingsSectionChange}
+												section={settingsSection}
+											>
+												<SettingsView
+													onExportDiagnostics={() =>
+														setExportDiagnosticsOpen(true)
+													}
+													onNavigateSection={handleSettingsSectionChange}
+													onOpenSession={handleOpenSessionById}
+													section={settingsSection}
+												/>
+											</SettingsHostLayout>
+										</div>
+									)
 								) : null}
 							</div>
 						</SidebarInset>
@@ -1435,9 +1496,20 @@ function ChatThreadPane({
 	const {
 		clearPromptForSend,
 		promptDraft,
+		promptInputRef: promptDraftRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
+	// Host-provided context (e.g. a VS Code selection) lands in whichever
+	// thread pane is mounted, appended after the current draft.
+	useEffect(
+		() =>
+			subscribeToPromptInputAppend((text) => {
+				setPromptInput(appendToPromptDraft(promptDraftRef.current, text));
+				requestPromptInputFocus();
+			}),
+		[promptDraftRef, setPromptInput],
+	);
 	const host = useHostCapabilities();
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
@@ -2770,8 +2842,7 @@ function ChatThreadPane({
 					toast({
 						variant: "destructive",
 						title: "Could not open diff",
-						description:
-							error instanceof Error ? error.message : String(error),
+						description: error instanceof Error ? error.message : String(error),
 					});
 				},
 			);
@@ -2781,6 +2852,30 @@ function ChatThreadPane({
 	const reviewLastTurnForHost = host.opensDiffsExternally
 		? reviewLastTurnInHost
 		: reviewLastTurn;
+	// Paths the agent mentions resolve against the session's working
+	// directory, the same base `open_file_in_editor` uses for tool paths.
+	const openTranscriptFile = useCallback(
+		({ path, line }: { path: string; line?: number }) => {
+			void desktopClient
+				.invoke("open_file_in_editor", {
+					path,
+					line,
+					cwd: config.cwd || resolvedWorkspaceRoot || undefined,
+				})
+				.catch((error: unknown) => {
+					toast({
+						variant: "destructive",
+						title: "Could not open file",
+						description: error instanceof Error ? error.message : String(error),
+					});
+				});
+		},
+		[config.cwd, resolvedWorkspaceRoot],
+	);
+	const transcriptFileOpener =
+		host.transcriptFileLinks && !isCloudSession
+			? openTranscriptFile
+			: undefined;
 	// Git checkpoints when the workspace has them, otherwise the tool-event
 	// reconstruction.
 	const headerDiff = useMemo(
@@ -2979,6 +3074,8 @@ function ChatThreadPane({
 								onReviewLastTurn={
 									canTrackChanges ? reviewLastTurnForHost : undefined
 								}
+								expandLastTurnFiles={host.opensDiffsExternally}
+								onOpenFile={transcriptFileOpener}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
