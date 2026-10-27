@@ -65,14 +65,19 @@ export function markNewerNextTurnRun(
  * that just finished. An event for an older accepted id is ignored. After a
  * newer run starts, a late event for the previous id is ignored too.
  * A later event for the current id replaces the prompts and resets the index.
+ * A non-empty draft hides the prompts but still records the run id, so a late
+ * event from an earlier run cannot pass for a new one.
  */
 export function acceptNextTurnSuggestions(input: {
 	sessionId: string | null | undefined;
 	draft: string;
 	payload: unknown;
 	memory: NextTurnThreadMemory;
-}): { state: NextTurnSuggestionState; memory: NextTurnThreadMemory } | null {
-	if (!input.sessionId || input.draft.trim() !== "") return null;
+}): {
+	state: NextTurnSuggestionState | null;
+	memory: NextTurnThreadMemory;
+} | null {
+	if (!input.sessionId) return null;
 	if (!isRecord(input.payload)) return null;
 	if (input.payload.sessionId !== input.sessionId) return null;
 	const runId =
@@ -90,7 +95,7 @@ export function acceptNextTurnSuggestions(input: {
 	}
 
 	return {
-		state: { prompts, index: 0 },
+		state: input.draft.trim() === "" ? { prompts, index: 0 } : null,
 		memory: {
 			acceptedRunIds:
 				runId === latestRunId ? acceptedRunIds : [...acceptedRunIds, runId],
@@ -180,7 +185,7 @@ export function useNextTurnSuggestions(input: {
 			});
 			if (!accepted) return;
 			memoryRef.current = accepted.memory;
-			setSuggestions(accepted.state);
+			if (accepted.state) setSuggestions(accepted.state);
 		});
 	}, [promptInputRef, sessionId]);
 
