@@ -128,6 +128,7 @@ Retry a failed initial send on the created target only when `dispatched` is `fal
 The Hub continues after viewer disconnects. A lost reply raises `request_failed`;
 check cloud tasks before retrying.
 Hub clients can publish an approved snapshot before creation with `localGit`.
+Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for Personal.
 Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
 This requires token-authenticated workspace access.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at

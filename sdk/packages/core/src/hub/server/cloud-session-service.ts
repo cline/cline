@@ -89,6 +89,13 @@ const createInput = creationOptions
 	.strict()
 	.superRefine((input, ctx) => {
 		if (!input.localGit) return;
+		if (input.organizationId === undefined)
+			ctx.addIssue({
+				code: "custom",
+				path: ["organizationId"],
+				message:
+					"Local Git publication requires organizationId from preparation, or null for Personal",
+			});
 		if (!input.requestId || !input.initialMessage)
 			ctx.addIssue({
 				code: "custom",

@@ -56,7 +56,14 @@ async function git(
 					: args,
 				{
 					cwd,
-					env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...options.env },
+					env: {
+						...process.env,
+						...options.env,
+						GIT_TERMINAL_PROMPT: "0",
+						// Inspect the physical history that push transfers, not local overlays.
+						GIT_NO_REPLACE_OBJECTS: "1",
+						GIT_GRAFT_FILE: "/dev/null",
+					},
 					encoding: "utf8",
 					maxBuffer: 8 * 1024 * 1024,
 					timeout: options.timeout ?? 60_000,
@@ -232,46 +239,48 @@ export async function inspectHandoffGit(
 		.split("\n")
 		.map((line) => line.split(/\s/)[0] ?? "")
 		.filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
-	if (knownHeads.length) {
-		await git(
+	let commits: string[] = [];
+	// An advertised branch at HEAD proves its entire ancestry is already published.
+	if (!knownHeads.includes(headSha)) {
+		if (knownHeads.length) {
+			await git(
+				root,
+				[
+					"fetch",
+					"--no-prune",
+					"--no-tags",
+					"--no-write-fetch-head",
+					"--no-recurse-submodules",
+					"--refmap=",
+					"--stdin",
+					remote,
+				],
+				{ input: `${knownHeads.join("\n")}\n` },
+			);
+		}
+		const input = `${[headSha, ...knownHeads.map((sha) => `^${sha}`)].join("\n")}\n`;
+		commits = (await git(root, ["log", "--format=%h %s", "--stdin"], { input }))
+			.split("\n")
+			.filter(Boolean);
+		const historicalPaths = await git(
 			root,
 			[
-				"fetch",
-				"--no-prune",
-				"--no-tags",
-				"--no-write-fetch-head",
-				"--no-recurse-submodules",
-				"--refmap=",
+				"log",
+				"--format=",
+				"--name-only",
+				"-z",
+				"--root",
+				"-c",
+				"--no-renames",
 				"--stdin",
-				remote,
 			],
-			{ input: `${knownHeads.join("\n")}\n` },
+			{ input },
 		);
-	}
-	const input = `${[headSha, ...knownHeads.map((sha) => `^${sha}`)].join("\n")}\n`;
-	const commits = (
-		await git(root, ["log", "--format=%h %s", "--stdin"], { input })
-	)
-		.split("\n")
-		.filter(Boolean);
-	const historicalPaths = await git(
-		root,
-		[
-			"log",
-			"--format=",
-			"--name-only",
-			"-z",
-			"--root",
-			"-m",
-			"--no-renames",
-			"--stdin",
-		],
-		{ input },
-	);
-	if (historicalPaths.split("\0").some(isSensitivePath)) {
-		throw new Error(
-			"Potentially sensitive files exist in unpublished history, even if deleted later. Review that history before retrying /cloud; no branch was created or pushed.",
-		);
+		if (historicalPaths.split("\0").some(isSensitivePath)) {
+			throw new Error(
+				"Potentially sensitive files exist in unpublished history, even if deleted later. Review that history before retrying /cloud; no branch was created or pushed.",
+			);
+		}
 	}
 	return {
 		id: randomUUID(),
@@ -398,6 +407,16 @@ export async function applyHandoffGit(
 				"The branch or commit history changed during preparation; nothing was pushed.",
 			);
 		}
+		await git(plan.root, [
+			"config",
+			`branch.${plan.branch}.remote`,
+			plan.remote,
+		]);
+		await git(plan.root, [
+			"config",
+			`branch.${plan.branch}.merge`,
+			`refs/heads/${plan.branch}`,
+		]);
 		// Publish only the approved commit, never a moving HEAD or configured push refspecs.
 		pushing = true;
 		await git(
@@ -414,16 +433,6 @@ export async function applyHandoffGit(
 			{ timeout: 10 * 60_000, hooksPath },
 		);
 		pushing = false;
-		await git(plan.root, [
-			"config",
-			`branch.${plan.branch}.remote`,
-			plan.remote,
-		]);
-		await git(plan.root, [
-			"config",
-			`branch.${plan.branch}.merge`,
-			`refs/heads/${plan.branch}`,
-		]);
 		return commit;
 	} catch (error) {
 		if (pushing) {
