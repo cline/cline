@@ -228,8 +228,8 @@ async function renderVoiceComposer({
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	nextTurnSuggestion?: string;
-	onAcceptNextTurnSuggestion?: ReturnType<typeof vi.fn>;
-	onNavigateNextTurnSuggestion?: ReturnType<typeof vi.fn>;
+	onAcceptNextTurnSuggestion?: () => void;
+	onNavigateNextTurnSuggestion?: (direction: "next" | "previous") => void;
 	sessionId?: string;
 	strictMode?: boolean;
 	cloudHandoffAvailable?: boolean;

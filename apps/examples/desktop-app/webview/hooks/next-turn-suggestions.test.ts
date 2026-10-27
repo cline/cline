@@ -223,7 +223,7 @@ describe("next-turn suggestions", () => {
 			payload,
 			memory: EMPTY_NEXT_TURN_THREAD,
 		});
-		if (!rules) throw new Error("Expected suggestions");
+		if (!rules?.state) throw new Error("Expected suggestions");
 		const cycled = cycleNextTurnSuggestions(rules.state);
 
 		const model = acceptNextTurnSuggestions({
