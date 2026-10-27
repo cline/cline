@@ -1,12 +1,9 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { normalizeGitHubRemoteUrl } from "./git-preflight";
-
-const isolatedHookNotice =
-	"If a repository hook failed, it ran in an isolated checkout without your local dependencies or generated files.";
 
 export type HandoffGitPlan = {
 	id: string;
@@ -44,16 +41,13 @@ async function git(
 		env?: Partial<NodeJS.ProcessEnv>;
 		timeout?: number;
 		input?: string;
-		hooksPath?: string;
 	} = {},
 ) {
 	try {
 		return await new Promise<string>((resolve, reject) => {
 			const child = execFile(
 				"git",
-				options.hooksPath
-					? ["-c", `core.hooksPath=${options.hooksPath}`, ...args]
-					: args,
+				args,
 				{
 					cwd,
 					env: {
@@ -87,9 +81,7 @@ async function git(
 		const failure = timedOut
 			? `timed out after ${(options.timeout ?? 60_000) / 1_000} seconds`
 			: `failed${typeof code === "number" ? ` (exit code ${code})` : ""}. Check Git authentication, permissions, and repository state`;
-		throw new Error(
-			`Git ${args[0]} ${failure}.${options.hooksPath ? ` ${isolatedHookNotice}` : ""}`,
-		);
+		throw new Error(`Git ${args[0]} ${failure}.`);
 	}
 }
 
@@ -337,12 +329,6 @@ export async function applyHandoffGit(
 	plan: HandoffGitPublication,
 ): Promise<string> {
 	const pushUrl = await assertPublicationDestination(plan);
-	const hooksPath = await git(plan.root, [
-		"rev-parse",
-		"--path-format=absolute",
-		"--git-path",
-		"hooks",
-	]);
 	if (
 		(
 			await git(plan.root, [
@@ -357,64 +343,24 @@ export async function applyHandoffGit(
 			"The proposed handoff branch already exists. Run /cloud again.",
 		);
 	}
-	let pushing = false;
-	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-checkout-"));
-	const checkout = join(await realpath(temporary), "checkout");
+	// Snapshot commits use the captured tree without checkout, commit hooks, or signing.
+	const commit =
+		plan.treeSha ===
+		(await git(plan.root, ["rev-parse", `${plan.headSha}^{tree}`]))
+			? plan.headSha
+			: await git(plan.root, [
+					"commit-tree",
+					"-p",
+					plan.headSha,
+					"--no-gpg-sign",
+					"-m",
+					"Cline cloud handoff checkpoint",
+					plan.treeSha,
+				]);
 	try {
-		await git(plan.root, [
-			"worktree",
-			"add",
-			"-b",
-			plan.branch,
-			checkout,
-			plan.headSha,
-		]);
-		await git(checkout, ["read-tree", "--reset", "-u", plan.treeSha]);
-		if (plan.treeSha !== (await git(checkout, ["rev-parse", "HEAD^{tree}"]))) {
-			await git(checkout, ["commit", "-m", "Cline cloud handoff checkpoint"], {
-				timeout: 10 * 60_000,
-				hooksPath,
-			});
-		}
-		if (
-			(await git(checkout, ["rev-parse", "HEAD^{tree}"])) !== plan.treeSha ||
-			(await git(checkout, [
-				"status",
-				"--porcelain=v1",
-				"--untracked-files=all",
-				"--ignore-submodules=none",
-			]))
-		) {
-			throw new Error(
-				"Files changed during preparation; nothing was pushed. Review the working tree before retrying.",
-			);
-		}
-		const commit = await git(checkout, ["rev-parse", "HEAD"]);
-		if (
-			(await git(checkout, ["symbolic-ref", "--short", "HEAD"])) !==
-				plan.branch ||
-			(commit !== plan.headSha &&
-				(await git(checkout, ["rev-list", "--parents", "-n", "1", commit])) !==
-					`${commit} ${plan.headSha}`)
-		) {
-			throw new Error(
-				"The branch or commit history changed during preparation; nothing was pushed.",
-			);
-		}
-		await git(plan.root, [
-			"config",
-			`branch.${plan.branch}.remote`,
-			plan.remote,
-		]);
-		await git(plan.root, [
-			"config",
-			`branch.${plan.branch}.merge`,
-			`refs/heads/${plan.branch}`,
-		]);
 		// Publish only the approved commit, never a moving HEAD or configured push refspecs.
-		pushing = true;
 		await git(
-			checkout,
+			plan.root,
 			[
 				"-c",
 				"push.followTags=false",
@@ -424,35 +370,12 @@ export async function applyHandoffGit(
 				pushUrl,
 				`${commit}:refs/heads/${plan.branch}`,
 			],
-			{ timeout: 10 * 60_000, hooksPath },
+			{ timeout: 10 * 60_000 },
 		);
-		pushing = false;
-		return commit;
-	} catch (error) {
-		if (pushing) {
-			throw new Error(
-				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying. ${isolatedHookNotice}`,
-			);
-		}
+	} catch {
 		throw new Error(
-			`${error instanceof Error ? error.message : String(error)} Your local checkout was not changed. A checkpoint may remain on ${plan.branch}.`,
+			`Couldn't complete the push. Check GitHub write access, branch rules (including required signatures), pre-push hooks, and your connection. Check whether ${plan.branch} was published before retrying.`,
 		);
-	} finally {
-		// A post-checkout hook can fail after Git has registered the worktree.
-		const worktrees = await git(plan.root, [
-			"worktree",
-			"list",
-			"--porcelain",
-			"-z",
-		]);
-		const registered = worktrees
-			.split("\0")
-			.some(
-				(field) =>
-					field.startsWith("worktree ") && resolve(field.slice(9)) === checkout,
-			);
-		if (registered)
-			await git(plan.root, ["worktree", "remove", "--force", checkout]);
-		await rm(temporary, { recursive: true, force: true });
 	}
+	return commit;
 }

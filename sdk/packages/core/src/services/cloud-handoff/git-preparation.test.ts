@@ -20,7 +20,6 @@ const transport = vi.hoisted(() => ({
 	remote: "",
 	fetchUrl: "https://github.com/cline/todo-app",
 	pushUrl: "https://github.com/cline/todo-app",
-	rejectPush: false,
 	rejectFetch: false,
 	rejection: new Error("rejected: synthetic-private-token"),
 	beforeFetch: () => {},
@@ -50,10 +49,7 @@ vi.mock("node:child_process", async (original) => {
 			return;
 		}
 		const push = args.indexOf("push");
-		if (
-			(push >= 0 && transport.rejectPush) ||
-			(args[0] === "fetch" && transport.rejectFetch)
-		) {
+		if (args[0] === "fetch" && transport.rejectFetch) {
 			queueMicrotask(() => callback(transport.rejection, "", ""));
 			return { stdin: null };
 		}
@@ -75,11 +71,14 @@ const git = (...args: string[]) =>
 	}).trim();
 beforeEach(() => {
 	temporary = mkdtempSync(join(tmpdir(), "handoff-git-test-"));
+	const config = join(temporary, "gitconfig");
+	writeFileSync(config, "");
+	vi.stubEnv("GIT_CONFIG_GLOBAL", config);
+	vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
 	repo = join(temporary, "repo");
 	mkdirSync(repo);
 	transport.remote = join(temporary, "remote.git");
 	transport.fetchUrl = transport.pushUrl = "https://github.com/cline/todo-app";
-	transport.rejectPush = false;
 	transport.rejectFetch = false;
 	transport.rejection = new Error("rejected: synthetic-private-token");
 	transport.beforeFetch = () => {};
@@ -93,7 +92,10 @@ beforeEach(() => {
 	git("remote", "add", "origin", transport.remote);
 	git("push", "-u", "origin", "main");
 });
-afterEach(() => rmSync(temporary, { recursive: true, force: true }));
+afterEach(() => {
+	vi.unstubAllEnvs();
+	rmSync(temporary, { recursive: true, force: true });
+});
 
 describe("cloud handoff Git preparation", () => {
 	it.each([
@@ -309,6 +311,8 @@ describe("cloud handoff Git preparation", () => {
 		const beforeIndex = git("write-tree");
 		const originalHead = git("rev-parse", "HEAD");
 		const originalStatus = git("status", "--porcelain");
+		const originalRefs = git("show-ref");
+		const originalConfig = readFileSync(join(repo, ".git/config"));
 		transport.pushUrl = "https://synthetic-token@github.com/cline/todo-app";
 		transport.rejectFetch = true;
 		const plan = await inspectHandoffGit(join(repo, "sub"));
@@ -332,9 +336,8 @@ describe("cloud handoff Git preparation", () => {
 			git("worktree", "list", "--porcelain").match(/^worktree /gm),
 		).toHaveLength(1);
 		await verifyPublishedHandoffGit(plan, published);
-		expect(git("config", `branch.${plan.branch}.merge`)).toBe(
-			`refs/heads/${plan.branch}`,
-		);
+		expect(git("show-ref")).toBe(originalRefs);
+		expect(readFileSync(join(repo, ".git/config"))).toEqual(originalConfig);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
 		).toBe("working copy");
@@ -365,11 +368,11 @@ describe("cloud handoff Git preparation", () => {
 		git("add", ".");
 		const index = git("write-tree");
 		writeFileSync(join(repo, "tracked.txt"), "later unstaged work");
-		await applyHandoffGit(plan);
+		const published = await applyHandoffGit(plan);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
 		).toBe("approved");
-		expect(git("rev-parse", `${plan.branch}^`)).toBe(plan.headSha);
+		expect(git("rev-parse", `${published}^`)).toBe(plan.headSha);
 		expect(git("rev-parse", "HEAD")).toBe(head);
 		expect(git("write-tree")).toBe(index);
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
@@ -431,79 +434,47 @@ describe("cloud handoff Git preparation", () => {
 		);
 	});
 
-	it("leaves the checkpoint and files intact after a rejected push", async () => {
+	it("preserves local refs, configuration, and files after a pre-push rejection", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "keep this");
 		const plan = await inspectHandoffGit(repo);
-		transport.rejectPush = true;
-		await expect(applyHandoffGit(plan)).rejects.toMatchObject({
-			message: expect.stringContaining(
-				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}.`,
-			),
-		});
+		writeFileSync(
+			join(repo, ".git/hooks/pre-push"),
+			"#!/bin/sh\necho synthetic-private-token >&2\nexit 1\n",
+			{ mode: 0o755 },
+		);
+		const refs = git("show-ref");
+		const config = readFileSync(join(repo, ".git/config"));
+		const result = applyHandoffGit(plan);
+		await expect(result).rejects.toThrow("Couldn't complete the push");
+		await expect(result).rejects.not.toThrow("synthetic-private-token");
 		expect(git("branch", "--show-current")).toBe("main");
-		expect(git("show", `${plan.branch}:tracked.txt`)).toBe("keep this");
+		expect(git("show-ref")).toBe(refs);
+		expect(readFileSync(join(repo, ".git/config"))).toEqual(config);
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("keep this");
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 	});
 
-	it("completes publication when Git configuration becomes locked during push", async () => {
+	it("publishes an unsigned snapshot without commit or checkout hooks", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "approved\n");
 		const plan = await inspectHandoffGit(repo);
-		writeFileSync(
-			join(repo, ".git/hooks/pre-push"),
-			'#!/bin/sh\ntouch "$(git rev-parse --git-common-dir)/config.lock"\n',
-			{ mode: 0o755 },
-		);
+		for (const hook of ["pre-commit", "post-checkout"]) {
+			writeFileSync(join(repo, ".git/hooks", hook), "#!/bin/sh\nexit 1\n", {
+				mode: 0o755,
+			});
+		}
+		git("config", "commit.gpgsign", "true");
+		git("config", "gpg.program", join(temporary, "missing-signer"));
 		const published = await applyHandoffGit(plan);
-		expect(git("--git-dir", transport.remote, "rev-parse", plan.branch)).toBe(
-			published,
-		);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
 		).toBe("approved");
-		expect(git("config", `branch.${plan.branch}.merge`)).toBe(
-			`refs/heads/${plan.branch}`,
-		);
+		expect(git("cat-file", "-p", published)).not.toContain("\ngpgsig ");
+		expect(git("branch", "--list", plan.branch)).toBe("");
 		expect(git("branch", "--show-current")).toBe("main");
-	});
-
-	it.each([
-		["pre-commit", "reject"],
-		["pre-commit", "modify"],
-		["post-checkout", "reject"],
-	])("does not publish after a %s hook %s", async (hook, behavior) => {
-		writeFileSync(join(repo, "tracked.txt"), "approved\n");
-		writeFileSync(
-			join(repo, ".git/hooks", hook),
-			behavior === "reject"
-				? "#!/bin/sh\nexit 1\n"
-				: "#!/bin/sh\nprintf 'hook change\\n' > tracked.txt\ngit add tracked.txt\n",
-			{ mode: 0o755 },
-		);
-		const plan = await inspectHandoffGit(repo);
-		await expect(applyHandoffGit(plan)).rejects.toThrow(
-			"local checkout was not changed",
-		);
-		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
-		expect(
-			git("worktree", "list", "--porcelain").match(/^worktree /gm),
-		).toHaveLength(1);
-		if (hook === "post-checkout") {
-			git(
-				"-c",
-				`core.hooksPath=${join(temporary, "no-hooks")}`,
-				"switch",
-				plan.branch,
-			);
-			expect(git("branch", "--show-current")).toBe(plan.branch);
-		}
 	});
 
-	it.each([
-		"pre-commit",
-		"pre-push",
-	])("explains when a %s hook needs tools absent from the isolated checkout", async (hook) => {
+	it("runs pre-push with local tooling and the captured SHA while the source changes", async () => {
 		writeFileSync(join(repo, ".gitignore"), ".hooks/\nnode_modules/\n");
 		git("add", ".gitignore");
 		git("commit", "-m", "ignore generated hooks");
@@ -511,26 +482,33 @@ describe("cloud handoff Git preparation", () => {
 		mkdirSync(join(repo, "node_modules/.bin"), { recursive: true });
 		writeFileSync(
 			join(repo, "node_modules/.bin/check"),
-			"#!/bin/sh\nexit 0\n",
+			"#!/bin/sh\necho tool-available\n",
 			{
 				mode: 0o755,
 			},
 		);
 		writeFileSync(
-			join(repo, ".hooks", hook),
-			"#!/bin/sh\n./node_modules/.bin/check\n",
+			join(repo, ".hooks/pre-push"),
+			'#!/bin/sh\n./node_modules/.bin/check > .git/hook-observation || exit 1\nread local_ref local_sha remote_ref remote_sha\ngit show "$local_sha:tracked.txt" >> .git/hook-observation\ncat tracked.txt >> .git/hook-observation\n',
 			{
 				mode: 0o755,
 			},
 		);
 		git("config", "core.hooksPath", ".hooks");
-		git("hook", "run", hook);
 		writeFileSync(join(repo, "tracked.txt"), "approved\n");
 		const plan = await inspectHandoffGit(repo);
-		await expect(applyHandoffGit(plan)).rejects.toThrow("isolated checkout");
-		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
+		writeFileSync(join(repo, "tracked.txt"), "later local work\n");
+		await applyHandoffGit(plan);
+		expect(
+			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
+		).toBe("approved");
+		expect(readFileSync(join(repo, ".git/hook-observation"), "utf8")).toBe(
+			"tool-available\napproved\nlater local work\n",
+		);
 		expect(git("branch", "--show-current")).toBe("main");
-		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
+			"later local work\n",
+		);
 	});
 
 	it.each([
