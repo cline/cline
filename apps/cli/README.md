@@ -354,11 +354,11 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 
 With `CLINE_CLOUD_SESSIONS=1`, enter `/cloud` or `/cloud <next instruction>` in an idle local conversation. You can include up to five pasted images. The selected model must be available to your signed-in Cline Cloud account.
 
-Review the repository, proposed branch, changed files, and unpublished commits, then choose **Push and continue**. Cline summarizes the captured conversation and asks the shared Hub to publish the approved Git snapshot and start the cloud task. Your local branch, files, and staging stay unchanged. Cancel keeps the input and its images.
+Review the repository, proposed branch, changed files, and unpublished commits, then choose **Push and continue**. Cline summarizes the captured conversation and asks the shared Hub to publish the approved Git snapshot and start the cloud task. Creating the snapshot leaves your local branch, files, and staging unchanged. Pre-push hooks run locally and may modify them. Cancel keeps the input and its images.
 
 The cloud task receives the summary, optional instruction, and attached images. Progress and a task link appear below the chat while you keep working locally. Later local messages and edits are not sent to that task. Use `Alt+O` to open it, `Alt+R` to restore a failed draft or retry a confirmed unsent prompt, and `Alt+D` to dismiss a finished status. Restoring a draft does not overwrite newer input. A retry sends to the existing task; uncertain delivery requires checking that task before resending.
 
-Summary preparation requires Cline to stay open. Once the launch request reaches the shared Hub, publication and cloud launch can finish after the TUI closes. Unsent drafts and retry actions are kept in memory and are lost when the TUI exits. Snapshot commits skip commit and checkout hooks; pre-push hooks run from your repository with its local tooling.
+Summary preparation requires Cline to stay open. Once the launch request reaches the shared Hub, publication and cloud launch can finish after the TUI closes. Unsent drafts and retry actions are kept in memory and are lost when the TUI exits. Snapshot commits are unsigned and skip commit and checkout hooks.
 
 ## Environment variables
 

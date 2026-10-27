@@ -15,8 +15,8 @@ export function CloudHandoffConfirmContent(
 			<text>Continue in cloud?</text>
 			<text fg="gray" marginTop={1}>
 				Cline will push a snapshot to a new GitHub branch and start a cloud task
-				with a summary of this conversation. Your local branch, files, and
-				staging stay unchanged. Later messages and edits stay local.
+				with a summary of this conversation. Later messages and edits stay
+				local.
 			</text>
 			<text marginTop={1}>
 				Repository: {plan.repoUrl} ({plan.remote})
@@ -38,7 +38,8 @@ export function CloudHandoffConfirmContent(
 				))}
 			</scrollbox>
 			<text fg="gray" marginTop={1}>
-				Ignored files are excluded.
+				Ignored files are excluded. Snapshot commits are unsigned and skip
+				commit hooks. Pre-push hooks run locally and may change your files.
 			</text>
 			<text marginTop={1}>
 				<em>Y/Enter to push and continue, N/Esc to cancel</em>
