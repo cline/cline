@@ -129,6 +129,23 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
+`create({ ...input, initialMessage: { text, images } })` creates the task and sends
+the first message, returning the session attachment and `initialSend`. Without
+`initialMessage`, creation does not send; `initialPrompt` is metadata only.
+Retry a failed initial send on the created target only when `dispatched` is `false`.
+The Hub continues after viewer disconnects. A lost reply raises `request_failed`;
+check cloud tasks before retrying.
+Hub clients can publish an approved snapshot before creation with `localGit`.
+Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for Personal.
+Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
+This requires token-authenticated workspace access.
+Attachments must be image data URLs within the shared media-size limits.
+New checkpoint commits are unsigned and skip commit hooks, including pre-commit secret scans.
+Pre-push hooks run in the live source checkout and can modify it.
+Git supplies the captured commit SHA to those hooks on stdin.
+The sensitive-path checks inspect filenames, not file contents.
+Publication creates no local branch or tracking configuration.
+Remote branches remain if verification or cloud creation fails.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

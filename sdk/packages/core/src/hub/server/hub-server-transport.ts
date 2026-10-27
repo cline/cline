@@ -886,6 +886,16 @@ export class HubServerTransport implements NativeHubTransport {
 			try {
 				if (envelope.command === "cloud.watch")
 					return okReply(envelope, this.cloud.watch());
+				const cloudArgs = envelope.payload?.args;
+				if (
+					envelope.payload?.operation === "create" &&
+					Array.isArray(cloudArgs) &&
+					cloudArgs[0]?.localGit !== undefined &&
+					!authority?.crossWorkspace
+				)
+					throw new Error(
+						"Local Git publication requires a token-authenticated Hub workspace",
+					);
 				const result = await this.cloud.command(
 					String(envelope.payload?.operation ?? ""),
 					envelope.payload?.args,
