@@ -1083,14 +1083,17 @@ export class CloudSessionController {
 				settle = resolve;
 			}),
 		};
-		const target = await this.createOnce(
-			{ ...creation, initialPrompt: initialMessage.text },
-			(sessionId) => {
-				if (!this.initialSends.has(sessionId))
-					this.initialSends.set(sessionId, initial);
-			},
-		);
+		let target: CloudSessionAttachment | undefined;
+		let reservedSessionId: string | undefined;
 		try {
+			target = await this.createOnce(
+				{ ...creation, initialPrompt: initialMessage.text },
+				(sessionId) => {
+					reservedSessionId = sessionId;
+					if (!this.initialSends.has(sessionId))
+						this.initialSends.set(sessionId, initial);
+				},
+			);
 			const send = await this.send(
 				target.sessionId,
 				initialMessage.text,
@@ -1112,10 +1115,14 @@ export class CloudSessionController {
 					: {}),
 			};
 			settle(send);
+			if (!target) throw error;
 			return { ...target, initialSend: send };
 		} finally {
-			if (this.initialSends.get(target.sessionId) === initial)
-				this.initialSends.delete(target.sessionId);
+			if (
+				reservedSessionId &&
+				this.initialSends.get(reservedSessionId) === initial
+			)
+				this.initialSends.delete(reservedSessionId);
 		}
 	}
 
@@ -1235,7 +1242,7 @@ export class CloudSessionController {
 
 	private async createOnce(
 		input: CreateCloudSessionInput,
-		beforePublish?: (sessionId: string) => void,
+		reserveInitialSend?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const cwd = cloudWorkspaceCwd(input.workspaceRelativePath);
@@ -1292,6 +1299,7 @@ export class CloudSessionController {
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
+		reserveInitialSend?.(record.id);
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, { record, organizationId });
 		// REST does not round-trip these client-side first-task preferences.
@@ -1347,7 +1355,6 @@ export class CloudSessionController {
 		}
 
 		this.assertSessionActive(record.id);
-		beforePublish?.(record.id);
 		this.notify("chat_session_status", {
 			sessionId: record.id,
 			status: live.status,
