@@ -1,4 +1,3 @@
-import type { MessageWithMetadata } from "@cline/llms";
 import type {
 	ClientContext,
 	HubCommandEnvelope,
@@ -281,6 +280,47 @@ export function parsePluginPolicies(
 	return Object.keys(policies).length > 0 ? policies : undefined;
 }
 
+export async function handleSessionResume(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const sessionConfig = asPlainRecord(envelope.payload?.sessionConfig);
+	const sessionId =
+		typeof sessionConfig?.sessionId === "string"
+			? sessionConfig.sessionId.trim()
+			: "";
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_resume",
+			"sessionConfig.sessionId is required",
+		);
+	}
+	if (!(await ctx.sessionHost.getSession(sessionId))) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			"The saved session was not found.",
+		);
+	}
+	const initialMessages = await ctx.sessionHost.readSessionMessages(sessionId);
+	if (initialMessages.length === 0) {
+		return errorReply(
+			envelope,
+			"session_messages_not_found",
+			"The saved conversation is empty or unavailable.",
+		);
+	}
+	return handleSessionCreate(
+		ctx,
+		{ ...envelope, payload: { ...envelope.payload, initialMessages } },
+		requestToolApproval,
+	);
+}
+
 export async function handleSessionCreate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -363,24 +403,6 @@ export async function handleSessionCreate(
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
 			: "";
-	let initialMessages = Array.isArray(payload.initialMessages)
-		? (payload.initialMessages as MessageWithMetadata[])
-		: undefined;
-	if (
-		requestedSessionId &&
-		payload.initialMessages === undefined &&
-		(await ctx.sessionHost.getSession(requestedSessionId))
-	) {
-		initialMessages =
-			await ctx.sessionHost.readSessionMessages(requestedSessionId);
-		if (initialMessages.length === 0) {
-			return errorReply(
-				envelope,
-				"session_messages_not_found",
-				"The saved conversation is empty or unavailable.",
-			);
-		}
-	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
@@ -430,7 +452,9 @@ export async function handleSessionCreate(
 			Object.keys(metadata as Record<string, unknown>).length > 0
 				? (metadata as Record<string, unknown>)
 				: undefined,
-		initialMessages,
+		initialMessages: Array.isArray(payload.initialMessages)
+			? (payload.initialMessages as never[])
+			: undefined,
 		initialCompactionState,
 		localRuntime: {
 			modelCatalogDefaults: {

@@ -183,7 +183,7 @@ describe("HubRuntimeHost", () => {
 				},
 			},
 			toolPolicies: undefined,
-			initialMessages: [],
+			initialMessages: undefined,
 		});
 	});
 
@@ -716,7 +716,6 @@ describe("HubRuntimeHost", () => {
 		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
-			initialMessages: [{ role: "user", content: "saved conversation" }],
 			capabilities: appCapabilities,
 			localRuntime: {
 				extraTools: [
@@ -732,7 +731,6 @@ describe("HubRuntimeHost", () => {
 		});
 		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
 		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
-			initialMessages: [{ role: "user", content: "saved conversation" }],
 			runtimeOptions: {
 				clientContributions: [
 					{
