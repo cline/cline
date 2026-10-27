@@ -10,6 +10,10 @@ option java_package = "bot.cline.proto";
 
 // Cline Cloud sessions: run a task in a hosted sandbox instead of the local workspace.
 service CloudService {
+  rpc prepareHandoff(PrepareCloudHandoffRequest) returns (Empty);
+  rpc confirmHandoff(StringRequest) returns (Empty);
+  rpc retryHandoffMessage(StringRequest) returns (Empty);
+  rpc discardHandoff(StringRequest) returns (Empty);
   // GitHub App connection status and the repositories it can access, for the active account scope.
   // Cached per account; `refresh` re-asks the control plane.
   rpc getGitHubConnection(GitHubConnectionRequest) returns (GitHubConnection);
@@ -27,6 +31,14 @@ service CloudService {
   rpc openCloudSessionDashboard(StringRequest) returns (Empty);
   // Resolves live agent status for only the cloud sessions currently displayed
   rpc resolveCloudSessionStatuses(CloudSessionStatusRequest) returns (CloudSessionStatusList);
+}
+
+message PrepareCloudHandoffRequest {
+  Metadata metadata = 1;
+  string source_task_id = 2;
+  string instruction = 3;
+  repeated string images = 4;
+  repeated string files = 5;
 }
 
 message GitHubRepository {

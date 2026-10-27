@@ -1,3 +1,4 @@
+import * as cloudCore from "@cline/core/cloud"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
@@ -58,6 +59,7 @@ describe("SDK remote-config coordination", () => {
 			ensureWorkspaceManager: async () => undefined,
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
+			cloudHandoff: { viewFor: () => undefined },
 			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
@@ -95,6 +97,7 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
+			cloudHandoff: { viewFor: () => undefined },
 			cloud: {
 				getCurrentTaskInfo: () => undefined,
 				getCloudModelId: () => "cloud-model",
@@ -146,6 +149,15 @@ describe("SDK remote-config coordination", () => {
 		const events: string[] = []
 		const controller = {
 			authService: { handleAuthCallback: vi.fn(async () => events.push("auth")) },
+			handoffAccountChanges: 0,
+			cloudHandoff: { reset: vi.fn(() => events.push("invalidate handoff")) },
+			handoffHub: {
+				dispose: vi.fn(async () => {
+					events.push("disconnect viewer")
+				}),
+			},
+			cloud: { reset: async (change: () => Promise<void>) => change() },
+			changeHandoffAccount: SdkController.prototype["changeHandoffAccount"],
 			refreshRemoteConfig: vi.fn(async () => {
 				events.push("refresh")
 				return true
@@ -155,7 +167,8 @@ describe("SDK remote-config coordination", () => {
 
 		await SdkController.prototype.handleAuthCallback.call(controller as never, "token", "cline")
 
-		expect(events).toEqual(["auth", "refresh", "post"])
+		expect(events).toEqual(["invalidate handoff", "disconnect viewer", "auth", "refresh", "post"])
+		expect(controller.handoffAccountChanges).toBe(0)
 	})
 
 	it("rematerializes policy and ends the active session after a managed toggle", async () => {
@@ -895,5 +908,112 @@ describe("cloud tasks stay in the cloud", () => {
 		expect(mode("ses-cloud")).toBe("act")
 		expect(mode("local-task")).toBe("plan")
 		expect(mode(undefined)).toBe("plan")
+	})
+})
+
+describe("cloud handoff source capture", () => {
+	function setup(active = true) {
+		const messages = [{ role: "user" as const, content: "Finish the widget" }]
+		const host = {
+			get: vi.fn(async () => ({ cwd: "/workspace" })),
+			readLiveMessages: vi.fn(async () => messages),
+			readMessages: vi.fn(async () => []),
+			dispose: vi.fn(async () => {}),
+		}
+		const session = {
+			sdkHost: host,
+			mode: "act",
+			isRunning: false,
+			queuedPromptCount: 0,
+			startConfig: { providerId: "cline", modelId: "test-model" },
+		}
+		const controller = {
+			task: { taskId: "local-task" },
+			sessions: {
+				getActiveSession: () => (active ? session : undefined),
+				captureState: { generation: 0, starting: false },
+			},
+			sessionRebuilds: { runExclusive: <T>(operation: () => Promise<T>) => operation() },
+			turnStateTracker: { get: () => ({ seq: 1 }), currentPhase: "idle" },
+			backgroundCommandRunning: false,
+			foregroundCommands: { isRunning: false },
+			createRemoteConfigAwareSessionHost: vi.fn(async () => host),
+			taskHistory: { findHistoryItem: async () => undefined },
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => session.startConfig },
+			sessionHistory: { loadInitialMessages: vi.fn(async () => messages) },
+		}
+		const inspect = vi.spyOn(cloudCore, "inspectHandoffGit").mockResolvedValue({
+			id: "plan",
+			root: "/workspace",
+			workspaceRelativePath: "",
+			repoUrl: "https://github.com/example/project",
+			remote: "origin",
+			branch: "cline/handoff-example",
+			sourceBranch: "main",
+			headSha: "a".repeat(40),
+			treeSha: "b".repeat(40),
+			files: [],
+			commits: [],
+		})
+		const capture = () =>
+			SdkController.prototype["captureCloudHandoffSource"].call(
+				controller as never,
+				"local-task",
+				new AbortController().signal,
+			)
+		return { controller, session, host, messages, inspect, capture }
+	}
+
+	it("copies the live transcript without changing or disposing the local session", async () => {
+		const { capture, host, messages, inspect } = setup()
+		try {
+			const snapshot = await capture()
+			messages[0].content = "Later local edit"
+			expect(snapshot.messages[0].content).toBe("Finish the widget")
+			expect(host.readMessages).not.toHaveBeenCalled()
+			expect(host.dispose).not.toHaveBeenCalled()
+			expect(inspect).toHaveBeenCalledWith("/workspace", expect.any(Function))
+		} finally {
+			inspect.mockRestore()
+		}
+	})
+
+	it("rejects a turn that starts and finishes while the transcript is being read", async () => {
+		const { controller, host, messages, inspect, capture } = setup()
+		host.readLiveMessages.mockImplementation(async () => {
+			controller.sessions.captureState.generation++
+			return messages
+		})
+		try {
+			await expect(capture()).rejects.toThrow("conversation changed")
+			expect(inspect).not.toHaveBeenCalled()
+		} finally {
+			inspect.mockRestore()
+		}
+	})
+
+	it("refuses capture while a workspace command is running", async () => {
+		const { controller, host, inspect, capture } = setup()
+		controller.foregroundCommands.isRunning = true
+		try {
+			await expect(capture()).rejects.toThrow("workspace operation")
+			expect(host.readLiveMessages).not.toHaveBeenCalled()
+			expect(inspect).not.toHaveBeenCalled()
+		} finally {
+			inspect.mockRestore()
+		}
+	})
+
+	it("reads a saved conversation without activating it and disposes its temporary host", async () => {
+		const { controller, host, inspect, capture } = setup(false)
+		try {
+			expect((await capture()).messages).toEqual([{ role: "user", content: "Finish the widget" }])
+			expect(controller.sessionHistory.loadInitialMessages).toHaveBeenCalledWith(host, "local-task")
+			expect(host.readLiveMessages).not.toHaveBeenCalled()
+			expect(host.dispose).toHaveBeenCalledWith("cloudHandoffCapture")
+		} finally {
+			inspect.mockRestore()
+		}
 	})
 })

@@ -1,0 +1,335 @@
+import { randomUUID } from "node:crypto"
+import { type CoreSessionConfig, summarizeConversation } from "@cline/core"
+import { type CloudHubScope, type HandoffGitPlan, type HubCloudSessionClient, previewHandoffGit } from "@cline/core/cloud"
+import { createMediaBudgetState, validateAndReserveImageMedia } from "@cline/shared"
+import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
+
+export interface CapturedHandoffSource {
+	messages: Parameters<typeof summarizeConversation>[0]["messages"]
+	config: Parameters<typeof summarizeConversation>[0]["config"] & Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
+	plan: HandoffGitPlan
+	mode: "plan" | "act"
+}
+
+export interface PrepareCloudHandoffInput {
+	sourceTaskId: string
+	instruction: string
+	images: string[]
+	files: string[]
+}
+
+type HandoffCloud = Pick<
+	HubCloudSessionClient,
+	"connect" | "scope" | "prepareHandoffRepository" | "listModels" | "create" | "send" | "subscribe"
+>
+
+interface PreparedHandoff {
+	cloud: HandoffCloud
+	scope: CloudHubScope
+	input: Parameters<HubCloudSessionClient["create"]>[0]
+}
+
+interface UnsentContinuation {
+	cloud: HandoffCloud
+	scope: CloudHubScope
+	modelId: string
+	initialMessage: NonNullable<PreparedHandoff["input"]["initialMessage"]>
+}
+
+type Attempt = { id: string; sourceTaskId: string; accountKey: string } & (
+	| { phase: "preparing"; abort: AbortController }
+	| { phase: "ready"; prepared: PreparedHandoff; preview: Extract<CloudHandoffView, { phase: "ready" }> }
+	| { phase: "launching"; completion: Promise<void>; sessionId?: string }
+	| {
+			phase: "complete"
+			sessionId: string
+			delivery: "sent" | "unsent" | "unconfirmed"
+			message?: string
+			unsent?: UnsentContinuation
+	  }
+	| { phase: "failed"; message: string }
+)
+
+export class SdkCloudHandoffCoordinator {
+	private readonly attempts = new Map<string, Attempt>()
+
+	constructor(
+		private readonly options: {
+			capture(sourceTaskId: string, signal: AbortSignal): Promise<CapturedHandoffSource>
+			getCloud(cwd: string): Promise<HandoffCloud>
+			getAccount(): { key: string; organizationId: string | null; organizationName: string } | undefined
+			assertEnabled(): void
+			changed(): Promise<void>
+			summarize?: typeof summarizeConversation
+		},
+	) {}
+
+	viewFor(sourceTaskId: string | undefined): CloudHandoffView | undefined {
+		const attempt = sourceTaskId ? this.attempts.get(sourceTaskId) : undefined
+		if (!attempt || attempt.accountKey !== this.options.getAccount()?.key) return undefined
+		const { id, phase } = attempt
+		const base = { id, sourceTaskId: attempt.sourceTaskId }
+		switch (phase) {
+			case "preparing":
+				return { ...base, phase }
+			case "ready":
+				return attempt.preview
+			case "launching":
+				return { ...base, phase, sessionId: attempt.sessionId }
+			case "complete":
+				return { ...base, phase, sessionId: attempt.sessionId, delivery: attempt.delivery, message: attempt.message }
+			case "failed":
+				return { ...base, phase, message: attempt.message }
+		}
+	}
+
+	async prepare(input: PrepareCloudHandoffInput): Promise<void> {
+		this.options.assertEnabled()
+		const account = this.options.getAccount()
+		if (!account) throw new Error("Sign in to Cline before using /cloud.")
+		if (this.attempts.has(input.sourceTaskId))
+			throw new Error("Review or dismiss the existing cloud handoff before starting another.")
+		if (input.files.length) throw new Error("Only image attachments can be sent with /cloud. Remove the files and try again.")
+		if (input.images.length > 5) throw new Error("Attach up to 5 images.")
+		const budget = createMediaBudgetState()
+		for (const image of input.images) {
+			const result = validateAndReserveImageMedia(undefined, image, {}, budget)
+			if (!result.ok) throw new Error(result.message)
+		}
+		const draft = structuredClone(input)
+		const base = { id: randomUUID(), sourceTaskId: input.sourceTaskId, accountKey: account.key }
+		const attempt: Attempt = { ...base, phase: "preparing", abort: new AbortController() }
+		this.attempts.set(input.sourceTaskId, attempt)
+		await this.options.changed()
+		try {
+			const source = await this.options.capture(input.sourceTaskId, attempt.abort.signal)
+			this.assertCurrent(attempt)
+			const cloud = await this.options.getCloud(source.plan.root)
+			await cloud.connect()
+			const scope = cloud.scope
+			if (!scope) throw new Error("Cloud account is unavailable.")
+			const { organizationId } = await cloud.prepareHandoffRepository(source.plan.repoUrl, scope)
+			if ((organizationId ?? null) !== account.organizationId)
+				throw new Error("The cloud organization changed. Run /cloud again.")
+			const models = await cloud.listModels(scope)
+			const modelId = source.config.modelId
+			if (!models.some((model) => model.id === modelId)) {
+				throw new Error(
+					`The selected model ${modelId} is not available in Cline Cloud. Select a supported model and try again.`,
+				)
+			}
+			this.assertCurrent(attempt)
+			const summary = (
+				await (this.options.summarize ?? summarizeConversation)({
+					messages: source.messages,
+					config: source.config,
+					signal: AbortSignal.any([attempt.abort.signal, AbortSignal.timeout(120_000)]),
+				})
+			).trim()
+			this.assertCurrent(attempt)
+			if (!summary) throw new Error("The conversation summary was empty. Run /cloud again.")
+			const { files: _files, commits: _commits, sourceBranch: _sourceBranch, ...localGit } = source.plan
+			const text = [
+				summary,
+				draft.instruction
+					? `Next instruction from the user:\n${draft.instruction}`
+					: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
+			].join("\n\n")
+			this.attempts.set(input.sourceTaskId, {
+				...base,
+				phase: "ready",
+				prepared: {
+					cloud,
+					scope,
+					input: {
+						requestId: base.id,
+						localGit,
+						repoUrl: source.plan.repoUrl,
+						branch: source.plan.branch,
+						workspaceRelativePath: source.plan.workspaceRelativePath || undefined,
+						organizationId: organizationId ?? null,
+						modelId,
+						mode: source.mode,
+						thinking: source.config.thinking,
+						reasoningEffort:
+							source.config.reasoningEffort === "minimal" || source.config.reasoningEffort === "max"
+								? undefined
+								: source.config.reasoningEffort,
+						initialMessage: { text, images: draft.images },
+					},
+				},
+				preview: {
+					id: base.id,
+					sourceTaskId: input.sourceTaskId,
+					phase: "ready",
+					git: previewHandoffGit(source.plan),
+					modelId,
+					organizationName: account.organizationName,
+					instruction: draft.instruction,
+					imageCount: draft.images.length,
+				},
+			})
+		} catch (error) {
+			if (this.attempts.get(input.sourceTaskId) === attempt) {
+				this.attempts.set(input.sourceTaskId, {
+					...base,
+					phase: "failed",
+					message: error instanceof Error ? error.message : "Unable to prepare cloud handoff.",
+				})
+			}
+		} finally {
+			await this.options.changed()
+		}
+	}
+
+	async confirm(id: string): Promise<void> {
+		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
+		if (!attempt) throw new Error("This preparation has expired. Run /cloud again.")
+		if (attempt.phase === "launching") return attempt.completion
+		if (attempt.phase !== "ready") return
+		this.options.assertEnabled()
+		this.assertCurrent(attempt)
+		const { prepared } = attempt
+		// A settled Hub request is not replay-safe, even with the same request ID.
+		const completion = Promise.resolve().then(() => this.launch(launching, prepared))
+		const launching: Attempt & { phase: "launching" } = {
+			id: attempt.id,
+			sourceTaskId: attempt.sourceTaskId,
+			accountKey: attempt.accountKey,
+			phase: "launching",
+			completion,
+		}
+		this.attempts.set(attempt.sourceTaskId, launching)
+		await this.options.changed()
+		await completion
+	}
+
+	private async launch(attempt: Attempt & { phase: "launching" }, prepared: PreparedHandoff): Promise<void> {
+		const { cloud, scope, input } = prepared
+		const unsubscribe = cloud.subscribe((event) => {
+			if (
+				event.type !== "snapshot" ||
+				event.snapshot.record?.repoContext.branch !== input.branch ||
+				event.snapshot.record?.repoContext.repoUrl !== input.repoUrl ||
+				this.attempts.get(attempt.sourceTaskId) !== attempt
+			)
+				return
+			attempt.sessionId = event.sessionId
+			void this.options.changed()
+		})
+		const base = { id: attempt.id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey }
+		try {
+			this.assertCurrent(attempt)
+			const result = await cloud.create(input, scope)
+			this.assertCurrent(attempt)
+			const send = result.initialSend
+			const delivery =
+				!send ||
+				("dispatched" in send && send.dispatched) ||
+				("recoveredAfterDisconnect" in send && send.recoveredAfterDisconnect)
+					? "unconfirmed"
+					: "dispatched" in send
+						? "unsent"
+						: "sent"
+			this.attempts.set(attempt.sourceTaskId, {
+				...base,
+				phase: "complete",
+				sessionId: result.sessionId,
+				delivery,
+				unsent:
+					delivery === "unsent" && input.initialMessage
+						? { cloud, scope, modelId: input.modelId, initialMessage: input.initialMessage }
+						: undefined,
+				message:
+					delivery === "sent"
+						? undefined
+						: delivery === "unsent"
+							? "The cloud task was created, but the continuation was not sent. Retry here while this window stays open. Your draft has been kept."
+							: "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept.",
+			})
+		} catch (error) {
+			if (this.attempts.get(attempt.sourceTaskId) !== attempt) return
+			this.attempts.set(
+				attempt.sourceTaskId,
+				attempt.sessionId
+					? {
+							...base,
+							phase: "complete",
+							sessionId: attempt.sessionId,
+							delivery: "unconfirmed",
+							message:
+								"The connection was interrupted. Check the cloud task before resending. Your draft has been kept.",
+						}
+					: {
+							...base,
+							phase: "failed",
+							message: `${error instanceof Error ? error.message : "Cloud handoff failed."} The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.`,
+						},
+			)
+		} finally {
+			unsubscribe()
+			await this.options.changed()
+		}
+	}
+
+	async retryMessage(id: string): Promise<void> {
+		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
+		if (!attempt) throw new Error("This handoff has expired.")
+		if (attempt.phase === "launching") return attempt.completion
+		if (attempt.phase !== "complete" || attempt.delivery !== "unsent" || !attempt.unsent) return
+		this.options.assertEnabled()
+		this.assertCurrent(attempt)
+		const { cloud, scope, modelId, initialMessage } = attempt.unsent
+		if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
+			throw new Error("The cloud account changed. Check the cloud task before resending.")
+		const base = { id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey, sessionId: attempt.sessionId }
+		const completion = Promise.resolve().then(async () => {
+			let delivery: "sent" | "unconfirmed" = "unconfirmed"
+			try {
+				this.assertCurrent(launching)
+				if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
+					throw new Error("Cloud account changed")
+				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
+				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
+			} catch {
+				// A send error does not prove the message stayed unsent.
+			} finally {
+				if (this.attempts.get(attempt.sourceTaskId) === launching) {
+					this.attempts.set(attempt.sourceTaskId, {
+						...base,
+						phase: "complete",
+						delivery,
+						message:
+							delivery === "unconfirmed"
+								? "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept."
+								: undefined,
+					})
+					await this.options.changed()
+				}
+			}
+		})
+		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching", completion }
+		this.attempts.set(attempt.sourceTaskId, launching)
+		await this.options.changed()
+		await completion
+	}
+
+	async discard(id: string): Promise<void> {
+		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
+		if (!attempt || attempt.phase === "launching") return
+		if (attempt.phase === "preparing") attempt.abort.abort()
+		this.attempts.delete(attempt.sourceTaskId)
+		await this.options.changed()
+	}
+
+	reset(): void {
+		for (const attempt of this.attempts.values()) if (attempt.phase === "preparing") attempt.abort.abort()
+		this.attempts.clear()
+	}
+
+	private assertCurrent(attempt: Attempt): void {
+		if (this.attempts.get(attempt.sourceTaskId) !== attempt || this.options.getAccount()?.key !== attempt.accountKey) {
+			throw new Error("The cloud account or preparation changed. Run /cloud again.")
+		}
+	}
+}

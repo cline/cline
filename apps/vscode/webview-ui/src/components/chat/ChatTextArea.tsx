@@ -504,6 +504,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
+								!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
 							)
 
 							if (allCommands.length === 0) {
@@ -529,6 +530,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
+							!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
@@ -692,6 +694,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
+				cloudSessionsEnabled,
+				currentCloudTask,
+				clineMessages.length,
 			],
 		)
 
@@ -1003,6 +1008,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					globalWorkflowToggles,
 					remoteWorkflowToggles,
 					remoteConfigSettings?.remoteGlobalWorkflows,
+					mcpServers,
+					!!cloudSessionsEnabled && !currentCloudTask && clineMessages.length > 0,
 				)
 
 				if (isValidCommand) {
@@ -1016,7 +1023,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
+			mcpServers,
+			cloudSessionsEnabled,
+			currentCloudTask,
+			clineMessages.length,
+		])
 
 		useLayoutEffect(() => {
 			updateHighlights()

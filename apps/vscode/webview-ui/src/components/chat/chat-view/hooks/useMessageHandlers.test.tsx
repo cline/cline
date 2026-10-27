@@ -1,3 +1,4 @@
+import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
@@ -13,8 +14,10 @@ const cancelTask = vi.fn().mockResolvedValue(undefined)
 const clearTask = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
+const prepareHandoff = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
+	CloudServiceClient: { prepareHandoff: (req: unknown) => prepareHandoff(req) },
 	TaskServiceClient: {
 		newTask: (req: unknown) => newTask(req),
 		askResponse: (req: unknown) => askResponse(req),
@@ -36,6 +39,7 @@ vi.mock("@shared/proto/cline/task", () => ({
 	AskResponseRequest: { create: (x: unknown) => x },
 	NewTaskRequest: { create: (x: unknown) => x },
 }))
+vi.mock("@shared/proto/cline/cloud", () => ({ PrepareCloudHandoffRequest: { create: (x: unknown) => x } }))
 vi.mock("@shared/proto/cline/ui", () => ({
 	IntentEvent: { create: (x: unknown) => x },
 }))
@@ -46,6 +50,8 @@ vi.mock("@shared/proto/cline/common", () => ({
 
 // useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
+let mockHandoff: CloudHandoffView | undefined
+let mockTaskId: string | undefined
 let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
@@ -53,6 +59,8 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		turnState: mockTurnState,
 		cloudSessionsEnabled: true,
 		cloudTaskTarget: mockCloudTaskTarget,
+		currentTaskItem: mockTaskId ? { id: mockTaskId } : undefined,
+		cloudHandoff: mockHandoff,
 	}),
 }))
 
@@ -109,6 +117,9 @@ const completedConversation: ClineMessage[] = [
 
 describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
+		prepareHandoff.mockClear()
+		mockHandoff = undefined
+		mockTaskId = undefined
 		newTask.mockReset()
 		newTask.mockResolvedValue(undefined)
 		askResponse.mockReset()
@@ -125,6 +136,58 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
 		mockCloudTaskTarget = undefined
+	})
+
+	it("routes /cloud before quote formatting and keeps the draft without sending locally", async () => {
+		mockTaskId = "local-task"
+		const state = makeChatState(completedConversation, { activeQuote: "keep this context" })
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, state))
+		await act(async () => {
+			await result.current.handleSendMessage("/cloud finish tests", ["image"], [])
+		})
+		expect(prepareHandoff).toHaveBeenCalledWith({
+			sourceTaskId: "local-task",
+			instruction: expect.stringContaining("finish tests"),
+			images: ["image"],
+			files: [],
+		})
+		expect(prepareHandoff.mock.calls[0][0].instruction).toContain("keep this context")
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(newTask).not.toHaveBeenCalled()
+		expect(state.setInputValue).not.toHaveBeenCalled()
+		expect(state.consumeDraftSnapshot).not.toHaveBeenCalled()
+	})
+
+	it.each([false, true])("consumes only the confirmed handoff draft (edited=%s)", async (edited) => {
+		mockTaskId = "local-task"
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("/cloud finish tests")
+			result.current.chatState.setSelectedImages(["image"])
+		})
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], [])
+		})
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		rerender()
+		if (edited) act(() => result.current.chatState.setInputValue("Continue locally"))
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "complete", sessionId: "ses_example", delivery: "sent" }
+		rerender()
+		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
+		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
+	})
+
+	it("does not send /cloud to the model without a local conversation", async () => {
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+		await act(async () => {
+			await result.current.handleSendMessage("/cloud", [], [])
+		})
+		expect(result.current.handoffError).toContain("local conversation")
+		expect(newTask).not.toHaveBeenCalled()
+		expect(prepareHandoff).not.toHaveBeenCalled()
 	})
 
 	it("sends a cloud request when Cloud is selected even without a repository, never a local task", async () => {

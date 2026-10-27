@@ -22,7 +22,7 @@ import {
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
-import { loadCloudModels } from "@cline/core/cloud"
+import { inspectHandoffGit, loadCloudModels } from "@cline/core/cloud"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -64,6 +64,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { VscodeCloudHub } from "./cloud-hub"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -81,6 +82,7 @@ import {
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
+import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
 import { type CloudTaskInput, SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
 import { SdkCloudTaskTarget } from "./sdk-cloud-task-target"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
@@ -203,6 +205,9 @@ interface CloudTarget {
 // ---------------------------------------------------------------------------
 
 export class Controller {
+	readonly cloudHandoff: SdkCloudHandoffCoordinator
+	private handoffHub?: VscodeCloudHub
+	private handoffAccountChanges = 0
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
@@ -744,7 +749,26 @@ export class Controller {
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud
 		// reads until the change has settled.
-		this.accountService.onAccountChange((change) => this.cloud.reset(change))
+		this.accountService.onAccountChange((change) => this.changeHandoffAccount(() => this.cloud.reset(change)))
+		this.cloudHandoff = new SdkCloudHandoffCoordinator({
+			capture: (sourceTaskId, signal) => this.captureCloudHandoffSource(sourceTaskId, signal),
+			getCloud: async (cwd) => (this.handoffHub ??= new VscodeCloudHub(cwd)).cloud,
+			getAccount: () => {
+				if (this.handoffAccountChanges > 0) return undefined
+				const user = this.authService.getInfo().user
+				if (!user?.uid) return undefined
+				const org = this.authService.getUserOrganizations()?.find((organization) => organization.active)
+				return {
+					key: `${user.uid}:${org?.organizationId ?? ""}`,
+					organizationId: org?.organizationId ?? null,
+					organizationName: org?.name ?? "Personal",
+				}
+			},
+			assertEnabled: () => {
+				if (!isCloudSessionsFeatureEnabled()) throw new Error("Enable Cloud sessions in Settings to use /cloud.")
+			},
+			changed: () => this.postStateToWebview(),
+		})
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -1035,6 +1059,8 @@ export class Controller {
 	}
 
 	async dispose(): Promise<void> {
+		this.cloudHandoff.reset()
+		await this.handoffHub?.dispose()
 		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
 		if (this.remoteConfigTimer) {
@@ -1654,6 +1680,72 @@ export class Controller {
 		await this.compaction.compactTask()
 	}
 
+	private async captureCloudHandoffSource(sourceTaskId: string, signal: AbortSignal): Promise<CapturedHandoffSource> {
+		if (!sourceTaskId || this.task?.taskId !== sourceTaskId)
+			throw new Error("Start a local conversation before using /cloud.")
+		if (isCloudSessionId(sourceTaskId)) throw new Error("This conversation is already in the cloud.")
+		return this.sessionRebuilds.runExclusive(async () => {
+			const session = this.sessions.getActiveSession()
+			const startGeneration = this.sessions.captureState.generation
+			const turnSeq = this.turnStateTracker.get().seq
+			const assertIdle = () => {
+				signal.throwIfAborted()
+				if (
+					this.task?.taskId !== sourceTaskId ||
+					this.sessions.getActiveSession() !== session ||
+					this.sessions.captureState.generation !== startGeneration ||
+					this.turnStateTracker.get().seq !== turnSeq
+				) {
+					throw new Error("The conversation changed during capture. Run /cloud again when it is idle.")
+				}
+				if (
+					this.sessions.captureState.starting ||
+					session?.isRunning ||
+					session?.queuedPromptCount ||
+					this.backgroundCommandRunning ||
+					this.foregroundCommands.isRunning ||
+					this.turnStateTracker.currentPhase === "streaming" ||
+					this.turnStateTracker.currentPhase === "awaiting_approval"
+				) {
+					throw new Error(
+						"Wait for the current response, queued prompts, or workspace operation to finish before using /cloud.",
+					)
+				}
+			}
+			assertIdle()
+			const host = session?.sdkHost ?? (await this.createRemoteConfigAwareSessionHost())
+			try {
+				const record = await host.get(sourceTaskId)
+				const history = await this.taskHistory.findHistoryItem(sourceTaskId)
+				const cwd =
+					record?.cwd?.trim() ||
+					record?.workspaceRoot?.trim() ||
+					history?.cwdOnTaskInitialization?.trim() ||
+					(await this.getWorkspaceRoot())
+				const mode = session?.mode ?? (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act")
+				const config = await this.sessionConfigBuilder.build({ cwd, mode })
+				if (
+					session?.startConfig &&
+					(config.providerId !== session.startConfig.providerId || config.modelId !== session.startConfig.modelId)
+				) {
+					throw new Error("Wait for the model change to finish before using /cloud.")
+				}
+				const messages = structuredClone(
+					session
+						? await readCurrentMessages(host, sourceTaskId)
+						: ((await this.sessionHistory.loadInitialMessages(host, sourceTaskId)) ?? []),
+				)
+				if (!messages.length) throw new Error("Start a conversation before using /cloud.")
+				assertIdle()
+				const plan = await inspectHandoffGit(cwd, assertIdle)
+				assertIdle()
+				return { messages, config, plan, mode }
+			} finally {
+				if (!session) await host.dispose("cloudHandoffCapture")
+			}
+		})
+	}
+
 	async clearTask(): Promise<void> {
 		this.pendingStartRetry = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
@@ -2232,25 +2324,26 @@ export class Controller {
 	// ---- Auth callbacks ----
 
 	async handleSignOut(): Promise<void> {
-		const sessionProviderId = this.getSessionProviderId() ?? this.getActiveProviderId()
-		// Capture before deauth nulls the auth info, so the per-org config cache
-		// (which can hold enterprise secrets) is actually deleted on sign-out.
-		const organizationId = this.authService.getActiveOrganizationId() ?? undefined
-		await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
-		if (this.task && this.cloud.isCloudSessionId(this.task.taskId)) {
-			await this.clearTask()
-		}
-		await this.cloud.reset(() => this.authService.handleDeauth(LogoutReason.USER_INITIATED))
-		// Invalidate BEFORE clearing: a refresh that already fetched under the
-		// signed-in identity must not republish the policy (and re-create the
-		// secret-bearing caches) after the clear. The clear itself runs under the
-		// same publication lock refreshes use, so it cannot interleave either.
-		this.remoteConfigRefreshCoordinator.invalidate()
-		await clearSdkRemoteConfig(this, {
-			workspacePath: await this.getRemoteConfigWorkspacePath(),
-			organizationId,
+		await this.changeHandoffAccount(async () => {
+			const sessionProviderId = this.getSessionProviderId() ?? this.getActiveProviderId()
+			// Capture before deauth nulls the auth info, so the per-org config cache
+			// (which can hold enterprise secrets) is actually deleted on sign-out.
+			const organizationId = this.authService.getActiveOrganizationId() ?? undefined
+			await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
+			if (this.task && this.cloud.isCloudSessionId(this.task.taskId)) {
+				await this.clearTask()
+			}
+			await this.cloud.reset(() => this.authService.handleDeauth(LogoutReason.USER_INITIATED))
+			// Invalidate BEFORE clearing: a refresh that already fetched under the
+			// signed-in identity must not republish the policy (and re-create the
+			// secret-bearing caches) after the clear. The clear itself runs under the
+			// same publication lock refreshes use, so it cannot interleave either.
+			this.remoteConfigRefreshCoordinator.invalidate()
+			await clearSdkRemoteConfig(this, {
+				workspacePath: await this.getRemoteConfigWorkspacePath(),
+				organizationId,
+			})
 		})
-		await this.postStateToWebview()
 	}
 
 	async handleOcaSignOut(): Promise<void> {
@@ -2259,11 +2352,25 @@ export class Controller {
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
-		await this.authService.handleAuthCallback(customToken, provider ?? "cline")
-		// Fetch remote config immediately after login so enterprise policies
-		// (provider lockdown, MCP servers, OTel, etc.) are applied right away.
-		await this.refreshRemoteConfig()
-		await this.postStateToWebview()
+		await this.changeHandoffAccount(async () => {
+			await this.cloud.reset(() => this.authService.handleAuthCallback(customToken, provider ?? "cline"))
+			// Fetch enterprise policies before publishing the authenticated state.
+			await this.refreshRemoteConfig()
+		})
+	}
+
+	private async changeHandoffAccount(change: () => Promise<void>): Promise<void> {
+		this.handoffAccountChanges++
+		this.cloudHandoff.reset()
+		const hub = this.handoffHub
+		this.handoffHub = undefined
+		try {
+			await hub?.dispose()
+			await change()
+		} finally {
+			this.handoffAccountChanges--
+			await this.postStateToWebview()
+		}
 	}
 
 	async handleOcaAuthCallback(code: string, state: string): Promise<void> {
@@ -2711,6 +2818,7 @@ export class Controller {
 				queuedPrompts,
 				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
+				cloudHandoff: this.cloudHandoff.viewFor(this.task?.taskId),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask,
 				cloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.getCloudModelId() : undefined,

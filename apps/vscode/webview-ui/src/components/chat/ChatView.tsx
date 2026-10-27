@@ -11,6 +11,7 @@ import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfigura
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
+import { CloudHandoff } from "./CloudHandoff"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -427,6 +428,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
+				<CloudHandoff error={messageHandlers.handoffError} />
 				{!hideAutoApprove && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}
