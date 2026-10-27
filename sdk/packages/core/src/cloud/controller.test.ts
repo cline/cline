@@ -1941,6 +1941,90 @@ describe("seeded cloud handoff controller", () => {
 		);
 		await f.controller.dispose();
 	});
+	it.each([
+		["reading", false],
+		["reading", true],
+		["seeding", false],
+		["seeding", true],
+	] as const)("reserves the initial prompt during %s (failed: %s)", async (stage, failed) => {
+		const f = fixture();
+		let release!: () => void;
+		let entered!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const pause = async () => {
+			entered();
+			await gate;
+			if (failed) throw new Error("Preparation failed");
+		};
+		const creating = f.controller
+			.create({
+				requestId: "handoff:initial-order",
+				repoUrl: record.repoContext.repoUrl!,
+				modelId: "model",
+				initialMessage: { text: "INITIAL SUMMARY" },
+				handoff: {
+					sourceSessionId: seed.sourceSessionId,
+					onCreating: async () => {},
+					onOuterSessionCreated: async () => {},
+					resolveMessages: async () => {
+						if (stage === "reading") await pause();
+						return messages;
+					},
+					onSeeding: async () => {
+						if (stage === "seeding") await pause();
+					},
+				},
+			})
+			.catch((error: unknown) => error);
+		try {
+			await blocked;
+			expect(
+				(await f.controller.listForDiscovery()).some(
+					(row) => row.sessionId === record.id,
+				),
+			).toBe(true);
+			const following = f.controller.send(record.id, "FOLLOW UP", "queue").then(
+				() => "sent",
+				() => "rejected",
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.calls.filter((call) => call.name === "session.send_input"),
+			).toEqual([]);
+			release();
+			expect(await creating).toMatchObject(
+				failed
+					? { message: "Preparation failed" }
+					: { initialSend: { ok: true } },
+			);
+			expect(await following).toBe(failed ? "rejected" : "sent");
+			expect(
+				f.calls
+					.filter((call) => call.name === "session.send_input")
+					.map((call) => call.payload?.prompt),
+			).toEqual(failed ? [] : ["INITIAL SUMMARY", "FOLLOW UP"]);
+			if (failed) {
+				await f.controller.send(record.id, "Explicit retry", "queue");
+				expect(
+					f.calls.filter((call) => call.name === "session.send_input"),
+				).toHaveLength(1);
+			} else {
+				expect(
+					f.calls.find((call) => call.name === "session.create")?.payload
+						?.initialMessages,
+				).toEqual(messages);
+			}
+		} finally {
+			release();
+			await creating;
+			await f.controller.dispose();
+		}
+	});
 	it("reattaches and adopts a seeded conversation with its saved mode without reseeding", async () => {
 		const f = fixture();
 		f.setRows([
