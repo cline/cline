@@ -210,6 +210,17 @@ export class AgentEventBridge {
 			await automation.ingestEvent(payload);
 			return;
 		}
+		if (event.name === "next_turn.suggestions") {
+			this.deps.emit({
+				type: "plugin_event",
+				payload: {
+					sessionId: rootSessionId,
+					name: event.name,
+					payload: event.payload,
+				},
+			});
+			return;
+		}
 		if (
 			event.name !== "steer_message" &&
 			event.name !== "queue_message" &&

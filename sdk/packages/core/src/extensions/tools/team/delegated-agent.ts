@@ -137,7 +137,9 @@ export function buildDelegatedAgentConfig(
 		abortSignal: options.abortSignal,
 		onEvent: options.onEvent,
 		hooks: runtimeConfig.hooks,
-		extensions: runtimeConfig.extensions,
+		extensions: runtimeConfig.extensions?.filter(
+			(extension) => !extension.manifest.rootOnly,
+		),
 		hookErrorMode: options.hookErrorMode,
 		toolPolicies: options.toolPolicies,
 		requestToolApproval: options.requestToolApproval,

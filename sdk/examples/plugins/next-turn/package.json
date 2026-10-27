@@ -1,0 +1,33 @@
+{
+	"name": "next-turn",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Backend next-turn suggestions derived from each completed agent run.",
+	"engines": {
+		"node": ">=22"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p tsconfig.json",
+		"test": "bun test src",
+		"check": "bun run typecheck && bun run test"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": ["./src/index.ts"],
+				"capabilities": ["hooks"]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*",
+		"@cline/shared": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": { "optional": true },
+		"@cline/shared": { "optional": true }
+	}
+}

@@ -822,6 +822,7 @@ export type HubEventName =
 	| "task.automation.updated"
 	| "settings.changed"
 	| "plugin.status_changed"
+	| "plugin.event"
 	| "ui.notify"
 	| "ui.show_window"
 	| "hub.client.updated";
