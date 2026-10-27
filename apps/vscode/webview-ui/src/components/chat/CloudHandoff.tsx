@@ -105,7 +105,8 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 							</p>
 						)}
 						<p className="m-0 text-sm text-description">
-							Later local edits are excluded. Your current branch and working files stay unchanged.
+							Later local edits are excluded. Snapshot commits are unsigned and skip commit hooks. Pre-push hooks
+							run locally and may change your files.
 						</p>
 						{errorText && (
 							<div className="text-error" role="alert">
