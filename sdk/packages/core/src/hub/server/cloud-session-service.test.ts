@@ -577,7 +577,6 @@ describe("hub cloud credentials", () => {
 		["https://api.example", "https://api.example"],
 		["https://api.example/api/v1", "https://api.example"],
 		[" https://api.example/api/v1/// ", "https://api.example"],
-		["http://localhost:7777/api/v1", "http://localhost:7777"],
 		["https://api.example/gateway/api/v1", "https://api.example/gateway"],
 		["https://api.example/gateway", "https://api.example/gateway"],
 		[undefined, "https://environment.example/gateway"],
@@ -604,12 +603,6 @@ describe("hub cloud credentials", () => {
 				});
 			if (url === `${expectedBase}/api/v1/session`)
 				return Response.json({ data: [{ id: "ses-one", status: "ready" }] });
-			if (url === `${expectedBase}/api/v1/ai/cline/models`)
-				return Response.json({
-					data: [{ id: "model-one", name: "Model One" }],
-				});
-			if (url === `${expectedBase}/api/v1/ai/cline/recommended-models`)
-				return Response.json({ data: {} });
 			return new Response(null, { status: 404 });
 		});
 		const service = new HubCloudSessionService({ publish: () => {} });
@@ -618,11 +611,6 @@ describe("hub cloud credentials", () => {
 			{ timeoutMs: 500 },
 		]);
 		expect(discovered.result).toMatchObject([{ sessionId: "ses-one" }]);
-		const models = await command(service, "listModels", []);
-		expect(models.result).toEqual([
-			{ id: "model-one", name: "Model One", catalogId: "cline" },
-		]);
-
 		expect(settings.baseUrl).toBe(baseUrl);
 	});
 

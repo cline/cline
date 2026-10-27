@@ -226,7 +226,6 @@ export class HubCloudSessionService {
 	private createController(): CloudSessionController {
 		const environment = getClineEnvironmentConfig();
 		const scope = this.scope;
-		// Provider inference URLs can include /api/v1; cloud routes add it themselves.
 		const apiBaseUrl =
 			this.settings
 				.getProviderSettings("cline")
