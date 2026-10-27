@@ -747,8 +747,8 @@ function ChatInputBarImpl({
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
 	useEffect(() => {
-		setKnownSlashCommands(slashCommands.map((command) => command.name));
-	}, [slashCommands]);
+		setKnownSlashCommands(visibleSlashCommands.map((command) => command.name));
+	}, [visibleSlashCommands]);
 	const composerHighlights = useMemo(
 		() =>
 			executionTarget === "local"

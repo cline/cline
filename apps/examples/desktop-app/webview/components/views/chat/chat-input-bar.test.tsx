@@ -210,6 +210,7 @@ async function renderVoiceComposer({
 	onAttachFiles = vi.fn(),
 	sessionId,
 	strictMode = false,
+	cloudHandoffAvailable = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -225,6 +226,7 @@ async function renderVoiceComposer({
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
 	strictMode?: boolean;
+	cloudHandoffAvailable?: boolean;
 } = {}) {
 	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
@@ -235,6 +237,7 @@ async function renderVoiceComposer({
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
+						cloudHandoffAvailable={cloudHandoffAvailable}
 						executionTarget={executionTarget}
 						sessionId={sessionId}
 						attachments={attachments}
@@ -398,6 +401,20 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("highlights /cloud only when handoff is available", async () => {
+		for (const enabled of [false, true, false]) {
+			await renderVoiceComposer({
+				prompt: "/cloud Continue",
+				cloudHandoffAvailable: enabled,
+			});
+			expect(
+				container
+					.querySelector("textarea")
+					?.parentElement?.querySelector("[aria-hidden] span")?.textContent,
+			).toBe(enabled ? "/cloud" : undefined);
+		}
+	});
+
 	it("retains skills and workflows when plugin discovery rejects", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
 			if (name === "list_plugin_commands") throw new Error("hub unavailable");
