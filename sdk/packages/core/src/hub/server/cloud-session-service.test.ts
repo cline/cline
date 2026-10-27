@@ -220,13 +220,8 @@ describe("hub-owned cloud sessions", () => {
 	it.each([
 		{ requestId: undefined },
 		{ initialMessage: undefined },
+		{ initialMessage: { text: " \n\t" } },
 		{ initialMessage: { text: "Summary", images: ["invalid-image"] } },
-		{
-			initialMessage: {
-				text: "Summary",
-				images: Array(6).fill("invalid-image"),
-			},
-		},
 		{ branch: "main" },
 		{ localGit: { ...localGitInput().localGit, root: "relative" } },
 		{ localGit: { ...localGitInput().localGit, treeSha: "HEAD" } },
@@ -738,7 +733,13 @@ describe("cloud RPC over a shared hub socket", () => {
 			controller.listModels.mockResolvedValue([
 				{ id: "model", name: "Model", catalogId: "cline" },
 			]);
-			const input = localGitInput(root);
+			const input = {
+				...localGitInput(root),
+				initialMessage: {
+					text: "Captured summary",
+					images: Array<string>(6).fill("data:image/png;base64,aW1hZ2U="),
+				},
+			};
 			controller.create.mockResolvedValue({
 				sessionId: "ses-one",
 				status: "ready",
@@ -891,7 +892,7 @@ describe("cloud RPC over a shared hub socket", () => {
 				modelId: "model",
 				repoUrl: "https://github.com/example/project",
 				initialMessage: {
-					text: "Summary and next instruction",
+					text: "    first()\n    second()\n",
 					images: ["image"],
 				},
 				mode: "plan",

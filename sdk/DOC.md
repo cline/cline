@@ -131,6 +131,9 @@ Hub clients can publish an approved snapshot before creation with `localGit`.
 Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for Personal.
 Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
 This requires token-authenticated workspace access.
+Attachments must be image data URLs within the shared media-size limits.
+Repository hooks run in an isolated checkout and can fail without local tooling.
+Published checkpoint branches remain if verification or cloud creation fails.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

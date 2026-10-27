@@ -79,7 +79,10 @@ const createInput = creationOptions
 		repoUrl: id,
 		initialPrompt: z.string().optional(),
 		initialMessage: z
-			.object({ text: id, images: z.array(z.string()).optional() })
+			.object({
+				text: z.string().refine((text) => text.trim().length > 0),
+				images: z.array(z.string()).optional(),
+			})
 			.strict()
 			.optional(),
 		branch: id.optional(),
@@ -471,7 +474,6 @@ export class HubCloudSessionService {
 			.then(async () => {
 				assertCurrent();
 				const images = input.initialMessage?.images ?? [];
-				if (images.length > 5) throw new Error("Attach up to 5 images.");
 				const budget = createMediaBudgetState();
 				for (const image of images) {
 					const validation = validateAndReserveImageMedia(
