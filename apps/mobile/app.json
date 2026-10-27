@@ -28,6 +28,7 @@
 			"favicon": "./assets/icon.png"
 		},
 		"plugins": [
+			"./plugins/with-ios-scene-delegate.cjs",
 			"expo-router",
 			"expo-secure-store",
 			[
@@ -63,7 +64,9 @@
 						"image": "./assets/splash-mark.png"
 					}
 				}
-			]
+			],
+			"expo-sharing",
+			"expo-notifications"
 		],
 		"experiments": {
 			"typedRoutes": true

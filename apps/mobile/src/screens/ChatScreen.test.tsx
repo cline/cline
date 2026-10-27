@@ -88,6 +88,59 @@ function richView(): SessionViewModel {
 }
 
 describe("ChatScreen", () => {
+	it("shows pending Stop, catches failure, and permits an explicit retry without duplicate requests", async () => {
+		let fail = (_error: Error) => {};
+		const abort = vi
+			.fn()
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						fail = reject;
+					}),
+			)
+			.mockResolvedValue(undefined);
+		const connection = fakeConnection({
+			view: { ...emptyView(), runStatus: "running" },
+			abort,
+		});
+		const screen = render(
+			<ChatScreen connection={connection} connectionKind="cloud" />,
+		);
+		act(() => {
+			screen.root.find((node) => node.type === Composer).props.onAbort();
+			screen.root.find((node) => node.type === Composer).props.onAbort();
+		});
+		expect(abort).toHaveBeenCalledOnce();
+		expect(containsText(screen.root, "Stopping Cline…")).toBe(true);
+		await act(async () => {
+			fail(new Error("Stop request failed"));
+		});
+		expect(containsText(screen.root, "Stop request failed")).toBe(true);
+		await act(async () => {
+			findByLabel(screen.root, "Retry stop")?.props.onPress();
+		});
+		expect(abort).toHaveBeenCalledTimes(2);
+		expect(containsText(screen.root, "Stop request failed")).toBe(false);
+	});
+
+	it("gives Cloud approval guidance without referring to computer-only settings", () => {
+		const connection = fakeConnection({
+			view: { ...emptyView(), pendingApprovals: [approval] },
+		});
+		const screen = render(
+			<ChatScreen connection={connection} connectionKind="cloud" />,
+		);
+		expect(containsText(screen.root, "then approve or deny the request")).toBe(
+			true,
+		);
+		expect(containsText(screen.root, "Change Auto-approve below")).toBe(false);
+		act(() =>
+			screen.renderer.update(
+				<ChatScreen connection={connection} connectionKind="local" />,
+			),
+		);
+		expect(containsText(screen.root, "Change Auto-approve below")).toBe(true);
+	});
 	it("keeps asymmetric side safe areas on content when surfaces extend to the edges", () => {
 		const insets = vi.spyOn(SafeArea, "useSafeAreaInsets").mockReturnValue({
 			top: 0,

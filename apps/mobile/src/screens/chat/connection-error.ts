@@ -31,6 +31,7 @@
 import { errorDetail } from "@/error-message";
 
 export type ConnectionErrorKind =
+	| "history"
 	| "missing"
 	| "unreachable"
 	| "timeout"
@@ -60,6 +61,11 @@ const COPY: Record<
 	ConnectionErrorKind,
 	{ headline: string; body: string; retryable: boolean }
 > = {
+	history: {
+		headline: "Couldn't load conversation history",
+		body: "Your conversation is still saved. Retry to load its messages before continuing.",
+		retryable: true,
+	},
 	missing: {
 		headline: "This session is no longer available",
 		body: "Cline could not find this exact conversation. Choose another session or start a new one.",
@@ -130,6 +136,7 @@ export function classifyConnectionError(error: unknown): ConnectionErrorKind {
 	const name = text(e.name);
 	const code = text(e.code);
 	const message = text(e.message);
+	if (name === "SessionHistoryUnavailableError") return "history";
 	if (
 		name === "ExactSessionNotFoundError" ||
 		name === "RemoteSessionNotFoundError" ||

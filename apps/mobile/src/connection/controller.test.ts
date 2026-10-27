@@ -131,6 +131,60 @@ const DESCRIPTOR: ConnectionDescriptor = {
 	url: "ws://127.0.0.1:1/hub",
 };
 
+// The inner Hub ID is a conversation identity, not the prescribed git branch.
+// Desktop-created workspaces may have a distinct task ID, or no task ID at all.
+describe("resolved Cloud task branch", () => {
+	it.each([
+		{
+			taskId: "task-ABC12345",
+			remoteId: "workspace-87654321",
+			expected: "cline/abc12345",
+		},
+		{
+			taskId: undefined,
+			remoteId: "workspace-87654321",
+			expected: "cline/87654321",
+		},
+	])("uses resolved workspace context: $expected", async ({
+		taskId,
+		remoteId,
+		expected,
+	}) => {
+		const handle = handleFor(new FakeHubClient());
+		handle.remoteSession.taskId = taskId;
+		handle.remoteSession.id = asRemoteSessionId(remoteId);
+		const controller = new SessionConnectionController(
+			{
+				mode: "cloud",
+				url: "https://workspace.test",
+				remoteSessionId: "stale-workspace-00000000",
+				hubSessionId: "ses_1",
+				branch: "main",
+			},
+			{ createHandle: async () => handle },
+		);
+		try {
+			expect(controller.getSnapshot().taskBranch).toBeUndefined();
+			await controller.start();
+			expect(controller.getSnapshot().sessionId).toBe("ses_1");
+			expect(controller.getSnapshot().taskBranch).toBe(expected);
+		} finally {
+			controller.dispose();
+		}
+	});
+	it("does not prescribe a Cloud task branch for computer sessions", async () => {
+		const controller = new SessionConnectionController(DESCRIPTOR, {
+			createHandle: async () => handleFor(new FakeHubClient()),
+		});
+		try {
+			await controller.start();
+			expect(controller.getSnapshot().taskBranch).toBeUndefined();
+		} finally {
+			controller.dispose();
+		}
+	});
+});
+
 const controllers: SessionConnectionController[] = [];
 
 function makeController(
@@ -151,6 +205,55 @@ async function settle(): Promise<void> {
 }
 
 describe("bootstrap serialisation", () => {
+	it.each([
+		"reject",
+		"malformed",
+	])("requires initial Cloud history and keeps retry visible for %s replies", async (failure) => {
+		const client = new FakeHubClient();
+		const commands = vi.spyOn(client, "command");
+		client.handlers.set("session.messages", () => {
+			if (failure === "reject")
+				throw new Error("history temporarily unavailable");
+			return { messages: null };
+		});
+		const controller = new SessionConnectionController(
+			{ ...DESCRIPTOR, mode: "cloud", hubSessionId: "ses_1" },
+			{ createHandle: async () => handleFor(client) },
+		);
+		await expect(controller.start()).rejects.toMatchObject({
+			name: "SessionHistoryUnavailableError",
+		});
+		expect(controller.getSnapshot().status.phase).toBe("error");
+		await controller.reconnect();
+		expect(controller.getSnapshot().status.phase).toBe("error");
+		client.handlers.set("session.messages", () => ({
+			messages: [{ role: "user", content: "Existing conversation" }],
+		}));
+		await controller.reconnect();
+		expect(controller.getSnapshot().status.phase).toBe("ready");
+		expect(controller.getSnapshot().view.messages[0]?.blocks).toEqual([
+			{ kind: "text", text: "Existing conversation" },
+		]);
+		expect(
+			commands.mock.calls.filter(
+				([command]) => command === "session.send_input",
+			),
+		).toHaveLength(0);
+		controller.dispose();
+	});
+
+	it("propagates a failed Stop so the screen can offer an explicit retry", async () => {
+		const client = new FakeHubClient();
+		client.handlers.set("run.abort", () => {
+			throw new Error("Stop refused");
+		});
+		const controller = makeController(async () => handleFor(client));
+		await controller.start();
+		await expect(controller.abort()).rejects.toThrow("Stop refused");
+		client.handlers.set("run.abort", () => ({ applied: true }));
+		await expect(controller.abort()).resolves.toBeUndefined();
+		controller.dispose();
+	});
 	it("propagates failed queue mutations to their inline recovery controls", async () => {
 		const client = new FakeHubClient();
 		client.handlers.set("session.remove_pending_prompt", () => {

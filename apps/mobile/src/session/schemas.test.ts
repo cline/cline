@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	CONSUMED_HUB_EVENTS,
 	parseAskQuestionCapabilityRequest,
+	parseAskQuestionCapabilityResolution,
 	parseHubEvent,
 	parseModelCatalogReply,
 	parsePendingApprovals,
@@ -13,6 +14,28 @@ import {
 } from "./schemas";
 
 describe("parseAskQuestionCapabilityRequest", () => {
+	it("keeps question ownership even when an event advertises an unsupported audience", () => {
+		const request = {
+			requestId: "other-device",
+			targetClientId: "desktop",
+			capabilityName: "tool_executor.askQuestion",
+			audience: "session",
+			payload: { args: ["Continue?", ["Yes", "No"]] },
+		};
+		expect(parseAskQuestionCapabilityRequest(request, "phone").status).toBe(
+			"ignored",
+		);
+		expect(
+			parseAskQuestionCapabilityResolution(request, "phone"),
+		).toBeUndefined();
+		expect(parseAskQuestionCapabilityRequest(request, "desktop").status).toBe(
+			"ok",
+		);
+		expect(parseAskQuestionCapabilityResolution(request, "desktop")).toBe(
+			"other-device",
+		);
+	});
+
 	it("preserves repeated model-supplied options like desktop", () => {
 		expect(
 			parseAskQuestionCapabilityRequest(

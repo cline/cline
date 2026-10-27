@@ -536,3 +536,26 @@ it.each([
 	expect(row?.status).toBe(status);
 	expect(row?.online).toBe(false);
 });
+
+it.each([
+	"Remote renamed",
+	"",
+	undefined,
+])("reconciles a saved mobile title with the authoritative Cloud title %s", (title) => {
+	const session = cloudSession({ title });
+	const [row] = buildSessionRows({
+		endpoints: [
+			{
+				mode: "cloud",
+				url: session.sandboxUrl,
+				remoteSessionId: session.id,
+				label: "Old",
+				sessionTitle: "Old",
+			},
+		],
+		cloudSessions: [session],
+	});
+	expect(row.descriptor.sessionTitle).toBe(title || undefined);
+	expect(row.descriptor.label).toBe(title || CLOUD_BADGE);
+	expect(row.descriptor.sessionTitle || row.descriptor.label).not.toBe("Old");
+});

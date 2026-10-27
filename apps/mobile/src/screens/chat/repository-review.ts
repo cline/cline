@@ -1,7 +1,9 @@
 /** A review link needs no GitHub token or additional mobile API permissions. */
 export function repositoryReviewUrl(
 	repoUrl?: string,
-	branch?: string,
+	/** Already resolved prescribed task branch, not the inner Hub session ID. */
+	taskBranch?: string,
+	baseBranch?: string,
 ): string | undefined {
 	if (!repoUrl) return undefined;
 	try {
@@ -21,8 +23,9 @@ export function repositoryReviewUrl(
 		if (parts.length !== 2 || parts.some((part) => !/^[\w.-]+$/.test(part)))
 			return undefined;
 		const repository = `https://github.com/${parts.join("/")}`;
+		const branch = taskBranch?.trim();
 		return branch
-			? `${repository}/compare/${encodeURIComponent(branch)}?expand=1`
+			? `${repository}/compare/${baseBranch ? `${encodeURIComponent(baseBranch)}...` : ""}${encodeURIComponent(branch)}?expand=1`
 			: `${repository}/pulls`;
 	} catch {
 		return undefined;

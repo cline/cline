@@ -1,6 +1,5 @@
 /** Account and Cloud workspaces, with computer settings behind the release flag. */
 
-import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
 import {
 	ChevronLeft,
 	Cloud,
@@ -11,14 +10,15 @@ import {
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DevHubEndpoint } from "@/config/env";
+import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
 import { type ConnectionDescriptor, descriptorKey } from "@/connection";
 import { ApprovalTierRow, summarizeApprovalPolicy } from "@/screens/approval";
 import { APPROVAL_TIERS } from "@/session";
+import { type AppearancePreference, useAppearance } from "@/state/appearance";
 import { type CloudAccountState, useCloudAuth } from "@/state/cloud-auth";
 import { useEndpoints } from "@/state/endpoints";
 import { useExecutionTargets } from "@/state/execution-targets";
 import { useLastOpened } from "@/state/last-opened";
-import { useAppearance, type AppearancePreference } from "@/state/appearance";
 import { useApprovalPolicy } from "@/state/settings";
 import {
 	Button,
@@ -32,6 +32,7 @@ import {
 import { AdvancedConnect } from "./home/AdvancedConnect";
 import { localMachineDescriptors } from "./home/local-sessions";
 import { AccountSwitcher } from "./settings/AccountSwitcher";
+import { TaskAlertSettings } from "./settings/TaskAlertSettings";
 
 export interface SettingsScreenProps {
 	onBack?: () => void;
@@ -174,6 +175,7 @@ export function SettingsScreen({
 						void signOut().then(() => onSignedOut?.());
 					}}
 				/>
+				<TaskAlertSettings />
 
 				<Text variant="small" tone="muted" weight="500">
 					{COMPUTER_CONNECTIONS_ENABLED

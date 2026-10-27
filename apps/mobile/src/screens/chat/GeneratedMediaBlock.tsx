@@ -5,12 +5,15 @@ import { Image, Modal, Pressable, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, IconButton, Text, useTheme } from "@/ui";
+import { GeneratedFile } from "./GeneratedFile";
 import { GeneratedMediaPlayback } from "./GeneratedMediaPlayback";
 
 /** Safe native rendering for the same canonical media blocks desktop consumes. */
 export function GeneratedMediaBlock({ media }: { media: GeneratedMedia }) {
 	const theme = useTheme();
 	const [requestedImageUrl, setRequestedImageUrl] = useState<string>();
+	if (media.modality === "file")
+		return <GeneratedFile key={media.id} media={media} />;
 	const remoteImageUrl =
 		media.modality === "image" &&
 		media.source.type === "url" &&

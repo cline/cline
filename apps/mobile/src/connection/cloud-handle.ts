@@ -24,6 +24,7 @@ import {
 	CloudSessionGateway,
 	type CloudSessionGatewayOptions,
 } from "../cloud/rest/CloudSessionGateway";
+import { cloudTaskBranch } from "../cloud/task-branch";
 import {
 	ASK_QUESTION_CAPABILITY,
 	type HubClientFactory,
@@ -102,19 +103,18 @@ export function buildCloudCreateSessionInput(
 	if (!normalizedModelId) {
 		throw new Error("Cloud session is missing its model id.");
 	}
-	const branch = `cline/${(taskId?.trim() || remoteSessionId || "").slice(-8).toLowerCase()}`;
-	const saveWork =
-		taskId?.trim() || remoteSessionId
-			? `\n\nDo all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
-				"(or check it out if it already exists), and never commit directly to the default branch. " +
-				(sandboxType === "resumable"
-					? "Commit and push only when the user asks. "
-					: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-						`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-						"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-						`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-				"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
-			: "";
+	const branch = cloudTaskBranch(taskId, remoteSessionId);
+	const saveWork = branch
+		? `\n\nDo all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
+			"(or check it out if it already exists), and never commit directly to the default branch. " +
+			(sandboxType === "resumable"
+				? "Commit and push only when the user asks. "
+				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
+			"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
+		: "";
 	const systemPrompt = buildClineSystemPrompt({
 		ide: "Cline",
 		mode: "act",

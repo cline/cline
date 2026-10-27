@@ -97,6 +97,41 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("Cloud foreground recovery", () => {
+	it("hydrates on refocus after off-screen AppState changes, without replaying input", async () => {
+		const lease = fakeLease();
+		useLease(lease);
+		render(<Probe />);
+		await act(async () => {
+			focus.focused = false;
+			for (const listener of focus.listeners) listener();
+		});
+		await emit("background", "active");
+		expect(lease.controller.recoverFromIdle).not.toHaveBeenCalled();
+		await act(async () => {
+			focus.focused = true;
+			for (const listener of focus.listeners) listener();
+		});
+		expect(lease.controller.recoverFromIdle).toHaveBeenCalledOnce();
+		expect(lease.controller.sendInput).not.toHaveBeenCalled();
+	});
+
+	it("refreshes an already-retained ready controller once on mount, even in Strict Mode", async () => {
+		const lease = fakeLease();
+		lease.controller.getSnapshot.mockReturnValue({
+			...initialSnapshot(),
+			status: { phase: "ready" },
+			sessionId: "inner-existing",
+		});
+		useLease(lease);
+		render(
+			<StrictMode>
+				<Probe />
+			</StrictMode>,
+		);
+		await act(async () => {});
+		expect(lease.controller.recoverFromIdle).toHaveBeenCalledOnce();
+		expect(lease.controller.sendInput).not.toHaveBeenCalled();
+	});
 	it("recovers on actual returns to active, without a mount reconnect or prompt replay", async () => {
 		const lease = fakeLease();
 		useLease(lease);

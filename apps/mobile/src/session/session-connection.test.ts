@@ -908,6 +908,110 @@ describe("pending queue recovery", () => {
 		delivery: "queue",
 		attachmentCount: 0,
 	};
+	it.each([
+		"remove",
+		"edit",
+		"steer",
+	])("applies the acknowledged %s snapshot without a broadcast", async (operation) => {
+		const expected =
+			operation === "remove"
+				? []
+				: [
+						{
+							...queued,
+							...(operation === "edit"
+								? { prompt: "Edited" }
+								: { delivery: "steer" }),
+						},
+					];
+		const { connection } = setUp({
+			handlers: {
+				"session.pending_prompts": () => ({ prompts: [queued] }),
+				"session.remove_pending_prompt": () => ({ prompts: expected }),
+				"session.update_pending_prompt": () => ({ prompts: expected }),
+			},
+		});
+		await connection.start();
+		if (operation === "remove") await connection.removePendingPrompt(queued.id);
+		else
+			await connection.updatePendingPrompt(
+				queued.id,
+				operation === "edit" ? { prompt: "Edited" } : { delivery: "steer" },
+			);
+		expect(connection.getView().pendingPrompts).toEqual(expected);
+		connection.dispose();
+	});
+
+	it("does not let an older mutation acknowledgement replace a newer acknowledgement", async () => {
+		const old = deferred<Record<string, unknown>>();
+		const newer = deferred<Record<string, unknown>>();
+		let count = 0;
+		const { connection } = setUp({
+			handlers: {
+				"session.pending_prompts": () => ({ prompts: [queued] }),
+				"session.update_pending_prompt": () =>
+					++count === 1 ? old.promise : newer.promise,
+			},
+		});
+		await connection.start();
+		const first = connection.updatePendingPrompt(queued.id, {
+			prompt: "Older",
+		});
+		const second = connection.updatePendingPrompt(queued.id, {
+			prompt: "Newer",
+		});
+		await settle();
+		newer.resolve({ prompts: [{ ...queued, prompt: "Newer" }] });
+		await second;
+		old.resolve({ prompts: [{ ...queued, prompt: "Older" }] });
+		await first;
+		expect(connection.getView().pendingPrompts[0]?.prompt).toBe("Newer");
+		connection.dispose();
+	});
+
+	it("preserves a live queue event over a delayed mutation acknowledgement", async () => {
+		const ack = deferred<Record<string, unknown>>();
+		const { connection, client } = setUp({
+			handlers: {
+				"session.pending_prompts": () => ({ prompts: [queued] }),
+				"session.update_pending_prompt": () => ack.promise,
+			},
+		});
+		await connection.start();
+		const edit = connection.updatePendingPrompt(queued.id, { prompt: "Older" });
+		await settle();
+		client.emit({
+			version: "v1",
+			event: "session.pending_prompts",
+			sessionId: "ses_1",
+			payload: { prompts: [{ ...queued, prompt: "Other client" }] },
+		});
+		ack.resolve({ prompts: [{ ...queued, prompt: "Older" }] });
+		await edit;
+		expect(connection.getView().pendingPrompts[0]?.prompt).toBe("Other client");
+		connection.dispose();
+	});
+
+	it("does not let an earlier queue read overwrite an acknowledged edit", async () => {
+		const read = deferred<Record<string, unknown>>();
+		const { connection, client } = setUp({
+			handlers: {
+				"session.pending_prompts": () => ({ prompts: [queued] }),
+				"session.update_pending_prompt": () => ({
+					prompts: [{ ...queued, prompt: "Edited" }],
+				}),
+			},
+		});
+		await connection.start();
+		client.handlers.set("session.pending_prompts", () => read.promise);
+		const refresh = connection.resync();
+		await settle();
+		await connection.updatePendingPrompt(queued.id, { prompt: "Edited" });
+		read.resolve({ prompts: [queued] });
+		await refresh;
+		expect(connection.getView().pendingPrompts[0]?.prompt).toBe("Edited");
+		connection.dispose();
+	});
 	it("hands only the acknowledged send to the queue, even with identical concurrent text", async () => {
 		const first = deferred<Record<string, unknown>>();
 		const second = deferred<Record<string, unknown>>();

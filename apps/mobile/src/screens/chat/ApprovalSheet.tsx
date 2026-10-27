@@ -20,6 +20,7 @@ import {
 } from "@/ui";
 
 export interface ApprovalSheetProps {
+	connectionKind?: "local" | "cloud";
 	approvals: PendingApprovalInfo[];
 	onRespond(
 		approvalId: string,
@@ -31,6 +32,7 @@ export interface ApprovalSheetProps {
 }
 
 export function ApprovalSheet({
+	connectionKind = "local",
 	approvals,
 	onRespond,
 	sheetRef: externalRef,
@@ -64,8 +66,9 @@ export function ApprovalSheet({
 					</Text>
 				</View>
 				<Text variant="small" tone="muted">
-					Review what Cline wants to run. Tiers set to auto-approve run without
-					asking. Change Auto-approve below the message box.
+					{connectionKind === "cloud"
+						? "Review what Cline wants to run in this Cloud workspace, then approve or deny the request."
+						: "Review what Cline wants to run. Tiers set to auto-approve run without asking. Change Auto-approve below the message box."}
 				</Text>
 				{approvals.map((approval, index) => (
 					<View key={approval.approvalId} style={{ gap: 8 }}>

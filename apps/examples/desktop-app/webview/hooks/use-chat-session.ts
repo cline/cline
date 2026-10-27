@@ -560,6 +560,13 @@ export function useChatSession(environmentId: string) {
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
 	);
+	// Only an explicit composer edit may change an existing Cloud runtime model.
+	const pendingCloudModelRef = useRef<{
+		sessionId: string;
+		model: string;
+		changeId: string;
+		dispatched: boolean;
+	} | null>(null);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -2159,6 +2166,68 @@ export function useChatSession(environmentId: string) {
 		],
 	);
 
+	const setComposerConfig = useCallback<typeof setConfig>((update) => {
+		setConfig((previous) => {
+			const next = typeof update === "function" ? update(previous) : update;
+			const id = activeSessionIdRef.current;
+			if (
+				id &&
+				next.executionTarget === "cloud" &&
+				next.model !== previous.model
+			) {
+				pendingCloudModelRef.current = {
+					sessionId: id,
+					model: next.model,
+					changeId: makeId("model"),
+					dispatched: false,
+				};
+			}
+			return next;
+		});
+	}, []);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_session_model", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as { sessionId?: string; model?: string };
+				if (
+					record.sessionId !== activeSessionIdRef.current ||
+					!record.model?.trim()
+				)
+					return;
+				if (pendingCloudModelRef.current?.sessionId === record.sessionId)
+					return;
+				const model = record.model.trim();
+				setConfig((previous) => ({ ...previous, model }));
+			}),
+		[],
+	);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_session_model_applied", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as {
+					sessionId?: string;
+					changeId?: string;
+					model?: string;
+				};
+				const pending = pendingCloudModelRef.current;
+				if (
+					!pending ||
+					pending.changeId !== record.changeId ||
+					record.sessionId !== activeSessionIdRef.current ||
+					!record.model?.trim()
+				)
+					return;
+				pendingCloudModelRef.current = null;
+				const model = record.model.trim();
+				setConfig((previous) => ({ ...previous, model }));
+			}),
+		[],
+	);
+
 	// ---- Transport / event subscriptions ----
 
 	useEffect(() => {
@@ -2827,6 +2896,7 @@ export function useChatSession(environmentId: string) {
 
 			const failureGenerationAtSubmission = failureTurnGenerationRef.current;
 			let sendTask: ReturnType<typeof postSession> | null = null;
+			let sentModel: typeof pendingCloudModelRef.current = null;
 			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
 			// bumps the epoch when the runtime starts consuming a queued prompt,
 			// so a mismatch when the send response arrives means the stream has
@@ -2999,12 +3069,25 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.add(activeSessionId);
 				}
+				sentModel =
+					pendingCloudModelRef.current?.sessionId === activeSessionId &&
+					!pendingCloudModelRef.current.dispatched
+						? pendingCloudModelRef.current
+						: null;
+				if (sentModel) sentModel.dispatched = true;
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
 					delivery: shouldQueue ? "queue" : undefined,
-					config: parsed,
+					config:
+						parsed.executionTarget === "cloud"
+							? {
+									...parsed,
+									model: sentModel?.model,
+									modelChangeId: sentModel?.changeId,
+								}
+							: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
 				});
 			} finally {
@@ -3034,6 +3117,9 @@ export function useChatSession(environmentId: string) {
 			};
 			try {
 				const payload = await sendTask;
+				if (payload.ok && pendingCloudModelRef.current === sentModel) {
+					pendingCloudModelRef.current = null;
+				}
 				// A queued successor clears the abort flag before the old send's
 				// aborted RPC reply can arrive. Its stream now owns the UI.
 				if (
@@ -3467,6 +3553,8 @@ export function useChatSession(environmentId: string) {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
+				if (sentModel && pendingCloudModelRef.current === sentModel)
+					sentModel.dispatched = false;
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
 				}
@@ -3696,6 +3784,7 @@ export function useChatSession(environmentId: string) {
 	);
 
 	const reset = useCallback(async () => {
+		pendingCloudModelRef.current = null;
 		hydrationRequestIdRef.current += 1;
 		const activeSessionId = sessionId;
 		setSessionId(null);
@@ -3777,6 +3866,7 @@ export function useChatSession(environmentId: string) {
 					`Session ${session.sessionId} belongs to environment ${session.environmentId}, not ${environmentId}.`,
 				);
 			}
+			pendingCloudModelRef.current = null;
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
@@ -4191,7 +4281,7 @@ export function useChatSession(environmentId: string) {
 		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
-		setConfig,
+		setConfig: setComposerConfig,
 		setWorkspacePath,
 		start,
 		hydrateSession,

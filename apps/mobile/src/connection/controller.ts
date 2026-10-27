@@ -21,6 +21,7 @@ import { parseSessionRecordReply } from "../session/schemas";
 
 import type { WebSocketCtor } from "@cline/hub-client";
 import { cloudStartStatus } from "../cloud/progress";
+import { cloudTaskBranch } from "../cloud/task-branch";
 import { cloudEnv } from "../config/env";
 import { userErrorMessage } from "../error-message";
 import {
@@ -55,6 +56,8 @@ export interface ConnectionSnapshot {
 	pendingReasoning?: ReasoningChoice;
 	view: SessionViewModel;
 	status: ConnectionStatus;
+	/** Prescribed Cloud task branch from the resolved outer workspace, never the live checkout branch. */
+	taskBranch?: string;
 	/** Exact inner Hub session once resume/create has resolved it. */
 	sessionId?: string;
 }
@@ -114,6 +117,7 @@ export class SessionConnectionController {
 		this.reasoningChoice = choice;
 		this.publish();
 	};
+	private taskBranch?: string;
 	private connection: SessionConnection | undefined;
 	private unsubscribeView: (() => void) | undefined;
 	private status: ConnectionStatus = { phase: "connecting" };
@@ -205,12 +209,9 @@ export class SessionConnectionController {
 	};
 
 	abort = async (reason?: string): Promise<void> => {
-		try {
-			const connection = await this.requireConnection();
-			await connection.abort(reason);
-		} catch {
-			// Non-fatal — see `sendInput`.
-		}
+		// Stop has an explicit pending/error surface, like approval responses.
+		const connection = await this.requireConnection();
+		await connection.abort(reason);
 	};
 
 	removePendingPrompt = async (promptId: string): Promise<void> => {
@@ -470,7 +471,10 @@ export class SessionConnectionController {
 			try {
 				// A user explicitly retrying an exact resume must not be marked ready if
 				// attach is still refused. Background transport resyncs remain tolerant.
-				await this.connection.resync({ requireAttach: true });
+				await this.connection.resync({
+					requireAttach: true,
+					requireHydrate: this.descriptor.mode === "cloud",
+				});
 				if (!this.disposed) {
 					// Without this a successful recovery from a `SessionAttachError` left
 					// the user on the error screen with a working session behind it.
@@ -532,6 +536,13 @@ export class SessionConnectionController {
 				handle.client.close();
 				return;
 			}
+			this.taskBranch =
+				this.descriptor.mode === "cloud"
+					? cloudTaskBranch(
+							handle.remoteSession.taskId,
+							handle.remoteSession.id,
+						)
+					: undefined;
 			// Saved defaults belong only to a newly created conversation. An existing
 			// session may have been changed by another client since this device saved it.
 			if (!this.reasoningInitialized) {
@@ -563,7 +574,10 @@ export class SessionConnectionController {
 				if (publishView) this.setView(view);
 			});
 			if (publishView) this.setView(connection.getView());
-			await connection.start({ requireHydrate: this.preserveRecoveryView });
+			await connection.start({
+				requireHydrate:
+					this.preserveRecoveryView || this.descriptor.mode === "cloud",
+			});
 			publishView = true;
 			this.preserveRecoveryView = false;
 			if (this.disposed) {
@@ -727,6 +741,7 @@ export class SessionConnectionController {
 			view: this.view,
 			status: this.status,
 			pendingReasoning: this.reasoningChoice,
+			...(this.taskBranch ? { taskBranch: this.taskBranch } : {}),
 			...(sessionId ? { sessionId } : {}),
 		};
 		for (const listener of [...this.listeners]) {

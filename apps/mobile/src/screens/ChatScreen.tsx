@@ -177,6 +177,40 @@ export function ChatScreen({
 		: { left: 0, right: 0 };
 	const reduceMotion = useReducedMotion();
 	const { view, status } = connection;
+	const [stopping, setStopping] = useState(false);
+	const [stopError, setStopError] = useState<string>();
+	const stopPending = useRef(false);
+	const stopGeneration = useRef(0);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Retire pending Stop feedback when its conversation or authoritative run status changes.
+	useEffect(() => {
+		stopGeneration.current += 1;
+		stopPending.current = false;
+		setStopping(false);
+		setStopError(undefined);
+		return () => {
+			stopGeneration.current += 1;
+		};
+	}, [draftKey, view.runStatus]);
+	const stopRun = async () => {
+		if (stopPending.current) return;
+		const generation = stopGeneration.current;
+		stopPending.current = true;
+		setStopping(true);
+		setStopError(undefined);
+		try {
+			await connection.abort();
+		} catch (cause) {
+			if (generation === stopGeneration.current)
+				setStopError(
+					userErrorMessage(cause, "Cline could not stop this turn. Try again."),
+				);
+		} finally {
+			if (generation === stopGeneration.current) {
+				stopPending.current = false;
+				setStopping(false);
+			}
+		}
+	};
 	const transcriptMessages = useMemo(
 		() => groupReasoningMessages(view.messages),
 		[view.messages],
@@ -498,6 +532,19 @@ export function ChatScreen({
 							/>
 						) : null}
 
+						{stopping ? (
+							<Text accessibilityLiveRegion="polite">Stopping Cline…</Text>
+						) : null}
+						{stopError && running ? (
+							<Banner tone="danger">
+								<Text accessibilityRole="alert">{stopError}</Text>
+								<Button
+									label="Retry stop"
+									disabled={stopping}
+									onPress={() => void stopRun()}
+								/>
+							</Banner>
+						) : null}
 						{view.runStatus === "failed" && status.phase === "ready" ? (
 							<Banner tone="danger">
 								<Text variant="small" tone="danger" accessibilityRole="alert">
@@ -705,7 +752,7 @@ export function ChatScreen({
 						onSend={(text, attachments) =>
 							connection.sendInput(text, attachments)
 						}
-						onAbort={() => connection.abort()}
+						onAbort={() => void stopRun()}
 						controls={
 							<ModelPill
 								providerId={providerId}
@@ -736,6 +783,7 @@ export function ChatScreen({
 				</KeyboardAvoidingView>
 
 				<ApprovalSheet
+					connectionKind={connectionKind}
 					sheetRef={approvalSheetRef}
 					approvals={view.pendingApprovals}
 					onRespond={(id, approved, reason) =>

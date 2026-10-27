@@ -9,6 +9,33 @@ import { ChatErrorState } from "./ChatErrorState";
 afterEach(() => vi.restoreAllMocks());
 
 describe("ChatErrorState", () => {
+	it("makes unavailable history a visible retryable state rather than an empty conversation", async () => {
+		const onRetry = vi.fn();
+		const screen = render(
+			<ChatErrorState
+				connectionKind="cloud"
+				error={Object.assign(new Error("history unavailable"), {
+					name: "SessionHistoryUnavailableError",
+				})}
+				onRetry={onRetry}
+			/>,
+		);
+		expect(
+			containsText(screen.root, "Couldn't load conversation history"),
+		).toBe(true);
+		expect(containsText(screen.root, "Retry to load its messages")).toBe(true);
+		await act(async () =>
+			screen.root
+				.findAll(
+					(node) =>
+						typeof node.type === "string" &&
+						node.props.accessibilityLabel === "Retry",
+				)
+				.at(-1)
+				?.props.onPress(),
+		);
+		expect(onRetry).toHaveBeenCalledOnce();
+	});
 	it("keeps recovery actions and technical details available in the compact landscape layout", async () => {
 		let width = 874;
 		let height = 402;

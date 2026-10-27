@@ -77,6 +77,15 @@ export interface SessionInputAttachments {
 	userImages?: string[];
 }
 
+export class SessionHistoryUnavailableError extends Error {
+	constructor(cause: unknown) {
+		super(`Conversation history could not be loaded: ${errorDetail(cause)}`, {
+			cause,
+		});
+		this.name = "SessionHistoryUnavailableError";
+	}
+}
+
 /** No policy supplied: nothing is auto-approved. */
 const ASK_EVERYTHING: ApprovalPolicy = {
 	read: "ask",
@@ -141,6 +150,9 @@ export class SessionConnection {
 	/** Events received before the owned session id was known; see `onEvent`. */
 	private heldEvents: HubEventEnvelope[] = [];
 	private pendingPromptsRevision = 0;
+	private pendingPromptsEventRevision = 0;
+	private queueMutationSequence = 0;
+	private appliedQueueMutation = 0;
 	private queuedTurnNeedsSnapshot = false;
 	private lastSubmittedPromptId?: string;
 	/** approvalIds already auto-answered, so auto-approve never double-responds. */
@@ -402,12 +414,15 @@ export class SessionConnection {
 		if (!sessionId) {
 			return;
 		}
+		const sequence = ++this.queueMutationSequence;
 		await this.run("session.remove_pending_prompt", async () => {
-			await this.handle.client.command(
+			const revision = this.pendingPromptsEventRevision;
+			const reply = await this.handle.client.command(
 				"session.remove_pending_prompt",
 				{ sessionId, promptId },
 				sessionId,
 			);
+			await this.applyQueueMutationReply(reply.payload, sequence, revision);
 		});
 	}
 
@@ -426,8 +441,10 @@ export class SessionConnection {
 		if (!sessionId) {
 			return;
 		}
+		const sequence = ++this.queueMutationSequence;
 		await this.run("session.update_pending_prompt", async () => {
-			await this.handle.client.command(
+			const revision = this.pendingPromptsEventRevision;
+			const reply = await this.handle.client.command(
 				"session.update_pending_prompt",
 				{
 					sessionId,
@@ -437,6 +454,33 @@ export class SessionConnection {
 				},
 				sessionId,
 			);
+			await this.applyQueueMutationReply(reply.payload, sequence, revision);
+		});
+	}
+
+	private async applyQueueMutationReply(
+		payload: unknown,
+		sequence: number,
+		eventRevision: number,
+	): Promise<void> {
+		if (
+			this.disposed ||
+			sequence < this.appliedQueueMutation ||
+			eventRevision !== this.pendingPromptsEventRevision
+		)
+			return;
+		const parsed = pendingPromptsSchema.safeParse(payload);
+		if (!parsed.success) {
+			// Older Hubs acknowledge without a snapshot. Recover without turning an
+			// accepted mutation into a failure that invites a duplicate action.
+			await this.refreshPendingPrompts();
+			return;
+		}
+		this.appliedQueueMutation = sequence;
+		this.pendingPromptsRevision += 1;
+		this.dispatch({
+			type: "pending_prompts_recovered",
+			prompts: parsed.data.prompts.map(toPendingPromptView),
 		});
 	}
 
@@ -670,6 +714,7 @@ export class SessionConnection {
 			envelope.event === "session.pending_prompt_submitted"
 		) {
 			this.pendingPromptsRevision += 1;
+			this.pendingPromptsEventRevision += 1;
 		}
 		if (envelope.event === "capability.requested") {
 			const parsed = parseAskQuestionCapabilityRequest(
@@ -1017,7 +1062,7 @@ export class SessionConnection {
 				type: "hydrate_failed",
 				detail: errorDetail(error),
 			});
-			if (required) throw error;
+			if (required) throw new SessionHistoryUnavailableError(error);
 		}
 	}
 

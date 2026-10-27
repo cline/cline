@@ -2292,7 +2292,7 @@ export async function handleCommand(
 			throw new Error("requestId is required");
 		}
 		const answer = String(args?.answer ?? "").trim();
-		const resolved = resolveSidecarAskQuestion(ctx, requestId, answer);
+		const resolved = await resolveSidecarAskQuestion(ctx, requestId, answer);
 		if (!resolved) {
 			throw new Error(`unknown ask question request: ${requestId}`);
 		}

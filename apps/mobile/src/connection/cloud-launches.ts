@@ -1,3 +1,7 @@
+import {
+	type AttentionKind,
+	attentionChanges,
+} from "@/notifications/attention-events";
 import type {
 	ApprovalPolicy,
 	RemoteSession,
@@ -10,6 +14,18 @@ import {
 	type SessionConnectionControllerDeps,
 } from "./controller";
 import { type ConnectionDescriptor, descriptorKey } from "./endpoints";
+
+export type AttentionEvent =
+	| { type: "clear" }
+	| {
+			type: "attention";
+			id: string;
+			kind: AttentionKind;
+			endpointKey: string;
+			remoteSessionId: string;
+			sessionId: string;
+			focused: boolean;
+	  };
 
 interface Launch {
 	key: string;
@@ -35,6 +51,34 @@ function hasPendingWork(view: SessionViewModel): boolean {
 
 /** Retain opened sessions across navigation; never connect an unopened workspace. */
 export class CloudLaunches {
+	private attentionFocus?: { key: string };
+	private readonly attentionListeners = new Set<
+		(event: AttentionEvent) => void
+	>();
+	subscribeAttention = (listener: (event: AttentionEvent) => void) => {
+		this.attentionListeners.add(listener);
+		return () => {
+			this.attentionListeners.delete(listener);
+		};
+	};
+	focusForAttention(descriptor: ConnectionDescriptor): () => void {
+		const focus = { key: descriptorKey(descriptor) };
+		this.attentionFocus = focus;
+		return () => {
+			if (this.attentionFocus === focus) this.attentionFocus = undefined;
+		};
+	}
+	isAttentionFocused = (key: string): boolean =>
+		this.attentionFocus?.key === key;
+	private emitAttention(event: AttentionEvent): void {
+		for (const listener of this.attentionListeners) {
+			try {
+				listener(event);
+			} catch {
+				/* Alerts cannot interrupt the task. */
+			}
+		}
+	}
 	private readonly launches = new Map<string, Launch>();
 	private nextLocalLaunch = 0;
 	private readonly listeners = new Set<() => void>();
@@ -75,6 +119,24 @@ export class CloudLaunches {
 		const previous = entry.previousView;
 		const view = snapshot.view;
 		entry.previousView = view;
+		if (
+			entry.descriptor.mode === "cloud" &&
+			entry.descriptor.remoteSessionId &&
+			snapshot.sessionId &&
+			snapshot.status.phase === "ready"
+		) {
+			for (const change of attentionChanges(previous, view)) {
+				this.emitAttention({
+					type: "attention",
+					...change,
+					id: `${key}:${snapshot.sessionId}:${change.id}`,
+					endpointKey: key,
+					remoteSessionId: entry.descriptor.remoteSessionId,
+					sessionId: snapshot.sessionId,
+					focused: this.attentionFocus?.key === key,
+				});
+			}
+		}
 		// Hydration/reconnect is not new activity. Compare the reducer's stable
 		// block arrays, not message wrappers (projection rebuilds those every time).
 		const markUnread =
@@ -380,6 +442,8 @@ export class CloudLaunches {
 	}
 
 	clear(): void {
+		this.attentionFocus = undefined;
+		this.emitAttention({ type: "clear" });
 		for (const entry of this.launches.values()) {
 			entry.unsubscribe();
 			entry.controller.dispose();

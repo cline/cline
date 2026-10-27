@@ -47,6 +47,7 @@ interface KindVisual {
 
 /** Icons are from the DESIGN_SPEC §7 vocabulary (`Clock3` = stalled, etc.). */
 const VISUAL: Record<ConnectionErrorKind, KindVisual> = {
+	history: { icon: RefreshCw, tone: "warning" },
 	missing: { icon: CircleAlert, tone: "warning" },
 	unreachable: { icon: WifiOff, tone: "danger" },
 	timeout: { icon: Clock3, tone: "warning" },

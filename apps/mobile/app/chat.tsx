@@ -1,6 +1,7 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import {
 	Redirect,
+	useFocusEffect,
 	useLocalSearchParams,
 	useNavigation,
 	useRouter,
@@ -20,6 +21,7 @@ import {
 	descriptorKey,
 	useSessionConnection,
 } from "@/connection";
+import { cloudLaunches } from "@/connection/cloud-launches";
 import { userErrorMessage } from "@/error-message";
 import { ChatScreen } from "@/screens";
 import { CloudArchiveRoute } from "@/screens/CloudArchiveRoute";
@@ -191,6 +193,12 @@ function ConnectedChatRoute({
 	const { saveCloudModel } = useExecutionTargets();
 	const router = useRouter();
 	const { policy, store: approvalPolicyStore } = useApprovalPolicy();
+	useFocusEffect(
+		useCallback(
+			() => cloudLaunches.focusForAttention(descriptor),
+			[descriptor],
+		),
+	);
 	const [initialSubmissionBusy, setInitialSubmissionBusy] = useState(false);
 	const navigation = useNavigation();
 	useEffect(() => {
@@ -445,7 +453,11 @@ function ConnectedChatRoute({
 			/>
 		);
 	}
-	const reviewUrl = repositoryReviewUrl(descriptor.repoUrl, descriptor.branch);
+	const reviewUrl = repositoryReviewUrl(
+		descriptor.repoUrl,
+		connection.taskBranch,
+		descriptor.branch,
+	);
 	return (
 		<ChatScreen
 			extendIntoSideInsets={!inlineSidebar}

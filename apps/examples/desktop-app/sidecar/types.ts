@@ -124,6 +124,7 @@ export type AskQuestionRequestItem = {
 
 export type PendingAskQuestion = {
 	item: AskQuestionRequestItem;
+	respondRemote?: (answer: string) => Promise<void>;
 	resolve: (answer: string) => void;
 	reject: (error: Error) => void;
 	timeoutId?: ReturnType<typeof setTimeout>;

@@ -815,10 +815,17 @@ export function resolveSidecarAskQuestion(
 	ctx: SidecarContext,
 	requestId: string,
 	answer: string,
-): boolean {
+): boolean | Promise<boolean> {
 	const pending = ctx.pendingQuestions.get(requestId);
 	if (!pending) {
 		return false;
+	}
+	if (pending.respondRemote) {
+		return pending.respondRemote(answer).then(() => {
+			if (ctx.pendingQuestions.get(requestId) === pending)
+				ctx.pendingQuestions.delete(requestId);
+			return true;
+		});
 	}
 	ctx.pendingQuestions.delete(requestId);
 	if (pending.timeoutId) clearTimeout(pending.timeoutId);

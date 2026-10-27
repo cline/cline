@@ -435,6 +435,134 @@ describe("useChatSession", () => {
 		workspaceRoot: "/workspace",
 	};
 
+	it("syncs remote Cloud models but sends only explicit local model edits", async () => {
+		const sessionId = "cloud-model-owner";
+		const sends: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as Record<string, unknown>;
+					if (request.action === "attach" || request.action === "start")
+						return { sessionId, status: "completed", ...cloudSessionConfig };
+					if (request.action === "send") {
+						sends.push(request);
+						return { sessionId, ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "completed",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		await act(async () =>
+			handlerFor("cloud_session_model")({ sessionId, model: "remote-model" }),
+		);
+		expect(current.config.model).toBe("remote-model");
+		await act(async () => current.sendPrompt("untouched"));
+		expect(current.error).toBeNull();
+		expect((sends[0].config as Record<string, unknown>).model).toBeUndefined();
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				model: "explicit-model",
+			})),
+		);
+		await act(async () =>
+			handlerFor("cloud_session_model")({
+				sessionId,
+				model: "another-remote-model",
+			}),
+		);
+		expect(current.config.model).toBe("explicit-model");
+		await act(async () => current.sendPrompt("explicit"));
+		expect((sends[1].config as Record<string, unknown>).model).toBe(
+			"explicit-model",
+		);
+		await act(async () =>
+			handlerFor("cloud_session_model")({ sessionId, model: "latest-model" }),
+		);
+		expect(current.config.model).toBe("latest-model");
+		await act(async () => current.sendPrompt("again"));
+		expect((sends[2].config as Record<string, unknown>).model).toBeUndefined();
+	});
+	it("dispatches a Cloud model edit once across queued sends and reconciles its early ack without losing newer edits", async () => {
+		const sessionId = "cloud-model-race";
+		const first = deferred<Record<string, unknown>>();
+		const sends: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as Record<string, unknown>;
+					if (request.action === "attach" || request.action === "start")
+						return { sessionId, status: "completed", ...cloudSessionConfig };
+					if (request.action === "send") {
+						sends.push(request);
+						return sends.length === 1
+							? first.promise
+							: { sessionId, ok: true, queued: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "completed",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		await act(async () =>
+			current.setConfig((previous) => ({ ...previous, model: "chosen-A" })),
+		);
+		let sending!: Promise<boolean>;
+		await act(async () => {
+			sending = current.sendPrompt("first");
+		});
+		const edit = sends[0].config as Record<string, unknown>;
+		expect(edit.model).toBe("chosen-A");
+		await act(async () => current.sendPrompt("queued"));
+		expect((sends[1].config as Record<string, unknown>).model).toBeUndefined();
+		await act(async () =>
+			handlerFor("cloud_session_model")({ sessionId, model: "remote-B" }),
+		);
+		await act(async () =>
+			handlerFor("cloud_session_model_applied")({
+				sessionId,
+				changeId: edit.modelChangeId,
+				model: "remote-B",
+			}),
+		);
+		expect(current.config.model).toBe("remote-B");
+		await act(async () =>
+			current.setConfig((previous) => ({ ...previous, model: "newer-C" })),
+		);
+		await act(async () =>
+			handlerFor("cloud_session_model_applied")({
+				sessionId,
+				changeId: edit.modelChangeId,
+				model: "stale-A",
+			}),
+		);
+		expect(current.config.model).toBe("newer-C");
+		await act(async () => {
+			first.resolve({ sessionId, ok: true });
+			await sending;
+		});
+		await act(async () => current.sendPrompt("new edit"));
+		expect((sends[2].config as Record<string, unknown>).model).toBe("newer-C");
+	});
 	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
 		const sessionId = "session-repeated-status";
 		invokeMock.mockImplementation(

@@ -82,6 +82,11 @@ export async function restoreCloudSession(
 				...(typeof metadata.reasoningEffort === "string"
 					? { reasoningEffort: metadata.reasoningEffort }
 					: {}),
+				...(typeof metadata.thinkingBudgetTokens === "number" &&
+				Number.isFinite(metadata.thinkingBudgetTokens) &&
+				metadata.thinkingBudgetTokens >= 1
+					? { thinkingBudgetTokens: Math.trunc(metadata.thinkingBudgetTokens) }
+					: {}),
 				...(metadata.checkpointEnabled === true
 					? { checkpoint: { enabled: true } }
 					: {}),

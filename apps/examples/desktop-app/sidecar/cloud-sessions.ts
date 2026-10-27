@@ -782,6 +782,8 @@ type CloudRehydrationSnapshot = {
 
 type CloudConnection = {
 	remote: CloudSessionRecord;
+	modelRevision?: number;
+	modelUpdatePromise?: Promise<void>;
 	client: CloudHubClient;
 	innerSessionId?: string;
 	reconnectResolution?: Promise<void>;
@@ -1370,6 +1372,7 @@ export class CloudSessionManager {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		modelChangeId?: string,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1411,6 +1414,13 @@ export class CloudSessionManager {
 		// final authoritative snapshot.
 		throwIfCancelled();
 		await this.updateModel(connection, modelId);
+		if (modelChangeId && modelId) {
+			sendEvent(this.ctx, "cloud_session_model_applied", {
+				sessionId: outerSessionId,
+				changeId: modelChangeId,
+				model: connection.remote.metadata.modelId,
+			});
+		}
 		await connection.reconnectResolution;
 		// Stop also cancels sends still waiting for connection/attachment.
 		throwIfCancelled();
@@ -1570,6 +1580,28 @@ export class CloudSessionManager {
 
 	private async updateModel(
 		connection: CloudConnection,
+		modelId?: string,
+	): Promise<void> {
+		const previous = connection.modelUpdatePromise;
+		if (!modelId) {
+			await previous;
+			return;
+		}
+		const updating = (async () => {
+			await previous;
+			await this.updateModelOnce(connection, modelId);
+		})();
+		connection.modelUpdatePromise = updating;
+		try {
+			await updating;
+		} finally {
+			if (connection.modelUpdatePromise === updating)
+				connection.modelUpdatePromise = undefined;
+		}
+	}
+
+	private async updateModelOnce(
+		connection: CloudConnection,
 		requestedModelId?: string,
 	): Promise<void> {
 		const modelId = requestedModelId?.trim();
@@ -1580,6 +1612,7 @@ export class CloudSessionManager {
 		if (!innerSessionId) {
 			throw new Error("Cloud Hub session was not initialized");
 		}
+		const revision = connection.modelRevision ?? 0;
 		await connection.client.command(
 			"session.update_connection",
 			{ sessionId: innerSessionId, updates: { modelId } },
@@ -1596,15 +1629,26 @@ export class CloudSessionManager {
 			},
 		);
 		this.assertSessionActive(connection.remote.id, connection);
-		this.applyModel(connection, modelId);
+		// An old Hub may omit broadcasts. Supply the ack fallback only if no
+		// authoritative snapshot arrived while this command was in flight.
+		if ((connection.modelRevision ?? 0) === revision)
+			this.applyModel(connection, modelId);
 	}
 
 	private applyModel(connection: CloudConnection, modelId: string): void {
+		const changed = connection.remote.metadata.modelId !== modelId;
+		if (changed) connection.modelRevision = (connection.modelRevision ?? 0) + 1;
 		connection.remote.metadata.modelId = modelId;
 		const live = this.ctx.liveSessions.get(connection.remote.id);
 		if (live) {
 			live.config.model = modelId;
 			live.config.modelId = modelId;
+		}
+		if (changed) {
+			sendEvent(this.ctx, "cloud_session_model", {
+				sessionId: connection.remote.id,
+				model: modelId,
+			});
 		}
 	}
 
@@ -2356,6 +2400,7 @@ export class CloudSessionManager {
 				// its state; a replacement may now own the shared approval entries.
 				if (!this.disposed) {
 					this.clearPendingApprovals(outerSessionId);
+					this.clearPendingQuestions(outerSessionId);
 				}
 				await client.dispose().catch(() => undefined);
 				throw error;
@@ -2478,7 +2523,16 @@ export class CloudSessionManager {
 				model: modelId,
 				interactive: true,
 			},
-			runtimeOptions: { mode: "act" },
+			runtimeOptions: {
+				mode: "act",
+				clientContributions: [
+					{
+						kind: "toolExecutor",
+						executor: "askQuestion",
+						capabilityName: "tool_executor.askQuestion",
+					},
+				],
+			},
 			modelSelection: { provider: "cline", model: modelId },
 			toolPolicies: {
 				"*": { autoApprove: live?.config.autoApproveTools !== false },
@@ -2501,6 +2555,79 @@ export class CloudSessionManager {
 		this.applySessionModel(connection, session);
 		// A newly-created inner session has an authoritative empty transcript.
 		connection.transcriptKnown = true;
+	}
+
+	private handleQuestionEvent(
+		outerSessionId: string,
+		connection: CloudConnection,
+		event: HubEventEnvelope,
+	): void {
+		const payload = event.payload;
+		if (!payload || payload.targetClientId !== connection.client.getClientId())
+			return;
+		const id =
+			typeof payload.requestId === "string" ? payload.requestId.trim() : "";
+		if (!id) return;
+		const requestId = `${outerSessionId}:${id}`;
+		if (event.event === "capability.resolved") {
+			if (this.ctx.pendingQuestions.delete(requestId))
+				sendEvent(this.ctx, "ask_question_answered", { requestId });
+			return;
+		}
+		if (payload.capabilityName !== "tool_executor.askQuestion") return;
+		const args = (payload.payload as { args?: unknown[] } | undefined)?.args;
+		if (!Array.isArray(args)) return;
+		const [question, options] = args;
+		if (
+			typeof question !== "string" ||
+			!question.trim() ||
+			!Array.isArray(options) ||
+			options.length < 2 ||
+			options.length > 5 ||
+			!options.every((option) => typeof option === "string" && option.trim())
+		)
+			return;
+		if (this.ctx.pendingQuestions.has(requestId)) return;
+		const item = {
+			requestId,
+			sessionId: outerSessionId,
+			createdAt: new Date().toISOString(),
+			question: question.trim(),
+			options: options.map((option) => option.trim()),
+		};
+		const innerSessionId = connection.innerSessionId;
+		this.ctx.pendingQuestions.set(requestId, {
+			item,
+			resolve: () => {},
+			reject: () => {},
+			respondRemote: async (answer) => {
+				this.assertSessionActive(outerSessionId, connection);
+				if (!innerSessionId || connection.innerSessionId !== innerSessionId)
+					throw new Error(
+						"The question's session changed. Reopen the conversation.",
+					);
+				if (!item.options.includes(answer.trim()))
+					throw new Error("Choose one of the offered answers.");
+				await connection.client.command(
+					"capability.respond",
+					{ requestId: id, ok: true, payload: { result: answer.trim() } },
+					innerSessionId,
+				);
+			},
+		});
+		sendEvent(this.ctx, "ask_question_requested", item);
+	}
+
+	private clearPendingQuestions(outerSessionId: string): void {
+		for (const [requestId, pending] of this.ctx.pendingQuestions) {
+			if (pending.item.sessionId !== outerSessionId || !pending.respondRemote)
+				continue;
+			this.ctx.pendingQuestions.delete(requestId);
+			sendEvent(this.ctx, "ask_question_cancelled", {
+				requestId,
+				reason: "connection changed",
+			});
+		}
 	}
 
 	private handleEvent(
@@ -2550,6 +2677,13 @@ export class CloudSessionManager {
 		event: HubEventEnvelope,
 	): void {
 		if (this.disposed || connection.disposed) return;
+		if (
+			event.event === "capability.requested" ||
+			event.event === "capability.resolved"
+		) {
+			this.handleQuestionEvent(outerSessionId, connection, event);
+			return;
+		}
 		if (
 			event.event === "session.attached" ||
 			event.event === "session.updated" ||
@@ -2684,6 +2818,7 @@ export class CloudSessionManager {
 		connection.unsubscribe();
 		// Rebuild from the Hub's pending-approval replay, not stale local buttons.
 		this.clearPendingApprovals(outerSessionId);
+		this.clearPendingQuestions(outerSessionId);
 		connection.unsubscribe = connection.client.subscribe(
 			(event) => this.handleEvent(outerSessionId, connection, event),
 			{ sessionId: innerSessionId },
@@ -2710,6 +2845,7 @@ export class CloudSessionManager {
 		connection.disposed = true;
 		connection.unsubscribe();
 		this.clearPendingApprovals(outerSessionId);
+		this.clearPendingQuestions(outerSessionId);
 		await connection.client.dispose();
 	}
 

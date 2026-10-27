@@ -46,6 +46,7 @@ function setup(
 		createdId?: string;
 		probeError?: Error;
 		autoApproveTools?: boolean;
+		thinkingBudgetTokens?: unknown;
 	} = {},
 ) {
 	let restored = options.live;
@@ -63,6 +64,7 @@ function setup(
 							...saved,
 							metadata: {
 								...saved.metadata,
+								thinkingBudgetTokens: options.thinkingBudgetTokens,
 								...(options.autoApproveTools === undefined
 									? {}
 									: { autoApproveTools: options.autoApproveTools }),
@@ -193,4 +195,25 @@ describe("saved PVC task restoration", () => {
 			"session.create",
 		);
 	});
+});
+
+it.each([
+	2048,
+	2048.9,
+	0,
+	-1,
+	Infinity,
+	NaN,
+	"2048",
+])("preserves only valid saved custom thinking budgets: %s", async (budget) => {
+	const { client, command } = setup({ thinkingBudgetTokens: budget });
+	await restoreCloudSession(client, "task-1");
+	const create = command.mock.calls.find(
+		([name]) => name === "session.create",
+	)?.[1] as { sessionConfig: Record<string, unknown> };
+	expect(create.sessionConfig.thinkingBudgetTokens).toBe(
+		typeof budget === "number" && Number.isFinite(budget) && budget >= 1
+			? Math.trunc(budget)
+			: undefined,
+	);
 });

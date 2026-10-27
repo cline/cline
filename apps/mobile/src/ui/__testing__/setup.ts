@@ -477,8 +477,46 @@ vi.mock("expo-document-picker", () => ({
 	getDocumentAsync: vi.fn(async () => ({ canceled: true, assets: null })),
 }));
 
+vi.mock("expo-sharing", () => ({
+	isAvailableAsync: vi.fn(async () => true),
+	shareAsync: vi.fn(async () => {}),
+}));
+
+vi.mock("expo-secure-store", () => ({
+	getItemAsync: vi.fn(async () => null),
+	setItemAsync: vi.fn(async () => {}),
+	deleteItemAsync: vi.fn(async () => {}),
+}));
+
+vi.mock("expo-notifications", () => ({
+	AndroidImportance: { HIGH: 4 },
+	IosAuthorizationStatus: { PROVISIONAL: 3 },
+	setNotificationChannelAsync: vi.fn(async () => {}),
+	requestPermissionsAsync: vi.fn(async () => ({ granted: true })),
+	getPermissionsAsync: vi.fn(async () => ({ granted: true })),
+	dismissAllNotificationsAsync: vi.fn(async () => {}),
+	dismissNotificationAsync: vi.fn(async () => {}),
+	cancelAllScheduledNotificationsAsync: vi.fn(async () => {}),
+	cancelScheduledNotificationAsync: vi.fn(async () => {}),
+	scheduleNotificationAsync: vi.fn(async () => "notification-1"),
+	setNotificationHandler: vi.fn(),
+	clearLastNotificationResponse: vi.fn(),
+	getLastNotificationResponse: vi.fn(() => null),
+	addNotificationResponseReceivedListener: vi.fn(() => ({ remove: vi.fn() })),
+}));
+
 vi.mock("expo-file-system", () => ({
 	Paths: { cache: "file:///cache" },
+	Directory: class {
+		uri: string;
+		constructor(...parts: string[]) {
+			this.uri = parts.join("/");
+		}
+		create() {}
+		list() {
+			return [];
+		}
+	},
 	File: class {
 		uri: string;
 		exists = false;
@@ -487,6 +525,9 @@ vi.mock("expo-file-system", () => ({
 			this.uri = parts
 				.map((part) => (typeof part === "string" ? part : part.uri))
 				.join("/");
+		}
+		get name() {
+			return this.uri.split("/").at(-1) ?? "";
 		}
 		create() {
 			this.exists = true;

@@ -33,6 +33,8 @@ export interface UseSessionConnection {
 	pendingReasoning?: ReasoningChoice;
 	view: ConnectionSnapshot["view"];
 	status: ConnectionSnapshot["status"];
+	/** Prescribed branch from the resolved Cloud workspace; not a live git lookup. */
+	taskBranch?: string;
 	/** Exact inner Hub session selected or created by this connection. */
 	sessionId?: string;
 	sendInput(text: string, attachments?: SessionInputAttachments): Promise<void>;
@@ -74,6 +76,15 @@ export function useSessionConnection(
 	deps?: SessionConnectionControllerDeps,
 ): UseSessionConnection {
 	const controllerRef = useRef<SessionConnectionController | null>(null);
+	const focusHistory = useRef<
+		| {
+				controller: SessionConnectionController;
+				generation: number;
+				left: boolean;
+				needsRecovery: boolean;
+		  }
+		| undefined
+	>(undefined);
 	// A pure idle snapshot — no controller is constructed here. Building one just
 	// for the seed value would risk a second HubClient (and Strict Mode invokes
 	// this initializer too); the sole controller is created in the effect below.
@@ -107,6 +118,18 @@ export function useSessionConnection(
 		useCallback(() => {
 			const controller = controllerRef.current;
 			if (descriptor.mode !== "cloud" || !controller) return;
+			const previous = focusHistory.current;
+			const returningToChat =
+				previous?.controller === controller
+					? previous.left || previous.needsRecovery
+					: controller.getSnapshot().status.phase === "ready";
+			const generation = (previous?.generation ?? 0) + 1;
+			focusHistory.current = {
+				controller,
+				generation,
+				left: false,
+				needsRecovery: returningToChat,
+			};
 			let mounted = true;
 			let previousAppState = AppState.currentState;
 			let timer: ReturnType<typeof setInterval> | undefined;
@@ -143,6 +166,16 @@ export function useSessionConnection(
 				timer = setInterval(() => recover(true), 30_000);
 			};
 			if (previousAppState === "active") startHealthChecks();
+			if (returningToChat && previousAppState === "active") {
+				// Defer past Strict Mode's synchronous cleanup/remount. A retained
+				// controller needs history recovery; a fresh bootstrap already hydrates.
+				queueMicrotask(() => {
+					if (!mounted) return;
+					if (focusHistory.current?.generation === generation)
+						focusHistory.current.needsRecovery = false;
+					recover(false);
+				});
+			}
 			const subscription = AppState.addEventListener("change", (state) => {
 				const returningToApp =
 					state === "active" &&
@@ -159,6 +192,10 @@ export function useSessionConnection(
 				mounted = false;
 				stopHealthChecks();
 				subscription.remove();
+				queueMicrotask(() => {
+					if (focusHistory.current?.generation === generation)
+						focusHistory.current.left = true;
+				});
 			};
 		}, [descriptor, deps, snapshot.sessionId]),
 	);
@@ -251,6 +288,7 @@ export function useSessionConnection(
 
 	return {
 		pendingReasoning: snapshot.pendingReasoning,
+		...(snapshot.taskBranch ? { taskBranch: snapshot.taskBranch } : {}),
 		view: snapshot.view,
 		status: snapshot.status,
 		...(snapshot.sessionId ? { sessionId: snapshot.sessionId } : {}),

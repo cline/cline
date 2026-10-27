@@ -2175,6 +2175,9 @@ export async function handleChatSessionCommand(
 					request.delivery,
 					modelId || undefined,
 					request.attachments?.userImages,
+					typeof request.config?.modelChangeId === "string"
+						? request.config.modelChangeId
+						: undefined,
 				);
 			}
 			case "stop":

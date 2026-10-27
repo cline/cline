@@ -5,22 +5,22 @@ import {
 	ThemeProvider as NavThemeProvider,
 	Stack,
 } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactNode, useEffect } from "react";
 import { LogBox } from "react-native";
-import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
+import { AttentionNotifications } from "@/notifications/AttentionNotifications";
+import { AppearanceProvider, useAppearance } from "@/state/appearance";
 import { CloudAuthProvider } from "@/state/cloud-auth";
 import { EndpointsProvider } from "@/state/endpoints";
 import { ExecutionTargetsProvider } from "@/state/execution-targets";
 import { LastOpenedProvider } from "@/state/last-opened";
 import { SettingsProvider, useApprovalPolicy } from "@/state/settings";
-import { StartupScreen, useTheme, useClineFonts } from "@/ui";
-
-import { AppearanceProvider, useAppearance } from "@/state/appearance";
+import { StartupScreen, useClineFonts, useTheme } from "@/ui";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -85,6 +85,9 @@ function AppLayout() {
 										<RestoredSettings>
 											<BottomSheetModalProvider>
 												<NavThemeProvider value={navigationTheme}>
+													{fontsReady && appearanceReady ? (
+														<AttentionNotifications />
+													) : null}
 													<StatusBar
 														style={theme.mode === "dark" ? "light" : "dark"}
 													/>

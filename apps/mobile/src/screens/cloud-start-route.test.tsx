@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
 	unmountChat: vi.fn(),
 }));
 vi.mock("expo-router", () => ({
+	useFocusEffect: (callback: () => void | (() => void)) =>
+		useEffect(callback, [callback]),
 	useLocalSearchParams: () => ({ endpointKey: state.key }),
 	useRouter: () => ({
 		replace: state.replace,

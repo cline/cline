@@ -12,7 +12,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
-import { createSidecarContext } from "./context";
+import { createSidecarContext, resolveSidecarAskQuestion } from "./context";
 import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
@@ -1542,6 +1542,18 @@ describe("CloudSessionManager Hub runtime", () => {
 		const config = hub.commands.find(
 			({ command }) => command === "session.create",
 		)?.payload?.sessionConfig as { systemPrompt: string };
+		expect(
+			hub.commands.find(({ command }) => command === "session.create")?.payload
+				?.runtimeOptions,
+		).toMatchObject({
+			clientContributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+			],
+		});
 		expect(config.systemPrompt).toContain(
 			"credentials are injected transparently",
 		);
@@ -1655,11 +1667,132 @@ describe("CloudSessionManager Hub runtime", () => {
 		).toHaveLength(0);
 	});
 
+	it("surfaces only owned Cloud questions, retries failed responses and clears remote resolutions", async () => {
+		const { manager, hub, ctx, events } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const emit = (
+			targetClientId: string,
+			event:
+				| "capability.requested"
+				| "capability.resolved" = "capability.requested",
+			requestId = "question-1",
+		) =>
+			hub.events?.({
+				version: "v1",
+				event,
+				eventId: crypto.randomUUID(),
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: {
+					targetClientId,
+					requestId,
+					capabilityName: "tool_executor.askQuestion",
+					payload: { args: ["Which branch?", ["main", "work"]] },
+				},
+			});
+		emit("another-client");
+		expect(ctx.pendingQuestions.size).toBe(0);
+		emit(hub.getClientId());
+		const requestId = "ses-outer:question-1";
+		expect(ctx.pendingQuestions.get(requestId)?.item.options).toEqual([
+			"main",
+			"work",
+		]);
+		expect(
+			events.some((event) => event.name === "ask_question_requested"),
+		).toBe(true);
+		const original = hub.command.bind(hub);
+		const spy = vi.spyOn(hub, "command").mockImplementationOnce(async () => {
+			throw new Error("offline");
+		});
+		await expect(
+			resolveSidecarAskQuestion(ctx, requestId, "work"),
+		).rejects.toThrow("offline");
+		expect(ctx.pendingQuestions.has(requestId)).toBe(true);
+		spy.mockImplementation(original);
+		await expect(
+			resolveSidecarAskQuestion(ctx, requestId, "work"),
+		).resolves.toBe(true);
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "capability.respond",
+			sessionId: "inner-1",
+			payload: {
+				requestId: "question-1",
+				ok: true,
+				payload: { result: "work" },
+			},
+		});
+		expect(ctx.pendingQuestions.has(requestId)).toBe(false);
+		emit(hub.getClientId(), "capability.requested", "question-2");
+		emit(hub.getClientId(), "capability.resolved", "question-2");
+		expect(ctx.pendingQuestions.size).toBe(0);
+		emit(hub.getClientId(), "capability.requested", "question-3");
+		await manager.dispose();
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("serializes model updates ahead of queued sends and preserves a newer broadcast over the ack fallback", async () => {
+		const { manager, hub, ctx, events } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const updating = Promise.withResolvers<void>();
+		const entered = Promise.withResolvers<void>();
+		const original = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.update_connection") {
+				entered.resolve();
+				await updating.promise;
+			}
+			return original(command, payload, sessionId, options);
+		};
+		const first = manager.send(
+			"ses-outer",
+			"first",
+			undefined,
+			"chosen-A",
+			undefined,
+			"edit-1",
+		);
+		await entered.promise;
+		const second = manager.send("ses-outer", "queued", "queue");
+		await Promise.resolve();
+		expect(
+			hub.commands.some((command) => command.command === "session.send_input"),
+		).toBe(false);
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "new-model-race",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { session: { model: "remote-B" } },
+		});
+		updating.resolve();
+		await Promise.all([first, second]);
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe("remote-B");
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toHaveLength(1);
+		expect(events).toContainEqual({
+			name: "cloud_session_model_applied",
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				changeId: "edit-1",
+				model: "remote-B",
+			},
+		});
+		await manager.dispose();
+	});
+
 	it("reconciles another client's model change before the next prompt", async () => {
 		const hub = new FakeHubClient();
 		const originalModel = REMOTE_SESSION.metadata.modelId ?? "";
 		const externalModel = "anthropic/claude-opus-4-1";
-		const { manager, ctx } = createFixture({ hub });
+		const { manager, ctx, events } = createFixture({ hub });
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -1673,6 +1806,20 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(externalModel);
 
+		expect(events).toContainEqual({
+			name: "cloud_session_model",
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				model: externalModel,
+			},
+		});
+		await manager.send("ses-outer", "Preserve remote choice");
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toHaveLength(0);
 		await manager.send(
 			"ses-outer",
 			"Use the selected model",
