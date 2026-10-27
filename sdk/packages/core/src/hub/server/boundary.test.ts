@@ -73,13 +73,27 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
-	it("resumes saved history with the supplied configuration", async () => {
+	it.each([
+		false,
+		true,
+	])("resumes history with the supplied configuration (live reader: %s)", async (hasLiveReader) => {
 		const mode = "plan";
-		const messages = [{ role: "user", content: "saved conversation" }];
+		const savedMessages = [{ role: "user", content: "saved conversation" }];
+		const messages = hasLiveReader
+			? [
+					...savedMessages,
+					{ role: "assistant", content: "newer in-memory reply" },
+				]
+			: savedMessages;
 		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
-		const readSessionMessages = vi.fn().mockResolvedValue(messages);
+		const readSessionMessages = vi.fn().mockResolvedValue(savedMessages);
+		const readLiveSessionMessages = vi.fn().mockResolvedValue(messages);
 		const transport = createTransport({
-			sessionHost: { startSession, readSessionMessages },
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				...(hasLiveReader ? { readLiveSessionMessages } : {}),
+			},
 		});
 		try {
 			const reply = await transport.handleCommand({
@@ -95,7 +109,12 @@ describe("HubServerTransport boundaries", () => {
 				sessionId: "session-1",
 				createdByClientId: "resume-client",
 			});
-			expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+			if (hasLiveReader) {
+				expect(readLiveSessionMessages).toHaveBeenCalledWith("session-1");
+				expect(readSessionMessages).not.toHaveBeenCalled();
+			} else {
+				expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+			}
 			expect(startSession).toHaveBeenCalledWith(
 				expect.objectContaining({
 					initialMessages: messages,

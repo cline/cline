@@ -3,7 +3,9 @@ import {
 	type DiscordAdapter,
 } from "@chat-adapter/discord";
 // Note: discord.js@14 declares undici ^6.27.0, but the root package.json
-// override ("undici": ">=7.29.0 <8") forces undici 7.x for CVE-2026-1525.
+// override ("undici": ">=7.30.1 <8") forces undici 7.x. The floor was raised
+// to 7.29.0 for CVE-2026-1525 and to 7.30.1 for CVE-2026-109869 and
+// CVE-2026-87018 (AIKIDO-2026-159850, AIKIDO-2026-393834).
 import type { ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
