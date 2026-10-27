@@ -635,6 +635,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.search"
 	| "session.create"
+	| "session.resume"
 	| "session.attach"
 	| "session.detach"
 	| "session.get"

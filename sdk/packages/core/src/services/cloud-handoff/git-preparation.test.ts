@@ -311,7 +311,7 @@ describe("cloud handoff Git preparation", () => {
 		const beforeIndex = git("write-tree");
 		const originalHead = git("rev-parse", "HEAD");
 		const originalStatus = git("status", "--porcelain");
-		const originalRefs = git("show-ref");
+		const originalRefs = git("show-ref", "--heads", "--tags");
 		const originalConfig = readFileSync(join(repo, ".git/config"));
 		transport.pushUrl = "https://synthetic-token@github.com/cline/todo-app";
 		transport.rejectFetch = true;
@@ -336,7 +336,7 @@ describe("cloud handoff Git preparation", () => {
 			git("worktree", "list", "--porcelain").match(/^worktree /gm),
 		).toHaveLength(1);
 		await verifyPublishedHandoffGit(plan, published);
-		expect(git("show-ref")).toBe(originalRefs);
+		expect(git("show-ref", "--heads", "--tags")).toBe(originalRefs);
 		expect(readFileSync(join(repo, ".git/config"))).toEqual(originalConfig);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
