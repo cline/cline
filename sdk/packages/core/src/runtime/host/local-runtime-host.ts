@@ -1837,32 +1837,30 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		action: () => Promise<T>,
 	): Promise<T> {
-		return this.enqueueSessionWrite(
-			session,
-			"compactionStateWriteQueue",
+		return chainWrite(
+			{
+				get: () => session.compactionStateWriteQueue,
+				set: (queue) => {
+					session.compactionStateWriteQueue = queue;
+				},
+			},
 			action,
 		);
 	}
 
-	private async enqueueSessionWrite<T>(
+	private async enqueueStatusWrite<T>(
 		session: ActiveSession,
-		queue: "compactionStateWriteQueue" | "statusWriteQueue",
 		action: () => Promise<T>,
 	): Promise<T> {
-		const previous = session[queue] ?? Promise.resolve();
-		const run = previous.catch(() => undefined).then(action);
-		const tracked = run.then(
-			() => undefined,
-			() => undefined,
+		return chainWrite(
+			{
+				get: () => session.statusWriteQueue,
+				set: (queue) => {
+					session.statusWriteQueue = queue;
+				},
+			},
+			action,
 		);
-		session[queue] = tracked;
-		try {
-			return await run;
-		} finally {
-			if (session[queue] === tracked) {
-				session[queue] = undefined;
-			}
-		}
 	}
 
 	async readLiveSessionMessages(
@@ -2905,7 +2903,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// when teardown started. The persistence layer retries a write whose
 		// status lock went stale, so an overlapping earlier write would
 		// otherwise win.
-		return this.enqueueSessionWrite(session, "statusWriteQueue", () =>
+		return this.enqueueStatusWrite(session, () =>
 			this.writeStatus(session, status, exitCode),
 		);
 	}
@@ -3205,5 +3203,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		...args: unknown[]
 	): Promise<T | undefined> {
 		return invokeBackendOptionalValue<T>(this.sessionService, method, ...args);
+	}
+}
+
+/** Runs `action` after the queue's previous write settles, whatever its outcome. */
+async function chainWrite<T>(
+	queue: {
+		get(): Promise<void> | undefined;
+		set(queue: Promise<void> | undefined): void;
+	},
+	action: () => Promise<T>,
+): Promise<T> {
+	const previous = queue.get() ?? Promise.resolve();
+	const run = previous.catch(() => undefined).then(action);
+	const tracked = run.then(
+		() => undefined,
+		() => undefined,
+	);
+	queue.set(tracked);
+	try {
+		return await run;
+	} finally {
+		if (queue.get() === tracked) {
+			queue.set(undefined);
+		}
 	}
 }
