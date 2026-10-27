@@ -90,6 +90,7 @@ import json
 client = OpenAI(
     base_url="https://api.cline.bot/api/v1",
     api_key="YOUR_API_KEY",
+    default_headers={"X-Response-Format": "openai"},
 )
 
 tools = [
