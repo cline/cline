@@ -1574,6 +1574,7 @@ function ChatThreadPane({
 	const {
 		sessionId,
 		status,
+		turnEpoch,
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
@@ -1630,6 +1631,7 @@ function ChatThreadPane({
 	const runInFlight = nextTurnRunInFlight(status);
 	const [nextTurnTrackedFlight, setNextTurnTrackedFlight] =
 		useState(runInFlight);
+	const [nextTurnTrackedEpoch, setNextTurnTrackedEpoch] = useState(turnEpoch);
 	if (runInFlight !== nextTurnTrackedFlight) {
 		setNextTurnTrackedFlight(runInFlight);
 		if (runInFlight) {
@@ -1638,6 +1640,13 @@ function ChatThreadPane({
 			);
 			setNextTurnSuggestions(undefined);
 		}
+	}
+	if (turnEpoch !== nextTurnTrackedEpoch) {
+		setNextTurnTrackedEpoch(turnEpoch);
+		nextTurnMemoryRef.current = markNewerNextTurnRun(
+			nextTurnMemoryRef.current,
+		);
+		setNextTurnSuggestions(undefined);
 	}
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
