@@ -74,7 +74,7 @@ export function acceptNextTurnSuggestions(input: {
 	payload: unknown;
 	memory: NextTurnThreadMemory;
 }): {
-	state: NextTurnSuggestionState | null;
+	state: NextTurnSuggestionState | undefined;
 	memory: NextTurnThreadMemory;
 } | null {
 	if (!input.sessionId) return null;
@@ -95,7 +95,7 @@ export function acceptNextTurnSuggestions(input: {
 	}
 
 	return {
-		state: input.draft.trim() === "" ? { prompts, index: 0 } : null,
+		state: input.draft.trim() === "" ? { prompts, index: 0 } : undefined,
 		memory: {
 			acceptedRunIds:
 				runId === latestRunId ? acceptedRunIds : [...acceptedRunIds, runId],
