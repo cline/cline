@@ -306,7 +306,9 @@ export async function handleSessionResume(
 			"The saved session was not found.",
 		);
 	}
-	const initialMessages = await ctx.sessionHost.readSessionMessages(sessionId);
+	const initialMessages = await (ctx.sessionHost.readLiveSessionMessages
+		? ctx.sessionHost.readLiveSessionMessages(sessionId)
+		: ctx.sessionHost.readSessionMessages(sessionId));
 	if (initialMessages.length === 0) {
 		return errorReply(
 			envelope,
