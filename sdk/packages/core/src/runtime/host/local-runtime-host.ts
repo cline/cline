@@ -563,9 +563,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async liveSessionStartResult(
 		session: ActiveSession,
 	): Promise<StartSessionResult> {
-		// A turn still preparing has not created the session row yet; it
-		// will within its own preparation, so wait for it rather than fail.
-		await this.waitForSessionRow(session);
+		// A turn in flight persists the session before anything else, so a
+		// row that is not there yet is being created right now.
+		await session.persistInFlight?.catch(() => undefined);
 		const artifacts = session.artifacts;
 		if (!artifacts) {
 			throw new Error(
@@ -2072,23 +2072,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return await this.prepareAndRunTurn(session, input);
 		} finally {
 			session.turnsInFlight -= 1;
-			this.notifySessionRowWaiters(session);
 		}
-	}
-
-	private waitForSessionRow(session: ActiveSession): Promise<void> {
-		if (session.artifacts || session.turnsInFlight === 0) {
-			return Promise.resolve();
-		}
-		return new Promise((resolve) => {
-			(session.artifactWaiters ??= []).push(resolve);
-		});
-	}
-
-	private notifySessionRowWaiters(session: ActiveSession): void {
-		const waiters = session.artifactWaiters;
-		session.artifactWaiters = undefined;
-		for (const resolve of waiters ?? []) resolve();
 	}
 
 	/** True while a turn is being prepared or the agent has a run in progress. */
@@ -2103,20 +2087,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// An abort that arrived between turns targeted a run that had already
 		// ended; only aborts issued from here on belong to this turn.
 		session.aborting = false;
-		const preparedInput = await this.prepareTurnInput(session, input);
-		const prompt = preparedInput.prompt.trim();
-		const images = preparedInput?.userImages?.length;
-		const files = preparedInput?.userFiles?.length;
-		if (!prompt && !images && !files) throw new Error("prompt cannot be empty");
+		const userPrompt = normalizeUserInput(input.prompt).trim();
+		if (!userPrompt && !input.userImages?.length && !input.userFiles?.length) {
+			throw new Error("prompt cannot be empty");
+		}
 
 		if (!session.artifacts && !session.pendingPrompt) {
-			session.pendingPrompt = prompt;
+			session.pendingPrompt = userPrompt;
 		}
-		// A session torn down before its first turn persisted must not be
-		// materialized on disk by that turn afterwards.
-		if (session.shuttingDown) {
-			return this.skipTurnForTeardown(session, input);
-		}
+		// Persist before any other await: a turn in flight then always has
+		// either a row or a row creation in flight for teardown and reattach
+		// to wait on.
 		await this.ensureSessionPersisted(session);
 		// A seeded session (fork, checkpoint restore, missing-session
 		// recovery) materializes at start, before any prompt exists, so its
@@ -2125,11 +2106,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// here: the persistence service derives the title from this prompt
 		// when the session is untitled, and leaves any user-set title alone.
 		if (!session.pendingPrompt) {
-			session.pendingPrompt = prompt;
+			session.pendingPrompt = userPrompt;
 			try {
 				await this.invokeOptionalValue("updateSession", {
 					sessionId: session.sessionId,
-					prompt,
+					prompt: userPrompt,
 				});
 			} catch (error) {
 				session.config.logger?.log?.(
@@ -2138,6 +2119,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				);
 			}
 		}
+		const preparedInput = await this.prepareTurnInput(session, input);
+		const prompt = preparedInput.prompt.trim();
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
@@ -2588,7 +2571,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await persist;
 		} finally {
 			session.persistInFlight = undefined;
-			this.notifySessionRowWaiters(session);
 		}
 	}
 

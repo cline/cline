@@ -31,10 +31,8 @@ export type ActiveSession = {
 	shuttingDown: boolean;
 	/** Turns between their first await and settling, including the pre-run work before the agent has a run. */
 	turnsInFlight: number;
-	/** The session row being created for the first turn, so teardown can land its status on it. */
+	/** The session row being created for the first turn, so teardown and reattach can wait for it. */
 	persistInFlight?: Promise<void>;
-	/** Callers waiting for the in-flight turn to create the session row, or to end without one. */
-	artifactWaiters?: Array<() => void>;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
