@@ -54,6 +54,16 @@ message McpTool {
   optional string description = 2;
   optional string input_schema = 3;
   optional bool auto_approve = 4;
+  optional McpToolAnnotations annotations = 5;
+}
+
+// Behavior hints declared by the MCP server; absent means undeclared.
+message McpToolAnnotations {
+  optional string title = 1;
+  optional bool read_only_hint = 2;
+  optional bool destructive_hint = 3;
+  optional bool idempotent_hint = 4;
+  optional bool open_world_hint = 5;
 }
 
 message McpResource {
