@@ -371,9 +371,16 @@ class StdioMcpClient implements McpServerClient {
 			const result = (await this.request(
 				"tools/list",
 				cursor === undefined ? undefined : { cursor },
-			)) as { tools?: Partial<McpToolDescriptor>[]; nextCursor?: string };
+			)) as { tools?: Partial<McpToolDescriptor>[]; nextCursor?: unknown };
 			tools.push(...(result.tools ?? []));
-			cursor = result.nextCursor;
+			const nextCursor =
+				typeof result.nextCursor === "string" ? result.nextCursor : undefined;
+			if (nextCursor !== undefined && nextCursor === cursor) {
+				throw new Error(
+					`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
+				);
+			}
+			cursor = nextCursor;
 		} while (cursor !== undefined);
 		return tools
 			.filter(
@@ -865,7 +872,13 @@ class SdkUrlMcpClient implements McpServerClient {
 					{ timeout: this.requestTimeoutMs },
 				);
 				tools.push(...result.tools);
-				cursor = result.nextCursor;
+				const nextCursor = result.nextCursor;
+				if (nextCursor !== undefined && nextCursor === cursor) {
+					throw new Error(
+						`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
+					);
+				}
+				cursor = nextCursor;
 			} while (cursor !== undefined);
 			return tools.map((tool) => ({
 				name: tool.name,

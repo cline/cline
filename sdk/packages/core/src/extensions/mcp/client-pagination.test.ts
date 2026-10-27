@@ -7,8 +7,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDefaultMcpServerClientFactory } from "./client";
 import type { McpServerClient, McpToolDescriptor } from "./types";
 
-type Page = { tools: McpToolDescriptor[]; nextCursor?: string };
-type Scenario = { pages: Page[]; failOnSecondPage?: boolean };
+type Page = { tools: McpToolDescriptor[]; nextCursor?: string | null };
+type Scenario = {
+	pages: Page[];
+	failOnSecondPage?: boolean;
+	maxListRequests?: number;
+};
 
 // Self-contained so the same server behavior can run in a real stdio child.
 function makeResponder(scenario: Scenario) {
@@ -31,6 +35,16 @@ function makeResponder(scenario: Scenario) {
 		} else if (request.method === "tools/list") {
 			const cursor = request.params?.cursor;
 			cursors.push(cursor ?? null);
+			if (
+				scenario.maxListRequests !== undefined &&
+				cursors.length > scenario.maxListRequests
+			) {
+				return {
+					jsonrpc: "2.0",
+					id: request.id,
+					error: { code: -32603, message: "too many pagination requests" },
+				};
+			}
 			const index =
 				cursor === undefined
 					? 0
@@ -214,6 +228,30 @@ input.on('close', () => process.exit(0));
 			failOnSecondPage: true,
 		});
 		await expect(client.listTools()).rejects.toThrow("later page failed");
+	});
+
+	if (transport === "stdio") {
+		it("treats a null next cursor as the end of the tool list", async () => {
+			const client = await createClient({
+				pages: [{ tools: [first], nextCursor: null }, { tools: [last] }],
+			});
+			expect(await client.listTools()).toEqual([first]);
+			expect((await readServerState(client)).cursors).toEqual([null]);
+		});
+	}
+
+	it("rejects a pagination cursor that does not advance", async () => {
+		const client = await createClient({
+			pages: [
+				{ tools: [first], nextCursor: cursor },
+				{ tools: [last], nextCursor: cursor },
+			],
+			maxListRequests: 2,
+		});
+		await expect(client.listTools()).rejects.toThrow(
+			"repeated tools/list cursor",
+		);
+		expect((await readServerState(client)).cursors).toEqual([null, cursor]);
 	});
 
 	it("starts a new discovery from the first page", async () => {
