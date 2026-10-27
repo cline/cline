@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeCapabilities } from "@cline/core";
+import type { CoreSessionEvent, RuntimeCapabilities } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
@@ -1961,5 +1961,61 @@ describe("Chat chunk pipe selection", () => {
 		// distinguishable by boot id.
 		const second = createSidecarContext("/workspace/project");
 		expect(second.bootId).not.toBe(first.bootId);
+	});
+});
+
+describe("next turn suggestions", () => {
+	it("forwards next_turn.suggestions and drops every other plugin event", async () => {
+		const { createSidecarContext, handleCoreSessionEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		const suggestion = {
+			sessionId: "untrusted-plugin-session",
+			runId: "run-1",
+			status: "completed",
+			suggestions: [
+				{
+					kind: "verify",
+					label: "Verify",
+					prompt: "Run the checks for the files the last turn changed.",
+					reason: "1 file changed this turn.",
+				},
+			],
+		};
+		const suggestions: CoreSessionEvent = {
+			type: "plugin_event",
+			payload: {
+				sessionId: "session-1",
+				name: "next_turn.suggestions",
+				payload: suggestion,
+			},
+		};
+		const other: CoreSessionEvent = {
+			type: "plugin_event",
+			payload: {
+				sessionId: "session-1",
+				name: "plugin_log",
+				payload: { message: "ignore me" },
+			},
+		};
+
+		handleCoreSessionEvent(ctx, suggestions);
+		handleCoreSessionEvent(ctx, other);
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "next_turn_suggestions",
+					payload: {
+						environmentId: "local",
+						...suggestion,
+						sessionId: "session-1",
+					},
+				},
+			},
+		]);
 	});
 });

@@ -1,3 +1,4 @@
+import type { AgentConfig } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	buildDelegatedAgentConfig,
@@ -24,6 +25,31 @@ describe("buildDelegatedAgentConfig", () => {
 		expect(config.distinctId).toBe("user-123");
 		expect(config.sessionId).toBe("sess-parent");
 		expect(config.parentAgentId).toBe("agent-lead");
+	});
+
+	it("omits root-only extensions and preserves shared extensions", () => {
+		const rootOnly = {
+			name: "root-only",
+			manifest: { capabilities: ["hooks"], rootOnly: true },
+		} satisfies NonNullable<AgentConfig["extensions"]>[number];
+		const shared = {
+			name: "shared",
+			manifest: { capabilities: ["hooks"] },
+		} satisfies NonNullable<AgentConfig["extensions"]>[number];
+		const configProvider = createDelegatedAgentConfigProvider({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-5",
+			extensions: [rootOnly, shared],
+		});
+
+		const config = buildDelegatedAgentConfig({
+			kind: "teammate",
+			prompt: "review the diff",
+			tools: [],
+			configProvider,
+		});
+
+		expect(config.extensions).toEqual([shared]);
 	});
 
 	it("leaves identity fields undefined when the parent has none", () => {
