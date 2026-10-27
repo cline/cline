@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { normalizeGitHubRemoteUrl } from "./git-preflight";
 
 const isolatedHookNotice =
@@ -107,6 +107,26 @@ function isSensitivePath(path: string): boolean {
 			path,
 		) && !/\.(example|sample|template)$/i.test(path)
 	);
+}
+
+async function readPublicationDestination(root: string, remote: string) {
+	const fetchUrls = (
+		await git(root, ["remote", "get-url", "--all", remote])
+	).split("\n");
+	const pushUrls = (
+		await git(root, ["remote", "get-url", "--push", "--all", remote])
+	).split("\n");
+	const repoUrl = normalizeGitHubRemoteUrl(fetchUrls[0] ?? "");
+	const pushUrl = pushUrls[0];
+	if (
+		repoUrl &&
+		pushUrl &&
+		fetchUrls.length === 1 &&
+		pushUrls.length === 1 &&
+		normalizeGitHubRemoteUrl(pushUrl) === repoUrl
+	)
+		return { repoUrl, pushUrl };
+	return undefined;
 }
 
 export async function inspectHandoffGit(
@@ -215,25 +235,13 @@ export async function inspectHandoffGit(
 		(await optionalConfig(root, `branch.${sourceBranch}.remote`)) || "origin";
 	if (remote === "." || remote.startsWith("-"))
 		throw new Error("Choose a GitHub remote before continuing in cloud.");
-	const fetchUrls = (
-		await git(root, ["remote", "get-url", "--all", remote])
-	).split("\n");
-	const pushUrls = (
-		await git(root, ["remote", "get-url", "--push", "--all", remote])
-	).split("\n");
-	const repoUrl = normalizeGitHubRemoteUrl(fetchUrls[0] ?? "");
-	const pushUrl = pushUrls[0];
-	if (
-		!repoUrl ||
-		!pushUrl ||
-		fetchUrls.length !== 1 ||
-		pushUrls.length !== 1 ||
-		normalizeGitHubRemoteUrl(pushUrls[0] ?? "") !== repoUrl
-	) {
+	const destination = await readPublicationDestination(root, remote);
+	if (!destination) {
 		throw new Error(
 			"Cloud preparation requires one GitHub repository shared by the fetch and push destination. Review the remote configuration first.",
 		);
 	}
+	const { repoUrl } = destination;
 	const remoteHeads = await git(root, ["ls-remote", "--heads", remote]);
 	const knownHeads = remoteHeads
 		.split("\n")
@@ -300,24 +308,12 @@ export async function inspectHandoffGit(
 async function assertPublicationDestination(
 	plan: HandoffGitPublication,
 ): Promise<string> {
-	const fetchUrls = (
-		await git(plan.root, ["remote", "get-url", "--all", plan.remote])
-	).split("\n");
-	const pushUrls = (
-		await git(plan.root, ["remote", "get-url", "--push", "--all", plan.remote])
-	).split("\n");
-	const pushUrl = pushUrls[0];
-	if (
-		fetchUrls.length !== 1 ||
-		pushUrls.length !== 1 ||
-		!pushUrl ||
-		normalizeGitHubRemoteUrl(fetchUrls[0] ?? "") !== plan.repoUrl ||
-		normalizeGitHubRemoteUrl(pushUrl) !== plan.repoUrl
-	)
+	const destination = await readPublicationDestination(plan.root, plan.remote);
+	if (!destination || destination.repoUrl !== plan.repoUrl)
 		throw new Error(
 			"The remote changed after confirmation. Run /cloud again to review the destination.",
 		);
-	return pushUrl;
+	return destination.pushUrl;
 }
 
 export async function verifyPublishedHandoffGit(
@@ -363,8 +359,7 @@ export async function applyHandoffGit(
 	}
 	let pushing = false;
 	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-checkout-"));
-	const checkout = join(temporary, "checkout");
-	let added = false;
+	const checkout = join(await realpath(temporary), "checkout");
 	try {
 		await git(plan.root, [
 			"worktree",
@@ -374,7 +369,6 @@ export async function applyHandoffGit(
 			checkout,
 			plan.headSha,
 		]);
-		added = true;
 		await git(checkout, ["read-tree", "--reset", "-u", plan.treeSha]);
 		if (plan.treeSha !== (await git(checkout, ["rev-parse", "HEAD^{tree}"]))) {
 			await git(checkout, ["commit", "-m", "Cline cloud handoff checkpoint"], {
@@ -444,7 +438,20 @@ export async function applyHandoffGit(
 			`${error instanceof Error ? error.message : String(error)} Your local checkout was not changed. A checkpoint may remain on ${plan.branch}.`,
 		);
 	} finally {
-		if (added)
+		// A post-checkout hook can fail after Git has registered the worktree.
+		const worktrees = await git(plan.root, [
+			"worktree",
+			"list",
+			"--porcelain",
+			"-z",
+		]);
+		const registered = worktrees
+			.split("\0")
+			.some(
+				(field) =>
+					field.startsWith("worktree ") && resolve(field.slice(9)) === checkout,
+			);
+		if (registered)
 			await git(plan.root, ["worktree", "remove", "--force", checkout]);
 		await rm(temporary, { recursive: true, force: true });
 	}

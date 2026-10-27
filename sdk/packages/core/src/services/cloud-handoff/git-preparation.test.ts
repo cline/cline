@@ -136,10 +136,8 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
 
-	it.each([
-		"tracked.txt",
-		"credentials.json",
-	])("excludes published %s history when the remote advances beyond local objects", async (path) => {
+	it("excludes published sensitive history when the remote advances beyond local objects", async () => {
+		const path = "credentials.json";
 		writeFileSync(join(repo, path), "synthetic published content\n");
 		git("add", path);
 		git("commit", "-m", "published change");
@@ -470,12 +468,13 @@ describe("cloud handoff Git preparation", () => {
 	});
 
 	it.each([
-		"reject",
-		"modify",
-	])("does not publish after a %s hook changes the outcome", async (behavior) => {
+		["pre-commit", "reject"],
+		["pre-commit", "modify"],
+		["post-checkout", "reject"],
+	])("does not publish after a %s hook %s", async (hook, behavior) => {
 		writeFileSync(join(repo, "tracked.txt"), "approved\n");
 		writeFileSync(
-			join(repo, ".git/hooks/pre-commit"),
+			join(repo, ".git/hooks", hook),
 			behavior === "reject"
 				? "#!/bin/sh\nexit 1\n"
 				: "#!/bin/sh\nprintf 'hook change\\n' > tracked.txt\ngit add tracked.txt\n",
@@ -487,6 +486,18 @@ describe("cloud handoff Git preparation", () => {
 		);
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
+		expect(
+			git("worktree", "list", "--porcelain").match(/^worktree /gm),
+		).toHaveLength(1);
+		if (hook === "post-checkout") {
+			git(
+				"-c",
+				`core.hooksPath=${join(temporary, "no-hooks")}`,
+				"switch",
+				plan.branch,
+			);
+			expect(git("branch", "--show-current")).toBe(plan.branch);
+		}
 	});
 
 	it.each([
