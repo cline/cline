@@ -593,3 +593,9 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+## Plugin events
+
+`AgentEventBridge` forwards a plugin event named `next_turn.suggestions` as the core session event `plugin_event` (`CorePluginEvent` in `@cline/core`). The hub session projector publishes that as `plugin.event`. `HubRuntimeHost` emits `plugin_event` to local subscribers.
+
+`PluginManifest.rootOnly` keeps that extension off delegated and teammate runtimes. `buildDelegatedAgentConfig` drops extensions with the flag set.
