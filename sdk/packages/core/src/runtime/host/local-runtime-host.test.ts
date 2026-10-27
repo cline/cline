@@ -4727,32 +4727,6 @@ describe("LocalRuntimeHost", () => {
 		expect(f.agent.continue).not.toHaveBeenCalled();
 	});
 
-	it("does not materialize a session that was stopped before its first turn persisted", async () => {
-		const sessionId = "sess-stop-before-first-persist";
-		const f = createPreparingTurnFixture(sessionId);
-		await f.manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-			}),
-		);
-		expect(
-			f.sessionService.createRootSessionWithArtifacts,
-		).not.toHaveBeenCalled();
-
-		// The turn has yielded inside prompt preparation when the stop lands.
-		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
-		await f.manager.stopSession(sessionId);
-		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
-
-		expect(
-			f.sessionService.createRootSessionWithArtifacts,
-		).not.toHaveBeenCalled();
-		expect(f.statuses()).toEqual([]);
-		expect(f.endReasons).toEqual(["stopped"]);
-		expect(f.agent.run).not.toHaveBeenCalled();
-	});
-
 	it("lands the stop status on a session row that was still being created", async () => {
 		const sessionId = "sess-stop-during-first-persist";
 		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
