@@ -1,10 +1,22 @@
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
-import type { ProviderConfigResponse } from "@shared/proto/cline/models"
+import type { ModelOverrides, ProviderConfigResponse } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { useCallback } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import type { ProviderModelSelection } from "./useProviderConfig"
+
+/** True when the user has authored any per-model override on this selection. */
+function hasUserOverrides(overrides: ModelOverrides | undefined): boolean {
+	if (!overrides) {
+		return false
+	}
+	const { capabilities, ...scalar } = overrides
+	if (capabilities && capabilities.length > 0) {
+		return true
+	}
+	return Object.values(scalar).some((value) => value !== undefined)
+}
 
 type ProviderModelSelectionInput =
 	| (Omit<ProviderModelSelection, "providerId"> & { modelInfo?: ModelInfo })
@@ -38,11 +50,21 @@ export function useProviderModelSelection(
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
 	const selectedModelId = committedSelection?.modelId ?? fallbackModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ??
-			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
-			fallbackModelInfo)
+	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const freshModelInfo = models[selectedModelId]
+	// The committed snapshot normally wins (it carries user per-model overrides).
+	// But a generic provider's live-only models (e.g. most of Pioneer's catalog)
+	// aren't in the static catalog, so their committed snapshot resolves to a
+	// $0/no-metadata placeholder. Only in that case — a snapshot the user has NOT
+	// overridden and that carries no pricing — fall through to the freshly-resolved
+	// catalog entry so live pricing/metadata show correctly. A snapshot with user
+	// overrides (even for a legitimately $0 model) or with real pricing is kept.
+	const committedIsPlaceholder =
+		!hasUserOverrides(committedSelection?.overrides) && !committedModelInfo?.inputPrice && !committedModelInfo?.outputPrice
+	const selectedModelInfo =
+		(committedIsPlaceholder ? (freshModelInfo ?? committedModelInfo) : committedModelInfo) ??
+		(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
+		fallbackModelInfo
 
 	const selectedModel: DisplayProviderModelSelection = {
 		providerId,
