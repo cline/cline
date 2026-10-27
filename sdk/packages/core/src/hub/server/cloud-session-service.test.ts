@@ -573,10 +573,16 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
-	it("uses the environment API root instead of the inference URL for cloud discovery", async () => {
-		const apiBaseUrl = "https://cloud.example";
-		const baseUrl = "https://inference.example/api/v1";
-		vi.stubEnv("CLINE_API_BASE_URL", apiBaseUrl);
+	it.each([
+		["https://custom.example", "https://custom.example"],
+		["https://custom.example/api/v1", "https://custom.example"],
+		[
+			" https://custom.example/gateway/api/v1/// ",
+			"https://custom.example/gateway",
+		],
+		[undefined, "https://environment.example"],
+	])("discovers cloud sessions with provider base %s", async (baseUrl, apiBaseUrl) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://environment.example");
 		const settings: NonNullable<
 			ReturnType<ProviderSettingsManager["getProviderSettings"]>
 		> = { provider: "cline", apiKey: "key", baseUrl };
@@ -590,7 +596,7 @@ describe("hub cloud credentials", () => {
 		).mockResolvedValue(null);
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
 			const url = String(input);
-			if (url === `${apiBaseUrl}/api/v1/users/me`)
+			if (url === new URL("/api/v1/users/me", apiBaseUrl).href)
 				return Response.json({
 					success: true,
 					data: { id: "user-one", organizations: [] },
