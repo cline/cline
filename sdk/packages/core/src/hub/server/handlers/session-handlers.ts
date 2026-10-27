@@ -376,7 +376,7 @@ export async function handleSessionCreate(
 		if (initialMessages.length === 0) {
 			return errorReply(
 				envelope,
-				"session_history_unavailable",
+				"session_messages_not_found",
 				"The saved conversation is empty or unavailable.",
 			);
 		}

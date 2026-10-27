@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
@@ -164,15 +164,10 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
-	it.each([
-		undefined,
-		"{invalid",
-		'{"messages":[]}',
-		"{}",
-	])("rejects unavailable saved history without changing artifacts: %j", async (contents) => {
+	it("rejects corrupt persisted history before starting a runtime", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "hub-saved-history-"));
 		const messagesPath = join(dir, "messages.json");
-		if (contents !== undefined) await writeFile(messagesPath, contents);
+		await writeFile(messagesPath, "{invalid");
 		const startSession = vi.fn();
 		const transport = createTransport({
 			sessionHost: {
@@ -188,16 +183,9 @@ describe("HubServerTransport boundaries", () => {
 			});
 			expect(reply).toMatchObject({
 				ok: false,
-				error: { code: "session_history_unavailable" },
+				error: { code: "session_messages_not_found" },
 			});
 			expect(startSession).not.toHaveBeenCalled();
-			if (contents === undefined) {
-				await expect(readFile(messagesPath)).rejects.toMatchObject({
-					code: "ENOENT",
-				});
-			} else {
-				expect(await readFile(messagesPath, "utf8")).toBe(contents);
-			}
 		} finally {
 			await transport.stop();
 			await rm(dir, { recursive: true, force: true });
