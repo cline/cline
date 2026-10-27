@@ -36,6 +36,7 @@ const services: HubCloudSessionService[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
 	await Promise.all(services.splice(0).map((service) => service.dispose()));
 });
 function command(
@@ -220,13 +221,8 @@ describe("hub-owned cloud sessions", () => {
 	it.each([
 		{ requestId: undefined },
 		{ initialMessage: undefined },
+		{ initialMessage: { text: " \n\t" } },
 		{ initialMessage: { text: "Summary", images: ["invalid-image"] } },
-		{
-			initialMessage: {
-				text: "Summary",
-				images: Array(6).fill("invalid-image"),
-			},
-		},
 		{ branch: "main" },
 		{ localGit: { ...localGitInput().localGit, root: "relative" } },
 		{ localGit: { ...localGitInput().localGit, treeSha: "HEAD" } },
@@ -738,7 +734,13 @@ describe("cloud RPC over a shared hub socket", () => {
 			controller.listModels.mockResolvedValue([
 				{ id: "model", name: "Model", catalogId: "cline" },
 			]);
-			const input = localGitInput(root);
+			const input = {
+				...localGitInput(root),
+				initialMessage: {
+					text: "Captured summary",
+					images: Array<string>(6).fill("data:image/png;base64,aW1hZ2U="),
+				},
+			};
 			controller.create.mockResolvedValue({
 				sessionId: "ses-one",
 				status: "ready",
@@ -891,7 +893,7 @@ describe("cloud RPC over a shared hub socket", () => {
 				modelId: "model",
 				repoUrl: "https://github.com/example/project",
 				initialMessage: {
-					text: "Summary and next instruction",
+					text: "    first()\n    second()\n",
 					images: ["image"],
 				},
 				mode: "plan",
@@ -1006,6 +1008,47 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
+	it.each([
+		["https://custom.example", "https://custom.example"],
+		["https://custom.example/api/v1", "https://custom.example"],
+		[
+			" https://custom.example/gateway/api/v1/// ",
+			"https://custom.example/gateway",
+		],
+		[undefined, "https://environment.example"],
+	])("discovers cloud sessions with provider base %s", async (baseUrl, apiBaseUrl) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://environment.example");
+		const settings: NonNullable<
+			ReturnType<ProviderSettingsManager["getProviderSettings"]>
+		> = { provider: "cline", apiKey: "key", baseUrl };
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue(settings);
+		vi.spyOn(
+			RuntimeOAuthTokenManager.prototype,
+			"resolveProviderApiKey",
+		).mockResolvedValue(null);
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+			const url = String(input);
+			if (url === new URL("/api/v1/users/me", apiBaseUrl).href)
+				return Response.json({
+					success: true,
+					data: { id: "user-one", organizations: [] },
+				});
+			if (url === `${apiBaseUrl}/api/v1/session`)
+				return Response.json({ data: [{ id: "ses-one", status: "ready" }] });
+			return new Response(null, { status: 404 });
+		});
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		const discovered = await command(service, "listForDiscovery", [
+			{ timeoutMs: 500 },
+		]);
+		expect(discovered.result).toMatchObject([{ sessionId: "ses-one" }]);
+		expect(settings.baseUrl).toBe(baseUrl);
+	});
+
 	it.each([
 		"failed refresh",
 		"returning viewer",
