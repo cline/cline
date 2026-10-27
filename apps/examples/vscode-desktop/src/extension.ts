@@ -35,12 +35,21 @@ function resolveWorkspaceRoot(): string {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 }
 
-function resolveRuntimePath(): string {
+function resolveRuntimePath(extensionRoot: string): string {
 	const configured = vscode.workspace
 		.getConfiguration("clineDesktop")
 		.get<string>("bunPath")
 		?.trim();
 	if (configured) return configured;
+	// Packaged builds ship a compiled cline CLI (scripts/build-runtime.ts); it
+	// runs the backend bundle on its embedded runtime, so no bun is needed.
+	const bundledCli = join(
+		extensionRoot,
+		"dist",
+		"bin",
+		process.platform === "win32" ? "cline-cli.exe" : "cline-cli",
+	);
+	if (existsSync(bundledCli)) return bundledCli;
 	// The extension host's PATH is often the minimal launchd PATH on macOS;
 	// probe common bun locations before falling back to plain `bun`.
 	const home = process.env.HOME ?? "";
@@ -82,7 +91,7 @@ function ensureBackend(context: vscode.ExtensionContext): DesktopBackend {
 	const output = logs ?? vscode.window.createOutputChannel("Cline Desktop");
 	logs = output;
 	backend = new DesktopBackend({
-		runtimePath: resolveRuntimePath(),
+		runtimePath: resolveRuntimePath(context.extensionPath),
 		entryPath: resolveEntryPath(context.extensionPath),
 		workspaceRoot: resolveWorkspaceRoot(),
 		logger: {

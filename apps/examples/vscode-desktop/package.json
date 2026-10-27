@@ -1,6 +1,6 @@
 {
-	"name": "@cline/vscode-desktop",
-	"displayName": "Cline Desktop (VS Code)",
+	"name": "cline-desktop-preview",
+	"displayName": "Cline Desktop (Preview)",
 	"description": "Prototype: the Cline desktop app's UI and backend hosted inside a VS Code extension.",
 	"version": "0.0.1",
 	"private": true,
@@ -114,12 +114,23 @@
 		"build": "bun run build:webview && bun run build:extension",
 		"watch": "bun build ./src/extension.ts --outdir ./dist --target=node --format=cjs --external=vscode --sourcemap=linked --watch",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run --config vitest.config.ts"
+		"test": "vitest run --config vitest.config.ts",
+		"build:runtime": "bun run scripts/build-runtime.ts",
+		"package": "bun run build && bun run build:runtime && bunx @vscode/vsce package --no-dependencies --skip-license --target darwin-arm64 --out dist/",
+		"package:win32-x64": "bun run build && bun run build:runtime --target bun-windows-x64 && bunx @vscode/vsce package --no-dependencies --skip-license --target win32-x64 --out dist/",
+		"package:darwin-x64": "bun run build && bun run build:runtime --target bun-darwin-x64 && bunx @vscode/vsce package --no-dependencies --skip-license --target darwin-x64 --out dist/",
+		"package:linux-x64": "bun run build && bun run build:runtime --target bun-linux-x64 && bunx @vscode/vsce package --no-dependencies --skip-license --target linux-x64 --out dist/"
 	},
 	"devDependencies": {
 		"@types/node": "^25.3.5",
 		"@types/vscode": "^1.90.0",
 		"typescript": "^5.9.3",
-		"vitest": "^4.0.18"
+		"vitest": "^4.0.18",
+		"@vscode/vsce": "^3.3.2"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "apps/examples/vscode-desktop"
 	}
 }

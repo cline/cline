@@ -103,6 +103,9 @@ export function buildBackendLaunch(options: {
 	if (compiled) {
 		env.BUN_BE_BUN = "1";
 		env.CLINE_DESKTOP_CLI_PATH = options.runtimePath;
+		// The bundled backend ships the SDK plugin runtime beside it.
+		const pluginRuntime = join(dirname(options.entryPath), "plugin-runtime");
+		if (existsSync(pluginRuntime)) env.CLINE_PLUGIN_RUNTIME_DIR = pluginRuntime;
 	}
 	return {
 		args: compiled

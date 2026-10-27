@@ -1,0 +1,8 @@
+**
+!package.json
+!README.md
+!media/**
+!dist/extension.js
+!dist/webview/**
+!dist/backend/**
+!dist/bin/**

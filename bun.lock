@@ -307,11 +307,12 @@
       },
     },
     "apps/examples/vscode-desktop": {
-      "name": "@cline/vscode-desktop",
+      "name": "cline-desktop-preview",
       "version": "0.0.1",
       "devDependencies": {
         "@types/node": "^25.3.5",
         "@types/vscode": "^1.90.0",
+        "@vscode/vsce": "^3.3.2",
         "typescript": "^5.9.3",
         "vitest": "^4.0.18",
       },
@@ -1145,8 +1146,6 @@
     "@cline/ui": ["@cline/ui@workspace:sdk/packages/ui"],
 
     "@cline/vscode": ["@cline/vscode@workspace:apps/examples/vscode"],
-
-    "@cline/vscode-desktop": ["@cline/vscode-desktop@workspace:apps/examples/vscode-desktop"],
 
     "@cline/vscode-rollout": ["@cline/vscode-rollout@workspace:apps/vscode-rollout"],
 
@@ -3045,6 +3044,8 @@
     "client-only": ["client-only@0.0.1", "", {}, "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="],
 
     "cline-agent-squad-plugin": ["cline-agent-squad-plugin@workspace:sdk/examples/plugins/agents-squad"],
+
+    "cline-desktop-preview": ["cline-desktop-preview@workspace:apps/examples/vscode-desktop"],
 
     "cliui": ["cliui@8.0.1", "", { "dependencies": { "string-width": "^4.2.0", "strip-ansi": "^6.0.1", "wrap-ansi": "^7.0.0" } }, "sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ=="],
 
