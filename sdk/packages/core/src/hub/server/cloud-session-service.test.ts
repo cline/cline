@@ -11,6 +11,7 @@ import {
 	type CloudHubConnection,
 	HubCloudSessionClient,
 } from "../../cloud/hub-client";
+import type { CloudModel } from "../../cloud/models";
 import type {
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -19,6 +20,7 @@ import {
 	OAuthReauthRequiredError,
 	RuntimeOAuthTokenManager,
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
+import * as handoffGit from "../../services/cloud-handoff/git-preparation";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	emptyStoredProviderSettings,
@@ -34,6 +36,7 @@ const services: HubCloudSessionService[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
 	await Promise.all(services.splice(0).map((service) => service.dispose()));
 });
 function command(
@@ -77,25 +80,13 @@ function fixture() {
 				emit = listener;
 				return () => {};
 			},
-			provision: vi.fn(
-				async (_input: Parameters<CloudSessionController["create"]>[0]) => ({
+			create: vi.fn(
+				async (
+					_input: Parameters<CloudSessionController["create"]>[0],
+				): ReturnType<CloudSessionController["create"]> => ({
 					sessionId: "ses-one",
 					status: "ready",
 				}),
-			),
-			create: vi.fn(
-				async (input: Parameters<CloudSessionController["create"]>[0]) => {
-					const target = await controller.provision(input);
-					if (!input.initialMessage) return target;
-					const send = await controller.send(
-						target.sessionId,
-						input.initialMessage.text,
-						"queue",
-						input.modelId,
-						input.initialMessage.images,
-					);
-					return { ...target, initialSend: send };
-				},
 			),
 			attach: vi.fn(async (sessionId: string) => {
 				emit({
@@ -115,7 +106,7 @@ function fixture() {
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
-			listModels: vi.fn(async () => []),
+			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
@@ -194,7 +185,134 @@ function fixture() {
 	};
 }
 
+function localGitInput(root = tmpdir()) {
+	const localGit: handoffGit.HandoffGitPublication = {
+		id: "preparation",
+		root,
+		workspaceRelativePath: "",
+		repoUrl: "https://github.com/example/project",
+		remote: "origin",
+		branch: "cline/handoff-12345678-abc",
+		headSha: "a".repeat(40),
+		treeSha: "b".repeat(40),
+	};
+	return {
+		localGit,
+		repoUrl: localGit.repoUrl,
+		branch: localGit.branch,
+		requestId: "handoff-attempt",
+		modelId: "model",
+		organizationId: "org-one",
+		initialMessage: { text: "Captured summary" },
+	};
+}
+
 describe("hub-owned cloud sessions", () => {
+	it("requires an approved organization before starting Git publication", async () => {
+		const f = fixture();
+		await expect(
+			command(f.service, "create", [
+				{ ...localGitInput(), organizationId: undefined },
+			]),
+		).rejects.toThrow("Local Git publication requires organizationId");
+		expect(f.controllers).toHaveLength(0);
+	});
+
+	it.each([
+		{ requestId: undefined },
+		{ initialMessage: undefined },
+		{ initialMessage: { text: " \n\t" } },
+		{ initialMessage: { text: "Summary", images: ["invalid-image"] } },
+		{ branch: "main" },
+		{ localGit: { ...localGitInput().localGit, root: "relative" } },
+		{ localGit: { ...localGitInput().localGit, treeSha: "HEAD" } },
+		{
+			repoUrl: "git@github.com:example/project",
+			localGit: {
+				...localGitInput().localGit,
+				repoUrl: "git@github.com:example/project",
+			},
+		},
+	])("rejects invalid publication input before Git executes: %j", async (invalid) => {
+		const f = fixture();
+		const apply = vi.spyOn(handoffGit, "applyHandoffGit");
+		await expect(
+			command(f.service, "create", [{ ...localGitInput(), ...invalid }]),
+		).rejects.toThrow();
+		expect(apply).not.toHaveBeenCalled();
+		expect(f.service.activeCommands).toBe(0);
+	});
+
+	it("does not publish a prepared handoff under a different organization", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		controller.prepareHandoffRepository.mockResolvedValue({
+			organizationId: "org-two",
+		});
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockResolvedValue("c".repeat(40));
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("organization changed");
+		expect(apply).not.toHaveBeenCalled();
+		expect(controller.create).not.toHaveBeenCalled();
+	});
+
+	it("revalidates the model before publication and refuses create after verification failure", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockResolvedValue("c".repeat(40));
+		const verify = vi
+			.spyOn(handoffGit, "verifyPublishedHandoffGit")
+			.mockRejectedValue(new Error("Published branch changed"));
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("selected model");
+		expect(apply).not.toHaveBeenCalled();
+		controller.listModels.mockResolvedValue([
+			{ id: "model", name: "Model", catalogId: "cline" },
+		]);
+		await expect(
+			command(f.service, "create", [localGitInput()]),
+		).rejects.toThrow("Published branch changed");
+		expect(verify).toHaveBeenCalledExactlyOnceWith(
+			localGitInput().localGit,
+			"c".repeat(40),
+		);
+		expect(controller.create).not.toHaveBeenCalled();
+		expect(f.service.activeCommands).toBe(0);
+	});
+
+	it("stops after publication if the account changes without using a replacement controller", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		controller.listModels.mockResolvedValue([
+			{ id: "model", name: "Model", catalogId: "cline" },
+		]);
+		const pushed = deferred<string>();
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockReturnValue(pushed.promise);
+		const verify = vi.spyOn(handoffGit, "verifyPublishedHandoffGit");
+		const creation = command(f.service, "create", [localGitInput()]);
+		const rejected = expect(creation).rejects.toThrow("account changed");
+		await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+		f.changeScope("account-two");
+		pushed.resolve("c".repeat(40));
+		await rejected;
+		expect(verify).not.toHaveBeenCalled();
+		expect(controller.create).not.toHaveBeenCalled();
+		expect(f.controllers).toHaveLength(1);
+	});
 	it("pins every handoff operation to its prepared account scope", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
@@ -268,9 +386,9 @@ describe("hub-owned cloud sessions", () => {
 					"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
 			});
 		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
-		expect(f.controllers[0]?.controller.send).toHaveBeenCalledTimes(
-			operation === "create-only" ? 0 : 1,
-		);
+		expect(
+			f.controllers[0]?.controller[operation === "send" ? "send" : "create"],
+		).toHaveBeenCalledOnce();
 	});
 
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
@@ -577,6 +695,118 @@ describe("cloud RPC over a shared hub socket", () => {
 		return { root, server };
 	}
 
+	it("keeps one publication and creation after viewer disconnect and rejects origin-only Git requests", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
+		const client = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "publisher",
+			workspaceRoot: root,
+		});
+		const observer = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "observer",
+			workspaceRoot: root,
+		});
+		const browser = new NodeHubClient({
+			url: server.url,
+			clientId: "browser",
+			workspaceRoot: root,
+			resolveConnectionHeaders: () => ({ Origin: "http://localhost:3000" }),
+		});
+		const viewer = new HubCloudSessionClient(async () => client);
+		const browserViewer = new HubCloudSessionClient(async () => browser);
+		const pushed = deferred<string>();
+		const apply = vi
+			.spyOn(handoffGit, "applyHandoffGit")
+			.mockReturnValue(pushed.promise);
+		const verify = vi
+			.spyOn(handoffGit, "verifyPublishedHandoffGit")
+			.mockResolvedValue();
+		try {
+			await viewer.connect();
+			await observer.connect();
+			await browserViewer.connect();
+			const controller = f.controllers[0]?.controller;
+			if (!controller) throw new Error("Missing cloud controller");
+			controller.listModels.mockResolvedValue([
+				{ id: "model", name: "Model", catalogId: "cline" },
+			]);
+			const input = {
+				...localGitInput(root),
+				initialMessage: {
+					text: "Captured summary",
+					images: Array<string>(6).fill("data:image/png;base64,aW1hZ2U="),
+				},
+			};
+			controller.create.mockResolvedValue({
+				sessionId: "ses-one",
+				status: "ready",
+				initialSend: { sessionId: "ses-one", ok: true },
+			});
+			await expect(browserViewer.create(input)).rejects.toThrow(
+				"token-authenticated",
+			);
+			expect(apply).not.toHaveBeenCalled();
+			const creation = viewer.create(input).catch((error: unknown) => error);
+			await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+			const repeated = observer.command(
+				"cloud.command",
+				{ operation: "create", args: [input], scope: viewer.scope },
+				undefined,
+				{ timeoutMs: null },
+			);
+			await vi.waitFor(async () =>
+				expect((await observer.command("hub.status")).payload).toMatchObject({
+					activeCloudCommands: 2,
+					idle: false,
+				}),
+			);
+			expect(controller.create).not.toHaveBeenCalled();
+			await viewer.dispose();
+			await client.dispose();
+			expect(await creation).toMatchObject({ code: "request_failed" });
+			pushed.resolve("c".repeat(40));
+			await expect(repeated).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					result: { sessionId: "ses-one", initialSend: { ok: true } },
+				},
+			});
+			expect(apply).toHaveBeenCalledOnce();
+			expect(verify).toHaveBeenCalledExactlyOnceWith(
+				input.localGit,
+				"c".repeat(40),
+			);
+			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
+				repoUrl: input.repoUrl,
+				branch: input.branch,
+				requestId: input.requestId,
+				modelId: input.modelId,
+				initialMessage: input.initialMessage,
+				organizationId: "org-one",
+				sandboxType: "resumable",
+			});
+			expect((await observer.command("hub.status")).payload).toMatchObject({
+				activeCloudCommands: 0,
+				idle: true,
+			});
+		} finally {
+			pushed.resolve("c".repeat(40));
+			await viewer.dispose();
+			await browserViewer.dispose();
+			await Promise.all([
+				client.dispose(),
+				observer.dispose(),
+				browser.dispose(),
+			]);
+			await server.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("preserves repository preparation and ordinary send results over the socket", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
@@ -632,7 +862,7 @@ describe("cloud RPC over a shared hub socket", () => {
 		}
 	});
 
-	it("keeps creation and sending active after the requesting viewer disconnects", async () => {
+	it("keeps creation active after the requesting viewer disconnects", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -656,22 +886,20 @@ describe("cloud RPC over a shared hub socket", () => {
 			await observer.connect();
 			const controller = f.controllers[0]?.controller;
 			if (!controller) throw new Error("Missing connected controller");
-			const provisioning = deferred<{ sessionId: string; status: string }>();
-			const sending = deferred<{ sessionId: string; ok: true }>();
-			controller.provision.mockReturnValueOnce(provisioning.promise);
-			controller.send.mockReturnValueOnce(sending.promise);
-			const created = viewer
-				.create({
-					modelId: "model",
-					repoUrl: "https://github.com/example/project",
-					initialMessage: {
-						text: "Summary and next instruction",
-						images: ["image"],
-					},
-					mode: "plan",
-					workspaceRelativePath: "packages/app",
-				})
-				.catch((error: unknown) => error);
+			const completion =
+				deferred<Awaited<ReturnType<CloudSessionController["create"]>>>();
+			controller.create.mockReturnValueOnce(completion.promise);
+			const input: Parameters<CloudSessionController["create"]>[0] = {
+				modelId: "model",
+				repoUrl: "https://github.com/example/project",
+				initialMessage: {
+					text: "    first()\n    second()\n",
+					images: ["image"],
+				},
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+			};
+			const created = viewer.create(input).catch((error: unknown) => error);
 			await vi.waitFor(() => expect(controller.create).toHaveBeenCalled());
 			expect((await observer.command("session.list")).payload).toMatchObject({
 				activeCloudCommands: 1,
@@ -682,31 +910,18 @@ describe("cloud RPC over a shared hub socket", () => {
 			await viewer.dispose();
 			await client.dispose();
 			expect(await created).toMatchObject({ code: "request_failed" });
-			provisioning.resolve({ sessionId: "ses-one", status: "ready" });
-			await vi.waitFor(() =>
-				expect(controller.send).toHaveBeenCalledExactlyOnceWith(
-					"ses-one",
-					"Summary and next instruction",
-					"queue",
-					"model",
-					["image"],
-				),
-			);
 			expect((await observer.command("session.list")).payload).toMatchObject({
 				activeCloudCommands: 1,
 			});
 			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
-				modelId: "model",
-				repoUrl: "https://github.com/example/project",
-				initialMessage: {
-					text: "Summary and next instruction",
-					images: ["image"],
-				},
-				mode: "plan",
-				workspaceRelativePath: "packages/app",
+				...input,
 				sandboxType: "resumable",
 			});
-			sending.resolve({ sessionId: "ses-one", ok: true });
+			completion.resolve({
+				sessionId: "ses-one",
+				status: "ready",
+				initialSend: { sessionId: "ses-one", ok: true },
+			});
 			await vi.waitFor(async () =>
 				expect((await observer.command("session.list")).payload).toMatchObject({
 					activeCloudCommands: 0,
@@ -793,6 +1008,47 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
+	it.each([
+		["https://custom.example", "https://custom.example"],
+		["https://custom.example/api/v1", "https://custom.example"],
+		[
+			" https://custom.example/gateway/api/v1/// ",
+			"https://custom.example/gateway",
+		],
+		[undefined, "https://environment.example"],
+	])("discovers cloud sessions with provider base %s", async (baseUrl, apiBaseUrl) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://environment.example");
+		const settings: NonNullable<
+			ReturnType<ProviderSettingsManager["getProviderSettings"]>
+		> = { provider: "cline", apiKey: "key", baseUrl };
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue(settings);
+		vi.spyOn(
+			RuntimeOAuthTokenManager.prototype,
+			"resolveProviderApiKey",
+		).mockResolvedValue(null);
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+			const url = String(input);
+			if (url === new URL("/api/v1/users/me", apiBaseUrl).href)
+				return Response.json({
+					success: true,
+					data: { id: "user-one", organizations: [] },
+				});
+			if (url === `${apiBaseUrl}/api/v1/session`)
+				return Response.json({ data: [{ id: "ses-one", status: "ready" }] });
+			return new Response(null, { status: 404 });
+		});
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		const discovered = await command(service, "listForDiscovery", [
+			{ timeoutMs: 500 },
+		]);
+		expect(discovered.result).toMatchObject([{ sessionId: "ses-one" }]);
+		expect(settings.baseUrl).toBe(baseUrl);
+	});
+
 	it.each([
 		"failed refresh",
 		"returning viewer",

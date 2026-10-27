@@ -4,8 +4,6 @@ import { prepareCloudHandoff } from "./cloud-handoff";
 
 const helpers = vi.hoisted(() => ({
 	inspect: vi.fn(),
-	publish: vi.fn(),
-	verify: vi.fn(),
 	summarize: vi.fn(),
 }));
 vi.mock("@cline/core", async (original) => ({
@@ -15,15 +13,12 @@ vi.mock("@cline/core", async (original) => ({
 vi.mock("@cline/core/cloud", async (original) => ({
 	...(await original<typeof import("@cline/core/cloud")>()),
 	inspectHandoffGit: helpers.inspect,
-	applyHandoffGit: helpers.publish,
-	verifyPublishedHandoffGit: helpers.verify,
 }));
 const plan = {
 	id: "attempt",
 	root: "/tmp/example",
 	workspaceRelativePath: "packages/app",
 	repoUrl: "https://github.com/example/project",
-	pushUrl: "https://github.com/example/project",
 	remote: "origin",
 	branch: "cline/handoff-example",
 	sourceBranch: "feature",
@@ -37,7 +32,7 @@ function fixture() {
 		connect: vi.fn(async () => {}),
 		scope: { serviceId: "hub", scopeGeneration: 1 },
 		prepareHandoffRepository: vi.fn(async () => ({
-			organizationId: undefined,
+			organizationId: "org-example",
 		})),
 		listModels: vi
 			.fn<HubCloudSessionClient["listModels"]>()
@@ -72,8 +67,6 @@ function fixture() {
 beforeEach(() => {
 	vi.clearAllMocks();
 	helpers.inspect.mockResolvedValue(plan);
-	helpers.publish.mockResolvedValue("c".repeat(40));
-	helpers.verify.mockResolvedValue(undefined);
 	helpers.summarize.mockResolvedValue(
 		"The example feature is half implemented.",
 	);
@@ -88,23 +81,35 @@ describe("summary cloud handoff", () => {
 			files: plan.files,
 			commits: plan.commits,
 		});
-		expect(helpers.publish).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
 		expect(helpers.summarize).not.toHaveBeenCalled();
 		input.readSource.mockRejectedValue(
 			new Error("A later local turn is running"),
 		);
 		const progress = vi.fn();
-		const result = await prepared.start(progress);
+		const starting = prepared.start(progress);
+		expect(prepared.start(progress)).toBe(starting);
+		const result = await starting;
 		expect(await prepared.start(progress)).toEqual(result);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: plan.id,
+				localGit: {
+					id: plan.id,
+					root: plan.root,
+					workspaceRelativePath: plan.workspaceRelativePath,
+					repoUrl: plan.repoUrl,
+					remote: plan.remote,
+					branch: plan.branch,
+					headSha: plan.headSha,
+					treeSha: plan.treeSha,
+				},
 				branch: plan.branch,
 				workspaceRelativePath: "packages/app",
 				mode: "plan",
 				autoApproveTools: false,
-				organizationId: null,
+				organizationId: "org-example",
 				initialMessage: {
 					text: "The example feature is half implemented.\n\nNext instruction from the user:\nAdd focused tests",
 					images: [],
@@ -112,7 +117,6 @@ describe("summary cloud handoff", () => {
 			}),
 			{ serviceId: "hub", scopeGeneration: 1 },
 		);
-		expect(helpers.verify).toHaveBeenCalledWith(plan, "c".repeat(40));
 		expect(result.dashboardUrl).toContain("ses-example");
 		expect(input.readSource).toHaveBeenCalledTimes(2);
 	});
@@ -137,19 +141,18 @@ describe("summary cloud handoff", () => {
 		await expect(prepared.start(vi.fn())).rejects.toThrow(
 			"Summary unavailable",
 		);
-		expect(helpers.publish).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
 	});
 
-	it("checks the account and selected model again after confirmation", async () => {
+	it("rejects account changes after confirmation and unavailable models during preparation", async () => {
 		const input = fixture();
 		const prepared = await prepareCloudHandoff(input);
 		input.cloud.scope = { serviceId: "hub", scopeGeneration: 2 };
 		await expect(prepared.start(vi.fn())).rejects.toThrow("account changed");
-		expect(helpers.publish).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
 		const second = fixture();
-		const next = await prepareCloudHandoff(second);
 		second.cloud.listModels.mockResolvedValue([]);
-		await expect(next.start(vi.fn())).rejects.toThrow("not available");
+		await expect(prepareCloudHandoff(second)).rejects.toThrow("not available");
 		expect(helpers.summarize).not.toHaveBeenCalled();
 	});
 

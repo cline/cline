@@ -3,13 +3,11 @@ import {
 	summarizeConversation,
 } from "@cline/core";
 import {
-	applyHandoffGit,
 	type CloudCreationOptions,
 	cloudHandoffTranscriptsEqual,
 	type HubCloudSessionClient,
 	inspectHandoffGit,
 	previewHandoffGit,
-	verifyPublishedHandoffGit,
 } from "@cline/core/cloud";
 import {
 	createMediaBudgetState,
@@ -92,22 +90,21 @@ export async function prepareCloudHandoff(input: {
 		);
 	}
 	const modelId = input.connection.modelId;
-	const resolveModel = async () => {
-		assertAccount();
-		const { organizationId } = await cloud.prepareHandoffRepository(
-			plan.repoUrl,
-			scope,
+	assertAccount();
+	const { organizationId } = await cloud.prepareHandoffRepository(plan.repoUrl, scope);
+	const models = await cloud.listModels(scope);
+	assertAccount();
+	if (!models.some((model) => model.id === modelId)) {
+		throw new Error(
+			`The selected model ${modelId} is not available in Cline Cloud. Select a supported model before continuing.`,
 		);
-		const models = await cloud.listModels(scope);
-		assertAccount();
-		if (!models.some((model) => model.id === modelId)) {
-			throw new Error(
-				`The selected model ${modelId} is not available in Cline Cloud. Select a supported model before continuing.`,
-			);
-		}
-		return organizationId;
-	};
-	await resolveModel();
+	}
+	const {
+		files: _files,
+		commits: _commits,
+		sourceBranch: _sourceBranch,
+		...localGit
+	} = plan;
 	// Confirmation authorizes this captured snapshot, not later local edits or messages.
 	let started: Promise<CloudHandoffResult> | undefined;
 	return {
@@ -116,7 +113,7 @@ export async function prepareCloudHandoff(input: {
 			onProgress: (progress: CloudHandoffProgress) => void,
 		): Promise<CloudHandoffResult> {
 			started ??= (async () => {
-				const organizationId = await resolveModel();
+				assertAccount();
 				onProgress({ message: "Preparing a summary of this conversation." });
 				const summary = (
 					await summarizeConversation({
@@ -129,18 +126,15 @@ export async function prepareCloudHandoff(input: {
 					throw new Error(
 						"The conversation summary was empty. Nothing was published or started in cloud.",
 					);
-				onProgress({ message: "Publishing the approved Git snapshot." });
-				const headSha = await applyHandoffGit(plan);
-				assertAccount();
-				await verifyPublishedHandoffGit(plan, headSha);
-				assertAccount();
 				const prompt = [
 					summary,
 					draft.instruction.trim()
 						? `Next instruction from the user:\n${draft.instruction.trim()}`
 						: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
 				].join("\n\n");
-				onProgress({ message: "Starting a new cloud session." });
+				onProgress({
+					message: "Publishing the approved Git snapshot and starting cloud.",
+				});
 				const dashboard = (id: string) =>
 					buildCloudHandoffDashboardUrl(
 						getClineEnvironmentConfig().appBaseUrl,
@@ -167,6 +161,7 @@ export async function prepareCloudHandoff(input: {
 					const result = await cloud.create(
 						{
 							requestId: plan.id,
+							localGit,
 							repoUrl: plan.repoUrl,
 							branch: plan.branch,
 							modelId,
