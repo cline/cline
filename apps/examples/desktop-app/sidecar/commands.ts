@@ -90,6 +90,7 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
+import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -2251,6 +2252,18 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
+	if (command === "get_cloud_artifact_url") {
+		const { sessionId, artifactId } = z
+			.object({
+				sessionId: z.string().trim().min(1),
+				artifactId: z.string().trim().min(1),
+			})
+			.parse(args);
+		return getCloudSessionManager(ctx).getArtifactDownloadUrl(
+			sessionId,
+			artifactId,
+		);
+	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);

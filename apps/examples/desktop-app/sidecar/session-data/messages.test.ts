@@ -3,9 +3,42 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { writeSessionManifest } from "../paths";
-import { readSessionMessages } from "./messages";
+import { readSessionMessages, readSessionMessagesSync } from "./messages";
 
 describe("readSessionMessages", () => {
+	it("restores an artifact reference without hydrating it into file bytes", () => {
+		const media = {
+			id: "frame",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "artifact", artifactId: "frame-one" },
+		};
+		const messages = JSON.parse(
+			JSON.stringify([
+				{
+					id: "assistant",
+					role: "assistant",
+					ts: 123,
+					content: [{ type: "media", media }],
+				},
+			]),
+		);
+		expect(
+			readSessionMessagesSync(
+				{ liveSessions: new Map() },
+				"ses-stopped",
+				800,
+				messages,
+			),
+		).toEqual([
+			expect.objectContaining({
+				sessionId: "ses-stopped",
+				role: "assistant",
+				media: [media],
+			}),
+		]);
+	});
+
 	it("restores persisted errors with the error display role", async () => {
 		const sessionId = "persisted-error";
 		const messages = JSON.parse(

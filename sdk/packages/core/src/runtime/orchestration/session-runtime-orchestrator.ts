@@ -39,6 +39,7 @@ import {
 	type BasicLogger,
 	type ContributionRegistry,
 	createContributionRegistry,
+	type GeneratedMedia,
 	type ITelemetryService,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
@@ -527,6 +528,19 @@ export class SessionRuntime {
 
 	getMessages(): MessageWithMetadata[] {
 		return this.conversation.getMessages();
+	}
+
+	attachMedia(media: GeneratedMedia): void {
+		const id = `published_${media.id}`;
+		if (this.conversation.getMessages().some((message) => message.id === id))
+			return;
+		this.conversation.appendMessage({
+			id,
+			role: "assistant",
+			content: [{ type: "media", media }],
+			ts: Date.now(),
+			metadata: { displayOnly: true },
+		});
 	}
 
 	/** True when no run is currently active and the session is not shut down. */

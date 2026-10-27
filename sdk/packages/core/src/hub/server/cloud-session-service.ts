@@ -66,6 +66,7 @@ const schemas = {
 	]),
 	removePendingPrompt: z.tuple([id, id]),
 	readMessages: z.tuple([id]),
+	getArtifactDownloadUrl: z.tuple([id, id]),
 	updateTitle: z.tuple([id, z.string()]),
 	delete: z.tuple([id]),
 	list: z.tuple([]),

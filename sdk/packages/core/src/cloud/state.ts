@@ -1,6 +1,7 @@
 import {
 	formatDisplayUserInput,
 	type HubEventEnvelope,
+	isGeneratedMedia,
 	type MessageWithMetadata,
 } from "@cline/shared";
 import type { CloudSessionState, JsonRecord } from "./types";
@@ -176,13 +177,25 @@ export function reduceCloudEvent(
 		case "assistant.finished":
 			streams.delete(sessionId);
 			return;
-		case "assistant.media":
-			if (payload.media)
-				assistant().push({
-					type: "media",
-					media: structuredClone(payload.media),
-				});
+		case "assistant.media": {
+			const media = payload.media;
+			if (!isGeneratedMedia(media)) return;
+			if (
+				state.messages.some(
+					(message) =>
+						Array.isArray(message.content) &&
+						message.content.some(
+							(part) => part.type === "media" && part.media.id === media.id,
+						),
+				)
+			)
+				return;
+			assistant().push({
+				type: "media",
+				media: structuredClone(media),
+			});
 			return;
+		}
 		case "tool.started": {
 			const id = String(payload.toolCallId ?? "");
 			if (

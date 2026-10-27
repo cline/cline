@@ -9,6 +9,8 @@ import {
 	type BasicLogger,
 	captureSdkError,
 	createSessionId,
+	type GeneratedMedia,
+	GeneratedMediaSchema,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
@@ -1787,6 +1789,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.compactionStateWriteQueue = undefined;
 			}
 		}
+	}
+
+	async attachMedia(sessionId: string, input: GeneratedMedia): Promise<void> {
+		const media = GeneratedMediaSchema.parse(input);
+		const session = this.sessions.get(sessionId);
+		if (!session) throw new Error(`Session ${sessionId} is not running`);
+		await this.ensureSessionPersisted(session);
+		session.agent.attachMedia(media);
+		await this.invoke<void>(
+			"persistSessionMessages",
+			sessionId,
+			session.agent.getMessages(),
+			session.config.systemPrompt,
+		);
+		this.emit({
+			type: "agent_event",
+			payload: {
+				sessionId,
+				event: { type: "content_end", contentType: "media", media },
+			},
+		});
 	}
 
 	async readLiveSessionMessages(

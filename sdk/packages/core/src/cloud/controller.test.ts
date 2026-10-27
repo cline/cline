@@ -60,6 +60,10 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		delete: vi.fn(async () => {}),
 		updateTitle: vi.fn(async () => structuredClone(record)),
 		history: vi.fn(async () => null),
+		getArtifactDownloadUrl: vi.fn(async () => ({
+			url: "https://storage.example/image.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		})),
 		waitUntilReady: vi.fn(
 			async (_sessionId: string, _signal: AbortSignal) => {},
 		),
@@ -208,6 +212,39 @@ function resumableFixture(status = "ready") {
 	});
 	return f;
 }
+
+it("keeps a retried media publication single in the cloud snapshot", async () => {
+	const f = await attached();
+	const media = {
+		id: "artifact_frame",
+		modality: "image",
+		mediaType: "image/png",
+		source: { type: "artifact", artifactId: "frame" },
+	};
+	f.emit("assistant.media", { media });
+	f.emit("assistant.media", { media });
+	const messages = f.controller.getSnapshot(record.id)?.messages;
+	expect(messages).toHaveLength(1);
+	expect(messages?.[0]?.content).toEqual([{ type: "media", media }]);
+	await f.controller.dispose();
+});
+
+it("retrieves an artifact without connecting to or resuming its sandbox", async () => {
+	const f = fixture();
+	expect(
+		await f.controller.getArtifactDownloadUrl("ses-stopped", "frame"),
+	).toEqual({
+		url: "https://storage.example/image.png",
+		expiresAt: "2030-01-01T00:00:00Z",
+	});
+	expect(f.api.getArtifactDownloadUrl).toHaveBeenCalledWith(
+		"ses-stopped",
+		"frame",
+	);
+	expect(f.api.resume).not.toHaveBeenCalled();
+	expect(f.commands).toEqual([]);
+	await f.controller.dispose();
+});
 
 describe("CloudSessionController neutral host contract", () => {
 	it.each([
@@ -1617,6 +1654,10 @@ describe("seeded cloud handoff controller", () => {
 			waitUntilReady: vi.fn(async () => {}),
 			delete: vi.fn(async () => {}),
 			history: vi.fn(async () => null),
+			getArtifactDownloadUrl: vi.fn(async () => ({
+				url: "https://storage.example/image.png",
+				expiresAt: "2030-01-01T00:00:00Z",
+			})),
 			updateTitle: vi.fn(async () => record),
 			listRepositories: vi.fn(async () => ({
 				connected: true,

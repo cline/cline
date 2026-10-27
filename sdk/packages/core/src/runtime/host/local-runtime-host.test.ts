@@ -203,6 +203,66 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
+	it("persists attached media and restores it after the session stops", async () => {
+		const service = new FileSessionService(join(isolatedHomeDir, "sessions"));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: service,
+		});
+		const media = {
+			id: "artifact_frame",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "artifact", artifactId: "frame" },
+		} as const;
+		try {
+			const session = await manager.startSession({
+				config: {
+					providerId: "anthropic",
+					modelId: "claude-3-5-sonnet",
+					apiKey: "test-key",
+					systemPrompt: "Test",
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+				interactive: true,
+			});
+			const events: unknown[] = [];
+			const unsubscribe = manager.subscribe((event) => {
+				if (
+					event.type === "agent_event" &&
+					event.payload.event.type === "content_end"
+				)
+					events.push(event);
+			});
+			await manager.attachMedia(session.sessionId, media);
+			await manager.attachMedia(session.sessionId, media);
+			expect(await manager.readLiveSessionMessages(session.sessionId)).toEqual([
+				expect.objectContaining({
+					metadata: { displayOnly: true },
+					content: [{ type: "media", media }],
+				}),
+			]);
+			expect(events).toHaveLength(2);
+			expect(await manager.readSessionMessages(session.sessionId)).toEqual(
+				await manager.readLiveSessionMessages(session.sessionId),
+			);
+			unsubscribe();
+			await manager.stopSession(session.sessionId);
+			expect(await manager.readSessionMessages(session.sessionId)).toEqual([
+				expect.objectContaining({ content: [{ type: "media", media }] }),
+			]);
+			await expect(manager.attachMedia("missing", media)).rejects.toThrow(
+				"not running",
+			);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("recovers stale detached command logs for non-daemon hosts", async () => {
 		const detachedLogDirectory = mkdtempSync(
 			join(tmpdir(), "cline-command-local-host-recovery-"),

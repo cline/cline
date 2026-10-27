@@ -223,6 +223,30 @@ function withCapturingFakeRuntime(script: FakeAgentRuntimeScript = {}): {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime construction", () => {
+	it("keeps published media through runtime snapshots without putting it in model context", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		const media = {
+			id: "frame",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "artifact", artifactId: "frame" },
+		} as const;
+		await session.run("Start");
+		session.attachMedia(media);
+		const result = await session.continue("Continue");
+		expect(result.messages).toContainEqual(
+			expect.objectContaining({
+				metadata: { displayOnly: true },
+				content: [{ type: "media", media }],
+			}),
+		);
+		expect(JSON.stringify(configs.at(-1))).not.toContain(
+			'"artifactId":"frame"',
+		);
+		await session.shutdown();
+	});
+
 	it("wires agentId, conversationId, and canStartRun", () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		expect(session.getAgentId()).toMatch(/^agent_/);

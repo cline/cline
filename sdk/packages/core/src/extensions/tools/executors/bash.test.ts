@@ -53,6 +53,20 @@ function detachedCommandMarker(pid: number, processStartToken: string): string {
 }
 
 describe("createShellExecutor", () => {
+	it("supplies the calling session identity separately for concurrent commands", async () => {
+		const shell = createShellExecutor();
+		const command = `${JSON.stringify(process.execPath)} -e 'process.stdout.write(process.env.CLINE_SESSION_ID)'`;
+		const values = await Promise.all(
+			["session-one", "session-two"].map((sessionId) =>
+				shell(command, process.cwd(), { ...ctx, sessionId }),
+			),
+		);
+		expect(values.map((value) => value.trim())).toEqual([
+			"session-one",
+			"session-two",
+		]);
+	});
+
 	it("runs a simple command and returns stdout", async () => {
 		const shell = createShellExecutor();
 		const output = await shell("echo hello", process.cwd(), ctx);

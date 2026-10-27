@@ -4,11 +4,24 @@ import {
 	decodeJwtPayload,
 	type MessageWithMetadata,
 } from "@cline/shared";
+import { z } from "zod";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
 	CloudRepositoryListResult,
 } from "./repositories";
+
+const ArtifactDownloadSchema = z.object({
+	url: z
+		.string()
+		.url()
+		.refine((value) => {
+			const url = new URL(value);
+			return url.protocol === "https:" && !url.username && !url.password;
+		}, "Artifact downloads must use HTTPS"),
+	expiresAt: z.string().datetime({ offset: true }),
+});
+export type CloudArtifactDownload = z.infer<typeof ArtifactDownloadSchema>;
 
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
@@ -982,6 +995,16 @@ export class CloudSessionApi {
 				body: JSON.stringify({ title }),
 			},
 		);
+	}
+
+	async getArtifactDownloadUrl(
+		sessionId: string,
+		artifactId: string,
+	): Promise<CloudArtifactDownload> {
+		const result = await this.request<unknown>(
+			`/api/v1/session/${encodeURIComponent(sessionId)}/artifacts/download-url?name=${encodeURIComponent(artifactId)}`,
+		);
+		return ArtifactDownloadSchema.parse(result);
 	}
 
 	/** Raw archived snapshot; null distinguishes a missing archive from []. */

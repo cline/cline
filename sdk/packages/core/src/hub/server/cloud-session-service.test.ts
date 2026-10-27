@@ -88,6 +88,10 @@ function fixture() {
 			}),
 			send: vi.fn(async () => ({ sessionId: "ses-one", ok: true })),
 			restoreCreationOptions: vi.fn(async () => {}),
+			getArtifactDownloadUrl: vi.fn(async () => ({
+				url: "https://storage.example/image.png",
+				expiresAt: "2030-01-01T00:00:00Z",
+			})),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
 		};
@@ -158,6 +162,28 @@ function fixture() {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("resolves artifact URLs through the viewer and rejects an account switch during resolution", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		await expect(
+			viewer.getArtifactDownloadUrl("ses-one", "frame"),
+		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
+		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
+		expect(resolver).toHaveBeenCalledWith("ses-one", "frame");
+		const pending = deferred<{ url: string; expiresAt: string }>();
+		resolver.mockReturnValueOnce(pending.promise);
+		const result = viewer.getArtifactDownloadUrl("ses-one", "frame");
+		await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
+		f.changeScope("account-two");
+		pending.resolve({
+			url: "https://storage.example/private.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		});
+		await expect(result).rejects.toThrow(/account changed/i);
+		await viewer.dispose();
+	});
+
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
