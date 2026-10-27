@@ -69,6 +69,8 @@ export interface SessionConnectionOptions {
 	 */
 	approvalPolicy?: ApprovalPolicy;
 	getReasoningChoice?: () => ReasoningChoice | undefined;
+	/** Consume an explicit choice only after its update is acknowledged. */
+	onReasoningApplied?: (choice: ReasoningChoice) => void;
 }
 
 export interface SessionInputAttachments {
@@ -173,7 +175,7 @@ export class SessionConnection {
 	}
 
 	/** connect -> subscribe -> attach -> buffer -> hydrate -> merge -> live. */
-	async start(): Promise<void> {
+	async start(options: { requireHydrate?: boolean } = {}): Promise<void> {
 		if (this.disposed) {
 			throw new Error("SessionConnection has been disposed.");
 		}
@@ -188,7 +190,7 @@ export class SessionConnection {
 		this.watchConnectionState();
 		// Seeded into the chain so a reconnect epoch observed *during* the initial
 		// sync queues behind it instead of interleaving two hydrate windows.
-		const initial = this.synchronize({ initial: true });
+		const initial = this.synchronize({ initial: true, ...options });
 		this.runtimeRecovery = initial;
 		this.resyncChain = initial.then(
 			() => undefined,
@@ -211,7 +213,9 @@ export class SessionConnection {
 	 * cleared the buffer the first was about to merge, silently losing whatever had
 	 * streamed in between.
 	 */
-	async resync(options: { requireAttach?: boolean } = {}): Promise<void> {
+	async resync(
+		options: { requireAttach?: boolean; requireHydrate?: boolean } = {},
+	): Promise<void> {
 		if (this.disposed) {
 			return;
 		}
@@ -787,6 +791,7 @@ export class SessionConnection {
 	private async synchronize(options: {
 		initial: boolean;
 		requireAttach?: boolean;
+		requireHydrate?: boolean;
 		transcriptOnly?: boolean;
 	}): Promise<void> {
 		this.dispatch({ type: "hydrate_started" });
@@ -836,6 +841,7 @@ export class SessionConnection {
 		}
 		await this.hydrate(
 			attach.status === "attached" ? attach.runStatus : undefined,
+			options.requireHydrate,
 		);
 		await this.refreshPendingApprovals();
 		await this.refreshPendingPrompts();
@@ -951,7 +957,10 @@ export class SessionConnection {
 		}
 	}
 
-	private async hydrate(authoritative: RunStatus | undefined): Promise<void> {
+	private async hydrate(
+		authoritative: RunStatus | undefined,
+		required = false,
+	): Promise<void> {
 		const sessionId = this.handle.hubSessionId;
 		if (!sessionId) {
 			// Nothing persisted yet; go live so buffered events still render.
@@ -984,6 +993,7 @@ export class SessionConnection {
 					type: "hydrate_failed",
 					detail: parsed.detail,
 				});
+				if (required) throw new Error(parsed.detail);
 				return;
 			}
 			if (parsed.invalidCount > 0) {
@@ -1007,6 +1017,7 @@ export class SessionConnection {
 				type: "hydrate_failed",
 				detail: errorDetail(error),
 			});
+			if (required) throw error;
 		}
 	}
 
@@ -1092,7 +1103,11 @@ export class SessionConnection {
 	 * outcome for whoever awaited `resync()`.
 	 */
 	private enqueueResync(
-		options: { requireAttach?: boolean; transcriptOnly?: boolean } = {},
+		options: {
+			requireAttach?: boolean;
+			requireHydrate?: boolean;
+			transcriptOnly?: boolean;
+		} = {},
 	): Promise<void> {
 		const pass = this.resyncChain.then(async () => {
 			if (this.disposed) {
@@ -1148,6 +1163,7 @@ export class SessionConnection {
 				);
 			const reasoning = this.options.getReasoningChoice?.();
 			if (reasoning) {
+				const previousModel = this.state.model;
 				this.preparingReasoning = true;
 				try {
 					await this.handle.client.command(
@@ -1155,6 +1171,16 @@ export class SessionConnection {
 						{ sessionId, updates: reasoningUpdates(reasoning) },
 						sessionId,
 					);
+					// Older hubs acknowledge without broadcasting session.updated. Keep
+					// the accepted choice visible before consuming the pending edit,
+					// unless a newer server model snapshot already arrived.
+					if (!this.disposed && this.state.model === previousModel) {
+						this.dispatch({
+							type: "model_updated",
+							model: { ...previousModel, reasoning },
+						});
+					}
+					this.options.onReasoningApplied?.(reasoning);
 				} catch {
 					throw new Error(
 						"The thinking level could not be applied. Your message was not sent. Try again.",

@@ -234,8 +234,10 @@ interface InlineToken {
 /** Tokenizes one line of inline markdown. Non-greedy, single pass, left to right. */
 function tokenizeInline(input: string): InlineToken[] {
 	const tokens: InlineToken[] = [];
+	// Underscores inside identifiers are literal (CommonMark's intraword rule).
+	// Keep asterisks separate: unlike underscores, they can emphasize within words.
 	const pattern =
-		/(\*\*|__)(.+?)\1|(\*|_)(.+?)\3|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g;
+		/\*\*(.+?)\*\*|(?<![\p{L}\p{M}\p{N}_])__(\S(?:.*?\S)?)__(?![\p{L}\p{M}\p{N}_])|\*(.+?)\*|(?<![\p{L}\p{M}\p{N}_])_(\S(?:.*?\S)?)_(?![\p{L}\p{M}\p{N}_])|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/gu;
 	let lastIndex = 0;
 	let match: RegExpExecArray | null;
 	match = pattern.exec(input);
@@ -243,10 +245,12 @@ function tokenizeInline(input: string): InlineToken[] {
 		if (match.index > lastIndex) {
 			tokens.push({ kind: "text", value: input.slice(lastIndex, match.index) });
 		}
-		if (match[2] !== undefined) {
-			tokens.push({ kind: "bold", value: match[2] });
-		} else if (match[4] !== undefined) {
-			tokens.push({ kind: "italic", value: match[4] });
+		const bold = match[1] ?? match[2];
+		const italic = match[3] ?? match[4];
+		if (bold !== undefined) {
+			tokens.push({ kind: "bold", value: bold });
+		} else if (italic !== undefined) {
+			tokens.push({ kind: "italic", value: italic });
 		} else if (match[5] !== undefined) {
 			tokens.push({ kind: "code", value: match[5] });
 		} else if (match[6] !== undefined) {

@@ -18,7 +18,7 @@ import type {
 	HubReplyEnvelope,
 	PendingApprovalInfo,
 } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { SessionHandle } from "../session";
 import { asHubSessionId, asRemoteSessionId } from "../session/ids";
 import { SessionConnectionController } from "./controller";
@@ -318,5 +318,251 @@ describe("bootstrap serialisation", () => {
 		controller.dispose();
 		await expect(controller.reconnect()).resolves.toBeUndefined();
 		expect(built).toHaveLength(1);
+	});
+});
+
+describe("Cloud stale-transport recovery", () => {
+	it("hydrates missed history on foreground without rebuilding or sending", async () => {
+		const client = new FakeHubClient();
+		const createHandle = vi.fn(async () => handleFor(client));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			client.handlers.set("session.messages", () => ({
+				messages: [{ role: "assistant", content: "From the other device" }],
+			}));
+			const send = vi.fn(() => ({}));
+			client.handlers.set("session.send_input", send);
+			await controller.recoverFromIdle();
+			expect(createHandle).toHaveBeenCalledTimes(1);
+			expect(send).not.toHaveBeenCalled();
+			expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+				"From the other device",
+			);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	it("healthy periodic probes only read the exact session", async () => {
+		const client = new FakeHubClient();
+		const createHandle = vi.fn(async () => handleFor(client));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			const get = vi.fn(() => ({
+				session: { sessionId: "ses_1", status: "idle" },
+			}));
+			const messages = vi.fn(() => ({ messages: [] }));
+			client.handlers.set("session.get", get);
+			client.handlers.set("session.messages", messages);
+			await controller.checkHealth();
+			expect(get).toHaveBeenCalledExactlyOnceWith({ sessionId: "ses_1" });
+			expect(messages).not.toHaveBeenCalled();
+			expect(createHandle).toHaveBeenCalledTimes(1);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	it("retires a half-open socket once and pins resolved IDs before rebuilding", async () => {
+		vi.useFakeTimers();
+		const old = new FakeHubClient();
+		old.handlers.set("session.messages", () => ({
+			messages: [{ role: "assistant", content: "Last good history" }],
+		}));
+		const fresh = new FakeHubClient();
+		fresh.handlers.set("session.messages", () => ({
+			messages: [{ role: "assistant", content: "Remote update" }],
+		}));
+		const oldCommands = vi.spyOn(old, "command");
+		const freshCommands = vi.spyOn(fresh, "command");
+		const gate = deferred<SessionHandle>();
+		const createHandle = vi
+			.fn<(descriptor: ConnectionDescriptor) => Promise<SessionHandle>>()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockImplementationOnce(() => gate.promise);
+		const controller = new SessionConnectionController(
+			{
+				mode: "cloud",
+				url: "https://workspace.test",
+				allowInitialCreate: true,
+			},
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const pending = controller.checkHealth();
+			expect(controller.checkHealth()).toBe(pending);
+			expect(controller.recoverFromIdle()).toBe(pending);
+			await vi.advanceTimersByTimeAsync(5_001);
+			expect(old.closed).toBe(true);
+			expect(createHandle).toHaveBeenCalledTimes(2);
+			expect(createHandle.mock.calls[1]?.[0]).toMatchObject({
+				remoteSessionId: "rs_1",
+				hubSessionId: "ses_1",
+				allowInitialCreate: false,
+			});
+			expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+				"Last good history",
+			);
+			// A new user action waits for recovery; recovery itself never replays input.
+			fresh.handlers.set("session.send_input", () => ({}));
+			const sending = controller.sendInput("New explicit input");
+			await settle();
+			expect(
+				freshCommands.mock.calls.some(
+					([name]) => name === "session.send_input",
+				),
+			).toBe(false);
+			gate.resolve(handleFor(fresh));
+			await pending;
+			await sending;
+			expect(
+				oldCommands.mock.calls.filter(
+					([name]) => name === "session.send_input",
+				),
+			).toHaveLength(0);
+			expect(
+				freshCommands.mock.calls.filter(
+					([name]) => name === "session.send_input",
+				),
+			).toHaveLength(1);
+			expect(
+				[...oldCommands.mock.calls, ...freshCommands.mock.calls].some(
+					([name]) => name === "session.create",
+				),
+			).toBe(false);
+			expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+				"Remote update",
+			);
+			expect(controller.getSnapshot().status.phase).toBe("ready");
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+
+	it("rebuilds after failed transcript hydration rather than accepting stale history", async () => {
+		const old = new FakeHubClient();
+		const fresh = new FakeHubClient();
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			old.handlers.set("session.messages", () => {
+				throw new Error("lost proxy");
+			});
+			await controller.recoverFromIdle();
+			expect(old.closed).toBe(true);
+			expect(createHandle).toHaveBeenCalledTimes(2);
+		} finally {
+			controller.dispose();
+		}
+	});
+});
+
+describe("Cloud recovery failure boundaries", () => {
+	it.each([
+		{},
+		{ session: { sessionId: "another-session" } },
+	])("rejects an invalid or wrong-session health response", async (payload) => {
+		const old = new FakeHubClient();
+		const fresh = new FakeHubClient();
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			old.handlers.set("session.get", () => payload);
+			await controller.checkHealth();
+			expect(old.closed).toBe(true);
+			expect(createHandle).toHaveBeenCalledTimes(2);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	it.each([
+		"reconnect",
+		"checkHealth",
+		"recoverFromIdle",
+	] as const)("retains the last good transcript after failed replacement and retries via %s", async (retry) => {
+		const old = new FakeHubClient();
+		old.handlers.set("session.messages", () => ({
+			messages: [{ role: "assistant", content: "Preserve this history" }],
+		}));
+		const broken = new FakeHubClient();
+		broken.handlers.set("session.messages", () => {
+			throw new Error("history unavailable");
+		});
+		const fresh = new FakeHubClient();
+		fresh.handlers.set("session.messages", () => ({
+			messages: [{ role: "assistant", content: "Recovered history" }],
+		}));
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(broken))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			old.handlers.set("session.get", () => {
+				throw new Error("stale socket");
+			});
+			await controller.checkHealth();
+			expect(controller.getSnapshot().status.phase).toBe("error");
+			expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+				"Preserve this history",
+			);
+			expect(broken.closed).toBe(true);
+			await controller[retry]();
+			expect(controller.getSnapshot().status.phase).toBe("ready");
+			expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+				"Recovered history",
+			);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	it("does not rebuild after disposal during a probe", async () => {
+		const old = new FakeHubClient();
+		const createHandle = vi.fn(async () => handleFor(old));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		const gate = deferred<Record<string, unknown>>();
+		await controller.start();
+		old.handlers.set("session.get", () => gate.promise);
+		const recovery = controller.checkHealth();
+		await settle();
+		controller.dispose();
+		gate.reject(new Error("late failure"));
+		await recovery;
+		expect(createHandle).toHaveBeenCalledTimes(1);
 	});
 });

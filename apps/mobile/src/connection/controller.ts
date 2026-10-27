@@ -1,4 +1,5 @@
 import type { ModelCatalogView } from "@/session";
+import { parseSessionRecordReply } from "../session/schemas";
 /**
  * The headless bridge between one {@link ConnectionDescriptor} and the tested
  * session core. Pure TypeScript — no React — so it can be unit-tested directly
@@ -50,6 +51,8 @@ export interface ConnectionStatus {
 }
 
 export interface ConnectionSnapshot {
+	/** Explicit choice awaiting acknowledgement; otherwise the server owns reasoning. */
+	pendingReasoning?: ReasoningChoice;
 	view: SessionViewModel;
 	status: ConnectionStatus;
 	/** Exact inner Hub session once resume/create has resolved it. */
@@ -81,7 +84,8 @@ export interface SessionConnectionControllerDeps {
 	 * means every tier asks, which is what the test suite and any caller that has
 	 * not loaded the user's settings yet should get; the app passes the persisted
 	 * policy and updates it through {@link
-	 * SessionConnectionController.setApprovalPolicy}.
+	 * SessionConnectionController.setApprovalPolicy}. Applies only to computer
+	 * sessions; Cloud approvals follow the shared runtime's policy.
 	 */
 	approvalPolicy?: ApprovalPolicy;
 	/** Keep settings current while this controller is retained off screen. */
@@ -104,8 +108,11 @@ export function initialSnapshot(): ConnectionSnapshot {
 import type { ReasoningChoice } from "@/session/reasoning";
 export class SessionConnectionController {
 	private reasoningChoice?: ReasoningChoice;
+	private reasoningInitialized = false;
 	setReasoningChoice = (choice: ReasoningChoice | undefined): void => {
+		this.reasoningInitialized = true;
 		this.reasoningChoice = choice;
+		this.publish();
 	};
 	private connection: SessionConnection | undefined;
 	private unsubscribeView: (() => void) | undefined;
@@ -137,11 +144,13 @@ export class SessionConnectionController {
 		private readonly deps: SessionConnectionControllerDeps = {},
 		private initialHandle?: SessionHandle,
 	) {
-		this.approvalPolicy = deps.approvalPolicy;
-		this.reasoningChoice = descriptor.reasoning;
-		this.unsubscribeApprovalPolicy = deps.subscribeApprovalPolicy?.(
-			this.setApprovalPolicy,
-		);
+		this.approvalPolicy =
+			descriptor.mode === "local" ? deps.approvalPolicy : undefined;
+		if (descriptor.mode === "local") {
+			this.unsubscribeApprovalPolicy = deps.subscribeApprovalPolicy?.(
+				this.setApprovalPolicy,
+			);
+		}
 	}
 
 	/** React's `useSyncExternalStore` subscribe. */
@@ -324,6 +333,9 @@ export class SessionConnectionController {
 	 * exists: the value is remembered and applied when it is built.
 	 */
 	setApprovalPolicy = (policy: ApprovalPolicy): void => {
+		// Cloud sessions are shared across clients. Device preferences must not
+		// answer a runtime ask on attach, reconnect, or a background settings update.
+		if (this.descriptor.mode !== "local") return;
 		this.approvalPolicy = policy;
 		this.connection?.setApprovalPolicy(policy);
 	};
@@ -336,7 +348,96 @@ export class SessionConnectionController {
 	 * promise, so an escaping rejection is an on-device redbox; failures land in
 	 * `status` instead, the same contract as `sendInput`/`respondApproval`.
 	 */
+	private idleRecovery?: Promise<void>;
+	private recoveryDescriptor?: ConnectionDescriptor;
+	private preserveRecoveryView = false;
+
+	/** Refresh missed foreground activity; replace an unresponsive socket once. */
+	recoverFromIdle = (): Promise<void> => {
+		if (this.disposed || this.descriptor.mode !== "cloud")
+			return Promise.resolve();
+		this.idleRecovery ??= this.recoverCloudSession().finally(() => {
+			this.idleRecovery = undefined;
+		});
+		return this.idleRecovery;
+	};
+
+	/** Lightweight liveness check while a Cloud chat remains foregrounded. */
+	checkHealth = (): Promise<void> => {
+		if (this.disposed || this.descriptor.mode !== "cloud")
+			return Promise.resolve();
+		this.idleRecovery ??= this.recoverCloudSession(true).finally(() => {
+			this.idleRecovery = undefined;
+		});
+		return this.idleRecovery;
+	};
+
+	private async recoverCloudSession(probeOnly = false): Promise<void> {
+		if (this.bootstrapInFlight) {
+			await this.bootstrap?.catch(() => {});
+			return;
+		}
+		const connection = this.connection;
+		if (!connection && this.recoveryDescriptor && !this.disposed) {
+			// A failed replacement has already been retired. A later foreground or
+			// health tick may retry that pinned conversation, never initial creation.
+			this.bootstrap = undefined;
+			this.preserveRecoveryView = true;
+			await this.start().catch(() => {});
+			return;
+		}
+		const sessionId = connection?.handle.hubSessionId;
+		// Initial provisioning/creation has its own recovery. Never turn a foreground
+		// refresh into creating a new conversation or replaying its first prompt.
+		if (!connection || !sessionId || this.disposed) return;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			await Promise.race([
+				probeOnly
+					? connection.handle.client
+							.command("session.get", { sessionId }, sessionId, {
+								timeoutMs: 5_000,
+							})
+							.then((reply) => {
+								const parsed = parseSessionRecordReply(reply.payload);
+								if (parsed.status !== "ok" || parsed.sessionId !== sessionId)
+									throw new Error(
+										"Cloud session health reply did not match the conversation.",
+									);
+							})
+					: connection.resync({ requireAttach: true, requireHydrate: true }),
+				new Promise<never>((_, reject) => {
+					timer = setTimeout(
+						() => reject(new Error("Cloud session refresh timed out.")),
+						5_000,
+					);
+				}),
+			]);
+			if (!this.disposed && !probeOnly) this.setStatus({ phase: "ready" });
+			return;
+		} catch {
+			if (this.disposed || this.connection !== connection) return;
+		} finally {
+			if (timer) clearTimeout(timer);
+		}
+		this.recoveryDescriptor = {
+			...this.descriptor,
+			remoteSessionId: connection.handle.remoteSession.id,
+			hubSessionId: sessionId,
+			allowInitialCreate: false,
+		};
+		delete this.recoveryDescriptor.pendingInitialMessage;
+		this.unsubscribeView?.();
+		this.unsubscribeView = undefined;
+		connection.dispose();
+		this.connection = undefined;
+		this.bootstrap = undefined;
+		this.preserveRecoveryView = true;
+		await this.start().catch(() => {});
+	}
+
 	reconnect = async (): Promise<void> => {
+		if (this.idleRecovery) return this.idleRecovery;
 		if (this.disposed) {
 			return;
 		}
@@ -431,27 +532,54 @@ export class SessionConnectionController {
 				handle.client.close();
 				return;
 			}
+			// Saved defaults belong only to a newly created conversation. An existing
+			// session may have been changed by another client since this device saved it.
+			if (!this.reasoningInitialized) {
+				this.reasoningInitialized = true;
+				if (handle.needsCreate)
+					this.reasoningChoice = this.descriptor.reasoning;
+			}
 			const connection = new SessionConnection({
 				handle,
 				getReasoningChoice: () => this.reasoningChoice,
+				onReasoningApplied: (choice) => {
+					// A newer edit made during the request still needs to be sent.
+					if (
+						this.connection === connection &&
+						this.reasoningChoice === choice
+					) {
+						this.reasoningChoice = undefined;
+						this.publish();
+					}
+				},
 				...(this.approvalPolicy ? { approvalPolicy: this.approvalPolicy } : {}),
 				...(this.deps.onDiagnostic
 					? { onDiagnostic: this.deps.onDiagnostic }
 					: {}),
 			});
 			this.connection = connection;
+			let publishView = !this.preserveRecoveryView;
 			this.unsubscribeView = connection.subscribe((view) => {
-				this.setView(view);
+				if (publishView) this.setView(view);
 			});
-			this.setView(connection.getView());
-			await connection.start();
+			if (publishView) this.setView(connection.getView());
+			await connection.start({ requireHydrate: this.preserveRecoveryView });
+			publishView = true;
+			this.preserveRecoveryView = false;
 			if (this.disposed) {
 				return;
 			}
+			this.setView(connection.getView());
 			this.setStatus({ phase: "ready" });
 		} catch (error) {
 			if (this.disposed) {
 				return;
+			}
+			if (this.preserveRecoveryView) {
+				this.unsubscribeView?.();
+				this.unsubscribeView = undefined;
+				this.connection?.dispose();
+				this.connection = undefined;
 			}
 			console.error("[mobile/session] connection failed", {
 				mode: this.descriptor.mode,
@@ -470,14 +598,16 @@ export class SessionConnectionController {
 	}
 
 	private async buildHandle(
-		descriptor = this.descriptor,
-		createNewSession = this.deps.createNewSession,
+		descriptor = this.recoveryDescriptor ?? this.descriptor,
+		createNewSession = this.recoveryDescriptor
+			? false
+			: this.deps.createNewSession,
 	): Promise<SessionHandle> {
 		if (this.deps.createHandle) {
 			return this.deps.createHandle(descriptor);
 		}
 		if (descriptor.mode === "cloud") {
-			return this.buildCloudHandle();
+			return this.buildCloudHandle(descriptor, createNewSession);
 		}
 		// A paired connection brings its own socket, because the credential is a
 		// Noise handshake rather than something that fits in a header. Both kinds
@@ -518,7 +648,10 @@ export class SessionConnectionController {
 	 * comes from `deps.getAccessToken` (never from the descriptor, which is
 	 * persisted); `apiBaseUrl` falls back to the build-time cloud environment.
 	 */
-	private buildCloudHandle(): Promise<SessionHandle> {
+	private buildCloudHandle(
+		descriptor: ConnectionDescriptor,
+		createNewSession?: boolean,
+	): Promise<SessionHandle> {
 		const getAccessToken = this.deps.getAccessToken;
 		if (!getAccessToken) {
 			return Promise.reject(
@@ -529,7 +662,7 @@ export class SessionConnectionController {
 		}
 		let resuming = false;
 		return createCloudSessionHandle({
-			allowInitialCreate: this.descriptor.allowInitialCreate === true,
+			allowInitialCreate: descriptor.allowInitialCreate === true,
 			signal: this.abortController.signal,
 			onProgress: (progress) => {
 				resuming ||= progress.phase === "resuming";
@@ -539,21 +672,21 @@ export class SessionConnectionController {
 						progress: cloudStartStatus(progress.phase, resuming),
 					});
 			},
-			apiBaseUrl: this.descriptor.apiBaseUrl ?? cloudEnv.apiBaseUrl,
+			apiBaseUrl: descriptor.apiBaseUrl ?? cloudEnv.apiBaseUrl,
 			getAccessToken,
-			...(this.descriptor.modelId ? { modelId: this.descriptor.modelId } : {}),
-			...(this.descriptor.hubSessionId
-				? { hubSessionId: this.descriptor.hubSessionId }
+			...(descriptor.modelId ? { modelId: descriptor.modelId } : {}),
+			...(descriptor.hubSessionId
+				? { hubSessionId: descriptor.hubSessionId }
 				: {}),
-			...(this.descriptor.remoteSessionId
+			...(descriptor.remoteSessionId
 				? {
-						remoteSessionId: asRemoteSessionId(this.descriptor.remoteSessionId),
+						remoteSessionId: asRemoteSessionId(descriptor.remoteSessionId),
 					}
 				: {}),
-			...(this.descriptor.organizationId
-				? { organizationId: this.descriptor.organizationId }
+			...(descriptor.organizationId
+				? { organizationId: descriptor.organizationId }
 				: {}),
-			...(this.deps.createNewSession ? { createNewSession: true } : {}),
+			...(createNewSession ? { createNewSession: true } : {}),
 			...(this.deps.WebSocketImpl
 				? { WebSocketImpl: this.deps.WebSocketImpl }
 				: {}),
@@ -564,6 +697,7 @@ export class SessionConnectionController {
 	}
 
 	private async requireConnection(): Promise<SessionConnection> {
+		await this.idleRecovery;
 		await this.start().catch(() => {
 			// Surface the bootstrap failure as the more specific error below.
 		});
@@ -586,10 +720,13 @@ export class SessionConnectionController {
 	}
 
 	private publish(): void {
-		const sessionId = this.connection?.handle.hubSessionId;
+		const sessionId =
+			this.connection?.handle.hubSessionId ??
+			this.recoveryDescriptor?.hubSessionId;
 		this.snapshot = {
 			view: this.view,
 			status: this.status,
+			pendingReasoning: this.reasoningChoice,
 			...(sessionId ? { sessionId } : {}),
 		};
 		for (const listener of [...this.listeners]) {

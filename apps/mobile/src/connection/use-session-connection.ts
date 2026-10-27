@@ -1,4 +1,4 @@
-import type { SessionCheckpoint, ModelCatalogView } from "@/session";
+import type { ModelCatalogView, SessionCheckpoint } from "@/session";
 import type { ReasoningChoice } from "@/session/reasoning";
 /**
  * The single hook a chat screen calls to talk to a hub.
@@ -16,7 +16,9 @@ import type { ReasoningChoice } from "@/session/reasoning";
  * and the write operations.
  */
 
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 import type { ApprovalPolicy, SessionInputAttachments } from "../session";
 import { cloudLaunches } from "./cloud-launches";
 import {
@@ -28,6 +30,7 @@ import {
 import type { ConnectionDescriptor } from "./endpoints";
 
 export interface UseSessionConnection {
+	pendingReasoning?: ReasoningChoice;
 	view: ConnectionSnapshot["view"];
 	status: ConnectionSnapshot["status"];
 	/** Exact inner Hub session selected or created by this connection. */
@@ -97,6 +100,68 @@ export function useSessionConnection(
 			controllerRef.current = null;
 		};
 	}, [descriptor, deps]);
+
+	useFocusEffect(
+		// The controller follows descriptor/deps; resolved IDs enable health checks.
+		// biome-ignore lint/correctness/useExhaustiveDependencies: deps replaces the retained controller even with unchanged session ID.
+		useCallback(() => {
+			const controller = controllerRef.current;
+			if (descriptor.mode !== "cloud" || !controller) return;
+			let mounted = true;
+			let previousAppState = AppState.currentState;
+			let timer: ReturnType<typeof setInterval> | undefined;
+			let recovery: Promise<void> | undefined;
+			let recoveringHealth = false;
+			let foregroundAfterHealth = false;
+			const recover = (healthOnly: boolean) => {
+				if (!mounted) return;
+				if (recovery) {
+					if (!healthOnly && recoveringHealth) foregroundAfterHealth = true;
+					return;
+				}
+				recoveringHealth = healthOnly;
+				// Never replay a prompt: only recover/read its exact session.
+				recovery = (
+					healthOnly ? controller.checkHealth() : controller.recoverFromIdle()
+				)
+					.catch(() => {})
+					.finally(() => {
+						recovery = undefined;
+						recoveringHealth = false;
+						if (foregroundAfterHealth && previousAppState === "active") {
+							foregroundAfterHealth = false;
+							recover(false);
+						}
+					});
+			};
+			const stopHealthChecks = () => {
+				if (timer !== undefined) clearInterval(timer);
+				timer = undefined;
+			};
+			const startHealthChecks = () => {
+				if (timer !== undefined || !snapshot.sessionId) return;
+				timer = setInterval(() => recover(true), 30_000);
+			};
+			if (previousAppState === "active") startHealthChecks();
+			const subscription = AppState.addEventListener("change", (state) => {
+				const returningToApp =
+					state === "active" &&
+					(previousAppState === "background" ||
+						previousAppState === "inactive");
+				previousAppState = state;
+				if (!mounted) return;
+				if (state === "active") startHealthChecks();
+				else stopHealthChecks();
+				// iOS can suspend an OPEN socket without delivering its close event.
+				if (returningToApp) recover(false);
+			});
+			return () => {
+				mounted = false;
+				stopHealthChecks();
+				subscription.remove();
+			};
+		}, [descriptor, deps, snapshot.sessionId]),
+	);
 
 	const sendInput = useCallback(
 		(text: string, attachments?: SessionInputAttachments) =>
@@ -185,6 +250,7 @@ export function useSessionConnection(
 	);
 
 	return {
+		pendingReasoning: snapshot.pendingReasoning,
 		view: snapshot.view,
 		status: snapshot.status,
 		...(snapshot.sessionId ? { sessionId: snapshot.sessionId } : {}),

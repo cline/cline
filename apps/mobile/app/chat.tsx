@@ -219,9 +219,6 @@ function ConnectedChatRoute({
 		[],
 	);
 	const [checkingImageSupport, setCheckingImageSupport] = useState(true);
-	const [reasoningDraft, setReasoningDraft] = useState<
-		ReasoningChoice | undefined
-	>(descriptor.reasoning);
 	const loadCloudModels = useCallback(async () => {
 		try {
 			const models = await new CloudSetupGateway({
@@ -264,20 +261,12 @@ function ConnectedChatRoute({
 	);
 	const supportsReasoning = selectedModel?.supportsReasoning;
 	useEffect(() => {
-		if (!checkingImageSupport)
-			connection.setReasoningChoice?.(
-				supportsReasoning === true ? reasoningDraft : undefined,
-			);
-	}, [
-		checkingImageSupport,
-		supportsReasoning,
-		reasoningDraft,
-		connection.setReasoningChoice,
-	]);
+		// Capability loading must not erase an offline choice or a new-session
+		// default. Only a known unsupported model invalidates the pending edit.
+		if (supportsReasoning === false) connection.setReasoningChoice?.(undefined);
+	}, [supportsReasoning, connection.setReasoningChoice]);
 	const changeReasoning = (choice: ReasoningChoice) => {
-		setReasoningDraft(choice);
 		connection.setReasoningChoice?.(choice);
-		void save({ ...descriptor, reasoning: choice }).catch(() => {});
 	};
 	const initialMessageConsumed = useRef(false);
 	// Once the Hub resolves the exact inner conversation, retain it. Cloud replaces
@@ -518,7 +507,9 @@ function ConnectedChatRoute({
 			checkingImageSupport={descriptor.mode === "cloud" && checkingImageSupport}
 			supportsImages={selectedModel?.supportsImages}
 			providerId={connection.view.model?.providerId ?? providerId}
-			reasoning={reasoningDraft ?? connection.view.model?.reasoning}
+			reasoning={
+				connection.pendingReasoning ?? connection.view.model?.reasoning
+			}
 			supportsReasoning={supportsReasoning}
 			onReasoningChange={changeReasoning}
 			canChangeModel

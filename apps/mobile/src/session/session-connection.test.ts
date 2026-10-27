@@ -218,6 +218,9 @@ function sessionRecord(status: string) {
 
 function setUp(
 	options: {
+		onReasoningApplied?: (
+			choice: import("./reasoning").ReasoningChoice,
+		) => void;
 		getReasoningChoice?: () =>
 			| import("./reasoning").ReasoningChoice
 			| undefined;
@@ -251,6 +254,7 @@ function setUp(
 	const views: SessionViewModel[] = [];
 	const connection = new SessionConnection({
 		getReasoningChoice: options.getReasoningChoice,
+		onReasoningApplied: options.onReasoningApplied,
 		handle: handleFor(client, {
 			hubSessionId: "hubSessionId" in options ? options.hubSessionId : "ses_1",
 		}),
@@ -1175,6 +1179,74 @@ describe("operations", () => {
 		await expect(sending).rejects.toThrow("Session closed");
 		expect(client.log).not.toContain("session.send_input");
 	});
+	it("reflects acknowledged reasoning before consuming its pending choice on a hub without broadcasts", async () => {
+		const ack = deferred<Record<string, unknown>>();
+		const consumed = vi.fn(() => {
+			expect(connection.getView().model?.reasoning).toBe("high");
+		});
+		const { connection } = setUp({
+			getReasoningChoice: () => "high",
+			onReasoningApplied: consumed,
+			handlers: {
+				"session.attach": () => ({
+					session: {
+						sessionId: "ses_1",
+						model: "m",
+						provider: "cline",
+						metadata: { reasoningEffort: "low" },
+					},
+				}),
+				"session.update_connection": () => ack.promise,
+			},
+		});
+		await connection.start();
+		const sending = connection.sendInput("Apply High");
+		await settle();
+		expect(connection.getView().model?.reasoning).toBe("low");
+		expect(consumed).not.toHaveBeenCalled();
+		ack.resolve({ updated: true });
+		await sending;
+		expect(consumed).toHaveBeenCalledWith("high");
+		expect(connection.getView().model).toMatchObject({
+			modelId: "m",
+			providerId: "cline",
+			reasoning: "high",
+		});
+		connection.dispose();
+	});
+
+	it("does not overwrite a newer broadcast reasoning setting on acknowledgement", async () => {
+		const ack = deferred<Record<string, unknown>>();
+		const { connection, client } = setUp({
+			getReasoningChoice: () => "high",
+			handlers: { "session.update_connection": () => ack.promise },
+		});
+		await connection.start();
+		const sending = connection.sendInput("Apply High");
+		await settle();
+		client.emit({
+			version: "v1",
+			event: "session.updated",
+			eventId: "newer-reasoning",
+			sessionId: "ses_1",
+			payload: {
+				session: {
+					sessionId: "ses_1",
+					model: "newer",
+					provider: "cline",
+					metadata: { reasoningEffort: "low" },
+				},
+			},
+		});
+		ack.resolve({ updated: true });
+		await sending;
+		expect(connection.getView().model).toMatchObject({
+			modelId: "newer",
+			reasoning: "low",
+		});
+		connection.dispose();
+	});
+
 	it("updates model readback after acknowledgement without a session.updated event", async () => {
 		const ack = deferred<Record<string, unknown>>();
 		const { connection } = setUp({
