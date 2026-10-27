@@ -1,9 +1,18 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import { CheckIcon, CloudIcon, GitBranchIcon, LoaderCircleIcon, LogInIcon, PlayIcon, RefreshCcwIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { LINKS } from "@/constants"
 import { cn } from "@/lib/utils"
+import { UiServiceClient } from "@/services/grpc-client"
 
 export type CloudOnboardingVariant = "signed_out" | "not_connected" | "no_repositories" | "error"
+
+export function openCloudDocs() {
+	UiServiceClient.openUrl(StringRequest.create({ value: LINKS.DOCUMENTATION.CLOUD_AGENTS_IN_IDE_DOCS })).catch((error) =>
+		console.error("Failed to open cloud docs:", error),
+	)
+}
 
 /**
  * Shown in place of the repository pickers when a cloud task cannot be started
@@ -62,7 +71,13 @@ export function CloudOnboardingCard({
 				</div>
 				<p className="m-0 text-xs leading-relaxed text-description">
 					Cloud sessions run in an isolated sandbox on Cline's infrastructure. Cline clones your repository, works on a
-					branch, and keeps going after you close {editor}.
+					branch, and keeps going after you close {editor}.{" "}
+					<button
+						className="cursor-pointer border-0 bg-transparent p-0 text-xs text-link hover:underline"
+						onClick={openCloudDocs}
+						type="button">
+						Learn more
+					</button>
 				</p>
 			</div>
 
