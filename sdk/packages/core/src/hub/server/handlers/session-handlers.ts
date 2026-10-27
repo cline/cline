@@ -373,6 +373,13 @@ export async function handleSessionCreate(
 	) {
 		initialMessages =
 			await ctx.sessionHost.readSessionMessages(requestedSessionId);
+		if (initialMessages.length === 0) {
+			return errorReply(
+				envelope,
+				"session_history_unavailable",
+				"The saved conversation is empty or unavailable.",
+			);
+		}
 	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
