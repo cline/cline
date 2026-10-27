@@ -68,11 +68,16 @@ import { ChatConnectingState } from "./chat/ChatConnectingState";
 import { ChatErrorState } from "./chat/ChatErrorState";
 import { ChatHeader } from "./chat/ChatHeader";
 import { Composer } from "./chat/Composer";
+import { ConversationNavigator } from "./chat/ConversationNavigator";
 import {
 	MODEL_UNAVAILABLE_MESSAGE,
 	ModelPill,
 	ModelSheet,
 } from "./chat/ModelControl";
+import {
+	messageCopyText,
+	visibleTranscriptMessages,
+} from "./chat/message-text";
 import { QuestionSheet } from "./chat/QuestionSheet";
 import { QueuedPrompts } from "./chat/QueuedPrompts";
 import { ReasoningPill, ReasoningSheet } from "./chat/ReasoningControl";
@@ -212,7 +217,7 @@ export function ChatScreen({
 		}
 	};
 	const transcriptMessages = useMemo(
-		() => groupReasoningMessages(view.messages),
+		() => groupReasoningMessages(visibleTranscriptMessages(view.messages)),
 		[view.messages],
 	);
 	const approvalSheetRef = useRef<GorhomBottomSheet>(null);
@@ -223,6 +228,23 @@ export function ChatScreen({
 	const { policy, setTier, store: approvalPolicyStore } = useApprovalPolicy();
 	const transcriptRef = useRef<FlatList<SessionMessageView>>(null);
 	const transcriptContentHeight = useRef(0);
+	const [navigatorOpen, setNavigatorOpen] = useState(false);
+	const [navigationError, setNavigationError] = useState<string>();
+	const transcriptMessagesRef = useRef(transcriptMessages);
+	transcriptMessagesRef.current = transcriptMessages;
+	const pendingJump = useRef<{ id: string; attempts: number } | undefined>(
+		undefined,
+	);
+	const jumpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
+	useEffect(
+		() => () => {
+			if (jumpTimer.current) clearTimeout(jumpTimer.current);
+			pendingJump.current = undefined;
+		},
+		[],
+	);
 	const keyboard = useReanimatedKeyboardAnimation();
 	const bottomInsetStyle = useAnimatedStyle(() => ({
 		height: insets.bottom * (1 - keyboard.progress.value),
@@ -450,11 +472,44 @@ export function ChatScreen({
 		!questionCount &&
 		!view.lastError;
 	const scrollToLatest = () => {
+		if (jumpTimer.current) clearTimeout(jumpTimer.current);
+		pendingJump.current = undefined;
+		setNavigatorOpen(false);
+		setNavigationError(undefined);
 		transcriptRef.current?.scrollToOffset({
 			offset: transcriptContentHeight.current,
 			animated: !reduceMotion,
 		});
 		setFollowingTranscript(true);
+	};
+	const attemptMessageJump = () => {
+		const jump = pendingJump.current;
+		if (!jump) return;
+		const index = transcriptMessagesRef.current.findIndex(
+			(message) => message.id === jump.id,
+		);
+		if (index < 0) {
+			pendingJump.current = undefined;
+			return;
+		}
+		const attempts = jump.attempts;
+		transcriptRef.current?.scrollToIndex({
+			index,
+			animated: false,
+			viewPosition: 0.1,
+		});
+		if (pendingJump.current === jump && jump.attempts === attempts)
+			pendingJump.current = undefined;
+	};
+	const jumpToMessage = (id: string) => {
+		Keyboard.dismiss();
+		if (jumpTimer.current) clearTimeout(jumpTimer.current);
+		setNavigatorOpen(false);
+		setNavigationError(undefined);
+		transcriptInteracted.current = true;
+		setFollowingTranscript(false);
+		pendingJump.current = { id, attempts: 0 };
+		attemptMessageJump();
 	};
 	const trackTranscriptPosition = (
 		event: NativeSyntheticEvent<NativeScrollEvent>,
@@ -485,6 +540,14 @@ export function ChatScreen({
 					<ChatHeader
 						horizontalInsets={sideInsets}
 						onReviewBranch={onReviewBranch}
+						onFindInConversation={
+							transcriptMessages.length
+								? () => {
+										Keyboard.dismiss();
+										setNavigatorOpen(true);
+									}
+								: undefined
+						}
 						title={title}
 						subtitle={subtitle}
 						runStatus={view.runStatus}
@@ -634,6 +697,9 @@ export function ChatScreen({
 						</View>
 					) : (
 						<View style={{ flex: 1 }}>
+							{navigationError ? (
+								<Banner tone="warning" message={navigationError} />
+							) : null}
 							<FlatList
 								ref={transcriptRef}
 								data={transcriptMessages}
@@ -681,7 +747,27 @@ export function ChatScreen({
 								}
 								onScroll={trackTranscriptPosition}
 								onScrollBeginDrag={() => {
+									if (jumpTimer.current) clearTimeout(jumpTimer.current);
+									pendingJump.current = undefined;
 									transcriptInteracted.current = true;
+								}}
+								onScrollToIndexFailed={({ averageItemLength, index }) => {
+									const jump = pendingJump.current;
+									if (!jump) return;
+									jump.attempts += 1;
+									if (jump.attempts > 8) {
+										pendingJump.current = undefined;
+										setNavigationError(
+											"This message could not be located. Try searching again.",
+										);
+										return;
+									}
+									transcriptRef.current?.scrollToOffset({
+										offset: Math.max(0, averageItemLength * index),
+										animated: false,
+									});
+									if (jumpTimer.current) clearTimeout(jumpTimer.current);
+									jumpTimer.current = setTimeout(attemptMessageJump, 120);
 								}}
 								onLayout={() => {
 									if (followingTranscript)
@@ -706,11 +792,13 @@ export function ChatScreen({
 								scrollEventThrottle={16}
 							/>
 							{!followingTranscript && view.messages.length > 0 ? (
-								<IconButton
+								<Button
+									label="Latest"
+									size="sm"
+									variant="outline"
 									accessibilityLabel="Jump to latest message"
 									onPress={scrollToLatest}
-									round
-									background={theme.color.surfaceMuted}
+									icon={<ChevronDown size={18} color={theme.color.text} />}
 									style={{
 										position: "absolute",
 										right: sideInsets.right + 16,
@@ -718,9 +806,7 @@ export function ChatScreen({
 										borderWidth: 1,
 										borderColor: theme.color.border,
 									}}
-								>
-									<ChevronDown size={18} color={theme.color.text} />
-								</IconButton>
+								/>
 							) : null}
 						</View>
 					)}
@@ -782,6 +868,17 @@ export function ChatScreen({
 					<Animated.View style={bottomInsetStyle} />
 				</KeyboardAvoidingView>
 
+				<ConversationNavigator
+					visible={navigatorOpen}
+					messages={transcriptMessages}
+					onClose={() => setNavigatorOpen(false)}
+					onSelect={jumpToMessage}
+					onBeginning={() => {
+						const first = transcriptMessages[0];
+						if (first) jumpToMessage(first.id);
+					}}
+					onLatest={scrollToLatest}
+				/>
 				<ApprovalSheet
 					connectionKind={connectionKind}
 					sheetRef={approvalSheetRef}
@@ -944,9 +1041,7 @@ export function MessageRow({
 	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
 		"idle",
 	);
-	const copyText = message.blocks
-		.flatMap((block) => (block.kind === "text" ? [block.text] : []))
-		.join("\n\n");
+	const copyText = messageCopyText(message);
 	const copyMessage = async () => {
 		try {
 			await Clipboard.setStringAsync(copyText);
@@ -959,6 +1054,7 @@ export function MessageRow({
 		message.createdAt,
 		previousCreatedAt,
 	);
+	if (message.hidden) return null;
 	const body =
 		message.role === "user" ? (
 			<View style={{ gap: 6 }}>

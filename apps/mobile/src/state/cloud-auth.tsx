@@ -33,7 +33,7 @@ export type CloudAccountState =
 	| { phase: "loading" }
 	| { phase: "signed-out" }
 	/** `email` is absent when the stored token carried no identity. */
-	| { phase: "signed-in"; email?: string };
+	| { phase: "signed-in"; email?: string; name?: string };
 
 const CloudAuthContext = createContext<ClineAuthStore>(
 	new ClineAuthStore({ storage: createInMemoryAuthStorage() }),
@@ -59,8 +59,15 @@ function toAccountState(
 		return { phase: "signed-out" };
 	}
 	const email =
-		credentials.email ?? credentials.metadata?.userInfo?.email ?? undefined;
-	return email ? { phase: "signed-in", email } : { phase: "signed-in" };
+		credentials.email?.trim() ||
+		credentials.metadata?.userInfo?.email?.trim() ||
+		undefined;
+	const name = credentials.metadata?.userInfo?.name?.trim() || undefined;
+	return {
+		phase: "signed-in",
+		...(email ? { email } : {}),
+		...(name ? { name } : {}),
+	};
 }
 
 export function CloudAuthProvider({

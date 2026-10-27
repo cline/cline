@@ -133,6 +133,22 @@ describe("userInputModeLabel", () => {
 });
 
 describe("mode_notice", () => {
+	it("unwraps a runtime notice before the outer envelope", () => {
+		const raw =
+			'<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice><user_input mode="act">ship it</user_input>';
+		expect(parseUserInputEnvelope(raw)).toEqual({
+			text: "ship it",
+			mode: "act",
+			unwrapped: true,
+		});
+	});
+	it("preserves authored mode_notice XML even inside a runtime envelope", () => {
+		const xml =
+			"<mode_notice>Explain this element</mode_notice>\n```xml\n<mode_notice>sample</mode_notice>\n```";
+		expect(
+			parseUserInputEnvelope(`<user_input mode="act">${xml}</user_input>`).text,
+		).toBe(xml);
+	});
 	it("strips a mode_notice prepended inside the envelope", () => {
 		const raw =
 			'<user_input mode="act"><mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>ship it</user_input>';

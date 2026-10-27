@@ -101,6 +101,15 @@ export function AccountSwitcher() {
 					Loading accounts…
 				</Text>
 			) : null}
+			{!loading && accounts.length > 0 ? (
+				<Text
+					variant="small"
+					accessibilityLabel={`Current account: ${accounts.find((account) => account.active)?.name ?? "Unavailable"}`}
+				>
+					Current account:{" "}
+					{accounts.find((account) => account.active)?.name ?? "Unavailable"}
+				</Text>
+			) : null}
 			{accounts.length > 1 ? (
 				<>
 					<Text variant="small" weight="500">

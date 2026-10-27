@@ -7,9 +7,11 @@ import {
 	Trash2,
 	User,
 } from "lucide-react-native";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { modelDisplayName } from "@/cloud/model-display";
 import type { DevHubEndpoint } from "@/config/env";
+import { cloudEnv } from "@/config/env";
 import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
 import { type ConnectionDescriptor, descriptorKey } from "@/connection";
 import { ApprovalTierRow, summarizeApprovalPolicy } from "@/screens/approval";
@@ -172,7 +174,20 @@ export function SettingsScreen({
 				<AccountCard
 					account={account}
 					onSignOut={() => {
-						void signOut().then(() => onSignedOut?.());
+						Alert.alert(
+							"Sign out of Cline?",
+							"You'll need to sign in again on this device. Your Cloud tasks keep running.",
+							[
+								{ text: "Cancel", style: "cancel" },
+								{
+									text: "Sign out",
+									style: "destructive",
+									onPress: () => {
+										void signOut().then(() => onSignedOut?.());
+									},
+								},
+							],
+						);
 					}}
 				/>
 				<TaskAlertSettings />
@@ -214,7 +229,7 @@ export function SettingsScreen({
 									{target.label}
 								</Text>
 								<Text variant="caption" tone="muted" numberOfLines={1}>
-									{target.modelId}
+									{modelDisplayName(target.modelId)}
 								</Text>
 							</View>
 							<IconButton
@@ -324,7 +339,9 @@ function AccountCard({
 				<User size={16} color={theme.color.textMuted} />
 				<View style={{ flex: 1, gap: 2 }}>
 					<Text variant="body" weight="500">
-						Cline Cloud
+						{account.phase === "signed-in" && account.name
+							? account.name
+							: "Cline Cloud"}
 					</Text>
 					<Text variant="caption" tone="muted" numberOfLines={1}>
 						{account.phase === "loading"
@@ -339,15 +356,27 @@ function AccountCard({
 				<>
 					<AccountSwitcher />
 					<Button
-						label="Sign out"
-						variant="destructive"
-						fullWidth
-						onPress={onSignOut}
+						label="Account and usage"
+						variant="outline"
+						onPress={() => {
+							void Linking.openURL(`${cloudEnv.appBaseUrl}/dashboard`).catch(
+								() =>
+									Alert.alert(
+										"Could not open your account",
+										"Please try again.",
+									),
+							);
+						}}
 					/>
 					<Text variant="caption" tone="muted">
-						Removes this device's Cline credentials. Sessions running in the
-						cloud keep running.
+						View credits, usage, and billing in your Cline dashboard.
 					</Text>
+					<Button
+						label="Sign out"
+						variant="ghost"
+						style={{ alignSelf: "flex-start" }}
+						onPress={onSignOut}
+					/>
 				</>
 			) : null}
 			{account.phase === "signed-out" ? (

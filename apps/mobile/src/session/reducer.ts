@@ -55,6 +55,7 @@ import {
 	stripModeNotices,
 	validateImageMedia,
 } from "@cline/shared";
+import { isInternalTranscriptMessage } from "./message-visibility";
 import {
 	type HydratedContentBlock,
 	type HydratedMessage,
@@ -112,6 +113,8 @@ export interface SessionMessageView {
 	role: "user" | "assistant";
 	/** Display-only persisted failures stay distinct from assistant answers. */
 	displayRole?: "error";
+	/** Runtime-generated context remains canonical history, but has no chat row. */
+	hidden?: true;
 	blocks: MessageBlock[];
 	origin: "hydrated" | "live";
 	/** Epoch ms when this turn was observed, when the protocol/persistence had it. */
@@ -772,7 +775,9 @@ function isTurnInTranscript(
 	if (text.length > 0) {
 		return hydrated.some(
 			(message) =>
-				message.role === "assistant" && plainText(message).includes(text),
+				!message.hidden &&
+				message.role === "assistant" &&
+				plainText(message).includes(text),
 		);
 	}
 	const toolCallIds = turn.blocks.flatMap((block) =>
@@ -787,7 +792,7 @@ function isTurnInTranscript(
 function countUserTexts(messages: InternalMessage[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const message of messages) {
-		if (message.role !== "user") {
+		if (message.role !== "user" || message.hidden) {
 			continue;
 		}
 		const text = comparableUserText(message);
@@ -825,7 +830,9 @@ function isStreamedContentInTranscript(
 	}
 	return hydrated.some(
 		(message) =>
-			message.role === "assistant" && plainText(message).includes(streamed),
+			!message.hidden &&
+			message.role === "assistant" &&
+			plainText(message).includes(streamed),
 	);
 }
 
@@ -1778,6 +1785,9 @@ function projectHydratedMessages(
 		projected.push({
 			id: `h${projected.length}`,
 			role: message.role,
+			...(isInternalTranscriptMessage(message)
+				? { hidden: true as const }
+				: {}),
 			...(message.role === "assistant" &&
 			message.metadata !== null &&
 			typeof message.metadata === "object" &&
@@ -1813,6 +1823,7 @@ function toMessageView(message: InternalMessage): SessionMessageView {
 	return {
 		id: message.id,
 		role: message.role,
+		...(message.hidden ? { hidden: true as const } : {}),
 		...(message.displayRole ? { displayRole: message.displayRole } : {}),
 		origin: message.origin,
 		...(message.createdAt === undefined

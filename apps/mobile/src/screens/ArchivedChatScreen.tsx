@@ -1,11 +1,13 @@
 /** A saved Cloud transcript, never a synthetic live session. */
-import { useMemo } from "react";
-import { FlatList, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FlatList, Keyboard, View } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
 	createSessionState,
 	parseSessionMessagesReply,
 	reduceSession,
+	type SessionMessageView,
 	selectViewModel,
 } from "@/session";
 import { Banner, Text, useTheme } from "@/ui";
@@ -13,6 +15,8 @@ import { groupReasoningMessages, MessageRow } from "./ChatScreen";
 import { ChatConnectingState } from "./chat/ChatConnectingState";
 import { ChatErrorState } from "./chat/ChatErrorState";
 import { ChatHeader } from "./chat/ChatHeader";
+import { ConversationNavigator } from "./chat/ConversationNavigator";
+import { visibleTranscriptMessages } from "./chat/message-text";
 import { ReasoningStateProvider } from "./chat/reasoning-state";
 
 export interface ArchivedChatScreenProps {
@@ -37,7 +41,9 @@ export function projectArchivedMessages(history: unknown[]) {
 		messages: parsed.messages,
 	});
 	return {
-		messages: groupReasoningMessages(selectViewModel(state).messages),
+		messages: groupReasoningMessages(
+			visibleTranscriptMessages(selectViewModel(state).messages),
+		),
 		invalidCount: parsed.invalidCount,
 	};
 }
@@ -59,6 +65,68 @@ export function ArchivedChatScreen({
 		() => projectArchivedMessages(history ?? []),
 		[history],
 	);
+	const reduceMotion = useReducedMotion();
+	const transcriptRef = useRef<FlatList<SessionMessageView>>(null);
+	const contentHeight = useRef(0);
+	const [navigatorOpen, setNavigatorOpen] = useState(false);
+	const [navigationError, setNavigationError] = useState<string>();
+	const messagesRef = useRef(projected.messages);
+	messagesRef.current = projected.messages;
+	const pendingJump = useRef<{ id: string; attempts: number } | undefined>(
+		undefined,
+	);
+	const jumpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
+	const cancelJump = useCallback(() => {
+		if (jumpTimer.current) clearTimeout(jumpTimer.current);
+		jumpTimer.current = undefined;
+		pendingJump.current = undefined;
+	}, []);
+	// Reset navigation when this read-only archive is replaced.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: archive identity intentionally invalidates pending jumps.
+	useEffect(() => {
+		cancelJump();
+		setNavigatorOpen(false);
+		setNavigationError(undefined);
+		return cancelJump;
+	}, [history, cancelJump]);
+	const attemptMessageJump = () => {
+		const jump = pendingJump.current;
+		if (!jump) return;
+		const index = messagesRef.current.findIndex(
+			(message) => message.id === jump.id,
+		);
+		if (index < 0) {
+			cancelJump();
+			return;
+		}
+		const attempts = jump.attempts;
+		transcriptRef.current?.scrollToIndex({
+			index,
+			animated: false,
+			viewPosition: 0.1,
+		});
+		if (pendingJump.current === jump && jump.attempts === attempts)
+			cancelJump();
+	};
+	const jumpToMessage = (id: string) => {
+		Keyboard.dismiss();
+		cancelJump();
+		setNavigatorOpen(false);
+		setNavigationError(undefined);
+		pendingJump.current = { id, attempts: 0 };
+		attemptMessageJump();
+	};
+	const scrollToLatest = () => {
+		cancelJump();
+		setNavigatorOpen(false);
+		setNavigationError(undefined);
+		transcriptRef.current?.scrollToOffset({
+			offset: contentHeight.current,
+			animated: !reduceMotion,
+		});
+	};
 	return (
 		<ReasoningStateProvider>
 			<View
@@ -76,6 +144,11 @@ export function ArchivedChatScreen({
 					showStatus={false}
 					onBack={onBack}
 					onNewSession={onNewChat}
+					onFindInConversation={
+						!loading && !error && projected.messages.length > 0
+							? () => setNavigatorOpen(true)
+							: undefined
+					}
 				/>
 				{loading ? (
 					<View
@@ -102,6 +175,9 @@ export function ArchivedChatScreen({
 								"This workspace has ended. Its saved conversation is read-only."
 							}
 						/>
+						{navigationError ? (
+							<Banner tone="warning" message={navigationError} />
+						) : null}
 						{projected.invalidCount > 0 ? (
 							<Banner
 								tone="warning"
@@ -127,6 +203,29 @@ export function ArchivedChatScreen({
 							</View>
 						) : (
 							<FlatList
+								ref={transcriptRef}
+								onContentSizeChange={(_width, height) => {
+									contentHeight.current = height;
+								}}
+								onScrollBeginDrag={cancelJump}
+								onScrollToIndexFailed={({ averageItemLength, index }) => {
+									const jump = pendingJump.current;
+									if (!jump) return;
+									jump.attempts += 1;
+									if (jump.attempts > 8) {
+										cancelJump();
+										setNavigationError(
+											"This message could not be located. Try searching again.",
+										);
+										return;
+									}
+									transcriptRef.current?.scrollToOffset({
+										offset: Math.max(0, averageItemLength * index),
+										animated: false,
+									});
+									if (jumpTimer.current) clearTimeout(jumpTimer.current);
+									jumpTimer.current = setTimeout(attemptMessageJump, 120);
+								}}
 								data={projected.messages}
 								keyExtractor={(message) => message.id}
 								renderItem={({ item, index }) => (
@@ -140,6 +239,17 @@ export function ArchivedChatScreen({
 						)}
 					</>
 				)}
+				<ConversationNavigator
+					visible={navigatorOpen}
+					messages={projected.messages}
+					onClose={() => setNavigatorOpen(false)}
+					onSelect={jumpToMessage}
+					onBeginning={() => {
+						const first = projected.messages[0];
+						if (first) jumpToMessage(first.id);
+					}}
+					onLatest={scrollToLatest}
+				/>
 			</View>
 		</ReasoningStateProvider>
 	);

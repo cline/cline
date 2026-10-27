@@ -173,6 +173,10 @@ export function IntroScreen({
 					</View>
 				) : null}
 				<View
+					// Keep the native composer parent stable as Cloud setup reveals it.
+					// Fabric must not flatten/unflatten its TextInput and animated controls.
+					collapsable={false}
+					testID="intro-composer-boundary"
 					style={{
 						display: setup ? "none" : "flex",
 						marginTop: compactKeyboard ? 0 : 8,

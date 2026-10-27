@@ -1728,6 +1728,27 @@ describe("CloudSessionManager Hub runtime", () => {
 		emit(hub.getClientId(), "capability.resolved", "question-2");
 		expect(ctx.pendingQuestions.size).toBe(0);
 		emit(hub.getClientId(), "capability.requested", "question-3");
+		await expect(
+			resolveSidecarAskQuestion(ctx, "ses-outer:question-3", "  "),
+		).rejects.toThrow("enter your own response");
+		expect(ctx.pendingQuestions.has("ses-outer:question-3")).toBe(true);
+		await expect(
+			resolveSidecarAskQuestion(
+				ctx,
+				"ses-outer:question-3",
+				"  Use the release branch instead  ",
+			),
+		).resolves.toBe(true);
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "capability.respond",
+			sessionId: "inner-1",
+			payload: {
+				requestId: "question-3",
+				ok: true,
+				payload: { result: "Use the release branch instead" },
+			},
+		});
+		emit(hub.getClientId(), "capability.requested", "question-4");
 		await manager.dispose();
 		expect(ctx.pendingQuestions.size).toBe(0);
 	});

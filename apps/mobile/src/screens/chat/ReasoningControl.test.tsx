@@ -1,6 +1,7 @@
 import { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "@/ui/__testing__/render";
+import { containsText, findByLabel } from "../__testing__/harness";
 import { ReasoningPill, ReasoningSheet } from "./ReasoningControl";
 
 describe("thinking choices", () => {
@@ -37,12 +38,49 @@ describe("thinking choices", () => {
 				node.props.accessibilityRole === "radio",
 		);
 		expect(options.map((node) => node.props.accessibilityLabel)).toEqual(
-			["None", "Low", "Medium", "High", "Extra"].map(
+			["Off", "Low", "Medium", "High", "Extra"].map(
 				(label) => `Thinking level: ${label}`,
 			),
 		);
 		expect(onChange).not.toHaveBeenCalled();
 		act(() => options[4].props.onPress());
 		expect(onChange).toHaveBeenCalledWith("xhigh");
+	});
+	it("explains explicit off without confusing it with unknown or unsupported capability", () => {
+		const off = render(
+			<ReasoningPill value="none" supported onPress={vi.fn()} />,
+		);
+		expect(containsText(off.root, "Thinking: off")).toBe(true);
+		expect(
+			findByLabel(off.root, "Thinking level: Off")?.props.accessibilityHint,
+		).toContain("Extra thinking is off for your next message");
+		const unknownLevel = render(<ReasoningPill supported onPress={vi.fn()} />);
+		expect(
+			findByLabel(unknownLevel.root, "Thinking level: Model setting")?.props
+				.accessibilityHint,
+		).toContain("current level was not reported");
+		const unsupported = render(
+			<ReasoningPill value="none" supported={false} onPress={vi.fn()} />,
+		);
+		expect(containsText(unsupported.root, "Thinking unavailable")).toBe(true);
+		const checking = render(<ReasoningPill onPress={vi.fn()} />);
+		expect(containsText(checking.root, "Checking thinking")).toBe(true);
+	});
+	it("describes thinking and sends the existing none wire value when Off is selected", () => {
+		const onChange = vi.fn();
+		const { root } = render(
+			<ReasoningSheet
+				supported
+				onChange={onChange}
+				sheetRef={{ current: null }}
+			/>,
+		);
+		expect(
+			containsText(root, "Higher levels can take longer and use more tokens"),
+		).toBe(true);
+		expect(containsText(root, "current level is not reported")).toBe(true);
+		expect(containsText(root, "Do not request extra thinking")).toBe(true);
+		act(() => findByLabel(root, "Thinking level: Off")?.props.onPress());
+		expect(onChange).toHaveBeenCalledWith("none");
 	});
 });

@@ -103,6 +103,8 @@ export function useCloudWorkspaceControls({
 	const contextSheetRef = useRef<GorhomBottomSheet>(null);
 	const contextSheetOpen = useRef(false);
 	const afterContextClose = useRef<(() => void) | undefined>(undefined);
+	const afterBranchClose = useRef<(() => void) | undefined>(undefined);
+	const handoffFrame = useRef<number | undefined>(undefined);
 	const repositorySheetRef = useRef<GorhomBottomSheet>(null);
 	const branchSheetRef = useRef<GorhomBottomSheet>(null);
 	const repositoryRequest = useRef(0);
@@ -114,9 +116,30 @@ export function useCloudWorkspaceControls({
 	const [repositoryMessage, setRepositoryMessage] = useState<string>();
 	const [branchQuery, setBranchQuery] = useState("");
 	const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+	const [repositoryPickerOpen, setRepositoryPickerOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string>();
 	const [repositoryScope, setRepositoryScope] = useState<string>();
+	useEffect(
+		() => () => {
+			if (handoffFrame.current !== undefined)
+				cancelAnimationFrame(handoffFrame.current);
+			afterContextClose.current = undefined;
+			afterBranchClose.current = undefined;
+		},
+		[],
+	);
+	const finishSheetHandoff = (action: (() => void) | undefined) => {
+		if (!action) return;
+		// Let the old sheet's closed/backdrop state commit before mounting the
+		// next sheet's native hierarchy. Opening both in onChange races Fabric.
+		if (handoffFrame.current !== undefined)
+			cancelAnimationFrame(handoffFrame.current);
+		handoffFrame.current = requestAnimationFrame(() => {
+			handoffFrame.current = undefined;
+			action();
+		});
+	};
 	const accountGateway = useMemo(
 		() =>
 			new CloudAccountGateway({
@@ -205,6 +228,16 @@ export function useCloudWorkspaceControls({
 			subscription.remove();
 		};
 	}, [setup, setupScope, loadRepositories]);
+	useEffect(() => {
+		if (setup || !repositoryPickerOpen) return;
+		let previousState = AppState.currentState;
+		const subscription = AppState.addEventListener("change", (state) => {
+			if (state === "active" && previousState !== "active")
+				void loadRepositories(true);
+			previousState = state;
+		});
+		return () => subscription.remove();
+	}, [setup, repositoryPickerOpen, loadRepositories]);
 
 	const leaveContext = (action: () => void) => {
 		if (!contextSheetOpen.current) {
@@ -216,13 +249,17 @@ export function useCloudWorkspaceControls({
 		contextSheetRef.current?.close();
 	};
 	const openRepositories = (message?: string) => {
-		leaveContext(() => {
+		const show = () => {
 			setSaveError(undefined);
 			setRepositoryMessage(message);
 			setRepositoryQuery("");
 			expandBottomSheetAfterKeyboardDismiss(repositorySheetRef);
 			void loadRepositories();
-		});
+		};
+		if (branchPickerOpen) {
+			afterBranchClose.current = show;
+			branchSheetRef.current?.close();
+		} else leaveContext(show);
 	};
 	const openGitHubIntegrations = async () => {
 		setSaveError(undefined);
@@ -347,6 +384,11 @@ export function useCloudWorkspaceControls({
 		repositories.phase === "error" && repositories.githubMissing;
 	const repositoryAccessMissing =
 		repositories.phase === "ready" && repositories.repositories.length === 0;
+	const savedRepositoryMissing =
+		repositories.phase === "ready" &&
+		target &&
+		target.organizationId === repositoryScope &&
+		!selectedRepository;
 	const locationControl = COMPUTER_CONNECTIONS_ENABLED ? (
 		<ContextButton
 			accessibilityLabel="Execution location: Cline Cloud"
@@ -428,7 +470,7 @@ export function useCloudWorkspaceControls({
 						if (index !== -1) return;
 						const action = afterContextClose.current;
 						afterContextClose.current = undefined;
-						action?.();
+						finishSheetHandoff(action);
 					}}
 					enableDynamicSizing
 					enablePanDownToClose
@@ -475,6 +517,7 @@ export function useCloudWorkspaceControls({
 					snapPoints={["70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
+					onChange={(index) => setRepositoryPickerOpen(index >= 0)}
 					scrollable
 				>
 					<View style={{ gap: 12 }}>
@@ -496,6 +539,12 @@ export function useCloudWorkspaceControls({
 							onChangeText={setRepositoryQuery}
 							accessibilityLabel="Search Cloud repositories"
 						/>
+						{savedRepositoryMissing ? (
+							<Text variant="small" tone="muted" accessibilityRole="alert">
+								{target.label} is no longer available in this account. Choose
+								another repository or manage GitHub access.
+							</Text>
+						) : null}
 						{repositories.phase === "loading" ||
 						repositories.phase === "idle" ? (
 							<LoadingLine label="Loading repositories…" />
@@ -530,10 +579,11 @@ export function useCloudWorkspaceControls({
 						) : repositories.repositories.length === 0 ? (
 							<View style={{ gap: 8 }}>
 								<Text variant="small" tone="muted">
-									Connect GitHub to choose a repository for Cline Cloud.
+									No repositories are available in this account. Manage GitHub
+									access or choose another account in Settings.
 								</Text>
 								<Button
-									label="Connect GitHub"
+									label="Manage repository access"
 									icon={<GitFork size={15} color={theme.brand.onViolet} />}
 									onPress={() => void openGitHubIntegrations()}
 								/>
@@ -544,9 +594,16 @@ export function useCloudWorkspaceControls({
 								/>
 							</View>
 						) : visibleRepositories.length === 0 ? (
-							<Text variant="small" tone="muted">
-								No repositories match your search.
-							</Text>
+							<View style={{ gap: 8 }}>
+								<Text variant="small" tone="muted">
+									No repositories match your search.
+								</Text>
+								<Button
+									label="Clear repository search"
+									variant="ghost"
+									onPress={() => setRepositoryQuery("")}
+								/>
+							</View>
 						) : (
 							visibleRepositories.map((repository) => (
 								<ChoiceRow
@@ -563,6 +620,22 @@ export function useCloudWorkspaceControls({
 								/>
 							))
 						)}
+						{repositories.phase === "ready" &&
+						repositories.repositories.length > 0 ? (
+							<View style={{ gap: 8 }}>
+								<Button
+									label="Manage repository access"
+									variant="outline"
+									onPress={() => void openGitHubIntegrations()}
+								/>
+								<Button
+									label="Refresh repositories"
+									variant="ghost"
+									loading={checkingRepositories}
+									onPress={() => void loadRepositories(true)}
+								/>
+							</View>
+						) : null}
 						{saveError ? (
 							<Text
 								variant="small"
@@ -582,7 +655,13 @@ export function useCloudWorkspaceControls({
 					snapPoints={["70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
-					onChange={(index) => setBranchPickerOpen(index >= 0)}
+					onChange={(index) => {
+						setBranchPickerOpen(index >= 0);
+						if (index !== -1) return;
+						const action = afterBranchClose.current;
+						afterBranchClose.current = undefined;
+						finishSheetHandoff(action);
+					}}
 					scrollable
 				>
 					<View style={{ gap: 12 }}>
@@ -611,6 +690,15 @@ export function useCloudWorkspaceControls({
 									variant="outline"
 									icon={<RefreshCw size={14} color={theme.color.text} />}
 									onPress={() => void reloadBranches()}
+								/>
+								<Button
+									label="Change repository"
+									variant="ghost"
+									onPress={() =>
+										openRepositories(
+											"Choose an available repository to continue. Your draft is unchanged.",
+										)
+									}
 								/>
 							</View>
 						) : (

@@ -1,7 +1,7 @@
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@/ui/__testing__/render";
 import { CloudAuthProvider, useCloudAccountScope } from "@/state/cloud-auth";
+import { render } from "@/ui/__testing__/render";
 import { containsText } from "../__testing__/harness";
 import { AccountSwitcher } from "./AccountSwitcher";
 
@@ -47,10 +47,12 @@ async function mount() {
 	return { ...result, row, getScope: () => scope };
 }
 describe("Account settings switcher", () => {
-	it("hides the switcher when only the personal account exists", async () => {
+	it("shows the current Personal account even when there is nothing to switch", async () => {
 		mocks.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
-		const { row } = await mount();
+		const { row, root } = await mount();
 		expect(row("Personal")).toBeUndefined();
+		expect(row("Current account: Personal")).toBeDefined();
+		expect(containsText(root, "Personal")).toBe(true);
 	});
 	it("disables account rows while a switch is pending", async () => {
 		let complete!: () => void;

@@ -6,17 +6,48 @@ import GorhomBottomSheet, {
 	type BottomSheetProps as GorhomBottomSheetProps,
 } from "@gorhom/bottom-sheet";
 import {
+	createContext,
 	forwardRef,
 	type ReactNode,
 	type RefObject,
 	useCallback,
+	useContext,
 	useState,
 } from "react";
-import { Keyboard, useWindowDimensions } from "react-native";
+import { Keyboard, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../theme";
 
 export { BottomSheetView } from "@gorhom/bottom-sheet";
+
+const BackdropActiveContext = createContext(false);
+
+/** Gorhom renders this prop as a component type. Keep that type and its native
+ * children stable while animations change touchability; swapping the type tears
+ * down the animated GestureDetector hierarchy during Fabric mounting updates. */
+function StableSheetBackdrop(props: BottomSheetBackdropProps) {
+	const active = useContext(BackdropActiveContext);
+	return (
+		<View
+			testID="sheet-backdrop-boundary"
+			collapsable={false}
+			pointerEvents={active ? "box-none" : "none"}
+			accessibilityElementsHidden={!active}
+			importantForAccessibility={active ? "auto" : "no-hide-descendants"}
+			style={StyleSheet.absoluteFill}
+		>
+			<BottomSheetBackdrop
+				{...props}
+				appearsOnIndex={0}
+				disappearsOnIndex={-1}
+				opacity={active ? 0.5 : 0}
+				accessible={active}
+				enableTouchThrough={!active}
+				pressBehavior="close"
+			/>
+		</View>
+	);
+}
 
 export interface BottomSheetProps
 	extends Omit<GorhomBottomSheetProps, "children"> {
@@ -79,7 +110,7 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 		const paddingBottom = Math.max(16, insets.bottom + 8);
 		// Resizing a closed sheet can leave its interpolated animatedIndex just
 		// above -1. Gorhom then makes an invisible backdrop intercept every tap.
-		// Mount backdrops only for an actual opening/open sheet, not layout drift.
+		// Guard touchability at a stable parent, independently of that interpolation.
 		const [backdropActive, setBackdropActive] = useState(
 			(rest.index ?? 0) >= 0,
 		);
@@ -102,56 +133,45 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 			[onChange],
 		);
 
-		const renderBackdrop = useCallback(
-			(props: BottomSheetBackdropProps) =>
-				backdropActive ? (
-					<BottomSheetBackdrop
-						{...props}
-						appearsOnIndex={0}
-						disappearsOnIndex={-1}
-						opacity={0.5}
-					/>
-				) : null,
-			[backdropActive],
-		);
-
 		return (
-			<GorhomBottomSheet
-				ref={ref}
-				topInset={insets.top}
-				keyboardBlurBehavior="restore"
-				enableBlurKeyboardOnGesture
-				maxDynamicContentSize={height - insets.top - 16}
-				// Keep the content's buttons reachable by VoiceOver. Grouping the
-				// whole sheet as one adjustable element hides its descendants on iOS.
-				accessible={false}
-				backgroundStyle={{
-					// `--popover`, one step above a card: desktop floats panels on the
-					// popover surface, not the card surface.
-					backgroundColor: theme.color.popover,
-					borderTopLeftRadius: theme.radius.lg,
-					borderTopRightRadius: theme.radius.lg,
-				}}
-				handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
-				backdropComponent={withBackdrop ? renderBackdrop : undefined}
-				{...rest}
-				onAnimate={handleAnimate}
-				onChange={handleChange}
-			>
-				{scrollable ? (
-					<BottomSheetScrollView
-						style={{ maxHeight: Math.min(640, height - insets.top - 48) }}
-						contentContainerStyle={{ padding: 16, paddingBottom }}
-						keyboardShouldPersistTaps="handled"
-					>
-						{children}
-					</BottomSheetScrollView>
-				) : (
-					<BottomSheetView style={{ padding: 16, paddingBottom }}>
-						{children}
-					</BottomSheetView>
-				)}
-			</GorhomBottomSheet>
+			<BackdropActiveContext.Provider value={backdropActive}>
+				<GorhomBottomSheet
+					ref={ref}
+					topInset={insets.top}
+					keyboardBlurBehavior="restore"
+					enableBlurKeyboardOnGesture
+					maxDynamicContentSize={height - insets.top - 16}
+					// Keep the content's buttons reachable by VoiceOver. Grouping the
+					// whole sheet as one adjustable element hides its descendants on iOS.
+					accessible={false}
+					backgroundStyle={{
+						// `--popover`, one step above a card: desktop floats panels on the
+						// popover surface, not the card surface.
+						backgroundColor: theme.color.popover,
+						borderTopLeftRadius: theme.radius.lg,
+						borderTopRightRadius: theme.radius.lg,
+					}}
+					handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
+					backdropComponent={withBackdrop ? StableSheetBackdrop : undefined}
+					{...rest}
+					onAnimate={handleAnimate}
+					onChange={handleChange}
+				>
+					{scrollable ? (
+						<BottomSheetScrollView
+							style={{ maxHeight: Math.min(640, height - insets.top - 48) }}
+							contentContainerStyle={{ padding: 16, paddingBottom }}
+							keyboardShouldPersistTaps="handled"
+						>
+							{children}
+						</BottomSheetScrollView>
+					) : (
+						<BottomSheetView style={{ padding: 16, paddingBottom }}>
+							{children}
+						</BottomSheetView>
+					)}
+				</GorhomBottomSheet>
+			</BackdropActiveContext.Provider>
 		);
 	},
 );

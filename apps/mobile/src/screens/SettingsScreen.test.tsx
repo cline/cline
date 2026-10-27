@@ -1,7 +1,9 @@
+import { Alert, Linking } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
+
 import {
 	ClineAuthStore,
 	type ClineOAuthCredentials,
@@ -12,6 +14,8 @@ import { DEFAULT_APPROVAL_POLICY } from "@/session";
 import { ApprovalPolicyStore } from "@/state/approval-policy-store";
 import { CloudAuthProvider } from "@/state/cloud-auth";
 import { EndpointsProvider } from "@/state/endpoints";
+import { ExecutionTargetStore } from "@/state/execution-target-store";
+import { ExecutionTargetsProvider } from "@/state/execution-targets";
 import { LastOpenedProvider, LastOpenedStore } from "@/state/last-opened";
 import { SettingsProvider } from "@/state/settings";
 import { render } from "../ui/__testing__/render";
@@ -149,6 +153,25 @@ async function renderWithConnect(
 }
 
 describe("SettingsScreen", () => {
+	it("uses a readable saved workspace model caption without changing its selection ID", async () => {
+		const targets = new ExecutionTargetStore();
+		await targets.saveCloudTarget({
+			label: "team/repo",
+			repoUrl: "https://github.com/team/repo",
+			modelId: "anthropic/claude-sonnet-5",
+		});
+		const { root } = render(
+			<ExecutionTargetsProvider store={targets}>
+				<SettingsScreen />
+			</ExecutionTargetsProvider>,
+		);
+		await act(async () => {});
+		expect(containsText(root, "Claude Sonnet 5")).toBe(true);
+		expect(containsText(root, "anthropic/claude-sonnet-5")).toBe(false);
+		expect(targets.get().cloudTargets[0]?.modelId).toBe(
+			"anthropic/claude-sonnet-5",
+		);
+	});
 	it("hides phone-local approval controls when there is no local connection", () => {
 		const { root } = render(
 			<EndpointsProvider store={new SavedEndpointsStore()}>
@@ -237,6 +260,69 @@ describe("SettingsScreen", () => {
 		expect(containsText(root, "Account")).toBe(true);
 		expect(containsText(root, "dev@example.com")).toBe(true);
 		expect(() => pressableFor(root, "Sign out")).not.toThrow();
+	});
+	it("shows the stored profile name and offers real account details in the dashboard", async () => {
+		const { root } = await renderWithAccount(
+			credentials({
+				metadata: {
+					provider: "cline",
+					userInfo: {
+						name: "Ada Example",
+						email: "dev@example.com",
+						subject: null,
+						clineUserId: "usr-1",
+						accounts: null,
+					},
+				},
+			}),
+		);
+		expect(containsText(root, "Ada Example")).toBe(true);
+		expect(containsText(root, "dev@example.com")).toBe(true);
+		expect(containsText(root, "Current account: ")).toBe(true);
+		await act(async () =>
+			pressableFor(root, "Account and usage").props.onPress(),
+		);
+		expect(Linking.openURL).toHaveBeenCalledWith(
+			"https://staging-app.cline.bot/dashboard",
+		);
+	});
+	it("keeps Sign out secondary and requires an explicit confirmation without discarding credentials on cancel", async () => {
+		const alert = vi.spyOn(Alert, "alert").mockImplementation(() => {});
+		try {
+			const onSignedOut = vi.fn();
+			const { root, storage } = await renderWithAccount(
+				credentials(),
+				onSignedOut,
+			);
+			// Inspect the real Button component instead of inferring styling from its label.
+			const signOutComponent = root
+				.findAll(
+					(node) =>
+						typeof node.type !== "string" && node.props.label === "Sign out",
+				)
+				.at(-1);
+			expect(signOutComponent?.props.variant).toBe("ghost");
+			expect(signOutComponent?.props.fullWidth).not.toBe(true);
+			act(() => pressableFor(root, "Sign out").props.onPress());
+			expect(await storage.load()).not.toBeNull();
+			expect(onSignedOut).not.toHaveBeenCalled();
+			const buttons = alert.mock.calls.at(-1)?.[2];
+			expect(buttons?.map((button) => button.text)).toEqual([
+				"Cancel",
+				"Sign out",
+			]);
+			act(() =>
+				buttons?.find((button) => button.text === "Cancel")?.onPress?.(),
+			);
+			expect(await storage.load()).not.toBeNull();
+			await act(async () =>
+				buttons?.find((button) => button.text === "Sign out")?.onPress?.(),
+			);
+			expect(await storage.load()).toBeNull();
+			expect(onSignedOut).toHaveBeenCalledOnce();
+		} finally {
+			alert.mockRestore();
+		}
 	});
 
 	it("falls back to a generic signed-in label without an email", async () => {

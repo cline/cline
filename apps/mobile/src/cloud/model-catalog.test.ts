@@ -1,12 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
-	cloudCatalogId,
 	CLOUD_CATALOGS,
+	cloudCatalogId,
 	cloudProviderName,
 } from "./model-catalog";
 import { CloudSetupGateway } from "./rest/CloudSetupGateway";
 
 describe("Cloud catalogs follow web's offers, not Hub provider IDs", () => {
+	it("normalizes missing display names without altering selection IDs or declared capabilities", async () => {
+		const id = "cline-new27-20261022-sonnet55-vertex-global-r1";
+		const gateway = new CloudSetupGateway({
+			apiBaseUrl: "https://test",
+			getAccessToken: async () => null,
+			fetchImpl: (async (url) =>
+				new Response(
+					JSON.stringify(
+						String(url).endsWith("/models")
+							? {
+									data: [
+										{
+											id,
+											name: id,
+											supported_parameters: [],
+											architecture: { input_modalities: ["text"] },
+										},
+									],
+								}
+							: {},
+					),
+				)) as typeof fetch,
+		});
+		expect(
+			(await gateway.listRecommendedModels()).find((model) => model.id === id),
+		).toMatchObject({
+			id,
+			name: "Claude Sonnet 5.5",
+			supportsReasoning: false,
+			supportsImages: false,
+		});
+	});
 	it("names and separates all three offers", () => {
 		expect(CLOUD_CATALOGS.map((c) => c.name)).toEqual([
 			"Cline Usage-Billing",

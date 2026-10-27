@@ -2606,8 +2606,8 @@ export class CloudSessionManager {
 					throw new Error(
 						"The question's session changed. Reopen the conversation.",
 					);
-				if (!item.options.includes(answer.trim()))
-					throw new Error("Choose one of the offered answers.");
+				if (!answer.trim())
+					throw new Error("Choose an answer or enter your own response.");
 				await connection.client.command(
 					"capability.respond",
 					{ requestId: id, ok: true, payload: { result: answer.trim() } },

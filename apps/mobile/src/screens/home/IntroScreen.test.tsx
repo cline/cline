@@ -48,7 +48,15 @@ describe("IntroScreen", () => {
 				StyleSheet.flatten(node.props.style)?.display === "none" &&
 				node.findAll((child) => child === input).length > 0,
 		);
+		expect(composerContainer.props.collapsable).toBe(false);
 		act(() => showSetup(false));
+		expect(
+			mounted.root.find(
+				(node) =>
+					typeof node.type === "string" &&
+					node.props.testID === "intro-composer-boundary",
+			),
+		).toBe(composerContainer);
 		expect(findAllByType(mounted.root, "TextInput")[0]).toBe(input);
 		expect(input.props.value).toBe("Keep this draft");
 		expect(StyleSheet.flatten(composerContainer.props.style).display).toBe(

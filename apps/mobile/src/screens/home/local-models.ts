@@ -1,4 +1,5 @@
 import type { CloudModelOption } from "@/cloud";
+import { modelDisplayName } from "@/cloud/model-display";
 import type { ModelCatalogView } from "@/session";
 
 export function localModelOptions(
@@ -8,7 +9,7 @@ export function localModelOptions(
 		provider.enabled
 			? (catalog.modelsByProvider[provider.id] ?? []).map((model) => ({
 					id: model.id,
-					name: model.name?.trim() || model.id,
+					name: modelDisplayName(model.id, model.name),
 					providerId: provider.id,
 					supportsReasoning: model.supportsThinking,
 					tags: [

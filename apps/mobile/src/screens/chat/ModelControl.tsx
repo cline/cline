@@ -20,6 +20,7 @@ import {
 	cloudCatalogId,
 	cloudProviderName,
 } from "@/cloud/model-catalog";
+import { modelDisplayName } from "@/cloud/model-display";
 import { userErrorMessage } from "@/error-message";
 import {
 	BottomSheet,
@@ -50,12 +51,18 @@ export interface ModelControlProps {
 	onChange(modelId: string, option?: CloudModelOption): Promise<void>;
 }
 
-function modelLabel(providerId?: string, modelId?: string): string {
+function modelLabel(
+	providerId?: string,
+	modelId?: string,
+	modelName?: string,
+): string {
 	const rawProvider = providerId?.trim() || "cline";
 	const provider =
 		rawProvider === "cline" ? "Cline Usage-Billing" : rawProvider;
 	const model = modelId?.trim();
-	return model ? `${provider} · ${model}` : provider;
+	return model
+		? `${provider} · ${modelDisplayName(model, modelName)}`
+		: provider;
 }
 
 interface ModelSection {
@@ -119,9 +126,10 @@ export function ModelPill({
 	onPress(section?: "providers" | "models"): void;
 }) {
 	const colors = usePillColors("neutral");
-	const label = modelLabel(providerId, modelId);
+	const label = modelLabel(providerId, modelId, modelName);
+	const displayName = modelDisplayName(modelId, modelName);
 	if (compactLabel) {
-		const shortLabel = modelName || modelId || "Choose model";
+		const shortLabel = displayName;
 		return (
 			<Pressable
 				accessibilityRole="button"
@@ -158,9 +166,9 @@ export function ModelPill({
 					onPress={() => onPress("providers")}
 				/>
 				<ComposerPill
-					label={modelName || modelId || "Choose model"}
+					label={displayName}
 					trailing={<ChevronUp size={12} color={colors.text} />}
-					accessibilityLabel={`Model: ${modelName || modelId || "Choose model"}`}
+					accessibilityLabel={`Model: ${displayName}`}
 					onPress={() => onPress("models")}
 				/>
 			</>
@@ -237,6 +245,7 @@ export function ModelSheet({
 				model.name,
 				model.providerId,
 				model.description,
+				modelDisplayName(model.id, model.name),
 				...model.tags,
 			].some((value) => value?.toLowerCase().includes(normalizedQuery)),
 		);
@@ -496,7 +505,8 @@ export function ModelSheet({
 												<Pressable
 													key={optionKey(model)}
 													accessibilityRole="radio"
-													accessibilityLabel={`Use model ${model.name}${model.providerId ? ` from ${model.providerId}` : ""}`}
+													accessibilityLabel={`Use model ${modelDisplayName(model.id, model.name)}${model.providerId ? ` from ${model.providerId}` : ""}`}
+													accessibilityHint={`Model ID: ${model.id}`}
 													accessibilityState={{
 														checked: selected,
 														disabled: busy,
@@ -528,8 +538,16 @@ export function ModelSheet({
 															weight="500"
 															numberOfLines={1}
 														>
-															{model.name}
+															{modelDisplayName(model.id, model.name)}
 														</Text>
+														{modelDisplayName(model.id, model.name) !==
+															model.id && model.description?.trim() ? (
+															<Text
+																variant="caption"
+																tone="muted"
+																numberOfLines={1}
+															>{`Model ID: ${model.id}`}</Text>
+														) : null}
 														<Text
 															variant="caption"
 															tone="muted"
@@ -538,7 +556,7 @@ export function ModelSheet({
 															{model.providerId ? `${model.providerId} · ` : ""}
 															{model.description?.trim() ||
 																model.tags.join(" · ") ||
-																model.id}
+																`Model ID: ${model.id}`}
 														</Text>
 													</View>
 													{model.tier === "free" ? (
@@ -604,6 +622,9 @@ export function ModelControl(props: ModelControlProps) {
 			<ModelPill
 				providerId={props.providerId}
 				modelId={props.modelId}
+				modelName={
+					props.cachedModels?.find((model) => model.id === props.modelId)?.name
+				}
 				cloud={props.cloud}
 				onPress={(section = "models") => {
 					setInitialSection(section);

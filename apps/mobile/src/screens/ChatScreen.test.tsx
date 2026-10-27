@@ -801,7 +801,7 @@ describe("ChatScreen", () => {
 		// approval/checkpoint/reasoning pills to the composer toolbar.
 		expect(containsText(root, "Auto: all")).toBe(true);
 		expect(findByLabel(root, "Fork from checkpoint")).toBeDefined();
-		expect(findByLabel(root, "Thinking level: Reasoning")).toBeDefined();
+		expect(findByLabel(root, "Thinking level: Model setting")).toBeDefined();
 	});
 
 	it("does not double-count the in-app header in the keyboard offset", () => {

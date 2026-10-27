@@ -1,6 +1,6 @@
 /** Reasoning settings supported by the Cloud session API. */
 export const REASONING_CHOICES = [
-	{ value: "none", label: "None" },
+	{ value: "none", label: "Off" },
 	{ value: "low", label: "Low" },
 	{ value: "medium", label: "Medium" },
 	{ value: "high", label: "High" },

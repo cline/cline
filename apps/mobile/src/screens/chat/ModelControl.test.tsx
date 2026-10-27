@@ -189,6 +189,19 @@ describe("buildModelSections", () => {
 });
 
 describe("ModelPill", () => {
+	it("uses a readable primary name in both composer variants before catalog loading", () => {
+		for (const compactLabel of [false, true]) {
+			const { root } = render(
+				<ModelPill
+					cloud
+					compactLabel={compactLabel}
+					modelId="cline-new27-20261022-sonnet55-vertex-global-r1"
+					onPress={vi.fn()}
+				/>,
+			);
+			expect(findByLabel(root, "Model: Claude Sonnet 5.5")).toBeDefined();
+		}
+	});
 	it("shows the actual provider and model and opens on press", () => {
 		const onPress = vi.fn();
 		const { root } = render(
@@ -200,7 +213,7 @@ describe("ModelPill", () => {
 		);
 		const pill = findByLabel(
 			root,
-			"Model: Cline Usage-Billing · cline/default",
+			"Model: Cline Usage-Billing · Cline default",
 		);
 		expect(pill?.props.accessibilityRole).toBe("button");
 		act(() => pill?.props.onPress());
@@ -209,6 +222,37 @@ describe("ModelPill", () => {
 });
 
 describe("ModelControl", () => {
+	it("shows friendly names but selects and searches exact technical routing IDs", async () => {
+		const id = "cline-new27-20261022-sonnet55-vertex-global-r1";
+		const onChange = vi.fn(async () => {});
+		const { root } = render(
+			<ModelControl
+				cloud
+				canChange
+				cachedModels={[
+					{
+						id,
+						name: "Claude Sonnet 5.5",
+						tags: [],
+						description: "Private deployment",
+					},
+				]}
+				loadModels={async () => []}
+				onChange={onChange}
+			/>,
+		);
+		const row = findByLabel(root, "Use model Claude Sonnet 5.5");
+		expect(row?.props.accessibilityHint).toBe(`Model ID: ${id}`);
+		expect(containsText(root, `Model ID: ${id}`)).toBe(true);
+		act(() =>
+			findByLabel(root, "Search models")?.props.onChangeText(
+				"vertex-global-r1",
+			),
+		);
+		expect(findByLabel(root, "Use model Claude Sonnet 5.5")).toBeDefined();
+		await act(async () => row?.props.onPress());
+		expect(onChange).toHaveBeenCalledWith(id, expect.objectContaining({ id }));
+	});
 	it("Cloud separates three provider offers and applies only an explicitly chosen model", async () => {
 		const choices = [
 			{

@@ -18,8 +18,6 @@
  * `<user_input>` mean?" must still see their own words.
  */
 
-import { stripModeNotices } from "@cline/shared";
-
 /** The tag name is anchored at both ends, so there is a single start position
  * to scan from and no lazy-quantifier backtracking blowup on hostile content. */
 const USER_INPUT_ENVELOPE_RE =
@@ -50,7 +48,7 @@ export interface UserInputEnvelope {
  */
 export function parseUserInputEnvelope(raw: string): UserInputEnvelope {
 	const trimmed = raw.trim();
-	const match = USER_INPUT_ENVELOPE_RE.exec(trimmed);
+	const match = USER_INPUT_ENVELOPE_RE.exec(stripLeadingModeNotices(trimmed));
 	if (!match) {
 		return { text: raw, unwrapped: false };
 	}
@@ -59,14 +57,34 @@ export function parseUserInputEnvelope(raw: string): UserInputEnvelope {
 	// inner tags rather than silently dropping the tail after the first close.
 	const body = match[2] ?? "";
 	const mode = MODE_ATTRIBUTE_RE.exec(attrs)?.[1]?.toLowerCase();
-	// A plan<->act switch prepends `<mode_notice>` *inside* the envelope. The SDK
-	// strips it at its own display boundaries; reuse that exact implementation
-	// rather than a second regex, so the two can never disagree about the shape.
+	// Runtime mode switches may precede the envelope or its body. Only their
+	// exact generated prefix is presentation metadata; arbitrary XML (including
+	// examples of mode_notice in code/prose) remains the person's text.
 	return {
-		text: stripModeNotices(body),
+		text: stripLeadingModeNotices(body.trim()),
 		...(isUserInputMode(mode) ? { mode } : {}),
 		unwrapped: true,
 	};
+}
+
+function stripLeadingModeNotices(text: string): string {
+	const open = "<mode_notice>";
+	const close = "</mode_notice>";
+	let offset = 0;
+	while (text.startsWith(open, offset)) {
+		const end = text.indexOf(close, offset + open.length);
+		if (end === -1) break;
+		const notice = text.slice(offset + open.length, end);
+		if (
+			!/^The user switched from (?:act|plan) mode to (?:act|plan) mode before sending this message\.$/.test(
+				notice,
+			)
+		)
+			break;
+		offset = end + close.length;
+		while (offset < text.length && /\s/.test(text[offset] ?? "")) offset += 1;
+	}
+	return text.slice(offset);
 }
 
 function isUserInputMode(value?: string): value is UserInputMode {

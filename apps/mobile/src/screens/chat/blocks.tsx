@@ -27,6 +27,7 @@ import { parseToolDiff } from "./diff";
 import { GeneratedMediaBlock } from "./GeneratedMediaBlock";
 import { Markdown } from "./Markdown";
 import { extractToolOutputMedia, redactToolOutputMedia } from "./media";
+import { messageDisplayText } from "./message-text";
 import { useRememberedFlag } from "./reasoning-state";
 import { ToolDiffView } from "./ToolDiffView";
 import { diffCounts, toolIcon, toolLabel, toolPreview } from "./tools";
@@ -40,7 +41,8 @@ export function UserMessageBubble({
 	const theme = useTheme();
 	// The hub persists user turns inside a `<user_input mode="...">` envelope; the
 	// bubble shows the human text and promotes the mode to a chip (see user-text.ts).
-	const { text, mode } = parseUserInputEnvelope(plainText(message));
+	const { mode } = parseUserInputEnvelope(plainText(message));
+	const text = messageDisplayText(message);
 	const media = message.blocks.filter((block) => block.kind === "media");
 	return (
 		<View style={{ alignItems: "flex-end", gap: 4 }}>

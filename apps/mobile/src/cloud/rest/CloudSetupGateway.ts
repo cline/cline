@@ -4,6 +4,7 @@ import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { z } from "zod";
 import { formatCloudCredential } from "../auth/credential";
 import type { CloudCatalogId } from "../model-catalog";
+import { modelDisplayName } from "../model-display";
 
 type FetchLike = typeof globalThis.fetch;
 
@@ -220,11 +221,13 @@ export class CloudSetupGateway {
 			const inputs = model.architecture?.input_modalities;
 			catalog.set(model.id, {
 				id: model.id,
-				name:
-					model.display_name?.trim() ||
-					model.displayName?.trim() ||
-					model.name?.trim() ||
+				name: modelDisplayName(
 					model.id,
+					model.display_name?.trim() ||
+						model.displayName?.trim() ||
+						model.name?.trim() ||
+						model.id,
+				),
 				catalogId: "cline",
 				...(model.description ? { description: model.description } : {}),
 				tags: model.tags ?? [],
@@ -306,7 +309,7 @@ export class CloudSetupGateway {
 									: undefined,
 						}
 					: {}),
-				name: model.name,
+				name: modelDisplayName(model.id, model.name),
 				...(model.description ? { description: model.description } : {}),
 				tags: model.tags ?? [],
 				tier,

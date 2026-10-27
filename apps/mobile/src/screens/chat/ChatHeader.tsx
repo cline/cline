@@ -16,6 +16,7 @@ import {
 	ExternalLink,
 	PanelLeft,
 	Plus,
+	Search,
 } from "lucide-react-native";
 import { Keyboard, View } from "react-native";
 import type { RemoteSessionStatus, RunStatus } from "@/session";
@@ -47,6 +48,7 @@ export interface ChatHeaderProps {
 	onSwitchSession?: () => void;
 	onNewSession?: () => void;
 	onReviewBranch?: () => void;
+	onFindInConversation?: () => void;
 }
 
 export function ChatHeader({
@@ -59,6 +61,7 @@ export function ChatHeader({
 	onSwitchSession,
 	onNewSession,
 	onReviewBranch,
+	onFindInConversation,
 }: ChatHeaderProps) {
 	const theme = useTheme();
 	const openSessions = onSwitchSession ?? onBack;
@@ -112,6 +115,14 @@ export function ChatHeader({
 					) : null}
 				</View>
 			</View>
+			{onFindInConversation ? (
+				<IconButton
+					accessibilityLabel="Find in conversation"
+					onPress={onFindInConversation}
+				>
+					<Search size={18} color={theme.color.textMuted} />
+				</IconButton>
+			) : null}
 			{onReviewBranch ? (
 				<IconButton
 					accessibilityLabel="Review branch on GitHub"

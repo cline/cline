@@ -9,6 +9,7 @@ import { type CloudRepository, CloudSetupApiError } from "@/cloud";
 import type { CloudAccount } from "@/cloud/rest/CloudAccountGateway";
 import type { CloudExecutionTarget } from "@/state/execution-target-store";
 import { cleanup, render } from "../../ui/__testing__/render";
+import { containsText } from "../__testing__/harness";
 import { useCloudWorkspaceControls } from "./CloudWorkspaceControls";
 
 const mocks = vi.hoisted(() => ({
@@ -114,6 +115,10 @@ function mount(
 	};
 }
 beforeEach(() => {
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+		setTimeout(() => callback(0), 0),
+	);
+	vi.stubGlobal("cancelAnimationFrame", (frame: number) => clearTimeout(frame));
 	vi.clearAllMocks();
 	mocks.resolveInstallUrl.mockResolvedValue(
 		"https://github.com/apps/example/installations/new?state=example",
@@ -132,9 +137,94 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	vi.useRealTimers();
+	vi.unstubAllGlobals();
 });
 
 describe("Cloud work context", () => {
+	it("recovers a missing branch repository by closing its sheet before opening repository selection", async () => {
+		vi.useFakeTimers();
+		mocks.listRepositories.mockResolvedValue([]);
+		const { root, save } = mount(target);
+		await act(async () =>
+			byLabel(root, "Cloud branch: default")?.props.onPress(),
+		);
+		await act(async () => {
+			await vi.runOnlyPendingTimersAsync();
+		});
+		expect(containsText(root, "This repository is no longer available")).toBe(
+			true,
+		);
+		expect(byLabel(root, "Change repository")).toBeDefined();
+		const loaded = mocks.listRepositories.mock.calls.length;
+		await act(async () => byLabel(root, "Change repository")?.props.onPress());
+		expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded);
+		const branchSheet = root.findAll((node) => node.type === "BottomSheet")[2]!;
+		act(() => branchSheet.props.onChange(-1));
+		expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded);
+		await act(async () => {
+			await vi.runOnlyPendingTimersAsync();
+		});
+		expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded + 1);
+		expect(containsText(root, "Your draft is unchanged")).toBe(true);
+		expect(save).not.toHaveBeenCalled();
+	});
+	it("offers recovery when a saved repository disappears without clearing the saved choice", async () => {
+		mocks.listRepositories.mockResolvedValue([
+			{
+				...repository,
+				id: 2,
+				fullName: "team/other",
+				repoUrl: "https://github.com/team/other",
+			},
+		]);
+		const { root, openRepositories, save } = mount(target);
+		await act(async () => openRepositories());
+		expect(containsText(root, "is no longer available")).toBe(true);
+		expect(byLabel(root, "Manage repository access")).toBeDefined();
+		expect(byLabel(root, "Refresh repositories")).toBeDefined();
+		expect(save).not.toHaveBeenCalled();
+		await act(async () =>
+			byLabel(root, "Manage repository access")?.props.onPress(),
+		);
+		expect(mocks.resolveInstallUrl).toHaveBeenCalledWith(
+			"org-1",
+			"add-repositories",
+		);
+		mocks.listRepositories.mockResolvedValue([repository]);
+		await act(async () =>
+			byLabel(root, "Refresh repositories")?.props.onPress(),
+		);
+		expect(byLabel(root, "team/repo")).toBeDefined();
+		expect(save).not.toHaveBeenCalled();
+	});
+	it("keeps repository access and refresh available after an empty search, and can clear the query", async () => {
+		const { root, openRepositories } = mount(target);
+		await act(async () => openRepositories());
+		act(() =>
+			byLabel(root, "Search Cloud repositories")?.props.onChangeText(
+				"not-found",
+			),
+		);
+		expect(byLabel(root, "Clear repository search")).toBeDefined();
+		expect(byLabel(root, "Manage repository access")).toBeDefined();
+		expect(byLabel(root, "Refresh repositories")).toBeDefined();
+		act(() => byLabel(root, "Clear repository search")?.props.onPress());
+		expect(byLabel(root, "Search Cloud repositories")?.props.value).toBe("");
+		expect(byLabel(root, "team/repo")).toBeDefined();
+	});
+	it("refreshes an open repository picker after returning from GitHub without replacing the current target", async () => {
+		const { root, openRepositories, save } = mount(target);
+		await act(async () => openRepositories());
+		const picker = root.findAll((node) => node.type === "BottomSheet")[1]!;
+		act(() => picker.props.onChange(0));
+		const listener = vi.mocked(AppState.addEventListener).mock.calls.at(-1)![1];
+		await act(async () => {
+			listener("background");
+			listener("active");
+		});
+		expect(mocks.listRepositories).toHaveBeenCalledTimes(2);
+		expect(save).not.toHaveBeenCalled();
+	});
 	it("exposes one context action, omits branch before repository selection, and keeps location explicit", async () => {
 		const { root, setTarget, chooseLocation } = mount();
 		const context = root.find(
@@ -154,6 +244,10 @@ describe("Cloud work context", () => {
 				.findAll((node) => node.type === "BottomSheet")[0]!
 				.props.onChange(-1),
 		);
+		expect(chooseLocation).not.toHaveBeenCalled();
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
 		expect(chooseLocation).toHaveBeenCalledOnce();
 		act(() => setTarget({ ...target, branch: "feature" }));
 		expect(context.props.accessibilityLabel).toBe(
@@ -190,6 +284,9 @@ describe("Cloud work context", () => {
 			(node) => node.type === "BottomSheet",
 		)[0]!;
 		await act(async () => contextSheet.props.onChange(-1));
+		await act(async () => {
+			await vi.runOnlyPendingTimersAsync();
+		});
 		await act(async () => {
 			await vi.runOnlyPendingTimersAsync();
 		});
