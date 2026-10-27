@@ -923,6 +923,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
 						}
 					: {}),
+				// Omitted wire history requests a resume; RuntimeHost starts default to empty context.
 				initialMessages: input.initialMessages ?? [],
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
