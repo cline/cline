@@ -66,6 +66,7 @@ function ArtifactImage({
 		return () => observer.disconnect();
 	}, []);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: attempt triggers a fresh URL request on retry.
 	useEffect(() => {
 		if (!visible) return;
 		let cancelled = false;
@@ -78,10 +79,7 @@ function ArtifactImage({
 			})
 			.then((result) => {
 				if (cancelled) return;
-				if (Date.parse(result.expiresAt) <= Date.now()) {
-					if (attempt === 0) setAttempt(1);
-					else setFailed(true);
-				} else setDownload(result);
+				setDownload(result);
 			})
 			.catch(() => {
 				if (!cancelled) setFailed(true);

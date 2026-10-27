@@ -81,6 +81,14 @@ it("loads visible artifacts directly, preserves the reference, and resolves agai
 	expect(mocks.invoke).toHaveBeenCalledTimes(2);
 });
 
+it("loads a signed URL when the client clock is ahead of its expiry", async () => {
+	vi.spyOn(Date, "now").mockReturnValue(Date.parse("2031-01-01T00:00:00Z"));
+	await render();
+	await act(async () => reveal());
+	expect(container.querySelector("img")?.src).toBe(download.url);
+	expect(mocks.invoke).toHaveBeenCalledTimes(1);
+});
+
 it("refreshes an expired image URL once and offers an explicit retry after another failure", async () => {
 	const now = Date.parse("2029-01-01T00:00:00Z");
 	const clock = vi.spyOn(Date, "now").mockReturnValue(now);
