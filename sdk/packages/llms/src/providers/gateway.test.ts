@@ -535,6 +535,41 @@ describe("sdk-gateway", () => {
 		).toBe(16_000);
 	});
 
+	it("gives adaptive-thinking requests the model's full output budget", () => {
+		// Adaptive thinking is counted inside max_tokens; a fractional default
+		// (30% of 128k = 38,400) truncated long thinking turns before they
+		// could emit any text or tool call.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				adaptiveThinking: true,
+				model: { maxOutputTokens: 128_000, contextWindow: 1_000_000 },
+				estimatedInputTokens: 300_000,
+			}),
+		).toBe(128_000);
+
+		// Still clamped by the remaining context window.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				adaptiveThinking: true,
+				model: { maxOutputTokens: 128_000, contextWindow: 200_000 },
+				estimatedInputTokens: 150_000,
+				outputReserveTokens: 1_024,
+			}),
+		).toBe(48_976);
+
+		// An explicit request max still wins.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 16_000,
+				adaptiveThinking: true,
+				model: { maxOutputTokens: 128_000, contextWindow: 1_000_000 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(16_000);
+	});
+
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({

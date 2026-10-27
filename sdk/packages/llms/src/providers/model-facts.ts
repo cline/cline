@@ -483,3 +483,30 @@ export function modelReasoningDefaultsOn(options: {
 		isOllamaQwen3ModelIdFallback(options.request)
 	);
 }
+
+/**
+ * True when a request asks an adaptive-thinking Claude model (4.6+/5.x, or an
+ * unrecognized newer Claude id) to think. These models choose their own
+ * thinking length from the effort level, and that thinking is counted inside
+ * the response's max_tokens. A request that enables thinking without its own
+ * max_tokens must therefore leave the model its full output budget: a smaller
+ * synthesized cap does not shorten the thinking, it truncates it, and the turn
+ * ends with no text or tool call (finish_reason "length").
+ */
+export function isAdaptiveThinkingRequest(
+	request: Pick<GatewayStreamRequest, "modelId" | "reasoning">,
+): boolean {
+	const reasoning = request.reasoning;
+	if (!reasoning || reasoning.enabled === false) {
+		return false;
+	}
+	if (
+		reasoning.enabled !== true &&
+		reasoning.effort === undefined &&
+		typeof reasoning.budgetTokens !== "number"
+	) {
+		return false;
+	}
+	const era = resolveClaudeThinkingEra(request.modelId);
+	return era === "adaptive" || era === "unknown-claude";
+}

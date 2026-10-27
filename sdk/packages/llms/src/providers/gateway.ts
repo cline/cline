@@ -18,6 +18,7 @@ import {
 } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { isAdaptiveThinkingRequest } from "./model-facts";
 import { providerManifestSupportsModelOperation } from "./model-operations";
 import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
@@ -196,6 +197,14 @@ export function resolveGatewayRequestMaxTokens(input: {
 	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
 	reasoningBudgetTokens?: number;
+	/**
+	 * The request enables adaptive thinking (see isAdaptiveThinkingRequest).
+	 * The synthesized default then uses the model's full advertised output
+	 * budget instead of DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION of it, because
+	 * adaptive thinking is counted inside max_tokens and a smaller cap
+	 * truncates it.
+	 */
+	adaptiveThinking?: boolean;
 	onContextOverflow?: (details: {
 		contextWindow: number;
 		estimatedInputTokens: number;
@@ -224,14 +233,15 @@ export function resolveGatewayRequestMaxTokens(input: {
 		// still lifts the result too.
 		const baseDefault =
 			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		const catalogFraction = input.adaptiveThinking
+			? 1
+			: DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION;
 		const catalogDefault =
 			input.defaultMaxOutputTokens === undefined &&
 			isPositiveFiniteNumber(input.model.maxOutputTokens)
 				? Math.max(
 						baseDefault,
-						Math.floor(
-							input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
-						),
+						Math.floor(input.model.maxOutputTokens * catalogFraction),
 					)
 				: baseDefault;
 		const defaultMaxOutputTokens = Math.max(catalogDefault, reasoningFloor);
@@ -372,6 +382,10 @@ export class DefaultGateway implements Gateway {
 			model: resolved.model,
 			estimatedInputTokens: estimateRequestInputTokens(request),
 			reasoningBudgetTokens: request.reasoning?.budgetTokens,
+			adaptiveThinking: isAdaptiveThinkingRequest({
+				modelId: resolved.model.id,
+				reasoning: request.reasoning,
+			}),
 			onContextOverflow: (details) => {
 				this.logger?.log(
 					"Estimated prompt tokens exceed model context window",
