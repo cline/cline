@@ -118,8 +118,10 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				if (result.unsentPrompt)
 					result = {
 						...result,
+						unsentPrompt: undefined,
+						warningKind: "unconfirmed",
 						warning:
-							`${result.warning ?? ""} Reattach any images from the previous window before sending.`.trim(),
+							"Check the cloud conversation before sending again. This prompt may have been sent from the previous window.",
 					};
 			}
 			complete(sourceSessionId, attempt, result);

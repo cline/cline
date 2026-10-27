@@ -386,6 +386,22 @@ describe("summary cloud handoff", () => {
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.send).not.toHaveBeenCalled();
 	});
+	it("reports a lost launch reply after a Hub restart instead of cancelling draft recovery", async () => {
+		const f = await fixture();
+		await f.prepare();
+		const scope = f.viewer.scope;
+		if (!scope) throw new Error("Missing connected test scope");
+		f.launch.mockImplementation(async () => {
+			vi.spyOn(f.viewer, "scope", "get").mockReturnValue({
+				...scope,
+				serviceId: "restarted-hub",
+			});
+			throw new Error("Connection closed");
+		});
+		await expect(f.handoff()).rejects.toThrow("Connection closed");
+		expect(f.launch).toHaveBeenCalledOnce();
+		expect(f.send).not.toHaveBeenCalled();
+	});
 	it("does not return a preview after the account changes during capture", async () => {
 		const f = await fixture();
 		f.readLiveMessages.mockImplementation(async () => {

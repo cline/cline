@@ -123,11 +123,13 @@ describe("summary handoff lifecycle", () => {
 		expect(h.state().local).toMatchObject({
 			status: "complete",
 			sessionId: "cloud",
-			unsentDraft: { text: "Summary A", attachments: reload ? [] : aFiles },
+			unsentDraft: reload
+				? undefined
+				: { text: "Summary A", attachments: aFiles },
 			preparationFailure: { draft: { text: "B", attachments: bFiles } },
 		});
 		if (reload)
-			expect(h.state().local.message).toContain("Reattach any images");
+			expect(h.state().local.message).toContain("Check the cloud conversation");
 		expect(h.lifecycle.getCompletedAttemptId("local")).toBe(id);
 		expect(h.lifecycle.onPreparationStarted("local")?.aborted).toBe(false);
 	});

@@ -152,7 +152,24 @@ function assertHandoffAccount(
 	scope: CloudHubScope,
 ): void {
 	if (!isHandoffAccountCurrent(ctx, cloud, scope))
-		throw new Error("The cloud account changed.");
+		throw new Error(
+			"The cloud connection or account changed. Check cloud tasks before retrying.",
+		);
+}
+
+// A Hub restart invalidates the scope but does not prove the account changed.
+function hasHandoffAccountChanged(
+	ctx: SidecarContext,
+	cloud: CloudSessionManager,
+	scope: CloudHubScope | undefined,
+): boolean {
+	const current = cloud.scope;
+	return (
+		getSidecarContextOwner(ctx).cloudSessionManager !== cloud ||
+		(!!scope &&
+			current?.serviceId === scope.serviceId &&
+			current.scopeGeneration !== scope.scopeGeneration)
+	);
 }
 
 async function resolveCloudModel(
@@ -268,7 +285,7 @@ export async function handlePrepareHandoff(
 		});
 		return { gitPreparation: previewHandoffGit(plan) };
 	} catch (error) {
-		if (!isHandoffAccountCurrent(ctx, cloud, scope)) return { cancelled: true };
+		if (hasHandoffAccountChanged(ctx, cloud, scope)) return { cancelled: true };
 		throw error;
 	} finally {
 		active.delete(sessionId);
@@ -472,7 +489,7 @@ export async function handleHandoff(
 		return result;
 	} catch (error) {
 		requests.delete(sessionId);
-		if (!isHandoffAccountCurrent(ctx, cloud, scope)) return { cancelled: true };
+		if (hasHandoffAccountChanged(ctx, cloud, scope)) return { cancelled: true };
 		throw error;
 	}
 }
