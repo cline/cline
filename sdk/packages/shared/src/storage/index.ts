@@ -27,6 +27,7 @@ export {
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
 	resolveClineDir,
+	withHostClineDirEnv,
 	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
 	resolveConnectorLogPath,
