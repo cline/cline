@@ -322,6 +322,9 @@ type ChatInputBarProps = {
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
+	nextTurnSuggestion?: string;
+	onAcceptNextTurnSuggestion?: () => void;
+	onNavigateNextTurnSuggestion?: (direction: "next" | "previous") => void;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
@@ -378,6 +381,9 @@ function ChatInputBarImpl({
 	cloudBranch,
 	hasActiveSession = false,
 	promptDraft,
+	nextTurnSuggestion,
+	onAcceptNextTurnSuggestion,
+	onNavigateNextTurnSuggestion,
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
@@ -1450,6 +1456,21 @@ function ChatInputBarImpl({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
+								if (promptInput === "" && nextTurnSuggestion) {
+									if (e.key === "Tab" || e.key === "ArrowRight") {
+										e.preventDefault();
+										setPromptInput(nextTurnSuggestion);
+										onAcceptNextTurnSuggestion?.();
+										return;
+									}
+									if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+										e.preventDefault();
+										onNavigateNextTurnSuggestion?.(
+											e.key === "ArrowDown" ? "next" : "previous",
+										);
+										return;
+									}
+								}
 								if (e.key === "Escape" && canAbort) {
 									e.preventDefault();
 									onAbort();
@@ -1479,6 +1500,8 @@ function ChatInputBarImpl({
 							placeholder={
 								speechInputProcessing
 									? "Transcribing voice input…"
+									: promptInput === "" && nextTurnSuggestion
+										? nextTurnSuggestion
 									: needsCloudRepository
 										? "Choose a repository"
 										: isBusy && variant !== "welcome"

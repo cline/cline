@@ -59,6 +59,17 @@ import {
 	getInitialChatConfig,
 	getInitialCloudModel,
 } from "@/hooks/chat-session/constants";
+import {
+	acceptNextTurnSuggestions,
+	currentNextTurnPrompt,
+	cycleNextTurnSuggestions,
+	EMPTY_NEXT_TURN_THREAD,
+	markNewerNextTurnRun,
+	type NextTurnSuggestionState,
+	type NextTurnThreadMemory,
+	nextTurnRunInFlight,
+	visibleNextTurnSuggestions,
+} from "@/hooks/next-turn-suggestions";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -1396,9 +1407,27 @@ function ChatThreadPane({
 	const {
 		clearPromptForSend,
 		promptDraft,
+		promptInputRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
+	const [nextTurnSuggestions, setNextTurnSuggestions] =
+		useState<NextTurnSuggestionState>();
+	const nextTurnMemoryRef = useRef<NextTurnThreadMemory>(
+		EMPTY_NEXT_TURN_THREAD,
+	);
+	const runInFlight = nextTurnRunInFlight(status);
+	const [nextTurnTrackedFlight, setNextTurnTrackedFlight] =
+		useState(runInFlight);
+	if (runInFlight !== nextTurnTrackedFlight) {
+		setNextTurnTrackedFlight(runInFlight);
+		if (runInFlight) {
+			nextTurnMemoryRef.current = markNewerNextTurnRun(
+				nextTurnMemoryRef.current,
+			);
+			setNextTurnSuggestions(undefined);
+		}
+	}
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1574,6 +1603,39 @@ function ChatThreadPane({
 			}
 		});
 	}, [sessionId]);
+	useEffect(() => {
+		nextTurnMemoryRef.current = EMPTY_NEXT_TURN_THREAD;
+		setNextTurnSuggestions(undefined);
+	}, [sessionId, threadId]);
+	useEffect(() => {
+		return desktopClient.subscribe("next_turn_suggestions", (payload) => {
+			const accepted = acceptNextTurnSuggestions({
+				sessionId,
+				draft: promptInputRef.current,
+				payload,
+				memory: nextTurnMemoryRef.current,
+			});
+			if (!accepted) return;
+			nextTurnMemoryRef.current = accepted.memory;
+			setNextTurnSuggestions(accepted.state);
+		});
+	}, [promptInputRef, sessionId]);
+	const nextTurnSuggestion = currentNextTurnPrompt(
+		visibleNextTurnSuggestions(nextTurnSuggestions, runInFlight),
+	);
+	const acceptNextTurnSuggestion = useCallback(() => {
+		if (!nextTurnSuggestion) return;
+		setPromptInput(nextTurnSuggestion);
+		setNextTurnSuggestions(undefined);
+	}, [nextTurnSuggestion, setPromptInput]);
+	const navigateNextTurnSuggestion = useCallback(
+		(direction: "next" | "previous") => {
+			setNextTurnSuggestions((current) =>
+				current ? cycleNextTurnSuggestions(current, direction) : current,
+			);
+		},
+		[],
+	);
 	const isProvisioningCloudSession =
 		isCloudSession &&
 		status === "starting" &&
@@ -2761,6 +2823,9 @@ function ChatThreadPane({
 			onSwitchGitBranch={switchGitBranch}
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
+			nextTurnSuggestion={nextTurnSuggestion}
+			onAcceptNextTurnSuggestion={acceptNextTurnSuggestion}
+			onNavigateNextTurnSuggestion={navigateNextTurnSuggestion}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
 			onOpenLocalModels={onOpenLocalModels}

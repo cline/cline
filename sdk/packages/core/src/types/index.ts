@@ -6,6 +6,7 @@ export type {
 	CoreSessionConfig,
 } from "./config";
 export type {
+	CorePluginEvent,
 	CoreSessionEvent,
 	SessionChunkEvent,
 	SessionEndedEvent,
