@@ -1,3 +1,4 @@
+import type { AgentMode } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type CaptureAgentUnexpectedReasoningTokensInput,
@@ -575,6 +576,8 @@ export function captureToolUsage(
 		provider?: string;
 		autoApproved?: boolean;
 		success: boolean;
+		/** Session mode at call time; lets plan-mode tool use be measured. */
+		mode?: AgentMode;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOOL_USED, properties);

@@ -212,12 +212,13 @@ describe("InMemoryMcpManager", () => {
 		expect(clientFactory).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps tool _meta in the cache and reads resources through the client", async () => {
+	it("keeps tool _meta and annotations in the cache and reads resources through the client", async () => {
 		const client = createClient({
 			listTools: vi.fn(async () => [
 				{
 					name: "show_weather",
 					inputSchema: { type: "object" },
+					annotations: { readOnlyHint: true },
 					_meta: { ui: { resourceUri: "ui://weather/view.html" } },
 				},
 			]),
@@ -237,6 +238,7 @@ describe("InMemoryMcpManager", () => {
 		expect(tools[0]._meta).toEqual({
 			ui: { resourceUri: "ui://weather/view.html" },
 		});
+		expect(tools[0].annotations).toEqual({ readOnlyHint: true });
 		expect(
 			await manager.readResource({
 				serverName: "weather",

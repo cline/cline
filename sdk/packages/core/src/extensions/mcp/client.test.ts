@@ -60,7 +60,7 @@ process.stdin.on("data", (chunk) => {
 					serverInfo: { name: "fake", version: "0.0.0" },
 				};
 			} else if (msg.method === "tools/list") {
-				result = { tools: [] };
+				result = { tools: JSON.parse(process.env.FAKE_MCP_TOOLS ?? "[]") };
 			} else if (msg.method === "tools/call") {
 				result = { content: [{ type: "text", text: "ok" }] };
 			} else {
@@ -265,6 +265,7 @@ function fakeServerRegistration(options: {
 	script?: string;
 	exitAfterCloseMs?: number;
 	ignoreSigterm?: boolean;
+	tools?: unknown[];
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -279,6 +280,9 @@ function fakeServerRegistration(options: {
 			args: [join(tempRoot, options.script ?? "fake-server.js")],
 			env: {
 				FAKE_MCP_DELAY_MS: String(options.delayMs),
+				...(options.tools === undefined
+					? {}
+					: { FAKE_MCP_TOOLS: JSON.stringify(options.tools) }),
 				...(options.initDelayMs === undefined
 					? {}
 					: { FAKE_MCP_INIT_DELAY_MS: String(options.initDelayMs) }),
@@ -322,6 +326,51 @@ function isProcessRunning(pid: number): boolean {
 }
 
 describe("mcp client request timeout", () => {
+	it("keeps well-formed server annotations and drops malformed ones", async () => {
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({
+				delayMs: 0,
+				tools: [
+					{
+						name: "read_file",
+						inputSchema: { type: "object" },
+						annotations: { readOnlyHint: true, title: "Read file" },
+					},
+					{
+						name: "write_file",
+						inputSchema: { type: "object" },
+						annotations: "no",
+					},
+					{ name: "plain", inputSchema: { type: "object" } },
+				],
+			}),
+		);
+		try {
+			await client.connect();
+			expect(await client.listTools()).toEqual([
+				{
+					name: "read_file",
+					description: undefined,
+					inputSchema: { type: "object" },
+					annotations: { title: "Read file", readOnlyHint: true },
+				},
+				{
+					name: "write_file",
+					description: undefined,
+					inputSchema: { type: "object" },
+				},
+				{
+					name: "plain",
+					description: undefined,
+					inputSchema: { type: "object" },
+				},
+			]);
+		} finally {
+			await client.disconnect();
+		}
+	});
+
 	it("lets a slow server respond beyond the old 5s default when configured higher", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory(
