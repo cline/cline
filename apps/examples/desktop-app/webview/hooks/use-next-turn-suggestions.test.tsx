@@ -99,6 +99,22 @@ describe("useNextTurnSuggestions", () => {
 		expect(current.suggestion).toBe("Fresh prompt.");
 	});
 
+	it("never revives an earlier run whose event arrived while the user typed", () => {
+		render(idle);
+		promptInputRef.current = "typing";
+		emit("run-a", ["Rules for A."]);
+		promptInputRef.current = "";
+		render({ ...idle, turnEpoch: 1, status: "running" });
+		emit("run-a", ["Late model for A."]);
+		promptInputRef.current = "typing again";
+		emit("run-b", ["Rules for B."]);
+		render({ ...idle, turnEpoch: 1, status: "completed" });
+
+		promptInputRef.current = "";
+		render({ ...idle, turnEpoch: 1, status: "idle" });
+		expect(current.suggestion).toBeUndefined();
+	});
+
 	it("drops the stored set on a new turn and on a session change", () => {
 		render(idle);
 		emit("run-1", ["Run the checks."]);
