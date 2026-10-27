@@ -2805,7 +2805,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async runWithAuthRetry(
 		session: ActiveSession,
 		run: () => Promise<AgentResult>,
-		baselineMessages: LlmsProviders.Message[],
+		baselineMessages: LlmsProviders.MessageWithMetadata[],
 	): Promise<AgentResult> {
 		try {
 			return await run();
@@ -2817,7 +2817,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
-			session.agent.restore(baselineMessages);
+			const publishedMedia = session.agent
+				.getMessages()
+				.filter(
+					(message) =>
+						message.metadata?.displayOnly === true &&
+						Array.isArray(message.content) &&
+						message.content.length > 0 &&
+						message.content.every((part) => part.type === "media") &&
+						!baselineMessages.some((previous) => previous.id === message.id),
+				);
+			session.agent.restore([...baselineMessages, ...publishedMedia]);
 			return run();
 		}
 	}

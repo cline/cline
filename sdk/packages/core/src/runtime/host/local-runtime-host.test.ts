@@ -7507,7 +7507,7 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("force refreshes and retries once when turn fails with auth error", async () => {
+	it("retries auth failures while keeping published media and discarding failed-attempt text", async () => {
 		const sessionId = "sess-oauth-retry";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -7535,9 +7535,37 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn(),
 			}),
 		};
+		const published: MessageWithMetadata = {
+			id: "published_frame",
+			role: "assistant",
+			metadata: { displayOnly: true },
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "frame",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "artifact", artifactId: "frame" },
+					},
+				},
+			],
+		};
+		let currentMessages: MessageWithMetadata[] = [];
 		const run = vi
 			.fn()
-			.mockRejectedValueOnce(new Error("401 Unauthorized"))
+			.mockImplementationOnce(async () => {
+				currentMessages = [
+					published,
+					{
+						id: "failed",
+						role: "assistant",
+						content: "401 Unauthorized",
+						metadata: { displayOnly: true, displayRole: "error" },
+					},
+				];
+				throw new Error("401 Unauthorized");
+			})
 			.mockResolvedValueOnce(
 				createResult({
 					text: "retried",
@@ -7590,7 +7618,7 @@ describe("LocalRuntimeHost", () => {
 					restore,
 					updateConnection,
 					shutdown: vi.fn().mockResolvedValue(undefined),
-					getMessages: vi.fn().mockReturnValue([]),
+					getMessages: vi.fn(() => currentMessages),
 					messages: [],
 				}) as never,
 		});
@@ -7610,6 +7638,7 @@ describe("LocalRuntimeHost", () => {
 		expect(result?.text).toBe("retried");
 		expect(run).toHaveBeenCalledTimes(2);
 		expect(restore).toHaveBeenCalledTimes(1);
+		expect(restore).toHaveBeenCalledWith([published]);
 		expect(resolveProviderApiKey).toHaveBeenNthCalledWith(1, {
 			providerId: "openai-codex",
 			forceRefresh: undefined,
