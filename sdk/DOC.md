@@ -94,11 +94,11 @@ host presentation.
 
 ## Starting a runtime from saved Hub history
 
-`session.resume` starts a runtime for an existing `sessionConfig.sessionId` using its stored conversation. Supply the same execution configuration as `session.create`; the Hub loads the history and uses the existing startup, tool setup, compaction, and accounting paths. Its reply and session events match `session.create`.
+`session.resume` starts a runtime for a saved `sessionConfig.sessionId`. It accepts the execution configuration used by `session.create`, but reads conversation history on the Hub instead of requiring `initialMessages`. Startup, replies, and session events use the existing `session.create` path.
 
-A missing session returns `session_not_found`; empty or unavailable history returns `session_messages_not_found` before starting a runtime. `session.create` retains its existing behavior, including empty context when `initialMessages` is omitted.
+A missing ID returns `invalid_resume`, a missing session returns `session_not_found`, and empty history returns `session_messages_not_found`. These errors do not start a runtime. `session.create` remains unchanged, including empty context when `initialMessages` is omitted.
 
-When a Hub returns `unsupported_command`, clients can use the existing `session.messages` followed by `session.create` with explicit history. Other errors must not trigger that fallback.
+Only `unsupported_command` permits falling back to `session.messages` followed by `session.create` with explicit history.
 
 ## Cloud sessions (experimental)
 
