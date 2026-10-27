@@ -60,8 +60,12 @@ function asBedrockSignsIn(
  * headers resolved the way `local-runtime-bootstrap.ts` resolves a chat's;
  * undefined when the provider has no key, no URL, and none of the cloud
  * credentials, local sign-in or keyless endpoint core's readiness check looks
- * for. The planner never borrows another provider. One resolver serves every
- * call, so concurrent calls share an OAuth refresh.
+ * for. The planner never borrows another provider.
+ *
+ * Read-only: the worker shares the host's process id, so a token refresh here
+ * would race the host's writes to the same settings file. The chat refreshed
+ * the token for the turn that just ended; an expired one fails as auth and
+ * the rule suggestions stand.
  */
 export function providerResolver(
 	core: CoreModule,
@@ -69,19 +73,14 @@ export function providerResolver(
 ): (
 	choice: ProviderChoice,
 	requestContext: PlannerRequestContext,
-) => Promise<Llms.ProviderConfig | undefined> {
+) => Llms.ProviderConfig | undefined {
 	const manager = new core.ProviderSettingsManager();
-	const oauth = new core.RuntimeOAuthTokenManager({
-		providerSettingsManager: manager,
-	});
-	return async (choice, requestContext) => {
+	return (choice, requestContext) => {
 		const stored = manager.getProviderSettings(choice.providerId);
 		if (!stored) return undefined;
 		const config = core.toProviderConfig(stored, { includeKnownModels: false });
 		const providerId = config.providerId;
-		const resolved = await oauth.resolveProviderApiKey({ providerId });
 		const apiKey = (
-			resolved?.apiKey ||
 			core.resolveProviderApiKeyFromSettings(manager, providerId) ||
 			config.apiKey ||
 			""
@@ -189,7 +188,7 @@ export function clineCompleter(
 				throw error;
 			});
 		const { core, resolve } = await ready;
-		const config = await resolve(chat, { sessionId, client });
+		const config = resolve(chat, { sessionId, client });
 		if (!config) return null;
 		const llms = core.Llms;
 		const modelKey = `${config.providerId}:${config.modelId ?? ""}`;
