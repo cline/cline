@@ -96,6 +96,10 @@ host presentation.
 
 `session.create` loads saved conversation history when `sessionConfig.sessionId` identifies an existing session and `initialMessages` is omitted. A new ID starts a fresh session. Explicit `initialMessages`, including `[]`, take precedence. The caller still supplies execution configuration; existing startup, tool setup, and compaction handling apply.
 
+This changes the previous default for existing IDs: omitting `initialMessages` now loads saved history instead of starting with empty context. Callers that require empty context must supply `initialMessages: []`. Explicit-history callers keep their existing behavior.
+
+The saved-history reader can return `[]` for empty, missing, or corrupt history. Creation accepts that result as empty context without distinguishing these cases.
+
 The Hub advertises `session.create.stored_history` in the `client.register` reply's `serverCapabilities`. Restore callers can pass `{ requiredCapability: "session.create.stored_history" }` in `NodeHubClient.command` options to check support on the current connection before dispatch. This option is local to the client and is not sent in the request. If an older Hub lacks support, the client throws `unsupported_feature` so the caller can download history and supply it to ordinary `session.create`. Other errors must not trigger that fallback.
 
 ## Cloud sessions (experimental)
