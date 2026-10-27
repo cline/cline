@@ -627,10 +627,13 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		"feature/cloud",
 	])("preserves %s when branch selection is unavailable", async (branch) => {
 		const onCloudBranchChange = vi.fn();
-		const onListCloudBranches = vi.fn(async () => ({
-			available: false,
-			branches: [],
-		}));
+		let releaseBranches: (() => void) | undefined;
+		const onListCloudBranches = vi.fn(
+			() =>
+				new Promise<{ available: boolean; branches: string[] }>((resolve) => {
+					releaseBranches = () => resolve({ available: false, branches: [] });
+				}),
+		);
 		renderControls({
 			executionTarget: "cloud",
 			repoUrl: "https://github.com/cline/cline",
@@ -638,9 +641,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			onCloudBranchChange,
 			onListCloudBranches,
 		});
-		await vi.waitFor(() =>
-			expect(button(branch || "Default branch").disabled).toBe(true),
-		);
+		await vi.waitFor(() => expect(releaseBranches).toBeDefined());
+		await act(async () => releaseBranches?.());
+		expect(button(branch || "Default branch").disabled).toBe(true);
 		expect(onCloudBranchChange).not.toHaveBeenCalled();
 		expect(container.textContent).not.toContain("(default)");
 	});
