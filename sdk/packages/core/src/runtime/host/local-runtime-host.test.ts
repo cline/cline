@@ -4649,6 +4649,84 @@ describe("LocalRuntimeHost", () => {
 		expect(f.agent.run).toHaveBeenCalledTimes(1);
 	});
 
+	it("aborts the active run before teardown waits on git metadata and the status write", async () => {
+		const sessionId = "sess-dispose-aborts-first";
+		const manifest = createManifest(sessionId);
+		const order: string[] = [];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn(async (_sessionId: string, status: string) => {
+				order.push(`status:${status}`);
+				return { updated: true, endedAt: "2026-01-01T00:00:05.000Z" };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let settleRun: ((result: AgentResult) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agent = {
+			run: vi.fn(() => {
+				activeRun = true;
+				markRunStarted?.();
+				return new Promise<AgentResult>((resolve) => {
+					settleRun = (result) => {
+						activeRun = false;
+						resolve(result);
+					};
+				});
+			}),
+			continue: vi.fn(),
+			abort: vi.fn(() => {
+				order.push("abort");
+				settleRun?.(createResult({ finishReason: "aborted" }));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+
+		// dispose() reaches shutdownSession without aborting first; the run
+		// must stop before teardown spends time on git metadata and the
+		// cancelled write, not after.
+		await manager.dispose();
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+		expect(order.indexOf("abort")).toBeGreaterThanOrEqual(0);
+		expect(order.indexOf("abort")).toBeLessThan(
+			order.indexOf("status:cancelled"),
+		);
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;
