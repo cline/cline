@@ -56,6 +56,36 @@ function statusOf(result: AgentRunResult): NextTurnStatus {
 			: "completed";
 }
 
+function outputFailed(output: unknown): boolean {
+	if (Array.isArray(output)) return output.some(outputFailed);
+	return (
+		typeof output === "object" &&
+		output !== null &&
+		"success" in output &&
+		output.success === false
+	);
+}
+
+function outputErrorText(output: unknown): string {
+	if (typeof output === "string") return output;
+	if (Array.isArray(output))
+		return output
+			.filter(outputFailed)
+			.map(outputErrorText)
+			.filter((text) => text.length > 0)
+			.join("\n");
+	if (typeof output === "object" && output !== null && "error" in output)
+		return typeof output.error === "string" ? output.error : "";
+	return "";
+}
+
+function toolResultFailed(part: {
+	isError?: boolean;
+	output: unknown;
+}): boolean {
+	return part.isError === true || outputFailed(part.output);
+}
+
 /** Write calls that changed nothing (an errored call) are forgotten; the rest keep their paths. */
 function scanTurn(turn: readonly AgentMessage[]): {
 	edits: Map<string, string[]>;
@@ -67,7 +97,7 @@ function scanTurn(turn: readonly AgentMessage[]): {
 		for (const part of message.content) {
 			if (part.type === "tool-call" && WRITE_TOOLS.has(part.toolName))
 				edits.set(part.toolCallId, editedPaths(part.input));
-			else if (part.type === "tool-result" && part.isError) {
+			else if (part.type === "tool-result" && toolResultFailed(part)) {
 				toolErrored = true;
 				edits.delete(part.toolCallId);
 			}
@@ -162,12 +192,18 @@ export function summarizeTurn(
 			if (part.type === "tool-call") {
 				callNames.set(part.toolCallId, part.toolName);
 			} else if (part.type === "tool-result") {
-				const error = part.isError
-					? clampRedacted(errorText(part.output), TURN_ERROR_LIMIT)
+				const failed = toolResultFailed(part);
+				const error = failed
+					? clampRedacted(
+							part.isError
+								? errorText(part.output)
+								: outputErrorText(part.output),
+							TURN_ERROR_LIMIT,
+						)
 					: "";
 				tools.set(part.toolCallId, {
 					name: part.toolName || callNames.get(part.toolCallId) || "tool",
-					failed: part.isError === true,
+					failed,
 					...(error ? { error } : {}),
 				});
 			}
