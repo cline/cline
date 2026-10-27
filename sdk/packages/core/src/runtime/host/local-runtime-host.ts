@@ -2728,26 +2728,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
-		this.beginTeardown(session);
-		// Fallback `task.completed` emission for completed sessions that did
-		// not observe an explicit `submit_and_exit` tool call, routed through
-		// the shared teardown choke point so it can neither double-fire nor
-		// be skipped by teardown routing.
-		session.pluginCommandsClosing = true;
-		this.emitTaskCompletedOnTeardown(session, input.status);
+		this.beginTeardown(session, input.shutdownReason, input.status);
 		notifyTeamRunWaiters(session);
-
-		// Drain an in-flight run before tearing anything down. `stopSession` aborts
-		// first for exactly this reason; callers that arrive here another way — hub
-		// `dispose()` on a restart, most notably — otherwise hit two failures at
-		// once: the runtime refuses to shut down while a run is in progress, and the
-		// plugin sandbox is SIGTERMed with tool calls still pending, so those calls
-		// reject with "plugin-sandbox process exited". A connector turn awaiting the
-		// run sees whichever surfaced first instead of an answer.
-		if (!session.aborting && this.hasActiveTurn(session)) {
-			session.aborting = true;
-			session.agent.abort(new Error(input.shutdownReason));
-		}
 
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
@@ -2786,23 +2768,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				recordCleanupError("update_status", error);
 			}
 		}
-		try {
-			await session.pluginCommandTail;
-			await session.agent.shutdown(input.shutdownReason);
-		} catch (error) {
-			recordCleanupError("agent_shutdown", error);
-		}
-		try {
-			await Promise.resolve(session.runtime.shutdown(input.shutdownReason));
-		} catch (error) {
-			recordCleanupError("runtime_shutdown", error);
-		}
-		try {
-			await session.pluginSandboxShutdown?.();
-		} catch (error) {
-			recordCleanupError("plugin_sandbox_shutdown", error);
-		}
-		this.sessions.delete(session.sessionId);
+		await this.shutDownSessionRuntime(
+			session,
+			input.shutdownReason,
+			recordCleanupError,
+		);
 		this.emit({
 			type: "ended",
 			payload: {
@@ -2822,9 +2792,54 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 * I/O. Without this, a queued prompt would start a new run in a session
 	 * that is being torn down and whose events nobody receives any more.
 	 */
-	private beginTeardown(session: ActiveSession): void {
+	/**
+	 * Runs synchronously, before teardown's first await, so nothing that
+	 * follows sees a session still accepting prompts or still running: the
+	 * runtime refuses to shut down while a run is in progress, the plugin
+	 * sandbox would be SIGTERMed with tool calls still pending, and a team
+	 * continuation could start another turn behind the status write.
+	 */
+	private beginTeardown(
+		session: ActiveSession,
+		reason: string,
+		finalStatus?: SessionStatus,
+	): void {
 		session.shuttingDown = true;
 		this.discardPendingPrompts(session, "session_teardown");
+		session.pluginCommandsClosing = true;
+		// Fallback `task.completed` emission for completed sessions that did
+		// not observe an explicit `submit_and_exit` tool call, routed through
+		// this shared choke point so it can neither double-fire nor be
+		// skipped by teardown routing.
+		this.emitTaskCompletedOnTeardown(session, finalStatus);
+		if (!session.aborting && this.hasActiveTurn(session)) {
+			session.aborting = true;
+			session.agent.abort(new Error(reason));
+		}
+	}
+
+	private async shutDownSessionRuntime(
+		session: ActiveSession,
+		reason: string,
+		recordCleanupError: (stage: string, error: unknown) => void,
+	): Promise<void> {
+		try {
+			await session.pluginCommandTail;
+			await session.agent.shutdown(reason);
+		} catch (error) {
+			recordCleanupError("agent_shutdown", error);
+		}
+		try {
+			await Promise.resolve(session.runtime.shutdown(reason));
+		} catch (error) {
+			recordCleanupError("runtime_shutdown", error);
+		}
+		try {
+			await session.pluginSandboxShutdown?.();
+		} catch (error) {
+			recordCleanupError("plugin_sandbox_shutdown", error);
+		}
+		this.sessions.delete(session.sessionId);
 	}
 
 	private discardPendingPrompts(
@@ -2855,14 +2870,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		reason: string,
 	): Promise<void> {
-		this.beginTeardown(session);
-		// Releasing is a full session exit too: interactive sessions whose
-		// reported status is already terminal are stopped/disposed through
-		// this branch. The completion emission must happen here as well —
-		// this is the branch that silently dropped `task.completed` when
-		// truthful status reporting re-routed interactive stops onto it.
-		session.pluginCommandsClosing = true;
-		this.emitTaskCompletedOnTeardown(session);
+		this.beginTeardown(session, reason);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
 			cleanupErrors.push(error);
@@ -2888,36 +2896,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		};
 
-		// Drain an in-flight run before tearing anything down, the same way
-		// stopSession does for its non-interactive path.
-		//
-		// Without this, releasing a session that is mid-run fails twice over: the
-		// runtime refuses to shut down ("a run is in progress") and that error is
-		// rethrown below, and the plugin sandbox is SIGTERMed while tool calls are
-		// still pending, so those calls reject with "plugin-sandbox process exited".
-		// A connector turn awaiting the run sees whichever surfaced first instead of
-		// an answer — which is what a hub restart looked like from Slack.
-		if (!session.aborting && this.hasActiveTurn(session)) {
-			session.aborting = true;
-			session.agent.abort(new Error(reason));
-		}
-		try {
-			await session.pluginCommandTail;
-			await session.agent.shutdown(reason);
-		} catch (error) {
-			recordCleanupError("agent_shutdown", error);
-		}
-		try {
-			await Promise.resolve(session.runtime.shutdown(reason));
-		} catch (error) {
-			recordCleanupError("runtime_shutdown", error);
-		}
-		try {
-			await session.pluginSandboxShutdown?.();
-		} catch (error) {
-			recordCleanupError("plugin_sandbox_shutdown", error);
-		}
-		this.sessions.delete(session.sessionId);
+		await this.shutDownSessionRuntime(session, reason, recordCleanupError);
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}
