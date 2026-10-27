@@ -111,10 +111,11 @@ export function factsOf(
 	result: AgentRunResult,
 ): TurnFacts {
 	const { edits, toolErrored } = scanTurn(finishedTurn(messages).turn);
-	const paths = new Set([...edits.values()].flat());
+	const named = [...edits.values()];
+	const pathless = named.filter((paths) => paths.length === 0).length;
 	return {
 		status: statusOf(result),
-		filesEdited: paths.size || edits.size,
+		filesEdited: new Set(named.flat()).size + pathless,
 		toolErrored,
 	};
 }

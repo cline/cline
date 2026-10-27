@@ -10,13 +10,14 @@ import { NextTurnPlanner, type PlannerDeps } from "./planner/planner";
 import { RepoReader } from "./planner/repo";
 import { runCommand } from "./planner/run";
 import { factsOf } from "./turn";
-import type {
-	NextTurnKind,
-	NextTurnSource,
-	NextTurnStatus,
-	NextTurnSuggestion,
-	NextTurnSuggestionsEvent,
-	TurnFacts,
+import {
+	NEXT_TURN_LABELS,
+	type NextTurnKind,
+	type NextTurnSource,
+	type NextTurnStatus,
+	type NextTurnSuggestion,
+	type NextTurnSuggestionsEvent,
+	type TurnFacts,
 } from "./types";
 
 export { factsOf } from "./turn";
@@ -31,12 +32,11 @@ const MAX_SUGGESTIONS = 3;
 
 const row = (
 	kind: NextTurnKind,
-	label: string,
 	prompt: string,
 	reason: string,
 ): NextTurnSuggestion => ({
 	kind,
-	label,
+	label: NEXT_TURN_LABELS[kind],
 	prompt,
 	reason,
 });
@@ -48,7 +48,6 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 		rows.push(
 			row(
 				"continue",
-				"Resume",
 				"Pick up the work the stopped turn left unfinished.",
 				"The last turn was stopped before it finished.",
 			),
@@ -57,7 +56,6 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 		rows.push(
 			row(
 				"fix_failure",
-				"Fix",
 				"Retry the last turn. It ended in an error.",
 				"The last turn ended in an error.",
 			),
@@ -66,7 +64,6 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 		rows.push(
 			row(
 				"fix_failure",
-				"Fix",
 				"Fix the failure from the last turn and run it again.",
 				"A command in the last turn failed.",
 			),
@@ -77,13 +74,11 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 			rows.push(
 				row(
 					"verify",
-					"Verify",
 					"Run the checks for the files the last turn changed.",
 					changed,
 				),
 				row(
 					"review_diff",
-					"Review",
 					"Review the changes from the last turn before going on.",
 					changed,
 				),
@@ -92,7 +87,6 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 		rows.push(
 			row(
 				"wrap_up",
-				"Wrap up",
 				"Summarize what the last turn did and what is left to do.",
 				facts.filesEdited > 0
 					? "The last turn changed files."
@@ -103,7 +97,6 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 	rows.push(
 		row(
 			"next_step",
-			"Next step",
 			"Plan the next few tasks for this work.",
 			"Nothing is tracked for this chat yet, so the next step is to plan some.",
 		),

@@ -23,6 +23,8 @@ import { redactSecrets } from "./redact";
 
 const REPO_COMMANDS_MAX = 8;
 const REPO_FILE_MAX_BYTES = 262_144;
+/** Reads are synchronous, so the folder is capped to keep the worker's block short. */
+const RULES_FOLDER_MAX_FILES = 16;
 const PACKAGE_FILE = "package.json";
 const MAKEFILE = "Makefile";
 const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md", ".clinerules"] as const;
@@ -148,7 +150,8 @@ export class RepoReader {
 			const texts: string[] = [];
 			for (const name of readdirSync(path)
 				.filter((entry) => entry.endsWith(".md"))
-				.sort()) {
+				.sort()
+				.slice(0, RULES_FOLDER_MAX_FILES)) {
 				const text = this.read(join(path, name));
 				if (text === "unknown") return "unknown";
 				if (text !== undefined) texts.push(text);

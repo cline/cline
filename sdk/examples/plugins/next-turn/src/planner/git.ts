@@ -72,8 +72,14 @@ function gitFacts(status: GitStatus): Facts {
 	return { heading: "This folder's git state (after the turn)", lines };
 }
 
-/** The "not a git repository" exit of `git status`. */
-const NOT_A_REPOSITORY = 128;
+/** Git exits 128 for any fatal error, so only this message means "no repository". */
+function isNotARepository(error: unknown): boolean {
+	const stderr =
+		typeof error === "object" && error !== null && "stderr" in error
+			? String(error.stderr)
+			: "";
+	return errorCode(error) === 128 && /not a git repository/i.test(stderr);
+}
 
 /**
  * One `git status` call, so the branch and the tree are as the turn left
@@ -95,6 +101,6 @@ export async function readGitFacts(
 			),
 		);
 	} catch (error) {
-		return errorCode(error) === NOT_A_REPOSITORY ? undefined : "unknown";
+		return isNotARepository(error) ? undefined : "unknown";
 	}
 }

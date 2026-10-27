@@ -210,7 +210,11 @@ export class AgentEventBridge {
 			await automation.ingestEvent(payload);
 			return;
 		}
-		if (event.name === "next_turn.suggestions") {
+		if (
+			event.name !== "steer_message" &&
+			event.name !== "queue_message" &&
+			event.name !== "pending_prompt"
+		) {
 			this.deps.emit({
 				type: "plugin_event",
 				payload: {
@@ -219,13 +223,6 @@ export class AgentEventBridge {
 					payload: event.payload,
 				},
 			});
-			return;
-		}
-		if (
-			event.name !== "steer_message" &&
-			event.name !== "queue_message" &&
-			event.name !== "pending_prompt"
-		) {
 			return;
 		}
 		const payload =
