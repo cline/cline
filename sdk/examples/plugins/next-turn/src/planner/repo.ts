@@ -112,53 +112,72 @@ function repoFacts(conventions: RepoConventions): Facts {
 	return { heading: "This repository's commands", lines };
 }
 
-/** Reads each file once per modification; files over the size cap are skipped. */
+function isMissing(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === "ENOENT"
+	);
+}
+
+/** Reads each file once per modification; files over the size cap are skipped. A read that fails for any other reason is `"unknown"`. */
 export class RepoReader {
 	private readonly cache = new Map<
 		string,
 		{ mtimeMs: number; value: string }
 	>();
 
-	read(path: string): string | undefined {
+	read(path: string): string | undefined | "unknown" {
 		try {
 			return this.readStat(path, statSync(path));
-		} catch {
-			return undefined;
+		} catch (error) {
+			return isMissing(error) ? undefined : "unknown";
 		}
 	}
 
 	/** A file, or each Markdown file in a folder of that name (`.clinerules/`). */
-	readAll(path: string): string[] {
+	readAll(path: string): string[] | "unknown" {
 		try {
 			const stat = statSync(path);
 			if (!stat.isDirectory()) {
 				const text = this.readStat(path, stat);
+				if (text === "unknown") return "unknown";
 				return text === undefined ? [] : [text];
 			}
-			return readdirSync(path)
-				.filter((name) => name.endsWith(".md"))
-				.sort()
-				.flatMap((name) => this.read(join(path, name)) ?? []);
-		} catch {
-			return [];
+			const texts: string[] = [];
+			for (const name of readdirSync(path)
+				.filter((entry) => entry.endsWith(".md"))
+				.sort()) {
+				const text = this.read(join(path, name));
+				if (text === "unknown") return "unknown";
+				if (text !== undefined) texts.push(text);
+			}
+			return texts;
+		} catch (error) {
+			return isMissing(error) ? [] : "unknown";
 		}
 	}
 
-	private readStat(path: string, stat: Stats): string | undefined {
+	private readStat(path: string, stat: Stats): string | undefined | "unknown" {
 		if (!stat.isFile() || stat.size > REPO_FILE_MAX_BYTES) return undefined;
 		const hit = this.cache.get(path);
 		if (hit && hit.mtimeMs === stat.mtimeMs) return hit.value;
-		const value = readFileSync(path, "utf8");
-		this.cache.set(path, { mtimeMs: stat.mtimeMs, value });
-		return value;
+		try {
+			const value = readFileSync(path, "utf8");
+			this.cache.set(path, { mtimeMs: stat.mtimeMs, value });
+			return value;
+		} catch (error) {
+			return isMissing(error) ? undefined : "unknown";
+		}
 	}
 }
 
-/** Everything the repository says to run; undefined when none of its files exist or none names a command. */
+/** Everything the repository says to run. `"unknown"` when a command file exists but cannot be read. Undefined when none of the files exist or none names a command. */
 export function readRepoFacts(
 	workspaceRoot: string,
 	reader: RepoReader,
-): Facts | undefined {
+): Facts | "unknown" | undefined {
 	const at = (name: string) => join(workspaceRoot, name);
 	if (
 		![PACKAGE_FILE, MAKEFILE, ...INSTRUCTION_FILES].some((name) =>
@@ -166,20 +185,25 @@ export function readRepoFacts(
 		)
 	)
 		return undefined;
-	const documented = [
-		...new Set(
-			INSTRUCTION_FILES.flatMap((name) =>
-				reader.readAll(at(name)).flatMap(documentedCommands),
-			),
-		),
-	];
+	const documented: string[] = [];
+	for (const name of INSTRUCTION_FILES) {
+		const texts = reader.readAll(at(name));
+		if (texts === "unknown") return "unknown";
+		for (const command of texts.flatMap(documentedCommands)) {
+			if (!documented.includes(command)) documented.push(command);
+		}
+	}
+	const packageText = reader.read(at(PACKAGE_FILE));
+	if (packageText === "unknown") return "unknown";
+	const makefile = reader.read(at(MAKEFILE));
+	if (makefile === "unknown") return "unknown";
 	const facts = repoFacts({
 		runner:
 			LOCKFILE_RUNNERS.find(([lockfile]) => existsSync(at(lockfile)))?.[1] ??
 			"npm",
-		scripts: verifyScripts(reader.read(at(PACKAGE_FILE)) ?? ""),
+		scripts: verifyScripts(packageText ?? ""),
 		documented: documented.slice(0, REPO_COMMANDS_MAX).map(redactSecrets),
-		makeTargets: makeTargets(reader.read(at(MAKEFILE)) ?? ""),
+		makeTargets: makeTargets(makefile ?? ""),
 	});
 	return facts.lines.length > 0 ? facts : undefined;
 }
