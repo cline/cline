@@ -3,6 +3,21 @@ import { type CoreSessionConfig, summarizeConversation } from "@cline/core"
 import { type CloudHubScope, type HandoffGitPlan, type HubCloudSessionClient, previewHandoffGit } from "@cline/core/cloud"
 import { createMediaBudgetState, validateAndReserveImageMedia } from "@cline/shared"
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
+import { z } from "zod"
+
+const cloudErrorDetail = z.object({ message: z.string().trim().min(1) })
+
+function handoffErrorMessage(error: unknown, fallback: string): string {
+	const message = error instanceof Error ? error.message.trim() : ""
+	const prefix = "CLOUD_SESSION_ERROR:"
+	if (message.startsWith(prefix)) {
+		try {
+			const parsed = cloudErrorDetail.safeParse(JSON.parse(message.slice(prefix.length)))
+			if (parsed.success) return parsed.data.message
+		} catch {}
+	}
+	return message || fallback
+}
 
 export interface CapturedHandoffSource {
 	messages: Parameters<typeof summarizeConversation>[0]["messages"]
@@ -174,7 +189,7 @@ export class SdkCloudHandoffCoordinator {
 				this.attempts.set(input.sourceTaskId, {
 					...base,
 					phase: "failed",
-					message: error instanceof Error ? error.message : "Unable to prepare cloud handoff.",
+					message: handoffErrorMessage(error, "Unable to prepare cloud handoff."),
 				})
 			}
 		} finally {
@@ -263,7 +278,7 @@ export class SdkCloudHandoffCoordinator {
 					: {
 							...base,
 							phase: "failed",
-							message: `${error instanceof Error ? error.message : "Cloud handoff failed."} The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.`,
+							message: `${handoffErrorMessage(error, "Cloud handoff failed.")} The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.`,
 						},
 			)
 		} finally {

@@ -1,4 +1,4 @@
-import type { HubCloudSessionClient } from "@cline/core/cloud"
+import { CloudSessionError, type HubCloudSessionClient } from "@cline/core/cloud"
 import { describe, expect, it, vi } from "vitest"
 import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
 
@@ -75,6 +75,23 @@ function setup() {
 }
 
 describe("cloud conversation handoff", () => {
+	it.each([
+		[
+			new Error(new CloudSessionError("github_not_connected", "Connect GitHub before handing off.").message),
+			"Connect GitHub before handing off.",
+		],
+		[new Error("CLOUD_SESSION_ERROR:not-json"), "CLOUD_SESSION_ERROR:not-json"],
+		[new Error('CLOUD_SESSION_ERROR:{"message":42}'), 'CLOUD_SESSION_ERROR:{"message":42}'],
+		[new Error("Network unavailable"), "Network unavailable"],
+		[new Error(""), "Unable to prepare cloud handoff."],
+	])("shows a readable preparation error for %s", async (error, message) => {
+		const { coordinator, cloud } = setup()
+		cloud.prepareHandoffRepository.mockRejectedValue(error)
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message })
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
 	it("publishes only after confirmation and sends the captured summary, instruction and images once", async () => {
 		const { coordinator, cloud, summarize, id } = setup()
 		await coordinator.prepare(input)
