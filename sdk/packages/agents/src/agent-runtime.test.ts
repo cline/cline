@@ -217,6 +217,34 @@ describe("AgentRuntime", () => {
 		expect(afterModel.mock.calls[1][0].requestId).toBeUndefined();
 	});
 
+	it("tells afterRun whether the host continues the turn after the run", async () => {
+		const afterRun = vi.fn();
+		const turnContinuation = vi
+			.fn()
+			.mockReturnValueOnce("team_runs")
+			.mockReturnValueOnce(undefined);
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "delegated" },
+				{ type: "finish", reason: "stop" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: { afterRun },
+			turnContinuation,
+		});
+		await runtime.run("first");
+		await runtime.run("second");
+		expect(turnContinuation).toHaveBeenNthCalledWith(1, "completed");
+		expect(afterRun.mock.calls[0][0].continuation).toBe("team_runs");
+		expect(afterRun.mock.calls[1][0]).not.toHaveProperty("continuation");
+	});
+
 	it("persists generated images in assistant message content", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -3391,13 +3419,13 @@ describe("AgentRuntime", () => {
 		await runtime.run("Hi");
 
 		// Two chunks within a second report progress once.
-		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
-			1,
-		);
+		expect(
+			eventTypes.filter((type) => type === "tool-call-delta"),
+		).toHaveLength(1);
 		const events = capture.mock.calls.map(([input]) => input);
-		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
-			false,
-		);
+		expect(
+			events.some((input) => input.event === "agent.tool-call-delta"),
+		).toBe(false);
 		expect(
 			events.find((input) => input.event === "agent.run-finished")?.properties,
 		).toEqual(expect.objectContaining({ maxIdleMs: 42, status: "completed" }));

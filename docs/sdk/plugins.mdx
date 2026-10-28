@@ -253,7 +253,7 @@ Plugin hooks are functions in the plugin's `hooks` object. Each one receives a c
 | Hook | When it runs | It can return |
 |------|--------------|---------------|
 | `beforeRun` | Before a run starts | `stop` and `reason` to end the run; `appendContext` to add text the model sees on its first request |
-| `afterRun` | After a run ends, with its `result` | Nothing; use it for metrics, notifications, cleanup |
+| `afterRun` | After a run ends, with its `result`, plus `continuation` (`"team_runs"` or `"queued_prompt"`) when the host starts another run right away | Nothing; use it for metrics, notifications, cleanup |
 | `beforeModel` | Before each model request, with the `request` | `messages`, `tools`, or `options` to change the request; `stop` and `reason` to end the run |
 | `afterModel` | After each model response, with the `assistantMessage` and `finishReason` | `stop` and `reason` |
 | `beforeTool` | Before a tool runs, with the `tool`, `toolCall`, and `input` | `skip` and `reason` to block the call (the reason goes back to the model); `input` to replace the input; `policy` (for example `{ autoApprove: false }`) to require approval; `appendContext`; `stop` |

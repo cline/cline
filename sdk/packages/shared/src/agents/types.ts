@@ -12,8 +12,10 @@
 
 import { z } from "zod";
 import type {
+	AgentRunResult,
 	AgentRuntimeHooks,
 	AgentTool,
+	AgentTurnContinuation,
 	ProviderErrorClass,
 } from "../agent";
 import type { ExtensionContext } from "../extensions/context";
@@ -910,6 +912,16 @@ export interface AgentConfig {
 	 * without waiting for the current run to finish.
 	 */
 	consumePendingUserMessage?: () => string | undefined;
+
+	/**
+	 * Optional callback read once when a run ends, before `afterRun` hooks.
+	 * Returns why the host will start another run right away (teammate
+	 * results or a queued prompt), so hooks can tell a run that ends the
+	 * user's turn from one the turn continues past.
+	 */
+	turnContinuation?: (
+		status: AgentRunResult["status"],
+	) => AgentTurnContinuation | undefined;
 
 	// -------------------------------------------------------------------------
 	// Cancellation

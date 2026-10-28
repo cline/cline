@@ -111,6 +111,7 @@ import {
 	formatModePrompt,
 	hasPendingTeamRunWork,
 	notifyTeamRunWaiters,
+	resolveTurnContinuation,
 	shouldAutoContinueTeamRuns,
 	waitForTeamRunUpdates,
 } from "../../session/team";
@@ -997,6 +998,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 					? formatModePrompt(
 							entry.prompt,
 							entry.mode ?? configWithProvider.mode,
+						)
+					: undefined;
+			},
+			turnContinuation: (status) => {
+				const liveSession = this.sessions.get(sessionId);
+				return liveSession
+					? resolveTurnContinuation(
+							liveSession,
+							status,
+							this.pendingPromptsController.list(sessionId).length,
 						)
 					: undefined;
 			},

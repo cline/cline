@@ -473,6 +473,19 @@ export interface AgentRunLifecycleContext {
 	snapshot: AgentRuntimeStateSnapshot;
 }
 
+/**
+ * Why the host starts another run as soon as this one ends: teammates are
+ * still working and their results will continue the turn, or the user
+ * queued a prompt while the run was in progress.
+ */
+export type AgentTurnContinuation = "team_runs" | "queued_prompt";
+
+export interface AgentAfterRunContext extends AgentRunLifecycleContext {
+	result: AgentRunResult;
+	/** Absent when the turn ends with this run. */
+	continuation?: AgentTurnContinuation;
+}
+
 // =============================================================================
 // Runtime hook bag
 // =============================================================================
@@ -487,9 +500,7 @@ export interface AgentRuntimeHooks {
 		| AgentRunStartResult
 		| undefined
 		| Promise<AgentRunStartResult | undefined>;
-	afterRun?: (
-		context: AgentRunLifecycleContext & { result: AgentRunResult },
-	) => void | Promise<void>;
+	afterRun?: (context: AgentAfterRunContext) => void | Promise<void>;
 	beforeModel?: (
 		context: AgentBeforeModelContext,
 	) =>
@@ -626,6 +637,11 @@ export interface AgentRuntimeConfig {
 		| string
 		| undefined
 		| Promise<string | undefined>;
+	// Optional host callback read once when a run ends, before afterRun hooks:
+	// whether the host will start another run right away.
+	turnContinuation?: (
+		status: AgentRunResult["status"],
+	) => AgentTurnContinuation | undefined;
 }
 
 // =============================================================================
