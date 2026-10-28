@@ -205,6 +205,16 @@ Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
 features and cannot cross this RPC boundary. Hub-backed creation defaults to
 `"resumable"` sandboxes.
 
+Both the controller and Hub client expose `sendWithOutcome` with the first five
+arguments of `send`. On failure, it returns `dispatched`, `message`, and optional
+`detail`. Offer a retry only for a returned `dispatched: false` result. A rejected
+Hub request, including a lost reply or account change, does not establish that
+the prompt was unsent. The existing `send` method still throws on failure.
+
+Hosts with a separate signed-in account can include `expectedAccountId` in the
+scope passed to `prepareHandoffRepository`, `listModels`, and `create`. The Hub
+rejects a mismatch with its persisted account before running the operation.
+
 Discovery caches, pending listing requests, and newly created fallback rows are
 scoped to their organization; switching the sidebar preserves other organizations’
 task state without displaying their rows. Discovery’s `timeoutMs` covers both
@@ -325,6 +335,9 @@ only manages SSH and forwards the authenticated hub connection.
 Clients whose own process cannot host the Hub daemon can call
 `setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
 start are launched through the Cline CLI.
+The launcher also accepts `args` and child-only `env` overrides. For an Electron
+executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon markers
+take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
