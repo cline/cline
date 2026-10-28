@@ -4727,6 +4727,100 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("does not drain a queued prompt into a session while dispose() is still winding down plugin commands", async () => {
+		const sessionId = "sess-dispose-flags-before-first-await";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let settleRun: ((result: AgentResult) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agent = {
+			run: vi.fn(() => {
+				activeRun = true;
+				markRunStarted?.();
+				return new Promise<AgentResult>((resolve) => {
+					settleRun = (result) => {
+						activeRun = false;
+						resolve(result);
+					};
+				});
+			}),
+			continue: vi.fn().mockResolvedValue(createResult({ text: "drained" })),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const discarded: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "pending_prompts" && event.payload.discarded) {
+				discarded.push(...event.payload.discarded.map((p) => p.prompt));
+			}
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({ sessionId, prompt: "queued", delivery: "queue" });
+
+		// dispose() awaits plugin-command cleanup before it reaches the
+		// sessions; hold that cleanup so the running turn completes inside the
+		// window. Its completion must not drain the queue into a session that
+		// is being disposed.
+		let releasePluginCleanup: (() => void) | undefined;
+		(
+			manager as unknown as {
+				pluginCommandManager: { dispose: () => Promise<void> };
+			}
+		).pluginCommandManager.dispose = () =>
+			new Promise<void>((resolve) => {
+				releasePluginCleanup = resolve;
+			});
+		const disposing = manager.dispose();
+		settleRun?.(createResult({ text: "done" }));
+		await turn;
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		releasePluginCleanup?.();
+		await disposing;
+
+		expect(agent.continue).not.toHaveBeenCalled();
+		expect(discarded).toEqual(["queued"]);
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;

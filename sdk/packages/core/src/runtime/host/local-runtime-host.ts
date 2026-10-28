@@ -1553,6 +1553,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
+		// Flag every session before the first await: a turn that settles while
+		// plugin commands wind down would otherwise drain its queue into a
+		// session this call is about to tear down.
+		for (const session of sessions) {
+			this.beginTeardown(session, reason);
+		}
 		await this.pluginCommandManager.dispose();
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
