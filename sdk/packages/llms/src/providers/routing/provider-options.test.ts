@@ -123,6 +123,7 @@ function makeRequest(overrides: RequestOverrides): GatewayStreamRequest {
 		systemPrompt: overrides.systemPrompt,
 		temperature: overrides.temperature,
 		maxTokens: overrides.maxTokens,
+		defaultedMaxTokens: overrides.defaultedMaxTokens,
 		reasoning: overrides.reasoning,
 		signal: overrides.signal,
 		tools: overrides.tools,
@@ -2179,6 +2180,36 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 	]);
+});
+
+describe("composeAiSdkProviderOptions: ollama output cap", () => {
+	const numPredictFor = (
+		overrides: Pick<GatewayStreamRequest, "maxTokens" | "defaultedMaxTokens">,
+	) =>
+		(
+			composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "ollama",
+					modelId: "local:latest",
+					...overrides,
+				}),
+				makeContext({ providerId: "ollama", modelId: "local:latest" }),
+			).ollama as { options?: { num_predict?: number } } | undefined
+		)?.options?.num_predict;
+
+	it("forwards an explicit cap as options.num_predict", () => {
+		expect(numPredictFor({ maxTokens: 4096 })).toBe(4096);
+	});
+
+	it("omits a cap synthesized by the gateway", () => {
+		expect(
+			numPredictFor({ maxTokens: 32_000, defaultedMaxTokens: true }),
+		).toBeUndefined();
+	});
+
+	it("omits num_predict when no cap is set", () => {
+		expect(numPredictFor({})).toBeUndefined();
+	});
 });
 
 describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {

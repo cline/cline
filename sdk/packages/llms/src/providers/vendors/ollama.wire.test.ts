@@ -146,13 +146,15 @@ describe("ollama wire contract (real provider package)", () => {
 		expect(disabled.requests[0].think).toBe(false);
 	});
 
-	it("routes options.num_ctx through the provider bucket", async () => {
+	it("routes options.num_ctx and num_predict through the provider bucket", async () => {
 		const { requests } = await streamThroughVendor({
 			responseLines: [textChunk("hi"), DONE_CHUNK],
 			prompt: userText("hello"),
-			providerOptions: { ollama: { options: { num_ctx: 65536 } } },
+			providerOptions: {
+				ollama: { options: { num_ctx: 65536, num_predict: 4096 } },
+			},
 		});
-		expect(requests[0].options).toEqual({ num_ctx: 65536 });
+		expect(requests[0].options).toEqual({ num_ctx: 65536, num_predict: 4096 });
 	});
 
 	it("serializes an attachment-only user turn with string content", async () => {

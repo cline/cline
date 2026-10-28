@@ -454,7 +454,7 @@ const ollamaNativeOptionsRule: ProviderOptionRule = {
 	id: "provider.ollama.native-options",
 	phase: "provider-reasoning",
 	description:
-		"Ollama receives only its context window through native provider options; reasoning is top-level.",
+		"Ollama receives its context window and explicit output cap through native provider options; reasoning is top-level.",
 	applies: (input) => input.target === "ollama",
 	suppresses: { genericThinking: true },
 	build: (input) => {
@@ -468,8 +468,22 @@ const ollamaNativeOptionsRule: ProviderOptionRule = {
 			contextWindow > 0
 				? Math.floor(contextWindow)
 				: OLLAMA_DEFAULT_CONTEXT_WINDOW;
+		// Ollama ignores the AI SDK's top-level `max_output_tokens`; the cap
+		// must go in `options.num_predict`. Synthesized gateway caps are
+		// skipped so the Modelfile `num_predict` still applies by default.
+		const { maxTokens, defaultedMaxTokens } = input.request;
+		const numPredict =
+			typeof maxTokens === "number" &&
+			Number.isFinite(maxTokens) &&
+			maxTokens > 0 &&
+			defaultedMaxTokens !== true
+				? Math.floor(maxTokens)
+				: undefined;
 		const bucketOptions = {
-			options: { num_ctx: numCtx },
+			options: {
+				num_ctx: numCtx,
+				...(numPredict !== undefined ? { num_predict: numPredict } : {}),
+			},
 		};
 		return {
 			ollama: bucketOptions,
