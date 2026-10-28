@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { NavigationContext } from "expo-router/react-navigation";
+import { useState } from "react";
 import { AppState } from "react-native";
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@/ui/__testing__/render";
 import { Text } from "@/ui";
+import { render } from "@/ui/__testing__/render";
 import {
 	type UseVoiceDictation,
 	useVoiceDictation,

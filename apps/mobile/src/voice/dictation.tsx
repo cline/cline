@@ -1,9 +1,9 @@
+import { NavigationContext } from "expo-router/react-navigation";
 import {
 	type ExpoSpeechRecognitionErrorCode,
 	ExpoSpeechRecognitionModule,
 	useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import { NavigationContext } from "expo-router/react-navigation";
 import { Mic, Square } from "lucide-react-native";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, Pressable } from "react-native";

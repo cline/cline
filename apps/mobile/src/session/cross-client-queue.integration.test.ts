@@ -12,6 +12,7 @@ import { afterEach, expect, it } from "vitest";
 import { createLocalSessionHandle } from "../connection/local-handle";
 import { waitFor } from "./__testing__/test-hub-handle";
 import { SessionConnection } from "./session-connection";
+
 const root = resolve(
 	fileURLToPath(new URL("../../../../", import.meta.url).href),
 );
