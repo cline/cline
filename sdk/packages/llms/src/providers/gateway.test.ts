@@ -15,8 +15,10 @@ import {
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type GatewayStreamRequest,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ITelemetryService,
+	type ModelReasoningOption,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
 import { APICallError } from "ai";
@@ -568,6 +570,136 @@ describe("sdk-gateway", () => {
 				estimatedInputTokens: 1_000,
 			}),
 		).toBe(16_000);
+	});
+
+	describe("adaptive-thinking output cap through DefaultGateway.stream", () => {
+		// 30% of a 128k output budget: the cap that truncated adaptive thinking.
+		const FRACTIONAL_CAP = Math.floor(
+			128_000 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
+		);
+
+		async function streamedMaxOutputTokens(input: {
+			providerId: string;
+			model: {
+				id: string;
+				reasoningOptions?: readonly ModelReasoningOption[];
+				metadata?: Record<string, string>;
+			};
+			reasoning: GatewayStreamRequest["reasoning"];
+		}): Promise<unknown> {
+			streamTextSpy.mockReset();
+			mockSuccessfulStream();
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: input.providerId,
+						apiKey: "test-key",
+						models: [
+							{
+								name: input.model.id,
+								contextWindow: 1_000_000,
+								maxOutputTokens: 128_000,
+								capabilities: ["reasoning"],
+								...input.model,
+							},
+						],
+					},
+				],
+			});
+			await collect(
+				await gateway.stream({
+					providerId: input.providerId,
+					modelId: input.model.id,
+					messages: baseMessages,
+					reasoning: input.reasoning,
+				}),
+			);
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { maxOutputTokens?: unknown }
+				| undefined;
+			return call?.maxOutputTokens;
+		}
+
+		it.each([
+			["anthropic", "claude-opus-5-5"],
+			["cline", "anthropic/claude-opus-5.5"],
+		])("lifts the cap for adaptive Claude on %s", async (providerId, modelId) => {
+			expect(
+				await streamedMaxOutputTokens({
+					providerId,
+					model: { id: modelId },
+					reasoning: { effort: "high" },
+				}),
+			).toBe(128_000);
+		});
+
+		it("lifts the cap for an effort-controlled alias on an Anthropic route", async () => {
+			// The id is not a Claude id; the family routes it to Anthropic
+			// reasoning and the effort control makes the policy adaptive.
+			expect(
+				await streamedMaxOutputTokens({
+					providerId: "anthropic",
+					model: {
+						id: "team-coder",
+						metadata: { family: "claude" },
+						reasoningOptions: [
+							{ type: "effort", values: ["low", "medium", "high"] },
+						],
+					},
+					reasoning: { effort: "high" },
+				}),
+			).toBe(128_000);
+		});
+
+		it("keeps the cap for a budget-only Claude model routed to manual thinking", async () => {
+			expect(
+				await streamedMaxOutputTokens({
+					providerId: "anthropic",
+					model: {
+						id: "claude-opus-5-5",
+						reasoningOptions: [{ type: "budget_tokens", min: 1_024 }],
+					},
+					reasoning: { effort: "high" },
+				}),
+			).toBe(FRACTIONAL_CAP);
+
+			// An unlisted Claude alias with an explicit budget is manual too;
+			// its budget, not the full output budget, sets the floor.
+			expect(
+				await streamedMaxOutputTokens({
+					providerId: "anthropic",
+					model: { id: "claude-custom-proxy" },
+					reasoning: { enabled: true, budgetTokens: 8_000 },
+				}),
+			).toBe(FRACTIONAL_CAP);
+		});
+
+		it("keeps the cap when thinking is off or not requested", async () => {
+			for (const reasoning of [undefined, {}, { enabled: false }]) {
+				expect(
+					await streamedMaxOutputTokens({
+						providerId: "anthropic",
+						model: { id: "claude-opus-5-5" },
+						reasoning,
+					}),
+				).toBe(FRACTIONAL_CAP);
+			}
+		});
+
+		it("leaves non-Anthropic models unchanged", async () => {
+			expect(
+				await streamedMaxOutputTokens({
+					providerId: "openrouter",
+					model: {
+						id: "openai/gpt-6.1-sol",
+						reasoningOptions: [
+							{ type: "effort", values: ["low", "medium", "high"] },
+						],
+					},
+					reasoning: { effort: "high" },
+				}),
+			).toBe(FRACTIONAL_CAP);
+		});
 	});
 
 	it("lifts the default output cap above an explicit reasoning budget", () => {
