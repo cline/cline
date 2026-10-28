@@ -1062,9 +1062,11 @@ describe("hub cloud credentials", () => {
 	});
 
 	it.each([
-		"failed refresh",
-		"returning viewer",
-	])("discards the previous organization after a %s", async (reason) => {
+		["failed refresh", "org-one"],
+		["failed refresh", "org-two"],
+		["returning viewer", "org-one"],
+		["returning viewer", "org-two"],
+	])("refreshes discovery after a %s resolves to %s", async (reason, organizationId) => {
 		vi.spyOn(
 			ProviderSettingsManager.prototype,
 			"getProviderSettings",
@@ -1094,13 +1096,11 @@ describe("hub cloud credentials", () => {
 				"organization request failed",
 			);
 		} else service.watch();
-		fetch.mockResolvedValueOnce([
-			{ organizationId: "org-two", active: true },
-		] as never);
-		expect(await getOrganization()).toBe("org-two");
+		fetch.mockResolvedValueOnce([{ organizationId, active: true }] as never);
+		expect(await getOrganization()).toBe(organizationId);
 		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
 		expect(list).toHaveBeenCalledTimes(2);
-		expect(list).toHaveBeenLastCalledWith("org-two");
+		expect(list).toHaveBeenLastCalledWith(organizationId);
 		expect(service["controller"]).toBe(controller);
 	});
 
