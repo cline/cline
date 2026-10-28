@@ -88,6 +88,9 @@ export interface ParsedArgs {
 	configDir?: string;
 	hooksDir?: string;
 	worktree?: boolean;
+	cloud?: boolean;
+	cloudRepo?: string;
+	cloudBranch?: string;
 	acpMode: boolean;
 	model?: string;
 	provider?: string;

@@ -1,13 +1,46 @@
 import { NodeHubClient } from "@cline/core";
-import { HubCloudSessionClient } from "@cline/core/cloud";
+import { type CloudModel, HubCloudSessionClient } from "@cline/core/cloud";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	getClineEnvironmentConfig,
+} from "@cline/shared";
 import { ensureCliHubServer } from "../../utils/hub-runtime";
 
-/** Cloud sessions are experimental; `CLINE_CLOUD_SESSIONS=1` opts in. */
-export function isCloudSessionsEnabled(
-	env: NodeJS.ProcessEnv = process.env,
-): boolean {
-	const value = env.CLINE_CLOUD_SESSIONS?.trim().toLowerCase();
-	return value === "1" || value === "true";
+export { isCloudSessionsEnabled } from "../../utils/cloud-sessions-enabled";
+
+/**
+ * The cloud model for a new message: an explicit pick while the catalog still
+ * offers it, then the local Cline/ClinePass model if offered, then ClinePass for
+ * ClinePass users, then Cline's default usage-billed model.
+ */
+export function resolveCloudModel(
+	models: readonly CloudModel[],
+	preferences: {
+		explicitModelId?: string;
+		localModelId?: string;
+		localProviderId?: string;
+	},
+): CloudModel | undefined {
+	const offered = (id: string | undefined) =>
+		id ? models.find((model) => model.id === id) : undefined;
+	return (
+		offered(preferences.explicitModelId) ??
+		(preferences.localProviderId === "cline" ||
+		preferences.localProviderId === "cline-pass"
+			? offered(preferences.localModelId)
+			: undefined) ??
+		(preferences.localProviderId === "cline-pass"
+			? models.find((model) => model.catalogId === "cline-pass")
+			: undefined) ??
+		offered(CLINE_DEFAULT_MODEL_ID) ??
+		models.find((model) => model.catalogId === "cline") ??
+		models[0]
+	);
+}
+
+export function cloudSessionUrl(sessionId: string): string {
+	const appBaseUrl = getClineEnvironmentConfig().appBaseUrl.replace(/\/+$/, "");
+	return `${appBaseUrl}/agents?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
 /** A viewer of the shared Hub's cloud sessions; the Hub owns the cloud work. */

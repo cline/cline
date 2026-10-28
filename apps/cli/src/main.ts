@@ -791,7 +791,9 @@ export async function runCli(): Promise<void> {
 	}
 	setCurrentOutputMode(args.outputMode);
 
-	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
+	const hasJsonPrompt =
+		!!args.prompt || (!!args.cloud && stdinHasPipedInput());
+	if (args.outputMode === "json" && (args.interactive || !hasJsonPrompt)) {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
@@ -817,6 +819,37 @@ export async function runCli(): Promise<void> {
 			}),
 		});
 		return;
+	}
+
+	if (!args.cloud && (args.cloudRepo || args.cloudBranch)) {
+		writeErr("--repo and --branch only work with --cloud.");
+		process.exitCode = 1;
+		return;
+	}
+
+	if (args.cloud) {
+		const { isCloudSessionsEnabled } = await import(
+			"./utils/cloud-sessions-enabled"
+		);
+		if (!isCloudSessionsEnabled()) {
+			writeErr(
+				"--cloud is experimental; set CLINE_CLOUD_SESSIONS=1 to use it.",
+			);
+			process.exitCode = 1;
+			return;
+		}
+		if (
+			args.interactive ||
+			resumeSessionId ||
+			args.worktree ||
+			args.mode === "zen"
+		) {
+			writeErr(
+				"--cloud sends one prompt to Cline Cloud and can't be combined with --tui, --id, --worktree, or --zen.",
+			);
+			process.exitCode = 1;
+			return;
+		}
 	}
 
 	if (args.worktree) {
@@ -871,6 +904,44 @@ export async function runCli(): Promise<void> {
 	// in provider resolution, config services, and session startup wiring that
 	// should only load when the CLI is actually starting an agent session.
 	const providerSettingsManager = await createProviderSettingsManager();
+
+	if (args.cloud) {
+		let prompt = args.prompt?.trim() ?? "";
+		if (!process.stdin.isTTY && stdinHasPipedInput()) {
+			const chunks: Buffer[] = [];
+			for await (const chunk of process.stdin) {
+				chunks.push(chunk as Buffer);
+			}
+			const piped = Buffer.concat(chunks).toString("utf-8").trim();
+			if (piped) prompt = prompt ? `${prompt}\n\n${piped}` : piped;
+		}
+		if (!prompt) {
+			writeErr("--cloud requires a prompt.");
+			process.exitCode = 1;
+			return;
+		}
+		const providerId = normalizeProviderId(
+			args.provider?.trim() ||
+				providerSettingsManager.getLastUsedProviderSettings({
+					isClinePassEnabled: true,
+				})?.provider ||
+				"cline",
+		);
+		const { runCloud } = await import("./runtime/run-cloud");
+		process.exitCode = await runCloud({
+			prompt,
+			cwd,
+			workspaceRoot,
+			repo: args.cloudRepo,
+			branch: args.cloudBranch,
+			providerId,
+			modelId:
+				args.model ??
+				providerSettingsManager.getProviderSettings(providerId)?.model,
+			outputMode: args.outputMode,
+		});
+		return;
+	}
 	const {
 		coreServer,
 		coreServer: { createUserInstructionConfigService },
