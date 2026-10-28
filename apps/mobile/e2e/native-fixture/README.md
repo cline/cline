@@ -9,8 +9,8 @@ no tool executes shell commands or changes files.
 
 The default Metro config, app config, production endpoints, auth checks, local
 Computer feature gate, and production bundle ID remain unchanged. The dedicated
-Metro override only redirects the normal environment module when explicitly
-selected for a fixture bundle. The fixture service binds to loopback and accepts
+Metro override redirects the normal environment module and namespaces SecureStore
+only when explicitly selected for a fixture bundle. The fixture service binds to loopback and accepts
 only its own test credential. The identity provider follows the normal device
 flow through a local browser verification page; no real account is needed.
 
@@ -46,6 +46,25 @@ Commands below run from `apps/mobile` unless stated otherwise.
 The fixture bundle is a simulator test artifact. This packaging script is not a
 TestFlight/device distribution build. The native shell must include the same
 modules as the source bundle being tested.
+
+## Simulator storage isolation
+
+Different bundle IDs alone do not isolate Keychain entries in unsigned simulator
+apps: Expo SecureStore defaults to the service `app`, and these builds may share
+its key names. The guarded fixture Metro resolver therefore wraps every public
+key-bearing SecureStore API (sync get/set and async get/set/delete), prefixing both
+the key and the requested/default keychain service with `cline.native-fixture.v1.`.
+Constants, types and capability probes still use Expo unchanged. The wrapper's
+own Expo import bypasses the redirect. Ordinary Metro never imports this wrapper.
+
+Fixture credentials remain staging's opt-in in-memory auth. Namespacing also
+protects credentials if another test storage caller uses SecureStore directly.
+The fixture never migrates, reads, deletes or clears unprefixed entries. A newly
+isolated fixture starts with fresh local targets/settings: sign in and choose the
+fixture repository through the normal UI. Existing server rows are unaffected.
+Stop using older fixture bundles before restoring normal app preferences; they
+lack this isolation. Do not reset a normal app or clear its Keychain to prepare a
+fixture. Prefer a disposable simulator for fixture work in all cases.
 
 ## Deterministic interactions
 
