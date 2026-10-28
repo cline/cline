@@ -1,4 +1,14 @@
 
+## Hub command dispatch observation
+
+`HubClient.command(command, payload, sessionId, { onSent })` accepts an optional
+observer called with the exact request id after each successful socket write.
+It fires before the reply, and transport retries can call it again with a new id.
+Retain every attempt id when correlating server admission events such as
+`run.started` with the sending client id. A socket write is not an acceptance
+receipt. Observer exceptions emit a `listener_error` diagnostic and never fail
+the command.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH

@@ -8,6 +8,7 @@ export {
 	type HubClientDiagnostic,
 	type HubClientDiagnosticListener,
 	type HubClientOptions,
+	type HubCommandOptions,
 	type HubConnectionState,
 	type HubConnectionStateChange,
 	type HubConnectionStateListener,

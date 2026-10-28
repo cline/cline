@@ -338,6 +338,98 @@ describe("HubClient protocol handshake", () => {
 });
 
 describe("HubClient command correlation", () => {
+	it("observes each actual concurrent wire request before its delayed reply", async () => {
+		const client = newClient();
+		const socket = await connected(client);
+		const firstSent = vi.fn();
+		const secondSent = vi.fn();
+		const first = client.command(
+			"session.send_input",
+			{ prompt: "first" },
+			"s1",
+			{ onSent: firstSent },
+		);
+		const second = client.command("session.get", {}, "s1", {
+			onSent: secondSent,
+		});
+		expect(firstSent).not.toHaveBeenCalled();
+		await flush();
+		const firstId = socket.pendingRequestId("session.send_input");
+		const secondId = socket.pendingRequestId("session.get");
+		expect(firstSent).toHaveBeenCalledExactlyOnceWith(firstId);
+		expect(secondSent).toHaveBeenCalledExactlyOnceWith(secondId);
+		expect(firstId).not.toBe(secondId);
+		socket.replyOk(secondId);
+		socket.replyOk(firstId);
+		await Promise.all([first, second]);
+	});
+	it("keeps observer exceptions diagnostic instead of failing an already sent command", async () => {
+		const diagnostics: HubClientDiagnostic[] = [];
+		const client = newClient({
+			onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+		});
+		const socket = await connected(client);
+		const command = client.command("session.get", {}, "s1", {
+			onSent: () => {
+				throw new Error("observer failed");
+			},
+		});
+		await flush();
+		socket.replyOk(socket.pendingRequestId("session.get"));
+		await expect(command).resolves.toMatchObject({ ok: true });
+		expect(diagnostics).toContainEqual({
+			type: "listener_error",
+			reason: "listener_threw",
+			detail: "observer failed",
+		});
+	});
+	it("does not report a send when the socket write throws", async () => {
+		const client = newClient();
+		const socket = await connected(client);
+		const onSent = vi.fn();
+		vi.spyOn(socket, "send").mockImplementationOnce(() => {
+			throw new Error("socket write failed");
+		});
+		await expect(
+			client.command("session.get", {}, "s1", { onSent }),
+		).rejects.toThrow("socket write failed");
+		expect(onSent).not.toHaveBeenCalled();
+	});
+	it("reports a distinct wire request id for each transport recovery attempt", async () => {
+		class RecoveringClient extends HubClient {
+			protected override isTransportRecoverable(): boolean {
+				return true;
+			}
+			protected override async resolveRecoveredUrl(): Promise<string> {
+				return "ws://127.0.0.1:25464/hub";
+			}
+		}
+		const client = new RecoveringClient({
+			url: "ws://127.0.0.1:25463/hub",
+			WebSocketImpl: ScriptedSocket,
+		});
+		const first = await connected(client);
+		const onSent = vi.fn();
+		const command = client.command(
+			"session.send_input",
+			{ prompt: "recover" },
+			"s1",
+			{ onSent },
+		);
+		await flush();
+		const firstId = first.pendingRequestId("session.send_input");
+		first.remoteClose();
+		await flush(20);
+		const second = ScriptedSocket.latest();
+		expect(second).not.toBe(first);
+		second.open();
+		await flush(20);
+		const secondId = second.pendingRequestId("session.send_input");
+		expect(secondId).not.toBe(firstId);
+		expect(onSent.mock.calls).toEqual([[firstId], [secondId]]);
+		second.replyOk(secondId, { result: {} });
+		await expect(command).resolves.toMatchObject({ ok: true });
+	});
 	it("resolves concurrent commands against their own requestIds", async () => {
 		const client = newClient();
 		const socket = await connected(client);

@@ -195,6 +195,17 @@ export interface HubClientOptions {
 	onConnectionState?: HubConnectionStateListener;
 }
 
+export interface HubCommandOptions {
+	timeoutMs?: number | null;
+	/**
+	 * Observes the exact wire request after a successful send, before its reply.
+	 * Transport retries call this again with each new request id. This is not an
+	 * acceptance receipt; correlate it with server events to confirm admission.
+	 * Observer failures are diagnostic only and never change the command outcome.
+	 */
+	onSent?: (requestId: string) => void;
+}
+
 /**
  * Platform-agnostic Cline hub websocket client.
  *
@@ -501,7 +512,7 @@ export class HubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
 		const canRecoverTransport =
@@ -737,7 +748,7 @@ export class HubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null; skipHandshake?: boolean },
+		options?: HubCommandOptions & { skipHandshake?: boolean },
 	): Promise<HubReplyEnvelope> {
 		// The handshake itself must not wait for the handshake.
 		if (!options?.skipHandshake) {
@@ -799,6 +810,15 @@ export class HubClient {
 		} catch (error) {
 			this.pendingReplies.delete(requestId);
 			throw error;
+		}
+		try {
+			options?.onSent?.(requestId);
+		} catch (error) {
+			this.emitDiagnostic({
+				type: "listener_error",
+				reason: "listener_threw",
+				detail: error instanceof Error ? error.message : String(error),
+			});
 		}
 		const resolved = await reply;
 		if (!resolved.ok) {
