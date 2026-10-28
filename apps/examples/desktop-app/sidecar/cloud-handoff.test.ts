@@ -521,7 +521,7 @@ describe("summary cloud handoff", () => {
 		expect(f.send).toHaveBeenCalledOnce();
 	});
 
-	it("publishes a dedicated branch, sends one combined prompt with invocation images, and leaves source history alone", async () => {
+	it("submits the approved Git snapshot to Hub, sends one combined prompt with invocation images, and leaves source history alone", async () => {
 		const f = await fixture();
 		const preparationProgress: unknown[] = [];
 		f.ctx.wsClients.add({

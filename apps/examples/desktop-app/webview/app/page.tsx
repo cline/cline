@@ -2405,8 +2405,9 @@ function ChatThreadPane({
 	const prepareHandoff = useCallback(
 		async (nextCommand: string) => {
 			const sourceSessionId = sessionId ?? historySession?.sessionId;
+			const commandDraft = nextCommand ? `/cloud ${nextCommand}` : "/cloud";
 			if (isCloudSession) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				setPromptInput(commandDraft);
 				toast({
 					title: "Already in Cline Cloud",
 					description: "Handoff is available from local sessions.",
@@ -2414,7 +2415,7 @@ function ChatThreadPane({
 				return;
 			}
 			if (!sourceSessionId) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				setPromptInput(commandDraft);
 				toast({
 					title: "Start the local session first",
 					description: "Send at least one message before handing off to cloud.",
@@ -2427,7 +2428,7 @@ function ChatThreadPane({
 				status === "stopping" ||
 				promptsInQueue.length > 0
 			) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				setPromptInput(commandDraft);
 				toast({
 					title: "Wait for the current turn",
 					description:
@@ -2437,7 +2438,7 @@ function ChatThreadPane({
 			}
 			const attachmentError = validateHandoffAttachments(pendingAttachments);
 			if (attachmentError) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				setPromptInput(commandDraft);
 				toast({
 					title: "Handoff is not ready",
 					description: attachmentError,
@@ -2451,7 +2452,7 @@ function ChatThreadPane({
 					? undefined
 					: handoffLifecycle.onPreparationStarted(sourceSessionId);
 			if (!signal) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
+				setPromptInput(commandDraft);
 				toast({
 					title: "Handoff is already starting",
 					description: "Wait for the current handoff request to finish.",
@@ -2460,9 +2461,7 @@ function ChatThreadPane({
 			}
 			const sourceAttachments = [...pendingAttachments];
 			let handoffAttemptId: string | undefined;
-			const restoreDraft = clearDraftForHandoff(
-				nextCommand ? `/cloud ${nextCommand}` : "/cloud",
-			);
+			const restoreDraft = clearDraftForHandoff(commandDraft);
 			try {
 				onHandoffUiAction({
 					type: "prepare",
