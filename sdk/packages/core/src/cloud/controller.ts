@@ -1444,6 +1444,31 @@ export class CloudSessionController {
 		);
 	}
 
+	async sendWithOutcome(
+		sessionId: string,
+		prompt: string,
+		delivery?: "queue" | "steer",
+		modelId?: string,
+		images?: string[],
+	): Promise<
+		Awaited<ReturnType<CloudSessionController["send"]>> | CloudSendFailure
+	> {
+		let dispatched = false;
+		try {
+			return await this.send(sessionId, prompt, delivery, modelId, images, {
+				beforeDispatch: () => {
+					dispatched = true;
+				},
+			});
+		} catch (error) {
+			return {
+				dispatched,
+				message: error instanceof Error ? error.message : String(error),
+				...(error instanceof CloudSessionError ? { detail: error.detail } : {}),
+			};
+		}
+	}
+
 	async send(
 		outerSessionId: string,
 		prompt: string,

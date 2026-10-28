@@ -155,7 +155,9 @@ export class HubCloudSessionClient {
 		let dispatched = false;
 		const reply = await client
 			.command("cloud.command", { operation, args, scope }, undefined, {
-				timeoutMs: ["create", "send", "attach"].includes(operation)
+				timeoutMs: ["create", "send", "sendWithOutcome", "attach"].includes(
+					operation,
+				)
 					? null
 					: undefined,
 				beforeDispatch: () => {
@@ -215,6 +217,11 @@ export class HubCloudSessionClient {
 	}
 	send(...args: CloudHubArgs<"send">): Promise<CloudHubResult<"send">> {
 		return this.call("send", args);
+	}
+	sendWithOutcome(
+		...args: CloudHubArgs<"sendWithOutcome">
+	): Promise<CloudHubResult<"sendWithOutcome">> {
+		return this.call("sendWithOutcome", args);
 	}
 	prepareHandoffRepository(
 		repoUrl: string,
