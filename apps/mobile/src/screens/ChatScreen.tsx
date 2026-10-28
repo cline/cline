@@ -1044,6 +1044,7 @@ function ChatScreenBody({
 								<ReasoningPill
 									value={reasoning}
 									supported={supportsReasoning}
+									loading={checkingImageSupport}
 									onPress={() =>
 										dismiss(() =>
 											expandBottomSheetAfterKeyboardDismiss(reasoningSheetRef),

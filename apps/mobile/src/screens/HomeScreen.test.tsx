@@ -25,6 +25,7 @@ import {
 	createInMemoryAuthStorage,
 } from "@/cloud";
 import { AmbiguousCloudSessionCreateError } from "@/cloud/rest/CloudSessionGateway";
+import { CloudSetupGateway as ActualCloudSetupGateway } from "@/cloud/rest/CloudSetupGateway";
 import { type ConnectionDescriptor, SavedEndpointsStore } from "@/connection";
 import { cloudLaunches } from "@/connection/cloud-launches";
 import {
@@ -1694,5 +1695,81 @@ it("restores the repository and model on a fresh Home opened through the Cloud s
 	expect(root.find((node) => node.type === HomeComposer).props.modelId).toBe(
 		"remembered/model",
 	);
+	expect(hoisted.createRemoteSession).not.toHaveBeenCalled();
+});
+
+it("settles missing-default thinking capability after the actual gateway catalog loads, without guessing support", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	let releaseCatalog!: (response: Response) => void;
+	const catalog = new Promise<Response>((resolve) => {
+		releaseCatalog = resolve;
+	});
+	const gateway = new ActualCloudSetupGateway({
+		apiBaseUrl: "https://catalog.invalid",
+		getAccessToken: async () => null,
+		fetchImpl: (async (url) =>
+			String(url).endsWith("/recommended-models")
+				? new Response(
+						JSON.stringify({
+							recommended: [
+								{ id: "anthropic/claude-sonnet-4-6", name: "Fixture Sonnet" },
+							],
+						}),
+					)
+				: catalog) as typeof fetch,
+	});
+	hoisted.listRecommendedModels.mockImplementation(() =>
+		gateway.listRecommendedModels(),
+	);
+	const { root } = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/cline/cline",
+				label: "cline/cline",
+				modelId: CLINE_DEFAULT_MODEL_ID,
+			},
+		],
+	});
+	expect(containsText(root, "Checking thinking…")).toBe(true);
+	await act(async () =>
+		releaseCatalog(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "anthropic/claude-sonnet-4-6",
+							name: "Fixture Sonnet",
+							supported_parameters: ["reasoning"],
+							architecture: { input_modalities: ["text", "image"] },
+						},
+						{
+							id: "anthropic/claude-sonnet-4-6-mini",
+							name: "Fixture Fast (no thinking)",
+							supported_parameters: [],
+							architecture: { input_modalities: ["text"] },
+						},
+					],
+				}),
+			),
+		),
+	);
+	const picker = root.find((node) => node.type === ModelSheet);
+	expect(
+		picker.props.cachedModels.find(
+			(model: CloudModelOption) => model.id === CLINE_DEFAULT_MODEL_ID,
+		)?.supportsReasoning,
+	).toBeUndefined();
+	expect(containsText(root, "Checking thinking…")).toBe(false);
+	expect(containsText(root, "Thinking options unavailable")).toBe(true);
+	expect(
+		containsText(root, "Choose another model to configure thinking."),
+	).toBe(true);
+	expect(findByLabel(root, "Thinking level: Model setting")).toBeUndefined();
+	await act(async () => picker.props.onChange("anthropic/claude-sonnet-4-6"));
+	expect(findByLabel(root, "Thinking level: Model setting")).toBeDefined();
+	await act(async () =>
+		picker.props.onChange("anthropic/claude-sonnet-4-6-mini"),
+	);
+	expect(containsText(root, "Thinking unavailable")).toBe(true);
 	expect(hoisted.createRemoteSession).not.toHaveBeenCalled();
 });

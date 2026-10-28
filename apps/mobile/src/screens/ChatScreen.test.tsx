@@ -1675,3 +1675,50 @@ it("never uploads an image removed in the same turn that durable consumption res
 	expect(sendInput).toHaveBeenCalledExactlyOnceWith("Retain caption");
 	screen.unmount();
 });
+
+it("settles the saved model's unknown thinking capability when Chat's catalog check completes", () => {
+	const connection = fakeConnection({ view: emptyView() });
+	const onReasoningChange = vi.fn();
+	const props = {
+		connection,
+		connectionKind: "cloud" as const,
+		modelLabel: "saved/unknown-model",
+		onReasoningChange,
+	};
+	const screen = render(<ChatScreen {...props} checkingImageSupport />);
+	expect(containsText(screen.root, "Checking thinking…")).toBe(true);
+	act(() =>
+		screen.renderer.update(
+			<ChatScreen {...props} checkingImageSupport={false} />,
+		),
+	);
+	expect(containsText(screen.root, "Checking thinking…")).toBe(false);
+	expect(containsText(screen.root, "Thinking options unavailable")).toBe(true);
+	expect(
+		containsText(screen.root, "Choose another model to configure thinking."),
+	).toBe(true);
+	expect(
+		findByLabel(screen.root, "Thinking level: Model setting"),
+	).toBeUndefined();
+	expect(onReasoningChange).not.toHaveBeenCalled();
+	act(() =>
+		screen.renderer.update(
+			<ChatScreen {...props} checkingImageSupport={false} supportsReasoning />,
+		),
+	);
+	expect(
+		findByLabel(screen.root, "Thinking level: Model setting"),
+	).toBeDefined();
+	expect(containsText(screen.root, "Thinking options unavailable")).toBe(false);
+	act(() =>
+		screen.renderer.update(
+			<ChatScreen
+				{...props}
+				checkingImageSupport={false}
+				supportsReasoning={false}
+			/>,
+		),
+	);
+	expect(containsText(screen.root, "Thinking unavailable")).toBe(true);
+	expect(onReasoningChange).not.toHaveBeenCalled();
+});

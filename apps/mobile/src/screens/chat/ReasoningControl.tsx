@@ -13,9 +13,36 @@ interface ReasoningProps {
 export function ReasoningPill({
 	value,
 	supported,
+	loading = supported === undefined,
 	onPress,
-}: ReasoningProps & { onPress(): void }) {
+}: ReasoningProps & { onPress(): void; loading?: boolean }) {
 	const theme = useTheme();
+	if (supported === undefined && !loading) {
+		return (
+			<View
+				accessible
+				accessibilityRole="text"
+				accessibilityLabel="Thinking options unavailable. Choose another model to configure thinking."
+				style={{
+					flex: 1,
+					minWidth: 0,
+					flexDirection: "row",
+					gap: 6,
+					paddingVertical: 5,
+				}}
+			>
+				<Brain size={14} color={theme.color.textMuted} />
+				<View style={{ flex: 1, gap: 4 }}>
+					<Text variant="caption" tone="muted">
+						Thinking options unavailable
+					</Text>
+					<Text variant="caption" tone="muted">
+						Choose another model to configure thinking.
+					</Text>
+				</View>
+			</View>
+		);
+	}
 	const label =
 		supported === false
 			? "Thinking unavailable"

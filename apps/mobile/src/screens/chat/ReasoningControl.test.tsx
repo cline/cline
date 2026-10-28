@@ -84,3 +84,23 @@ describe("thinking choices", () => {
 		expect(onChange).toHaveBeenCalledWith("none");
 	});
 });
+
+it("distinguishes a completed unknown capability from an active check and leaves it disabled", () => {
+	const onPress = vi.fn();
+	const done = render(<ReasoningPill loading={false} onPress={onPress} />);
+	expect(containsText(done.root, "Thinking options unavailable")).toBe(true);
+	expect(
+		containsText(done.root, "Choose another model to configure thinking."),
+	).toBe(true);
+	expect(containsText(done.root, "Checking thinking…")).toBe(false);
+	expect(
+		done.root.findAll(
+			(node) =>
+				typeof node.type === "string" &&
+				node.props.accessibilityRole === "button",
+		),
+	).toHaveLength(0);
+	const checking = render(<ReasoningPill loading onPress={onPress} />);
+	expect(containsText(checking.root, "Checking thinking…")).toBe(true);
+	expect(onPress).not.toHaveBeenCalled();
+});

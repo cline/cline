@@ -160,6 +160,7 @@ function HomeScreenBody({
 	);
 	const [checkingImageSupport, setCheckingImageSupport] = useState(true);
 	const loadCloudModels = useCallback(async () => {
+		setCheckingImageSupport(true);
 		try {
 			const models = await new CloudSetupGateway({
 				apiBaseUrl: cloudEnv.apiBaseUrl,
@@ -818,6 +819,7 @@ function HomeScreenBody({
 							<ReasoningPill
 								value={target.cloud.reasoning}
 								supported={supportsReasoning}
+								loading={checkingImageSupport}
 								onPress={() => {
 									dismiss(() =>
 										expandBottomSheetAfterKeyboardDismiss(reasoningSheetRef),
