@@ -35,7 +35,8 @@ export function parseTeamTaskSubSessionId(
 	}
 	const rootSessionId = sessionId.slice(0, markerIndex);
 	const remainder = sessionId.slice(markerIndex + marker.length);
-	const lastSeparator = remainder.lastIndexOf("__");
+	// The random task suffix can itself end in underscores ("abcd__").
+	const lastSeparator = remainder.replace(/_+$/, "").lastIndexOf("__");
 	if (lastSeparator <= 0) {
 		return null;
 	}
