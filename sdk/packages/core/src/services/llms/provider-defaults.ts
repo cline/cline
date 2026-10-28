@@ -3,6 +3,7 @@
 import * as Llms from "@cline/llms";
 import {
 	fetchModelIdsFromSource,
+	fetchOllamaModelfileContextWindow,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -718,17 +719,30 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+	const auth = {
 		baseUrl: config.baseUrl ?? collection?.provider.baseUrl,
 		apiKey: resolveAuthToken(config),
 		headers: config.headers,
-	})
-		.then((modelIds) => {
+	};
+	const request = fetchModelIdsFromSource(sourceUrl, providerId, auth)
+		.then(async (modelIds) => {
 			const data = Object.fromEntries(
-				modelIds.map((id) => [
-					id,
-					buildModelFromPrivateSource(id, { name: id }),
-				]),
+				await Promise.all(
+					modelIds.map(async (id) => [
+						id,
+						buildModelFromPrivateSource(id, {
+							name: id,
+							contextWindow:
+								providerId === "ollama"
+									? await fetchOllamaModelfileContextWindow(
+											sourceUrl,
+											id,
+											auth,
+										).catch(() => undefined)
+									: undefined,
+						}),
+					]),
+				),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
 				data,

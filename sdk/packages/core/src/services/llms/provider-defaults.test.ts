@@ -615,7 +615,55 @@ describe("resolveProviderConfig", () => {
 				`Bearer ${apiKey}:${tenant}`,
 			]);
 		}
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		const tagsCalls = fetchMock.mock.calls.filter(([url]) =>
+			String(url).endsWith("/api/tags"),
+		);
+		expect(tagsCalls).toHaveLength(3);
+	});
+
+	it("uses an Ollama Modelfile num_ctx as the discovered model context window", async () => {
+		const fetchMock = vi.fn(async (url: unknown, init: RequestInit) => {
+			if (String(url).endsWith("/api/tags")) {
+				return Response.json({
+					models: [{ name: "tuned" }, { name: "stock" }, { name: "broken" }],
+				});
+			}
+			const { model } = JSON.parse(String(init.body)) as { model: string };
+			if (model === "broken") {
+				throw new Error("connection reset");
+			}
+			return Response.json(
+				model === "tuned"
+					? {
+							parameters:
+								'num_ctx                        131072\nstop                           "<|im_end|>"',
+						}
+					: { parameters: 'stop                           "<|im_end|>"' },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "ollama",
+				modelId: "",
+				baseUrl: "http://tailscale-host:11434",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://tailscale-host:11434/api/show",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({ model: "tuned" }),
+			}),
+		);
+		expect(resolved?.knownModels?.tuned?.contextWindow).toBe(131_072);
+		expect(resolved?.knownModels?.stock?.contextWindow).toBeUndefined();
+		expect(resolved?.knownModels?.broken).toBeDefined();
+		expect(resolved?.knownModels?.broken?.contextWindow).toBeUndefined();
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
