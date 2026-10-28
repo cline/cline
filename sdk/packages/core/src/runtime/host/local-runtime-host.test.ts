@@ -4821,6 +4821,85 @@ describe("LocalRuntimeHost", () => {
 		expect(discarded).toEqual(["queued"]);
 	});
 
+	it("waits for a session that is still tearing down before starting a new one with the same id", async () => {
+		const sessionId = "sess-restart-while-closing";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let releaseShutdown: (() => void) | undefined;
+		const createAgent = vi.fn(() => ({
+			run: vi.fn().mockResolvedValue(createResult({ text: "ok" })),
+			continue: vi.fn().mockResolvedValue(createResult({ text: "ok" })),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			// The first session's shutdown is slow; the restart lands inside it.
+			shutdown: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						releaseShutdown = resolve;
+					}),
+			),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => true),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: createAgent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		await manager.runTurn({ sessionId, prompt: "first" });
+
+		const stopping = manager.stopSession(sessionId);
+		let restarted = false;
+		const restarting = manager
+			.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			)
+			.finally(() => {
+				restarted = true;
+			});
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(restarted).toBe(false);
+
+		releaseShutdown?.();
+		await stopping;
+		await expect(restarting).resolves.toMatchObject({ sessionId });
+		expect(createAgent).toHaveBeenCalledTimes(2);
+		// The restarted session must survive the old teardown's removal.
+		await expect(
+			manager.runTurn({ sessionId, prompt: "second" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;
