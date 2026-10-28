@@ -10,7 +10,15 @@ import {
 	MonitorSmartphone,
 } from "lucide-react-native";
 import { type RefObject, useRef, useState } from "react";
-import { Keyboard, Pressable, useWindowDimensions, View } from "react-native";
+import {
+	Keyboard,
+	Platform,
+	Pressable,
+	ScrollView,
+	useWindowDimensions,
+	View,
+} from "react-native";
+import { modelDisplayName } from "@/cloud/model-display";
 import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
 import type { SessionInputAttachments } from "@/session";
 import { AutoGrowTextInput, BottomSheet, Button, Text, useTheme } from "@/ui";
@@ -65,12 +73,17 @@ export function HomeComposer({
 }: HomeComposerProps) {
 	const theme = useTheme();
 	const compact = useWindowDimensions().height < 500;
+	const android = Platform.OS === "android";
+	const inline = android && compact;
+	const EditingContainer = android ? ScrollView : View;
 	const cloudModelId =
 		modelId ||
 		(target?.mode === "cloud" ? target.cloud.modelId : CLINE_DEFAULT_MODEL_ID);
 	const modelLabel = cloud
 		? modelName ||
-			(cloudModelId === CLINE_DEFAULT_MODEL_ID ? "Cline Auto" : cloudModelId)
+			(cloudModelId === CLINE_DEFAULT_MODEL_ID
+				? "Cline Auto"
+				: modelDisplayName(cloudModelId))
 		: modelName || modelId || targetModelLabel(target, providerId, modelId);
 
 	const [focused, setFocused] = useState(false);
@@ -126,6 +139,8 @@ export function HomeComposer({
 	return (
 		<View
 			style={{
+				flexDirection: inline ? "row" : "column",
+				alignItems: inline ? "center" : undefined,
 				borderWidth: 1,
 				borderColor: focused
 					? theme.brand.violetBorder
@@ -139,16 +154,34 @@ export function HomeComposer({
 				shadowRadius: 2,
 			}}
 		>
-			<View
-				style={{
-					minHeight: 56,
-					paddingHorizontal: 12,
-					paddingTop: 12,
-				}}
+			{/* Keep editing content scrollable while landscape actions stay visible. */}
+			<EditingContainer
+				{...(android
+					? {
+							keyboardShouldPersistTaps: "handled" as const,
+							nestedScrollEnabled: true,
+							scrollEnabled: inline,
+							contentContainerStyle: {
+								minHeight: inline ? 44 : 56,
+								paddingHorizontal: 12,
+								paddingTop: inline ? 0 : 12,
+							},
+						}
+					: {})}
+				style={
+					android
+						? {
+								flexGrow: inline ? 1 : 0,
+								flexShrink: inline ? 1 : 0,
+								minWidth: 0,
+								maxHeight: inline ? 48 : undefined,
+							}
+						: { minHeight: 56, paddingHorizontal: 12, paddingTop: 12 }
+				}
 			>
 				<AutoGrowTextInput
 					minHeight={44}
-					maxHeight={compact ? 60 : 140}
+					maxHeight={inline ? 44 : compact ? 60 : 140}
 					value={draft}
 					onChangeText={changeDraft}
 					selection={selection}
@@ -157,6 +190,7 @@ export function HomeComposer({
 					}
 					placeholder="Ask Cline…"
 					editable={!voice.active}
+					disableFullscreenUI
 					showSoftInputOnFocus
 					onFocus={() => setFocused(true)}
 					onBlur={() => setFocused(false)}
@@ -172,17 +206,20 @@ export function HomeComposer({
 						attachments.remove(id);
 					}}
 				/>
-			</View>
+			</EditingContainer>
 
 			<View
 				style={{
+					width: inline ? "40%" : undefined,
+					minWidth: inline ? 220 : undefined,
+					maxWidth: inline ? 360 : undefined,
 					minHeight: 44,
 					flexDirection: "row",
 					alignItems: "center",
 					justifyContent: "space-between",
 					gap: 0,
 					paddingHorizontal: 6,
-					paddingBottom: 4,
+					paddingBottom: inline ? 0 : 4,
 				}}
 			>
 				<ComposerAttachmentMenu

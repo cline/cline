@@ -195,6 +195,7 @@ export function Composer({
 						}
 						placeholder={placeholder}
 						editable={!voice.active}
+						disableFullscreenUI
 						showSoftInputOnFocus
 						onFocus={() => setFocused(true)}
 						onBlur={() => setFocused(false)}

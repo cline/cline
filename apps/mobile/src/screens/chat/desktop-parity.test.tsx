@@ -85,7 +85,7 @@ describe("desktop conversation UX parity", () => {
 			const mounted = render(<ChatScreen connection={fakeConnection()} />);
 			expect(
 				findAllByType(mounted.root, "KeyboardAvoidingView")[0]?.props.behavior,
-			).toBe(os === "ios" ? "padding" : "height");
+			).toBe("padding");
 			mounted.unmount();
 		} finally {
 			Platform.OS = previousOS;

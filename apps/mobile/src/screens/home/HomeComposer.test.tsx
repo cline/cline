@@ -223,3 +223,19 @@ describe("HomeComposer", () => {
 		).toBe(true);
 	});
 });
+
+it("keeps a saved model readable while its catalog entry is unavailable", () => {
+	const modelId = "anthropic/claude-sonnet-4-6-mini";
+	const screen = render(
+		<HomeComposer
+			cloud
+			modelId={modelId}
+			draft=""
+			onDraftChange={vi.fn()}
+			onSend={vi.fn()}
+		/>,
+	);
+	expect(containsText(screen.root, "Claude Sonnet 4.6 Mini")).toBe(true);
+	expect(containsText(screen.root, modelId)).toBe(false);
+	screen.unmount();
+});

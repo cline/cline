@@ -26,10 +26,7 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
-import {
-	KeyboardAvoidingView,
-	useReanimatedKeyboardAnimation,
-} from "react-native-keyboard-controller";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
 import Animated, {
 	useAnimatedStyle,
 	useReducedMotion,
@@ -63,6 +60,7 @@ import {
 	Text,
 	useTheme,
 } from "@/ui";
+import { KeyboardAvoidingContainer } from "@/ui/KeyboardAvoidingContainer";
 import { ApprovalSheet } from "./chat/ApprovalSheet";
 import { AutoApprovePill, AutoApproveSheet } from "./chat/AutoApproveControl";
 import { AssistantMessage, UserMessageBubble } from "./chat/blocks";
@@ -685,12 +683,7 @@ function ChatScreenBody({
 					</View>
 				</View>
 
-				<KeyboardAvoidingView
-					style={{ flex: 1 }}
-					// Edge-to-edge Android windows need explicit keyboard avoidance too.
-					behavior={Platform.OS === "ios" ? "padding" : "height"}
-					automaticOffset
-				>
+				<KeyboardAvoidingContainer style={{ flex: 1 }}>
 					{status.phase === "error" ? (
 						<View
 							style={{
@@ -890,7 +883,7 @@ function ChatScreenBody({
 						}
 					/>
 					<Animated.View style={bottomInsetStyle} />
-				</KeyboardAvoidingView>
+				</KeyboardAvoidingContainer>
 
 				<ConversationNavigator
 					visible={navigatorOpen}

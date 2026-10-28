@@ -15,16 +15,14 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
-import {
-	KeyboardAvoidingView,
-	useReanimatedKeyboardAnimation,
-} from "react-native-keyboard-controller";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
 import Animated, {
 	useAnimatedStyle,
 	useReducedMotion,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AgentWelcomeHero } from "@/ui";
+import { KeyboardAvoidingContainer } from "@/ui/KeyboardAvoidingContainer";
 
 export const HANDOFF_INSTRUCTION = "/handoff";
 
@@ -107,12 +105,9 @@ export function IntroScreen({
 		if (keyboardVisible) scrollRef.current?.scrollToEnd({ animated: false });
 	};
 	return (
-		<KeyboardAvoidingView
+		<KeyboardAvoidingContainer
 			onTouchStart={welcomeEyes.onTouchStart}
 			style={{ flex: 1 }}
-			automaticOffset
-			// Edge-to-edge Android windows need explicit keyboard avoidance too.
-			behavior={Platform.OS === "ios" ? "padding" : "height"}
 		>
 			<ScrollView
 				ref={scrollRef}
@@ -188,7 +183,7 @@ export function IntroScreen({
 				</View>
 				<Animated.View style={bottomSpaceStyle} />
 			</ScrollView>
-		</KeyboardAvoidingView>
+		</KeyboardAvoidingContainer>
 	);
 }
 

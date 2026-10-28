@@ -132,7 +132,7 @@ describe("IntroScreen", () => {
 			const mounted = mount();
 			expect(
 				findAllByType(mounted.root, "KeyboardAvoidingView")[0]?.props.behavior,
-			).toBe(os === "ios" ? "padding" : "height");
+			).toBe("padding");
 			mounted.unmount();
 		} finally {
 			Platform.OS = previousOS;
