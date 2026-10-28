@@ -8,6 +8,7 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { readPersistedMessagesFile } from "../../runtime/host/runtime-host-support";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
@@ -28,6 +29,14 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 
 describe("HubServerTransport boundaries", () => {
+	const resumeConfig = {
+		sessionId: "session-1",
+		providerId: "openai",
+		modelId: "gpt-4.1",
+		mode: "plan",
+		systemPrompt: "Keep the supplied instructions",
+	};
+
 	function createTransport(options: Record<string, unknown> = {}) {
 		const { sessionHost: sessionHostOverride, ...transportOptions } = options;
 		return new HubServerTransport({
@@ -63,6 +72,202 @@ describe("HubServerTransport boundaries", () => {
 	function getContext(transport: HubServerTransport): HubTransportContext {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
+
+	it.each([
+		false,
+		true,
+	])("resumes history with the supplied configuration (live reader: %s)", async (hasLiveReader) => {
+		const mode = "plan";
+		const savedMessages = [{ role: "user", content: "saved conversation" }];
+		const messages = hasLiveReader
+			? [
+					...savedMessages,
+					{ role: "assistant", content: "newer in-memory reply" },
+				]
+			: savedMessages;
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(savedMessages);
+		const readLiveSessionMessages = vi.fn().mockResolvedValue(messages);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				...(hasLiveReader ? { readLiveSessionMessages } : {}),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				clientId: "resume-client",
+				payload: {
+					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
+				},
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.session).toMatchObject({
+				sessionId: "session-1",
+				createdByClientId: "resume-client",
+			});
+			if (hasLiveReader) {
+				expect(readLiveSessionMessages).toHaveBeenCalledWith("session-1");
+				expect(readSessionMessages).not.toHaveBeenCalled();
+			} else {
+				expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+			}
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: messages,
+					config: expect.objectContaining({
+						...resumeConfig,
+						mode,
+						reasoningEffort: "high",
+					}),
+				}),
+			);
+			expect(reply.payload).not.toHaveProperty("messages");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ label: "new ID", exists: false, initialMessages: undefined, saved: [] },
+		{
+			label: "existing ID without history",
+			exists: true,
+			initialMessages: undefined,
+			saved: [{ role: "user", content: "saved" }],
+		},
+		{
+			label: "explicit empty history",
+			exists: true,
+			initialMessages: [],
+			saved: [{ role: "user", content: "saved" }],
+		},
+		{
+			label: "explicit replacement history",
+			exists: true,
+			initialMessages: [{ role: "user", content: "replacement" }],
+			saved: [{ role: "user", content: "saved" }],
+		},
+	])("preserves create with $label", async ({
+		exists,
+		initialMessages,
+		saved,
+	}) => {
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(saved);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId: "session-1" } : undefined),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				payload: { sessionConfig: { sessionId: "session-1" }, initialMessages },
+			});
+			expect(reply.ok).toBe(true);
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages,
+				}),
+			);
+			expect(readSessionMessages).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ sessionId: undefined, exists: false, code: "invalid_resume" },
+		{ sessionId: "missing", exists: false, code: "session_not_found" },
+		{ sessionId: "empty", exists: true, code: "session_messages_not_found" },
+	])("rejects resume with $code without creating a runtime", async ({
+		sessionId,
+		exists,
+		code,
+	}) => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId } : undefined),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: { sessionId } },
+			});
+			expect(reply).toMatchObject({ ok: false, error: { code } });
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("rejects corrupt persisted history before starting a runtime", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "hub-saved-history-"));
+		const messagesPath = join(dir, "messages.json");
+		await writeFile(messagesPath, "{invalid");
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: () => readPersistedMessagesFile(messagesPath),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: resumeConfig },
+			});
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_messages_not_found" },
+			});
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("does not start a runtime when reading saved history fails", async () => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: vi
+					.fn()
+					.mockRejectedValue(new Error("history unavailable")),
+			},
+		});
+		try {
+			await expect(
+				transport.handleCommand({
+					version: "v1",
+					command: "session.resume",
+					payload: { sessionConfig: resumeConfig },
+				}),
+			).rejects.toThrow("history unavailable");
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
 
 	it("recovers an empty cloud snapshot set from a fresh daemon", async () => {
 		const transport = createTransport({ eventLog: false, runQueue: false });
@@ -1029,7 +1234,10 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("publishes capability-backed tools on the hub session stream", async () => {
+	it.each([
+		undefined,
+		"123-saved-session",
+	] as const)("preserves capability-backed tools when starting session %s", async (savedSessionId) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1079,7 +1287,9 @@ describe("HubServerTransport boundaries", () => {
 				deleteSession: vi.fn(),
 				updateSession: vi.fn(),
 				dispatchHookEvent: vi.fn(),
-				readSessionMessages: vi.fn(),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([{ role: "user", content: "saved" }]),
 			} as never,
 		});
 		const events: HubEventEnvelope[] = [];
@@ -1094,12 +1304,14 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command: "session.create",
+			command: savedSessionId ? "session.resume" : "session.create",
 			clientId: "client-1",
 			payload: {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
+					sessionId: savedSessionId,
+					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",
 					cwd: "/tmp/project",

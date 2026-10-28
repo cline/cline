@@ -1029,6 +1029,164 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
+	it.each([
+		false,
+		true,
+	])("holds follow-ups behind the initial prompt (rejected: %s)", async (rejected) => {
+		const f = fixture();
+		let release!: () => void;
+		let entered!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const original = f.command.getMockImplementation()!;
+		let attaches = 0;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.attach" && ++attaches === 2) {
+				entered();
+				await gate;
+				if (rejected) throw new Error("Initial attachment failed");
+			}
+			return original(...args);
+		});
+		try {
+			const creating = f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialMessage: { text: "INITIAL SUMMARY" },
+			});
+			await blocked;
+			const following = f.controller.send(record.id, "FOLLOW UP", "queue");
+			const outcome = following.then(
+				() => "sent",
+				() => "rejected",
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+			release();
+			const created = await creating;
+			expect(created.initialSend).toMatchObject(
+				rejected ? { dispatched: false } : { ok: true },
+			);
+			expect(await outcome).toBe(rejected ? "rejected" : "sent");
+			expect(
+				f.commands
+					.filter((entry) => entry.command === "session.send_input")
+					.map((entry) => entry.payload),
+			).toEqual(
+				rejected
+					? []
+					: [
+							{ prompt: "INITIAL SUMMARY", delivery: "queue" },
+							{ prompt: "FOLLOW UP", delivery: "queue" },
+						],
+			);
+			if (rejected) {
+				await f.controller.send(record.id, "Explicit retry", "queue");
+				expect(
+					f.commands.filter((entry) => entry.command === "session.send_input"),
+				).toHaveLength(1);
+			}
+		} finally {
+			release();
+			await f.controller.dispose();
+		}
+	});
+	it("keeps initialPrompt metadata without submitting a message", async () => {
+		const f = fixture();
+		try {
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialPrompt: "Draft metadata",
+			});
+			expect(result.sessionId).toBe(record.id);
+			expect(result).not.toHaveProperty("initialSend");
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBe(
+				"Draft metadata",
+			);
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it.each([
+		"creation",
+		"initial send",
+	])("shares overlapping creation and initial prompt delivery during %s", async (stage) => {
+		const f = fixture();
+		let entered!: () => void;
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const create = f.api.create.getMockImplementation()!;
+		f.api.create.mockImplementation(async (input) => {
+			if (stage === "creation") {
+				entered();
+				await gate;
+			}
+			return create(input);
+		});
+		const command = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (stage === "initial send" && args[0] === "session.send_input") {
+				entered();
+				await gate;
+			}
+			return command(...args);
+		});
+		try {
+			const input = {
+				requestId: "shared-start",
+				repoUrl: "https://github.com/example/project",
+				branch: "qa/summary",
+				modelId: "model",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["data:image/png;base64,aW1hZ2U="],
+				},
+			};
+			const first = f.controller.create(input);
+			await blocked;
+			const second = f.controller.create(input);
+			release();
+			const [result, repeated] = await Promise.all([first, second]);
+			expect(f.api.create).toHaveBeenCalledOnce();
+			expect(repeated).toEqual(result);
+			expect(result).toMatchObject({
+				sessionId: record.id,
+				branch: "qa/summary",
+				initialSend: { ok: true, sessionId: record.id },
+			});
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([
+				{
+					command: "session.send_input",
+					sessionId: "inner",
+					payload: {
+						prompt: "Summary and next instruction",
+						delivery: "queue",
+						attachments: { userImages: ["data:image/png;base64,aW1hZ2U="] },
+					},
+				},
+			]);
+		} finally {
+			release();
+			await f.controller.dispose();
+		}
+	});
 	it("prevents dispatch if beforeDispatch throws", async () => {
 		const f = await attached();
 		const previousTitle = f.controller.getSnapshot(record.id)?.title;
@@ -1374,9 +1532,10 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 	it.each([
-		"preserve",
-		"delete",
-	] as const)("uses explicit %s policy for a POST completing after disposal", async (policy) => {
+		["preserve", false],
+		["delete", false],
+		["preserve", true],
+	] as const)("uses explicit %s policy for creation after disposal (initial message: %s)", async (policy, withMessage) => {
 		let resolve!: (value: {
 			sessionId: string;
 			status: string;
@@ -1398,6 +1557,8 @@ describe("CloudSessionController neutral host contract", () => {
 				requestId: "request",
 				modelId: "model",
 				repoUrl: record.repoContext.repoUrl!,
+				initialPrompt: "Continue",
+				...(withMessage ? { initialMessage: { text: "Continue" } } : {}),
 			})
 			.catch((error) => error);
 		await vi.waitFor(() => expect(f.api.create).toHaveBeenCalledOnce());
@@ -1411,6 +1572,9 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(await creating).toBeInstanceOf(Error);
 		expect(f.api.delete).toHaveBeenCalledTimes(policy === "delete" ? 1 : 0);
 		expect(f.controller.getSnapshot(record.id)).toBeUndefined();
+		expect(
+			f.commands.some((entry) => entry.command === "session.send_input"),
+		).toBe(false);
 	});
 	it.each([
 		["persist", true],
@@ -1776,6 +1940,90 @@ describe("seeded cloud handoff controller", () => {
 			false,
 		);
 		await f.controller.dispose();
+	});
+	it.each([
+		["reading", false],
+		["reading", true],
+		["seeding", false],
+		["seeding", true],
+	] as const)("reserves the initial prompt during %s (failed: %s)", async (stage, failed) => {
+		const f = fixture();
+		let release!: () => void;
+		let entered!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const blocked = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const pause = async () => {
+			entered();
+			await gate;
+			if (failed) throw new Error("Preparation failed");
+		};
+		const creating = f.controller
+			.create({
+				requestId: "handoff:initial-order",
+				repoUrl: record.repoContext.repoUrl!,
+				modelId: "model",
+				initialMessage: { text: "INITIAL SUMMARY" },
+				handoff: {
+					sourceSessionId: seed.sourceSessionId,
+					onCreating: async () => {},
+					onOuterSessionCreated: async () => {},
+					resolveMessages: async () => {
+						if (stage === "reading") await pause();
+						return messages;
+					},
+					onSeeding: async () => {
+						if (stage === "seeding") await pause();
+					},
+				},
+			})
+			.catch((error: unknown) => error);
+		try {
+			await blocked;
+			expect(
+				(await f.controller.listForDiscovery()).some(
+					(row) => row.sessionId === record.id,
+				),
+			).toBe(true);
+			const following = f.controller.send(record.id, "FOLLOW UP", "queue").then(
+				() => "sent",
+				() => "rejected",
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.calls.filter((call) => call.name === "session.send_input"),
+			).toEqual([]);
+			release();
+			expect(await creating).toMatchObject(
+				failed
+					? { message: "Preparation failed" }
+					: { initialSend: { ok: true } },
+			);
+			expect(await following).toBe(failed ? "rejected" : "sent");
+			expect(
+				f.calls
+					.filter((call) => call.name === "session.send_input")
+					.map((call) => call.payload?.prompt),
+			).toEqual(failed ? [] : ["INITIAL SUMMARY", "FOLLOW UP"]);
+			if (failed) {
+				await f.controller.send(record.id, "Explicit retry", "queue");
+				expect(
+					f.calls.filter((call) => call.name === "session.send_input"),
+				).toHaveLength(1);
+			} else {
+				expect(
+					f.calls.find((call) => call.name === "session.create")?.payload
+						?.initialMessages,
+				).toEqual(messages);
+			}
+		} finally {
+			release();
+			await creating;
+			await f.controller.dispose();
+		}
 	});
 	it("reattaches and adopts a seeded conversation with its saved mode without reseeding", async () => {
 		const f = fixture();
