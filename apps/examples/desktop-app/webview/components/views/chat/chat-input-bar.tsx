@@ -85,6 +85,7 @@ import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
+import { GeneratingCompanion } from "./generating-companion/generating-companion";
 import { LocalModelIndicator } from "./local-model-indicator";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -309,6 +310,10 @@ type ChatInputBarProps = {
 	readOnly?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
+	/** Runtime requests can wait for the user without leaving the running status. */
+	isAwaitingInput?: boolean;
+	/** Opening saved history is not an active generation. */
+	isSessionSwitching?: boolean;
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
@@ -366,6 +371,8 @@ function ChatInputBarImpl({
 	readOnly = false,
 	status,
 	hasRunningAgents = false,
+	isAwaitingInput = false,
+	isSessionSwitching = false,
 	provider,
 	model,
 	modelContextWindow,
@@ -464,6 +471,13 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
+	// Status spans text, reasoning, tools and queued turns. A parent's approval
+	// wait does not stop independent child agents from continuing their work.
+	const companionActive =
+		!readOnly &&
+		variant !== "welcome" &&
+		!isSessionSwitching &&
+		(hasRunningAgents || (isBusy && !isAwaitingInput));
 	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
@@ -1231,7 +1245,12 @@ function ChatInputBarImpl({
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
 				/>
-				<div className="relative">
+				<div
+					className={cn(
+						"relative",
+						companionActive && promptsInQueue.length > 0 && "pt-2",
+					)}
+				>
 					{slashOpen && (
 						<div
 							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
@@ -1332,6 +1351,11 @@ function ChatInputBarImpl({
 							promptInputRef.current?.focus();
 						}}
 					>
+						<GeneratingCompanion
+							active={companionActive}
+							className="-mt-[12px] shrink-0 self-start"
+							draftRef={promptInputRef}
+						/>
 						{speechInputProcessing && (
 							<output
 								aria-live="polite"
@@ -1481,15 +1505,21 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+										: isSessionSwitching
+											? "Loading conversation…"
+											: isAwaitingInput && !hasRunningAgents
+												? "Waiting for your response…"
+												: hasRunningAgents && !isBusy
+													? "Agents are still working. Send a message to continue."
+													: isBusy && variant !== "welcome"
+														? promptsInQueue.length > 0
+															? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+															: "Agent is working... submit to queue another message"
+														: executionTarget === "cloud"
+															? "Describe what Cline should do in this repository."
+															: variant === "welcome"
+																? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+																: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}

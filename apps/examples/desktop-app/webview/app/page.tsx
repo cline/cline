@@ -2754,6 +2754,10 @@ function ChatThreadPane({
 			attachments={attachmentList}
 			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
+			isAwaitingInput={
+				pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0
+			}
+			isSessionSwitching={displayedIsSwitching}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -2782,7 +2786,7 @@ function ChatThreadPane({
 			promptDraft={promptDraft}
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
-			status={status}
+			status={displayedStatus}
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}

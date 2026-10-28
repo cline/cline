@@ -198,13 +198,17 @@ async function renderVoiceComposer({
 	attachments = [],
 	model = "test-model",
 	hasRunningAgents = false,
+	isAwaitingInput = false,
+	isSessionSwitching = false,
 	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
 	onSend = vi.fn(),
 	prompt = "",
 	promptVersion = 0,
+	promptsInQueue = [],
 	status = "idle",
 	readOnly = false,
+	variant = "conversation",
 	executionTarget,
 	onAttachFiles = vi.fn(),
 	sessionId,
@@ -213,13 +217,17 @@ async function renderVoiceComposer({
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
 	hasRunningAgents?: boolean;
+	isAwaitingInput?: boolean;
+	isSessionSwitching?: boolean;
 	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
 	onSend?: ReturnType<typeof vi.fn>;
 	prompt?: string;
 	promptVersion?: number;
+	promptsInQueue?: Parameters<typeof ChatInputBar>[0]["promptsInQueue"];
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	variant?: Parameters<typeof ChatInputBar>[0]["variant"];
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
@@ -234,11 +242,14 @@ async function renderVoiceComposer({
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
+						variant={variant}
 						executionTarget={executionTarget}
 						sessionId={sessionId}
 						attachments={attachments}
 						gitBranch="main"
 						hasRunningAgents={hasRunningAgents}
+						isAwaitingInput={isAwaitingInput}
+						isSessionSwitching={isSessionSwitching}
 						mode="act"
 						model={model}
 						onAbort={onAbort}
@@ -259,7 +270,7 @@ async function renderVoiceComposer({
 						onSteerPromptInQueue={vi.fn()}
 						onSwitchGitBranch={vi.fn(async () => true)}
 						promptDraft={{ version: promptVersion, value: prompt }}
-						promptsInQueue={[]}
+						promptsInQueue={promptsInQueue}
 						provider="cline"
 						reasoningEffort="low"
 						status={status}
@@ -391,6 +402,150 @@ describe("ChatInputBar draft navigation", () => {
 		);
 		await showThread("new-session");
 		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+});
+
+describe("ChatInputBar generating companion", () => {
+	function danceButton() {
+		const button = container.querySelector<HTMLButtonElement>(
+			'button[aria-label^="Change Cline dance"]',
+		);
+		if (!button) throw new Error("Missing companion control");
+		return button;
+	}
+
+	function expectCompanionActive(active: boolean) {
+		expect(danceButton().closest("[hidden]") === null).toBe(active);
+	}
+
+	it.each([
+		"starting",
+		"running",
+		"stopping",
+	] as const)("keeps the working placeholder beside the companion while %s", async (status) => {
+		await renderVoiceComposer({ status });
+		expectCompanionActive(true);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+	});
+
+	it("retains the queue instructions while showing active work", async () => {
+		await renderVoiceComposer({
+			status: "running",
+			promptsInQueue: [
+				{ id: "queued-1", prompt: "Run the tests", steer: false },
+			],
+		});
+		expectCompanionActive(true);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Agent is working... submit to queue another message, or Enter to send the first message from the queue",
+		);
+	});
+
+	it.each([
+		"idle",
+		"completed",
+		"cancelled",
+		"failed",
+		"error",
+	] as const)("hides the companion when the session is %s", async (status) => {
+		await renderVoiceComposer({ status: "running" });
+		expectCompanionActive(true);
+		await renderVoiceComposer({ status });
+		expectCompanionActive(false);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Enter your question or type / for commands or @ for context",
+		);
+	});
+
+	it("shows the user-response wait instead of dancing during an approval or question", async () => {
+		await renderVoiceComposer({ status: "running", isAwaitingInput: true });
+		expectCompanionActive(false);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Waiting for your response…",
+		);
+		await renderVoiceComposer({ status: "running", isAwaitingInput: false });
+		expectCompanionActive(true);
+	});
+
+	it("keeps independent agents visible while the parent is idle or awaiting input", async () => {
+		await renderVoiceComposer({ status: "idle", hasRunningAgents: true });
+		expectCompanionActive(true);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Agents are still working. Send a message to continue.",
+		);
+		await renderVoiceComposer({
+			status: "running",
+			hasRunningAgents: true,
+			isAwaitingInput: true,
+		});
+		expectCompanionActive(true);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer({ status: "running", isAwaitingInput: true });
+		expectCompanionActive(false);
+	});
+
+	it("does not interpret opening saved history as generation", async () => {
+		await renderVoiceComposer({
+			status: "starting",
+			hasRunningAgents: true,
+			isSessionSwitching: true,
+		});
+		expectCompanionActive(false);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Loading conversation…",
+		);
+	});
+
+	it.each([
+		{ label: "read-only", readOnly: true },
+		{ label: "welcome", variant: "welcome" as const },
+	])("stays hidden in the $label composer", async (overrides) => {
+		await renderVoiceComposer({
+			status: "running",
+			hasRunningAgents: true,
+			...overrides,
+		});
+		expectCompanionActive(false);
+	});
+
+	it("changes dance without sending, stopping, or replacing the current draft", async () => {
+		const onSend = vi.fn();
+		const onAbort = vi.fn();
+		const prompt = "Keep my unfinished follow-up.";
+		await renderVoiceComposer({ status: "running", prompt, onSend, onAbort });
+		const textarea = container.querySelector("textarea");
+		if (!textarea) throw new Error("Missing composer input");
+		textarea.focus();
+		textarea.setSelectionRange(5, 12);
+		const button = danceButton();
+		await act(async () => {
+			button.dispatchEvent(
+				new MouseEvent("mousedown", {
+					button: 0,
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+			button.click();
+		});
+		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
+		expect(container.querySelector("textarea")).toBe(textarea);
+		expect(textarea.value).toBe(prompt);
+		expect(document.activeElement).toBe(textarea);
+		expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([5, 12]);
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onAbort).not.toHaveBeenCalled();
+		await renderVoiceComposer({ status: "completed", prompt, onSend, onAbort });
+		expectCompanionActive(false);
+		expect(container.querySelector("textarea")).toBe(textarea);
+		expect(textarea.value).toBe(prompt);
+		await renderVoiceComposer({ status: "running", prompt, onSend, onAbort });
+		expectCompanionActive(true);
+		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
 	});
 });
 
