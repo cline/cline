@@ -17,6 +17,7 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
+import { runAimlapiOnboarding } from "../components/dialogs/aimlapi-onboarding";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
@@ -233,7 +234,9 @@ async function runProviderChange(
 
 	if (needsAuth) {
 		let saved: boolean | undefined;
-		if (isOAuthProvider(newProviderId)) {
+		if (newProviderId === "aimlapi") {
+			saved = await runAimlapiOnboarding(dialog, manager, termHeight);
+		} else if (isOAuthProvider(newProviderId)) {
 			const loginResult = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,

@@ -1,2 +1,2 @@
 export type { OnboardingResult } from "./model";
-export { OnboardingView } from "./view";
+export { OnboardingApp, OnboardingView } from "./view";

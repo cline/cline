@@ -30,6 +30,7 @@ export type {
 } from "./providers/model-registry";
 export {
 	getAllProviders,
+	getBuiltInProviderCollectionSync,
 	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,

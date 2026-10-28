@@ -319,8 +319,8 @@ export async function loadAuthTuiRuntime() {
 	disableOpenTuiGraphicsProbe();
 	const { createCliRenderer } = await import("@opentui/core");
 	const { createRoot } = await import("@opentui/react");
-	const { OnboardingView } = await import("../tui/views/onboarding");
-	return { createCliRenderer, createRoot, OnboardingView };
+	const { OnboardingApp } = await import("../tui/views/onboarding");
+	return { createCliRenderer, createRoot, OnboardingApp };
 }
 
 async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
@@ -330,7 +330,7 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 		);
 		return 1;
 	}
-	const { createCliRenderer, createRoot, OnboardingView } =
+	const { createCliRenderer, createRoot, OnboardingApp } =
 		await loadAuthTuiRuntime();
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: false,
@@ -374,7 +374,7 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 		});
 		try {
 			root.render(
-				React.createElement(OnboardingView, {
+				React.createElement(OnboardingApp, {
 					providerSettingsManager: input.providerSettingsManager,
 					onComplete: () => settle(0),
 					onExit: () => settle(1),

@@ -25,6 +25,7 @@ export {
 	filterOpenAICodexModels,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
+	getBuiltInProviderCollectionSync,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
 	getModelOverridesForProvider,
@@ -109,6 +110,7 @@ export {
 	resolveGatewayProviderRegistrationSync,
 	resolveProviderApiLineBaseUrl,
 } from "./providers";
+export * from "./providers/aimlapi";
 export {
 	type ProviderUsageCostDisplay,
 	resolveProviderUsageCostDisplay,

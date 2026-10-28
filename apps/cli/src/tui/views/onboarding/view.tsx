@@ -1,5 +1,6 @@
 import type { ProviderSettingsManager } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
+import { DialogProvider } from "@opentui-ui/dialog/react";
 import { useMouseTracker } from "../../components/tracked-robot";
 import { HOME_VIEW_MAX_WIDTH } from "../../types";
 import { useOnboardingController } from "./controller";
@@ -23,6 +24,21 @@ export interface OnboardingViewProps {
 	onComplete: (result: OnboardingResult) => void;
 	onExit: () => void;
 	providerSettingsManager?: ProviderSettingsManager;
+}
+
+/**
+ * Onboarding as a standalone app, for `cline auth` — it renders this view on a
+ * bare renderer instead of going through root.tsx. The controller opens dialogs
+ * (the aimlapi.com sign-up flow), so it needs the same DialogProvider the main
+ * TUI mounts. Use plain `OnboardingView` from root.tsx, which already sits
+ * inside that provider.
+ */
+export function OnboardingApp(props: OnboardingViewProps) {
+	return (
+		<DialogProvider size="medium">
+			<OnboardingView {...props} />
+		</DialogProvider>
+	);
 }
 
 export function OnboardingView(props: OnboardingViewProps) {
@@ -102,6 +118,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	if (state.step === "byo_provider") {
 		return (
 			<OnboardingProviderPickerScreen
+				key={state.providerPickerKey}
 				compact={compact}
 				contentWidth={contentWidth}
 				mouse={mouse}
