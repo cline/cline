@@ -10,6 +10,7 @@ import {
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
 } from "./api";
+import { CLOUD_COMPUTER_USE_PROMPT } from "./computer-use-prompt";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
@@ -1511,6 +1512,62 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(prompt.includes("git push -u origin")).toBe(autoPush);
 			expect(prompt.includes("Commit and push only when the user asks")).toBe(
 				!autoPush,
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it.each([
+		["flag on, image model", true, "anthropic/claude-sonnet-4.5", true],
+		["flag off", false, "anthropic/claude-sonnet-4.5", false],
+		["model not in the catalog", true, "model", false],
+	] as const)("gates the computer-use prompt section: %s", async (_label, enabled, modelId, expected) => {
+		const isComputerUseEnabled = vi.fn(async () => enabled);
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled,
+		});
+		f.api.list.mockResolvedValue([
+			{ ...record, metadata: { ...record.metadata, modelId } },
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).toContain("branch `cline/inner`");
+			expect(
+				sessionConfig.systemPrompt.includes(CLOUD_COMPUTER_USE_PROMPT),
+			).toBe(expected);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("omits the computer-use prompt section when the gate throws", async () => {
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled: async () => {
+				throw new Error("flag service down");
+			},
+		});
+		f.api.list.mockResolvedValue([
+			{
+				...record,
+				metadata: {
+					...record.metadata,
+					modelId: "anthropic/claude-sonnet-4.5",
+				},
+			},
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).not.toContain(
+				"Verify your work visually",
 			);
 		} finally {
 			await f.controller.dispose();
