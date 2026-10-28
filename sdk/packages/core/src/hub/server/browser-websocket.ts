@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import type {
 	HubClientRegistration,
 	HubEventEnvelope,
@@ -17,6 +17,7 @@ import type {
 	HubConnectionAuthority,
 } from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
+import { isPathInsideWorkspace } from "./session-authority";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
@@ -95,12 +96,7 @@ function registrationAuthority(
 	const cwd = resolve(
 		registration.workspaceContext?.cwd?.trim() || workspaceRoot,
 	);
-	const relativeCwd = relative(workspaceRoot, cwd);
-	if (
-		relativeCwd === ".." ||
-		relativeCwd.startsWith(`..${sep}`) ||
-		isAbsolute(relativeCwd)
-	) {
+	if (!isPathInsideWorkspace(workspaceRoot, cwd)) {
 		throw new Error("Registration cwd must be inside its workspace");
 	}
 	return {
@@ -209,6 +205,7 @@ export class BrowserWebSocketHubAdapter {
 						const commandPromise = this.transport.command(
 							frame.envelope,
 							authority ?? null,
+							{ tokenAuthenticated: options.allowRegisteredWorkspace === true },
 						);
 						commandPromise.then(
 							(lateReply) => {

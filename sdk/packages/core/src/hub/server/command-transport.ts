@@ -17,11 +17,18 @@ export interface HubConnectionAuthority {
 	crossWorkspace?: boolean;
 }
 
+/** How a remote connection authenticated, independent of registration. */
+export interface HubConnectionContext {
+	/** The connection presented the Hub auth token when it upgraded. */
+	tokenAuthenticated?: boolean;
+}
+
 export interface HubCommandTransport {
 	command(
 		envelope: HubCommandEnvelope,
 		/** `null` means the remote connection has not registered yet. */
 		authority?: HubConnectionAuthority | null,
+		connection?: HubConnectionContext,
 	): Promise<HubReplyEnvelope>;
 	subscribe(
 		clientId: string,
