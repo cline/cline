@@ -78,6 +78,14 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	mistral: {
 		signupUrl: "https://console.mistral.ai/api-keys",
 	},
+	modal: {
+		allowsCustomIds: true,
+		signupUrl: "https://modal.com/docs/guide/endpoints#proxy-tokens",
+		baseUrlField: {
+			label: "Use custom base URL",
+			placeholder: "Default: https://inference.us-west.modal.direct/v1",
+		},
+	},
 	nebius: {
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
 	},
@@ -174,6 +182,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	chutes: "Chutes",
 	aiand: "ai&",
 	"zai-coding-plan": "Z.AI Coding Plan",
+	modal: "Modal",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {

@@ -1126,6 +1126,12 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: { apiKeyOptional: true },
 	},
 	{
+		id: "modal",
+		defaultModelId: "",
+		modelsFactory: () => ({}),
+		modelsSourceUrl: "https://inference.us-west.modal.direct/v1/models",
+	},
+	{
 		id: "oca",
 		name: "Oracle Code Assist",
 		description: "Oracle Code Assist (OCA) LiteLLM gateway",

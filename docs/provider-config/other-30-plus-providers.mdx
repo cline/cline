@@ -26,6 +26,7 @@ Use this page for providers that follow the same setup pattern.
   - [Huawei Cloud MaaS](#huawei-cloud-maas)
   - [Hugging Face](#hugging-face)
   - [Mistral](#mistral)
+  - [Modal](#modal)
   - [Moonshot](#moonshot)
   - [Nebius AI Studio](#nebius-ai-studio)
   - [Nous Research](#nous-research)
@@ -240,6 +241,29 @@ Mistral provides direct API access to its model lineup.
 1. Create/sign in to Mistral platform account.
 2. Generate an API key.
 3. In Cline, choose **Mistral** and paste the key.
+
+### Modal
+Modal Endpoints serve open models through an OpenAI-compatible API.
+
+**Documentation:** [Modal Endpoints](https://modal.com/docs/guide/endpoints)
+
+#### Basic Setup
+
+1. Create a [Shared Endpoint](https://modal.com/docs/guide/shared-endpoints) in the [Endpoints dashboard](https://modal.com/endpoints) and wait for it to be ready.
+2. Create a [Proxy Token](https://modal.com/docs/guide/endpoints#proxy-tokens). Combine the token ID and secret with a period: `wk-<id>.ws-<secret>`.
+3. In Cline, choose **Modal** and paste the combined token into **Modal API Key**.
+4. Select your endpoint from **Model**, or enter its hostname as a custom model ID, for example `my-endpoint.us-west.modal.direct`.
+
+Cline uses `https://inference.us-west.modal.direct/v1` by default and discovers accessible endpoints through its authenticated `/models` API. For Shared Endpoints, use the endpoint hostname.
+
+For a Dedicated Endpoint or a custom deployment, enable **Use custom base URL**, enter the endpoint's OpenAI-compatible URL ending in `/v1`, and use the model ID shown in its dashboard request examples or `/v1/models` response.
+
+For CLI authentication to a Shared Endpoint:
+
+```bash
+export MODAL_PROXY_TOKEN="wk-<id>.ws-<secret>"
+cline auth --provider modal --apikey "$MODAL_PROXY_TOKEN" --modelid "my-endpoint.us-west.modal.direct"
+```
 
 ### Moonshot
 Moonshot provides API access to Kimi model families.

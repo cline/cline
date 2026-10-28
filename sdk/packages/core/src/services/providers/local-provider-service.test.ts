@@ -13,6 +13,7 @@ import {
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	clearPublicModelsCatalogCache,
 } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import * as LocalProviderRegistry from "./local-provider-registry";
@@ -69,6 +70,7 @@ function makeTempManager(): {
 afterEach(() => {
 	clearLiveModelsCatalogCache();
 	clearPrivateModelsCatalogCache();
+	clearPublicModelsCatalogCache();
 	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
@@ -96,6 +98,54 @@ describe("live provider model loading", () => {
 		);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(fetchMock).toHaveBeenCalledWith(endpoint, expect.any(Object));
+	});
+
+	it("discovers Modal endpoint hostnames with the combined proxy token", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				data: [
+					{ id: "other-endpoint.us-west.modal.direct" },
+					{ id: "my-endpoint.us-west.modal.direct" },
+				],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await getLocalProviderModels("modal", {
+			providerId: "modal",
+			modelId: "my-endpoint.us-west.modal.direct",
+			apiKey: "wk-test.ws-test",
+		});
+
+		expect(result.models.map((model) => model.id)).toEqual([
+			"my-endpoint.us-west.modal.direct",
+			"other-endpoint.us-west.modal.direct",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe("https://inference.us-west.modal.direct/v1/models");
+		expect(init.method).toBe("GET");
+		expect(new Headers(init.headers).get("authorization")).toBe(
+			"Bearer wk-test.ws-test",
+		);
+	});
+
+	it("rejects Modal model discovery on HTTP 401 instead of falling back to the catalog", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("unauthorized", { status: 401 })),
+		);
+
+		await expect(
+			getLocalProviderModels("modal", {
+				providerId: "modal",
+				modelId: "my-endpoint.us-west.modal.direct",
+				apiKey: "wk-test.ws-test",
+			}),
+		).rejects.toThrow(/401/);
 	});
 
 	it.each([
