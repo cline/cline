@@ -94,7 +94,11 @@ export function useCloudSessions(input: {
 	const [sessionId, setSessionId] = useState<string>();
 	const [sessionStatus, setSessionStatus] = useState<string>();
 	const sessionIdRef = useRef<string | undefined>(undefined);
-	const creatingRef = useRef<Promise<string> | undefined>(undefined);
+	const creatingRef = useRef<Promise<string | undefined> | undefined>(
+		undefined,
+	);
+	// Bumped on reset so a sandbox that finishes starting afterwards isn't reattached.
+	const generationRef = useRef(0);
 	// Concurrent sends can both try to start the sandbox's task, so each prompt
 	// is dispatched only after the previous one is accepted (as in the desktop app).
 	const dispatchRef = useRef<Promise<void>>(Promise.resolve());
@@ -244,7 +248,9 @@ export function useCloudSessions(input: {
 	const pickModel = useCallback(async () => {
 		if (!client) return;
 		try {
-			const models = await loadModels();
+			// Fresh each time: switching organizations changes which catalogs are offered.
+			const models = await client.listModels();
+			modelsRef.current = models;
 			const picked = await dialog.choice<CloudModel>({
 				style: { maxHeight: termHeight - 2 },
 				// Esc in the provider list goes back to the models; the content handles it.
@@ -267,15 +273,7 @@ export function useCloudSessions(input: {
 		} finally {
 			refocusTextarea();
 		}
-	}, [
-		client,
-		dialog,
-		loadModels,
-		model,
-		refocusTextarea,
-		showToast,
-		termHeight,
-	]);
+	}, [client, dialog, model, refocusTextarea, showToast, termHeight]);
 
 	const toggleTarget = useCallback(() => {
 		if (sessionIdRef.current || sessionStatus) {
@@ -314,6 +312,8 @@ export function useCloudSessions(input: {
 
 	/** Detaches this chat from its cloud session; the remote task keeps its state. */
 	const reset = useCallback(() => {
+		generationRef.current += 1;
+		creatingRef.current = undefined;
 		sessionIdRef.current = undefined;
 		dispatchRef.current = Promise.resolve();
 		stoppedBeforeSendRef.current = false;
@@ -346,6 +346,8 @@ export function useCloudSessions(input: {
 			if (!client || !selection) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
+			const generation = generationRef.current;
+			const current = () => generation === generationRef.current;
 			if (!delivery) {
 				abortRequestedRef.current = false;
 				stoppedBeforeSendRef.current = false;
@@ -371,6 +373,7 @@ export function useCloudSessions(input: {
 			};
 			try {
 				const modelId = (await resolveModel()).id;
+				if (!current()) return aborted;
 				// Follow-ups sent while the sandbox starts wait for the same session.
 				if (!sessionIdRef.current) {
 					creatingRef.current ??= (async () => {
@@ -384,14 +387,16 @@ export function useCloudSessions(input: {
 								mode: "act",
 								autoApproveTools: true,
 							});
+							if (!current()) return undefined;
 							sessionIdRef.current = created.sessionId;
 							setSessionId(created.sessionId);
 							return created.sessionId;
 						} catch (error) {
+							if (!current()) return undefined;
 							setSessionStatus(undefined);
 							throw error;
 						} finally {
-							creatingRef.current = undefined;
+							if (current()) creatingRef.current = undefined;
 						}
 					})();
 				}
