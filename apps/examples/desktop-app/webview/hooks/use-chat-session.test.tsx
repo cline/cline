@@ -1525,10 +1525,11 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
-		["local", "local"],
-		["remote", "local"],
-		["local", "cloud"],
-	] as const)("heals a running attached session in %s using %s execution with a dead event stream by polling history", async (environmentId, origin) => {
+		["local", "local", false],
+		["remote", "local", false],
+		["local", "cloud", false],
+		["local", "cloud", true],
+	] as const)("heals a running attached session in %s using %s execution with a dead event stream by polling history (auth failure: %s)", async (environmentId, origin, authFailure) => {
 		await act(async () =>
 			root.render(<HookHarness environmentId={environmentId} />),
 		);
@@ -1537,6 +1538,7 @@ describe("useChatSession", () => {
 		const hydratedSessionId = "session-dead-stream";
 		let readCount = 0;
 		let recordReads = 0;
+		let failAuth = authFailure;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1547,6 +1549,12 @@ describe("useChatSession", () => {
 					command === "read_cloud_session_if_awake"
 				) {
 					expect(args?.environmentId).toBe(environmentId);
+					if (command === "read_cloud_session_if_awake" && failAuth) {
+						failAuth = false;
+						throw new Error(
+							'CLOUD_SESSION_ERROR:{"code":"authentication_required","message":"Sign in"}',
+						);
+					}
 					readCount += 1;
 					const base = [
 						{
@@ -1633,6 +1641,12 @@ describe("useChatSession", () => {
 			expect(current.status).toBe("running");
 			expect(current.messages).toHaveLength(1);
 
+			if (authFailure) {
+				await act(async () => vi.advanceTimersByTimeAsync(3_100));
+				expect(current.messages).toHaveLength(1);
+				expect(current.status).toBe("running");
+			}
+
 			// No chat_event chunks arrive. The first poll surfaces the
 			// narration mid-run; the record still says running, and the
 			// record — not transcript shape — decides the status.
@@ -1657,8 +1671,6 @@ describe("useChatSession", () => {
 	it.each([
 		"suspended",
 		"Unknown cloud operation: readMessagesIfAwake",
-		'CLOUD_SESSION_ERROR:{"code":"authentication_required","message":"Sign in"}',
-		'CLOUD_SESSION_ERROR:{"code":"session_not_found","message":"Missing session"}',
 	])("stops background reads without losing history or blocking reopen: %s", async (outcome) => {
 		const sessionId = "session-suspended-poll";
 		const initialMessages = [

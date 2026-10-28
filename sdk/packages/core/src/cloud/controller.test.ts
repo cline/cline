@@ -59,7 +59,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		})),
 		delete: vi.fn(async () => {}),
 		updateTitle: vi.fn(async () => structuredClone(record)),
-		history: vi.fn(async () => null),
+		history: vi.fn(async (): Promise<unknown[] | null> => null),
 		waitUntilReady: vi.fn(
 			async (_sessionId: string, _signal: AbortSignal) => {},
 		),
@@ -485,6 +485,9 @@ describe("CloudSessionController neutral host contract", () => {
 			);
 			expect(f.api.resume).not.toHaveBeenCalled();
 			expect(f.api.waitUntilReady).not.toHaveBeenCalled();
+			expect(f.api.history).toHaveBeenCalledTimes(
+				status === "failed" || status === "expired" ? 1 : 0,
+			);
 			expect(f.commands).toEqual([]);
 		} finally {
 			await f.controller.dispose();
@@ -519,6 +522,48 @@ describe("CloudSessionController neutral host contract", () => {
 				status: "completed",
 			});
 			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		["explicit", "live"],
+		["passive", "live"],
+		["explicit", "known-expired"],
+		["passive", "known-expired"],
+		["passive", "probe-expired"],
+	] as const)("%s history reads retain archive recovery for %s", async (mode, failure) => {
+		const f = resumableFixture();
+		const messages = [{ role: "assistant", content: "Archived final answer" }];
+		f.api.history.mockResolvedValue(messages);
+		if (failure === "known-expired")
+			f.api.list.mockResolvedValue([
+				{ ...record, expiredAt: "2020-01-01T00:00:00Z" },
+			]);
+		if (failure === "probe-expired")
+			f.api.status.mockResolvedValue({ status: "expired" });
+		f.command.mockRejectedValue(
+			new CloudSessionError("session_expired", "Sandbox expired"),
+		);
+		try {
+			if (failure === "known-expired") await f.controller.list();
+			const result =
+				mode === "explicit"
+					? await f.controller.readMessages(record.id)
+					: await f.controller.readMessagesIfAwake(record.id);
+			expect(
+				Array.isArray(result)
+					? result
+					: result.kind === "refreshed"
+						? result.messages
+						: null,
+			).toEqual(messages);
+			expect(f.api.history).toHaveBeenCalledOnce();
+			expect(f.api.resume).not.toHaveBeenCalled();
+			if (mode === "passive")
+				expect(result).toMatchObject({ kind: "refreshed", status: "expired" });
+			if (failure !== "live") expect(f.commands).toEqual([]);
 		} finally {
 			await f.controller.dispose();
 		}

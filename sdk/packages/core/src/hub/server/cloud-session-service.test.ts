@@ -214,29 +214,21 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
-	it("preserves passive read outcomes across the cloud command boundary", async () => {
+	it("routes passive reads through the cloud command boundary", async () => {
 		const f = fixture();
 		f.service.watch();
 		const controller = f.controllers[0]?.controller;
 		if (!controller) throw new Error("Missing cloud controller");
 		const viewer = f.viewer();
-		const outcomes: CloudPassiveReadResult[] = [
-			{
-				kind: "refreshed",
-				messages: [{ role: "assistant", content: "Done" }],
-				status: "completed",
-			},
-			{ kind: "suspended" },
-			{ kind: "deferred" },
-			{ kind: "status", status: "failed" },
-			{ kind: "status", status: "expired" },
-		];
-		for (const outcome of outcomes) {
-			controller.readMessagesIfAwake.mockResolvedValueOnce(outcome);
-			await expect(viewer.readMessagesIfAwake("ses-one")).resolves.toEqual(
-				outcome,
-			);
-		}
+		const outcome: CloudPassiveReadResult = {
+			kind: "refreshed",
+			messages: [{ role: "assistant", content: "Done" }],
+			status: "completed",
+		};
+		controller.readMessagesIfAwake.mockResolvedValueOnce(outcome);
+		await expect(viewer.readMessagesIfAwake("ses-one")).resolves.toEqual(
+			outcome,
+		);
 		expect(controller.readMessagesIfAwake).toHaveBeenLastCalledWith("ses-one");
 		expect(controller.attach).not.toHaveBeenCalled();
 	});

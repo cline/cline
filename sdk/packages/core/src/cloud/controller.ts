@@ -2112,32 +2112,7 @@ export class CloudSessionController {
 		if (known?.status === "provisioning" || known?.status === "failed") {
 			return [];
 		}
-		if (known && isExpiredRecord(known)) {
-			// An expired session with no snapshot legitimately has no transcript.
-			return (await this.loadArchivedMessages(known)) ?? [];
-		}
-		try {
-			const connection = await this.ensureConnection(outerSessionId);
-			if (!connection.innerSessionId) {
-				return [];
-			}
-			return (
-				await this.rehydrateAfterTransportDrop(outerSessionId, connection)
-			).messages;
-		} catch (error) {
-			// Fall back only to a real archive; [] on 404 would mask live failures.
-			const refreshed =
-				(await this.refreshKnownSession(outerSessionId)) ?? known;
-			if (refreshed) {
-				const archived = await this.loadArchivedMessages(refreshed).catch(
-					() => null,
-				);
-				if (archived !== null) {
-					return archived;
-				}
-			}
-			throw error;
-		}
+		return (await this.readHistory(outerSessionId)).messages;
 	}
 
 	async readMessagesIfAwake(
@@ -2150,29 +2125,10 @@ export class CloudSessionController {
 			this.pendingInitialTasks.has(outerSessionId)
 		)
 			return { kind: "deferred" };
-		const known = this.knownSessions.get(outerSessionId);
-		if (known && isExpiredRecord(known)) {
-			return {
-				kind: "refreshed",
-				messages: await this.readMessages(outerSessionId),
-				status: "expired",
-			};
-		}
 		try {
-			const connection = await this.ensureConnection(outerSessionId, {
-				resume: false,
-			});
-			if (!connection.innerSessionId) return { kind: "deferred" };
-			const { messages } = await this.rehydrateAfterTransportDrop(
-				outerSessionId,
-				connection,
-			);
-			this.assertSessionActive(outerSessionId, connection);
 			return {
 				kind: "refreshed",
-				messages,
-				status:
-					this.sessions.get(outerSessionId)?.status ?? connection.remote.status,
+				...(await this.readHistory(outerSessionId, { resume: false })),
 			};
 		} catch (error) {
 			if (error instanceof PassiveConnectionDeferred)
@@ -2182,6 +2138,57 @@ export class CloudSessionController {
 					return { kind: "status", status: "failed" };
 				if (error.code === "session_expired")
 					return { kind: "status", status: "expired" };
+			}
+			throw error;
+		}
+	}
+
+	private async readHistory(
+		outerSessionId: string,
+		options: { resume?: false } = {},
+	): Promise<{ messages: unknown[]; status: string }> {
+		const known = this.knownSessions.get(outerSessionId);
+		if (known && isExpiredRecord(known)) {
+			// An expired session with no snapshot legitimately has no transcript.
+			return {
+				messages: (await this.loadArchivedMessages(known)) ?? [],
+				status: "expired",
+			};
+		}
+		try {
+			const connection = await this.ensureConnection(outerSessionId, options);
+			if (!connection.innerSessionId) {
+				if (options.resume === false)
+					throw new PassiveConnectionDeferred("deferred");
+				return { messages: [], status: connection.remote.status };
+			}
+			const { messages } = await this.rehydrateAfterTransportDrop(
+				outerSessionId,
+				connection,
+			);
+			return {
+				messages,
+				status:
+					this.sessions.get(outerSessionId)?.status ?? connection.remote.status,
+			};
+		} catch (error) {
+			if (error instanceof PassiveConnectionDeferred) throw error;
+			// Fall back only to a real archive; [] on 404 would mask live failures.
+			const refreshed =
+				(await this.refreshKnownSession(outerSessionId)) ?? known;
+			if (refreshed) {
+				const archived = await this.loadArchivedMessages(refreshed).catch(
+					() => null,
+				);
+				if (archived !== null) {
+					let status =
+						this.sessions.get(outerSessionId)?.status ?? refreshed.status;
+					if (error instanceof CloudSessionError) {
+						if (error.code === "session_expired") status = "expired";
+						else if (error.code === "session_failed") status = "failed";
+					}
+					return { messages: archived, status };
+				}
 			}
 			throw error;
 		}
