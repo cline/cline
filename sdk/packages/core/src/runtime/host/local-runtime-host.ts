@@ -101,6 +101,7 @@ import {
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import type { ReadArtifact } from "../../session/services/artifact-files";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -264,6 +265,7 @@ function isIncomingCompactionStateStale(
 }
 
 export interface LocalRuntimeHostOptions {
+	readArtifact?: ReadArtifact;
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
@@ -334,7 +336,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
-			options.createAgent ?? ((config) => new SessionRuntime(config));
+			options.createAgent ??
+			((config) =>
+				new SessionRuntime(config, { readArtifact: options.readArtifact }));
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
 			options.capabilities,
 		);

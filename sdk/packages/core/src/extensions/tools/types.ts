@@ -8,6 +8,7 @@ import type {
 	AgentToolContext,
 	ImageContent,
 	ITelemetryService,
+	MediaContent,
 	TextContent,
 } from "@cline/shared";
 import type {
@@ -37,7 +38,9 @@ export interface ToolOperationResult {
 	duration?: number;
 }
 
-export type FileReadResultContent = string | Array<TextContent | ImageContent>;
+export type FileReadResultContent =
+	| string
+	| Array<TextContent | ImageContent | MediaContent>;
 
 // =============================================================================
 // Executor Interfaces

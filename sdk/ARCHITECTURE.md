@@ -334,6 +334,13 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Hosts can provide a session-bound `readArtifact` callback to `LocalRuntimeHost`.
+The runtime exposes attached files as stable `artifact://` paths to `read_files`,
+including after history restore. Image reads persist media references; only the
+outgoing model request receives the image bytes. Text reads use the existing line
+and output limits. The host handles authorized downloads and URL refresh, while
+Core limits reads and keeps credentials and temporary URLs out of history.
+
 Session history listing filters child rows at the persistence layer. Subagent
 and team-task sessions are stored in the same table as the roots that spawned
 them and always sort newer, so `listSessionHistory` asks the runtime host for

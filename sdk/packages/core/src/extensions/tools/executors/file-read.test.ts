@@ -1,7 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import type { GeneratedMedia } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { ArtifactFiles } from "../../../session/services/artifact-files";
 import {
 	prepareToolResultRecovery,
 	TOOL_RESULT_CACHE_MISS,
@@ -10,6 +12,37 @@ import {
 import { createFileReadExecutor } from "./file-read";
 
 describe("createFileReadExecutor", () => {
+	it("enforces the exact byte limit for attached images", async () => {
+		const bytes = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN3sAAAAASUVORK5CYII=",
+			"base64",
+		);
+		const media: GeneratedMedia = {
+			id: "frame",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "artifact", artifactId: "frame" },
+		};
+		const artifacts = new ArtifactFiles(
+			async () => bytes,
+			() => [{ role: "assistant", content: [{ type: "media", media }] }],
+		);
+		const context = {
+			agentId: "agent",
+			iteration: 1,
+			metadata: { artifactFiles: artifacts, modelSupportsImages: true },
+		};
+		const read = (maxFileSizeBytes: number) =>
+			createFileReadExecutor({ maxFileSizeBytes })(
+				{ path: "artifact://frame" },
+				context,
+			);
+		await expect(read(bytes.length)).resolves.toEqual([
+			{ type: "media", media },
+		]);
+		await expect(read(bytes.length - 1)).rejects.toThrow("size limit");
+	});
+
 	it("recovers multiline MCP payloads serialized as YAML, including late line ranges", async () => {
 		const payload = Array.from(
 			{ length: 200 },

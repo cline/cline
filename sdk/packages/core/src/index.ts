@@ -910,6 +910,7 @@ export {
 export type { SessionManifest } from "./session/models/session-manifest";
 export type { SessionRow } from "./session/models/session-row";
 export * from "./session/search";
+export type { ReadArtifact } from "./session/services/artifact-files";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
