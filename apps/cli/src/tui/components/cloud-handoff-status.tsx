@@ -32,11 +32,11 @@ export function CloudHandoffStatusBar(props: {
 		if (key.name === "o" && url) {
 			key.preventDefault();
 			openCloud();
-		} else if (key.name === "r" && status.kind === "failed") {
+		} else if (key.name === "e" && status.kind === "failed") {
 			key.preventDefault();
 			props.onRestore(status.draft);
 		} else if (
-			key.name === "r" &&
+			key.name === "e" &&
 			status.kind === "complete" &&
 			status.result.retrySend
 		) {
@@ -63,7 +63,7 @@ export function CloudHandoffStatusBar(props: {
 				<box flexDirection="row" gap={2}>
 					{status.kind === "failed" && (
 						<box onMouseDown={() => props.onRestore(status.draft)}>
-							<text>Restore /cloud draft (Alt+R)</text>
+							<text>Restore /cloud draft (Alt+E)</text>
 						</box>
 					)}
 					{status.kind === "complete" && status.result.retrySend && (
@@ -72,7 +72,7 @@ export function CloudHandoffStatusBar(props: {
 								void props.onRetry();
 							}}
 						>
-							<text>Retry saved prompt (Alt+R)</text>
+							<text>Retry saved prompt (Alt+E)</text>
 						</box>
 					)}
 					<box onMouseDown={props.onDismiss}>

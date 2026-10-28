@@ -179,6 +179,8 @@ describe("cloud handoff TUI", () => {
 	it("shows a failed handoff and restores the captured draft", async () => {
 		const { session } = await launch(true);
 		await session.waitForText("Ask anything...", { timeout });
+		await session.type("An existing local conversation");
+		await session.press("enter");
 		const instruction = "retry this synthetic publish";
 		await session.type(`/cloud ${instruction}`);
 		await session.press("enter");
@@ -191,9 +193,12 @@ describe("cloud handoff TUI", () => {
 		session.writeRaw("\u001b[100;7u");
 		const afterScroll = await session.text();
 		expect(afterScroll).toContain("Synthetic publish failure");
-		expect(afterScroll).toContain("Restore /cloud draft (Alt+R)");
-		await session.press(["alt", "r"]);
+		expect(afterScroll).toContain("Restore /cloud draft (Alt+E)");
+		await session.press(["alt", "e"]);
 		await session.waitForText(`/cloud ${instruction}`, { timeout });
+		expect(await session.text()).not.toContain(
+			"Create a fork of the current conversation?",
+		);
 	});
 
 	it("does not overwrite a newer draft when offering to restore a failed handoff", async () => {
@@ -210,7 +215,7 @@ describe("cloud handoff TUI", () => {
 		await session.type(newerDraft);
 		await session.waitForText(newerDraft, { timeout });
 		await session.waitForText("Synthetic publish failure", { timeout });
-		await session.press(["alt", "r"]);
+		await session.press(["alt", "e"]);
 		const screen = await session.text();
 		expect(screen).toContain(newerDraft);
 		expect(screen).not.toContain("/cloud earlier synthetic draft");
