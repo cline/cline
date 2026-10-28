@@ -114,6 +114,7 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 			scrollable = false,
 			onAnimate,
 			onChange,
+			onClose,
 			...rest
 		},
 		ref,
@@ -186,6 +187,13 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 			[onChange],
 		);
 
+		const handleClose = useCallback(() => {
+			// An interrupted opening can finish at its original index (-1), so
+			// Gorhom emits onClose without onChange. Retire Back/backdrop ownership.
+			setBackdropActive(false);
+			onClose?.();
+		}, [onClose]);
+
 		return (
 			<ActiveSheetParentContext.Provider value={registerDescendant}>
 				<BackdropActiveContext.Provider value={backdropActive}>
@@ -210,6 +218,7 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 						{...rest}
 						onAnimate={handleAnimate}
 						onChange={handleChange}
+						onClose={handleClose}
 					>
 						{scrollable ? (
 							<BottomSheetScrollView

@@ -27,7 +27,13 @@ vi.mock("@gorhom/bottom-sheet", async () => {
 					children,
 					accessibilityLabel,
 					...props
-				}: { children?: import("react").ReactNode; accessibilityLabel: string },
+				}: {
+					children?: import("react").ReactNode;
+					accessibilityLabel: string;
+					backdropComponent?: import("react").ComponentType<
+						import("@gorhom/bottom-sheet").BottomSheetBackdropProps
+					>;
+				},
 				ref,
 			) => {
 				const handle = useMemo(() => ({ close: vi.fn(), expand: vi.fn() }), []);
@@ -36,6 +42,12 @@ vi.mock("@gorhom/bottom-sheet", async () => {
 				return createElement(
 					"BottomSheet",
 					{ accessibilityLabel, ...props },
+					props.backdropComponent
+						? createElement(
+								props.backdropComponent,
+								{} as import("@gorhom/bottom-sheet").BottomSheetBackdropProps,
+							)
+						: null,
 					children,
 				);
 			},
@@ -170,4 +182,77 @@ describe("actual bottom-sheet Android Back lifecycle", () => {
 		expect(listeners).toHaveLength(0);
 		screen.unmount();
 	});
+});
+
+it.each([
+	"android",
+	"ios",
+])("retires an interrupted open on Gorhom onClose without onChange (%s)", (platform) => {
+	Object.assign(Native.Platform, { OS: platform });
+	const onClose = vi.fn(),
+		onChange = vi.fn(),
+		onAnimate = vi.fn();
+	const screen = render(
+		<BottomSheet
+			accessibilityLabel="interrupted"
+			index={-1}
+			onClose={onClose}
+			onChange={onChange}
+			onAnimate={onAnimate}
+		>
+			<Native.Text>Content</Native.Text>
+		</BottomSheet>,
+	);
+	const sheet = findAllByType(screen.root, "BottomSheet")[0];
+	const backdrop = () =>
+		screen.root.findAll(
+			(node) => node.props.testID === "sheet-backdrop-boundary",
+		)[0];
+	expect(backdrop()?.props.pointerEvents).toBe("none");
+	act(() => sheet?.props.onAnimate(-1, 0));
+	expect(backdrop()?.props.pointerEvents).toBe("box-none");
+	if (platform === "android") {
+		act(() => expect(back()).toBe(true));
+		expect(handles.get("interrupted")?.close).toHaveBeenCalledOnce();
+	}
+	// Installed Gorhom: interrupted -1→open→-1 finishes at its original current
+	// index, so onChange and the closing onAnimate are both omitted; onClose fires.
+	act(() => sheet?.props.onClose?.());
+	expect(onClose).toHaveBeenCalledOnce();
+	expect(onChange).not.toHaveBeenCalled();
+	expect(onAnimate).toHaveBeenCalledExactlyOnceWith(-1, 0);
+	expect(backdrop()?.props.pointerEvents).toBe("none");
+	expect(listeners).toHaveLength(0);
+	expect(back()).toBe(false);
+	act(() => sheet?.props.onAnimate(-1, 0));
+	act(() => sheet?.props.onChange(0));
+	expect(backdrop()?.props.pointerEvents).toBe("box-none");
+	act(() => sheet?.props.onChange(-1));
+	act(() => sheet?.props.onClose?.());
+	expect(onClose).toHaveBeenCalledTimes(2);
+	expect(backdrop()?.props.pointerEvents).toBe("none");
+	expect(listeners).toHaveLength(0);
+	screen.unmount();
+});
+
+it("releases a nested sheet's ancestor lease on an interrupted onClose-only completion", () => {
+	const screen = render(
+		<BottomSheet accessibilityLabel="parent" index={0}>
+			<BottomSheet accessibilityLabel="child" index={-1}>
+				<Native.Text>Child</Native.Text>
+			</BottomSheet>
+		</BottomSheet>,
+	);
+	const child = findAllByType(screen.root, "BottomSheet").find(
+		(sheet) => sheet.props.accessibilityLabel === "child",
+	);
+	act(() => child?.props.onAnimate(-1, 0));
+	act(() => expect(back()).toBe(true));
+	expect(handles.get("child")?.close).toHaveBeenCalledOnce();
+	act(() => child?.props.onClose?.());
+	expect(listeners).toHaveLength(1);
+	act(() => expect(back()).toBe(true));
+	expect(handles.get("parent")?.close).toHaveBeenCalledOnce();
+	expect(handles.get("child")?.close).toHaveBeenCalledOnce();
+	screen.unmount();
 });
