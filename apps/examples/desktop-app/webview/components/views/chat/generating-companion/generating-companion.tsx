@@ -178,7 +178,7 @@ export function GeneratingCompanion({
 				<span
 					ref={spriteRef}
 					aria-hidden="true"
-					className="pointer-events-none block size-[28px] shrink-0 bg-no-repeat opacity-70 grayscale dark:invert"
+					className="pointer-events-none block size-[28px] shrink-0 bg-no-repeat opacity-70 grayscale"
 					style={{
 						backgroundImage: `url("${dance.src}")`,
 						backgroundSize: `${dance.durations.length * 100}% 100%`,
