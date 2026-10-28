@@ -39,13 +39,13 @@ describe("stripUtf8Bom", () => {
 
 describe("string truncation", () => {
 	it.each([
-		["truncateStr", () => truncateStr("a😀bc", 3)],
-		["truncateSplit prefix", () => truncateSplit("a😀bc/rest", "/", 3)],
-		["truncateSplit fallback", () => truncateSplit("/a😀bc", "/", 4)],
-	])("%s does not split a surrogate pair", (_name, truncate) => {
+		["truncateStr", () => truncateStr("a😀bc", 3), "a…"],
+		["truncateSplit prefix", () => truncateSplit("a😀bc/rest", "/", 3), "a…"],
+		["truncateSplit fallback", () => truncateSplit("/a😀bc", "/", 4), "/a…"],
+	])("%s does not split a surrogate pair", (_name, truncate, expected) => {
 		const result = truncate();
 		expect(Buffer.from(result).toString("utf8")).toBe(result);
-		expect(result).toBe(_name === "truncateSplit fallback" ? "/a…" : "a…");
+		expect(result).toBe(expected);
 	});
 
 	it("omits a pair when only one code unit fits", () => {
@@ -77,6 +77,13 @@ describe("sliceUtf16", () => {
 		const result = sliceUtf16("a😀b", start, end);
 		expect(result).toBe(expected);
 		expect(Buffer.from(result).toString("utf8")).toBe(result);
+	});
+
+	it.each([
+		[0, 2],
+		[2, undefined],
+	])("preserves consecutive pairs at offsets %s to %s", (start, end) => {
+		expect(sliceUtf16("😀😀", start, end)).toBe("😀");
 	});
 
 	it("does not remove existing lone surrogates", () => {
