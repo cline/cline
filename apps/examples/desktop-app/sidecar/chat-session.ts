@@ -337,8 +337,8 @@ async function withWorkspaceRestoreLock<T>(
 	}
 
 	ctx.restoringWorkspacePaths.add(key);
-	invalidateHandoffCaptureForWorkspace(ctx, key);
 	try {
+		invalidateHandoffCaptureForWorkspace(ctx, key);
 		return await work();
 	} finally {
 		ctx.restoringWorkspacePaths.delete(key);

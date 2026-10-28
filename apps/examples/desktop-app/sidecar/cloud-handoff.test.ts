@@ -21,6 +21,7 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { createSidecarContext, getEnvironmentContext } from "./context";
+import * as sessionConfig from "./session-config";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -339,6 +340,44 @@ describe("summary cloud handoff", () => {
 			await expect(f.handoff()).rejects.toThrow("review the preparation plan");
 		}
 		expect(f.launch).not.toHaveBeenCalled();
+	});
+	it("releases the restore lock when capture invalidation throws", async () => {
+		const f = await fixture();
+		const ctx = getEnvironmentContext(f.ctx, "local");
+		const restore = vi
+			.fn()
+			.mockRejectedValue(new Error("Restore reached runtime"));
+		Object.assign(localSessionManager(f.ctx), { restore });
+		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(
+			async (_cwd, onCaptured) => {
+				const error = new Error("Workspace path resolution failed");
+				vi.spyOn(sessionConfig, "workspacePathsOverlap").mockImplementationOnce(
+					() => {
+						throw error;
+					},
+				);
+				const request = {
+					action: "restore_checkpoint" as const,
+					sessionId: f.sourceSessionId,
+					checkpointRunCount: 1,
+					config: f.request.config,
+				};
+				await expect(handleChatSessionCommand(ctx, request)).rejects.toBe(
+					error,
+				);
+				expect(restore).not.toHaveBeenCalled();
+				expect(ctx.restoringWorkspacePaths.size).toBe(0);
+				await expect(handleChatSessionCommand(ctx, request)).rejects.toThrow(
+					"Restore reached runtime",
+				);
+				expect(restore).toHaveBeenCalledOnce();
+				onCaptured?.();
+				return f.plan;
+			},
+		);
+		await expect(
+			handlePrepareHandoff(ctx, f.request, f.summarize),
+		).rejects.toThrow("changed during capture");
 	});
 	it("shows a provisioning failure reason without losing the unsent draft", async () => {
 		const f = await fixture();
@@ -787,7 +826,7 @@ describe("summary cloud handoff", () => {
 			warning: expect.stringContaining(
 				dispatched !== false
 					? "delivery is unconfirmed"
-					: "closing it loses the unsent draft",
+					: "Closing Cline or approving another /cloud discards this draft",
 			),
 		});
 		expect(completed).toEqual([expect.objectContaining(result)]);

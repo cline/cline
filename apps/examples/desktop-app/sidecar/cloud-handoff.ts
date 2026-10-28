@@ -434,7 +434,7 @@ async function handleHandoffOnce(
 		warning =
 			warningKind === "unconfirmed"
 				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
-				: "The cloud workspace was created, but the prompt was not sent. Keep Cline open to retry; closing it loses the unsent draft and may require a new cloud task.";
+				: "The cloud task was created, but the prompt was not sent. Open it with the draft to retry. Closing Cline or approving another /cloud discards this draft.";
 		if (failure.detail) warning = `${failure.detail} ${warning}`;
 	}
 	assertHandoffAccount(ctx, cloud, scope);
