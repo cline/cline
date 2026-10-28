@@ -323,6 +323,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	/** Teardowns in progress, so a start for the same id waits instead of replacing the session. */
+	private readonly closingSessions = new Map<
+		string,
+		{ closed: Promise<void>; settle: () => void }
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -519,6 +524,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// Starting a session that is mid-run must not replace it: the replaced
 		// run keeps going unreachable (no abort, no queue) and its transcript
 		// writes resolve to the replacement's stale snapshot. Reattach instead.
+		// A session with this id may still be tearing down; starting over it
+		// would register a replacement that the teardown then deletes.
+		await this.closingSessions.get(sessionId)?.closed;
 		const live = this.sessions.get(sessionId);
 		if (live && this.hasActiveTurn(live)) {
 			if (input.prompt?.trim()) {
@@ -2805,6 +2813,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		reason: string,
 		finalStatus?: SessionStatus,
 	): void {
+		if (!session.shuttingDown) {
+			let settle: () => void = () => {};
+			const closed = new Promise<void>((resolve) => {
+				settle = resolve;
+			});
+			this.closingSessions.set(session.sessionId, { closed, settle });
+		}
 		session.shuttingDown = true;
 		this.reportDiscardedPrompts(
 			session,
@@ -2844,7 +2859,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
+		if (this.sessions.get(session.sessionId) === session) {
+			this.sessions.delete(session.sessionId);
+		}
+		const closing = this.closingSessions.get(session.sessionId);
+		this.closingSessions.delete(session.sessionId);
+		closing?.settle();
 	}
 
 	/** Announces entries that left the queue without being sent, and counts them. */
