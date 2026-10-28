@@ -1565,22 +1565,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
-		const sessions = [...this.sessions.values()];
-		// Flag every session before the first await: a turn that settles while
-		// plugin commands wind down would otherwise drain its queue into a
-		// session this call is about to tear down.
-		for (const session of sessions) {
+		// Decide each session's teardown and flag it before the first await: a
+		// turn that settles while plugin commands wind down would otherwise
+		// drain its queue into a session this call is about to tear down, and
+		// a decision taken after the wait would see that settled turn as an
+		// idle session and record the wrong status.
+		const teardowns = [...this.sessions.values()].map((session) => {
+			const idle = session.interactive && !this.hasActiveTurn(session);
+			const releaseOnly = idle && !isNonTerminalSessionStatus(session.status);
 			this.beginTeardown(session, reason);
-		}
-		await this.pluginCommandManager.dispose();
-		if (sessions.length === 0) return;
-		await Promise.allSettled(
-			sessions.map((session) =>
-				session.interactive &&
-				!isNonTerminalSessionStatus(session.status) &&
-				!this.hasActiveTurn(session)
+			return () =>
+				releaseOnly
 					? this.releaseSessionRuntime(session, reason)
-					: session.interactive && !this.hasActiveTurn(session)
+					: idle
 						? this.shutdownSession(session, {
 								status: this.resolveInteractiveStopStatus(session),
 								exitCode: this.resolveInteractiveStopExitCode(session),
@@ -1592,9 +1589,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 								exitCode: 0,
 								shutdownReason: reason,
 								endReason: "disposed",
-							}),
-			),
-		);
+							});
+		});
+		await this.pluginCommandManager.dispose();
+		if (teardowns.length === 0) return;
+		await Promise.allSettled(teardowns.map((teardown) => teardown()));
 		this.usageBySession.clear();
 		this.aggregateUsageBySession.clear();
 	}

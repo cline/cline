@@ -4363,6 +4363,7 @@ describe("LocalRuntimeHost", () => {
 			holdRowCreation?: boolean;
 			holdSecondRunningWrite?: boolean;
 			holdFirstRunningWrite?: boolean;
+			runningWriteNotUpdated?: boolean;
 			resumedStatus?: "completed";
 		} = {},
 	) {
@@ -4406,6 +4407,7 @@ describe("LocalRuntimeHost", () => {
 					) {
 						await hold();
 					}
+					if (options.runningWriteNotUpdated) return { updated: false };
 				}
 				return { updated: true, endedAt: "2026-01-01T00:00:05.000Z" };
 			}),
@@ -4931,6 +4933,47 @@ describe("LocalRuntimeHost", () => {
 			expect(discarded).toEqual(["queued"]);
 		});
 		expect(agent.continue).not.toHaveBeenCalled();
+	});
+
+	it("records cancelled for a resumed session whose follow-up settles while dispose() waits on plugin cleanup", async () => {
+		const sessionId = "sess-dispose-decides-before-waiting";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdFirstRunningWrite: true,
+			runningWriteNotUpdated: true,
+			resumedStatus: "completed",
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages: [
+					{ role: "user", content: "earlier" },
+					{ role: "assistant", content: "done" },
+				] as never,
+			}),
+		);
+		const followUp = f.manager.runTurn({ sessionId, prompt: "follow-up" });
+		await f.held;
+
+		// The follow-up settles while dispose() is still waiting on plugin
+		// cleanup; the session's status still reads completed from the resume.
+		let releasePluginCleanup: (() => void) | undefined;
+		(
+			f.manager as unknown as {
+				pluginCommandManager: { dispose: () => Promise<void> };
+			}
+		).pluginCommandManager.dispose = () =>
+			new Promise<void>((resolve) => {
+				releasePluginCleanup = resolve;
+			});
+		const disposing = f.manager.dispose();
+		f.release();
+		await expect(followUp).resolves.toMatchObject({ finishReason: "aborted" });
+		releasePluginCleanup?.();
+		await disposing;
+
+		expect(f.statuses()).toEqual(["running", "cancelled"]);
+		expect(f.endReasons).toEqual(["disposed"]);
 	});
 
 	for (const gesture of ["stopSession", "dispose"] as const) {
