@@ -2557,9 +2557,21 @@ export function useChatSession(environmentId: string) {
 						sessionId,
 					})
 					.catch(() => null);
-				// Refresh cached cloud readiness before history can attach.
+				// Cloud history reads can resume a suspended sandbox.
 				const [historyMessages, record] = await Promise.all([
-					isCloudSession ? recordPromise.then(readMessages) : readMessages(),
+					isCloudSession
+						? recordPromise.then((discovered) => {
+								if (
+									cancelled ||
+									activeSessionIdRef.current !== sessionId ||
+									authoritativeStatusRevisionRef.current !== statusRevision ||
+									discovered?.status?.trim() === "suspended"
+								) {
+									return null;
+								}
+								return readMessages();
+							})
+						: readMessages(),
 					recordPromise,
 				]);
 				if (
@@ -2574,6 +2586,11 @@ export function useChatSession(environmentId: string) {
 					turnEpochRef.current !== turnSettledEpochRef.current ||
 					outstandingOptimisticUserIdsRef.current.size > 0
 				) {
+					return;
+				}
+				if (isCloudSession && record?.status?.trim() === "suspended") {
+					authoritativeStatusRevisionRef.current += 1;
+					setStatus("idle");
 					return;
 				}
 				if (Array.isArray(historyMessages) && historyMessages.length > 0) {

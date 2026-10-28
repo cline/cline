@@ -1525,9 +1525,10 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
-		"local",
-		"remote",
-	])("heals a running attached session in %s with a dead event stream by polling history", async (environmentId) => {
+		["local", "local"],
+		["remote", "local"],
+		["local", "cloud"],
+	] as const)("heals a running attached session in %s using %s execution with a dead event stream by polling history", async (environmentId, origin) => {
 		await act(async () =>
 			root.render(<HookHarness environmentId={environmentId} />),
 		);
@@ -1605,10 +1606,14 @@ describe("useChatSession", () => {
 					environmentId,
 					sessionId: hydratedSessionId,
 					status: "running",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace/cline",
-					workspaceRoot: "/workspace/cline",
+					...(origin === "cloud"
+						? { origin, ...cloudSessionConfig }
+						: {
+								provider: "cline",
+								model: "test-model",
+								cwd: "/workspace/cline",
+								workspaceRoot: "/workspace/cline",
+							}),
 					startedAt: "2026-08-12T00:00:00.000Z",
 				});
 			});
@@ -1634,6 +1639,157 @@ describe("useChatSession", () => {
 		}
 
 		expect(current.status).toBe("completed");
+	});
+
+	it("does not refresh or finish a suspended cloud session in the background, but rehydration still reads history", async () => {
+		const sessionId = "session-suspended-poll";
+		const initialMessages = [
+			{
+				id: "suspended-user",
+				sessionId,
+				role: "user",
+				content: "Transcript",
+				createdAt: 1,
+			},
+		];
+		const reopenedMessages = [
+			...initialMessages,
+			{
+				id: "reopened-assistant",
+				sessionId,
+				role: "assistant",
+				content: "Recovered after reopening.",
+				createdAt: 2,
+			},
+		];
+		const queued = [{ id: "queued-prompt", prompt: "Continue", steer: false }];
+		const hydrate = () =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "running",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			});
+		let readCount = 0;
+		let discoveryCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return readCount === 1 ? initialMessages : reopenedMessages;
+				}
+				if (command === "get_discovered_session") {
+					discoveryCount += 1;
+					return { sessionId, status: "suspended" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach")
+						return { sessionId, status: "running", ...cloudSessionConfig };
+				}
+				return [];
+			},
+		);
+		vi.useFakeTimers();
+		try {
+			await act(async () => hydrate());
+			await act(async () =>
+				handlerFor("prompts_in_queue_state")({ sessionId, items: queued }),
+			);
+			expect(current.status).toBe("running");
+			expect(current.messages.map((message) => message.id)).toEqual([
+				"suspended-user",
+			]);
+			expect(current.promptsInQueue).toEqual(queued);
+
+			await act(async () => vi.advanceTimersByTimeAsync(3_100));
+			expect(discoveryCount).toBe(1);
+			expect(readCount).toBe(1);
+			expect(current.status).toBe("idle");
+			expect(current.messages.map((message) => message.id)).toEqual([
+				"suspended-user",
+			]);
+			expect(current.promptsInQueue).toEqual(queued);
+
+			await act(async () => vi.advanceTimersByTimeAsync(9_000));
+			expect(discoveryCount).toBe(1);
+			expect(readCount).toBe(1);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		await act(async () => hydrate());
+		expect(readCount).toBe(2);
+		expect(current.messages.map((message) => message.id)).toEqual([
+			"suspended-user",
+			"reopened-assistant",
+		]);
+	});
+
+	it("does not start a cloud history read when the session changes during discovery", async () => {
+		const oldSessionId = "session-old-discovery";
+		const newSessionId = "session-current-selection";
+		const history = (id: string, sessionId: string) => [
+			{ id, sessionId, role: "user", content: id, createdAt: 1 },
+		];
+		const hydrate = (sessionId: string) =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "running",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			});
+		const pendingDiscovery = deferred<{ status: string }>();
+		let oldReadCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") {
+					if (args?.sessionId === oldSessionId) {
+						oldReadCount += 1;
+						return history("old-user", oldSessionId);
+					}
+					return history("new-user", newSessionId);
+				}
+				if (command === "get_discovered_session") {
+					return pendingDiscovery.promise;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; sessionId?: string }
+						| undefined;
+					if (request?.action === "attach")
+						return {
+							sessionId: request.sessionId,
+							status: "running",
+							...cloudSessionConfig,
+						};
+				}
+				return [];
+			},
+		);
+		vi.useFakeTimers();
+		try {
+			await act(async () => hydrate(oldSessionId));
+			await act(async () => vi.advanceTimersByTimeAsync(3_100));
+			expect(oldReadCount).toBe(1);
+
+			await act(async () => hydrate(newSessionId));
+			pendingDiscovery.resolve({ status: "running" });
+			await act(async () => {
+				await pendingDiscovery.promise;
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			expect(oldReadCount).toBe(1);
+			expect(current.sessionId).toBe(newSessionId);
+			expect(current.messages.map((message) => message.id)).toEqual([
+				"new-user",
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("locks an attached cloud session when discovery polling reports expired", async () => {
