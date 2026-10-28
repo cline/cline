@@ -1,3 +1,5 @@
+import { sliceUtf16 } from "@cline/shared";
+
 /**
  * Shared caps for how much tool output may enter the conversation. Every
  * character returned by an executor is re-sent to the model on each
@@ -30,10 +32,10 @@ export function truncateCommandOutput(
 	const headLimit = Math.ceil(maxChars / 2);
 	const tailLimit = Math.max(1, maxChars - headLimit);
 	return (
-		`${text.slice(0, headLimit)}\n` +
+		`${sliceUtf16(text, 0, headLimit)}\n` +
 		`[... output truncated: ${totalChars} chars total. ` +
 		"Refine the command (grep, head, tail) to view the elided middle ...]\n" +
-		text.slice(-tailLimit)
+		sliceUtf16(text, -tailLimit)
 	);
 }
 
