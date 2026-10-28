@@ -1036,6 +1036,12 @@ describe("cloud RPC over a shared hub socket", () => {
 				/draining/,
 			);
 			await expect(
+				next.sendWithOutcome("ses-one", "Retry work"),
+			).rejects.toThrow(/draining/);
+			expect(
+				f.controllers[0]?.controller.sendWithOutcome,
+			).not.toHaveBeenCalled();
+			await expect(
 				next.create({
 					modelId: "model",
 					repoUrl: "repo",
