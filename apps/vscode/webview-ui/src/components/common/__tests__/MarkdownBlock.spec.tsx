@@ -98,4 +98,12 @@ describe("MarkdownBlock links to local files", () => {
 		fireEvent.click(renderLink("[Rel](html_demos\\_private\\index.html)", "Rel"))
 		expect(grpcMocks.openFileRelativePath).toHaveBeenLastCalledWith({ value: "html_demos\\_private\\index.html" })
 	})
+
+	it("still honours markdown escapes in a path without backslash separators", () => {
+		fireEvent.click(renderLink("[Draft](docs/my\\(draft\\).md)", "Draft"))
+		expect(grpcMocks.openFileRelativePath).toHaveBeenLastCalledWith({ value: "docs/my(draft).md" })
+
+		fireEvent.click(renderLink("[Posix](/Users/jay/notes/my\\(draft\\).md)", "Posix"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "/Users/jay/notes/my(draft).md" })
+	})
 })
