@@ -4900,6 +4900,39 @@ describe("LocalRuntimeHost", () => {
 		).resolves.toMatchObject({ finishReason: "completed" });
 	});
 
+	it("reports a drained prompt as discarded when a listener stops the session on its submitted event", async () => {
+		const sessionId = "sess-stop-from-submitted-listener";
+		const { manager, agent, runStarted } =
+			createAbortedSessionFixture(sessionId);
+		const discarded: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "pending_prompts" && event.payload.discarded) {
+				discarded.push(...event.payload.discarded.map((p) => p.prompt));
+			}
+			// Listeners run synchronously: this stop lands after the drain has
+			// dequeued and announced the prompt, but before it sends it.
+			if (event.type === "pending_prompt_submitted") {
+				void manager.stopSession(sessionId);
+			}
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({ sessionId, prompt: "queued", delivery: "queue" });
+		await manager.abort(sessionId);
+		await expect(firstTurn).resolves.toMatchObject({ finishReason: "aborted" });
+
+		await vi.waitFor(() => {
+			expect(discarded).toEqual(["queued"]);
+		});
+		expect(agent.continue).not.toHaveBeenCalled();
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;
