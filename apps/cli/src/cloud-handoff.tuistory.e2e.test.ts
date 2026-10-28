@@ -32,7 +32,9 @@ const fixtureStateSchema = z.object({
 });
 type FixtureState = z.infer<typeof fixtureStateSchema>;
 
-function launch(fail = false) {
+type FixtureProvider = "cline" | "cline-pass" | "anthropic" | "openrouter";
+
+function launch(fail = false, provider: FixtureProvider = "cline") {
 	const stateDir = mkdtempSync(path.join(os.tmpdir(), "cloud-handoff-tui-"));
 	tempDirs.push(stateDir);
 	const statePath = path.join(stateDir, "state.json");
@@ -57,6 +59,7 @@ function launch(fail = false) {
 			CI: undefined,
 			VITEST: undefined,
 			CLOUD_HANDOFF_FIXTURE_STATE: statePath,
+			CLOUD_HANDOFF_FIXTURE_PROVIDER: provider,
 			CLOUD_HANDOFF_FIXTURE_FAIL: fail ? "1" : undefined,
 		},
 		cols: 120,
@@ -98,6 +101,22 @@ describe("cloud handoff TUI", () => {
 		for (const session of sessions.splice(0)) session.close();
 		for (const dir of tempDirs.splice(0))
 			rmSync(dir, { recursive: true, force: true });
+	});
+
+	it.each([
+		["cline", true],
+		["cline-pass", true],
+		["anthropic", false],
+		["openrouter", false],
+	] as const)("shows /cloud for provider %s: %s", async (provider, visible) => {
+		const { session } = await launch(false, provider);
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/clo");
+		await session.waitForText("/clo", { timeout });
+		await session.waitIdle({ timeout: 2_000 });
+		const screen = await session.text();
+		expect(screen).toContain("/clo");
+		expect(screen.includes("/cloud")).toBe(visible);
 	});
 
 	it("cancels without losing the instruction", async () => {

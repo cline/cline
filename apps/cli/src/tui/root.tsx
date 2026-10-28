@@ -154,7 +154,11 @@ function App(props: TuiProps) {
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		subscribeAdditionalSlashCommands: props.subscribeAdditionalSlashCommands,
 		canFork: canForkSession,
-		cloudEnabled: !!props.cloudSessions && !!props.onPrepareCloudHandoff,
+		cloudEnabled:
+			!!props.cloudSessions &&
+			!!props.onPrepareCloudHandoff &&
+			(props.config.providerId === "cline" ||
+				props.config.providerId === "cline-pass"),
 	});
 
 	const autocomplete = useAutocomplete({

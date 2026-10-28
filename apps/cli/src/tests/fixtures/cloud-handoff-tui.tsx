@@ -20,12 +20,13 @@ const record = <K extends keyof FixtureState>(
 };
 
 const cwd = process.cwd();
+const providerId = process.env.CLOUD_HANDOFF_FIXTURE_PROVIDER ?? "cline";
 const config: Config = {
 	apiKey: "synthetic-test-key",
 	systemPrompt: "",
 	cwd,
 	workspaceRoot: cwd,
-	providerId: "anthropic",
+	providerId,
 	modelId: "synthetic-model",
 	mode: "act",
 	thinking: false,
