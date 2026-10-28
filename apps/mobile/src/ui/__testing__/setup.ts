@@ -482,6 +482,11 @@ vi.mock("expo-sharing", () => ({
 	shareAsync: vi.fn(async () => {}),
 }));
 
+// Public optional navigation context used by responsive session drawer state.
+vi.mock("expo-router/react-navigation", () => ({
+	NavigationContext: require("react").createContext(undefined),
+}));
+
 vi.mock("expo-secure-store", () => ({
 	getItemAsync: vi.fn(async () => null),
 	setItemAsync: vi.fn(async () => {}),

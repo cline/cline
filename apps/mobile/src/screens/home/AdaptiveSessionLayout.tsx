@@ -1,6 +1,8 @@
+import { NavigationContext } from "expo-router/react-navigation";
 import {
 	type ReactNode,
 	useCallback,
+	useContext,
 	useEffect,
 	useRef,
 	useState,
@@ -19,20 +21,29 @@ export function isWideSessionLayout(width: number, left = 0, right = 0) {
 
 /** UI state only: resizing must never change route or connection identity. */
 export function useAdaptiveSessionLayout() {
+	// Screens can also render outside a navigator (previews/tests). Optional
+	// context avoids a throwing useNavigation dependency for those consumers.
+	const navigation = useContext(NavigationContext);
 	const { width } = useWindowDimensions();
 	const insets = useSafeAreaInsets();
 	const wide = isWideSessionLayout(width, insets.left, insets.right);
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [collapsed, setCollapsed] = useState(false);
 	const previousWide = useRef(wide);
+	useEffect(
+		() => navigation?.addListener("blur", () => setDrawerOpen(false)),
+		[navigation],
+	);
 	useEffect(() => {
 		if (previousWide.current !== wide) setDrawerOpen(false);
 		previousWide.current = wide;
 	}, [wide]);
 	const open = useCallback(() => {
+		// A delayed Home recovery effect must not reopen a modal behind a deep link.
+		if (navigation && !navigation.isFocused()) return;
 		if (wide) setCollapsed(false);
 		else setDrawerOpen(true);
-	}, [wide]);
+	}, [navigation, wide]);
 	const close = useCallback(() => {
 		if (wide) setCollapsed(true);
 		else setDrawerOpen(false);

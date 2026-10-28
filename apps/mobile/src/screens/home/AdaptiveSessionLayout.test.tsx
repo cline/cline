@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { NavigationContext } from "expo-router/react-navigation";
+import { type ContextType, useEffect, useState } from "react";
 import * as Native from "react-native";
 import { act } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -124,4 +125,98 @@ it("opens session history on a right swipe without replacing the current content
 	).toBe(true);
 	expect(mounts).toHaveBeenCalledOnce();
 	screen.unmount();
+});
+
+describe("session drawer route ownership", () => {
+	function navigation() {
+		let focused = true;
+		const listeners = new Set<() => void>();
+		const unsubscribe = vi.fn();
+		const value = {
+			isFocused: () => focused,
+			addListener: vi.fn((event: string, listener: () => void) => {
+				expect(event).toBe("blur");
+				listeners.add(listener);
+				return () => {
+					listeners.delete(listener);
+					unsubscribe();
+				};
+			}),
+		} as unknown as NonNullable<ContextType<typeof NavigationContext>>;
+		return {
+			value,
+			unsubscribe,
+			blur: () => {
+				focused = false;
+				for (const listener of listeners) listener();
+			},
+			focus: () => {
+				focused = true;
+			},
+		};
+	}
+	it("dismisses a Home or Chat drawer on blur and ignores delayed open effects while another route owns focus", () => {
+		vi.spyOn(Native, "useWindowDimensions").mockReturnValue({
+			width: 390,
+			height: 844,
+			scale: 2,
+			fontScale: 1,
+		});
+		const nav = navigation();
+		let state!: ReturnType<typeof useAdaptiveSessionLayout>;
+		function Screen() {
+			state = useAdaptiveSessionLayout();
+			return <Native.Text>Current transcript</Native.Text>;
+		}
+		const screen = render(
+			<NavigationContext.Provider value={nav.value}>
+				<Screen />
+			</NavigationContext.Provider>,
+		);
+		act(() => state.open());
+		expect(state.visible).toBe(true);
+		act(() => nav.blur());
+		expect(state.visible).toBe(false);
+		act(() => state.open());
+		expect(state.visible).toBe(false);
+		act(() => nav.focus());
+		// Returning to the old route never restores its stale modal.
+		expect(state.visible).toBe(false);
+		act(() => state.open());
+		expect(state.visible).toBe(true);
+		expect(nav.value.addListener).toHaveBeenCalledOnce();
+		screen.unmount();
+		expect(nav.unsubscribe).toHaveBeenCalledOnce();
+	});
+	it("preserves wide collapsed preference across blur/focus instead of treating inline content as a modal", () => {
+		vi.spyOn(Native, "useWindowDimensions").mockReturnValue({
+			width: 1200,
+			height: 844,
+			scale: 2,
+			fontScale: 1,
+		});
+		const nav = navigation();
+		let state!: ReturnType<typeof useAdaptiveSessionLayout>;
+		function Screen() {
+			state = useAdaptiveSessionLayout();
+			return null;
+		}
+		const screen = render(
+			<NavigationContext.Provider value={nav.value}>
+				<Screen />
+			</NavigationContext.Provider>,
+		);
+		expect(state.visible).toBe(true);
+		act(() => state.close());
+		expect(state.visible).toBe(false);
+		act(() => nav.blur());
+		expect(state.visible).toBe(false);
+		act(() => nav.focus());
+		expect(state.visible).toBe(false);
+		act(() => state.open());
+		expect(state.visible).toBe(true);
+		act(() => nav.blur());
+		expect(state.visible).toBe(true);
+		screen.unmount();
+	});
 });
