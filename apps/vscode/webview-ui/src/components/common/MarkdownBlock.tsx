@@ -32,10 +32,14 @@ function keepLocalFileHref(url: string, key: string): string {
 	return key === "href" && localFileLink(url) ? url : defaultUrlTransform(url)
 }
 
+// A markdown escape is a backslash before ASCII punctuation; a backslash before anything else is a path separator.
+const BACKSLASH_SEPARATED_PATH = /^(?:[a-z]:\\|\\\\)|\\[^\s!-/:-@[-`{-~]/i
+
 /**
- * Keeps a link destination that contains backslashes as written. Markdown reads `\` as an escape, so
+ * Keeps a Windows path link destination as written. Markdown reads `\` as an escape, so
  * `C:\Users\jay\.cline\x.md` would otherwise parse as `C:\Users\jay.cline\x.md` and a UNC path would
- * lose its leading `\\`. A web URL has no backslashes, so its parsed destination is kept.
+ * lose its leading `\\`. A destination whose backslashes all precede punctuation, such as
+ * `docs/my\(draft\).md`, is an escaped path and keeps its parsed form.
  */
 const remarkKeepBackslashDestinations = () => {
 	return (tree: Node, file: { value: unknown }) => {
@@ -47,7 +51,7 @@ const remarkKeepBackslashDestinations = () => {
 				return
 			}
 			const destination = rawLinkDestination(source.slice(start, end))
-			if (destination?.includes("\\")) {
+			if (destination && BACKSLASH_SEPARATED_PATH.test(destination)) {
 				node.url = destination
 			}
 		})
