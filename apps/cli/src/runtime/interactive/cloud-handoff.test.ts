@@ -144,6 +144,33 @@ describe("summary cloud handoff", () => {
 		expect(input.cloud.create).not.toHaveBeenCalled();
 	});
 
+	it("aborts a stalled summary without publishing", async () => {
+		const timeout = new AbortController();
+		const deadline = vi
+			.spyOn(AbortSignal, "timeout")
+			.mockReturnValue(timeout.signal);
+		try {
+			const input = fixture();
+			const prepared = await prepareCloudHandoff(input);
+			helpers.summarize.mockImplementationOnce(
+				({ signal }) =>
+					new Promise((_, reject) =>
+						signal?.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						}),
+					),
+			);
+			const starting = prepared.start(vi.fn());
+			const rejected = expect(starting).rejects.toThrow("Summary timed out");
+			timeout.abort(new Error("Summary timed out"));
+			await rejected;
+			expect(deadline).toHaveBeenCalledWith(120_000);
+			expect(input.cloud.create).not.toHaveBeenCalled();
+		} finally {
+			deadline.mockRestore();
+		}
+	});
+
 	it("rejects account changes after confirmation and unavailable models during preparation", async () => {
 		const input = fixture();
 		const prepared = await prepareCloudHandoff(input);

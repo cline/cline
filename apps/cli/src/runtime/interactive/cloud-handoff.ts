@@ -122,6 +122,7 @@ export async function prepareCloudHandoff(input: {
 					await summarizeConversation({
 						messages: source.messages,
 						config: input.connection,
+						signal: AbortSignal.timeout(120_000),
 					})
 				).trim();
 				assertAccount();
