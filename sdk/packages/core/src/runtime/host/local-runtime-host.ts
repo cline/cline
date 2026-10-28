@@ -1324,6 +1324,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// Resolving undefined here would look like an accepted queued prompt
 		// to the caller, who could not tell the user that the input was lost.
 		if (session.shuttingDown) {
+			// A drained entry was already announced as submitted; teardown that
+			// landed between that announcement and this call must still report it.
+			if (drained) {
+				this.reportDiscardedPrompts(session, [drained], "session_teardown");
+			}
 			throw new Error(`Session ${input.sessionId} is shutting down`);
 		}
 		// A turn still preparing counts as busy, so a second send during that
