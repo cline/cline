@@ -192,3 +192,42 @@ describe("conversation navigation", () => {
 		}
 	});
 });
+
+it("never indexes persisted runtime reminders as authored conversation prompts", async () => {
+	const { createSessionState, reduceSession, selectViewModel } = await import(
+		"@/session"
+	);
+	const { parseSessionMessagesReply } = await import("@/session/schemas");
+	const parsed = parseSessionMessagesReply({
+		messages: [
+			{
+				role: "user",
+				content: "[SYSTEM] INTERNAL_REMINDER_TOOL must finish.",
+				metadata: { userRunSpan: 0 },
+			},
+			{
+				role: "user",
+				content:
+					'<user_input mode="act">Keep [SYSTEM] and <system-reminder>authored XML</system-reminder>.</user_input>',
+				metadata: { userRunSpan: 0 },
+			},
+			{ role: "assistant", content: "Visible answer" },
+		],
+	});
+	if (parsed.status !== "ok") throw new Error("Fixture must parse");
+	const view = selectViewModel(
+		reduceSession(createSessionState(), {
+			type: "hydrated",
+			messages: parsed.messages,
+		}),
+	);
+	expect(conversationEntries(view.messages, "INTERNAL_REMINDER")).toEqual([]);
+	expect(conversationEntries(view.messages, "")).toMatchObject([
+		{
+			role: "user",
+			preview:
+				"Keep [SYSTEM] and <system-reminder>authored XML</system-reminder>.",
+		},
+	]);
+	expect(conversationEntries(view.messages, "authored XML")).toHaveLength(1);
+});

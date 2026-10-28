@@ -1569,3 +1569,108 @@ it("removes stale run status while reconnecting and shows the new authoritative 
 	expect(containsText(screen.root, "Completed")).toBe(true);
 	screen.unmount();
 });
+
+describe("initial Home send asynchronous ownership", () => {
+	it("never overwrites a newer composer draft when the initial send rejects late", async () => {
+		const send = Promise.withResolvers<void>();
+		const sendInput = vi.fn(() => send.promise);
+		const screen = render(
+			<ChatScreen
+				connection={fakeConnection({ sendInput })}
+				draftKey="late-rejected-initial"
+				initialMessage="Original Home prompt"
+			/>,
+		);
+		await act(async () => {});
+		expect(sendInput).toHaveBeenCalledOnce();
+		act(() =>
+			findByLabel(screen.root, "Message composer")?.props.onChangeText(
+				"New follow-up draft",
+			),
+		);
+		await act(async () => send.reject(new Error("Lost acknowledgement")));
+		expect(findByLabel(screen.root, "Message composer")?.props.value).toBe(
+			"New follow-up draft",
+		);
+		expect(readSessionDraft("late-rejected-initial")).toBe(
+			"New follow-up draft",
+		);
+		screen.unmount();
+	});
+	it("rechecks image compatibility after durable consumption instead of sending into a newly text-only model", async () => {
+		const consumption = Promise.withResolvers<void>();
+		const sendInput = vi.fn(async () => {});
+		const props = {
+			connection: fakeConnection({ sendInput }),
+			initialMessage: "Review screenshot",
+			initialAttachments: { userImages: ["data:image/jpeg;base64,/9j/"] },
+			onInitialMessageConsumed: () => consumption.promise,
+		};
+		const screen = render(<ChatScreen {...props} supportsImages />);
+		await act(async () => {});
+		act(() =>
+			screen.renderer.update(<ChatScreen {...props} supportsImages={false} />),
+		);
+		await act(async () => consumption.resolve());
+		expect(sendInput).not.toHaveBeenCalled();
+		expect(findByLabel(screen.root, "Message composer")?.props.value).toBe(
+			"Review screenshot",
+		);
+		expect(findByLabel(screen.root, "Image 1")).toBeDefined();
+		await act(async () =>
+			screen.renderer.update(<ChatScreen {...props} supportsImages />),
+		);
+		expect(sendInput).not.toHaveBeenCalled();
+		await act(async () => findByLabel(screen.root, "Send")?.props.onPress());
+		expect(sendInput).toHaveBeenCalledExactlyOnceWith(
+			"Review screenshot",
+			props.initialAttachments,
+		);
+		screen.unmount();
+	});
+});
+
+it("treats a same-turn text edit as takeover before durable consumption resolves", async () => {
+	const consumption = Promise.withResolvers<void>();
+	const sendInput = vi.fn(async () => {});
+	const screen = render(
+		<ChatScreen
+			connection={fakeConnection({ sendInput })}
+			initialMessage="Original pending"
+			onInitialMessageConsumed={() => consumption.promise}
+		/>,
+	);
+	await act(async () => {});
+	await act(async () => {
+		findByLabel(screen.root, "Message composer")?.props.onChangeText(
+			"Same-turn takeover",
+		);
+		consumption.resolve();
+		await Promise.resolve();
+	});
+	expect(sendInput).not.toHaveBeenCalled();
+	expect(findByLabel(screen.root, "Message composer")?.props.value).toBe(
+		"Same-turn takeover",
+	);
+	screen.unmount();
+});
+it("never uploads an image removed in the same turn that durable consumption resolves", async () => {
+	const consumption = Promise.withResolvers<void>();
+	const sendInput = vi.fn(async () => {});
+	const screen = render(
+		<ChatScreen
+			connection={fakeConnection({ sendInput })}
+			initialMessage="Retain caption"
+			initialAttachments={{ userImages: ["data:image/jpeg;base64,/9j/"] }}
+			onInitialMessageConsumed={() => consumption.promise}
+		/>,
+	);
+	await act(async () => {});
+	await act(async () => {
+		findByLabel(screen.root, "Remove Image 1")?.props.onPress();
+		consumption.resolve();
+		await Promise.resolve();
+	});
+	expect(sendInput).toHaveBeenCalledExactlyOnceWith("Retain caption");
+	screen.unmount();
+});

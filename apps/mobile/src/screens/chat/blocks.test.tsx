@@ -310,7 +310,7 @@ describe("ReasoningBlock", () => {
 });
 
 describe("ToolActivityCard", () => {
-	it("opens file diffs immediately and keeps completed rows quiet", () => {
+	it("collapses completed file diffs until explicitly opened", () => {
 		const message: SessionMessageView = {
 			id: "edit-1",
 			role: "assistant",
@@ -330,8 +330,102 @@ describe("ToolActivityCard", () => {
 		};
 		const { root } = render(<AssistantMessage message={message} />);
 		const tool = findByLabelPrefix(root, "Tool ");
-		expect(tool?.props.accessibilityState).toEqual({ expanded: true });
+		expect(tool?.props.accessibilityState).toEqual({ expanded: false });
+		act(() => tool?.props.onPress());
+		expect(findByLabelPrefix(root, "Tool ")?.props.accessibilityState).toEqual({
+			expanded: true,
+		});
 		expect(containsText(root, "a.ts")).toBe(true);
+	});
+
+	function toolMessage(
+		state: "running" | "completed" | "failed",
+	): SessionMessageView {
+		return {
+			id: "tool-turn",
+			role: "assistant",
+			origin: "live",
+			blocks: [
+				{
+					kind: "tool",
+					toolCallId: "edit-tool",
+					name: "apply_patch",
+					state,
+					input: {
+						input:
+							"*** Begin Patch\n*** Update File: a.ts\n@@\n-old\n+new\n*** End Patch",
+					},
+					...(state === "failed" ? { error: "Permission denied" } : {}),
+				},
+			],
+		};
+	}
+	it("auto-collapses successful work but keeps running and failed work visible", () => {
+		const { root, renderer } = render(
+			<AssistantMessage message={toolMessage("running")} />,
+		);
+		const expanded = () =>
+			findByLabelPrefix(root, "Tool ")?.props.accessibilityState.expanded;
+		expect(expanded()).toBe(true);
+		act(() =>
+			renderer.update(<AssistantMessage message={toolMessage("failed")} />),
+		);
+		expect(expanded()).toBe(true);
+		act(() =>
+			renderer.update(<AssistantMessage message={toolMessage("completed")} />),
+		);
+		expect(expanded()).toBe(false);
+	});
+	it.each([
+		true,
+		false,
+	])("retains explicit expansion %s through completion and virtualization", (choice) => {
+		const tree = (state: "running" | "completed", visible = true) => (
+			<ReasoningStateProvider>
+				{visible ? <AssistantMessage message={toolMessage(state)} /> : null}
+			</ReasoningStateProvider>
+		);
+		const { root, renderer } = render(tree("running"));
+		act(() => findByLabelPrefix(root, "Tool ")?.props.onPress());
+		if (choice) act(() => findByLabelPrefix(root, "Tool ")?.props.onPress());
+		act(() => renderer.update(tree("completed")));
+		expect(
+			findByLabelPrefix(root, "Tool ")?.props.accessibilityState.expanded,
+		).toBe(choice);
+		act(() => renderer.update(tree("completed", false)));
+		act(() => renderer.update(tree("completed")));
+		expect(
+			findByLabelPrefix(root, "Tool ")?.props.accessibilityState.expanded,
+		).toBe(choice);
+	});
+
+	it("isolates remembered choices when separate turns reuse a tool call ID", () => {
+		const tree = (visible = true) => (
+			<ReasoningStateProvider>
+				{visible
+					? ["first-turn", "second-turn"].map((id) => (
+							<AssistantMessage
+								key={id}
+								message={{ ...toolMessage("completed"), id }}
+							/>
+						))
+					: null}
+			</ReasoningStateProvider>
+		);
+		const { root, renderer } = render(tree());
+		const tools = () =>
+			root
+				.findAll((node) => node.type === AssistantMessage)
+				.map((row) => findByLabelPrefix(row, "Tool "));
+		act(() => tools()[0]?.props.onPress());
+		expect(
+			tools().map((tool) => tool?.props.accessibilityState.expanded),
+		).toEqual([true, false]);
+		act(() => renderer.update(tree(false)));
+		act(() => renderer.update(tree()));
+		expect(
+			tools().map((tool) => tool?.props.accessibilityState.expanded),
+		).toEqual([true, false]);
 	});
 
 	it("uses the spinner, not violet text, as the live-tool signal", () => {

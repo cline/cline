@@ -9,7 +9,6 @@
  */
 
 import { Brain } from "lucide-react-native";
-import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { userErrorMessage } from "@/error-message";
 import type { MessageBlock, SessionMessageView } from "@/session";
@@ -175,7 +174,7 @@ function BlockView({
 				/>
 			);
 		case "tool":
-			return <ToolActivityCard block={block} />;
+			return <ToolActivityCard block={block} blockKey={blockKey} />;
 		case "media":
 			return <GeneratedMediaBlock media={block.media} />;
 	}
@@ -293,7 +292,9 @@ function countLines(text: string): number {
 
 function ToolActivityCard({
 	block,
+	blockKey,
 }: {
+	blockKey: string;
 	block: Extract<MessageBlock, { kind: "tool" }>;
 }) {
 	const theme = useTheme();
@@ -307,14 +308,20 @@ function ToolActivityCard({
 	const label = toolLabel(block.name, block.state, block.input);
 	const files = parseToolDiff(block.name, block.input, block.output);
 	const hasFileDiff = files.length > 0;
-	const [expanded, setExpanded] = useState(hasFileDiff);
-	const [userToggled, setUserToggled] = useState(false);
-
-	// File changes open as soon as they arrive, like desktop. Once the person
-	// explicitly toggles this row, their choice wins for the rest of its lifetime.
-	useEffect(() => {
-		if (hasFileDiff && !userToggled) setExpanded(true);
-	}, [hasFileDiff, userToggled]);
+	const choiceKey = `tool:${blockKey}:${block.toolCallId ?? "anonymous"}`;
+	const [userToggled, setUserToggled] = useRememberedFlag(
+		`${choiceKey}:toggled`,
+		false,
+	);
+	const [manualExpanded, setManualExpanded] = useRememberedFlag(
+		`${choiceKey}:expanded`,
+		false,
+	);
+	// Successful work recedes automatically. Active diffs and failures remain
+	// visible; explicit choices survive completion and virtualized row remounts.
+	const expanded = userToggled
+		? manualExpanded
+		: block.state === "failed" || (block.state === "running" && hasFileDiff);
 
 	// Accent means alive now. Finished work recedes so a long transcript scans.
 	const triggerColor =
@@ -339,7 +346,7 @@ function ToolActivityCard({
 			expanded={expanded}
 			onToggle={(next) => {
 				setUserToggled(true);
-				setExpanded(next);
+				setManualExpanded(next);
 			}}
 			style={{ marginVertical: 4 }}
 		>

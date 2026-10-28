@@ -1001,6 +1001,23 @@ function applySessionEvent(
 		event.timestamp !== undefined && event.timestamp > 0
 			? event.timestamp
 			: undefined;
+	// Terminal projection awaits a snapshot while the queue may start its next
+	// turn. The attached running snapshot describes the current session; ending
+	// it here would disable Abort and announce completion between queued turns.
+	if (
+		(event.name === "run.completed" ||
+			event.name === "run.aborted" ||
+			event.name === "run.failed") &&
+		event.payload.snapshot?.status === "running"
+	) {
+		return {
+			...state,
+			runStatus: "running",
+			...(state.runStatus !== "running"
+				? { lastRun: undefined, lastError: undefined }
+				: {}),
+		};
+	}
 	switch (event.name) {
 		case "run.started":
 			return {
@@ -1118,11 +1135,23 @@ function applySessionEvent(
 		// nothing must not erase a model we already know.
 		case "session.updated": {
 			const model = readSessionModel(event.payload.session);
-			if (!model) {
-				return state;
-			}
-			return { ...state, model };
+			const resumed =
+				event.payload.session.status === "running" &&
+				state.runStatus !== "running";
+			if (!model && !resumed) return state;
+			return {
+				...state,
+				...(model ? { model } : {}),
+				...(resumed
+					? {
+							runStatus: "running" as const,
+							lastRun: undefined,
+							lastError: undefined,
+						}
+					: {}),
+			};
 		}
+
 		// A snapshot of the whole queue, so replace rather than merge — the hub
 		// re-broadcasts the full list on every enqueue, edit, removal and drain.
 		case "session.pending_prompts":

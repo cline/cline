@@ -47,6 +47,14 @@ The fixture bundle is a simulator test artifact. This packaging script is not a
 TestFlight/device distribution build. The native shell must include the same
 modules as the source bundle being tested.
 
+Check SecureStore access after replacing the native shell: the tested unsigned
+SDK27.1 shell compiled successfully but rejected Keychain access with a missing
+entitlement. For JavaScript-only changes with unchanged native dependencies, the
+validated fallback is the previously working native shell plus the exact latest
+JS/assets, followed by a persisted-auth/profile/balance cold-launch smoke. Record
+that native-base provenance separately from a fresh native build. Device builds
+still need the owning Apple team's signing configuration.
+
 ## Simulator storage isolation
 
 Different bundle IDs alone do not isolate Keychain entries in unsigned simulator
@@ -65,6 +73,13 @@ fixture repository through the normal UI. Existing server rows are unaffected.
 Stop using older fixture bundles before restoring normal app preferences; they
 lack this isolation. Do not reset a normal app or clear its Keychain to prepare a
 fixture. Prefer a disposable simulator for fixture work in all cases.
+
+For authenticated cold-start/notification-tap acceptance, set
+`CLINE_NATIVE_FIXTURE_EPHEMERAL_AUTH=0` when running either fixture build script.
+This exercises the shipping credential persistence through the same isolated
+SecureStore namespace using only the synthetic fixture identity. Sign in through
+the fixture browser once before cold relaunching. The default remains ephemeral
+(`1`); do not count a signed-out ephemeral cold launch as authenticated acceptance.
 
 ## Deterministic interactions
 
@@ -185,6 +200,7 @@ Global setup faults affect both simulators: coordinate them before changing.
 | `repositories-error`, `repositories-empty`, `repositories-delay-ms` | Repository 403/reconnect, empty results or loading; clear and Retry/refresh |
 | `branches-error`, `branches-empty`, `branches-delay-ms` | Branch loading/retry/empty; available safe branches are main and fixture-safe-branch |
 | `models-error` | Model REST catalog 503; clear then Retry |
+| `balance-error` | Existing account-balance endpoint 503; Settings Retry recovers the synthetic $12.34 balance |
 | `history-error`, `details-error`, `status-error` | Selected task archive/detail/status request 503; clear and Retry |
 | `rename-error`, `delete-error`, `suspend-error`, `resume-error` | Selected task action rejected before mutation; cancel/clear/retry then confirm exact task |
 | `hydrate-error`, `abort-error`, `send-error` | Selected task protocol read/Abort/send rejected before dispatch; retained transcript/draft/Retry |

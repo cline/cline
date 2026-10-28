@@ -11,7 +11,8 @@ export CLINE_NATIVE_FIXTURE_DIR="$fixture_dir"
 export CLINE_NATIVE_FIXTURE_ANDROID_BUILD_DIR="$output_dir/app-build"
 export EXPO_OVERRIDE_METRO_CONFIG="$fixture_dir/metro.config.cjs"
 export EXPO_PUBLIC_ENV=staging
-export EXPO_PUBLIC_STAGING_EPHEMERAL_AUTH=1
+export EXPO_PUBLIC_STAGING_EPHEMERAL_AUTH="${CLINE_NATIVE_FIXTURE_EPHEMERAL_AUTH:-1}"
+case "$EXPO_PUBLIC_STAGING_EPHEMERAL_AUTH" in 0|1) ;; *) echo "Expected fixture ephemeral auth 0 or 1" >&2; exit 1;; esac
 export EXPO_PUBLIC_NATIVE_FIXTURE_BASE="${EXPO_PUBLIC_NATIVE_FIXTURE_BASE:-http://127.0.0.1:4783}"
 cd "$mobile_dir/android"
 ./gradlew --init-script "$fixture_dir/android-fixture.init.gradle" app:assembleRelease --no-watch-fs --max-workers=4 -x lint -x test -PreactNativeArchitectures=arm64-v8a

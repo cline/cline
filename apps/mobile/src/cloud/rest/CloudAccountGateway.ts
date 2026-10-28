@@ -79,4 +79,44 @@ export class CloudAccountGateway {
 			body: JSON.stringify({ organizationId: organizationId ?? null }),
 		});
 	}
+
+	/** Match desktop's USD display: one dollar is 1,000,000 API microcredits. */
+	async creditBalance(organizationId?: string): Promise<number> {
+		let path: string;
+		let userId: string | undefined;
+		if (organizationId) {
+			path = `/api/v1/organizations/${encodeURIComponent(organizationId)}/balance`;
+		} else {
+			const me = await this.request("/api/v1/users/me");
+			const parsed = z
+				.object({
+					success: z.literal(true).optional(),
+					data: z.object({ id: z.string().min(1) }),
+				})
+				.safeParse(await me.json());
+			if (!parsed.success)
+				throw new Error("Your credit balance could not be loaded.");
+			userId = parsed.data.data.id;
+			path = `/api/v1/users/${encodeURIComponent(userId)}/balance`;
+		}
+		const response = await this.request(path);
+		const parsed = z
+			.object({
+				success: z.literal(true).optional(),
+				data: z.object({
+					balance: z.number().finite(),
+					userId: z.string().optional(),
+					organizationId: z.string().optional(),
+				}),
+			})
+			.safeParse(await response.json());
+		if (
+			!parsed.success ||
+			(organizationId
+				? parsed.data.data.organizationId !== organizationId
+				: parsed.data.data.userId !== userId)
+		)
+			throw new Error("Your credit balance could not be loaded.");
+		return parsed.data.data.balance / 1_000_000;
+	}
 }

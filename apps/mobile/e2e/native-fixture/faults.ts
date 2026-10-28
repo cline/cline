@@ -17,6 +17,7 @@ export const FAULTS = new Set([
 	"branches-empty",
 	"branches-delay-ms",
 	"models-error",
+	"balance-error",
 	"history-error",
 	"details-error",
 	"status-error",

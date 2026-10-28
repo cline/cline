@@ -258,6 +258,70 @@ try {
 	console.log(
 		"PASS scoped WS hydrate/abort/approval/question/send/model/catalog fault controls",
 	);
+	const failureEvents: any[] = [];
+	const stopFailureEvents = ca.subscribe((event: any) => {
+		if (event.sessionId === taskIds[0]) failureEvents.push(event);
+	});
+	try {
+		await ca.command(
+			"session.send_input",
+			{ prompt: "fixture-error" },
+			taskIds[0],
+		);
+	} catch {
+		// The deterministic runtime throws; the command may reject while the
+		// real Hub publishes run.failed. Both must describe the same outcome.
+	}
+	await Bun.sleep(30);
+	const failedSession = await ca.command(
+		"session.get",
+		{ sessionId: taskIds[0] },
+		taskIds[0],
+	);
+	assert(
+		failedSession.payload.session.status === "failed",
+		"Thrown fixture-error must remain failed when reopened",
+	);
+	const failures = failureEvents.filter(
+		(event) => event.event === "run.failed",
+	);
+	assert(failures.length > 0, "Thrown fixture-error must project run.failed");
+	// The Hub's rejected-command path carries the exception without a snapshot;
+	// projector-originated terminal events include the authoritative snapshot.
+	assert(
+		failures.every(
+			(event) =>
+				!event.payload.snapshot || event.payload.snapshot.status === "failed",
+		),
+		"Thrown fixture-error terminal snapshots must be failed when present",
+	);
+	const finalStatus = failureEvents
+		.filter((event) => event.event === "session.updated")
+		.at(-1);
+	assert(
+		finalStatus?.payload.session.status === "failed" &&
+			finalStatus?.payload.snapshot.status === "failed",
+		"Thrown fixture-error must publish a final failed session and snapshot",
+	);
+
+	await ca.command(
+		"session.send_input",
+		{ prompt: "RECOVER_AFTER_RUNTIME_FAILURE" },
+		taskIds[0],
+	);
+	const recoveredSession = await ca.command(
+		"session.get",
+		{ sessionId: taskIds[0] },
+		taskIds[0],
+	);
+	assert(
+		recoveredSession.payload.session.status === "completed",
+		"Ordinary turn after fixture-error must recover to completed",
+	);
+	stopFailureEvents();
+	console.log(
+		"PASS thrown runtime failure remains failed in terminal/status/reopen and subsequent turn recovers",
+	);
 	const completed = [0, 0];
 	const activeStatuses: string[] = [];
 	let mobileState = reduceSession(createSessionState(), {

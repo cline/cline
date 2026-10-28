@@ -276,10 +276,14 @@ function ChatScreenBody({
 			(draftKey ? readSessionDraft(draftKey) : undefined) ??
 			"",
 	);
+	// Update synchronously too: a pending save may settle before React commits an edit.
+	const draftRef = useRef(draft);
+	draftRef.current = draft;
 	const ownedDraftEpoch = useRef(sessionDraftEpoch()).current;
 	const updateDraft = useCallback(
 		(next: string) => {
 			if (sessionDraftEpoch() !== ownedDraftEpoch) return;
+			draftRef.current = next;
 			setDraft(next);
 			if (draftKey) writeSessionDraft(draftKey, next);
 		},
@@ -314,12 +318,17 @@ function ChatScreenBody({
 	});
 	const stagedInitialAttachmentsRef = useRef(stagedInitialAttachments);
 	stagedInitialAttachmentsRef.current = stagedInitialAttachments;
+	const initialImageCapabilityRef = useRef({
+		checkingImageSupport,
+		supportsImages,
+	});
+	initialImageCapabilityRef.current = { checkingImageSupport, supportsImages };
 	const updateStagedImages = useCallback(
 		(userImages: string[]) => {
 			if (sessionDraftEpoch() !== ownedDraftEpoch) return;
-			setStagedInitialAttachments(
-				userImages.length > 0 ? { userImages } : undefined,
-			);
+			const next = userImages.length > 0 ? { userImages } : undefined;
+			stagedInitialAttachmentsRef.current = next;
+			setStagedInitialAttachments(next);
 			if (draftKey) writeSessionDraftImages(draftKey, userImages);
 			onInitialAttachmentsChange?.(userImages);
 		},
@@ -391,10 +400,6 @@ function ChatScreenBody({
 		};
 	}, []);
 
-	// Read at fire time, not via deps: putting `draft` in the effect's deps
-	// would re-run it on every keystroke.
-	const draftRef = useRef(draft);
-	draftRef.current = draft;
 	const previousDraftKeyRef = useRef(draftKey);
 	useEffect(() => {
 		if (sessionDraftEpoch() !== ownedDraftEpoch) return;
@@ -447,6 +452,16 @@ function ChatScreenBody({
 				setConsumingInitialSubmission(false);
 				return;
 			}
+			const capability = initialImageCapabilityRef.current;
+			if (
+				currentAttachments?.userImages?.length &&
+				(capability.checkingImageSupport || capability.supportsImages === false)
+			) {
+				// Consumption is durable, but the changed model cannot accept these images.
+				// Keep the editable payload for an explicit send after the user resolves it.
+				setConsumingInitialSubmission(false);
+				return;
+			}
 			updateStagedImages([]);
 			setConsumingInitialSubmission(false);
 			updateDraft("");
@@ -454,9 +469,9 @@ function ChatScreenBody({
 				? connection.sendInput(message, currentAttachments)
 				: connection.sendInput(message);
 			void send.catch(() => {
-				// The route-level one-shot has been consumed, but the user's text is not
-				// lost: a transport rejection restores it for an explicit retry.
-				updateDraft(message);
+				// SessionConnection retains the complete failed bubble for Retry, just
+				// like manual sends. Never overwrite a newer draft or duplicate the send
+				// back into the composer after a late/lost acknowledgement.
 			});
 		};
 		void consume();

@@ -14,7 +14,7 @@ import { Button, Text, useTheme } from "@/ui";
 export function AccountSwitcher() {
 	const theme = useTheme();
 	const { store } = useCloudAuth();
-	const { selectScope, beginRefresh } = useCloudAccountScope();
+	const { beginSelection, beginRefresh } = useCloudAccountScope();
 	const gateway = useMemo(
 		() =>
 			new CloudAccountGateway({
@@ -69,11 +69,16 @@ export function AccountSwitcher() {
 	const choose = async (account: CloudAccount) => {
 		if (busy.current || account.active) return;
 		busy.current = true;
+		const publishSelection = beginSelection();
 		setSwitching(true);
 		setError(undefined);
 		try {
 			await gateway.switchAccount(account.organizationId);
-			selectScope({ organizationId: account.organizationId });
+			if (
+				!mounted.current ||
+				!publishSelection({ organizationId: account.organizationId })
+			)
+				return;
 			if (mounted.current)
 				setAccounts((current) =>
 					current.map((row) => ({

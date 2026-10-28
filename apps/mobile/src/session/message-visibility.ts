@@ -11,6 +11,11 @@ const SYNTHETIC_USER_KINDS = new Set([
 	"recovery_notice",
 ]);
 
+// AgentRuntime.addUserReminderMessage persists this nudge with userRunSpan: 0,
+// without a kind/displayRole. Keep matching exact text, not reminder-like prose.
+const OUTPUT_LIMIT_REMINDER =
+	"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
+
 export function isInternalTranscriptMessage(message: {
 	role: string;
 	metadata?: unknown;
@@ -63,6 +68,14 @@ export function isInternalTranscriptMessage(message: {
 	// also removes inline tags and arbitrary mode notices, which could turn an
 	// authored XML example into one of the exact continuation strings below.
 	const trimmed = content.trim();
+	// Match desktop's runtime steering provenance. A zero span alone also marks
+	// genuine mid-run user steering, and a person's [SYSTEM] example can appear
+	// inside user_input. Do not unwrap before this check or hide unmarked text.
+	if (
+		record.userRunSpan === 0 &&
+		(/^\[SYSTEM\](?:\s|$)/.test(trimmed) || trimmed === OUTPUT_LIMIT_REMINDER)
+	)
+		return true;
 	const envelope =
 		/^<user_input mode="(?:act|plan|yolo)">([\s\S]*)<\/user_input>$/.exec(
 			trimmed,

@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+	messageCopyText,
+	messageDisplayText,
+	visibleTranscriptMessages,
+} from "../screens/chat/message-text";
 import { createSessionState, reduceSession, selectViewModel } from "./reducer";
 import { parseSessionMessagesReply } from "./schemas";
 
@@ -222,4 +227,106 @@ describe("runtime history visibility metadata", () => {
 			true,
 		);
 	});
+});
+
+it("hides metadata-marked runtime reminders from rows, copy and conversation search while preserving authored text", () => {
+	const internal =
+		"[SYSTEM] This run is not complete until you call one of these terminal completion tools: submit_and_exit. Continue working if requirements are not met. If the task is complete, call the appropriate terminal completion tool now.";
+	const outputLimit =
+		"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
+	const payload = {
+		messages: [
+			{
+				role: "user",
+				content: [{ type: "text", text: internal }],
+				metadata: { userRunSpan: 0 },
+			},
+			{
+				role: "user",
+				content:
+					"[SYSTEM] You still have team obligations. Unfinished tasks: task1 (pending): inspect. Do NOT stop until all tasks are completed.",
+				metadata: { userRunSpan: 0 },
+			},
+			{ role: "user", content: outputLimit, metadata: { userRunSpan: 0 } },
+			{ role: "user", content: internal },
+			{
+				role: "user",
+				content: `<user_input mode="act">${internal}</user_input>`,
+				metadata: { userRunSpan: 0 },
+			},
+			{
+				role: "user",
+				content: "Visible mid-run steering",
+				metadata: { userRunSpan: 0 },
+			},
+			{ role: "assistant", content: internal, metadata: { userRunSpan: 0 } },
+			{
+				role: "user",
+				content:
+					"```xml\n<system-reminder>authored example</system-reminder>\n```",
+				metadata: { userRunSpan: 0 },
+			},
+		],
+	};
+	const parsed = parseSessionMessagesReply(payload);
+	if (parsed.status !== "ok") throw new Error("Fixture must parse");
+	const view = selectViewModel(
+		reduceSession(createSessionState(), {
+			type: "hydrated",
+			messages: parsed.messages,
+		}),
+	);
+	expect(view.messages.map((message) => message.hidden === true)).toEqual([
+		true,
+		true,
+		true,
+		false,
+		false,
+		false,
+		false,
+		false,
+	]);
+	expect(visibleTranscriptMessages(view.messages)).toHaveLength(5);
+	for (const message of view.messages.slice(0, 3)) {
+		expect(messageDisplayText(message)).toBe("");
+		expect(messageCopyText(message)).toBe("");
+	}
+	expect(messageCopyText(view.messages[4]!)).toBe(internal);
+	expect(messageCopyText(view.messages[7]!)).toContain(
+		"<system-reminder>authored example</system-reminder>",
+	);
+});
+
+it("does not mistake zero-span user steering, attachments, error notices or malformed metadata for runtime reminders", () => {
+	const messages = [
+		{
+			role: "user" as const,
+			content: "[SYSTEM] I wrote this prefix",
+			metadata: { userRunSpan: "0" },
+		},
+		{
+			role: "user" as const,
+			content: [
+				{ type: "text", text: "[SYSTEM] Describe my image" },
+				{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+			],
+			metadata: { userRunSpan: 0 },
+		},
+		{
+			role: "assistant" as const,
+			content: "[SYSTEM] Useful error",
+			metadata: { userRunSpan: 0, displayRole: "error" },
+		},
+	];
+	const parsed = parseSessionMessagesReply({ messages });
+	if (parsed.status !== "ok") throw new Error("Fixture must parse");
+	expect(parsed.invalidCount).toBe(0);
+	const view = selectViewModel(
+		reduceSession(createSessionState(), {
+			type: "hydrated",
+			messages: parsed.messages,
+		}),
+	);
+	expect(visibleTranscriptMessages(view.messages)).toHaveLength(3);
+	expect(view.messages.every((message) => !message.hidden)).toBe(true);
 });

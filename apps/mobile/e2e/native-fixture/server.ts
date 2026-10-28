@@ -186,11 +186,18 @@ class NativeFixtureHost extends MobileFixtureHost {
 			state.busy = false;
 			state.aborting = false;
 			state.status =
-				result?.finishReason === "error"
+				!result || result.finishReason === "error"
 					? "failed"
 					: result?.finishReason === "aborted"
 						? "cancelled"
 						: "completed";
+			// A thrown scripted turn has no agent-generated terminal status. Emit it
+			// explicitly so the initial running snapshot cannot be the last update.
+			if (!result)
+				this.emitCore({
+					type: "status",
+					payload: { sessionId: input.sessionId, status: "failed" },
+				});
 			this.emitCore({
 				type: "ended",
 				payload: {
@@ -339,6 +346,28 @@ class NativeFixtureHost extends MobileFixtureHost {
 			const notice =
 				"<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>";
 			const history: unknown[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[SYSTEM] This run is not complete until you call one of these terminal completion tools: INTERNAL_REMINDER_TOOL. Continue working if requirements are not met. If the task is complete, call the appropriate terminal completion tool now.",
+						},
+					],
+					metadata: { userRunSpan: 0 },
+				},
+				{
+					role: "user",
+					content:
+						"[SYSTEM] You still have team obligations. Unfinished tasks: INTERNAL_REMINDER_TEAM (pending): inspect. Use team_run_task to delegate work, or team_task with action=complete to mark tasks done, or team_await_runs to wait for active runs. Do NOT stop until all tasks are completed.",
+					metadata: { userRunSpan: 0 },
+				},
+				{
+					role: "user",
+					content:
+						"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.",
+					metadata: { userRunSpan: 0 },
+				},
 				{
 					role: "user",
 					content: "INTERNAL_COMPACTION_CONTEXT_DO_NOT_DISPLAY",
@@ -831,7 +860,14 @@ const server = Bun.serve({
 				401,
 			);
 		if (path === "/api/v1/users/me")
-			return json({ data: { organizations: [] } });
+			return json({ data: { id: "fixture-user-00000001", organizations: [] } });
+		if (path === "/api/v1/users/fixture-user-00000001/balance")
+			return faults.get("global", "balance-error")
+				? json({ error: "Fixture balance unavailable" }, 503)
+				: json({
+						success: true,
+						data: { userId: "fixture-user-00000001", balance: 12_340_000 },
+					});
 		if (path === "/api/v1/users/active-account") return json({ success: true });
 		if (
 			path === "/api/v1/integrations/github/repositories/1/branches" ||

@@ -38,7 +38,9 @@ export function attentionChanges(
 	if (
 		previous.runStatus === "running" &&
 		view.runStatus === "completed" &&
-		view.pendingPrompts.length === 0
+		view.pendingPrompts.length === 0 &&
+		view.pendingApprovals.length === 0 &&
+		view.pendingQuestions.length === 0
 	)
 		changes.push({
 			id: `completed:${view.lastRun?.endedAt ?? view.messages.length}`,

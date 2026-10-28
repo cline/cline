@@ -34,6 +34,7 @@ import {
 import { AdvancedConnect } from "./home/AdvancedConnect";
 import { localMachineDescriptors } from "./home/local-sessions";
 import { AccountSwitcher } from "./settings/AccountSwitcher";
+import { CreditBalance } from "./settings/CreditBalance";
 import { TaskAlertSettings } from "./settings/TaskAlertSettings";
 
 export interface SettingsScreenProps {
@@ -355,6 +356,7 @@ function AccountCard({
 			{account.phase === "signed-in" ? (
 				<>
 					<AccountSwitcher />
+					<CreditBalance />
 					<Button
 						label="Account and usage"
 						variant="outline"

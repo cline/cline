@@ -301,9 +301,14 @@ export class SessionConnection {
 			return;
 		}
 		this.dispatch({ type: "send_retried", messageId });
-		await this.deliverInput(messageId, input.text, {
-			...(input.userImages ? { userImages: input.userImages } : {}),
-		});
+		await this.deliverInput(
+			messageId,
+			input.text,
+			{
+				...(input.userImages ? { userImages: input.userImages } : {}),
+			},
+			true,
+		);
 	}
 
 	async abort(reason?: string): Promise<void> {
@@ -1239,10 +1244,21 @@ export class SessionConnection {
 		messageId: string,
 		text: string,
 		attachments: SessionInputAttachments = {},
+		retrying = false,
 	): Promise<void> {
+		const stillPending = () =>
+			this.state.live.some(
+				(message) =>
+					message.id === messageId &&
+					message.role === "user" &&
+					message.pending === true,
+			);
 		try {
 			await this.waitForRuntime();
 			const sessionId = await this.handle.ensureSession();
+			// Reconnect/hydration may have confirmed the original send while this
+			// retry waited. Its captured payload is no longer authority to resend.
+			if (retrying && !stillPending()) return;
 			// The id just became knowable, so anything held during the create round
 			// trip can now be attributed — before the send, so the run's own events
 			// cannot overtake events that preceded them.
@@ -1285,6 +1301,8 @@ export class SessionConnection {
 			}
 			if (this.disposed)
 				throw new Error("Session closed before the message was sent.");
+			// A thinking update also awaits the network; reconcile again at dispatch.
+			if (retrying && !stillPending()) return;
 			const reply = await this.handle.client.command(
 				"session.send_input",
 				{

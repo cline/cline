@@ -6,6 +6,7 @@ import { render } from "@/ui/__testing__/render";
 import {
 	CloudAuthProvider,
 	type UseCloudAuth,
+	useCloudAccountScope,
 	useCloudAuth,
 } from "./cloud-auth";
 import { EndpointsProvider } from "./endpoints";
@@ -124,4 +125,53 @@ describe("explicit Cloud sign-out privacy", () => {
 			mounted.unmount();
 		});
 	}
+});
+
+describe("account selection revision ownership", () => {
+	function mountScope() {
+		let current!: ReturnType<typeof useCloudAccountScope>;
+		function Observe() {
+			current = useCloudAccountScope();
+			return null;
+		}
+		const screen = render(
+			<CloudAuthProvider>
+				<Observe />
+			</CloudAuthProvider>,
+		);
+		return { ...screen, current: () => current };
+	}
+	it("retires older selections when a newer intent begins, and selection publications are one-shot", () => {
+		const screen = mountScope();
+		const old = screen.current().beginSelection();
+		const latest = screen.current().beginSelection();
+		act(() => expect(old({ organizationId: "old" })).toBe(false));
+		act(() => expect(latest({ organizationId: "latest" })).toBe(true));
+		act(() => expect(latest({ organizationId: "duplicate" })).toBe(false));
+		expect(screen.current().scope).toEqual({ organizationId: "latest" });
+		screen.unmount();
+	});
+	it("rejects selection after signout even before React commits the cleared scope", () => {
+		const screen = mountScope();
+		const pending = screen.current().beginSelection();
+		act(() => {
+			screen.current().selectScope(undefined);
+			expect(pending({ organizationId: "retired" })).toBe(false);
+		});
+		expect(screen.current().scope).toBeUndefined();
+		screen.unmount();
+	});
+	it("successful selection retires discovery started before and during its RPC", () => {
+		const screen = mountScope();
+		const before = screen.current().beginRefresh();
+		const selected = screen.current().beginSelection();
+		const during = screen.current().beginRefresh();
+		act(() => expect(selected({ organizationId: "selected" })).toBe(true));
+		act(() => {
+			before({ organizationId: "old-before" });
+			during({ organizationId: "old-during" });
+		});
+		expect(screen.current().scope).toEqual({ organizationId: "selected" });
+		screen.unmount();
+	});
 });

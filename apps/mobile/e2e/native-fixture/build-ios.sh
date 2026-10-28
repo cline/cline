@@ -12,7 +12,9 @@ fixture_app="$output_dir/ClineE2E.app"
 if [ -e "$fixture_app" ]; then echo "Use a fresh output directory; fixture app exists" >&2; exit 1; fi
 cp -R "$source_app" "$fixture_app"
 cd "$mobile_dir"
-CLINE_NATIVE_FIXTURE_BUILD=1 EXPO_OVERRIDE_METRO_CONFIG="$fixture_dir/metro.config.cjs" EXPO_PUBLIC_ENV=staging EXPO_PUBLIC_STAGING_EPHEMERAL_AUTH=1 EXPO_PUBLIC_NATIVE_FIXTURE_BASE="${EXPO_PUBLIC_NATIVE_FIXTURE_BASE:-http://127.0.0.1:4783}" \
+fixture_ephemeral_auth="${CLINE_NATIVE_FIXTURE_EPHEMERAL_AUTH:-1}"
+case "$fixture_ephemeral_auth" in 0|1) ;; *) echo "Expected fixture ephemeral auth 0 or 1" >&2; exit 1;; esac
+CLINE_NATIVE_FIXTURE_BUILD=1 EXPO_OVERRIDE_METRO_CONFIG="$fixture_dir/metro.config.cjs" EXPO_PUBLIC_ENV=staging EXPO_PUBLIC_STAGING_EPHEMERAL_AUTH="$fixture_ephemeral_auth" EXPO_PUBLIC_NATIVE_FIXTURE_BASE="${EXPO_PUBLIC_NATIVE_FIXTURE_BASE:-http://127.0.0.1:4783}" \
  bunx expo export:embed --platform ios --entry-file index.js --dev false --reset-cache --bundle-output "$fixture_app/main.jsbundle" --assets-dest "$fixture_app" --max-workers 4
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier bot.cline.app.e2e' "$fixture_app/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Cline E2E' "$fixture_app/Info.plist"

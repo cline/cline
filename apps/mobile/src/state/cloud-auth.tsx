@@ -49,7 +49,13 @@ const CloudAccountScopeContext = createContext<{
 	scope: CloudAccountScope | undefined;
 	selectScope(scope: CloudAccountScope | undefined): void;
 	beginRefresh(): (scope: CloudAccountScope) => void;
-}>({ scope: undefined, selectScope: () => {}, beginRefresh: () => () => {} });
+	beginSelection(): (scope: CloudAccountScope) => boolean;
+}>({
+	scope: undefined,
+	selectScope: () => {},
+	beginRefresh: () => () => {},
+	beginSelection: () => () => false,
+});
 
 export function useCloudAccountScope() {
 	return useContext(CloudAccountScopeContext);
@@ -88,6 +94,16 @@ export function CloudAuthProvider({
 		revision.current += 1;
 		setScope(next);
 	}, []);
+	const beginSelection = useCallback(() => {
+		// Starting a newer selection retires older switches/discovery. Publishing
+		// increments again so discovery begun during the RPC cannot undo success.
+		const started = ++revision.current;
+		return (next: CloudAccountScope) => {
+			if (revision.current !== started) return false;
+			selectScope(next);
+			return true;
+		};
+	}, [selectScope]);
 	const beginRefresh = useCallback(() => {
 		const started = revision.current;
 		return (next: CloudAccountScope) => {
@@ -103,7 +119,7 @@ export function CloudAuthProvider({
 	return (
 		<CloudAuthContext.Provider value={value}>
 			<CloudAccountScopeContext.Provider
-				value={{ scope, selectScope, beginRefresh }}
+				value={{ scope, selectScope, beginRefresh, beginSelection }}
 			>
 				{children}
 			</CloudAccountScopeContext.Provider>

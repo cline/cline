@@ -29,12 +29,16 @@ async function mount() {
 		scope = useCloudAccountScope();
 		return null;
 	}
-	const result = render(
-		<CloudAuthProvider>
-			<Observe />
-			<AccountSwitcher />
-		</CloudAuthProvider>,
-	);
+	let visible = true;
+	function Harness() {
+		return (
+			<CloudAuthProvider>
+				<Observe />
+				{visible ? <AccountSwitcher /> : null}
+			</CloudAuthProvider>
+		);
+	}
+	const result = render(<Harness />);
 	await act(async () => {});
 	const row = (label: string) =>
 		result.root
@@ -44,7 +48,15 @@ async function mount() {
 					node.props.accessibilityLabel === label,
 			)
 			.at(-1);
-	return { ...result, row, getScope: () => scope };
+	return {
+		...result,
+		row,
+		getScope: () => scope,
+		hide: () => {
+			visible = false;
+			result.renderer.update(<Harness />);
+		},
+	};
 }
 describe("Account settings switcher", () => {
 	it("shows the current Personal account even when there is nothing to switch", async () => {
@@ -108,4 +120,30 @@ describe("Account settings switcher", () => {
 		await act(async () => row("Retry accounts")?.props.onPress());
 		expect(row("Team")).toBeDefined();
 	});
+});
+
+it.each([
+	"sign-out",
+	"newer selection",
+	"unmount",
+])("does not publish a pending account switch after %s", async (retirement) => {
+	const pending = Promise.withResolvers<void>();
+	mocks.switchAccount.mockReturnValue(pending.promise);
+	const screen = await mount();
+	act(() => screen.row("Personal")?.props.onPress());
+	act(() => {
+		if (retirement === "sign-out") screen.getScope().selectScope(undefined);
+		else if (retirement === "newer selection")
+			screen.getScope().selectScope({ organizationId: "new-scope" });
+		else screen.hide();
+	});
+	await act(async () => pending.resolve());
+	expect(screen.getScope().scope).toEqual(
+		retirement === "sign-out"
+			? undefined
+			: retirement === "newer selection"
+				? { organizationId: "new-scope" }
+				: { organizationId: "org-1" },
+	);
+	screen.unmount();
 });

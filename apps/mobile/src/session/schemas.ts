@@ -165,6 +165,7 @@ const usageUpdatedSchema = z.looseObject({
 	aggregateUsage: tokenUsageSchema.optional(),
 });
 const runTerminalSchema = z.looseObject({
+	snapshot: z.looseObject({ status: z.string().optional() }).nullish(),
 	reason: z.string().optional(),
 	error: z.string().optional(),
 });

@@ -160,7 +160,9 @@ export class CloudLaunches {
 								)
 							: change.kind === "completed"
 								? view.runStatus === "completed" &&
-									view.pendingPrompts.length === 0
+									view.pendingPrompts.length === 0 &&
+									view.pendingApprovals.length === 0 &&
+									view.pendingQuestions.length === 0
 								: view.runStatus === "failed";
 				if (relevant)
 					this.emitAttention({

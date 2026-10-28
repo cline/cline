@@ -2432,3 +2432,81 @@ it("preserves task focus for the notification watcher's foreground/background de
 	});
 	launches.clear();
 });
+
+describe("retry acknowledgement reconciliation races", () => {
+	it("does not resend input confirmed by hydration while a retry waits for session readiness", async () => {
+		let accepted = 0;
+		const { connection, client } = setUp({
+			handlers: {
+				"session.send_input": () => {
+					accepted++;
+					throw new HubTransportError(
+						"hub_connection_closed",
+						"Reply lost after acceptance",
+					);
+				},
+				"session.messages": () => ({
+					messages: accepted
+						? [{ role: "user", content: "Accepted once" }]
+						: [],
+				}),
+			},
+		});
+		await connection.start();
+		await expect(connection.sendInput("Accepted once")).rejects.toThrow(
+			"Reply lost",
+		);
+		const gate = deferred<void>();
+		const ensure = connection.handle.ensureSession;
+		connection.handle.ensureSession = async () => {
+			await gate.promise;
+			return ensure();
+		};
+		const retried = connection.retrySend("u1");
+		await settle();
+		await connection.resync();
+		expect(connection.getView().messages).toHaveLength(1);
+		expect(connection.getView().messages[0]?.pending).not.toBe(true);
+		gate.resolve();
+		await expect(retried).resolves.toBeUndefined();
+		expect(accepted).toBe(1);
+		expect(
+			client.log.filter((name) => name === "session.send_input"),
+		).toHaveLength(1);
+		connection.dispose();
+	});
+});
+
+it("does not resend a reconciled retry after a pending thinking update acknowledges", async () => {
+	let accepted = 0;
+	let thinking = false;
+	const gate = deferred<Record<string, unknown>>();
+	const { connection, client } = setUp({
+		getReasoningChoice: () => (thinking ? "high" : undefined),
+		handlers: {
+			"session.send_input": () => {
+				accepted++;
+				throw new HubTransportError(
+					"hub_connection_closed",
+					"Reply lost after acceptance",
+				);
+			},
+			"session.messages": () => ({
+				messages: accepted ? [{ role: "user", content: "Already saved" }] : [],
+			}),
+			"session.update_connection": () => gate.promise,
+		},
+	});
+	await connection.start();
+	await expect(connection.sendInput("Already saved")).rejects.toThrow(
+		"Reply lost",
+	);
+	thinking = true;
+	const retry = connection.retrySend("u1");
+	await waitFor(() => client.log.includes("session.update_connection"));
+	await connection.resync();
+	gate.resolve({});
+	await expect(retry).resolves.toBeUndefined();
+	expect(accepted).toBe(1);
+	connection.dispose();
+});

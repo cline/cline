@@ -3,6 +3,99 @@ import { CloudAccountGateway } from "./CloudAccountGateway";
 
 describe("CloudAccountGateway", () => {
 	it.each([
+		0, 5_000_000, 12_340_000, -1_550_000,
+	])("reads personal balance %s in microcredits without treating zero as missing", async (microcredits) => {
+		const fetch = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: { id: "user/1" },
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						success: true,
+						data: { balance: microcredits, userId: "user/1" },
+					}),
+				),
+			);
+		const gateway = new CloudAccountGateway({
+			apiBaseUrl: "https://api.test",
+			getAccessToken: async () => "token",
+			fetch,
+		});
+		await expect(gateway.creditBalance()).resolves.toBe(
+			microcredits / 1_000_000,
+		);
+		expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+			"https://api.test/api/v1/users/me",
+			"https://api.test/api/v1/users/user%2F1/balance",
+		]);
+	});
+	it("reads only the selected organization, never personal credits", async () => {
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						data: { balance: 98_760_000, organizationId: "org/1" },
+					}),
+				),
+		);
+		const gateway = new CloudAccountGateway({
+			apiBaseUrl: "https://api.test",
+			getAccessToken: async () => "token",
+			fetch,
+		});
+		await expect(gateway.creditBalance("org/1")).resolves.toBe(98.76);
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			"https://api.test/api/v1/organizations/org%2F1/balance",
+			expect.anything(),
+		);
+	});
+	it.each([
+		{ data: {} },
+		{ data: { balance: "100" } },
+		{ success: false, data: { balance: 100 } },
+		{ data: { balance: 100, organizationId: "other-org" } },
+		{ data: { balance: 100, userId: "personal-user" } },
+	])("rejects unreadable or unsuccessful balances instead of inventing zero", async (body) => {
+		const fetch = vi.fn(async () => new Response(JSON.stringify(body)));
+		const gateway = new CloudAccountGateway({
+			apiBaseUrl: "https://api.test",
+			getAccessToken: async () => "token",
+			fetch,
+		});
+		await expect(gateway.creditBalance("org-1")).rejects.toThrow(
+			"credit balance could not be loaded",
+		);
+		expect(fetch).toHaveBeenCalledOnce();
+	});
+	it("rejects a personal balance belonging to another user", async () => {
+		const fetch = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ data: { id: "user-1" } })),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: { balance: 5_000_000, userId: "other-user" },
+					}),
+				),
+			);
+		const gateway = new CloudAccountGateway({
+			apiBaseUrl: "https://api.test",
+			getAccessToken: async () => "token",
+			fetch,
+		});
+		await expect(gateway.creditBalance()).rejects.toThrow(
+			"credit balance could not be loaded",
+		);
+	});
+	it.each([
 		"token",
 		"workos:token",
 	])("discovers organization memberships using credential %s", async (token) => {

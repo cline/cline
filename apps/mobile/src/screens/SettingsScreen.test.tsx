@@ -25,6 +25,7 @@ import { SettingsScreen } from "./SettingsScreen";
 vi.mock("@/cloud/rest/CloudAccountGateway", () => ({
 	CloudAccountGateway: class {
 		listAccounts = async () => [{ name: "Personal", active: true }];
+		creditBalance = async () => 12.34;
 	},
 }));
 
