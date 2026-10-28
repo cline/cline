@@ -83,4 +83,19 @@ describe("MarkdownBlock links to local files", () => {
 
 		expect(grpcMocks.openFileRelativePath).toHaveBeenCalledWith({ value: "docs/setup.md" })
 	})
+
+	it("keeps backslash paths as written although markdown reads a backslash as an escape", () => {
+		// `\.` and `\_` would be unescaped to `.` and `_`, and `\\` halved.
+		fireEvent.click(renderLink("[Dot](C:\\Users\\jay\\.cline\\_build\\x.md)", "Dot"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\Users\\jay\\.cline\\_build\\x.md" })
+
+		fireEvent.click(renderLink("[UNC](\\\\server\\share$\\project\\index.html)", "UNC"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "\\\\server\\share$\\project\\index.html" })
+
+		fireEvent.click(renderLink('[Angle](<C:\\Program Files (x86)\\jay\\.cline\\my file.md> "title")', "Angle"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\Program Files (x86)\\jay\\.cline\\my file.md" })
+
+		fireEvent.click(renderLink("[Rel](html_demos\\_private\\index.html)", "Rel"))
+		expect(grpcMocks.openFileRelativePath).toHaveBeenLastCalledWith({ value: "html_demos\\_private\\index.html" })
+	})
 })

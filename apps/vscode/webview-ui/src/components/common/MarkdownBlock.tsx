@@ -32,6 +32,43 @@ function keepLocalFileHref(url: string, key: string): string {
 	return key === "href" && localFileLink(url) ? url : defaultUrlTransform(url)
 }
 
+/**
+ * Keeps a link destination that contains backslashes as written. Markdown reads `\` as an escape, so
+ * `C:\Users\jay\.cline\x.md` would otherwise parse as `C:\Users\jay.cline\x.md` and a UNC path would
+ * lose its leading `\\`. A web URL has no backslashes, so its parsed destination is kept.
+ */
+const remarkKeepBackslashDestinations = () => {
+	return (tree: Node, file: { value: unknown }) => {
+		const source = String(file.value)
+		visit(tree, "link", (node: any) => {
+			const start = node.position?.start?.offset
+			const end = node.position?.end?.offset
+			if (start == null || end == null) {
+				return
+			}
+			const destination = rawLinkDestination(source.slice(start, end))
+			if (destination?.includes("\\")) {
+				node.url = destination
+			}
+		})
+	}
+}
+
+/** The destination of `[text](destination "title")` or `[text](<destination> "title")`, as written. */
+function rawLinkDestination(link: string): string | undefined {
+	const open = link.lastIndexOf("](")
+	if (open < 0 || !link.endsWith(")")) {
+		return undefined
+	}
+	const inside = link.slice(open + 2, -1).trim()
+	if (inside.startsWith("<")) {
+		const close = inside.indexOf(">")
+		return close < 0 ? undefined : inside.slice(1, close)
+	}
+	const title = inside.search(/\s/)
+	return title < 0 ? inside : inside.slice(0, title)
+}
+
 function openLocalFile(link: NonNullable<ReturnType<typeof localFileLink>>) {
 	const request = StringRequest.create({ value: link.path })
 	const opened =
@@ -118,6 +155,7 @@ const MemoizedMarkdownBlock = memo(
 					remarkUrlToLink,
 					remarkHighlightActMode,
 					remarkMarkPotentialFilePaths,
+					remarkKeepBackslashDestinations,
 					() => {
 						return (tree: any) => {
 							visit(tree, "code", (node: any) => {
