@@ -70,6 +70,14 @@ function danceButton() {
 	return button;
 }
 
+function waitingButton() {
+	const button = container.querySelector<HTMLButtonElement>(
+		'button[aria-label="Cline is waiting for your response"]',
+	);
+	if (!button) throw new Error("Missing waiting companion");
+	return button;
+}
+
 async function click(button: HTMLButtonElement) {
 	await act(async () => button.click());
 }
@@ -159,6 +167,87 @@ describe("GeneratingCompanion", () => {
 		hidden = false;
 		document.dispatchEvent(new Event("visibilitychange"));
 		expect(animation?.play).toHaveBeenCalled();
+	});
+
+	it("holds a curious pose while awaiting a response, then resumes the selected dance", async () => {
+		await act(async () => root.render(<GeneratingCompanion active />));
+		await click(danceButton());
+		const animation = animations.at(-1);
+		const count = animations.length;
+		const button = danceButton();
+		button.focus();
+		await act(async () =>
+			root.render(<GeneratingCompanion active awaitingResponse />),
+		);
+		expect(animation?.cancel).toHaveBeenCalledOnce();
+		expect(waitingButton()).toBe(button);
+		expect(document.activeElement).toBe(button);
+		expect(button.getAttribute("aria-disabled")).toBe("true");
+		expect(button.tabIndex).toBe(-1);
+		expect(button.querySelector("svg")).not.toBeNull();
+		expect(button.querySelector("span")).toBeNull();
+		expect(button.closest("[hidden]")).toBeNull();
+
+		// Returning to the page or activating the inert bot cannot bypass a wait.
+		hidden = true;
+		document.dispatchEvent(new Event("visibilitychange"));
+		hidden = false;
+		document.dispatchEvent(new Event("visibilitychange"));
+		await click(button);
+		expect(animation?.play).not.toHaveBeenCalled();
+		expect(animations).toHaveLength(count);
+		expect(waitingButton().querySelector("svg")).not.toBeNull();
+
+		await act(async () => root.render(<GeneratingCompanion active />));
+		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
+		expect(danceButton().hasAttribute("aria-disabled")).toBe(false);
+		expect(danceButton().tabIndex).toBe(0);
+		expect(animations).toHaveLength(count + 1);
+	});
+
+	it("keeps the waiting pose still through reduced-motion preference changes", async () => {
+		reducedMotion = true;
+		await act(async () =>
+			root.render(<GeneratingCompanion active awaitingResponse />),
+		);
+		const pose = waitingButton().querySelector("svg");
+		expect(pose).not.toBeNull();
+		await act(async () => {
+			reducedMotion = false;
+			for (const listener of mediaListeners) listener();
+		});
+		expect(waitingButton().querySelector("svg")).toBe(pose);
+		expect(animations).toHaveLength(0);
+		await act(async () => {
+			reducedMotion = true;
+			for (const listener of mediaListeners) listener();
+		});
+		await act(async () => root.render(<GeneratingCompanion active />));
+		expect(danceButton().querySelector("span")).not.toBeNull();
+		expect(animations).toHaveLength(0);
+	});
+
+	it("hides the waiting pose on completion and returns its keyboard focus to the draft", async () => {
+		const draftRef = createRef<HTMLTextAreaElement>();
+		const render = (active: boolean, awaitingResponse: boolean) => (
+			<div>
+				<textarea ref={draftRef} defaultValue="Keep my answer." />
+				<GeneratingCompanion
+					active={active}
+					awaitingResponse={awaitingResponse}
+					draftRef={draftRef}
+				/>
+			</div>
+		);
+		await act(async () => root.render(render(true, false)));
+		danceButton().focus();
+		await act(async () => root.render(render(true, true)));
+		expect(document.activeElement).toBe(waitingButton());
+		await act(async () => root.render(render(false, true)));
+		expect(waitingButton().closest("[hidden]")).not.toBeNull();
+		expect(document.activeElement).toBe(draftRef.current);
+		expect(draftRef.current?.value).toBe("Keep my answer.");
+		expect(animations).toHaveLength(1);
 	});
 
 	it("returns keyboard focus to the draft on completion, without taking it from another control", async () => {

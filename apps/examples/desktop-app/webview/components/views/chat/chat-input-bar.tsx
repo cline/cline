@@ -471,13 +471,14 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
-	// Status spans text, reasoning, tools and queued turns. A parent's approval
-	// wait does not stop independent child agents from continuing their work.
+	// Status spans text, reasoning, tools and queued turns. Pending questions or
+	// approvals take visual priority, even when an unfinished child counts as running.
 	const companionActive =
 		!readOnly &&
 		variant !== "welcome" &&
 		!isSessionSwitching &&
-		(hasRunningAgents || (isBusy && !isAwaitingInput));
+		(hasRunningAgents || isBusy);
+	const awaitingResponse = isAwaitingInput && (isBusy || hasRunningAgents);
 	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
@@ -1353,6 +1354,7 @@ function ChatInputBarImpl({
 					>
 						<GeneratingCompanion
 							active={companionActive}
+							awaitingResponse={awaitingResponse}
 							className="-mt-[12px] shrink-0 self-start"
 							draftRef={promptInputRef}
 						/>
@@ -1507,7 +1509,7 @@ function ChatInputBarImpl({
 										? "Choose a repository"
 										: isSessionSwitching
 											? "Loading conversation…"
-											: isAwaitingInput && !hasRunningAgents
+											: awaitingResponse
 												? "Waiting for your response…"
 												: hasRunningAgents && !isBusy
 													? "Agents are still working. Send a message to continue."

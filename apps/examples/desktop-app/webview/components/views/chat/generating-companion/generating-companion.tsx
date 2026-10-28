@@ -10,10 +10,12 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CuriousCompanionPose } from "./curious-companion-pose";
 import { COMPANION_DANCES, danceKeyframes } from "./dances";
 
 type GeneratingCompanionProps = {
 	active: boolean;
+	awaitingResponse?: boolean;
 	className?: string;
 	draftRef?: RefObject<HTMLTextAreaElement | null>;
 };
@@ -39,6 +41,7 @@ function useReducedMotion() {
 /** Activity presentation only: the owner decides whether Cline is working. */
 export function GeneratingCompanion({
 	active,
+	awaitingResponse = false,
 	className,
 	draftRef,
 }: GeneratingCompanionProps) {
@@ -56,6 +59,7 @@ export function GeneratingCompanion({
 		const sprite = spriteRef.current;
 		if (
 			!active ||
+			awaitingResponse ||
 			reducedMotion ||
 			!sprite ||
 			typeof sprite.animate !== "function"
@@ -75,7 +79,7 @@ export function GeneratingCompanion({
 			animation.cancel();
 			animationRef.current = null;
 		};
-	}, [active, dance, reducedMotion]);
+	}, [active, awaitingResponse, dance, reducedMotion]);
 
 	useEffect(() => {
 		const update = () => {
@@ -119,6 +123,7 @@ export function GeneratingCompanion({
 	return (
 		<span
 			ref={controlsRef}
+			data-companion-state={awaitingResponse ? "waiting" : "working"}
 			className={cn(
 				"inline-flex shrink-0 items-center",
 				className,
@@ -141,25 +146,44 @@ export function GeneratingCompanion({
 				type="button"
 				variant="ghost"
 				size="icon-lg"
-				className="size-[44px] p-0 text-muted-foreground"
-				aria-label={`Change Cline dance. Current dance: ${dance.name}`}
-				title={`${dance.name} · Click to change dance`}
+				className={cn(
+					"size-[44px] p-0 text-muted-foreground",
+					awaitingResponse &&
+						"cursor-default hover:bg-transparent dark:hover:bg-transparent",
+				)}
+				aria-disabled={awaitingResponse || undefined}
+				aria-label={
+					awaitingResponse
+						? "Cline is waiting for your response"
+						: `Change Cline dance. Current dance: ${dance.name}`
+				}
+				tabIndex={awaitingResponse ? -1 : undefined}
+				title={
+					awaitingResponse
+						? "Cline is waiting for your response"
+						: `${dance.name} · Click to change dance`
+				}
 				onMouseDown={preserveDraftFocus}
 				onClick={(event) => {
 					event.stopPropagation();
+					if (awaitingResponse) return;
 					setDanceIndex((index) => (index + 1) % COMPANION_DANCES.length);
 				}}
 			>
-				<span
-					ref={spriteRef}
-					aria-hidden="true"
-					className="pointer-events-none block size-[28px] shrink-0 bg-no-repeat opacity-70 grayscale"
-					style={{
-						backgroundImage: `url("${dance.src}")`,
-						backgroundSize: `${dance.durations.length * 100}% 100%`,
-						backgroundPosition: "0% 0%",
-					}}
-				/>
+				{awaitingResponse ? (
+					<CuriousCompanionPose />
+				) : (
+					<span
+						ref={spriteRef}
+						aria-hidden="true"
+						className="pointer-events-none block size-[28px] shrink-0 bg-no-repeat opacity-70 grayscale"
+						style={{
+							backgroundImage: `url("${dance.src}")`,
+							backgroundSize: `${dance.durations.length * 100}% 100%`,
+							backgroundPosition: "0% 0%",
+						}}
+					/>
+				)}
 			</Button>
 		</span>
 	);

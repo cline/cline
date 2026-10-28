@@ -16,3 +16,9 @@ local so provider latency and network quality do not affect playback.
 Each sequence contains individually drawn poses. The player changes sprite
 cells with discrete holds; it does not rotate or deform one image. There is no
 departure animation. The host removes the companion when activity ends.
+
+Questions and approval requests use a separate still, curious pose from
+`generating-companion/curious-companion-pose.tsx`. It is an inline SVG and needs
+no asset request. Pending user input takes priority over the running-agent
+count, including questions from child agents. Answering resumes the selected
+dance; finishing the turn hides the companion even if a pending flag is stale.

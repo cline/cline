@@ -415,7 +415,21 @@ describe("ChatInputBar generating companion", () => {
 	}
 
 	function expectCompanionActive(active: boolean) {
-		expect(danceButton().closest("[hidden]") === null).toBe(active);
+		const companion = container.querySelector("[data-companion-state]");
+		expect(companion).not.toBeNull();
+		expect(companion?.closest("[hidden]") === null).toBe(active);
+	}
+
+	function expectCompanionWaiting() {
+		expectCompanionActive(true);
+		expect(
+			container
+				.querySelector("[data-companion-state]")
+				?.getAttribute("data-companion-state"),
+		).toBe("waiting");
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Waiting for your response…",
+		);
 	}
 
 	it.each([
@@ -459,33 +473,56 @@ describe("ChatInputBar generating companion", () => {
 		);
 	});
 
-	it("shows the user-response wait instead of dancing during an approval or question", async () => {
+	it("shows a curious companion during an approval or question and resumes the selected dance after answering", async () => {
+		await renderVoiceComposer({ status: "running" });
+		await act(async () => danceButton().click());
+		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
 		await renderVoiceComposer({ status: "running", isAwaitingInput: true });
-		expectCompanionActive(false);
-		expect(container.querySelector("textarea")?.placeholder).toBe(
-			"Waiting for your response…",
-		);
+		expectCompanionWaiting();
 		await renderVoiceComposer({ status: "running", isAwaitingInput: false });
 		expectCompanionActive(true);
+		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
 	});
 
-	it("keeps independent agents visible while the parent is idle or awaiting input", async () => {
+	it("keeps independent agents visible while the parent is idle", async () => {
 		await renderVoiceComposer({ status: "idle", hasRunningAgents: true });
 		expectCompanionActive(true);
 		expect(container.querySelector("textarea")?.placeholder).toBe(
 			"Agents are still working. Send a message to continue.",
 		);
+		expect(danceButton().getAttribute("aria-label")).toContain("Mr. Robot");
+	});
+
+	it.each([
+		"running",
+		"idle",
+	] as const)("prioritizes a pending child question over the running-agent count while the parent is %s", async (status) => {
+		await renderVoiceComposer({
+			status,
+			hasRunningAgents: true,
+			isAwaitingInput: true,
+		});
+		expectCompanionWaiting();
+		expect(
+			container.querySelector('button[aria-label="Stop agent"]'),
+		).not.toBeNull();
+		await renderVoiceComposer({ status, hasRunningAgents: true });
+		expectCompanionActive(true);
+		expect(danceButton().getAttribute("aria-label")).toContain("Mr. Robot");
+	});
+
+	it("hides after the turn finishes even if a pending-response flag is briefly stale", async () => {
 		await renderVoiceComposer({
 			status: "running",
 			hasRunningAgents: true,
 			isAwaitingInput: true,
 		});
-		expectCompanionActive(true);
-		expect(container.querySelector("textarea")?.placeholder).toBe(
-			"Agent is working... submit to queue another message",
-		);
-		await renderVoiceComposer({ status: "running", isAwaitingInput: true });
+		expectCompanionWaiting();
+		await renderVoiceComposer({ status: "completed", isAwaitingInput: true });
 		expectCompanionActive(false);
+		expect(container.querySelector("textarea")?.placeholder).toBe(
+			"Enter your question or type / for commands or @ for context",
+		);
 	});
 
 	it("does not interpret opening saved history as generation", async () => {
