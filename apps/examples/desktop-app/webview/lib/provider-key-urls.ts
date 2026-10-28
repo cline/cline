@@ -19,6 +19,7 @@ const PROVIDER_API_KEY_URLS: Record<string, string> = {
 	together: "https://api.together.ai/settings/api-keys",
 	cline: "https://app.cline.bot",
 	wandb: "https://wandb.ai/settings",
+	modal: "https://modal.com/docs/guide/endpoints#proxy-tokens",
 };
 
 /** Cline account dashboard, where Cline API keys are created and managed. */

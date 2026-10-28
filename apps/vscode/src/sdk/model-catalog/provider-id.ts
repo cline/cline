@@ -61,6 +61,7 @@ const KNOWN_API_PROVIDERS = {
 	chutes: true,
 	aiand: true,
 	"cline-pass": true,
+	modal: true,
 } satisfies Record<ApiProvider, true>
 
 /**
