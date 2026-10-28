@@ -320,3 +320,41 @@ fallback and must not alter the shipping Metro config, endpoints or bundle ID.
 The legacy unscoped `control.ts history-error 1` affects session-list reads. For
 an archived transcript error, use `set history-error 1` with the exact
 `FIXTURE_WORKSPACE_ID`; clear that same scope before retrying.
+
+
+## SDK contract profiles (opt-in)
+
+The `sdk-boundary-fixture` and `sdk-work-fixture` prompts exercise newer client
+regressions through the real Hub command/event projector. They do not execute a
+model, shell command, or patch. `sdk-contract-profiles.ts` uses the SDK's actual
+`buildInitialUserContent` and `agentMessageToMessageWithMetadata` builders, plus
+SDK `AgentEvent` and `AgentModelToolActivity` types. Synthetic results and gates
+explicitly model LocalRuntimeHost's assistant-message persistence before tools
+complete; this is contract coverage, not an actual LocalRuntimeHost execution.
+
+- `sdk-boundary-fixture`: persists an assistant `tool_use` with no result, sends
+  real-projector nested stdout/stderr progress, and waits. Reopen/reconnect this
+  exact chat, then release the gate. Its live `tool.finished` must complete the
+  already hydrated tool row and show `SDK_BUILD_RESULT`.
+- `sdk-work-fixture`: adds two authored UTF-8 file blocks, including the literal
+  `SGVsbG8=`; SDK `ts` times; narration/tool/result pairs; a second gate after the
+  first iteration has persisted; metadata-only provider web-search activity; and
+  a `submit_and_exit` with its final report in `input.summary`. On completion,
+  check work grouping, visible final summary, file sharing, and timestamps.
+
+Controls always require the exact synthetic workspace id. With the matching
+server config, run `FIXTURE_CONFIG_PATH=... FIXTURE_WORKSPACE_ID=... bun
+ e2e/native-fixture/control.ts sdk-profile` to inspect its current phase, then
+`... control.ts sdk-release` once per waiting gate. The work profile has two
+gates: `waiting-tool-result` and `waiting-second-tool-result`. No global release
+or fault is necessary.
+
+Validate these profiles on a fresh isolated server at port4796 with
+`FIXTURE_PORT=4796 FIXTURE_STATE_DIR=/absolute/fresh/scratch bun
+ e2e/native-fixture/server.ts`, then `FIXTURE_CONFIG_PATH=/absolute/fresh/scratch/config.json
+bun e2e/native-fixture/sdk-contract-self-test.ts`. The selfcheck creates/deletes
+only its synthetic workspaces, replaces only its own WebSocket, and checks actual
+wire/history contracts plus shipping reducer and work-group projections. A native
+bundle may explicitly target this port with `EXPO_PUBLIC_NATIVE_FIXTURE_BASE`.
+Do not count this selfcheck as native acceptance. The default server on4783 and
+any already running native session are unaffected by launching the isolated one.

@@ -56,11 +56,13 @@ import {
 	validateImageMedia,
 } from "@cline/shared";
 import { isInternalTranscriptMessage } from "./message-visibility";
+import { utf8ToBase64 } from "./utf8-base64";
 import {
 	type HydratedContentBlock,
 	type HydratedMessage,
 	type PendingPromptView,
 	parseHubEvent,
+	mergeSessionModel,
 	readSessionModel,
 	type SessionEvent,
 	type SessionModelView,
@@ -265,6 +267,7 @@ export type SessionAction =
 	| { type: "question_resolved"; requestId: string }
 	| {
 			type: "user_input";
+			startsTurn?: boolean;
 			text: string;
 			userImages?: string[];
 			timestamp?: number;
@@ -283,8 +286,9 @@ interface InternalMessage extends SessionMessageView {
 	 * segments keep their own blocks when this segment's authoritative
 	 * `assistant.finished` text replaces its streamed deltas.
 	 */
-	activeTextSegment?: { blockIndex: number };
+	activeTextSegment?: { blockIndex: number; observedAt?: number };
 	activeReasoningSegment?: boolean;
+	activeReasoningObservedAt?: number;
 }
 
 /**
@@ -357,6 +361,8 @@ export interface SessionState {
 	counters: SessionCounters;
 	hydratedToolCallIds: string[];
 	turnSeq: number;
+	/** Exact live assistant receiving this run; never search earlier turns. */
+	activeTurnId?: string;
 	inputSeq: number;
 	lastError?: string;
 	/** Diagnostics produced by the action that created this state, only. */
@@ -446,7 +452,7 @@ export function reduceSession(
 				),
 			};
 		case "model_updated":
-			return { ...state, model: action.model };
+			return { ...state, model: mergeSessionModel(state.model, action.model) };
 		case "connection_status":
 			return { ...base, connectionStatus: action.status };
 		case "hydrate_started":
@@ -547,6 +553,7 @@ export function reduceSession(
 				action.text,
 				action.userImages,
 				action.timestamp,
+				action.startsTurn,
 			);
 		case "send_queued":
 			// The hub owns this input now. Only its queue row should be shown until
@@ -596,8 +603,18 @@ function applyHydrate(
 	authoritativeRunStatus?: RunStatus,
 ): SessionState {
 	const projected = projectHydratedMessages(messages);
+	projected.messages = preserveKnownToolState(projected.messages, [
+		...state.hydrated,
+		...state.live,
+	]);
 	const runStatus = authoritativeRunStatus ?? state.runStatus;
-	const retainedLive = retainLive(state, projected, runStatus === "running");
+	// Reconcile user occurrence budgets after replay too: a submitted queued
+	// prompt may have become durable while this history request was in flight.
+	const retainedLive = state.live.filter(
+		(message) =>
+			(message.role === "user" && message.pending === true) ||
+			(message.role === "assistant" && runStatus === "running"),
+	);
 	const superseded = supersededBufferedEvents(state.buffer, projected.messages);
 
 	let next: SessionState = {
@@ -609,6 +626,7 @@ function applyHydrate(
 		// applied *before* the buffered replay below, so anything the stream knows
 		// still overrides it.
 		runStatus,
+		activeTurnId: runStatus === "running" ? state.activeTurnId : undefined,
 		hydrated: projected.messages,
 		transcriptKnown: true,
 		hydratedToolCallIds: projected.toolCallIds,
@@ -621,7 +639,23 @@ function applyHydrate(
 		next = applyBufferedEvent(next, envelope, superseded[index] === true);
 		emitted.push(...next.emitted);
 	}
-	return { ...next, emitted };
+	return {
+		...next,
+		live: reconcileAssistantBlocks(
+			retainLive(
+				{
+					...next,
+					hydrated: state.hydrated,
+					transcriptKnown: state.transcriptKnown,
+				},
+				projected,
+				true,
+			),
+			projected.messages,
+			state.hydrated,
+		),
+		emitted,
+	};
 }
 
 /**
@@ -690,10 +724,9 @@ function supersededBufferedEvents(
  *
  * Kept only while the run they belong to is still in flight, and only until the
  * snapshot supersedes them. Deltas are never re-delivered and an in-flight run is
- * not persisted yet, so replacing the live tail wholesale erased the partial
- * answer on screen for good on a mid-run reconnect. A turn is superseded when its
- * text is already inside a hydrated assistant message, or (for a tool-only turn)
- * when every one of its tool calls is in the snapshot.
+ * not fully persisted yet, so replacing the live tail wholesale erased the
+ * partial answer on a mid-run reconnect. After replay, reconcileAssistantBlocks
+ * removes only newly persisted blocks and preserves the current iteration tail.
  *
  * `runInFlight` is the discriminator that keeps this from fighting the
  * "snapshots outrank memory" rule at the top of the file: once the hub says the
@@ -749,7 +782,6 @@ function retainLive(
 		}
 	}
 
-	const snapshotToolCallIds = new Set(projected.toolCallIds);
 	return state.live.filter((message) => {
 		if (message.role === "user" && message.pending === true) {
 			return !reconciled.has(message);
@@ -757,36 +789,140 @@ function retainLive(
 		if (message.role !== "assistant" || !runInFlight) {
 			return false;
 		}
-		return !isTurnInTranscript(message, hydrated, snapshotToolCallIds);
+		return true;
 	});
 }
 
-/** Has the persisted snapshot taken over everything this live turn was showing? */
-function isTurnInTranscript(
-	turn: InternalMessage,
+function preserveKnownToolState(
 	hydrated: InternalMessage[],
-	snapshotToolCallIds: ReadonlySet<string>,
-): boolean {
-	if (turn.blocks.length === 0) {
-		// Nothing to lose, and keeping it would leave an empty bubble on screen.
-		return true;
-	}
-	const text = plainText(turn);
-	if (text.length > 0) {
-		return hydrated.some(
-			(message) =>
-				!message.hidden &&
-				message.role === "assistant" &&
-				plainText(message).includes(text),
+	known: InternalMessage[],
+): InternalMessage[] {
+	const tools = new Map<string, Extract<MessageBlock, { kind: "tool" }>>();
+	for (const message of known)
+		for (const block of message.blocks) {
+			if (block.kind === "tool") tools.set(block.toolCallId, block);
+		}
+	return hydrated.map((message) => ({
+		...message,
+		blocks: message.blocks.map((block) => {
+			if (block.kind !== "tool" || block.state !== "running") return block;
+			const existing = tools.get(block.toolCallId);
+			return existing ? { ...block, ...existing } : block;
+		}),
+	}));
+}
+
+/** Reconcile only newly persisted blocks, retaining the unpersisted iteration tail.
+ * A live run spans many persisted assistant messages. Text containment for the
+ * whole run either duplicated its earlier iterations or erased newer tools/media.
+ * Occurrence budgets also prevent historical repeated text from consuming a new
+ * live segment on a later refresh.
+ */
+function reconcileAssistantBlocks(
+	live: InternalMessage[],
+	hydrated: InternalMessage[],
+	previous: InternalMessage[],
+): InternalMessage[] {
+	const assistantBlocks = (messages: InternalMessage[]) => {
+		const lastUser = messages.findLastIndex(
+			(message) => message.role === "user" && !message.hidden,
 		);
+		return messages.flatMap((message, index) =>
+			message.role === "assistant" && !message.hidden
+				? message.blocks.map((block) => ({
+						block,
+						createdAt: message.createdAt,
+						afterLastUser: index > lastUser,
+					}))
+				: [],
+		);
+	};
+	const baseline = new Map<string, number>();
+	for (const old of assistantBlocks(previous)) {
+		const key = persistedBlockKey(old.block);
+		baseline.set(key, (baseline.get(key) ?? 0) + 1);
 	}
-	const toolCallIds = turn.blocks.flatMap((block) =>
-		block.kind === "tool" ? [block.toolCallId] : [],
-	);
-	return (
-		toolCallIds.length > 0 &&
-		toolCallIds.every((toolCallId) => snapshotToolCallIds.has(toolCallId))
-	);
+	const remaining = assistantBlocks(hydrated).filter(({ block }) => {
+		const key = persistedBlockKey(block);
+		const count = baseline.get(key) ?? 0;
+		if (!count) return true;
+		baseline.set(key, count - 1);
+		return false;
+	});
+	return live.flatMap((message) => {
+		if (message.role !== "assistant") return [message];
+		const blocks: MessageBlock[] = [];
+		let activeTextSegment: InternalMessage["activeTextSegment"];
+		for (const [index, block] of message.blocks.entries()) {
+			const activeText = message.activeTextSegment?.blockIndex === index;
+			const activeReasoning =
+				block.kind === "reasoning" &&
+				message.activeReasoningSegment &&
+				index === message.blocks.length - 1;
+			const observedAt = activeText
+				? message.activeTextSegment?.observedAt
+				: activeReasoning
+					? message.activeReasoningObservedAt
+					: undefined;
+			const reflected = remaining.findIndex((persisted) => {
+				// A snapshot can contain an older identical prefix, including an
+				// earlier iteration of this same user turn. SDK assistant ts is
+				// assigned after generation, so a newer delta cannot belong to it.
+				if (
+					(activeText || activeReasoning) &&
+					(!persisted.afterLastUser ||
+						(observedAt !== undefined &&
+							persisted.createdAt !== undefined &&
+							observedAt > persisted.createdAt))
+				)
+					return false;
+				return reflectedBlock(persisted.block, block);
+			});
+			if (reflected !== -1) {
+				remaining.splice(reflected, 1);
+				continue;
+			}
+			if (message.activeTextSegment?.blockIndex === index)
+				activeTextSegment = {
+					...message.activeTextSegment,
+					blockIndex: blocks.length,
+				};
+			blocks.push(block);
+		}
+		if (!blocks.length) return [];
+		const toolIndex: Record<string, number> = {};
+		for (const [index, block] of blocks.entries()) {
+			if (block.kind === "tool") toolIndex[block.toolCallId] = index;
+		}
+		return [{ ...message, blocks, toolIndex, activeTextSegment }];
+	});
+}
+
+function persistedBlockKey(block: MessageBlock): string {
+	switch (block.kind) {
+		case "tool":
+			return `tool:${block.toolCallId}`;
+		case "media":
+			return `media:${block.media.id}`;
+		case "text":
+			return `text:${block.text}`;
+		case "reasoning":
+			return `reasoning:${block.redacted}:${block.text}`;
+	}
+}
+
+function reflectedBlock(persisted: MessageBlock, live: MessageBlock): boolean {
+	if (persisted.kind === "text" && live.kind === "text")
+		return (
+			live.text.trim().length > 0 && persisted.text.includes(live.text.trim())
+		);
+	if (persisted.kind === "reasoning" && live.kind === "reasoning")
+		return (
+			persisted.redacted === live.redacted &&
+			(live.redacted ||
+				(live.text.length > 0 && persisted.text.includes(live.text)))
+		);
+	return persistedBlockKey(persisted) === persistedBlockKey(live);
 }
 
 function countUserTexts(messages: InternalMessage[]): Map<string, number> {
@@ -1020,10 +1156,13 @@ function applySessionEvent(
 	}
 	switch (event.name) {
 		case "run.started":
+			// Admission is broadcast even when runTurn only queues the new input.
+			if (state.runStatus === "running" && state.activeTurnId) return state;
 			return {
 				...state,
 				runStatus: "running",
 				turnSeq: state.turnSeq + 1,
+				activeTurnId: `a${state.turnSeq + 1}`,
 				live: [...state.live, createTurn(state.turnSeq + 1, timestamp)],
 				lastError: undefined,
 				// A fresh watch window: the previous run's outcome must not survive
@@ -1032,7 +1171,7 @@ function applySessionEvent(
 			};
 		case "assistant.delta":
 			return withCurrentTurn(state, (message) =>
-				appendText(message, event.payload.text),
+				appendText(message, event.payload.text, timestamp),
 			);
 		case "assistant.media":
 			return withCurrentTurn(state, (message) => ({
@@ -1073,6 +1212,7 @@ function applySessionEvent(
 				name: event.payload.toolName,
 				input: event.payload.input,
 				output: event.payload.output,
+				progress: commandProgressChunk(event.payload.update),
 				error: event.payload.error,
 				state: event.payload.error ? "failed" : "running",
 				timestamp,
@@ -1092,18 +1232,21 @@ function applySessionEvent(
 			return {
 				...state,
 				runStatus: "completed",
+				activeTurnId: undefined,
 				lastRun: finishLastRun(state.lastRun, "completed", timestamp),
 			};
 		case "run.aborted":
 			return {
 				...state,
 				runStatus: "aborted",
+				activeTurnId: undefined,
 				lastRun: finishLastRun(state.lastRun, "aborted", timestamp),
 			};
 		case "run.failed":
 			return {
 				...state,
 				runStatus: "failed",
+				activeTurnId: undefined,
 				lastError: event.payload.error ?? event.payload.reason ?? "run failed",
 				lastRun: finishLastRun(state.lastRun, "failed", timestamp),
 			};
@@ -1141,7 +1284,7 @@ function applySessionEvent(
 			if (!model && !resumed) return state;
 			return {
 				...state,
-				...(model ? { model } : {}),
+				...(model ? { model: mergeSessionModel(state.model, model) } : {}),
 				...(resumed
 					? {
 							runStatus: "running" as const,
@@ -1161,13 +1304,25 @@ function applySessionEvent(
 			};
 		// The entry became a real turn; its text arrives separately as the user
 		// message, so dropping it here is what stops it being shown twice.
-		case "session.pending_prompt_submitted":
-			return {
-				...state,
-				pendingPrompts: state.pendingPrompts.filter(
-					(entry) => entry.id !== event.payload.prompt.id,
-				),
-			};
+		case "session.pending_prompt_submitted": {
+			const prompt = event.payload.prompt;
+			return applyUserInput(
+				{
+					...state,
+					pendingPrompts: state.pendingPrompts.filter(
+						(entry) => entry.id !== prompt.id,
+					),
+				},
+				prompt.prompt,
+				Array.isArray(prompt.userImages)
+					? prompt.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: undefined,
+				timestamp,
+				true,
+			);
+		}
 	}
 }
 
@@ -1340,7 +1495,10 @@ function withCurrentTurn(
 	state: SessionState,
 	update: (message: InternalMessage) => InternalMessage,
 ): SessionState {
-	const lastIndex = state.live.length - 1;
+	const lastIndex =
+		state.runStatus === "running"
+			? state.live.findIndex((message) => message.id === state.activeTurnId)
+			: state.live.length - 1;
 	const last = state.live[lastIndex];
 	if (last && last.role === "assistant") {
 		const live = [...state.live];
@@ -1351,11 +1509,16 @@ function withCurrentTurn(
 	return {
 		...state,
 		turnSeq,
+		activeTurnId: `a${turnSeq}`,
 		live: [...state.live, update(createTurn(turnSeq))],
 	};
 }
 
-function appendText(message: InternalMessage, text: string): InternalMessage {
+function appendText(
+	message: InternalMessage,
+	text: string,
+	observedAt?: number,
+): InternalMessage {
 	const blocks = [...message.blocks];
 	const last = blocks[blocks.length - 1];
 	const active = message.activeTextSegment;
@@ -1365,7 +1528,14 @@ function appendText(message: InternalMessage, text: string): InternalMessage {
 		last?.kind === "text"
 	) {
 		blocks[active.blockIndex] = { kind: "text", text: last.text + text };
-		return { ...message, blocks };
+		return {
+			...message,
+			blocks,
+			activeTextSegment: {
+				...active,
+				observedAt: observedAt ?? active.observedAt,
+			},
+		};
 	}
 	// A finished segment is its own paragraph, even when the next segment
 	// immediately follows it without a tool/reasoning block in between.
@@ -1373,7 +1543,7 @@ function appendText(message: InternalMessage, text: string): InternalMessage {
 	return {
 		...message,
 		blocks,
-		activeTextSegment: { blockIndex: blocks.length - 1 },
+		activeTextSegment: { blockIndex: blocks.length - 1, observedAt },
 	};
 }
 
@@ -1430,7 +1600,12 @@ function appendReasoning(
 			...(timestamp === undefined ? {} : { startedAt: timestamp }),
 		});
 	}
-	return { ...message, blocks, activeReasoningSegment: true };
+	return {
+		...message,
+		blocks,
+		activeReasoningSegment: true,
+		activeReasoningObservedAt: timestamp ?? message.activeReasoningObservedAt,
+	};
 }
 
 function finishReasoning(
@@ -1459,7 +1634,21 @@ function finishReasoning(
 	return { ...message, blocks, activeReasoningSegment: false };
 }
 
+const MAX_TOOL_PROGRESS_CHARS = 64 * 1024;
+
+function commandProgressChunk(value: unknown): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const update = value as Record<string, unknown>;
+	if (
+		(update.stream === "stdout" || update.stream === "stderr") &&
+		typeof update.chunk === "string"
+	)
+		return update.chunk;
+	return undefined;
+}
+
 interface ToolUpdate {
+	progress?: string;
 	toolCallId?: string;
 	name?: string;
 	state: ToolActivityState;
@@ -1495,21 +1684,8 @@ function syntheticToolCallId(message: InternalMessage, name: string): string {
 
 function applyToolEvent(state: SessionState, update: ToolUpdate): SessionState {
 	const name = update.name ?? "tool";
-	// Only real `tool_use` ids can appear in the snapshot, so the reflected-event
-	// check is skipped for synthesized hook keys.
-	if (
-		update.toolCallId !== undefined &&
-		state.hydratedToolCallIds.includes(update.toolCallId)
-	) {
-		return {
-			...state,
-			counters: {
-				...state.counters,
-				reflectedBufferedEvents: state.counters.reflectedBufferedEvents + 1,
-			},
-		};
-	}
-	return withCurrentTurn(state, (message) => {
+
+	const apply = (message: InternalMessage): InternalMessage => {
 		const toolCallId = update.toolCallId ?? syntheticToolCallId(message, name);
 		const existingIndex = message.toolIndex[toolCallId];
 		const blocks = [...message.blocks];
@@ -1521,7 +1697,14 @@ function applyToolEvent(state: SessionState, update: ToolUpdate): SessionState {
 			// walked back to `running` by a late `tool.updated`.
 			const input = update.input !== undefined ? update.input : existing.input;
 			const output =
-				update.output !== undefined ? update.output : existing.output;
+				update.output !== undefined
+					? update.output
+					: update.progress && existing.state === "running"
+						? (
+								(typeof existing.output === "string" ? existing.output : "") +
+								update.progress
+							).slice(-MAX_TOOL_PROGRESS_CHARS)
+						: existing.output;
 			const error = update.error ?? existing.error;
 			blocks[existingIndex] = {
 				kind: "tool",
@@ -1553,7 +1736,11 @@ function applyToolEvent(state: SessionState, update: ToolUpdate): SessionState {
 			name,
 			state: update.state,
 			...(update.input === undefined ? {} : { input: update.input }),
-			...(update.output === undefined ? {} : { output: update.output }),
+			...(update.output !== undefined
+				? { output: update.output }
+				: update.progress
+					? { output: update.progress.slice(-MAX_TOOL_PROGRESS_CHARS) }
+					: {}),
 			...(update.error === undefined ? {} : { error: update.error }),
 			...(update.state === "running" && update.timestamp !== undefined
 				? { startedAt: update.timestamp }
@@ -1567,7 +1754,23 @@ function applyToolEvent(state: SessionState, update: ToolUpdate): SessionState {
 			blocks,
 			toolIndex: { ...message.toolIndex, [toolCallId]: blocks.length - 1 },
 		};
-	});
+	};
+	// Persisted tool_use is an unfinished activity, not a reason to discard its
+	// future progress/result. Update the existing hydrated row in place.
+	if (
+		update.toolCallId &&
+		state.hydratedToolCallIds.includes(update.toolCallId)
+	) {
+		return {
+			...state,
+			hydrated: state.hydrated.map((message) =>
+				message.toolIndex[update.toolCallId!] !== undefined
+					? apply(message)
+					: message,
+			),
+		};
+	}
+	return withCurrentTurn(state, apply);
 }
 
 /** The view-model id of the `n`th optimistic user message. */
@@ -1580,6 +1783,7 @@ function applyUserInput(
 	text: string,
 	userImages?: string[],
 	timestamp?: number,
+	startsTurn = false,
 ): SessionState {
 	const inputSeq = state.inputSeq + 1;
 	const mediaBlocks: MessageBlock[] = [];
@@ -1600,6 +1804,16 @@ function applyUserInput(
 	return {
 		...state,
 		inputSeq,
+		...(startsTurn
+			? {
+					turnSeq: state.turnSeq + 1,
+					activeTurnId: `a${state.turnSeq + 1}`,
+					runStatus: "running" as const,
+					lastRun:
+						timestamp === undefined ? undefined : { startedAt: timestamp },
+					lastError: undefined,
+				}
+			: {}),
 		live: [
 			...state.live,
 			{
@@ -1611,6 +1825,7 @@ function applyUserInput(
 				blocks: [{ kind: "text", text }, ...mediaBlocks],
 				toolIndex: {},
 			},
+			...(startsTurn ? [createTurn(state.turnSeq + 1, timestamp)] : []),
 		],
 	};
 }
@@ -1731,6 +1946,55 @@ function projectHydratedMessages(
 	for (const message of messages) {
 		const blocks: MessageBlock[] = [];
 		const toolIndex: Record<string, number> = {};
+		if (message.role === "assistant") {
+			const metadata = message.metadata;
+			const activities =
+				metadata &&
+				typeof metadata === "object" &&
+				"modelToolActivities" in metadata
+					? metadata.modelToolActivities
+					: undefined;
+			if (Array.isArray(activities))
+				for (const activity of activities) {
+					if (!activity || typeof activity !== "object") continue;
+					const { toolCallId, toolName, execution } = activity;
+					if (
+						typeof toolCallId !== "string" ||
+						!toolCallId.trim() ||
+						typeof toolName !== "string" ||
+						!toolName.trim() ||
+						(execution !== "client" && execution !== "provider")
+					)
+						continue;
+					if (toolIndex[toolCallId] !== undefined) continue;
+					toolCallIds.push(toolCallId);
+					toolIndex[toolCallId] = blocks.length;
+					const hasResult =
+						Object.hasOwn(activity, "output") ||
+						Object.hasOwn(activity, "isError");
+					blocks.push({
+						kind: "tool",
+						toolCallId,
+						name: toolName,
+						state: hasResult
+							? activity.isError === true
+								? "failed"
+								: "completed"
+							: "running",
+						...(activity.input === undefined ? {} : { input: activity.input }),
+						...(activity.output === undefined
+							? {}
+							: activity.isError === true
+								? {
+										error:
+											typeof activity.output === "string"
+												? activity.output
+												: JSON.stringify(activity.output),
+									}
+								: { output: activity.output }),
+					});
+				}
+		}
 		if (typeof message.content === "string") {
 			if (message.content) {
 				blocks.push({ kind: "text", text: message.content });
@@ -1765,7 +2029,7 @@ function projectHydratedMessages(
 								modality: "file",
 								mediaType: "application/octet-stream",
 								...(block.path ? { name: block.path.split("/").at(-1) } : {}),
-								source: { type: "base64", data: block.content },
+								source: { type: "base64", data: utf8ToBase64(block.content) },
 							},
 						});
 						break;
@@ -1825,9 +2089,9 @@ function projectHydratedMessages(
 				? { displayRole: "error" as const }
 				: {}),
 			origin: "hydrated",
-			...(message.createdAt === undefined
+			...((message.ts ?? message.createdAt) === undefined
 				? {}
-				: { createdAt: message.createdAt }),
+				: { createdAt: message.ts ?? message.createdAt }),
 			blocks,
 			toolIndex,
 		});

@@ -1,5 +1,6 @@
 import type { ModelCatalogView } from "@/session";
 import { parseSessionRecordReply } from "../session/schemas";
+import type { SessionRecoveryState } from "../session/session-connection";
 /**
  * The headless bridge between one {@link ConnectionDescriptor} and the tested
  * session core. Pure TypeScript — no React — so it can be unit-tested directly
@@ -363,6 +364,7 @@ export class SessionConnectionController {
 	 */
 	private idleRecovery?: Promise<void>;
 	private recoveryDescriptor?: ConnectionDescriptor;
+	private recoveryState?: SessionRecoveryState;
 	private preserveRecoveryView = false;
 
 	/** Refresh missed foreground activity; replace an unresponsive socket once. */
@@ -440,6 +442,8 @@ export class SessionConnectionController {
 			allowInitialCreate: false,
 		};
 		delete this.recoveryDescriptor.pendingInitialMessage;
+		this.recoveryState =
+			connection.captureRecoveryState() ?? this.recoveryState;
 		this.unsubscribeView?.();
 		this.unsubscribeView = undefined;
 		connection.dispose();
@@ -473,6 +477,19 @@ export class SessionConnectionController {
 			this.descriptor.mode === "cloud" &&
 			this.view.connectionStatus === "closed"
 		) {
+			const connection = this.connection;
+			if (connection?.handle.hubSessionId) {
+				this.recoveryState =
+					connection.captureRecoveryState() ?? this.recoveryState;
+				this.recoveryDescriptor = {
+					...this.descriptor,
+					remoteSessionId: connection.handle.remoteSession.id,
+					hubSessionId: connection.handle.hubSessionId,
+					allowInitialCreate: false,
+				};
+				delete this.recoveryDescriptor.pendingInitialMessage;
+				this.preserveRecoveryView = true;
+			}
 			this.unsubscribeView?.();
 			this.unsubscribeView = undefined;
 			this.connection?.dispose();
@@ -526,6 +543,8 @@ export class SessionConnectionController {
 		this.initialHandle = undefined;
 		this.connection?.dispose();
 		this.connection = undefined;
+		this.recoveryState = undefined;
+		this.recoveryDescriptor = undefined;
 		this.setStatus({ phase: "closed" });
 	};
 
@@ -548,6 +567,15 @@ export class SessionConnectionController {
 				handle.client.close();
 				return;
 			}
+			if (
+				this.recoveryState &&
+				handle.hubSessionId !== this.recoveryState.sessionId
+			) {
+				handle.client.close();
+				throw new Error(
+					"The recovered connection did not match this conversation. Your unsent work has been retained.",
+				);
+			}
 			this.taskBranch =
 				this.descriptor.mode === "cloud"
 					? cloudTaskBranch(
@@ -564,6 +592,7 @@ export class SessionConnectionController {
 			}
 			const connection = new SessionConnection({
 				handle,
+				...(this.recoveryState ? { recoveryState: this.recoveryState } : {}),
 				onTranscriptAttention: (event) => {
 					for (const listener of [...this.transcriptAttentionListeners]) {
 						try {
@@ -606,11 +635,14 @@ export class SessionConnectionController {
 			}
 			this.setView(connection.getView());
 			this.setStatus({ phase: "ready" });
+			this.recoveryState = undefined;
 		} catch (error) {
 			if (this.disposed) {
 				return;
 			}
 			if (this.preserveRecoveryView) {
+				this.recoveryState =
+					this.connection?.captureRecoveryState() ?? this.recoveryState;
 				this.unsubscribeView?.();
 				this.unsubscribeView = undefined;
 				this.connection?.dispose();

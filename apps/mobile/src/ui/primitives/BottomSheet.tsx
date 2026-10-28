@@ -64,7 +64,7 @@ export interface BottomSheetProps
  * animation and can leave the sheet underneath the keyboard.
  */
 export function expandBottomSheetAfterKeyboardDismiss(
-	sheetRef: RefObject<GorhomBottomSheet | null>,
+	sheetRef: RefObject<Pick<GorhomBottomSheet, "expand"> | null>,
 ): void {
 	if (!Keyboard.isVisible()) {
 		sheetRef.current?.expand();

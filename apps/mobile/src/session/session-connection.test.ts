@@ -2510,3 +2510,189 @@ it("does not resend a reconciled retry after a pending thinking update acknowled
 	expect(accepted).toBe(1);
 	connection.dispose();
 });
+
+describe("SDK thinking acknowledgement broadcasts", () => {
+	it("keeps the acknowledged effort when a same-model broadcast omitted reasoning before acknowledgement", async () => {
+		const ack = deferred<Record<string, unknown>>();
+		const { connection, client } = setUp({
+			getReasoningChoice: () => "high",
+			handlers: {
+				"session.attach": () => ({
+					session: {
+						sessionId: "ses_1",
+						model: "m",
+						provider: "cline",
+						metadata: { reasoningEffort: "low" },
+					},
+				}),
+				"session.update_connection": () => ack.promise,
+			},
+		});
+		await connection.start();
+		const sending = connection.sendInput("Apply High");
+		await settle();
+		client.emit({
+			version: "v1",
+			event: "session.updated",
+			eventId: "same-model-missing-thinking",
+			sessionId: "ses_1",
+			payload: {
+				session: { sessionId: "ses_1", model: "m", provider: "cline" },
+			},
+		});
+		ack.resolve({ updated: true });
+		await sending;
+		expect(connection.getView().model).toMatchObject({
+			modelId: "m",
+			providerId: "cline",
+			reasoning: "high",
+		});
+		connection.dispose();
+	});
+});
+
+describe("same-conversation recovery receipts", () => {
+	it("retains a failed send and buffered partial answer, clears dead capabilities, and refuses another session", async () => {
+		const source = setUp({
+			handlers: {
+				"session.send_input": () => {
+					throw new Error("offline");
+				},
+			},
+		});
+		await source.connection.start();
+		await expect(source.connection.sendInput("keep my ask")).rejects.toThrow(
+			"offline",
+		);
+		source.client.emit({
+			version: "v1",
+			event: "approval.requested",
+			sessionId: "ses_1",
+			payload: approval(),
+		});
+		source.client.emit({
+			version: "v1",
+			event: "capability.requested",
+			sessionId: "ses_1",
+			payload: {
+				requestId: "old-question",
+				targetClientId: source.client.getClientId(),
+				capabilityName: "tool_executor.askQuestion",
+				payload: { args: ["Ready?", ["Yes", "No"]] },
+			},
+		});
+		const history = deferred<Record<string, unknown>>();
+		source.client.handlers.set("session.messages", () => history.promise);
+		const refreshing = source.connection.resync();
+		await settle();
+		source.client.emit(
+			delta("buffered-before-replacement", "Keep partial answer"),
+		);
+		const recoveryState = source.connection.captureRecoveryState();
+		const replacement = new SessionConnection({
+			handle: handleFor(new ControlledHubClient()),
+			recoveryState,
+		});
+		expect(replacement.getView().messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					failed: true,
+					blocks: [{ kind: "text", text: "keep my ask" }],
+				}),
+				expect.objectContaining({
+					blocks: [{ kind: "text", text: "Keep partial answer" }],
+				}),
+			]),
+		);
+		expect(replacement.getView().pendingApprovals).toEqual([]);
+		expect(replacement.getView().pendingQuestions).toEqual([]);
+		const unrelated = new SessionConnection({
+			handle: handleFor(new ControlledHubClient(), {
+				hubSessionId: "other-session",
+			}),
+			recoveryState,
+		});
+		expect(unrelated.getView().messages).toEqual([]);
+		history.resolve({ messages: [] });
+		await refreshing;
+		source.connection.dispose();
+		replacement.dispose();
+		unrelated.dispose();
+	});
+});
+
+it("preserves a newer explicit same-model effort while an older reasoning request acknowledges", async () => {
+	const ack = deferred<Record<string, unknown>>();
+	const { connection, client } = setUp({
+		getReasoningChoice: () => "high",
+		handlers: {
+			"session.attach": () => ({
+				session: {
+					sessionId: "ses_1",
+					model: "m",
+					provider: "cline",
+					metadata: { reasoningEffort: "low" },
+				},
+			}),
+			"session.update_connection": () => ack.promise,
+		},
+	});
+	await connection.start();
+	const sending = connection.sendInput("High choice");
+	await settle();
+	client.emit({
+		version: "v1",
+		event: "session.updated",
+		eventId: "explicit-same-model-low",
+		sessionId: "ses_1",
+		payload: {
+			session: {
+				sessionId: "ses_1",
+				model: "m",
+				provider: "cline",
+				metadata: { reasoningEffort: "low" },
+			},
+		},
+	});
+	ack.resolve({ updated: true });
+	await sending;
+	expect(connection.getView().model?.reasoning).toBe("low");
+	connection.dispose();
+});
+
+it("keeps first-send reasoning when the new session's model becomes known in the update broadcast before acknowledgement", async () => {
+	const ack = deferred<Record<string, unknown>>();
+	const { connection, client } = setUp({
+		hubSessionId: undefined,
+		getReasoningChoice: () => "high",
+		handlers: {
+			"session.create": () => ({ session: { sessionId: "ses_1" } }),
+			"session.update_connection": () => ack.promise,
+		},
+	});
+	await connection.start();
+	expect(connection.getView().model).toBeUndefined();
+	const sending = connection.sendInput("First send with High");
+	await settle();
+	client.emit({
+		version: "v1",
+		event: "session.updated",
+		eventId: "first-known-model-no-effort",
+		sessionId: connection.handle.hubSessionId,
+		payload: {
+			session: {
+				sessionId: connection.handle.hubSessionId,
+				provider: "cline",
+				model: "new-model",
+			},
+		},
+	});
+	ack.resolve({ updated: true });
+	await sending;
+	expect(connection.getView().model).toMatchObject({
+		providerId: "cline",
+		modelId: "new-model",
+		reasoning: "high",
+	});
+	connection.dispose();
+});

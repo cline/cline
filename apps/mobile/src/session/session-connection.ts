@@ -58,6 +58,7 @@ import {
 	parseSessionMessagesReply,
 	parseSessionRecordReply,
 	pendingPromptsSchema,
+	readSessionModel,
 	toPendingPromptView,
 } from "./schemas";
 /** Live-wire provenance retained only across a same-socket transcript refresh. */
@@ -65,7 +66,19 @@ export type TranscriptAttentionEvent =
 	| { type: "started" | "ready" | "retired"; windowId: number }
 	| { type: "observed"; windowId: number; change: AttentionChange };
 
+/** In-memory receipt for replacing a socket for the same exact conversation. */
+export interface SessionRecoveryState {
+	readonly sessionId: string;
+	readonly state: SessionState;
+	readonly inputReceipts?: readonly {
+		messageId: string;
+		attempts: readonly { requestId: string; clientId: string }[];
+		accepted: boolean;
+	}[];
+}
+
 export interface SessionConnectionOptions {
+	recoveryState?: SessionRecoveryState;
 	onTranscriptAttention?(event: TranscriptAttentionEvent): void;
 	handle: SessionHandle;
 	onDiagnostic?: (diagnostic: SessionDiagnostic) => void;
@@ -160,10 +173,17 @@ export class SessionConnection {
 	/** Events received before the owned session id was known; see `onEvent`. */
 	private heldEvents: HubEventEnvelope[] = [];
 	private pendingPromptsRevision = 0;
+	private reasoningModelRevision = 0;
 	private pendingPromptsEventRevision = 0;
 	private queueMutationSequence = 0;
 	private appliedQueueMutation = 0;
 	private queuedTurnNeedsSnapshot = false;
+	private remoteTurnNeedsSnapshot = false;
+	/** Wire attempts belong to one optimistic input, including transport retries. */
+	private readonly inputReceipts = new Map<
+		string,
+		{ attempts: Map<string, string>; accepted: boolean }
+	>();
 	private lastSubmittedPromptId?: string;
 	private transcriptAttentionSequence = 0;
 	private transcriptAttention?: {
@@ -184,6 +204,73 @@ export class SessionConnection {
 
 	constructor(private readonly options: SessionConnectionOptions) {
 		this.approvalPolicy = options.approvalPolicy ?? ASK_EVERYTHING;
+		const recovery = options.recoveryState;
+		if (recovery && recovery.sessionId === options.handle.hubSessionId) {
+			for (const receipt of recovery.inputReceipts ?? [])
+				this.inputReceipts.set(receipt.messageId, {
+					attempts: new Map(
+						receipt.attempts.map((attempt) => [
+							attempt.requestId,
+							attempt.clientId,
+						]),
+					),
+					accepted: receipt.accepted,
+				});
+			this.state = reduceSession(recovery.state, {
+				type: "transport_dropped",
+				clearApprovals: true,
+				detail: "Replacing the connection for this conversation.",
+			});
+			// A snapshot/recovery window belongs to its previous socket.
+			this.state = {
+				...this.state,
+				buffer: [],
+				approvalRecovery: undefined,
+				emitted: [],
+			};
+			this.view = selectViewModel(this.state);
+		}
+	}
+
+	captureRecoveryState(): SessionRecoveryState | undefined {
+		const sessionId = this.handle.hubSessionId;
+		let state =
+			this.state.phase === "buffering"
+				? reduceSession(this.state, {
+						type: "hydrate_failed",
+						detail: "Replacing the connection.",
+					})
+				: this.state;
+		for (const [messageId, receipt] of this.inputReceipts) {
+			if (
+				!receipt.accepted &&
+				state.live.some(
+					(message) =>
+						message.id === messageId && message.pending && !message.failed,
+				)
+			)
+				state = reduceSession(state, {
+					type: "send_failed",
+					messageId,
+					detail:
+						"Connection changed before delivery was confirmed. Check the conversation before retrying.",
+				});
+		}
+		const inputReceipts = [...this.inputReceipts]
+			.filter(([messageId]) =>
+				state.live.some(
+					(message) => message.id === messageId && message.pending,
+				),
+			)
+			.map(([messageId, receipt]) => ({
+				messageId,
+				attempts: [...receipt.attempts].map(([requestId, clientId]) => ({
+					requestId,
+					clientId,
+				})),
+				accepted: receipt.accepted,
+			}));
+		return sessionId ? { sessionId, state, inputReceipts } : undefined;
 	}
 
 	get handle(): SessionHandle {
@@ -264,10 +351,10 @@ export class SessionConnection {
 	 * the reply", not "the run failed"; the view model keeps tracking the run over
 	 * the reconnected subscription, and the resync recovers the outcome.
 	 *
-	 * Either way the optimistic message is marked `failed` on rejection, which is
-	 * the retry affordance: nothing is silently queued for later. If the input did
-	 * reach the hub after all, the next hydrate finds it in the transcript and drops
-	 * the local bubble, so the failed marking is self-correcting.
+	 * An exact run.started client/request receipt confirms admission before this
+	 * promise settles. Only unconfirmed inputs become retryable after rejection
+	 * or socket replacement; nothing is replayed automatically. A later receipt
+	 * or canonical hydrate resolves that delivery uncertainty without a duplicate.
 	 */
 	async sendInput(
 		text: string,
@@ -296,6 +383,7 @@ export class SessionConnection {
 	 * duplicate a delivered prompt.
 	 */
 	async retrySend(messageId: string): Promise<void> {
+		if (this.inputReceipts.get(messageId)?.accepted) return;
 		const input = selectOptimisticInput(this.state, messageId);
 		if (input === undefined) {
 			return;
@@ -771,6 +859,39 @@ export class SessionConnection {
 			}
 			return;
 		}
+		if (envelope.event === "run.started") {
+			const requestId = envelope.payload?.requestId;
+			if (typeof requestId === "string") {
+				for (const [messageId, receipt] of this.inputReceipts) {
+					if (
+						typeof envelope.payload?.clientId === "string" &&
+						receipt.attempts.get(requestId) === envelope.payload.clientId
+					) {
+						receipt.accepted = true;
+						// A delayed exact receipt can resolve an earlier delivery uncertainty.
+						this.dispatch({ type: "send_retried", messageId });
+					}
+				}
+			}
+			// Immediate inputs are not broadcast as user messages. The actual Hub
+			// identifies the sender on run.started; recover that sender's persisted
+			// prompt at completion without inventing an optimistic local send.
+			const sender = envelope.payload?.clientId;
+			if (typeof sender === "string")
+				this.remoteTurnNeedsSnapshot =
+					sender !== this.handle.client.getClientId();
+		}
+		if (envelope.event === "session.pending_prompt_submitted") {
+			const parsed = parseHubEvent(envelope);
+			if (
+				parsed.status === "ok" &&
+				parsed.event.name === "session.pending_prompt_submitted"
+			) {
+				if (parsed.event.payload.prompt.id === this.lastSubmittedPromptId)
+					return;
+				this.lastSubmittedPromptId = parsed.event.payload.prompt.id;
+			}
+		}
 		this.dispatchLive({ type: "event", envelope });
 		if (envelope.event === "session.pending_prompt_submitted") {
 			const parsed = parseHubEvent(envelope);
@@ -779,32 +900,19 @@ export class SessionConnection {
 				parsed.event.name !== "session.pending_prompt_submitted"
 			)
 				return;
-			const prompt = parsed.event.payload.prompt;
-			if (prompt.id === this.lastSubmittedPromptId) return;
-			this.lastSubmittedPromptId = prompt.id;
-			// Match desktop's queued-prompt start: this is the hub's actual submitted
-			// text (including edits), not the original local draft. Persistence can lag;
-			// the existing user-message reconciliation merges it once snapshots catch up.
-			this.dispatchLive({
-				type: "user_input",
-				text: prompt.prompt,
-				userImages: Array.isArray(prompt.userImages)
-					? prompt.userImages.filter(
-							(image): image is string => typeof image === "string",
-						)
-					: undefined,
-				timestamp: envelope.timestamp ?? Date.now(),
-			});
+			// The reducer projects the submitted input in wire order, including when
+			// older output is buffered during hydration.
 			this.queuedTurnNeedsSnapshot = true;
 			this.queueResync({ transcriptOnly: true });
 		} else if (
-			this.queuedTurnNeedsSnapshot &&
+			(this.queuedTurnNeedsSnapshot || this.remoteTurnNeedsSnapshot) &&
 			["run.completed", "run.failed", "run.aborted"].includes(envelope.event) &&
 			parseHubEvent(envelope).status === "ok"
 		) {
 			// Submission is emitted before execution/persistence. If that first read
 			// raced the write, the terminal snapshot completes the reconciliation.
 			this.queuedTurnNeedsSnapshot = false;
+			this.remoteTurnNeedsSnapshot = false;
 			this.queueResync({ transcriptOnly: true });
 		}
 	}
@@ -1246,6 +1354,11 @@ export class SessionConnection {
 		attachments: SessionInputAttachments = {},
 		retrying = false,
 	): Promise<void> {
+		const receipt = this.inputReceipts.get(messageId) ?? {
+			attempts: new Map<string, string>(),
+			accepted: false,
+		};
+		this.inputReceipts.set(messageId, receipt);
 		const stillPending = () =>
 			this.state.live.some(
 				(message) =>
@@ -1258,7 +1371,7 @@ export class SessionConnection {
 			const sessionId = await this.handle.ensureSession();
 			// Reconnect/hydration may have confirmed the original send while this
 			// retry waited. Its captured payload is no longer authority to resend.
-			if (retrying && !stillPending()) return;
+			if (retrying && (receipt.accepted || !stillPending())) return;
 			// The id just became knowable, so anything held during the create round
 			// trip can now be attributed — before the send, so the run's own events
 			// cannot overtake events that preceded them.
@@ -1274,6 +1387,7 @@ export class SessionConnection {
 			const reasoning = this.options.getReasoningChoice?.();
 			if (reasoning) {
 				const previousModel = this.state.model;
+				const reasoningRevision = this.reasoningModelRevision;
 				this.preparingReasoning = true;
 				try {
 					await this.handle.client.command(
@@ -1284,10 +1398,18 @@ export class SessionConnection {
 					// Older hubs acknowledge without broadcasting session.updated. Keep
 					// the accepted choice visible before consuming the pending edit,
 					// unless a newer server model snapshot already arrived.
-					if (!this.disposed && this.state.model === previousModel) {
+					if (
+						!this.disposed &&
+						(this.state.model === previousModel ||
+							(this.reasoningModelRevision === reasoningRevision &&
+								(previousModel === undefined ||
+									(this.state.model?.modelId === previousModel.modelId &&
+										this.state.model?.providerId ===
+											previousModel.providerId))))
+					) {
 						this.dispatch({
 							type: "model_updated",
-							model: { ...previousModel, reasoning },
+							model: { ...this.state.model, reasoning },
 						});
 					}
 					this.options.onReasoningApplied?.(reasoning);
@@ -1302,7 +1424,7 @@ export class SessionConnection {
 			if (this.disposed)
 				throw new Error("Session closed before the message was sent.");
 			// A thinking update also awaits the network; reconcile again at dispatch.
-			if (retrying && !stillPending()) return;
+			if (retrying && (receipt.accepted || !stillPending())) return;
 			const reply = await this.handle.client.command(
 				"session.send_input",
 				{
@@ -1313,7 +1435,12 @@ export class SessionConnection {
 						: {}),
 				},
 				sessionId,
+				{
+					onSent: (requestId) =>
+						receipt.attempts.set(requestId, this.handle.client.getClientId()),
+				},
 			);
+			receipt.accepted = true;
 			// RuntimeHost.runTurn returns undefined only for queue/steer admission;
 			// immediate execution returns an AgentResult. Correlate via this RPC's
 			// message id, never by prompt text (identical concurrent sends are valid).
@@ -1325,11 +1452,12 @@ export class SessionConnection {
 			}
 		} catch (error) {
 			this.emitCommandFailure("session.send_input", error);
-			this.dispatch({
-				type: "send_failed",
-				messageId,
-				detail: errorDetail(error),
-			});
+			if (!receipt.accepted)
+				this.dispatch({
+					type: "send_failed",
+					messageId,
+					detail: errorDetail(error),
+				});
 			throw error;
 		}
 	}
@@ -1394,7 +1522,29 @@ export class SessionConnection {
 	}
 
 	private dispatch(action: SessionAction): void {
+		if (
+			action.type === "model_updated" &&
+			Object.hasOwn(action.model, "reasoning")
+		)
+			this.reasoningModelRevision += 1;
+		if (action.type === "event") {
+			const parsed = parseHubEvent(action.envelope);
+			if (parsed.status === "ok" && parsed.event.name === "session.updated") {
+				const model = readSessionModel(parsed.event.payload.session);
+				if (model && Object.hasOwn(model, "reasoning"))
+					this.reasoningModelRevision += 1;
+			}
+		}
 		this.state = reduceSession(this.state, action);
+		if (action.type === "hydrated" || action.type === "send_queued") {
+			const pendingIds = new Set(
+				this.state.live
+					.filter((message) => message.pending)
+					.map((message) => message.id),
+			);
+			for (const messageId of this.inputReceipts.keys())
+				if (!pendingIds.has(messageId)) this.inputReceipts.delete(messageId);
+		}
 		for (const diagnostic of this.state.emitted) {
 			try {
 				this.options.onDiagnostic?.(diagnostic);

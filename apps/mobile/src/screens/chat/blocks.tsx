@@ -353,7 +353,12 @@ function ToolActivityCard({
 			{files.length > 0 ? (
 				<ToolDiffView files={files} state={block.state} />
 			) : preview ? (
-				<CodeBlock muted={block.state === "completed"}>{preview}</CodeBlock>
+				<CodeBlock
+					muted={block.state === "completed"}
+					copyLabel="Copy tool output"
+				>
+					{preview}
+				</CodeBlock>
 			) : null}
 			{outputMedia.length > 0 ? (
 				<View

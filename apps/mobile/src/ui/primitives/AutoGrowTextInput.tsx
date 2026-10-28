@@ -4,6 +4,7 @@ import {
 	TextInput,
 	type TextInputContentSizeChangeEventData,
 	type TextInputProps,
+	useWindowDimensions,
 } from "react-native";
 import { fontFamily, useTheme } from "../theme";
 
@@ -30,6 +31,7 @@ export function AutoGrowTextInput({
 	...rest
 }: AutoGrowTextInputProps) {
 	const theme = useTheme();
+	const { fontScale } = useWindowDimensions();
 	const [height, setHeight] = useState(minHeight);
 	const inputRef = useRef<TextInput>(null);
 
@@ -46,6 +48,7 @@ export function AutoGrowTextInput({
 
 	return (
 		<TextInput
+			key={fontScale}
 			keyboardAppearance={theme.mode}
 			ref={inputRef}
 			multiline

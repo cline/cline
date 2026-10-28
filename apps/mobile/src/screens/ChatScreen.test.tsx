@@ -1008,7 +1008,8 @@ describe("ChatScreen", () => {
 		expect(
 			root.findAll((node) => node.props.testID === "composer-controls"),
 		).toHaveLength(0);
-		expect(root.findAll((node) => node.type === "BottomSheet")).toHaveLength(4);
+		// An absent/resolved question sheet is unmounted so rotation cannot reopen it.
+		expect(root.findAll((node) => node.type === "BottomSheet")).toHaveLength(3);
 	});
 
 	it("answers Cline questions through the same session connection", async () => {

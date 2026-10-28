@@ -1,6 +1,9 @@
+import * as Clipboard from "expo-clipboard";
+import { useState } from "react";
 import { ScrollView, type StyleProp, View, type ViewStyle } from "react-native";
 import { withAlpha } from "@/theme/brand";
 import { useTheme } from "../theme";
+import { Button } from "./Button";
 import { Text } from "./Text";
 
 export interface CodeBlockProps {
@@ -13,6 +16,7 @@ export interface CodeBlockProps {
 	/** Wrap long lines instead of scrolling horizontally. */
 	wrap?: boolean;
 	style?: StyleProp<ViewStyle>;
+	copyLabel?: string;
 }
 
 /**
@@ -29,11 +33,16 @@ export function CodeBlock({
 	muted = false,
 	wrap = false,
 	style,
+	copyLabel,
 }: CodeBlockProps) {
 	const theme = useTheme();
+	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+		"idle",
+	);
 	const body = (
 		<Text
 			variant="mono"
+			selectable
 			tone={muted ? "muted" : "default"}
 			style={{ lineHeight: 20 }}
 		>
@@ -55,6 +64,29 @@ export function CodeBlock({
 				style,
 			]}
 		>
+			{copyLabel ? (
+				<View style={{ alignItems: "flex-end", marginBottom: 4 }}>
+					<Button
+						label={copyLabel}
+						accessibilityLabel={copyLabel}
+						variant="ghost"
+						size="sm"
+						onPress={() => {
+							void Clipboard.setStringAsync(children)
+								.then(() => setCopyState("copied"))
+								.catch(() => setCopyState("failed"));
+						}}
+					/>
+					{copyState !== "idle" ? (
+						<Text
+							variant="caption"
+							tone={copyState === "failed" ? "danger" : "muted"}
+						>
+							{copyState === "copied" ? "Copied" : "Couldn't copy. Try again."}
+						</Text>
+					) : null}
+				</View>
+			) : null}
 			<ScrollView>
 				{wrap ? (
 					body

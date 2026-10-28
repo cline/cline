@@ -109,7 +109,8 @@ export function Button({
 			onPress={onPress}
 			style={({ pressed }) => [
 				{
-					height: HEIGHT[size],
+					minHeight: HEIGHT[size],
+					paddingVertical: 10,
 					flexDirection: "row",
 					alignItems: "center",
 					justifyContent: "center",
@@ -128,7 +129,12 @@ export function Button({
 			{loading ? <Spinner size={14} color={v.fg} durationMs={1000} /> : icon}
 			{children ??
 				(displayLabel ? (
-					<Text variant="body" weight="500" color={v.fg}>
+					<Text
+						variant="body"
+						weight="500"
+						color={v.fg}
+						style={{ flexShrink: 1, textAlign: "center" }}
+					>
 						{displayLabel}
 					</Text>
 				) : null)}

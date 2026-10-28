@@ -98,6 +98,8 @@ vi.mock("@/cloud", async (importOriginal) => {
 		CloudSessionGateway: FakeGateway,
 		CloudSetupGateway: FakeSetupGateway,
 		cloudAuthStore: {
+			identityVersion: 0,
+			subscribeIdentity: () => () => {},
 			getValidAccessToken: hoisted.getValidAccessToken,
 			setCredentials: vi.fn(async () => {}),
 		},

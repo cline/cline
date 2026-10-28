@@ -167,7 +167,10 @@ export function useCloudSessions({
 		return flow.current;
 	}, []);
 	const isCurrentFlow = useCallback(
-		(generation: number) => flow.current === generation,
+		(generation: number, identityVersion?: number) =>
+			flow.current === generation &&
+			(identityVersion === undefined ||
+				cloudAuthStore.identityVersion === identityVersion),
 		[],
 	);
 	// Unmounting is a cancellation too (a ref needs no dependency list).
@@ -180,6 +183,9 @@ export function useCloudSessions({
 
 	const load = useCallback(
 		async (generation: number) => {
+			if (!isCurrentFlow(generation)) return;
+			const identityVersion = cloudAuthStore.identityVersion;
+			const current = () => isCurrentFlow(generation, identityVersion);
 			loading.current = true;
 			const publishScope = beginRefresh();
 			setState({
@@ -189,7 +195,7 @@ export function useCloudSessions({
 			});
 			try {
 				const token = await cloudAuthStore.getValidAccessToken();
-				if (!isCurrentFlow(generation)) {
+				if (!current()) {
 					return;
 				}
 				if (!token) {
@@ -203,7 +209,7 @@ export function useCloudSessions({
 					apiBaseUrl: cloudEnv.apiBaseUrl,
 					getAccessToken: () => cloudAuthStore.getValidAccessToken(),
 				}).listAccounts();
-				if (!isCurrentFlow(generation)) return;
+				if (!current()) return;
 				publishScope({
 					organizationId: accounts.find((account) => account.active)
 						?.organizationId,
@@ -256,14 +262,14 @@ export function useCloudSessions({
 							]),
 					).values(),
 				];
-				if (!isCurrentFlow(generation)) {
+				if (!current()) {
 					return;
 				}
 				lastSessions.current = sessions;
 				cloudLaunches.reconcile(sessions);
 				setState({ phase: "ready", sessions });
 			} catch (error) {
-				if (!isCurrentFlow(generation)) {
+				if (!current()) {
 					return;
 				}
 				logCloudFailure("load", error);
@@ -279,7 +285,7 @@ export function useCloudSessions({
 					authenticated: lastAuthenticated.current,
 				});
 			} finally {
-				if (isCurrentFlow(generation)) loading.current = false;
+				if (current()) loading.current = false;
 			}
 		},
 		[isCurrentFlow, organizationIds, beginRefresh],
@@ -288,6 +294,32 @@ export function useCloudSessions({
 	const refresh = useCallback(() => {
 		void load(startFlow());
 	}, [load, startFlow]);
+	const refreshRef = useRef(refresh);
+	refreshRef.current = refresh;
+	useEffect(
+		() =>
+			cloudAuthStore.subscribeIdentity((credentials) => {
+				// Retire pending REST/code flows and private cached rows before storage cleanup.
+				flow.current += 1;
+				loading.current = false;
+				lastSessions.current = [];
+				lastAuthenticated.current = false;
+				setState(
+					credentials
+						? { phase: "loading", sessions: [] }
+						: { phase: "signed-out" },
+				);
+				if (credentials) {
+					const identityVersion = cloudAuthStore.identityVersion;
+					// Let account-scope subscribers retire the previous identity first.
+					queueMicrotask(() => {
+						if (cloudAuthStore.identityVersion === identityVersion)
+							refreshRef.current();
+					});
+				}
+			}),
+		[],
+	);
 
 	const signIn = useCallback(() => {
 		const generation = startFlow();
@@ -351,8 +383,6 @@ export function useCloudSessions({
 		loadedScopeKey.current = scopeKey;
 		void load(startFlow());
 	}, [autoLoad, load, scopeKey, startFlow]);
-	const refreshRef = useRef(refresh);
-	refreshRef.current = refresh;
 	useEffect(() => {
 		if (!autoLoad || !refreshIntervalMs) return;
 		const refreshIfIdle = () => {

@@ -1623,3 +1623,269 @@ describe("last run timing", () => {
 		expect(selectViewModel(state).lastRun?.outcome).toBe("aborted");
 	});
 });
+
+describe("actual SDK progress and partial iteration recovery", () => {
+	let nextEventId = 0;
+	function sdkEvent(
+		event: HubEventEnvelope["event"],
+		payload: Record<string, unknown>,
+	): HubEventEnvelope {
+		return {
+			version: "v1",
+			event,
+			eventId: `sdk-recovery-${++nextEventId}`,
+			sessionId: "sdk-recovery",
+			timestamp: nextEventId,
+			payload,
+		};
+	}
+
+	const firstIteration: import("./schemas").HydratedMessage[] = [
+		{
+			role: "assistant",
+			content: [
+				{ type: "text", text: "I will inspect." },
+				{ type: "tool_use", id: "read-1", name: "read_file" },
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "read-1",
+					content: "file contents",
+				},
+			],
+		},
+	];
+
+	function beginSecondIteration(): SessionState {
+		return applyEvents(liveState(), [
+			sdkEvent("run.started", {}),
+			sdkEvent("assistant.finished", { text: "I will inspect." }),
+			sdkEvent("tool.started", { toolCallId: "read-1", toolName: "read_file" }),
+			sdkEvent("tool.finished", {
+				toolCallId: "read-1",
+				toolName: "read_file",
+				output: "file contents",
+			}),
+		]);
+	}
+
+	function refreshMidRun(state: SessionState): SessionViewModel {
+		return selectViewModel(
+			reduceSession(reduceSession(state, { type: "hydrate_started" }), {
+				type: "hydrated",
+				messages: firstIteration,
+				runStatus: "running",
+			}),
+		);
+	}
+
+	it("shows append-only stdout and stderr chunks from the real tool.updated update field before completion", () => {
+		// bash.ts createCommandProgressEmitter -> runtime-event-adapter.ts ->
+		// session-event-projector.ts: progress lives inside payload.update.
+		const state = applyEvents(liveState(), [
+			sdkEvent("run.started", {}),
+			sdkEvent("tool.started", {
+				toolCallId: "command-1",
+				toolName: "run_command",
+			}),
+			sdkEvent("tool.updated", {
+				toolCallId: "command-1",
+				toolName: "run_command",
+				update: {
+					stream: "stdout",
+					chunk: "building\n",
+					executionId: "exec-1",
+					detachable: true,
+				},
+			}),
+			sdkEvent("tool.updated", {
+				toolCallId: "command-1",
+				toolName: "run_command",
+				update: {
+					stream: "stderr",
+					chunk: "warning\n",
+					executionId: "exec-1",
+					detachable: true,
+				},
+			}),
+		]);
+		const tool = selectViewModel(state)
+			.messages.flatMap((message) => message.blocks)
+			.find((block) => block.kind === "tool");
+		expect(tool?.kind).toBe("tool");
+		if (tool?.kind !== "tool") throw new Error("Missing command activity");
+		expect(tool.state).toBe("running");
+		expect(JSON.stringify(tool.output) ?? "").toContain("building");
+		expect(JSON.stringify(tool.output) ?? "").toContain("warning");
+	});
+
+	it("does not repeat the persisted iteration when the next iteration has partial text", () => {
+		const state = applyEvents(beginSecondIteration(), [
+			sdkEvent("assistant.delta", { text: "Now editing." }),
+		]);
+		const blocks = refreshMidRun(state).messages.flatMap(
+			(message) => message.blocks,
+		);
+		expect(
+			blocks.filter(
+				(block) => block.kind === "text" && block.text === "I will inspect.",
+			),
+		).toHaveLength(1);
+		expect(
+			blocks.filter(
+				(block) => block.kind === "tool" && block.toolCallId === "read-1",
+			),
+		).toHaveLength(1);
+		expect(
+			blocks.some(
+				(block) => block.kind === "text" && block.text === "Now editing.",
+			),
+		).toBe(true);
+	});
+
+	it("keeps an unpersisted next-iteration command when earlier text is already on disk", () => {
+		const state = applyEvents(beginSecondIteration(), [
+			sdkEvent("tool.started", {
+				toolCallId: "build-2",
+				toolName: "run_command",
+				input: { command: "slow build" },
+			}),
+		]);
+		const blocks = refreshMidRun(state).messages.flatMap(
+			(message) => message.blocks,
+		);
+		expect(
+			blocks.find(
+				(block) => block.kind === "tool" && block.toolCallId === "build-2",
+			),
+		).toMatchObject({ state: "running", input: { command: "slow build" } });
+	});
+	it("reconciles a persisted iteration in the hydration event buffer and keeps streaming its remaining segment", () => {
+		let state = reduceSession(liveState(), { type: "hydrate_started" });
+		state = applyEvents(state, [
+			sdkEvent("run.started", {}),
+			sdkEvent("assistant.finished", { text: "I will inspect." }),
+			sdkEvent("tool.started", { toolCallId: "read-1", toolName: "read_file" }),
+			sdkEvent("tool.finished", {
+				toolCallId: "read-1",
+				toolName: "read_file",
+				output: "file contents",
+			}),
+			sdkEvent("assistant.delta", { text: "Now " }),
+		]);
+		state = reduceSession(state, {
+			type: "hydrated",
+			messages: firstIteration,
+			runStatus: "running",
+		});
+		state = applyEvents(state, [
+			sdkEvent("assistant.delta", { text: "editing." }),
+		]);
+		const blocks = selectViewModel(state).messages.flatMap(
+			(message) => message.blocks,
+		);
+		expect(
+			blocks.filter(
+				(block) => block.kind === "text" && block.text === "I will inspect.",
+			),
+		).toHaveLength(1);
+		expect(
+			blocks.filter(
+				(block) => block.kind === "tool" && block.toolCallId === "read-1",
+			),
+		).toHaveLength(1);
+		expect(
+			blocks.some(
+				(block) => block.kind === "text" && block.text === "Now editing.",
+			),
+		).toBe(true);
+	});
+
+	it("does not spend old transcript occurrences on a new repeated assistant segment", () => {
+		let state = reduceSession(liveState(), {
+			type: "hydrated",
+			messages: [{ role: "assistant", content: "Done." }],
+		});
+		state = applyEvents(state, [
+			sdkEvent("run.started", {}),
+			sdkEvent("assistant.finished", { text: "Done." }),
+		]);
+		state = reduceSession(reduceSession(state, { type: "hydrate_started" }), {
+			type: "hydrated",
+			messages: [{ role: "assistant", content: "Done." }],
+			runStatus: "running",
+		});
+		expect(
+			selectViewModel(state)
+				.messages.flatMap((message) => message.blocks)
+				.filter((block) => block.kind === "text" && block.text === "Done."),
+		).toHaveLength(2);
+	});
+
+	it("retains current reasoning and generated media after an earlier iteration is persisted", () => {
+		const media = {
+			id: "new-image",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "base64", data: "aGVsbG8=" },
+		};
+		const state = applyEvents(beginSecondIteration(), [
+			sdkEvent("reasoning.delta", { text: "Checking the next change" }),
+			sdkEvent("assistant.media", { media }),
+		]);
+		const blocks = refreshMidRun(state).messages.flatMap(
+			(message) => message.blocks,
+		);
+		expect(
+			blocks.some(
+				(block) =>
+					block.kind === "reasoning" &&
+					block.text === "Checking the next change",
+			),
+		).toBe(true);
+		expect(blocks.find((block) => block.kind === "media")).toMatchObject({
+			media,
+		});
+	});
+
+	it("bounds command progress, ignores empty lifecycle chunks, and lets the terminal result replace progress", () => {
+		let state = applyEvents(liveState(), [
+			sdkEvent("run.started", {}),
+			sdkEvent("tool.started", {
+				toolCallId: "noisy",
+				toolName: "run_command",
+			}),
+			sdkEvent("tool.updated", {
+				toolCallId: "noisy",
+				update: { stream: "stdout", chunk: "x".repeat(70_000) },
+			}),
+			sdkEvent("tool.updated", {
+				toolCallId: "noisy",
+				update: { stream: "stdout", chunk: "", detachable: true },
+			}),
+		]);
+		const output = () =>
+			selectViewModel(state)
+				.messages.flatMap((message) => message.blocks)
+				.find((block) => block.kind === "tool");
+		expect(output()).toMatchObject({ output: "x".repeat(64 * 1024) });
+		state = applyEvents(state, [
+			sdkEvent("tool.finished", {
+				toolCallId: "noisy",
+				output: "final result",
+			}),
+			sdkEvent("tool.updated", {
+				toolCallId: "noisy",
+				update: { stream: "stderr", chunk: "late" },
+			}),
+		]);
+		expect(output()).toMatchObject({
+			state: "completed",
+			output: "final result",
+		});
+	});
+});

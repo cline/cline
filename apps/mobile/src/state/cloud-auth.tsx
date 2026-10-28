@@ -94,6 +94,15 @@ export function CloudAuthProvider({
 		revision.current += 1;
 		setScope(next);
 	}, []);
+	useEffect(
+		() =>
+			value.subscribeIdentity(() => {
+				selectScope(undefined);
+				// Cached controllers and pending launches cannot outlive their account.
+				cloudStartStore.clear();
+			}),
+		[value, selectScope],
+	);
 	const beginSelection = useCallback(() => {
 		// Starting a newer selection retires older switches/discovery. Publishing
 		// increments again so discovery begun during the RPC cannot undo success.
@@ -145,22 +154,27 @@ export function useCloudAuth(): UseCloudAuth {
 
 	useEffect(() => {
 		let active = true;
+		const identityVersion = store.identityVersion;
+		const unsubscribe = store.subscribeIdentity((credentials) => {
+			if (active) setAccount(toAccountState(credentials));
+		});
 		setAccount({ phase: "loading" });
 		void store
 			.getCredentials()
 			.then((credentials) => {
-				if (active) {
+				if (active && store.identityVersion === identityVersion) {
 					setAccount(toAccountState(credentials));
 				}
 			})
 			.catch(() => {
 				// An unreadable Keychain entry is indistinguishable from none.
-				if (active) {
+				if (active && store.identityVersion === identityVersion) {
 					setAccount({ phase: "signed-out" });
 				}
 			});
 		return () => {
 			active = false;
+			unsubscribe();
 		};
 	}, [store]);
 
@@ -178,7 +192,8 @@ export function useCloudAuth(): UseCloudAuth {
 			credentialSignOut,
 			endpointsStore.retirePendingInitialMessages(),
 		]);
-		setAccount({ phase: "signed-out" });
+		// The store's synchronous identity notification already retired every consumer.
+		// A newer sign-in during storage cleanup must not be overwritten here.
 	}, [store, selectScope, endpointsStore]);
 
 	return { account, signOut, store };

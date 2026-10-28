@@ -4,6 +4,7 @@ import { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
+
 import { render } from "../ui/__testing__/render";
 import { containsText } from "./__testing__/harness";
 import {
@@ -40,7 +41,11 @@ vi.mock("@/cloud", async (importOriginal) => {
 	return {
 		...actual,
 		CloudSetupGateway: FakeSetupGateway,
-		cloudAuthStore: { getValidAccessToken: vi.fn(async () => "jwt") },
+		cloudAuthStore: {
+			identityVersion: 0,
+			subscribeIdentity: () => () => {},
+			getValidAccessToken: vi.fn(async () => "jwt"),
+		},
 	};
 });
 

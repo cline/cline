@@ -110,3 +110,25 @@ export function clearAllSessionDrafts(): void {
 	retirementEpoch += 1;
 	for (const listener of [...retirementListeners]) listener();
 }
+
+/** Question answers share the private, bounded cache and its sign-out epoch. */
+export function questionAnswerDraftKey(
+	sessionKey: string,
+	requestId: string,
+): string {
+	return `question-answer:${JSON.stringify(sessionKey)}:${JSON.stringify(requestId)}`;
+}
+
+/** Also retires answers resolved while their chat screen was unmounted. */
+export function retireResolvedQuestionDrafts(
+	sessionKey: string,
+	pendingIds: string[],
+): void {
+	const prefix = `question-answer:${JSON.stringify(sessionKey)}:`;
+	const pendingKeys = new Set(
+		pendingIds.map((id) => questionAnswerDraftKey(sessionKey, id)),
+	);
+	for (const key of drafts.keys()) {
+		if (key.startsWith(prefix) && !pendingKeys.has(key)) drafts.delete(key);
+	}
+}

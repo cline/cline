@@ -3,6 +3,7 @@ import {
 	type TextProps as RNTextProps,
 	type StyleProp,
 	type TextStyle,
+	useWindowDimensions,
 } from "react-native";
 import type { TextVariant } from "../theme";
 import { useTheme } from "../theme";
@@ -35,6 +36,7 @@ export function Text({
 	...rest
 }: TextProps) {
 	const theme = useTheme();
+	const { fontScale } = useWindowDimensions();
 
 	const toneColor: string =
 		color ??
@@ -48,6 +50,7 @@ export function Text({
 
 	return (
 		<RNText
+			key={fontScale}
 			style={[
 				theme.typography[variant],
 				{ color: toneColor },

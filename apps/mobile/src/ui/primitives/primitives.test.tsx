@@ -79,7 +79,7 @@ describe("Button", () => {
 	});
 
 	it("keeps a native-sized touch target", () => {
-		expect(hasStyle(render(<Button label="Go" />).root, "height", 44)).toBe(
+		expect(hasStyle(render(<Button label="Go" />).root, "minHeight", 44)).toBe(
 			true,
 		);
 	});

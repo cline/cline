@@ -21,6 +21,8 @@ if (
 		"clear",
 		"state",
 		"snapshot",
+		"sdk-profile",
+		"sdk-release",
 	].includes(action)
 )
 	throw new Error(

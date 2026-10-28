@@ -669,3 +669,444 @@ describe("Cloud recovery failure boundaries", () => {
 		expect(createHandle).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("preserving user work across Cloud socket replacement", () => {
+	class ReceiptClient extends FakeHubClient {
+		readonly sentInputs: { requestId: string; prompt: unknown }[] = [];
+		additionalWireAttemptId?: string;
+		private readonly receiptListeners = new Set<
+			(event: HubEventEnvelope) => void
+		>();
+		override subscribe(
+			listener?: (event: HubEventEnvelope) => void,
+		): () => void {
+			if (listener) this.receiptListeners.add(listener);
+			return () => {
+				if (listener) this.receiptListeners.delete(listener);
+			};
+		}
+		override emit(event: HubEventEnvelope): void {
+			for (const listener of this.receiptListeners) listener(event);
+		}
+		override async command(
+			command: HubCommandEnvelope["command"],
+			payload?: Record<string, unknown>,
+			_sessionId?: string,
+			options?: { onSent?: (requestId: string) => void },
+		): Promise<HubReplyEnvelope> {
+			if (command === "session.send_input") {
+				const requestId = `${this.getClientId()}:wire-${this.sentInputs.length + 1}`;
+				this.sentInputs.push({ requestId, prompt: payload?.prompt });
+				if (this.additionalWireAttemptId) {
+					options?.onSent?.(this.additionalWireAttemptId);
+					this.additionalWireAttemptId = undefined;
+				}
+				options?.onSent?.(requestId);
+			}
+			return super.command(command, payload);
+		}
+	}
+	it("keeps an unconfirmed in-flight input and image for exactly one explicit retry after replacement", async () => {
+		vi.useFakeTimers();
+		const old = new ReceiptClient();
+		const fresh = new ReceiptClient();
+		const gate = deferred<Record<string, unknown>>();
+		old.handlers.set("session.send_input", () => gate.promise);
+		const resend = vi.fn(() => ({ result: { finishReason: "completed" } }));
+		fresh.handlers.set("session.send_input", resend);
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			const sending = controller
+				.sendInput("UNCONFIRMED_IN_FLIGHT", {
+					userImages: ["data:image/png;base64,YQ=="],
+				})
+				.catch(() => {});
+			await settle();
+			const original = controller
+				.getSnapshot()
+				.view.messages.find((message) => message.pending);
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const recovery = controller.checkHealth();
+			await vi.advanceTimersByTimeAsync(5_001);
+			await recovery;
+			const retained = controller
+				.getSnapshot()
+				.view.messages.find((message) => message.id === original?.id);
+			expect(retained?.failed).toBe(true);
+			expect(retained?.error).toContain("before delivery was confirmed");
+			expect(JSON.stringify(retained)).toContain("YQ==");
+			expect(resend).not.toHaveBeenCalled();
+			gate.reject(new Error("old socket closed"));
+			await sending;
+			await controller.retrySend(original!.id);
+			await controller.retrySend(original!.id);
+			expect(resend).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({
+					prompt: "UNCONFIRMED_IN_FLIGHT",
+					attachments: { userImages: ["data:image/png;base64,YQ=="] },
+				}),
+			);
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("correlates accepted-but-unfinished input by its exact wire receipt, keeping concurrent unknown input retryable", async () => {
+		vi.useFakeTimers();
+		const old = new ReceiptClient();
+		old.additionalWireAttemptId = "original-transport-attempt";
+		const fresh = new ReceiptClient();
+		const first = deferred<Record<string, unknown>>();
+		const second = deferred<Record<string, unknown>>();
+		old.handlers.set("session.send_input", (payload) =>
+			payload?.prompt === "ACCEPTED_RUNNING" ? first.promise : second.promise,
+		);
+		const resend = vi.fn(() => ({ result: { finishReason: "completed" } }));
+		fresh.handlers.set("session.send_input", resend);
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			const acceptedSend = controller
+				.sendInput("ACCEPTED_RUNNING")
+				.catch(() => {});
+			const unknownSend = controller
+				.sendInput("UNKNOWN_CONCURRENT")
+				.catch(() => {});
+			await settle();
+			const acceptedId = controller.getSnapshot().view.messages[0]!.id;
+			const unknownId = controller.getSnapshot().view.messages[1]!.id;
+			const receipt = (requestId: string, clientId: string) =>
+				old.emit({
+					version: "v1",
+					event: "run.started",
+					eventId: `${requestId}-${clientId}`,
+					sessionId: "ses_1",
+					payload: { requestId, clientId },
+				});
+			// A late receipt for an earlier transport attempt still confirms this input.
+			receipt("original-transport-attempt", old.getClientId());
+			receipt(old.sentInputs[1]!.requestId, "a-different-device");
+			receipt("unrelated-request", old.getClientId());
+			for (const name of ["session.get", "session.attach"])
+				fresh.handlers.set(name, () => ({
+					session: { sessionId: "ses_1", status: "running" },
+				}));
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const recovery = controller.checkHealth();
+			await vi.advanceTimersByTimeAsync(5_001);
+			await recovery;
+			expect(
+				controller
+					.getSnapshot()
+					.view.messages.find((message) => message.id === acceptedId)?.failed,
+			).not.toBe(true);
+			expect(
+				controller
+					.getSnapshot()
+					.view.messages.find((message) => message.id === unknownId)?.failed,
+			).toBe(true);
+			await controller.retrySend(acceptedId);
+			expect(resend).not.toHaveBeenCalled();
+			first.reject(new Error("lost turn completion reply"));
+			second.reject(new Error("old socket closed"));
+			await Promise.all([acceptedSend, unknownSend]);
+			await controller.retrySend(acceptedId);
+			expect(resend).not.toHaveBeenCalled();
+			await controller.retrySend(unknownId);
+			expect(resend).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ prompt: "UNKNOWN_CONCURRENT" }),
+			);
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("recognizes a delayed exact acceptance receipt after replacement even when the client id changes", async () => {
+		vi.useFakeTimers();
+		const old = new ReceiptClient();
+		const fresh = new ReceiptClient();
+		const gate = deferred<Record<string, unknown>>();
+		old.handlers.set("session.send_input", () => gate.promise);
+		const resend = vi.fn(() => ({ result: {} }));
+		fresh.handlers.set("session.send_input", resend);
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{
+				createHandle: vi
+					.fn()
+					.mockResolvedValueOnce(handleFor(old))
+					.mockResolvedValueOnce(handleFor(fresh)),
+			},
+		);
+		try {
+			await controller.start();
+			const sending = controller.sendInput("LATE_ACCEPTANCE").catch(() => {});
+			await settle();
+			const messageId = controller.getSnapshot().view.messages[0]!.id;
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const recovery = controller.checkHealth();
+			await vi.advanceTimersByTimeAsync(5_001);
+			await recovery;
+			expect(
+				controller
+					.getSnapshot()
+					.view.messages.find((message) => message.id === messageId)?.failed,
+			).toBe(true);
+			fresh.emit({
+				version: "v1",
+				event: "run.started",
+				eventId: "late-receipt",
+				sessionId: "ses_1",
+				payload: {
+					requestId: old.sentInputs[0]!.requestId,
+					clientId: old.getClientId(),
+				},
+			});
+			expect(
+				controller
+					.getSnapshot()
+					.view.messages.find((message) => message.id === messageId)?.failed,
+			).not.toBe(true);
+			await controller.retrySend(messageId);
+			expect(resend).not.toHaveBeenCalled();
+			gate.reject(new Error("old socket closed"));
+			await sending;
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("reconciles an unconfirmed in-flight input against canonical history before offering retry", async () => {
+		vi.useFakeTimers();
+		const old = new ReceiptClient();
+		const fresh = new ReceiptClient();
+		const gate = deferred<Record<string, unknown>>();
+		old.handlers.set("session.send_input", () => gate.promise);
+		fresh.handlers.set("session.messages", () => ({
+			messages: [
+				{
+					role: "user",
+					content: '<user_input mode="act">ALREADY_PERSISTED</user_input>',
+				},
+			],
+		}));
+		const resend = vi.fn(() => ({ result: {} }));
+		fresh.handlers.set("session.send_input", resend);
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{
+				createHandle: vi
+					.fn()
+					.mockResolvedValueOnce(handleFor(old))
+					.mockResolvedValueOnce(handleFor(fresh)),
+			},
+		);
+		try {
+			await controller.start();
+			const sending = controller.sendInput("ALREADY_PERSISTED").catch(() => {});
+			await settle();
+			const messageId = controller.getSnapshot().view.messages[0]!.id;
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const recovery = controller.checkHealth();
+			await vi.advanceTimersByTimeAsync(5_001);
+			await recovery;
+			expect(controller.getSnapshot().view.messages).toHaveLength(1);
+			expect(controller.getSnapshot().view.messages[0]?.failed).not.toBe(true);
+			await controller.retrySend(messageId);
+			expect(resend).not.toHaveBeenCalled();
+			gate.reject(new Error("old socket closed"));
+			await sending;
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("retains a failed message and its image for explicit Retry after health timeout", async () => {
+		vi.useFakeTimers();
+		const old = new FakeHubClient();
+		const fresh = new FakeHubClient();
+		old.handlers.set("session.send_input", () => {
+			throw new Error("Disconnected before acceptance");
+		});
+		const send = vi.fn(() => ({}));
+		fresh.handlers.set("session.send_input", send);
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			await controller
+				.sendInput("PRIVATE_RETRY_AFTER_HEALTH_TIMEOUT", {
+					userImages: ["data:image/png;base64,YQ=="],
+				})
+				.catch(() => {});
+			const failed = controller
+				.getSnapshot()
+				.view.messages.find((message) => message.failed);
+			expect(failed).toBeDefined();
+			old.handlers.set("session.get", () => new Promise(() => {}));
+			const recovery = controller.checkHealth();
+			await vi.advanceTimersByTimeAsync(5_001);
+			await recovery;
+			const retained = controller
+				.getSnapshot()
+				.view.messages.find((message) => message.id === failed!.id);
+			expect(retained?.failed).toBe(true);
+			expect(JSON.stringify(retained)).toContain(
+				"PRIVATE_RETRY_AFTER_HEALTH_TIMEOUT",
+			);
+			expect(retained?.blocks).toContainEqual(
+				expect.objectContaining({
+					kind: "media",
+					media: expect.objectContaining({
+						mediaType: "image/png",
+						source: { type: "base64", data: "YQ==" },
+					}),
+				}),
+			);
+			expect(send).not.toHaveBeenCalled();
+			await controller.retrySend(failed!.id);
+			expect(send).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({
+					prompt: "PRIVATE_RETRY_AFTER_HEALTH_TIMEOUT",
+					attachments: { userImages: ["data:image/png;base64,YQ=="] },
+				}),
+			);
+		} finally {
+			controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+
+	it("retains a failed message through an unsuccessful replacement and a later successful retry", async () => {
+		const old = new FakeHubClient();
+		const bad = new FakeHubClient();
+		const fresh = new FakeHubClient();
+		old.handlers.set("session.send_input", () => {
+			throw new Error("offline");
+		});
+		const createHandle = vi
+			.fn()
+			.mockResolvedValueOnce(handleFor(old))
+			.mockResolvedValueOnce(handleFor(bad))
+			.mockResolvedValueOnce(handleFor(fresh));
+		const controller = new SessionConnectionController(
+			{ mode: "cloud", url: "https://workspace.test" },
+			{ createHandle },
+		);
+		try {
+			await controller.start();
+			await controller
+				.sendInput("RETAIN_DURING_REPEATED_RECOVERY")
+				.catch(() => {});
+			const failed = controller
+				.getSnapshot()
+				.view.messages.find((message) => message.failed);
+			expect(failed).toBeDefined();
+			old.handlers.set("session.messages", () => {
+				throw new Error("old route unavailable");
+			});
+			bad.handlers.set("session.messages", () => {
+				throw new Error("replacement also unavailable");
+			});
+			await controller.recoverFromIdle();
+			expect(controller.getSnapshot().status.phase).toBe("error");
+			await controller.recoverFromIdle();
+			expect(controller.getSnapshot().status.phase).toBe("ready");
+			expect(
+				controller
+					.getSnapshot()
+					.view.messages.find((message) => message.id === failed!.id)?.failed,
+			).toBe(true);
+		} finally {
+			controller.dispose();
+		}
+	});
+});
+
+it("keeps an unfinished answer and appends new transport deltas after health replacement", async () => {
+	class EventfulClient extends FakeHubClient {
+		auditEventListeners = new Set<(event: HubEventEnvelope) => void>();
+		override subscribe(
+			listener?: (event: HubEventEnvelope) => void,
+		): () => void {
+			if (listener) this.auditEventListeners.add(listener);
+			return () => {
+				if (listener) this.auditEventListeners.delete(listener);
+			};
+		}
+		override emit(event: HubEventEnvelope): void {
+			for (const listener of this.auditEventListeners) listener(event);
+		}
+	}
+	vi.useFakeTimers();
+	const old = new EventfulClient();
+	const fresh = new EventfulClient();
+	for (const client of [old, fresh]) {
+		for (const name of ["session.get", "session.attach"])
+			client.handlers.set(name, () => ({
+				session: { sessionId: "ses_1", status: "running" },
+			}));
+	}
+	const createHandle = vi
+		.fn()
+		.mockResolvedValueOnce(handleFor(old))
+		.mockResolvedValueOnce(handleFor(fresh));
+	const controller = new SessionConnectionController(
+		{ mode: "cloud", url: "https://workspace.test" },
+		{ createHandle },
+	);
+	const event = (name: string, eventId: string, payload: unknown) =>
+		({
+			version: "v1",
+			event: name,
+			eventId,
+			sessionId: "ses_1",
+			payload,
+		}) as HubEventEnvelope;
+	try {
+		await controller.start();
+		old.emit(event("run.started", "start", {}));
+		old.emit(
+			event("assistant.delta", "partial", { text: "Unpersisted beginning, " }),
+		);
+		old.handlers.set("session.get", () => new Promise(() => {}));
+		const recovery = controller.checkHealth();
+		await vi.advanceTimersByTimeAsync(5001);
+		await recovery;
+		expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+			"Unpersisted beginning, ",
+		);
+		fresh.emit(
+			event("assistant.delta", "continued", {
+				text: "continued after reconnect.",
+			}),
+		);
+		expect(JSON.stringify(controller.getSnapshot().view.messages)).toContain(
+			"Unpersisted beginning, continued after reconnect.",
+		);
+	} finally {
+		controller.dispose();
+		vi.useRealTimers();
+	}
+});

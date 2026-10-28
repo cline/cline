@@ -29,6 +29,7 @@
 		},
 		"plugins": [
 			"./plugins/with-ios-scene-delegate.cjs",
+			"./plugins/with-android-font-scale.cjs",
 			"expo-router",
 			"expo-secure-store",
 			[

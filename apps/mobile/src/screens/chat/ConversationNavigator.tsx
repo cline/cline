@@ -1,10 +1,17 @@
 import { Search, X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, View } from "react-native";
+import {
+	FlatList,
+	Modal,
+	Pressable,
+	useWindowDimensions,
+	View,
+} from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SessionMessageView } from "@/session";
 import { Button, IconButton, Text, TextField, useTheme } from "@/ui";
+import { KeyboardAvoidingContainer } from "@/ui/KeyboardAvoidingContainer";
 import { messageDisplayText, visibleTranscriptMessages } from "./message-text";
 
 export function conversationEntries(
@@ -55,6 +62,7 @@ export function ConversationNavigator({
 		() => conversationEntries(messages, query),
 		[messages, query],
 	);
+	const { fontScale } = useWindowDimensions();
 	if (!visible) return null;
 	return (
 		<Modal
@@ -63,7 +71,8 @@ export function ConversationNavigator({
 			onRequestClose={onClose}
 			supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
 		>
-			<View
+			<KeyboardAvoidingContainer
+				key={fontScale}
 				style={{
 					flex: 1,
 					paddingTop: insets.top + 8,
@@ -74,10 +83,7 @@ export function ConversationNavigator({
 					gap: 12,
 				}}
 			>
-				<View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-					<Text variant="heading" style={{ flex: 1 }}>
-						Find in conversation
-					</Text>
+				<View style={{ alignItems: "flex-end" }}>
 					<IconButton
 						accessibilityLabel="Close conversation search"
 						onPress={onClose}
@@ -85,31 +91,48 @@ export function ConversationNavigator({
 						<X size={20} color={theme.color.text} />
 					</IconButton>
 				</View>
-				<Text variant="small" tone="muted">
-					Jump to a prompt, or search messages.
-				</Text>
-				<View style={{ flexDirection: "row", gap: 10 }}>
-					<Button label="Beginning" variant="outline" onPress={onBeginning} />
-					<Button label="Latest" variant="outline" onPress={onLatest} />
-				</View>
-				<TextField
-					accessibilityLabel="Search conversation"
-					placeholder="Search messages…"
-					value={query}
-					onChangeText={setQuery}
-					returnKeyType="search"
-					autoCapitalize="none"
-					leading={<Search size={18} color={theme.color.textMuted} />}
-				/>
-				<Text variant="caption" tone="muted">
-					{query.trim()
-						? `${entries.length} matching messages`
-						: `${entries.length} prompts`}
-				</Text>
 				<FlatList
+					style={{ flex: 1 }}
 					data={entries}
 					keyExtractor={(entry) => entry.id}
 					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					ListHeaderComponent={
+						<View style={{ gap: 12, paddingBottom: 12 }}>
+							<Text variant="heading">Find in conversation</Text>
+							<Text variant="small" tone="muted">
+								Jump to a prompt, or search messages.
+							</Text>
+							<View style={{ flexDirection: "row", gap: 10 }}>
+								<Button
+									label="Beginning"
+									variant="outline"
+									onPress={onBeginning}
+									style={{ flex: 1 }}
+								/>
+								<Button
+									label="Latest"
+									variant="outline"
+									onPress={onLatest}
+									style={{ flex: 1 }}
+								/>
+							</View>
+							<TextField
+								accessibilityLabel="Search conversation"
+								placeholder="Search messages…"
+								value={query}
+								onChangeText={setQuery}
+								returnKeyType="search"
+								autoCapitalize="none"
+								leading={<Search size={18} color={theme.color.textMuted} />}
+							/>
+							<Text variant="caption" tone="muted">
+								{query.trim()
+									? `${entries.length} matching messages`
+									: `${entries.length} prompts`}
+							</Text>
+						</View>
+					}
 					ListEmptyComponent={
 						<Text tone="muted">
 							{query.trim()
@@ -137,7 +160,7 @@ export function ConversationNavigator({
 						</Pressable>
 					)}
 				/>
-			</View>
+			</KeyboardAvoidingContainer>
 		</Modal>
 	);
 }

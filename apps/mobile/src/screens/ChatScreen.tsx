@@ -54,6 +54,7 @@ import { useApprovalPolicy } from "@/state/settings";
 import {
 	Banner,
 	Button,
+	Disclosure,
 	expandBottomSheetAfterKeyboardDismiss,
 	IconButton,
 	Spinner,
@@ -89,6 +90,10 @@ import {
 	formatMessageRelativeTime,
 	startsNewMessageDay,
 } from "./chat/time";
+import {
+	buildTranscriptWork,
+	type TranscriptRow,
+} from "./chat/transcript-work";
 
 export interface ChatScreenProps {
 	connection: UseSessionConnection;
@@ -232,17 +237,49 @@ function ChatScreenBody({
 			}
 		}
 	};
+	const groupedMessages = useMemo(
+		() =>
+			buildTranscriptWork(
+				groupReasoningMessages(visibleTranscriptMessages(view.messages)),
+				{
+					runStatus: view.runStatus,
+					blocked:
+						view.pendingApprovals.length > 0 ||
+						view.pendingQuestions.length > 0,
+				},
+			),
+		[
+			view.messages,
+			view.runStatus,
+			view.pendingApprovals.length,
+			view.pendingQuestions.length,
+		],
+	);
+	const [openWork, setOpenWork] = useState<Record<string, boolean>>({});
 	const transcriptMessages = useMemo(
-		() => groupReasoningMessages(visibleTranscriptMessages(view.messages)),
-		[view.messages],
+		() =>
+			groupedMessages.flatMap((message) =>
+				message.work && openWork[message.id]
+					? [message, ...message.work.children]
+					: [message],
+			),
+		[groupedMessages, openWork],
+	);
+	const searchableMessages = useMemo(
+		() =>
+			groupedMessages.flatMap((message) =>
+				message.work ? message.work.children : [message],
+			),
+		[groupedMessages],
 	);
 	const approvalSheetRef = useRef<GorhomBottomSheet>(null);
-	const questionSheetRef = useRef<GorhomBottomSheet>(null);
+	const questionSheetRef =
+		useRef<Pick<GorhomBottomSheet, "expand" | "close">>(null);
 	const autoApproveSheetRef = useRef<GorhomBottomSheet>(null);
 	const reasoningSheetRef = useRef<GorhomBottomSheet>(null);
 	const modelSheetRef = useRef<GorhomBottomSheet>(null);
 	const { policy, setTier, store: approvalPolicyStore } = useApprovalPolicy();
-	const transcriptRef = useRef<FlatList<SessionMessageView>>(null);
+	const transcriptRef = useRef<FlatList<TranscriptRow>>(null);
 	const transcriptContentHeight = useRef(0);
 	const [navigatorOpen, setNavigatorOpen] = useState(false);
 	const [navigationError, setNavigationError] = useState<string>();
@@ -519,11 +556,12 @@ function ChatScreenBody({
 		});
 		setFollowingTranscript(true);
 	};
-	const attemptMessageJump = () => {
+	const attemptMessageJump = useCallback(() => {
 		const jump = pendingJump.current;
 		if (!jump) return;
 		const index = transcriptMessagesRef.current.findIndex(
-			(message) => message.id === jump.id,
+			(message) =>
+				message.id === jump.id || message.sourceMessageIds?.includes(jump.id),
 		);
 		if (index < 0) {
 			pendingJump.current = undefined;
@@ -537,7 +575,7 @@ function ChatScreenBody({
 		});
 		if (pendingJump.current === jump && jump.attempts === attempts)
 			pendingJump.current = undefined;
-	};
+	}, []);
 	const jumpToMessage = (id: string) => {
 		Keyboard.dismiss();
 		if (jumpTimer.current) clearTimeout(jumpTimer.current);
@@ -545,9 +583,27 @@ function ChatScreenBody({
 		setNavigationError(undefined);
 		transcriptInteracted.current = true;
 		setFollowingTranscript(false);
-		pendingJump.current = { id, attempts: 0 };
+		const target =
+			searchableMessages.find((message) => message.id === id) ??
+			searchableMessages.find((message) =>
+				message.sourceMessageIds?.includes(id),
+			);
+		pendingJump.current = { id: target?.id ?? id, attempts: 0 };
+		if (target?.parentWorkId && !openWork[target.parentWorkId]) {
+			const workId = target.parentWorkId;
+			setOpenWork((current) => ({ ...current, [workId]: true }));
+			return;
+		}
 		attemptMessageJump();
 	};
+	useEffect(() => {
+		if (
+			transcriptMessages.some(
+				(message) => message.id === pendingJump.current?.id,
+			)
+		)
+			attemptMessageJump();
+	}, [transcriptMessages, attemptMessageJump]);
 	const trackTranscriptPosition = (
 		event: NativeSyntheticEvent<NativeScrollEvent>,
 	) => {
@@ -741,6 +797,13 @@ function ChatScreenBody({
 										message={item}
 										previousCreatedAt={transcriptMessages[index - 1]?.createdAt}
 										onRetry={() => connection.retrySend(item.id)}
+										workExpanded={Boolean(openWork[item.id])}
+										onWorkToggle={(expanded) =>
+											setOpenWork((current) => ({
+												...current,
+												[item.id]: expanded,
+											}))
+										}
 									/>
 								)}
 								contentContainerStyle={{
@@ -902,7 +965,7 @@ function ChatScreenBody({
 
 				<ConversationNavigator
 					visible={navigatorOpen}
-					messages={transcriptMessages}
+					messages={searchableMessages}
 					onClose={() => setNavigatorOpen(false)}
 					onSelect={jumpToMessage}
 					onBeginning={() => {
@@ -920,6 +983,8 @@ function ChatScreenBody({
 					}
 				/>
 				<QuestionSheet
+					draftKey={draftKey}
+					draftsReady={view.connectionStatus === "live"}
 					sheetRef={questionSheetRef}
 					questions={view.pendingQuestions}
 					onAnswer={(requestId, answer) =>
@@ -1063,10 +1128,14 @@ export function MessageRow({
 	message,
 	previousCreatedAt,
 	onRetry,
+	workExpanded = false,
+	onWorkToggle,
 }: {
-	message: SessionMessageView;
+	message: TranscriptRow;
 	previousCreatedAt?: number;
 	onRetry?: () => void;
+	workExpanded?: boolean;
+	onWorkToggle?(expanded: boolean): void;
 }) {
 	const theme = useTheme();
 	const [showTimestamp, setShowTimestamp] = useState(false);
@@ -1087,6 +1156,21 @@ export function MessageRow({
 		previousCreatedAt,
 	);
 	if (message.hidden) return null;
+	if (message.work)
+		return (
+			<Disclosure
+				label={`Worked · ${message.work.toolCallCount} ${message.work.toolCallCount === 1 ? "tool" : "tools"}`}
+				accessibilityLabel={`Work, ${message.work.toolCallCount} ${message.work.toolCallCount === 1 ? "tool" : "tools"}`}
+				expanded={workExpanded}
+				onToggle={onWorkToggle}
+			></Disclosure>
+		);
+	if (message.parentWorkId)
+		return (
+			<View style={{ paddingLeft: 24 }}>
+				<AssistantMessage message={message} />
+			</View>
+		);
 	const body =
 		message.role === "user" ? (
 			<View style={{ gap: 6 }}>

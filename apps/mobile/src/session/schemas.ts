@@ -146,6 +146,8 @@ const toolStartedSchema = z.looseObject({
 	input: z.unknown().optional(),
 });
 const toolUpdatedSchema = z.looseObject({
+	// Actual SDK tool progress is nested here, including append-only command chunks.
+	update: z.unknown().optional(),
 	toolCallId: z.string().optional(),
 	toolName: z.string().optional(),
 	input: z.unknown().optional(),
@@ -194,6 +196,20 @@ export interface SessionModelView {
 	modelId?: string;
 	reasoning?: import("./reasoning").ReasoningChoice;
 	mode?: "act" | "plan" | "yolo";
+}
+
+/** Incomplete same-model records must not erase settings already acknowledged. */
+export function mergeSessionModel(
+	previous: SessionModelView | undefined,
+	incoming: SessionModelView,
+): SessionModelView {
+	if (
+		previous?.modelId === incoming.modelId &&
+		previous?.providerId === incoming.providerId
+	) {
+		return { ...previous, ...incoming };
+	}
+	return incoming;
 }
 
 export const ASK_QUESTION_CAPABILITY = "tool_executor.askQuestion";
@@ -296,7 +312,9 @@ export function readSessionModel(
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(mode === "act" || mode === "plan" || mode === "yolo" ? { mode } : {}),
-		...(reasoningFromMetadata(record.metadata)
+		...(reasoningFromMetadata(record.metadata) !== undefined ||
+		record.metadata?.thinkingBudgetTokens != null ||
+		record.metadata?.reasoningEffort === null
 			? { reasoning: reasoningFromMetadata(record.metadata) }
 			: {}),
 	};
@@ -573,7 +591,8 @@ export type HydratedContentBlock = z.infer<typeof contentBlockSchema>;
 export const hydratedMessageSchema = z.looseObject({
 	role: z.enum(["user", "assistant"]),
 	content: z.union([z.string(), z.array(contentBlockSchema)]),
-	// Newer persistence adapters retain this; older LLM-native histories do not.
+	// SDK history uses ts; createdAt is retained for older adapters.
+	ts: z.number().finite().optional(),
 	createdAt: z.number().optional(),
 });
 

@@ -956,3 +956,50 @@ describe("model selection", () => {
 		expect(observer.getView().model?.providerId).toBe("testkit");
 	});
 });
+
+describe("another client's immediate input", () => {
+	it("recovers the originating user prompt while the phone remains on the same live conversation", async () => {
+		hub = await startTestHub({
+			script: [{ kind: "text", chunks: ["Desktop answer"] }],
+		});
+		const desktop = hub.createClient({
+			clientType: "desktop-observer-regression",
+		});
+		await desktop.connect();
+		const sessionId = await desktop.createSession();
+		const mobile = await startConnection(hub);
+		expect(mobile.handle.hubSessionId).toBe(sessionId);
+		// Hub subscription was registered during start/attach/hydrate. Only this
+		// separate socket submits the prompt; the phone has no optimistic bubble.
+		await desktop.sendInput(sessionId, "Question sent from desktop");
+		await waitFor(
+			() => mobile.getView().runStatus === "completed",
+			"remote run completion",
+		);
+		const persisted = await desktop.client.command(
+			"session.messages",
+			{ sessionId },
+			sessionId,
+		);
+		expect(persisted.payload?.messages).toContainEqual({
+			role: "user",
+			content: "Question sent from desktop",
+		});
+		await waitFor(
+			() =>
+				mobile
+					.getView()
+					.messages.some(
+						(message) =>
+							message.role === "user" &&
+							message.blocks.some(
+								(block) =>
+									block.kind === "text" &&
+									block.text === "Question sent from desktop",
+							),
+					),
+			"originating remote user prompt without foregrounding or reconnecting",
+			1_000,
+		);
+	});
+});

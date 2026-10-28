@@ -7,7 +7,6 @@ import {
 	createSessionState,
 	parseSessionMessagesReply,
 	reduceSession,
-	type SessionMessageView,
 	selectViewModel,
 } from "@/session";
 import { Banner, Text, useTheme } from "@/ui";
@@ -18,6 +17,10 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { ConversationNavigator } from "./chat/ConversationNavigator";
 import { visibleTranscriptMessages } from "./chat/message-text";
 import { ReasoningStateProvider } from "./chat/reasoning-state";
+import {
+	buildTranscriptWork,
+	type TranscriptRow,
+} from "./chat/transcript-work";
 
 export interface ArchivedChatScreenProps {
 	title?: string;
@@ -66,12 +69,33 @@ export function ArchivedChatScreen({
 		[history],
 	);
 	const reduceMotion = useReducedMotion();
-	const transcriptRef = useRef<FlatList<SessionMessageView>>(null);
+	const [openWork, setOpenWork] = useState<Record<string, boolean>>({});
+	const groupedMessages = useMemo(
+		() => buildTranscriptWork(projected.messages, { runStatus: "idle" }),
+		[projected.messages],
+	);
+	const messages = useMemo(
+		() =>
+			groupedMessages.flatMap((message) =>
+				message.work && openWork[message.id]
+					? [message, ...message.work.children]
+					: [message],
+			),
+		[groupedMessages, openWork],
+	);
+	const searchableMessages = useMemo(
+		() =>
+			groupedMessages.flatMap((message) =>
+				message.work ? message.work.children : [message],
+			),
+		[groupedMessages],
+	);
+	const transcriptRef = useRef<FlatList<TranscriptRow>>(null);
 	const contentHeight = useRef(0);
 	const [navigatorOpen, setNavigatorOpen] = useState(false);
 	const [navigationError, setNavigationError] = useState<string>();
-	const messagesRef = useRef(projected.messages);
-	messagesRef.current = projected.messages;
+	const messagesRef = useRef(messages);
+	messagesRef.current = messages;
 	const pendingJump = useRef<{ id: string; attempts: number } | undefined>(
 		undefined,
 	);
@@ -89,9 +113,10 @@ export function ArchivedChatScreen({
 		cancelJump();
 		setNavigatorOpen(false);
 		setNavigationError(undefined);
+		setOpenWork({});
 		return cancelJump;
 	}, [history, cancelJump]);
-	const attemptMessageJump = () => {
+	const attemptMessageJump = useCallback(() => {
 		const jump = pendingJump.current;
 		if (!jump) return;
 		const index = messagesRef.current.findIndex(
@@ -109,15 +134,29 @@ export function ArchivedChatScreen({
 		});
 		if (pendingJump.current === jump && jump.attempts === attempts)
 			cancelJump();
-	};
+	}, [cancelJump]);
 	const jumpToMessage = (id: string) => {
 		Keyboard.dismiss();
 		cancelJump();
 		setNavigatorOpen(false);
 		setNavigationError(undefined);
-		pendingJump.current = { id, attempts: 0 };
+		const target =
+			searchableMessages.find((message) => message.id === id) ??
+			searchableMessages.find((message) =>
+				message.sourceMessageIds?.includes(id),
+			);
+		pendingJump.current = { id: target?.id ?? id, attempts: 0 };
+		if (target?.parentWorkId && !openWork[target.parentWorkId]) {
+			const workId = target.parentWorkId;
+			setOpenWork((current) => ({ ...current, [workId]: true }));
+			return;
+		}
 		attemptMessageJump();
 	};
+	useEffect(() => {
+		if (messages.some((message) => message.id === pendingJump.current?.id))
+			attemptMessageJump();
+	}, [messages, attemptMessageJump]);
 	const scrollToLatest = () => {
 		cancelJump();
 		setNavigatorOpen(false);
@@ -226,12 +265,19 @@ export function ArchivedChatScreen({
 									if (jumpTimer.current) clearTimeout(jumpTimer.current);
 									jumpTimer.current = setTimeout(attemptMessageJump, 120);
 								}}
-								data={projected.messages}
+								data={messages}
 								keyExtractor={(message) => message.id}
 								renderItem={({ item, index }) => (
 									<MessageRow
 										message={item}
-										previousCreatedAt={projected.messages[index - 1]?.createdAt}
+										previousCreatedAt={messages[index - 1]?.createdAt}
+										workExpanded={Boolean(openWork[item.id])}
+										onWorkToggle={(expanded) =>
+											setOpenWork((current) => ({
+												...current,
+												[item.id]: expanded,
+											}))
+										}
 									/>
 								)}
 								contentContainerStyle={{ padding: 16, gap: 24 }}
@@ -241,11 +287,11 @@ export function ArchivedChatScreen({
 				)}
 				<ConversationNavigator
 					visible={navigatorOpen}
-					messages={projected.messages}
+					messages={searchableMessages}
 					onClose={() => setNavigatorOpen(false)}
 					onSelect={jumpToMessage}
 					onBeginning={() => {
-						const first = projected.messages[0];
+						const first = messages[0];
 						if (first) jumpToMessage(first.id);
 					}}
 					onLatest={scrollToLatest}

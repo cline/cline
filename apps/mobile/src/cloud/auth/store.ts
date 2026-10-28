@@ -106,7 +106,34 @@ export class ClineAuthStore {
 	private refreshInFlight: Promise<ClineOAuthCredentials | null> | undefined;
 	/** Explicit sign-in/sign-out retires reads and refreshes for the prior identity. */
 	private generation = 0;
+	private readonly identityListeners = new Set<
+		(credentials: ClineOAuthCredentials | null) => void
+	>();
 	private pendingWrite: Promise<void> = Promise.resolve();
+
+	/** Explicit identity changes retire UI work; ordinary token refresh does not. */
+	get identityVersion(): number {
+		return this.generation;
+	}
+
+	subscribeIdentity(
+		listener: (credentials: ClineOAuthCredentials | null) => void,
+	): () => void {
+		this.identityListeners.add(listener);
+		return () => {
+			this.identityListeners.delete(listener);
+		};
+	}
+
+	private publishIdentity(credentials: ClineOAuthCredentials | null): void {
+		for (const listener of [...this.identityListeners]) {
+			try {
+				listener(credentials);
+			} catch {
+				/* UI observers cannot prevent credential retirement. */
+			}
+		}
+	}
 
 	constructor(private readonly options: ClineAuthStoreOptions) {
 		this.apiBaseUrl = options.apiBaseUrl ?? cloudEnv.apiBaseUrl;
@@ -127,7 +154,10 @@ export class ClineAuthStore {
 	async setCredentials(credentials: ClineOAuthCredentials): Promise<void> {
 		this.generation += 1;
 		this.refreshInFlight = undefined;
-		await this.persist(credentials, this.generation);
+		// Enqueue the write before notifying observers, preserving reentrant write order.
+		const persisted = this.persist(credentials, this.generation);
+		this.publishIdentity(credentials);
+		await persisted;
 	}
 
 	private async persist(
@@ -167,7 +197,9 @@ export class ClineAuthStore {
 		this.generation += 1;
 		this.cached = null;
 		this.refreshInFlight = undefined;
-		await this.write(() => this.options.storage.clear());
+		const cleared = this.write(() => this.options.storage.clear());
+		this.publishIdentity(null);
+		await cleared;
 	}
 
 	/** Saves and clears keep invocation order, including across account changes. */

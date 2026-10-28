@@ -63,16 +63,15 @@ describe("explicit Cloud sign-out privacy", () => {
 
 	for (const fails of [false, true]) {
 		it(`clears text and image drafts when credential sign-out ${fails ? "fails" : "succeeds"}`, async () => {
-			const store = new ClineAuthStore({
-				storage: createInMemoryAuthStorage({
-					access: "test-access",
-					refresh: "test-refresh",
-					expires: Date.now() + 60_000,
-					accountId: "fixture-user",
-					email: "fixture@example.invalid",
-					metadata: { provider: "cline" },
-				}),
+			const storage = createInMemoryAuthStorage({
+				access: "test-access",
+				refresh: "test-refresh",
+				expires: Date.now() + 60_000,
+				accountId: "fixture-user",
+				email: "fixture@example.invalid",
+				metadata: { provider: "cline" },
 			});
+			const store = new ClineAuthStore({ storage });
 			const endpoints = new SavedEndpointsStore();
 			await endpoints.save({
 				mode: "cloud",
@@ -104,13 +103,14 @@ describe("explicit Cloud sign-out privacy", () => {
 			]);
 			writeSessionDraft("second-route", "Private unsent second draft");
 			if (fails)
-				vi.spyOn(store, "signOut").mockRejectedValueOnce(
+				vi.spyOn(storage, "clear").mockRejectedValueOnce(
 					new Error("Credential storage unavailable"),
 				);
 			await act(async () => {
 				await auth.signOut();
 			});
 			expect(auth.account.phase).toBe("signed-out");
+			expect(await store.getCredentials()).toBeNull();
 			expect(readPendingHomeSubmission(launchId)).toBeUndefined();
 			expect(endpoints.list()).toEqual([
 				{
@@ -173,5 +173,111 @@ describe("account selection revision ownership", () => {
 		});
 		expect(screen.current().scope).toEqual({ organizationId: "selected" });
 		screen.unmount();
+	});
+});
+
+describe("identity observers and delayed sign-out ownership", () => {
+	it("retires every mounted identity view immediately and does not overwrite a newer sign-in after cleanup", async () => {
+		const credentials = {
+			access: "old",
+			refresh: "r",
+			expires: Date.now() + 600000,
+			email: "old@example.invalid",
+		};
+		const storage = createInMemoryAuthStorage(credentials);
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		vi.spyOn(storage, "clear").mockImplementation(async () => {
+			await blocked;
+		});
+		const store = new ClineAuthStore({ storage });
+		let first!: UseCloudAuth;
+		let second!: UseCloudAuth;
+		function First() {
+			first = useCloudAuth();
+			return null;
+		}
+		function Second() {
+			second = useCloudAuth();
+			return null;
+		}
+		render(
+			<CloudAuthProvider store={store}>
+				<First />
+				<Second />
+			</CloudAuthProvider>,
+		);
+		await act(async () => {});
+		expect(second.account.phase).toBe("signed-in");
+		let logout!: Promise<void>;
+		act(() => {
+			logout = first.signOut();
+		});
+		expect(first.account.phase).toBe("signed-out");
+		expect(second.account.phase).toBe("signed-out");
+		let login!: Promise<void>;
+		act(() => {
+			login = store.setCredentials({
+				...credentials,
+				access: "new",
+				email: "new@example.invalid",
+			});
+		});
+		await act(async () => {
+			release();
+			await Promise.all([logout, login]);
+		});
+		expect(first.account).toMatchObject({
+			phase: "signed-in",
+			email: "new@example.invalid",
+		});
+		expect(second.account).toMatchObject({
+			phase: "signed-in",
+			email: "new@example.invalid",
+		});
+	});
+
+	it("keeps the new identity when an old initial storage read settles later", async () => {
+		let finish!: (value: {
+			access: string;
+			refresh: string;
+			expires: number;
+			email: string;
+		}) => void;
+		const storage = createInMemoryAuthStorage();
+		vi.spyOn(storage, "load").mockReturnValue(
+			new Promise((resolve) => {
+				finish = resolve;
+			}),
+		);
+		const store = new ClineAuthStore({ storage });
+		let auth!: UseCloudAuth;
+		function Observe() {
+			auth = useCloudAuth();
+			return null;
+		}
+		render(
+			<CloudAuthProvider store={store}>
+				<Observe />
+			</CloudAuthProvider>,
+		);
+		const credentials = {
+			access: "new",
+			refresh: "r",
+			expires: Date.now() + 600000,
+			email: "new@example.invalid",
+		};
+		await act(async () => {
+			await store.setCredentials(credentials);
+		});
+		await act(async () => {
+			finish({ ...credentials, access: "old", email: "old@example.invalid" });
+		});
+		expect(auth.account).toMatchObject({
+			phase: "signed-in",
+			email: "new@example.invalid",
+		});
 	});
 });

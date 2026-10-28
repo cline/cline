@@ -3,9 +3,24 @@ import {
 	type default as GorhomBottomSheet,
 } from "@gorhom/bottom-sheet";
 import { CircleHelp } from "lucide-react-native";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+	type RefObject,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 import { Pressable, View } from "react-native";
 import type { SessionQuestionView } from "@/session";
+import {
+	clearSessionDraft,
+	questionAnswerDraftKey,
+	readSessionDraft,
+	retireResolvedQuestionDrafts,
+	sessionDraftEpoch,
+	useSessionDraftEpoch,
+	writeSessionDraft,
+} from "@/state/session-drafts";
 import {
 	BottomSheet,
 	Button,
@@ -17,39 +32,76 @@ import {
 
 export interface QuestionSheetProps {
 	questions: SessionQuestionView[];
+	draftKey?: string;
+	draftsReady?: boolean;
 	onAnswer(requestId: string, answer: string): Promise<void>;
-	sheetRef?: RefObject<GorhomBottomSheet | null>;
+	sheetRef?: RefObject<Pick<GorhomBottomSheet, "expand" | "close"> | null>;
 }
 
 /** Native counterpart to desktop's `AgentAskQuestion` surface. */
-export function QuestionSheet({
+export function QuestionSheet(props: QuestionSheetProps) {
+	const { draftKey, draftsReady = true, questions } = props;
+	useEffect(() => {
+		if (draftKey && draftsReady)
+			retireResolvedQuestionDrafts(
+				draftKey,
+				questions.map((q) => q.requestId),
+			);
+	}, [draftKey, draftsReady, questions]);
+	// A resolved dynamic sheet must not remain mounted and resurface on resize.
+	// Pending state starts with an open native index, after its content exists.
+	return questions.length ? <PendingQuestionSheet {...props} /> : null;
+}
+
+function PendingQuestionSheet({
 	questions,
+	draftKey,
 	onAnswer,
 	sheetRef: externalRef,
 }: QuestionSheetProps) {
-	const internalRef = useRef<GorhomBottomSheet>(null);
+	const nativeRef = useRef<GorhomBottomSheet>(null);
+	const internalRef = useRef<Pick<GorhomBottomSheet, "expand" | "close">>(null);
 	const sheetRef = externalRef ?? internalRef;
-	const hasQuestions = questions.length > 0;
-
+	const [open, setOpen] = useState(true);
+	// Keep the declarative index aligned with pan/backdrop closure. Imperative
+	// expand() can otherwise target a stale native animation after navigation.
+	useImperativeHandle(
+		sheetRef,
+		() => ({
+			expand: () => setOpen(true),
+			close: () => setOpen(false),
+		}),
+		[],
+	);
+	const epoch = useSessionDraftEpoch();
 	useEffect(() => {
-		if (hasQuestions) {
-			expandBottomSheetAfterKeyboardDismiss(sheetRef);
-		} else sheetRef.current?.close();
-	}, [hasQuestions, sheetRef]);
-
+		expandBottomSheetAfterKeyboardDismiss(sheetRef);
+	}, [sheetRef]);
 	return (
 		<BottomSheet
-			ref={sheetRef}
-			index={hasQuestions ? 0 : -1}
+			ref={nativeRef}
+			index={open ? 0 : -1}
+			onChange={(index) => setOpen(index >= 0)}
 			enableDynamicSizing
 			enablePanDownToClose
 			scrollable
 		>
 			<View style={{ gap: 16 }}>
 				{questions.map((question, index) => (
-					<View key={question.requestId} style={{ gap: 16 }}>
+					<View
+						key={`${epoch}:${draftKey ?? ""}:${question.requestId}`}
+						style={{ gap: 16 }}
+					>
 						{index > 0 ? <Divider /> : null}
-						<QuestionCard question={question} onAnswer={onAnswer} />
+						<QuestionCard
+							question={question}
+							onAnswer={onAnswer}
+							draftKey={
+								draftKey
+									? questionAnswerDraftKey(draftKey, question.requestId)
+									: undefined
+							}
+						/>
 					</View>
 				))}
 			</View>
@@ -58,28 +110,41 @@ export function QuestionSheet({
 }
 
 function QuestionCard({
+	draftKey,
 	question,
 	onAnswer,
 }: {
+	draftKey?: string;
 	question: SessionQuestionView;
 	onAnswer: (requestId: string, answer: string) => Promise<void>;
 }) {
 	const theme = useTheme();
 	const [selected, setSelected] = useState<string>();
-	const [customAnswer, setCustomAnswer] = useState("");
+	const [customAnswer, setCustomAnswer] = useState(() =>
+		draftKey ? (readSessionDraft(draftKey) ?? "") : "",
+	);
+	const ownedEpoch = useRef(sessionDraftEpoch()).current;
+	const changeCustomAnswer = (text: string) => {
+		if (sessionDraftEpoch() !== ownedEpoch) return;
+		setCustomAnswer(text);
+		if (draftKey) writeSessionDraft(draftKey, text);
+	};
 	const [sending, setSending] = useState(false);
 	const sendingRef = useRef(false);
 	const [error, setError] = useState<string>();
 
 	const submit = async (answer: string) => {
 		const normalized = answer.trim();
-		if (!normalized || sendingRef.current) return;
+		if (!normalized || sendingRef.current || sessionDraftEpoch() !== ownedEpoch)
+			return;
 		sendingRef.current = true;
 		setSelected(normalized);
 		setSending(true);
 		setError(undefined);
 		try {
 			await onAnswer(question.requestId, normalized);
+			if (draftKey && sessionDraftEpoch() === ownedEpoch)
+				clearSessionDraft(draftKey);
 		} catch {
 			setError(
 				"Could not send your answer. Check the connection and try again.",
@@ -144,7 +209,7 @@ function QuestionCard({
 				placeholder="Or type your own answer…"
 				placeholderTextColor={theme.color.textMuted}
 				value={customAnswer}
-				onChangeText={setCustomAnswer}
+				onChangeText={changeCustomAnswer}
 				editable={!sending}
 				returnKeyType="send"
 				onSubmitEditing={() => void submit(customAnswer)}

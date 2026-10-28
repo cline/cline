@@ -10,6 +10,10 @@ import {
 	type SubmittedAttachments,
 } from "./attachment-history";
 import { commandFault, FixtureFaults } from "./faults";
+import {
+	SdkContractProfiles,
+	SDK_PROFILE_PROVENANCE,
+} from "./sdk-contract-profiles";
 import { fixtureLifecycleDto, scopedFixtureRows } from "./rest-contract";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -69,6 +73,10 @@ function fixtureTone() {
 	return bytes;
 }
 class NativeFixtureHost extends MobileFixtureHost {
+	sdkProfiles = new SdkContractProfiles(
+		(sessionId, event) => this.emitExtra(sessionId, event),
+		record,
+	);
 	queueStates = new Map<string, any>();
 	submittedAttachments = new Map<string, SubmittedAttachments[]>();
 	heldSessions = new Set<string>();
@@ -149,6 +157,7 @@ class NativeFixtureHost extends MobileFixtureHost {
 		record("steer-consumed", { sessionId, id: entry.id, prompt: entry.prompt });
 	}
 	async abort(sessionId: string, reason?: unknown) {
+		this.sdkProfiles.abort(sessionId);
 		const state = this.queueState(sessionId);
 		state.aborting = true;
 		if (state.drainingPendingPrompts)
@@ -295,6 +304,8 @@ class NativeFixtureHost extends MobileFixtureHost {
 			listener({ type: "agent_event", payload: { sessionId, event } });
 	}
 	async readSessionMessages(sessionId: string) {
+		if (this.sdkProfiles.histories.has(sessionId))
+			return structuredClone(this.sdkProfiles.histories.get(sessionId));
 		const messages =
 			await ScriptedRuntimeHost.prototype.readSessionMessages.call(
 				this,
@@ -342,6 +353,7 @@ class NativeFixtureHost extends MobileFixtureHost {
 		);
 		record("prompt", input);
 		const prompt = input.prompt.toLowerCase();
+		if (this.sdkProfiles.matches(prompt)) return this.sdkProfiles.run(input);
 		if (prompt.includes("ux-fixture")) {
 			const notice =
 				"<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>";
@@ -701,6 +713,24 @@ const server = Bun.serve({
 				return json({ ok: true, faults: faults.view() });
 			}
 			if (action === "state") return json({ rows, faults: faults.view() });
+			if (action === "sdk-profile" || action === "sdk-release") {
+				const row = rows.find((row) => row.id === scope);
+				if (!row || scope === "global")
+					return json(
+						{ error: "An exact fixture workspace id is required." },
+						400,
+					);
+				const taskId = (row.metadata as { taskId: string }).taskId;
+				if (action === "sdk-release" && !runtime.sdkProfiles.release(taskId))
+					return json(
+						{ error: "No SDK profile gate is waiting for this workspace." },
+						409,
+					);
+				return json({
+					phase: runtime.sdkProfiles.phases.get(taskId),
+					provenance: SDK_PROFILE_PROVENANCE,
+				});
+			}
 			if (action === "snapshot") {
 				const entries = await Promise.all(
 					rows.map(async (row) => ({

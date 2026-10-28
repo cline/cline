@@ -292,3 +292,44 @@ describe("ClineAuthStore", () => {
 		}
 	});
 });
+
+it("notifies all identity observers and preserves write order during reentrant sign-in", async () => {
+	const writes: string[] = [];
+	const storage = createInMemoryAuthStorage();
+	const originalSave = storage.save;
+	storage.save = async (credentials) => {
+		writes.push(`save:${credentials.access}`);
+		await originalSave(credentials);
+	};
+	storage.clear = async () => {
+		writes.push("clear");
+	};
+	const store = new ClineAuthStore({ storage });
+	const observer = vi.fn();
+	const unsubscribe = store.subscribeIdentity(observer);
+	let newSignIn: Promise<void> | undefined;
+	store.subscribeIdentity((credentials) => {
+		if (!credentials)
+			newSignIn = store.setCredentials({
+				access: "replacement",
+				refresh: "r",
+				expires: Date.now() + 600000,
+			});
+	});
+	await store.signOut();
+	await newSignIn;
+	expect(writes).toEqual(["clear", "save:replacement"]);
+	expect(observer.mock.calls.map(([value]) => value?.access ?? null)).toEqual([
+		null,
+		"replacement",
+	]);
+	const version = store.identityVersion;
+	unsubscribe();
+	await store.setCredentials({
+		access: "later",
+		refresh: "r",
+		expires: Date.now() + 600000,
+	});
+	expect(observer).toHaveBeenCalledTimes(2);
+	expect(store.identityVersion).toBeGreaterThan(version);
+});

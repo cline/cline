@@ -10,7 +10,11 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/cloud", async (original) => ({
 	...(await original<typeof import("@/cloud")>()),
-	cloudAuthStore: { getValidAccessToken: api.token },
+	cloudAuthStore: {
+		identityVersion: 0,
+		subscribeIdentity: () => () => {},
+		getValidAccessToken: api.token,
+	},
 	CloudSessionGateway: class {
 		listRemoteSessions = api.list;
 	},
