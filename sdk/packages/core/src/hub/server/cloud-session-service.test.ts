@@ -1219,6 +1219,73 @@ describe("hub cloud credentials", () => {
 					: "persisted-key",
 		);
 	});
+
+	// Core 0.2.0 shipped with every cloud poll re-sending a rejected refresh
+	// token: ~670 refresh requests and user.auth_logged_out events per signed-out
+	// machine per 3h. A rejection must stick until the stored credentials change.
+	it("stops refreshing rejected credentials until they change", async () => {
+		let stored = {
+			provider: "cline",
+			auth: { accessToken: "dead-access", refreshToken: "dead-refresh" },
+		};
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockImplementation(() => stored as never);
+		const resolve = vi
+			.spyOn(RuntimeOAuthTokenManager.prototype, "resolveProviderApiKey")
+			.mockRejectedValue(new OAuthReauthRequiredError("cline"));
+		const telemetry = { capture: vi.fn() };
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			telemetry: telemetry as never,
+			getScope: () => "account-one",
+		});
+		services.push(service);
+		service.watch();
+		const controller = service["controller"];
+		if (!controller) throw new Error("Controller missing");
+		const getAuthToken = controller["options"].getAuthToken;
+
+		for (let i = 0; i < 5; i++) expect(await getAuthToken()).toBeUndefined();
+		expect(resolve).toHaveBeenCalledTimes(1);
+		// The refresh path already reported the logout; this is not a soft failure.
+		expect(telemetry.capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_refresh_soft_failure" }),
+		);
+
+		// Signing in again writes new credentials, so the next poll refreshes.
+		stored = {
+			provider: "cline",
+			auth: { accessToken: "new-access", refreshToken: "new-refresh" },
+		};
+		resolve.mockResolvedValue({ apiKey: "new-key" } as never);
+		expect(await getAuthToken()).toBe("new-key");
+		expect(resolve).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps reporting refresh failures that are not a rejection", async () => {
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue({ provider: "cline" } as never);
+		const resolve = vi
+			.spyOn(RuntimeOAuthTokenManager.prototype, "resolveProviderApiKey")
+			.mockRejectedValue(new Error("temporarily unavailable"));
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			getScope: () => "account-one",
+		});
+		services.push(service);
+		service.watch();
+		const controller = service["controller"];
+		if (!controller) throw new Error("Controller missing");
+
+		await controller["options"].getAuthToken();
+		await controller["options"].getAuthToken();
+		// Transient failures are retried on every poll, as before.
+		expect(resolve).toHaveBeenCalledTimes(2);
+	});
 });
 
 describe("persisted cloud account scope", () => {
