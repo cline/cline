@@ -2549,10 +2549,6 @@ export function useChatSession(environmentId: string) {
 							environmentId,
 							sessionId,
 							maxMessages: MAX_MESSAGES,
-							isCurrent: () =>
-								!cancelled &&
-								activeSessionIdRef.current === sessionId &&
-								authoritativeStatusRevisionRef.current === statusRevision,
 						})
 					: await Promise.all([
 							desktopClient
@@ -2571,7 +2567,7 @@ export function useChatSession(environmentId: string) {
 						]).then(([record, messages]) => ({
 							kind: "refreshed" as const,
 							messages,
-							record,
+							status: record?.status,
 						}));
 				if (
 					cancelled ||
@@ -2587,13 +2583,20 @@ export function useChatSession(environmentId: string) {
 				) {
 					return;
 				}
-				if (refresh.kind === "stale") return;
-				if (refresh.kind === "suspended") {
-					authoritativeStatusRevisionRef.current += 1;
-					setStatus("idle");
+				if (refresh.kind === "blocked") {
+					cancelled = true;
 					return;
 				}
-				const { messages: historyMessages, record } = refresh;
+				if (refresh.kind === "deferred") return;
+				if (refresh.kind === "suspended") {
+					if (status !== "starting") {
+						authoritativeStatusRevisionRef.current += 1;
+						setStatus("idle");
+					}
+					return;
+				}
+				const historyMessages =
+					refresh.kind === "refreshed" ? refresh.messages : null;
 				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: historyMessages,
@@ -2615,7 +2618,7 @@ export function useChatSession(environmentId: string) {
 				// inference (inferHydratedChatStatus) would misread a mid-run
 				// snapshot ending on assistant narration as finished, hiding
 				// the working indicator and disarming this poll.
-				const nextStatus = record?.status?.trim();
+				const nextStatus = refresh.status?.trim();
 				if (nextStatus) {
 					const mappedStatus = isCloudSession
 						? mapCloudRuntimeStatus(nextStatus)

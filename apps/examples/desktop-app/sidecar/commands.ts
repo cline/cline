@@ -2251,6 +2251,25 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
+	if (command === "read_cloud_session_if_awake") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const cloud = getCloudSessionManager(ctx);
+		if (!cloud.isCloudSession(sessionId))
+			throw new Error("Cloud session required");
+		const result = await cloud.readMessagesIfAwake(sessionId);
+		if (result.kind !== "refreshed") return result;
+		const maxMessages =
+			typeof args?.maxMessages === "number" ? args.maxMessages : 800;
+		return {
+			...result,
+			messages: await readSessionMessages(
+				ctx,
+				sessionId,
+				maxMessages,
+				result.messages,
+			),
+		};
+	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);

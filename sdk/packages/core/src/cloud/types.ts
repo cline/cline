@@ -98,3 +98,9 @@ export type CloudSessionAttachment = JsonRecord & {
 	sessionId: string;
 	status: string;
 };
+
+export type CloudPassiveReadResult<T = unknown> =
+	| { kind: "refreshed"; messages: T[]; status: CloudSessionState["status"] }
+	| { kind: "suspended" }
+	| { kind: "status"; status: "failed" | "expired" }
+	| { kind: "deferred" };

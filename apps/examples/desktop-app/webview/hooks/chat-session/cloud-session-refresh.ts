@@ -1,41 +1,28 @@
+import type { CloudPassiveReadResult } from "@cline/core/cloud";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { parseCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 
-type CloudSessionRefresh =
-	| { kind: "stale" }
-	| { kind: "suspended" }
-	| {
-			kind: "refreshed";
-			messages: ChatMessage[] | null;
-			record: { status?: string } | null;
-	  };
-
-export async function refreshCloudSession({
-	environmentId,
-	sessionId,
-	maxMessages,
-	isCurrent,
-}: {
+export async function refreshCloudSession(args: {
 	environmentId: string;
 	sessionId: string;
 	maxMessages: number;
-	isCurrent: () => boolean;
-}): Promise<CloudSessionRefresh> {
-	const record = await desktopClient
-		.invoke<{ status?: string } | null>("get_discovered_session", {
-			environmentId,
-			sessionId,
-		})
-		.catch(() => null);
-	if (!isCurrent()) return { kind: "stale" };
-	// Reading cloud history can resume a suspended sandbox.
-	if (record?.status?.trim() === "suspended") return { kind: "suspended" };
-	const messages = await desktopClient
-		.invoke<ChatMessage[]>("read_session_messages", {
-			environmentId,
-			sessionId,
-			maxMessages,
-		})
-		.catch(() => null);
-	return { kind: "refreshed", messages, record };
+}): Promise<CloudPassiveReadResult<ChatMessage> | { kind: "blocked" }> {
+	try {
+		return await desktopClient.invoke<CloudPassiveReadResult<ChatMessage>>(
+			"read_cloud_session_if_awake",
+			args,
+		);
+	} catch (error) {
+		// An older cloud host must not fall back to a read that can wake it.
+		const message = error instanceof Error ? error.message : String(error);
+		const code = parseCloudSessionError(message)?.code;
+		if (
+			code === "authentication_required" ||
+			code === "session_not_found" ||
+			message.includes("Unknown cloud operation: readMessagesIfAwake")
+		)
+			return { kind: "blocked" };
+		return { kind: "deferred" };
+	}
 }

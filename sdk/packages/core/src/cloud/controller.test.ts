@@ -467,6 +467,127 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 
 	it.each([
+		"suspended",
+		"provisioning",
+		"unavailable",
+		"failed",
+		"expired",
+	])("passive reads leave %s sandboxes alone", async (status) => {
+		const f = resumableFixture("suspended");
+		if (status === "unavailable")
+			f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+		else f.api.status.mockResolvedValue({ status });
+		try {
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual(
+				status === "failed" || status === "expired"
+					? { kind: "status", status }
+					: { kind: status === "suspended" ? "suspended" : "deferred" },
+			);
+			expect(f.api.resume).not.toHaveBeenCalled();
+			expect(f.api.waitUntilReady).not.toHaveBeenCalled();
+			expect(f.commands).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("passive reads recover an awake sandbox despite suspended discovery", async () => {
+		const f = resumableFixture();
+		try {
+			await f.controller.attach(record.id);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"suspended",
+			);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "ready" },
+			]);
+			f.api.status.mockResolvedValue({ status: "ready" });
+			f.setStatus("completed");
+			const messages: MessageWithMetadata[] = [
+				{ role: "assistant", content: "Recovered final answer", ts: 1 },
+			];
+			f.setMessages(messages);
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"suspended",
+			);
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				kind: "refreshed",
+				messages,
+				status: "completed",
+			});
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		"passive",
+		"explicit",
+	])("preserves explicit resume when %s acquisition starts first", async (first) => {
+		const f = resumableFixture("suspended");
+		let release!: (status: { status: string }) => void;
+		f.api.status.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		try {
+			if (first === "passive") {
+				const passive = f.controller.readMessagesIfAwake(record.id);
+				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+				const explicit = [
+					f.controller.attach(record.id),
+					f.controller.attach(record.id),
+				];
+				release({ status: "suspended" });
+				expect(await passive).toEqual({ kind: "suspended" });
+				await Promise.all(explicit);
+			} else {
+				const explicit = f.controller.attach(record.id);
+				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+				expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+					kind: "deferred",
+				});
+				release({ status: "suspended" });
+				await explicit;
+			}
+			expect(f.api.resume).toHaveBeenCalledOnce();
+			expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("does not retain a passive connection's retry loop when an awake sandbox disappears", async () => {
+		const f = resumableFixture();
+		f.command.mockRejectedValue(
+			Object.assign(new Error("socket closed"), {
+				name: "HubTransportError",
+				code: "hub_connection_closed",
+			}),
+		);
+		try {
+			await expect(f.controller.readMessagesIfAwake(record.id)).rejects.toThrow(
+				"socket closed",
+			);
+			expect(f.dispose).toHaveBeenCalledOnce();
+			expect(f.api.resume).not.toHaveBeenCalled();
+			f.api.status.mockResolvedValue({ status: "suspended" });
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				kind: "suspended",
+			});
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
 		[new CloudSessionError("request_failed", "Network unavailable"), true],
 		[
 			new CloudSessionError("request_failed", "Unavailable", undefined, 503),
