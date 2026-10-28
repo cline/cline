@@ -175,15 +175,15 @@ export function CloudHandoffStatus({
 				)}
 			</div>
 			{!pending && (state.message || canRestoreDraft) && (
-				<div className="space-y-2 pb-3">
+				<div className="flex flex-wrap items-center gap-2 pb-3">
 					{state.message && (
-						<p className="break-words text-xs text-muted-foreground">
+						<p className="min-w-0 flex-1 basis-48 break-words text-xs text-muted-foreground">
 							{state.message}
 						</p>
 					)}
 					{canRestoreDraft && (
 						<Button
-							className="h-7 px-2 text-xs"
+							className="ml-auto h-7 shrink-0 px-2 text-xs"
 							onClick={() =>
 								onRestoreDraft(state.status === "complete" ? "cloud" : "local")
 							}
@@ -198,12 +198,12 @@ export function CloudHandoffStatus({
 				</div>
 			)}
 			{!pending && state.status !== "failed" && state.preparationFailure && (
-				<div className="space-y-2 pb-3">
-					<p className="break-words text-xs text-muted-foreground">
+				<div className="flex flex-wrap items-center gap-2 pb-3">
+					<p className="min-w-0 flex-1 basis-48 break-words text-xs text-muted-foreground">
 						{state.preparationFailure.message}
 					</p>
 					<Button
-						className="h-7 px-2 text-xs"
+						className="ml-auto h-7 shrink-0 px-2 text-xs"
 						onClick={() => onRestoreDraft("local")}
 						size="sm"
 						variant="outline"
