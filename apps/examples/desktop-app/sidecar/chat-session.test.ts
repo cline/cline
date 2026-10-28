@@ -1179,7 +1179,8 @@ describe("first-send connection updates", () => {
 			await preparing.promise;
 			await expect(
 				handleChatSessionCommand(ctx, {
-					action: "prepare_handoff",
+					action: "handoff",
+					operation: "prepare",
 					sessionId,
 				}),
 			).rejects.toThrow(

@@ -23,22 +23,6 @@ export type ChatTurnAttachments = {
 };
 
 export type ChatSessionCommandRequest = {
-	action:
-		| "start"
-		| "attach"
-		| "send"
-		| "prepare_handoff"
-		| "discard_handoff"
-		| "handoff"
-		| "stop"
-		| "abort"
-		| "fork"
-		| "reset"
-		| "restore_checkpoint"
-		| "pending_prompts"
-		| "steer_prompt"
-		| "update_pending_prompt"
-		| "remove_pending_prompt";
 	sessionId?: string;
 	prompt?: string;
 	promptId?: string;
@@ -53,7 +37,24 @@ export type ChatSessionCommandRequest = {
 	gitPreparationId?: string;
 	/** Optional instruction appended to the locally generated summary. */
 	nextCommand?: string;
-};
+} & (
+	| {
+			action:
+				| "start"
+				| "attach"
+				| "send"
+				| "stop"
+				| "abort"
+				| "fork"
+				| "reset"
+				| "restore_checkpoint"
+				| "pending_prompts"
+				| "steer_prompt"
+				| "update_pending_prompt"
+				| "remove_pending_prompt";
+	  }
+	| { action: "handoff"; operation: "prepare" | "discard" | "launch" }
+);
 
 export type PromptInQueue = {
 	id: string;

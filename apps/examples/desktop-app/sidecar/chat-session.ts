@@ -2487,27 +2487,6 @@ const ACTION_HANDLERS: Record<
 	start: handleStart,
 	attach: handleAttach,
 	send: handleSend,
-	prepare_handoff: (ctx, request) =>
-		handlePrepareHandoff(ctx, request, async (messages, config) => {
-			const connection = buildSessionConnectionUpdate(
-				await withRemoteProviderCredentials(config),
-			);
-			if (!connection.providerId || !connection.modelId)
-				throw new Error(
-					"Select a local model before preparing a cloud summary.",
-				);
-			return summarizeConversation({
-				messages,
-				signal: AbortSignal.timeout(120_000),
-				config: {
-					...connection,
-					providerId: connection.providerId,
-					modelId: connection.modelId,
-				},
-			});
-		}),
-	discard_handoff: handleDiscardHandoff,
-	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,
@@ -2649,7 +2628,8 @@ export async function handleChatSessionCommand(
 		}
 	}
 	const handler = ACTION_HANDLERS[request.action];
-	if (!handler) throw new Error("unsupported action");
+	if (!handler && request.action !== "handoff")
+		throw new Error("unsupported action");
 	const explicitEnvironment = readEnvironmentId(request.config);
 	const binding =
 		!explicitEnvironment && request.sessionId
@@ -2662,13 +2642,36 @@ export async function handleChatSessionCommand(
 			ctx.activeEnvironmentId ??
 			"local",
 	);
-	if (
-		(request.action === "prepare_handoff" ||
-			request.action === "discard_handoff" ||
-			request.action === "handoff") &&
-		getSessionRuntimeBinding(ctx).kind !== "local"
-	) {
-		throw new Error("Cloud handoff is only supported for local sessions.");
+	if (request.action === "handoff") {
+		if (getSessionRuntimeBinding(ctx).kind !== "local")
+			throw new Error("Cloud handoff is only supported for local sessions.");
+		switch (request.operation) {
+			case "prepare":
+				return handlePrepareHandoff(ctx, request, async (messages, config) => {
+					const connection = buildSessionConnectionUpdate(
+						await withRemoteProviderCredentials(config),
+					);
+					if (!connection.providerId || !connection.modelId)
+						throw new Error(
+							"Select a local model before preparing a cloud summary.",
+						);
+					return summarizeConversation({
+						messages,
+						signal: AbortSignal.timeout(120_000),
+						config: {
+							...connection,
+							providerId: connection.providerId,
+							modelId: connection.modelId,
+						},
+					});
+				});
+			case "discard":
+				return handleDiscardHandoff(ctx, request);
+			case "launch":
+				return handleHandoff(ctx, request);
+			default:
+				throw new Error("unsupported handoff operation");
+		}
 	}
 	return handler(ctx, request);
 }

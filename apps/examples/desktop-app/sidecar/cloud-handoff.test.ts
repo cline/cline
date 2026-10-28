@@ -152,6 +152,7 @@ async function fixture() {
 		);
 	const request: ChatSessionCommandRequest = {
 		action: "handoff",
+		operation: "launch",
 		sessionId: sourceSessionId,
 		config,
 		handoffAttemptId: "attempt-1",
@@ -162,7 +163,7 @@ async function fixture() {
 			ctx,
 			{
 				...request,
-				action: "prepare_handoff",
+				operation: "prepare",
 				completedHandoffAttemptId,
 			},
 			summarize,
@@ -243,26 +244,35 @@ describe("summary cloud handoff", () => {
 	});
 	it("discards only the canceled preview, not a newer preview", async () => {
 		const f = await fixture();
-		await f.prepare();
-		await handleDiscardHandoff(f.ctx, {
+		vi.mocked(summarizeConversation).mockResolvedValue("Prepared summary");
+		await handleChatSessionCommand(f.ctx, {
 			...f.request,
+			operation: "prepare",
+		});
+		await handleChatSessionCommand(f.ctx, {
+			...f.request,
+			operation: "discard",
 			gitPreparationId: "older-plan",
 		});
-		await expect(f.handoff()).resolves.toMatchObject({
+		await expect(
+			handleChatSessionCommand(f.ctx, f.request),
+		).resolves.toMatchObject({
 			sessionId: "ses-target",
 		});
 		await expect(
-			handlePrepareHandoff(
-				f.ctx,
-				{
-					...f.request,
-					completedHandoffAttemptId: "attempt-1",
-				},
-				f.summarize,
-			),
+			handleChatSessionCommand(f.ctx, {
+				...f.request,
+				operation: "prepare",
+				completedHandoffAttemptId: "attempt-1",
+			}),
 		).resolves.toMatchObject({ gitPreparation: { id: "plan" } });
-		await handleDiscardHandoff(f.ctx, f.request);
-		await expect(f.handoff()).rejects.toThrow("review the preparation plan");
+		await handleChatSessionCommand(f.ctx, {
+			...f.request,
+			operation: "discard",
+		});
+		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
+			"review the preparation plan",
+		);
 	});
 	it.each([
 		false,
@@ -623,23 +633,36 @@ describe("summary cloud handoff", () => {
 		const f = await fixture();
 		vi.mocked(summarizeConversation).mockResolvedValue("Prepared summary");
 		const { handleCommand } = await import("./commands");
-		for (const action of ["prepare_handoff", "discard_handoff", "handoff"]) {
+		const trusted = {
+			connection: { data: { canApproveTools: true }, send: vi.fn() },
+		};
+		for (const operation of ["prepare", "discard", "launch"]) {
 			await expect(
 				handleCommand(f.ctx, "chat_session_command", {
-					request: { ...f.request, action },
+					request: { ...f.request, operation },
 				}),
 			).rejects.toThrow("trusted desktop connection");
 		}
 		expect(gitPreparation.inspectHandoffGit).not.toHaveBeenCalled();
 		expect(summarizeConversation).not.toHaveBeenCalled();
 		expect(f.launch).not.toHaveBeenCalled();
+		for (const operation of [undefined, "unknown"]) {
+			await expect(
+				handleCommand(
+					f.ctx,
+					"chat_session_command",
+					{ request: { ...f.request, operation } },
+					trusted,
+				),
+			).rejects.toThrow("unsupported handoff operation");
+		}
 		await handleCommand(
 			f.ctx,
 			"chat_session_command",
 			{
 				request: {
 					...f.request,
-					action: "prepare_handoff",
+					operation: "prepare",
 					config: {
 						...f.request.config,
 						provider: "anthropic",
@@ -647,7 +670,7 @@ describe("summary cloud handoff", () => {
 					},
 				},
 			},
-			{ connection: { data: { canApproveTools: true }, send: vi.fn() } },
+			trusted,
 		);
 		expect(summarizeConversation).toHaveBeenCalledOnce();
 		expect(f.launch).not.toHaveBeenCalled();
@@ -655,9 +678,7 @@ describe("summary cloud handoff", () => {
 			f.ctx,
 			"chat_session_command",
 			{ request: f.request },
-			{
-				connection: { data: { canApproveTools: true }, send: vi.fn() },
-			},
+			trusted,
 		);
 		expect(summarizeConversation).toHaveBeenCalledTimes(1);
 		expect(summarizeConversation).toHaveBeenCalledWith(

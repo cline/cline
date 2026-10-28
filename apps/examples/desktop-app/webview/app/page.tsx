@@ -2473,7 +2473,8 @@ function ChatThreadPane({
 					"chat_session_command",
 					{
 						request: {
-							action: "prepare_handoff",
+							action: "handoff",
+							operation: "prepare",
 							sessionId: sourceSessionId,
 							completedHandoffAttemptId:
 								handoffLifecycle.getCompletedAttemptId(sourceSessionId),
@@ -2508,7 +2509,8 @@ function ChatThreadPane({
 				if (!approved) {
 					await desktopClient.invoke("chat_session_command", {
 						request: {
-							action: "discard_handoff",
+							action: "handoff",
+							operation: "discard",
 							sessionId: sourceSessionId,
 							gitPreparationId: gitPreparation.id,
 						},
@@ -2538,6 +2540,7 @@ function ChatThreadPane({
 					{
 						request: {
 							action: "handoff",
+							operation: "launch",
 							sessionId: sourceSessionId,
 							handoffAttemptId,
 							gitPreparationId: gitPreparation.id,

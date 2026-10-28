@@ -2217,9 +2217,7 @@ export async function handleCommand(
 	if (command === "chat_session_command") {
 		const request = (args?.request ?? args) as ChatSessionCommandRequest;
 		if (
-			["prepare_handoff", "discard_handoff", "handoff"].includes(
-				request.action,
-			) &&
+			request.action === "handoff" &&
 			!options?.connection?.data?.canApproveTools
 		) {
 			throw new Error("Git preparation requires a trusted desktop connection");
