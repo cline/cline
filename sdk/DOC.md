@@ -516,6 +516,8 @@ authentication. Omit it to retain local account authentication and rollout check
 The callback receives the calling runtime’s session ID so the host can resolve
 the file within that session’s remote scope. `read_files` uses this callback
 for attached `artifact://` files, including after history restore.
+`generatedMediaModalityFromMediaType(mediaType)` maps a MIME type to `image`,
+`audio`, `video`, or `file` when describing an attachment.
 
 ## MCP Apps (experimental)
 

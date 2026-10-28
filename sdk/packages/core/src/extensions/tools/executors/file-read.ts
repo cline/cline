@@ -9,7 +9,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
-import type { AgentToolContext } from "@cline/shared";
+import { type AgentToolContext, SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared";
 import { resolveExistingFilePath } from "@cline/shared/storage";
 import { ArtifactFiles } from "../../../session/services/artifact-files";
 import {
@@ -221,7 +221,10 @@ export function createFileReadExecutor(
 			if (!(artifacts instanceof ArtifactFiles))
 				throw new Error("Artifact retrieval is unavailable in this runtime");
 			const media = artifacts.resolve(filePath);
-			if (media.modality === "image") {
+			if (
+				media.modality === "image" &&
+				SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === media.mediaType)
+			) {
 				if (context.metadata?.modelSupportsImages !== true)
 					throw new Error("Current model does not support image input");
 				return artifacts.readImage(media, maxFileSizeBytes, context.signal);

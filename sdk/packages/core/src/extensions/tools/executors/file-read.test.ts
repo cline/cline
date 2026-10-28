@@ -43,6 +43,30 @@ describe("createFileReadExecutor", () => {
 		await expect(read(bytes.length - 1)).rejects.toThrow("size limit");
 	});
 
+	it("reads attached SVG source as text without requiring image input", async () => {
+		const source = '<svg xmlns="http://www.w3.org/2000/svg" />';
+		const media: GeneratedMedia = {
+			id: "drawing",
+			modality: "image",
+			mediaType: "image/svg+xml",
+			source: { type: "artifact", artifactId: "drawing" },
+		};
+		const artifacts = new ArtifactFiles(
+			async () => Buffer.from(source),
+			() => [{ role: "assistant", content: [{ type: "media", media }] }],
+		);
+		await expect(
+			createFileReadExecutor()(
+				{ path: "artifact://drawing" },
+				{
+					agentId: "agent",
+					iteration: 1,
+					metadata: { artifactFiles: artifacts, modelSupportsImages: false },
+				},
+			),
+		).resolves.toBe(`1 | ${source}`);
+	});
+
 	it("recovers multiline MCP payloads serialized as YAML, including late line ranges", async () => {
 		const payload = Array.from(
 			{ length: 200 },

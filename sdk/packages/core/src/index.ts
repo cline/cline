@@ -112,6 +112,7 @@ export {
 	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
+	generatedMediaModalityFromMediaType,
 	noopBasicLogger,
 	normalizeSdkError,
 	normalizeUserInput,
