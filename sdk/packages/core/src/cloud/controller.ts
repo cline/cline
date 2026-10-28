@@ -2686,7 +2686,11 @@ export class CloudSessionController {
 				workspaceRoot,
 				cwd,
 				initialMessages,
-				metadata: { ...metadata, interactive: true },
+				metadata: {
+					...metadata,
+					outerSessionId: connection.remote.id,
+					interactive: true,
+				},
 				sessionConfig: {
 					sessionId,
 					providerId: metadata.provider ?? "cline",
@@ -2871,6 +2875,7 @@ export class CloudSessionController {
 					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
 				},
 				metadata: {
+					outerSessionId: connection.remote.id,
 					source: this.options.clientIdentity?.source ?? "sdk",
 					provider: "cline",
 					model: modelId,

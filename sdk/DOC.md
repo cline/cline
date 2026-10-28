@@ -510,6 +510,13 @@ and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
 
+## Host artifact reads
+
+`LocalRuntimeHost` accepts `readArtifact(sessionId, artifactId, options)`.
+The callback receives the calling runtime’s session ID so the host can resolve
+the file within that session’s remote scope. `read_files` uses this callback
+for attached `artifact://` files, including after history restore.
+
 ## MCP Apps (experimental)
 
 MCP Apps support is off by default.

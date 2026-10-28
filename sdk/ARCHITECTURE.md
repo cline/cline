@@ -334,7 +334,11 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
-Hosts can provide a session-bound `readArtifact` callback to `LocalRuntimeHost`.
+Hosts can provide a `readArtifact(sessionId, artifactId, options)` callback to
+`LocalRuntimeHost`. Each runtime binds its own session ID; the host can resolve
+remote ownership from persisted session metadata. Creating or recreating a cloud
+runtime supplies `metadata.outerSessionId`; cloud hosts preserve that binding
+when restoring a checkpoint.
 The runtime exposes attached files as stable `artifact://` paths to `read_files`,
 including after history restore. Image reads persist media references; only the
 outgoing model request receives the image bytes. Text reads use the existing line

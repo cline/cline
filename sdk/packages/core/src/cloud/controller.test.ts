@@ -677,6 +677,7 @@ describe("CloudSessionController neutral host contract", () => {
 			enableSpawn: false,
 			enableTeams: false,
 			metadata: {
+				outerSessionId: "ses-stale",
 				autoApproveTools: savedApproval,
 				...savedThinking,
 				checkpointEnabled: true,
@@ -699,6 +700,7 @@ describe("CloudSessionController neutral host contract", () => {
 			?.payload as { sessionConfig: Record<string, unknown> };
 		expect(restored).toMatchObject({
 			initialMessages: messages,
+			metadata: { outerSessionId: record.id },
 			sessionConfig: {
 				sessionId: "inner",
 				modelId: "model",
@@ -1330,7 +1332,11 @@ describe("CloudSessionController neutral host contract", () => {
 				expect(
 					f.commands.find((c) => c.command === "session.create")?.payload,
 				).toMatchObject({
-					metadata: { thinking: false, reasoningEffort: null },
+					metadata: {
+						thinking: false,
+						reasoningEffort: null,
+						outerSessionId: record.id,
+					},
 					sessionConfig: {
 						thinking: false,
 						reasoningEffort: "high",

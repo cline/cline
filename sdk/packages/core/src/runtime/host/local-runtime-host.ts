@@ -265,7 +265,11 @@ function isIncomingCompactionStateStale(
 }
 
 export interface LocalRuntimeHostOptions {
-	readArtifact?: ReadArtifact;
+	readArtifact?: (
+		sessionId: string,
+		artifactId: string,
+		options: Parameters<ReadArtifact>[1],
+	) => ReturnType<ReadArtifact>;
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
@@ -337,8 +341,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
 			options.createAgent ??
-			((config) =>
-				new SessionRuntime(config, { readArtifact: options.readArtifact }));
+			((config) => {
+				const sessionId = config.sessionId;
+				const readArtifact = options.readArtifact;
+				return new SessionRuntime(config, {
+					readArtifact:
+						sessionId && readArtifact
+							? (artifactId, readOptions) =>
+								readArtifact(sessionId, artifactId, readOptions)
+							: undefined,
+				});
+			});
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
 			options.capabilities,
 		);
