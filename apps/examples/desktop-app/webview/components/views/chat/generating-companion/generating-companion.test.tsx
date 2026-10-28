@@ -70,14 +70,6 @@ function danceButton() {
 	return button;
 }
 
-function pauseButton() {
-	const button = container.querySelector<HTMLButtonElement>(
-		"button[aria-pressed]",
-	);
-	if (!button) throw new Error("Missing pause control");
-	return button;
-}
-
 async function click(button: HTMLButtonElement) {
 	await act(async () => button.click());
 }
@@ -141,27 +133,11 @@ describe("GeneratingCompanion", () => {
 		expect(danceButton().getAttribute("aria-label")).toContain("Cline Shuffle");
 	});
 
-	it("pauses and resumes the existing animation instead of restarting the phrase", async () => {
-		await act(async () => root.render(<GeneratingCompanion active />));
-		const animation = animations.at(-1);
-		const count = animations.length;
-		await click(pauseButton());
-		expect(animation?.pause).toHaveBeenCalled();
-		expect(pauseButton().getAttribute("aria-pressed")).toBe("true");
-		expect(pauseButton().getAttribute("aria-label")).toContain("Resume");
-		await click(pauseButton());
-		expect(animation?.play).toHaveBeenCalled();
-		expect(animation?.cancel).not.toHaveBeenCalled();
-		expect(animations).toHaveLength(count);
-		expect(pauseButton().getAttribute("aria-pressed")).toBe("false");
-	});
-
 	it("uses a static pose for reduced motion and responds to preference changes", async () => {
 		reducedMotion = true;
 		await act(async () => root.render(<GeneratingCompanion active />));
 		expect(animations).toHaveLength(0);
 		expect(danceButton().closest("[hidden]")).toBeNull();
-		expect(pauseButton().disabled).toBe(true);
 		await act(async () => {
 			reducedMotion = false;
 			for (const listener of mediaListeners) listener();
@@ -172,10 +148,9 @@ describe("GeneratingCompanion", () => {
 			for (const listener of mediaListeners) listener();
 		});
 		expect(animations[0]?.cancel).toHaveBeenCalledOnce();
-		expect(pauseButton().disabled).toBe(true);
 	});
 
-	it("suspends hidden-page motion without overriding a user pause when visible again", async () => {
+	it("suspends hidden-page motion and resumes when visible again", async () => {
 		await act(async () => root.render(<GeneratingCompanion active />));
 		const animation = animations.at(-1);
 		hidden = true;
@@ -184,13 +159,6 @@ describe("GeneratingCompanion", () => {
 		hidden = false;
 		document.dispatchEvent(new Event("visibilitychange"));
 		expect(animation?.play).toHaveBeenCalled();
-		await click(pauseButton());
-		animation?.play.mockClear();
-		hidden = true;
-		document.dispatchEvent(new Event("visibilitychange"));
-		hidden = false;
-		document.dispatchEvent(new Event("visibilitychange"));
-		expect(animation?.play).not.toHaveBeenCalled();
 	});
 
 	it("returns keyboard focus to the draft on completion, without taking it from another control", async () => {

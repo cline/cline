@@ -1,6 +1,5 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
 import {
 	type MouseEvent,
 	type RefObject,
@@ -17,8 +16,6 @@ type GeneratingCompanionProps = {
 	active: boolean;
 	className?: string;
 	draftRef?: RefObject<HTMLTextAreaElement | null>;
-	paused?: boolean;
-	onPausedChange?: (paused: boolean) => void;
 };
 
 function useReducedMotion() {
@@ -44,12 +41,8 @@ export function GeneratingCompanion({
 	active,
 	className,
 	draftRef,
-	paused,
-	onPausedChange,
 }: GeneratingCompanionProps) {
 	const [danceIndex, setDanceIndex] = useState(0);
-	const [localPaused, setLocalPaused] = useState(false);
-	const motionPaused = paused ?? localPaused;
 	const reducedMotion = useReducedMotion();
 	const dance = COMPANION_DANCES[danceIndex] ?? COMPANION_DANCES[0];
 	const controlsRef = useRef<HTMLSpanElement>(null);
@@ -58,8 +51,6 @@ export function GeneratingCompanion({
 	const controlsHadFocusRef = useRef(false);
 	const activeRef = useRef(active);
 	activeRef.current = active;
-	const playbackRef = useRef({ motionPaused, reducedMotion, active });
-	playbackRef.current = { motionPaused, reducedMotion, active };
 
 	useLayoutEffect(() => {
 		const sprite = spriteRef.current;
@@ -77,7 +68,7 @@ export function GeneratingCompanion({
 			easing: "linear",
 		});
 		animationRef.current = animation;
-		if (playbackRef.current.motionPaused || sprite.ownerDocument.hidden) {
+		if (sprite.ownerDocument.hidden) {
 			animation.pause();
 		}
 		return () => {
@@ -86,20 +77,11 @@ export function GeneratingCompanion({
 		};
 	}, [active, dance, reducedMotion]);
 
-	useLayoutEffect(() => {
-		if (motionPaused || reducedMotion || document.hidden) {
-			animationRef.current?.pause();
-		} else if (active) {
-			animationRef.current?.play();
-		}
-	}, [active, motionPaused, reducedMotion]);
-
 	useEffect(() => {
 		const update = () => {
-			const state = playbackRef.current;
-			if (document.hidden || state.motionPaused || state.reducedMotion) {
+			if (document.hidden) {
 				animationRef.current?.pause();
-			} else if (state.active) {
+			} else {
 				animationRef.current?.play();
 			}
 		};
@@ -134,18 +116,11 @@ export function GeneratingCompanion({
 		}
 	}
 
-	function togglePaused(event: MouseEvent<HTMLButtonElement>) {
-		event.stopPropagation();
-		const next = !motionPaused;
-		if (paused === undefined) setLocalPaused(next);
-		onPausedChange?.(next);
-	}
-
 	return (
 		<span
 			ref={controlsRef}
 			className={cn(
-				"inline-flex shrink-0 flex-col items-center",
+				"inline-flex shrink-0 items-center",
 				className,
 				!active && "hidden",
 			)}
@@ -185,36 +160,6 @@ export function GeneratingCompanion({
 						backgroundPosition: "0% 0%",
 					}}
 				/>
-			</Button>
-			<Button
-				type="button"
-				variant="ghost"
-				size="icon-xs"
-				className="size-[28px] p-0 text-muted-foreground pointer-coarse:size-[44px]"
-				disabled={reducedMotion}
-				aria-label={
-					reducedMotion
-						? "Companion motion follows your reduced-motion preference"
-						: motionPaused
-							? "Resume companion animation"
-							: "Pause companion animation"
-				}
-				aria-pressed={motionPaused || reducedMotion}
-				title={
-					reducedMotion
-						? "Reduced motion is enabled"
-						: motionPaused
-							? "Resume animation"
-							: "Pause animation"
-				}
-				onMouseDown={preserveDraftFocus}
-				onClick={togglePaused}
-			>
-				{motionPaused || reducedMotion ? (
-					<Play className="size-3.5" aria-hidden="true" />
-				) : (
-					<Pause className="size-3.5" aria-hidden="true" />
-				)}
 			</Button>
 		</span>
 	);
