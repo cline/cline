@@ -25,7 +25,10 @@ export function resolveCloudModel(
 		id ? models.find((model) => model.id === id) : undefined;
 	return (
 		offered(preferences.explicitModelId) ??
-		offered(preferences.localModelId) ??
+		(preferences.localProviderId === "cline" ||
+		preferences.localProviderId === "cline-pass"
+			? offered(preferences.localModelId)
+			: undefined) ??
 		(preferences.localProviderId === "cline-pass"
 			? models.find((model) => model.catalogId === "cline-pass")
 			: undefined) ??

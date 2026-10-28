@@ -25,8 +25,18 @@ describe("resolveCloudModel", () => {
 			resolveCloudModel(models, {
 				explicitModelId: "retired/model",
 				localModelId: "anthropic/claude-opus-5.5",
+				localProviderId: "cline",
 			})?.id,
 		).toBe("anthropic/claude-opus-5.5");
+	});
+
+	it("ignores a local model from another provider even if Cloud offers the same id", () => {
+		expect(
+			resolveCloudModel(models, {
+				localModelId: "anthropic/claude-opus-5.5",
+				localProviderId: "openrouter",
+			})?.id,
+		).toBe("anthropic/claude-sonnet-5.5");
 	});
 
 	it("defaults ClinePass users to ClinePass", () => {
