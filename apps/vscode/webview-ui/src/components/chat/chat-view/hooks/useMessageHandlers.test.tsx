@@ -190,6 +190,35 @@ describe("useMessageHandlers — send routing", () => {
 		expect(prepareHandoff).not.toHaveBeenCalled()
 	})
 
+	it("keeps a rejected draft when a different handoff completes", async () => {
+		mockTaskId = "local-task"
+		prepareHandoff.mockRejectedValueOnce(new Error("Preparation unavailable"))
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("/cloud finish tests")
+			result.current.chatState.setSelectedImages(["image"])
+		})
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], [])
+		})
+		expect(result.current.handlers.handoffError).toBe("Preparation unavailable")
+		mockHandoff = { id: "other-attempt", sourceTaskId: "local-task", phase: "preparing" }
+		rerender()
+		mockHandoff = {
+			id: "other-attempt",
+			sourceTaskId: "local-task",
+			phase: "complete",
+			sessionId: "ses_example",
+			delivery: "sent",
+		}
+		rerender()
+		expect(result.current.chatState.inputValue).toBe("/cloud finish tests")
+		expect(result.current.chatState.selectedImages).toEqual(["image"])
+	})
+
 	it("sends a cloud request when Cloud is selected even without a repository, never a local task", async () => {
 		mockCloudTaskTarget = { target: "cloud" }
 		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))

@@ -15,9 +15,14 @@ export function useCloudHandoff(chatState: ChatState) {
 		setFailure(undefined)
 	}, [sourceTaskId])
 	useEffect(() => {
-		if (!cloudHandoff || cloudHandoff.sourceTaskId !== sourceTaskId) return
+		if (!sourceTaskId) return
 		const submitted = drafts.current.get(sourceTaskId)
 		if (!submitted) return
+		if (!cloudHandoff) {
+			if (submitted.attemptId) drafts.current.delete(sourceTaskId)
+			return
+		}
+		if (cloudHandoff.sourceTaskId !== sourceTaskId) return
 		if (cloudHandoff.phase === "preparing" || cloudHandoff.phase === "ready") submitted.attemptId ??= cloudHandoff.id
 		if (cloudHandoff.phase === "complete" && cloudHandoff.delivery === "sent" && submitted.attemptId === cloudHandoff.id) {
 			chatState.consumeDraftSnapshot(submitted.draft)
@@ -53,6 +58,7 @@ export function useCloudHandoff(chatState: ChatState) {
 					}),
 				)
 			} catch (err) {
+				drafts.current.delete(sourceTaskId)
 				setFailure({ sourceTaskId, message: err instanceof Error ? err.message : "Unable to prepare cloud handoff." })
 			} finally {
 				preparing.current.delete(sourceTaskId)
