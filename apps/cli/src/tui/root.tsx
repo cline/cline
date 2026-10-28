@@ -26,6 +26,7 @@ import {
 	readRepoStatus,
 } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
+import { resolveSlashCommand } from "./commands/slash-command-registry";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import { CloudHandoffStatusBar } from "./components/cloud-handoff-status";
 import { DialogThemeSync } from "./components/dialog-theme-sync";
@@ -817,26 +818,39 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	const { handleSlashCommand, openHistory } = useLocalCommandActions({
-		slashCommandRegistry,
-		canForkSession,
-		openAccount,
-		openConfig,
-		openMcpManager,
-		openModelSelector: openTargetModelSelector,
-		openSkills,
-		openThemePicker,
-		refocusTextarea: () => refocusTextareaRef.current(),
-		setAppView,
-		onClearConversation: clearConversation,
-		onResumeSession: resumeSession,
-		onExportHistorySession: props.onExportHistorySession,
-		onDeleteHistorySession: props.onDeleteHistorySession,
-		onCompact: props.onCompact,
-		onFork: props.onFork,
-		onUndo: openCheckpointRestore,
-		onExit: exitCline,
-	});
+	const { handleSlashCommand: handleLocalSlashCommand, openHistory } =
+		useLocalCommandActions({
+			slashCommandRegistry,
+			canForkSession,
+			openAccount,
+			openConfig,
+			openMcpManager,
+			openModelSelector: openTargetModelSelector,
+			openSkills,
+			openThemePicker,
+			refocusTextarea: () => refocusTextareaRef.current(),
+			setAppView,
+			onClearConversation: clearConversation,
+			onResumeSession: resumeSession,
+			onExportHistorySession: props.onExportHistorySession,
+			onDeleteHistorySession: props.onDeleteHistorySession,
+			onCompact: props.onCompact,
+			onFork: props.onFork,
+			onUndo: openCheckpointRestore,
+			onExit: exitCline,
+		});
+	const handleSlashCommand = useCallback<typeof handleLocalSlashCommand>(
+		(command, invocation) => {
+			const name = resolveSlashCommand(slashCommandRegistry, command)?.name;
+			// These act on the local session, not the cloud conversation on screen.
+			if (cloudActive && (name === "compact" || name === "fork")) {
+				showToast(`/${name} isn't available in Cline Cloud yet.`);
+				return true;
+			}
+			return handleLocalSlashCommand(command, invocation);
+		},
+		[cloudActive, handleLocalSlashCommand, showToast, slashCommandRegistry],
+	);
 
 	const startupActionsRef = useRef({ openConfig, openHistory });
 	startupActionsRef.current = { openConfig, openHistory };

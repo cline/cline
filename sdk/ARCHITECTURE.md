@@ -364,6 +364,8 @@ daemon. On startup, the hub server generates a cryptographically random
 per-process auth token, stores it in the owner discovery record, and writes that
 record with owner-only file permissions. Local clients resolve the token from
 the discovery file at connection time rather than embedding it in endpoint URLs.
+`ensureCompatibleLocalHubUrl` retains the startup token for the first client,
+including when `CLINE_HUB_PORT` selects a custom port.
 The server validates the token with a constant-time comparison before accepting
 `/hub` WebSocket upgrades or `/shutdown` requests; WebSocket clients send it via
 the `Sec-WebSocket-Protocol` header and shutdown requests use an

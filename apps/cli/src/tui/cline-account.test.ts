@@ -217,6 +217,7 @@ describe("loadClineAccountSnapshot", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 	});
 
 	it("identifies the loaded Cline account for telemetry and feature flags", async () => {
@@ -260,6 +261,32 @@ describe("loadClineAccountSnapshot", () => {
 				memberId: "member-1",
 			},
 			expect.any(Object),
+		);
+	});
+
+	it("links to the web app's privacy settings when the account provides a path", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "user@example.com",
+			displayName: "User One",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(snapshot.privacySettingsUrl).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy",
 		);
 	});
 });
