@@ -23,12 +23,90 @@ export type SessionActionTriggerProps = Pick<
 	"onLongPress" | "accessibilityActions" | "onAccessibilityAction"
 > & { pending?: boolean };
 
+export type SessionActionAnchor = {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+};
+
+/** A row owns only its measured trigger; the sidebar owns the stable dialog. */
+export function SessionActionTrigger({
+	children,
+	enabled,
+	pending,
+	onOpen,
+}: {
+	children: (trigger: SessionActionTriggerProps) => ReactNode;
+	enabled: boolean;
+	pending?: boolean;
+	onOpen(anchor: SessionActionAnchor): void;
+}) {
+	const triggerRef = useRef<View>(null);
+	const { width, height } = useWindowDimensions();
+	const insets = useSafeAreaInsets();
+	const viewport = useRef({ width, height });
+	viewport.current = { width, height };
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+	const open = () => {
+		if (!enabled || pending) return;
+		Keyboard.dismiss();
+		const measuredViewport = viewport.current;
+		const measured = (
+			x: number,
+			y: number,
+			measuredWidth: number,
+			measuredHeight: number,
+		) => {
+			if (
+				!mounted.current ||
+				viewport.current.width !== measuredViewport.width ||
+				viewport.current.height !== measuredViewport.height
+			)
+				return;
+			onOpen({ x, y, width: measuredWidth, height: measuredHeight });
+		};
+		if (triggerRef.current) triggerRef.current.measureInWindow(measured);
+		else measured(12, insets.top + 120, width - 64, 44);
+	};
+	return (
+		<View ref={triggerRef} collapsable={false}>
+			{children(
+				enabled
+					? {
+							pending,
+							onLongPress: open,
+							accessibilityActions: [
+								{ name: "sessionActions", label: "Session actions" },
+							],
+							onAccessibilityAction: (event) => {
+								if (event.nativeEvent.actionName === "sessionActions") open();
+							},
+						}
+					: {},
+			)}
+		</View>
+	);
+}
+
 export interface SessionActionsProps {
 	row: SessionRow;
 	children: (trigger: SessionActionTriggerProps) => ReactNode;
 	onRenameSession?: (row: SessionRow, title: string) => Promise<void>;
 	onDeleteSession?: (row: SessionRow) => Promise<void>;
 	onStopWorkspace?: (row: SessionRow) => Promise<void>;
+	/** Sidebar-owned requests survive switching the surrounding drawer/inline tree. */
+	openRequest?: { anchor: SessionActionAnchor; sequence: number };
+	onClosed?(): void;
+	onPendingChange?(pending: boolean): void;
+	/** Stable state owner delegates only presentation to the active native host. */
+	renderSurface?(dialog: ReactNode): ReactNode;
 }
 
 export function SessionActions({
@@ -37,7 +115,16 @@ export function SessionActions({
 	onRenameSession,
 	onDeleteSession,
 	onStopWorkspace,
-}: SessionActionsProps) {
+	openRequest,
+	onClosed,
+	onPendingChange,
+	renderSurface,
+}:
+	| SessionActionsProps
+	| (Omit<SessionActionsProps, "row" | "renderSurface"> & {
+			row?: SessionRow;
+			renderSurface(dialog: ReactNode): ReactNode;
+	  })) {
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const { width, height } = useWindowDimensions();
@@ -52,42 +139,82 @@ export function SessionActions({
 	const [mode, setMode] = useState<
 		"closed" | "menu" | "rename" | "delete" | "stop"
 	>("closed");
+	const modeRef = useRef(mode);
+	modeRef.current = mode;
+	const onClosedRef = useRef(onClosed);
+	onClosedRef.current = onClosed;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: viewport changes invalidate measured menu anchors, but not active editors.
 	useEffect(() => {
 		// The anchor belongs to the old viewport; keep an in-progress rename intact.
-		setMode((current) => (current === "menu" ? "closed" : current));
+		if (modeRef.current === "menu") {
+			setMode("closed");
+			onClosedRef.current?.();
+		}
 	}, [width, height]);
-	const [title, setTitle] = useState(row.title);
+	const [title, setTitle] = useState(row?.title ?? "");
 	const [pending, setPending] = useState(false);
 	const pendingRef = useRef(false);
 	const [error, setError] = useState<string>();
-	const stopWorkspace = row.canStopWorkspace ? onStopWorkspace : undefined;
+	const controlled = renderSurface !== undefined;
+	const requestRef = useRef(openRequest);
+	requestRef.current = openRequest;
+	useEffect(() => {
+		if (controlled && !openRequest) {
+			pendingRef.current = false;
+			setPending(false);
+			setMode("closed");
+			setError(undefined);
+			return;
+		}
+		if (!row || !openRequest) return;
+		pendingRef.current = false;
+		setPending(false);
+		setAnchor(openRequest.anchor);
+		setTitle(row.title);
+		setError(undefined);
+		setMode("menu");
+	}, [openRequest, row, controlled]);
+	const stopWorkspace = row?.canStopWorkspace ? onStopWorkspace : undefined;
 	if (
+		!row ||
 		row.descriptor.mode !== "cloud" ||
 		(!onRenameSession && !onDeleteSession && !stopWorkspace)
 	)
-		return <>{children({})}</>;
+		return <>{renderSurface ? renderSurface(null) : children({})}</>;
 	const close = () => {
 		if (pendingRef.current) return;
 		Keyboard.dismiss();
 		setMode("closed");
 		setError(undefined);
+		onClosed?.();
 	};
 	const run = async (action: () => Promise<void>) => {
 		if (pendingRef.current) return;
+		const request = requestRef.current;
+		const stillCurrent = () => !renderSurface || requestRef.current === request;
 		pendingRef.current = true;
+		onPendingChange?.(true);
 		setPending(true);
 		setError(undefined);
 		Keyboard.dismiss();
 		try {
 			await action();
+			if (!stillCurrent()) return;
 			setMode("closed");
+			onClosed?.();
 		} catch (cause) {
+			if (!stillCurrent()) return;
 			setError(
 				userErrorMessage(cause, "Couldn't update this session. Try again."),
 			);
 		} finally {
-			pendingRef.current = false;
-			setPending(false);
+			// Release this request's external lease even when its private editor
+			// was retired. Its callback is scoped to the original request token.
+			onPendingChange?.(false);
+			if (stillCurrent()) {
+				pendingRef.current = false;
+				setPending(false);
+			}
 		}
 	};
 	const menuHeight =
@@ -142,6 +269,189 @@ export function SessionActions({
 		setError(undefined);
 		setMode("menu");
 	};
+
+	const dialog =
+		mode !== "closed" ? (
+			<Modal
+				supportedOrientations={[
+					"portrait",
+					"portrait-upside-down",
+					"landscape",
+				]}
+				transparent
+				statusBarTranslucent
+				presentationStyle="overFullScreen"
+				animationType={reducedMotion ? "none" : "fade"}
+				onRequestClose={close}
+				visible
+			>
+				<KeyboardAvoidingView
+					style={{ flex: 1 }}
+					behavior={Platform.OS === "ios" ? "padding" : "height"}
+				>
+					<Pressable
+						accessibilityLabel="Dismiss session actions"
+						accessibilityRole="button"
+						disabled={pending}
+						onPress={close}
+						style={[
+							StyleSheet.absoluteFill,
+							{
+								backgroundColor:
+									mode === "menu" ? "transparent" : "rgba(0,0,0,0.5)",
+							},
+						]}
+					/>
+					{mode === "menu" ? (
+						<View
+							accessibilityViewIsModal
+							onAccessibilityEscape={close}
+							testID="session-actions-menu"
+							style={{
+								position: "absolute",
+								top: menuTop,
+								left: Math.max(
+									insets.left + 12,
+									Math.min(
+										anchor.x + anchor.width - menuWidth,
+										width - insets.right - menuWidth - 12,
+									),
+								),
+								width: menuWidth,
+								padding: 4,
+								backgroundColor: theme.color.popover,
+								borderWidth: 1,
+								borderColor: theme.color.border,
+								borderRadius: theme.radius.md,
+								shadowColor: "#000",
+								shadowOpacity: 0.25,
+								shadowRadius: 12,
+								shadowOffset: { width: 0, height: 4 },
+								elevation: 12,
+							}}
+						>
+							{onRenameSession
+								? menuItem("Rename session", false, () => setMode("rename"))
+								: null}
+							{stopWorkspace
+								? menuItem(
+										"Stop workspace",
+										false,
+										() => setMode("stop"),
+										<Square size={16} color={theme.color.textMuted} />,
+									)
+								: null}
+							{onDeleteSession
+								? menuItem("Delete session", true, () => setMode("delete"))
+								: null}
+						</View>
+					) : (
+						<View
+							pointerEvents="box-none"
+							style={{
+								flex: 1,
+								justifyContent: "center",
+								paddingHorizontal: Math.max(24, insets.left, insets.right),
+								paddingTop: insets.top + 16,
+								paddingBottom: insets.bottom + 16,
+							}}
+						>
+							<View
+								accessibilityViewIsModal
+								onAccessibilityEscape={close}
+								style={{
+									maxHeight: "100%",
+									width: "100%",
+									maxWidth: 400,
+									alignSelf: "center",
+									borderRadius: theme.radius.lg,
+									backgroundColor: theme.color.popover,
+									borderWidth: 1,
+									borderColor: theme.color.border,
+								}}
+							>
+								<ScrollView
+									keyboardShouldPersistTaps="handled"
+									contentContainerStyle={{ padding: 20, gap: 16 }}
+								>
+									<Text weight="600" accessibilityRole="header">
+										{mode === "rename"
+											? "Rename session"
+											: mode === "stop"
+												? "Stop workspace?"
+												: "Delete session?"}
+									</Text>
+									{mode === "rename" ? (
+										<TextField
+											autoFocus
+											accessibilityLabel="Session title"
+											value={title}
+											onChangeText={setTitle}
+											editable={!pending}
+											maxLength={200}
+											returnKeyType="done"
+											selectTextOnFocus
+											onSubmitEditing={() => {
+												if (title.trim())
+													void run(() => onRenameSession!(row, title.trim()));
+											}}
+										/>
+									) : (
+										<Text tone="muted">
+											{mode === "stop"
+												? "This stops any running work. Your files and saved conversation remain. Open the session again to resume the workspace."
+												: `Delete “${row.title}”? This removes the Cloud workspace and its saved conversation. This cannot be undone.`}
+										</Text>
+									)}
+									{error ? (
+										<Text tone="danger" accessibilityRole="alert">
+											{error}
+										</Text>
+									) : null}
+									<View
+										style={{
+											flexDirection: "row",
+											justifyContent: "flex-end",
+											gap: 8,
+											flexWrap: "wrap",
+										}}
+									>
+										<Button
+											label="Cancel"
+											variant="ghost"
+											disabled={pending}
+											onPress={close}
+										/>
+										<Button
+											label={
+												mode === "rename"
+													? "Save title"
+													: mode === "stop"
+														? "Confirm stop"
+														: "Confirm delete"
+											}
+											variant={mode === "delete" ? "destructive" : "primary"}
+											disabled={pending || (mode === "rename" && !title.trim())}
+											loading={pending}
+											onPress={() =>
+												void run(() =>
+													mode === "rename"
+														? onRenameSession!(row, title.trim())
+														: mode === "stop"
+															? onStopWorkspace!(row)
+															: onDeleteSession!(row),
+												)
+											}
+										/>
+									</View>
+								</ScrollView>
+							</View>
+						</View>
+					)}
+				</KeyboardAvoidingView>
+			</Modal>
+		) : null;
+	if (renderSurface) return <>{renderSurface(dialog)}</>;
 	return (
 		<View ref={triggerRef} collapsable={false}>
 			{children({
@@ -154,188 +464,7 @@ export function SessionActions({
 					if (event.nativeEvent.actionName === "sessionActions") openMenu();
 				},
 			})}
-			{mode !== "closed" ? (
-				<Modal
-					supportedOrientations={[
-						"portrait",
-						"portrait-upside-down",
-						"landscape",
-					]}
-					transparent
-					statusBarTranslucent
-					presentationStyle="overFullScreen"
-					animationType={reducedMotion ? "none" : "fade"}
-					onRequestClose={close}
-					visible
-				>
-					<KeyboardAvoidingView
-						style={{ flex: 1 }}
-						behavior={Platform.OS === "ios" ? "padding" : "height"}
-					>
-						<Pressable
-							accessibilityLabel="Dismiss session actions"
-							accessibilityRole="button"
-							disabled={pending}
-							onPress={close}
-							style={[
-								StyleSheet.absoluteFill,
-								{
-									backgroundColor:
-										mode === "menu" ? "transparent" : "rgba(0,0,0,0.5)",
-								},
-							]}
-						/>
-						{mode === "menu" ? (
-							<View
-								accessibilityViewIsModal
-								onAccessibilityEscape={close}
-								testID="session-actions-menu"
-								style={{
-									position: "absolute",
-									top: menuTop,
-									left: Math.max(
-										insets.left + 12,
-										Math.min(
-											anchor.x + anchor.width - menuWidth,
-											width - insets.right - menuWidth - 12,
-										),
-									),
-									width: menuWidth,
-									padding: 4,
-									backgroundColor: theme.color.popover,
-									borderWidth: 1,
-									borderColor: theme.color.border,
-									borderRadius: theme.radius.md,
-									shadowColor: "#000",
-									shadowOpacity: 0.25,
-									shadowRadius: 12,
-									shadowOffset: { width: 0, height: 4 },
-									elevation: 12,
-								}}
-							>
-								{onRenameSession
-									? menuItem("Rename session", false, () => setMode("rename"))
-									: null}
-								{stopWorkspace
-									? menuItem(
-											"Stop workspace",
-											false,
-											() => setMode("stop"),
-											<Square size={16} color={theme.color.textMuted} />,
-										)
-									: null}
-								{onDeleteSession
-									? menuItem("Delete session", true, () => setMode("delete"))
-									: null}
-							</View>
-						) : (
-							<View
-								pointerEvents="box-none"
-								style={{
-									flex: 1,
-									justifyContent: "center",
-									paddingHorizontal: Math.max(24, insets.left, insets.right),
-									paddingTop: insets.top + 16,
-									paddingBottom: insets.bottom + 16,
-								}}
-							>
-								<View
-									accessibilityViewIsModal
-									onAccessibilityEscape={close}
-									style={{
-										maxHeight: "100%",
-										width: "100%",
-										maxWidth: 400,
-										alignSelf: "center",
-										borderRadius: theme.radius.lg,
-										backgroundColor: theme.color.popover,
-										borderWidth: 1,
-										borderColor: theme.color.border,
-									}}
-								>
-									<ScrollView
-										keyboardShouldPersistTaps="handled"
-										contentContainerStyle={{ padding: 20, gap: 16 }}
-									>
-										<Text weight="600" accessibilityRole="header">
-											{mode === "rename"
-												? "Rename session"
-												: mode === "stop"
-													? "Stop workspace?"
-													: "Delete session?"}
-										</Text>
-										{mode === "rename" ? (
-											<TextField
-												autoFocus
-												accessibilityLabel="Session title"
-												value={title}
-												onChangeText={setTitle}
-												editable={!pending}
-												maxLength={200}
-												returnKeyType="done"
-												selectTextOnFocus
-												onSubmitEditing={() => {
-													if (title.trim())
-														void run(() => onRenameSession!(row, title.trim()));
-												}}
-											/>
-										) : (
-											<Text tone="muted">
-												{mode === "stop"
-													? "This stops any running work. Your files and saved conversation remain. Open the session again to resume the workspace."
-													: `Delete “${row.title}”? This removes the Cloud workspace and its saved conversation. This cannot be undone.`}
-											</Text>
-										)}
-										{error ? (
-											<Text tone="danger" accessibilityRole="alert">
-												{error}
-											</Text>
-										) : null}
-										<View
-											style={{
-												flexDirection: "row",
-												justifyContent: "flex-end",
-												gap: 8,
-												flexWrap: "wrap",
-											}}
-										>
-											<Button
-												label="Cancel"
-												variant="ghost"
-												disabled={pending}
-												onPress={close}
-											/>
-											<Button
-												label={
-													mode === "rename"
-														? "Save title"
-														: mode === "stop"
-															? "Confirm stop"
-															: "Confirm delete"
-												}
-												variant={mode === "delete" ? "destructive" : "primary"}
-												disabled={
-													pending || (mode === "rename" && !title.trim())
-												}
-												loading={pending}
-												onPress={() =>
-													void run(() =>
-														mode === "rename"
-															? onRenameSession!(row, title.trim())
-															: mode === "stop"
-																? onStopWorkspace!(row)
-																: onDeleteSession!(row),
-													)
-												}
-											/>
-										</View>
-									</ScrollView>
-								</View>
-							</View>
-						)}
-					</KeyboardAvoidingView>
-				</Modal>
-			) : null}
+			{dialog}
 		</View>
 	);
 }

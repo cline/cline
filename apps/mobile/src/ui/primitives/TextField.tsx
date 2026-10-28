@@ -1,9 +1,10 @@
 import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
 	type StyleProp,
 	TextInput,
 	type TextInputProps,
+	useWindowDimensions,
 	View,
 	type ViewStyle,
 } from "react-native";
@@ -39,10 +40,16 @@ export function TextField({
 	inputStyle,
 	onFocus,
 	onBlur,
+	defaultValue,
+	onChangeText,
 	...rest
 }: TextFieldProps) {
 	const theme = useTheme();
+	const { fontScale } = useWindowDimensions();
 	const [focused, setFocused] = useState(false);
+	// The native host must remeasure Dynamic Type, but uncontrolled callers
+	// still own their typed text rather than reverting to the original default.
+	const nativeDraft = useRef(defaultValue);
 	const Input = inBottomSheet ? BottomSheetTextInput : TextInput;
 
 	const isSearch = variant === "search";
@@ -91,6 +98,7 @@ export function TextField({
 		>
 			{leading}
 			<Input
+				key={fontScale}
 				keyboardAppearance={theme.mode}
 				placeholderTextColor={theme.color.textMuted}
 				onFocus={handleFocus}
@@ -108,6 +116,11 @@ export function TextField({
 					inputStyle,
 				]}
 				{...rest}
+				defaultValue={nativeDraft.current}
+				onChangeText={(text) => {
+					nativeDraft.current = text;
+					onChangeText?.(text);
+				}}
 			/>
 			{trailing}
 		</View>

@@ -2,6 +2,32 @@ import { describe, expect, it } from "vitest";
 import { errorDetail, userErrorMessage } from "./error-message";
 
 describe("userErrorMessage", () => {
+	it("replaces the native Expo canceled-fetch stack with honest delivery uncertainty", () => {
+		const nativeMessage =
+			"fetch failed: FetchRequestCanceledException: Fetch request has been canceled (at Expo/NativeResponse.swift:63)";
+		for (const error of [
+			new Error(nativeMessage),
+			nativeMessage,
+			{ error: { message: nativeMessage } },
+		]) {
+			expect(
+				userErrorMessage(error, "Couldn't update this session. Try again."),
+			).toBe(
+				"The request was interrupted. Check whether it completed before trying again.",
+			);
+		}
+		expect(
+			userErrorMessage(new Error("The request timed out"), "Fallback"),
+		).toBe(
+			"The request took too long. Check whether it completed before trying again.",
+		);
+		expect(
+			userErrorMessage(
+				new Error("Could not rename this conversation (503)."),
+				"Fallback",
+			),
+		).toBe("Could not rename this conversation (503).");
+	});
 	it("parses the full nested response before bounding the displayed message", () => {
 		const response = JSON.stringify({
 			error: {

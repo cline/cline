@@ -9,12 +9,17 @@ import {
 	attachmentMessages,
 	type SubmittedAttachments,
 } from "./attachment-history";
-import { commandFault, FixtureFaults } from "./faults";
 import {
-	SdkContractProfiles,
-	SDK_PROFILE_PROVENANCE,
-} from "./sdk-contract-profiles";
+	commandFault,
+	FixtureFaults,
+	fixtureStatusAuthenticationFailure,
+	holdFixtureWorkspaceMutation,
+} from "./faults";
 import { fixtureLifecycleDto, scopedFixtureRows } from "./rest-contract";
+import {
+	SDK_PROFILE_PROVENANCE,
+	SdkContractProfiles,
+} from "./sdk-contract-profiles";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { startHubWebSocketServer, createLocalHubScheduleRuntimeHandlers } =
@@ -1034,6 +1039,17 @@ const server = Bun.serve({
 				row.status = "running";
 				pendingUntil.delete(String(row.id));
 			}
+			await holdFixtureWorkspaceMutation({
+				faults,
+				id: String(row.id),
+				method: request.method,
+				action: match[2],
+				record,
+				sleep: (milliseconds) => Bun.sleep(milliseconds),
+			});
+			// A second delayed DELETE must never splice a different row at index -1.
+			if (!rows.includes(row))
+				return json({ success: false, error: "Unknown fixture session" }, 404);
 			const fault = match[2]
 				? `${match[2]}-error`
 				: request.method === "PATCH"
@@ -1041,6 +1057,13 @@ const server = Bun.serve({
 					: request.method === "DELETE"
 						? "delete-error"
 						: "details-error";
+			if (match[2] === "status" && request.method === "GET") {
+				const authenticationFailure = fixtureStatusAuthenticationFailure(
+					faults,
+					String(row.id),
+				);
+				if (authenticationFailure) return authenticationFailure;
+			}
 			if (faults.get(String(row.id), fault))
 				return json({ success: false, error: `Fixture ${fault}` }, 503);
 			if (match[2] === "suspend" || match[2] === "resume") {

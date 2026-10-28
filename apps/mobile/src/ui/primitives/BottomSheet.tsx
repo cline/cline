@@ -12,15 +12,29 @@ import {
 	type RefObject,
 	useCallback,
 	useContext,
+	useEffect,
+	useRef,
 	useState,
 } from "react";
-import { Keyboard, StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+	BackHandler,
+	Keyboard,
+	Platform,
+	StyleSheet,
+	useWindowDimensions,
+	View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../theme";
 
 export { BottomSheetView } from "@gorhom/bottom-sheet";
 
 const BackdropActiveContext = createContext(false);
+// Nested sheets mount child effects before parent effects. A local ancestry
+// lease lets parents defer Back regardless of listener registration order.
+const ActiveSheetParentContext = createContext<(() => () => void) | undefined>(
+	undefined,
+);
 
 /** Gorhom renders this prop as a component type. Keep that type and its native
  * children stable while animations change touchability; swapping the type tears
@@ -108,12 +122,51 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 		const insets = useSafeAreaInsets();
 		const { height } = useWindowDimensions();
 		const paddingBottom = Math.max(16, insets.bottom + 8);
+		const registerWithParent = useContext(ActiveSheetParentContext);
+		const activeDescendants = useRef(0);
+		const registerDescendant = useCallback(() => {
+			activeDescendants.current += 1;
+			const releaseAncestor = registerWithParent?.();
+			return () => {
+				activeDescendants.current -= 1;
+				releaseAncestor?.();
+			};
+		}, [registerWithParent]);
+		const sheetRef = useRef<GorhomBottomSheet | null>(null);
+		const assignRef = useCallback(
+			(sheet: GorhomBottomSheet | null) => {
+				sheetRef.current = sheet;
+				if (typeof ref === "function") ref(sheet);
+				else if (ref) ref.current = sheet;
+			},
+			[ref],
+		);
 		// Resizing a closed sheet can leave its interpolated animatedIndex just
 		// above -1. Gorhom then makes an invisible backdrop intercept every tap.
 		// Guard touchability at a stable parent, independently of that interpolation.
 		const [backdropActive, setBackdropActive] = useState(
 			(rest.index ?? 0) >= 0,
 		);
+		useEffect(() => {
+			if (Platform.OS !== "android" || !backdropActive) return;
+			const releaseParent = registerWithParent?.();
+			// React Native dispatches Back listeners in reverse registration order.
+			// Subscribe only while open: the most recently opened sheet owns Back,
+			// and snap-point changes/rerenders never reorder active listeners.
+			const subscription = BackHandler.addEventListener(
+				"hardwareBackPress",
+				() => {
+					if (activeDescendants.current > 0) return false;
+					if (Keyboard.isVisible()) Keyboard.dismiss();
+					else sheetRef.current?.close();
+					return true;
+				},
+			);
+			return () => {
+				subscription.remove();
+				releaseParent?.();
+			};
+		}, [backdropActive, registerWithParent]);
 		const handleAnimate = useCallback<
 			NonNullable<GorhomBottomSheetProps["onAnimate"]>
 		>(
@@ -134,44 +187,46 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 		);
 
 		return (
-			<BackdropActiveContext.Provider value={backdropActive}>
-				<GorhomBottomSheet
-					ref={ref}
-					topInset={insets.top}
-					keyboardBlurBehavior="restore"
-					enableBlurKeyboardOnGesture
-					maxDynamicContentSize={height - insets.top - 16}
-					// Keep the content's buttons reachable by VoiceOver. Grouping the
-					// whole sheet as one adjustable element hides its descendants on iOS.
-					accessible={false}
-					backgroundStyle={{
-						// `--popover`, one step above a card: desktop floats panels on the
-						// popover surface, not the card surface.
-						backgroundColor: theme.color.popover,
-						borderTopLeftRadius: theme.radius.lg,
-						borderTopRightRadius: theme.radius.lg,
-					}}
-					handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
-					backdropComponent={withBackdrop ? StableSheetBackdrop : undefined}
-					{...rest}
-					onAnimate={handleAnimate}
-					onChange={handleChange}
-				>
-					{scrollable ? (
-						<BottomSheetScrollView
-							style={{ maxHeight: Math.min(640, height - insets.top - 48) }}
-							contentContainerStyle={{ padding: 16, paddingBottom }}
-							keyboardShouldPersistTaps="handled"
-						>
-							{children}
-						</BottomSheetScrollView>
-					) : (
-						<BottomSheetView style={{ padding: 16, paddingBottom }}>
-							{children}
-						</BottomSheetView>
-					)}
-				</GorhomBottomSheet>
-			</BackdropActiveContext.Provider>
+			<ActiveSheetParentContext.Provider value={registerDescendant}>
+				<BackdropActiveContext.Provider value={backdropActive}>
+					<GorhomBottomSheet
+						ref={assignRef}
+						topInset={insets.top}
+						keyboardBlurBehavior="restore"
+						enableBlurKeyboardOnGesture
+						maxDynamicContentSize={height - insets.top - 16}
+						// Keep the content's buttons reachable by VoiceOver. Grouping the
+						// whole sheet as one adjustable element hides its descendants on iOS.
+						accessible={false}
+						backgroundStyle={{
+							// `--popover`, one step above a card: desktop floats panels on the
+							// popover surface, not the card surface.
+							backgroundColor: theme.color.popover,
+							borderTopLeftRadius: theme.radius.lg,
+							borderTopRightRadius: theme.radius.lg,
+						}}
+						handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
+						backdropComponent={withBackdrop ? StableSheetBackdrop : undefined}
+						{...rest}
+						onAnimate={handleAnimate}
+						onChange={handleChange}
+					>
+						{scrollable ? (
+							<BottomSheetScrollView
+								style={{ maxHeight: Math.min(640, height - insets.top - 48) }}
+								contentContainerStyle={{ padding: 16, paddingBottom }}
+								keyboardShouldPersistTaps="handled"
+							>
+								{children}
+							</BottomSheetScrollView>
+						) : (
+							<BottomSheetView style={{ padding: 16, paddingBottom }}>
+								{children}
+							</BottomSheetView>
+						)}
+					</GorhomBottomSheet>
+				</BackdropActiveContext.Provider>
+			</ActiveSheetParentContext.Provider>
 		);
 	},
 );

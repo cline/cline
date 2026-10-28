@@ -322,6 +322,27 @@ an archived transcript error, use `set history-error 1` with the exact
 `FIXTURE_WORKSPACE_ID`; clear that same scope before retrying.
 
 
+## Scoped management/authentication controls
+
+For one disposable outer workspace only, set `mutation-delay-ms` to a bounded
+0–60000 milliseconds through `/control/set?id=OWNED_OUTER_ID&fault=mutation-delay-ms&value=12000`
+with the fixture control key. Global scope is rejected. The delay applies only to
+PATCH title, DELETE, and POST suspend/resume requests. Each eligible request first
+records `workspace-mutation-requested` with only `{id, method, action}` (actions
+`rename`, `delete`, `suspend`, `resume`), then waits before the normal handler and
+existing fault logic. No headers or credentials are recorded. Native pending
+double-tap/dismissal checks can count these admission events while the handler is
+held; a successful response alone is not an exactly-once assertion. Wait for the
+configured interval to finish. Clear only the owned control by setting its value
+to0 for subsequent requests; this does not replay or cancel an in-flight wait.
+Existing status/history reads and other workspace IDs are not held.
+
+`status-auth-error` also requires an exact outer ID (global rejected). When set,
+only that workspace's GET status returns HTTP401 `{success:false,error:"Unauthorized"}`.
+Use it for post-create sign-in recovery, then clear the same scoped control.
+Neither control requires a shipping app bypass. Coordinate a fixture restart
+after source changes only when every native tester is at a safe checkpoint.
+
 ## SDK contract profiles (opt-in)
 
 The `sdk-boundary-fixture` and `sdk-work-fixture` prompts exercise newer client

@@ -49,6 +49,34 @@ function Actions(props: Omit<SessionActionsProps, "children">) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("SessionActions", () => {
+	it("keeps the exact rename draft after an uncertain native fetch cancellation without replaying it", async () => {
+		const rename = vi
+			.fn()
+			.mockRejectedValue(
+				new Error(
+					"fetch failed: FetchRequestCanceledException: Fetch request has been canceled (at Expo/NativeResponse.swift:63)",
+				),
+			);
+		const { root } = render(<Actions row={row} onRenameSession={rename} />);
+		const get = controls(root);
+		act(() => get("Open Fix the issue on Cline Cloud").props.onLongPress());
+		act(() => get("Rename session").props.onPress());
+		act(() =>
+			get("Session title").props.onChangeText("Possibly already saved"),
+		);
+		await act(async () => get("Save title").props.onPress());
+		expect(rename).toHaveBeenCalledExactlyOnceWith(
+			row,
+			"Possibly already saved",
+		);
+		expect(get("Session title").props.value).toBe("Possibly already saved");
+		expect(
+			containsText(root, "Check whether it completed before trying again."),
+		).toBe(true);
+		expect(containsText(root, "NativeResponse.swift")).toBe(false);
+		act(() => get("Cancel").props.onPress());
+		expect(rename).toHaveBeenCalledOnce();
+	});
 	it("confirms a resumable workspace stop while retaining its conversation", async () => {
 		const onStopWorkspace = vi.fn(async () => {});
 		const stoppable = { ...row, canStopWorkspace: true };

@@ -171,6 +171,9 @@ vi.mock("react-native", () => {
 			isVisible: () => false,
 			addListener: () => ({ remove: () => {} }),
 		},
+		BackHandler: {
+			addEventListener: vi.fn(() => ({ remove: () => {} })),
+		},
 		AppState: {
 			currentState: "active",
 			addEventListener: vi.fn(() => ({ remove: () => {} })),
@@ -238,6 +241,12 @@ vi.mock("expo-image-picker", () => ({
 vi.mock("expo-speech-recognition", () => ({
 	ExpoSpeechRecognitionModule: {
 		isRecognitionAvailable: () => true,
+		getPermissionsAsync: vi.fn(async () => ({
+			granted: false,
+			canAskAgain: true,
+			status: "undetermined",
+			expires: "never",
+		})),
 		requestPermissionsAsync: vi.fn(async () => ({
 			granted: true,
 			canAskAgain: true,

@@ -1,6 +1,10 @@
 /** The shipping parser consumes the exact response builders used by native fixtures. */
 import { describe, expect, it } from "vitest";
 import {
+	FixtureFaults,
+	fixtureStatusAuthenticationFailure,
+} from "../../../e2e/native-fixture/faults";
+import {
 	fixtureLifecycleDto,
 	scopedFixtureRows,
 } from "../../../e2e/native-fixture/rest-contract";
@@ -8,6 +12,37 @@ import { asRemoteSessionId } from "../../session";
 import { CloudSessionGateway } from "./CloudSessionGateway";
 
 describe("native fixture shipping Gateway contracts", () => {
+	it("scopes opt-in status401 to one outer workspace and preserves typed authentication metadata", async () => {
+		const faults = new FixtureFaults();
+		expect(() => faults.set("global", "status-auth-error", 1)).toThrow(
+			"exact workspace id",
+		);
+		faults.set("owned-401", "status-auth-error", 1);
+		expect(
+			fixtureStatusAuthenticationFailure(faults, "other-workspace"),
+		).toBeUndefined();
+		const gateway = new CloudSessionGateway({
+			apiBaseUrl: "http://fixture",
+			getAccessToken: async () => "fixture",
+			fetchImpl: async (url) => {
+				if (new URL(url).pathname.endsWith("/status"))
+					return fixtureStatusAuthenticationFailure(faults, "owned-401")!;
+				return Response.json({
+					success: true,
+					data: [
+						{ id: "owned-401", status: "running", sandboxType: "resumable" },
+					],
+				});
+			},
+		});
+		await expect(
+			gateway.getRemoteSession(asRemoteSessionId("owned-401")),
+		).rejects.toMatchObject({ status: 401, message: "Unauthorized" });
+		faults.set("owned-401", "status-auth-error", 0);
+		expect(
+			fixtureStatusAuthenticationFailure(faults, "owned-401"),
+		).toBeUndefined();
+	});
 	it("confirms suspend and resume through complete SessionDTO, retaining selected identity", async () => {
 		const row = {
 			id: "fixture-owned-7",

@@ -1359,6 +1359,14 @@ describe("HomeScreen Cline welcome", () => {
 			"hubSessionId",
 		);
 		expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+		// A stale native confirmation callback must not hand the same retained
+		// text/image request to a second chat after its job authority is retired.
+		await act(async () => {
+			retryButtons
+				?.find((button) => button.text === "Resume request")
+				?.onPress?.();
+		});
+		expect(onStartSubmission).toHaveBeenCalledOnce();
 		// Images remain process-local in the launch submission, never SecureStore.
 		expect(endpointStore.list()[0]).not.toHaveProperty("attachments");
 		alert.mockRestore();

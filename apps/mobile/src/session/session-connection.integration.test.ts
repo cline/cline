@@ -1003,3 +1003,175 @@ describe("another client's immediate input", () => {
 		);
 	});
 });
+
+describe("continuation cross-client approval and abort boundaries", () => {
+	it("resolves one shared approval once when two attached mobile sockets approve concurrently", async () => {
+		hub = await startTestHub({
+			approvals: "wait-for-respond",
+			script: [
+				{
+					kind: "tool",
+					name: "run_command",
+					input: { command: "synthetic build" },
+					output: "built-once",
+				},
+			],
+		});
+		const first = await startConnection(hub);
+		const sessionId = await first.handle.ensureSession();
+		const second = await startConnection(hub);
+		const observer = await hub.connectClient();
+		await observer.client.command("session.attach", { sessionId }, sessionId);
+		await observer.subscribeReady(sessionId);
+		const sending = first.sendInput("shared approval race");
+		await waitFor(
+			() =>
+				first.getView().pendingApprovals.length === 1 &&
+				second.getView().pendingApprovals.length === 1,
+			"shared approval on both sockets",
+		);
+		const id = first.getView().pendingApprovals[0].approvalId;
+		expect(second.getView().pendingApprovals[0].approvalId).toBe(id);
+		await Promise.all([
+			first.respond(id, true, "first phone"),
+			second.respond(id, true, "second phone"),
+		]);
+		await sending;
+		await waitFor(
+			() =>
+				first.getView().pendingApprovals.length === 0 &&
+				second.getView().pendingApprovals.length === 0 &&
+				second.getView().runStatus === "completed",
+			"shared resolution and completion",
+		);
+		expect(observer.eventsNamed("approval.resolved")).toHaveLength(1);
+		expect(observer.eventsNamed("tool.finished")).toHaveLength(1);
+		expect(observer.eventsNamed("tool.finished")[0]?.payload?.output).toBe(
+			"built-once",
+		);
+	});
+
+	it("clears a pending approval on both observers when the attached second phone aborts", async () => {
+		hub = await startTestHub({
+			approvals: "wait-for-respond",
+			script: [
+				{
+					kind: "tool",
+					name: "run_command",
+					input: { command: "synthetic waiting command" },
+					output: "must-not-run",
+				},
+			],
+		});
+		const first = await startConnection(hub);
+		await first.handle.ensureSession();
+		const second = await startConnection(hub);
+		const sending = first.sendInput("wait for approval then stop elsewhere");
+		await waitFor(
+			() =>
+				first.getView().pendingApprovals.length === 1 &&
+				second.getView().pendingApprovals.length === 1,
+			"shared pending approval",
+		);
+		const id = first.getView().pendingApprovals[0].approvalId;
+		await second.abort("Stopped from second phone");
+		await sending;
+		await waitFor(
+			() =>
+				first.getView().runStatus === "aborted" &&
+				second.getView().runStatus === "aborted" &&
+				first.getView().pendingApprovals.length === 0 &&
+				second.getView().pendingApprovals.length === 0,
+			"abort clears both observers",
+		);
+		await expect(
+			first.respond(id, true, "stale approval tap after cancellation"),
+		).resolves.toBeUndefined();
+		expect(
+			first
+				.getView()
+				.messages.flatMap((message) => message.blocks)
+				.some(
+					(block) => block.kind === "tool" && block.output === "must-not-run",
+				),
+		).toBe(false);
+		await second.resync();
+		expect(second.getView().runStatus).toBe("aborted");
+	});
+
+	it("keeps questions socket-owned and cancels the owning phone's request when another phone aborts the active run", async () => {
+		hub = await startTestHub({
+			script: [
+				{ kind: "text", chunks: ["working before question"] },
+				{ kind: "abortable-stall" },
+			],
+		});
+		const first = await startConnection(hub);
+		const sessionId = await first.handle.ensureSession();
+		const second = await startConnection(hub);
+		const sending = first.sendInput(
+			"active work while second phone owns a question",
+		);
+		await waitFor(() => first.getView().runStatus === "running", "active run");
+		const request = first.handle.client
+			.command(
+				"capability.request",
+				{
+					sessionId,
+					targetClientId: second.handle.client.getClientId(),
+					capabilityName: "tool_executor.askQuestion",
+					payload: { args: ["Choose a response", ["Yes", "No"]] },
+				},
+				sessionId,
+			)
+			.then(
+				() => "answered",
+				() => "cancelled",
+			);
+		await waitFor(
+			() => second.getView().pendingQuestions.length === 1,
+			"socket-owned question",
+		);
+		expect(first.getView().pendingQuestions).toEqual([]);
+		const requestId = second.getView().pendingQuestions[0].requestId;
+		await expect(
+			first.handle.client.command(
+				"capability.respond",
+				{ requestId, ok: true, payload: { result: "Yes" } },
+				sessionId,
+			),
+		).rejects.toMatchObject({ code: "capability_wrong_client" });
+		await first.abort("Stop active work and its question");
+		await sending;
+		expect(await request).toBe("cancelled");
+		await waitFor(
+			() =>
+				second.getView().pendingQuestions.length === 0 &&
+				second.getView().runStatus === "aborted",
+			"question retired with shared abort",
+		);
+		const fresh = first.handle.client.command(
+			"capability.request",
+			{
+				sessionId,
+				targetClientId: second.handle.client.getClientId(),
+				capabilityName: "tool_executor.askQuestion",
+				payload: { args: ["Fresh choice", ["Yes", "No"]] },
+			},
+			sessionId,
+		);
+		await waitFor(
+			() => second.getView().pendingQuestions.length === 1,
+			"fresh question after cancellation",
+		);
+		await second.respondQuestion(
+			second.getView().pendingQuestions[0].requestId,
+			"No",
+		);
+		expect((await fresh).payload).toEqual({ result: "No" });
+		await waitFor(
+			() => second.getView().pendingQuestions.length === 0,
+			"fresh resolution",
+		);
+	});
+});

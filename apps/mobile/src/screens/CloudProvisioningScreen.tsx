@@ -1,5 +1,6 @@
 import { validateImageMedia } from "@cline/shared";
-import { useEffect, useRef } from "react";
+import { NavigationContext } from "expo-router/react-navigation";
+import { useContext, useEffect, useRef } from "react";
 import { Image, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cloudStartStatus } from "@/cloud/progress";
@@ -34,15 +35,30 @@ export function CloudProvisioningScreen({
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const jobs = useCloudStarts();
+	const navigation = useContext(NavigationContext);
 	const job = jobs.find((candidate) => candidate.id === jobId);
-	const opened = useRef(false);
+	const opened = useRef<string | undefined>(undefined);
 
 	useEffect(() => {
-		if (!job || job.phase !== "ready" || opened.current) return;
-		opened.current = true;
-		cloudStartStore.remove(job.id);
-		onReady(job);
-	}, [job, onReady]);
+		const openWhenFocused = () => {
+			// Notifications can cover this route without unmounting it. Keep its
+			// ready payload saved until the user returns, rather than replacing the
+			// conversation they just opened from the notification.
+			if (
+				!job ||
+				job.phase !== "ready" ||
+				opened.current === job.id ||
+				navigation?.isFocused() === false
+			)
+				return;
+			opened.current = job.id;
+			cloudStartStore.remove(job.id);
+			onReady(job);
+		};
+		const unsubscribe = navigation?.addListener("focus", openWhenFocused);
+		openWhenFocused();
+		return unsubscribe;
+	}, [job, navigation, onReady]);
 
 	const imageCount = job?.attachments?.userImages?.length ?? 0;
 	const imageUris = (job?.attachments?.userImages ?? [])
@@ -70,6 +86,7 @@ export function CloudProvisioningScreen({
 				title={title}
 				subtitle={subtitle}
 				runStatus={job?.phase === "error" ? "failed" : "provisioning"}
+				showStatus={Boolean(job)}
 				onSwitchSession={onBack}
 			/>
 			<ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
@@ -122,7 +139,7 @@ export function CloudProvisioningScreen({
 								<Button
 									label="Try again"
 									onPress={() => {
-										opened.current = false;
+										opened.current = undefined;
 										cloudStartStore.retry(job.id);
 									}}
 								/>

@@ -1,3 +1,4 @@
+import { NavigationContext } from "expo-router/react-navigation";
 import {
 	PanelLeftClose,
 	Plus,
@@ -5,7 +6,14 @@ import {
 	Search,
 	Settings,
 } from "lucide-react-native";
-import { type ReactNode, useEffect, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	FlatList,
 	Keyboard,
@@ -25,8 +33,8 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { channel } from "@/theme/surfaces";
 import {
-	ClineLogo,
 	Button,
+	ClineLogo,
 	IconButton,
 	Spinner,
 	Text,
@@ -34,7 +42,12 @@ import {
 	useTheme,
 } from "@/ui";
 import { SESSION_SIDEBAR_WIDTH } from "./AdaptiveSessionLayout";
-import { SessionActions, type SessionActionsProps } from "./SessionActions";
+import {
+	type SessionActionAnchor,
+	SessionActions,
+	type SessionActionsProps,
+	SessionActionTrigger,
+} from "./SessionActions";
 import { SessionRowView } from "./SessionRowView";
 import { filterSessionRows, type SessionRow } from "./session-rows";
 
@@ -86,6 +99,9 @@ export function SessionSidebar({
 	onDeleteSession,
 	onStopWorkspace,
 }: SessionSidebarProps) {
+	const navigation = useContext(NavigationContext);
+	const navigationRef = useRef(navigation);
+	navigationRef.current = navigation;
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const { width: screenWidth } = useWindowDimensions();
@@ -96,9 +112,64 @@ export function SessionSidebar({
 	);
 	const translateX = useSharedValue(-drawerWidth);
 	const [query, setQuery] = useState("");
+	const actionPresenter = useRef(presentation);
+	const [actionRequest, setActionRequest] = useState<{
+		row: SessionRow;
+		anchor: SessionActionAnchor;
+		sequence: number;
+	}>();
+	// Editor privacy and HTTP lifetime differ: blur retires the dialog, but a
+	// write still owns its exact row until that request settles.
+	const pendingRequests = useRef(new Map<number, SessionRow>());
+	const [pendingRows, setPendingRows] = useState<readonly SessionRow[]>([]);
+	const actionSequence = useRef(0);
+	const rowsRef = useRef(rows);
+	rowsRef.current = rows;
+	const activeRequest =
+		actionRequest && rows.some((row) => sameActionRow(row, actionRequest.row))
+			? actionRequest
+			: undefined;
+	const activeRequestRef = useRef(activeRequest);
+	activeRequestRef.current = activeRequest;
+	const retireActions = useCallback(() => {
+		setActionRequest(undefined);
+	}, []);
+	useEffect(
+		() => navigation?.addListener("blur", retireActions),
+		[navigation, retireActions],
+	);
+	useEffect(() => {
+		if (actionRequest && !activeRequest) {
+			retireActions();
+		}
+	}, [actionRequest, activeRequest, retireActions]);
+	const requestActions = useCallback(
+		(row: SessionRow, anchor: SessionActionAnchor) => {
+			if (
+				(activeRequestRef.current &&
+					pendingRequests.current.has(activeRequestRef.current.sequence)) ||
+				[...pendingRequests.current.values()].some((pendingRow) =>
+					sameActionRow(pendingRow, row),
+				)
+			)
+				return;
+			if (navigationRef.current && !navigationRef.current.isFocused()) return;
+			const current = rowsRef.current.find((candidate) =>
+				sameActionRow(candidate, row),
+			);
+			if (current)
+				setActionRequest({
+					row: current,
+					anchor,
+					sequence: ++actionSequence.current,
+				});
+		},
+		[],
+	);
 	const visible = filterSessionRows(rows, query);
 	const close = () => {
 		if (presentation === "drawer") Keyboard.dismiss();
+		retireActions();
 		onClose();
 	};
 
@@ -136,6 +207,7 @@ export function SessionSidebar({
 					label="New"
 					onPress={() => {
 						Keyboard.dismiss();
+						retireActions();
 						onNew();
 					}}
 					icon={<Plus size={17} color={theme.color.text} />}
@@ -204,11 +276,19 @@ export function SessionSidebar({
 					)
 				}
 				renderItem={({ item: row }) => (
-					<SessionActions
-						row={row}
-						onRenameSession={onRenameSession}
-						onDeleteSession={onDeleteSession}
-						onStopWorkspace={onStopWorkspace}
+					<SessionActionTrigger
+						enabled={
+							row.descriptor.mode === "cloud" &&
+							Boolean(
+								onRenameSession ||
+									onDeleteSession ||
+									(row.canStopWorkspace && onStopWorkspace),
+							)
+						}
+						pending={pendingRows.some((pendingRow) =>
+							sameActionRow(pendingRow, row),
+						)}
+						onOpen={(anchor) => requestActions(row, anchor)}
 					>
 						{(trigger) => (
 							<SessionRowView
@@ -220,12 +300,13 @@ export function SessionSidebar({
 									if (presentation === "inline" && row.key === activeKey)
 										return;
 									Keyboard.dismiss();
+									retireActions();
 									onOpen(row);
 								}}
 								row={row}
 							/>
 						)}
-					</SessionActions>
+					</SessionActionTrigger>
 				)}
 				style={styles.list}
 			/>
@@ -236,6 +317,7 @@ export function SessionSidebar({
 						label="Settings"
 						onPress={() => {
 							Keyboard.dismiss();
+							retireActions();
 							onOpenSettings();
 						}}
 						icon={<Settings size={17} color={theme.color.textMuted} />}
@@ -251,51 +333,108 @@ export function SessionSidebar({
 		backgroundColor: theme.color.surface,
 		borderRightColor: theme.color.border,
 	};
-	if (presentation === "inline") {
-		return open ? (
-			<View
-				testID="session-sidebar"
-				style={[
-					{ flex: 1, width: SESSION_SIDEBAR_WIDTH, borderRightWidth: 1 },
-					surfaceStyle,
-				]}
-			>
-				{body}
-			</View>
-		) : null;
-	}
-	return (
-		<Modal
-			supportedOrientations={["portrait", "portrait-upside-down", "landscape"]}
-			animationType={reduceMotion ? "none" : "fade"}
-			onRequestClose={close}
-			presentationStyle="overFullScreen"
-			statusBarTranslucent
-			transparent
-			visible={open}
-		>
-			<View style={styles.overlay}>
-				<Pressable
-					accessibilityLabel="Close sessions"
-					accessibilityRole="button"
-					onPress={close}
-					style={styles.backdrop}
-				/>
-				<Animated.View
-					accessibilityViewIsModal
-					onAccessibilityEscape={close}
-					style={[
-						styles.drawer,
-						surfaceStyle,
-						{ width: drawerWidth, shadowColor: channel.shadow },
-						drawerStyle,
-					]}
+	const renderSurface = (dialog: ReactNode) => {
+		// UIKit cannot move a presented child Modal to a new presenter while its
+		// old parent is dismissing. Keep the native ancestry for the entire editor
+		// lifetime; dimensions still adapt, and dismissal adopts the current layout.
+		if (!dialog) actionPresenter.current = presentation;
+		return actionPresenter.current === "inline" ? (
+			open || dialog ? (
+				<View
 					testID="session-sidebar"
+					style={[
+						{ flex: 1, width: SESSION_SIDEBAR_WIDTH, borderRightWidth: 1 },
+						surfaceStyle,
+					]}
 				>
 					{body}
-				</Animated.View>
-			</View>
-		</Modal>
+					{dialog}
+				</View>
+			) : null
+		) : (
+			<Modal
+				supportedOrientations={[
+					"portrait",
+					"portrait-upside-down",
+					"landscape",
+				]}
+				animationType={reduceMotion ? "none" : "fade"}
+				onRequestClose={close}
+				presentationStyle="overFullScreen"
+				statusBarTranslucent
+				transparent
+				// A rename can survive returning from inline mode after the layout
+				// closed the drawer. Its native presenter must remain visible too.
+				visible={open || Boolean(dialog)}
+			>
+				<View style={styles.overlay}>
+					<Pressable
+						accessibilityLabel="Close sessions"
+						accessibilityRole="button"
+						onPress={close}
+						style={styles.backdrop}
+					/>
+					<Animated.View
+						accessibilityViewIsModal
+						onAccessibilityEscape={close}
+						style={[
+							styles.drawer,
+							surfaceStyle,
+							{ width: drawerWidth, shadowColor: channel.shadow },
+							drawerStyle,
+						]}
+						testID="session-sidebar"
+					>
+						{body}
+					</Animated.View>
+				</View>
+				{dialog}
+			</Modal>
+		);
+	};
+	return (
+		<>
+			<SessionActions
+				renderSurface={renderSurface}
+				row={activeRequest?.row}
+				openRequest={activeRequest}
+				onRenameSession={onRenameSession}
+				onDeleteSession={onDeleteSession}
+				onStopWorkspace={onStopWorkspace}
+				onClosed={() => {
+					if (!activeRequest || activeRequestRef.current !== activeRequest)
+						return;
+					retireActions();
+				}}
+				onPendingChange={(pending) => {
+					if (!activeRequest) return;
+					if (pending) {
+						if (activeRequestRef.current !== activeRequest) return;
+						pendingRequests.current.set(
+							activeRequest.sequence,
+							activeRequest.row,
+						);
+					} else {
+						// The original finally releases only its own lease, even after
+						// blur or another row has become the active editor.
+						pendingRequests.current.delete(activeRequest.sequence);
+					}
+					setPendingRows([...pendingRequests.current.values()]);
+				}}
+			>
+				{() => null}
+			</SessionActions>
+		</>
+	);
+}
+
+function sameActionRow(left: SessionRow, right: SessionRow): boolean {
+	return (
+		left.key === right.key &&
+		left.descriptor.mode === right.descriptor.mode &&
+		left.descriptor.remoteSessionId === right.descriptor.remoteSessionId &&
+		left.descriptor.organizationId === right.descriptor.organizationId &&
+		left.descriptor.url === right.descriptor.url
 	);
 }
 

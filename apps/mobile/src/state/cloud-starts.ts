@@ -44,8 +44,23 @@ type ProvisionCloud = (
 ) => Promise<ConnectionDescriptor>;
 
 /** Auth failures cannot become retryable until the account state changes. */
-export function isCloudStartAuthenticationError(error: string): boolean {
-	const normalized = error.trim().toLowerCase();
+export function isCloudStartAuthenticationError(error: unknown): boolean {
+	// Lifecycle responses can carry HTTP401 with a message such as
+	// "Unauthorized" that omits the status; classify before flattening it for UI.
+	if (
+		error &&
+		typeof error === "object" &&
+		"status" in error &&
+		error.status === 401
+	)
+		return true;
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	const normalized = message.trim().toLowerCase();
 	return (
 		normalized.includes("not signed in") ||
 		normalized.includes("session has expired") ||
@@ -176,10 +191,12 @@ export class CloudStartStore {
 					...(error instanceof AmbiguousCloudSessionCreateError
 						? { recovery: "check-sessions" as const }
 						: {}),
-					error: userErrorMessage(
-						error,
-						"Cline Cloud could not start this workspace.",
-					),
+					error: isCloudStartAuthenticationError(error)
+						? "Not signed in to Cline Cloud. Sign in to continue."
+						: userErrorMessage(
+								error,
+								"Cline Cloud could not start this workspace.",
+							),
 				});
 			});
 	}

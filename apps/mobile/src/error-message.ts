@@ -92,13 +92,23 @@ export function userErrorMessage(error: unknown, fallback: string): string {
 	if (/\bkey limit exceeded\b/i.test(message)) {
 		return "This model's provider has reached its spending limit. Choose another model or try again later.";
 	}
+	// Expo fetch's timeout abort may arrive as a native exception plus a Swift
+	// source location. Cancellation confirms no response, not that a server write
+	// failed: the same request can still commit after the client stops waiting.
+	if (
+		/^(?:fetch failed:\s*)?FetchRequestCancel(?:ed|led)Exception\b/i.test(
+			message,
+		)
+	) {
+		return "The request was interrupted. Check whether it completed before trying again.";
+	}
 	if (
 		/^(?:network request failed|failed to fetch|load failed)$/i.test(message)
 	) {
 		return "Cline couldn't reach the service. Check your connection and try again.";
 	}
 	if (/timed? out|timeout/i.test(message)) {
-		return "The request took too long. Try again.";
+		return "The request took too long. Check whether it completed before trying again.";
 	}
 	// A bare status-bearing implementation message gives a person no useful next
 	// step. The caller knows the operation and therefore owns the better fallback.
