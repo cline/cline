@@ -129,7 +129,9 @@ export function useCloudSessions(input: {
 		// usage-billed model.
 		const next =
 			offered(explicitModelId) ??
-			offered(localModelId) ??
+			(localProviderId === "cline" || localProviderId === "cline-pass"
+				? offered(localModelId)
+				: undefined) ??
 			(localProviderId === "cline-pass"
 				? models.find((candidate) => candidate.catalogId === "cline-pass")
 				: undefined) ??
