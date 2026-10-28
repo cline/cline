@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import ChatTextArea from "./ChatTextArea"
 
 const mocks = vi.hoisted(() => ({
+	selectedProvider: "anthropic",
 	supportsImages: true as boolean | undefined,
 	navigateToSettingsModelPicker: vi.fn(),
 	cloudState: {} as Record<string, unknown>,
@@ -30,7 +31,7 @@ vi.mock("@/context/PlatformContext", () => ({
 
 vi.mock("@/hooks/useNormalizedApiConfiguration", () => ({
 	useNormalizedApiConfiguration: () => ({
-		selectedProvider: "anthropic",
+		selectedProvider: mocks.selectedProvider,
 		selectedModelId: "text-only-model",
 		selectedModelInfo: { supportsImages: mocks.supportsImages },
 	}),
@@ -84,6 +85,27 @@ function pasteImage(target: HTMLElement) {
 		},
 	})
 }
+
+beforeEach(() => {
+	mocks.selectedProvider = "anthropic"
+})
+
+describe("ChatTextArea cloud handoff menu", () => {
+	it.each([
+		["cline", true],
+		["cline-pass", true],
+		["anthropic", false],
+		["openrouter", false],
+	] as const)("sets /cloud visibility for %s", (provider, visible) => {
+		mocks.selectedProvider = provider
+		mocks.cloudState = { cloudSessionsEnabled: true, clineMessages: [{ type: "say", text: "Local conversation" }] }
+		const { textarea } = renderTextArea()
+		fireEvent.change(textarea, { target: { value: "/", selectionStart: 1 } })
+
+		expect(screen.getByRole("listbox", { name: "Slash commands" })).toBeInTheDocument()
+		expect(!!screen.queryByRole("option", { name: /^\/cloud\b/ })).toBe(visible)
+	})
+})
 
 describe("ChatTextArea model label", () => {
 	beforeEach(() => {
