@@ -24,8 +24,9 @@ function setup() {
 			commits: [],
 		},
 	}
-	let account: { key: string; organizationId: string | null; organizationName: string } = {
+	let account: { key: string; accountId: string; organizationId: string | null; organizationName: string } = {
 		key: "test-account",
+		accountId: "test-user",
 		organizationId: null,
 		organizationName: "Personal",
 	}
@@ -43,7 +44,7 @@ function setup() {
 			status: "running",
 			initialSend: { sessionId: "ses_example", ok: true },
 		})),
-		send: vi.fn<HubCloudSessionClient["send"]>(async () => ({ sessionId: "ses_example", ok: true })),
+		sendWithOutcome: vi.fn<HubCloudSessionClient["sendWithOutcome"]>(async () => ({ sessionId: "ses_example", ok: true })),
 		subscribe: vi.fn<HubCloudSessionClient["subscribe"]>(() => () => {}),
 	}
 	const capture = vi.fn(async () => source)
@@ -71,7 +72,7 @@ function setup() {
 		changed,
 		id,
 		switchAccount: () => {
-			account = { ...account, key: "other-account" }
+			account = { ...account, key: "other-account", accountId: "other-user" }
 		},
 	}
 }
@@ -128,9 +129,25 @@ describe("cloud conversation handoff", () => {
 					images: [image],
 				},
 			}),
-			cloud.scope,
+			{ ...cloud.scope, expectedAccountId: "test-user" },
 		)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "sent" })
+	})
+
+	it("binds preparation to the signed-in account before summarizing or publishing", async () => {
+		const { coordinator, cloud, summarize } = setup()
+		cloud.prepareHandoffRepository.mockRejectedValue(new Error("Cloud account does not match the signed-in account"))
+		await coordinator.prepare(input)
+		expect(cloud.prepareHandoffRepository).toHaveBeenCalledWith("https://github.com/example/project", {
+			...cloud.scope,
+			expectedAccountId: "test-user",
+		})
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			phase: "failed",
+			message: expect.stringContaining("account"),
+		})
+		expect(summarize).not.toHaveBeenCalled()
+		expect(cloud.create).not.toHaveBeenCalled()
 	})
 
 	it("cancels a prepared snapshot without publishing", async () => {
@@ -190,7 +207,12 @@ describe("cloud conversation handoff", () => {
 		})
 		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
-	it.each([false, true])("retries only the unsent continuation in the existing task (failure=%s)", async (failure) => {
+	it.each([
+		"sent",
+		"unsent",
+		"dispatched",
+		"unknown",
+	])("retries only the unsent continuation in the existing task (%s)", async (outcome) => {
 		const { coordinator, cloud, id } = setup()
 		cloud.create.mockResolvedValue({
 			sessionId: "ses_example",
@@ -199,12 +221,13 @@ describe("cloud conversation handoff", () => {
 		})
 		await coordinator.prepare(input)
 		await coordinator.confirm(id())
-		if (failure) cloud.send.mockRejectedValue(new Error("connection closed"))
+		if (outcome === "unknown") cloud.sendWithOutcome.mockRejectedValueOnce(new Error("connection closed"))
+		else if (outcome !== "sent")
+			cloud.sendWithOutcome.mockResolvedValueOnce({ dispatched: outcome === "dispatched", message: "Connection failed" })
 		await Promise.all([coordinator.retryMessage(id()), coordinator.retryMessage(id())])
-		await coordinator.retryMessage(id())
 		expect(cloud.create).toHaveBeenCalledTimes(1)
-		expect(cloud.send).toHaveBeenCalledTimes(1)
-		expect(cloud.send).toHaveBeenCalledWith(
+		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(1)
+		expect(cloud.sendWithOutcome).toHaveBeenCalledWith(
 			"ses_example",
 			"Widget implemented; tests remain.\n\nNext instruction from the user:\nFinish the tests",
 			"queue",
@@ -213,8 +236,15 @@ describe("cloud conversation handoff", () => {
 		)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
 			phase: "complete",
-			delivery: failure ? "unconfirmed" : "sent",
+			delivery: outcome === "sent" ? "sent" : outcome === "unsent" ? "unsent" : "unconfirmed",
 		})
+		await coordinator.retryMessage(id())
+		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(outcome === "unsent" ? 2 : 1)
+		if (outcome === "unsent") {
+			expect(cloud.sendWithOutcome.mock.calls[1]).toEqual(cloud.sendWithOutcome.mock.calls[0])
+			expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ delivery: "sent" })
+		}
+		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
 
 	it("keeps a safe retry when state publication fails before sending", async () => {
@@ -228,10 +258,10 @@ describe("cloud conversation handoff", () => {
 		await coordinator.confirm(id())
 		changed.mockRejectedValueOnce(new Error("Webview unavailable"))
 		await expect(coordinator.retryMessage(id())).rejects.toThrow("Webview unavailable")
-		expect(cloud.send).not.toHaveBeenCalled()
+		expect(cloud.sendWithOutcome).not.toHaveBeenCalled()
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "unsent" })
 		await coordinator.retryMessage(id())
-		expect(cloud.send).toHaveBeenCalledTimes(1)
+		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(1)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "sent" })
 	})
 
@@ -246,6 +276,6 @@ describe("cloud conversation handoff", () => {
 		await coordinator.confirm(id())
 		cloud.scope = { ...cloud.scope, scopeGeneration: cloud.scope.scopeGeneration + 1 }
 		await expect(coordinator.retryMessage(id())).rejects.toThrow("account changed")
-		expect(cloud.send).not.toHaveBeenCalled()
+		expect(cloud.sendWithOutcome).not.toHaveBeenCalled()
 	})
 })

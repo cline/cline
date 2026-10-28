@@ -35,7 +35,7 @@ export interface PrepareCloudHandoffInput {
 
 type HandoffCloud = Pick<
 	HubCloudSessionClient,
-	"connect" | "scope" | "prepareHandoffRepository" | "listModels" | "create" | "send" | "subscribe"
+	"connect" | "scope" | "prepareHandoffRepository" | "listModels" | "create" | "sendWithOutcome" | "subscribe"
 >
 
 interface PreparedHandoff {
@@ -71,7 +71,7 @@ export class SdkCloudHandoffCoordinator {
 		private readonly options: {
 			capture(sourceTaskId: string, signal: AbortSignal): Promise<CapturedHandoffSource>
 			getCloud(cwd: string): HandoffCloud
-			getAccount(): { key: string; organizationId: string | null; organizationName: string } | undefined
+			getAccount(): { key: string; accountId: string; organizationId: string | null; organizationName: string } | undefined
 			assertEnabled(): void
 			changed(): Promise<void>
 			summarize?: typeof summarizeConversation
@@ -120,8 +120,9 @@ export class SdkCloudHandoffCoordinator {
 			this.assertCurrent(attempt)
 			const cloud = this.options.getCloud(source.plan.root)
 			await cloud.connect()
-			const scope = cloud.scope
-			if (!scope) throw new Error("Cloud account is unavailable.")
+			const observedScope = cloud.scope
+			if (!observedScope) throw new Error("Cloud account is unavailable.")
+			const scope = { ...observedScope, expectedAccountId: account.accountId }
 			const { organizationId } = await cloud.prepareHandoffRepository(source.plan.repoUrl, scope)
 			if ((organizationId ?? null) !== account.organizationId)
 				throw new Error("The cloud organization changed. Run /cloud again.")
@@ -281,14 +282,27 @@ export class SdkCloudHandoffCoordinator {
 			this.assertCurrent(launching)
 			if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
 				throw new Error("Cloud account changed")
-			let delivery: "sent" | "unconfirmed" = "unconfirmed"
+			let delivery: "sent" | "unsent" | "unconfirmed" = "unconfirmed"
 			try {
-				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
-				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
+				const result = await cloud.sendWithOutcome(
+					attempt.sessionId,
+					initialMessage.text,
+					"queue",
+					modelId,
+					initialMessage.images,
+				)
+				delivery =
+					"dispatched" in result
+						? result.dispatched
+							? "unconfirmed"
+							: "unsent"
+						: result.recoveredAfterDisconnect
+							? "unconfirmed"
+							: "sent"
 			} catch {
 				// A send error does not prove the message stayed unsent.
 			}
-			settled = { ...base, phase: "complete", delivery }
+			settled = delivery === "unsent" ? attempt : { ...base, phase: "complete", delivery }
 		} finally {
 			if (this.attempts.get(attempt.sourceTaskId) === launching) {
 				this.attempts.set(attempt.sourceTaskId, settled)

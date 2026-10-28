@@ -103,6 +103,12 @@ function fixture() {
 					ok: true,
 				}),
 			),
+			sendWithOutcome: vi
+				.fn<CloudSessionController["sendWithOutcome"]>()
+				.mockResolvedValue({
+					sessionId: "ses-one",
+					ok: true,
+				}),
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
@@ -357,6 +363,7 @@ describe("hub-owned cloud sessions", () => {
 
 	it.each([
 		"send",
+		"sendWithOutcome",
 		"create",
 		"create-only",
 	] as const)("keeps a lost %s reply unknown without replaying the request", async (operation) => {
@@ -368,8 +375,9 @@ describe("hub-owned cloud sessions", () => {
 			await original(...args);
 			throw new Error("Reply lost");
 		};
-		const failure = await (operation === "send"
-			? viewer.send("ses-one", "Once")
+		const sending = operation === "send" || operation === "sendWithOutcome";
+		const failure = await (sending
+			? viewer[operation]("ses-one", "Once")
 			: viewer.create({
 					modelId: "model",
 					repoUrl: "repo",
@@ -387,7 +395,7 @@ describe("hub-owned cloud sessions", () => {
 			});
 		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
 		expect(
-			f.controllers[0]?.controller[operation === "send" ? "send" : "create"],
+			f.controllers[0]?.controller[sending ? operation : "create"],
 		).toHaveBeenCalledOnce();
 	});
 
@@ -425,8 +433,8 @@ describe("hub-owned cloud sessions", () => {
 		await expect(
 			viewer.create({ modelId: "model", repoUrl: "repo" }),
 		).rejects.toThrow("account changed");
-		expect(f.controllers).toHaveLength(1);
-		expect(f.controllers[0]?.controller.create).not.toHaveBeenCalled();
+		for (const { controller } of f.controllers)
+			expect(controller.create).not.toHaveBeenCalled();
 	});
 	it.each([
 		"plan",
@@ -514,17 +522,22 @@ describe("hub-owned cloud sessions", () => {
 		expect(await result).toBeInstanceOf(Error);
 		expect(f.service.activeCommands).toBe(0);
 	});
-	it("retires old account state and ignores late events and replies", async () => {
+	it.each([
+		"send",
+		"sendWithOutcome",
+	] as const)("retires old account state and ignores late %s replies", async (operation) => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.attach("ses-one");
 		const old = f.controllers[0]!;
-		const pending = deferred<{ sessionId: string; ok: boolean }>();
-		old.controller.send.mockReturnValue(pending.promise);
-		const result = viewer
-			.send("ses-one", "Continue")
-			.catch((error: unknown) => error);
-		await vi.waitFor(() => expect(old.controller.send).toHaveBeenCalledOnce());
+		const pending = deferred<{ sessionId: string; ok: true }>();
+		old.controller[operation].mockReturnValue(pending.promise);
+		const result = viewer[operation]("ses-one", "Continue").catch(
+			(error: unknown) => error,
+		);
+		await vi.waitFor(() =>
+			expect(old.controller[operation]).toHaveBeenCalledOnce(),
+		);
 		f.changeScope("account-two");
 		await command(f.service, "listForDiscovery", []);
 		expect(viewer.getSnapshot("ses-one")).toBeUndefined();
@@ -577,7 +590,10 @@ describe("hub-owned cloud sessions", () => {
 			sandboxType: "resumable",
 		});
 	});
-	it("does not resend a dispatched action when transport recovery retries", async () => {
+	it.each([
+		"send",
+		"sendWithOutcome",
+	] as const)("does not resend dispatched %s during transport recovery", async (operation) => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.connect();
@@ -587,8 +603,38 @@ describe("hub-owned cloud sessions", () => {
 			options?.beforeDispatch?.();
 			throw new Error("This must not be reached");
 		};
-		await expect(viewer.send("ses-one", "Once")).rejects.toThrow(
+		await expect(viewer[operation]("ses-one", "Once")).rejects.toThrow(
 			"outcome is unknown",
+		);
+	});
+	it.each([
+		false,
+		true,
+	])("preserves send outcome across Hub serialization (dispatched: %s)", async (dispatched) => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const failure = {
+			dispatched,
+			message: "Synthetic send failure",
+			detail: "Connection interrupted",
+		};
+		f.controllers[0]!.controller.sendWithOutcome.mockResolvedValue(failure);
+		expect(
+			await viewer.sendWithOutcome(
+				"ses-one",
+				"Saved prompt",
+				"queue",
+				"model",
+				["image"],
+			),
+		).toEqual(failure);
+		expect(f.controllers[0]!.controller.sendWithOutcome).toHaveBeenCalledWith(
+			"ses-one",
+			"Saved prompt",
+			"queue",
+			"model",
+			["image"],
 		);
 	});
 	it("ignores a hydration reply older than a live snapshot", async () => {
@@ -1289,6 +1335,115 @@ describe("hub cloud credentials", () => {
 });
 
 describe("persisted cloud account scope", () => {
+	it("keeps the validated account pinned when persisted credentials change during controller creation", async () => {
+		vi.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue({
+				provider: "cline",
+				auth: { accountId: "account-two", accessToken: "second-token" },
+			})
+			.mockReturnValueOnce({
+				provider: "cline",
+				auth: { accountId: "account-one", accessToken: "first-token" },
+			});
+		const fetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("Unexpected remote request"));
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		await expect(
+			service.command(
+				"prepareHandoffRepository",
+				["https://github.com/example/project"],
+				{
+					...service.snapshot(),
+					expectedAccountId: "account-one",
+				},
+			),
+		).rejects.toThrow("account changed");
+		expect(fetch).not.toHaveBeenCalled();
+	});
+	it.each([
+		"account-one",
+		"account-two",
+		"credential-only",
+		"signed-out",
+	])("checks the expected account before Personal handoff operations (%s)", async (identity) => {
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue(
+			identity === "signed-out"
+				? undefined
+				: {
+						provider: "cline",
+						auth: {
+							accessToken: "synthetic-token",
+							...(identity === "credential-only"
+								? {}
+								: { accountId: identity }),
+						},
+					},
+		);
+		const f = fixture();
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			createController: f.cloudSessionOptions.createController,
+		});
+		services.push(service);
+		const scope = { ...service.snapshot(), expectedAccountId: "account-one" };
+		const requests = [
+			() =>
+				service.command(
+					"prepareHandoffRepository",
+					["https://github.com/example/project"],
+					scope,
+				),
+			() => service.command("listModels", [], scope),
+			() =>
+				service.command(
+					"create",
+					[
+						{
+							repoUrl: "https://github.com/example/project",
+							modelId: "model",
+							organizationId: null,
+						},
+					],
+					scope,
+				),
+		];
+		for (const request of requests) {
+			if (identity === "account-one")
+				await expect(request()).resolves.toHaveProperty("result");
+			else
+				await expect(request()).rejects.toThrow(
+					"does not match the signed-in account",
+				);
+		}
+		expect(f.controllers).toHaveLength(1);
+		if (identity !== "account-one") {
+			const { controller } = f.controllers[0]!;
+			expect(controller.prepareHandoffRepository).not.toHaveBeenCalled();
+			expect(controller.listModels).not.toHaveBeenCalled();
+			expect(controller.create).not.toHaveBeenCalled();
+		}
+	});
+	it("preserves the caller's expected account through the viewer request", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const scope = viewer.scope;
+		if (!scope) throw new Error("Missing cloud scope");
+		await expect(
+			viewer.prepareHandoffRepository("https://github.com/example/project", {
+				...scope,
+				expectedAccountId: "account-one",
+			}),
+		).rejects.toThrow("does not match the signed-in account");
+		expect(
+			f.controllers[0]!.controller.prepareHandoffRepository,
+		).not.toHaveBeenCalled();
+	});
 	it.each([
 		"key",
 		"account",

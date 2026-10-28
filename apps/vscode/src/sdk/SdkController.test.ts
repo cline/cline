@@ -987,6 +987,27 @@ describe("cloud handoff source capture", () => {
 		expect(inspect).not.toHaveBeenCalled()
 	})
 
+	it("captures the selected model after a model-only change without replacing the session", async () => {
+		const { controller, session, capture } = setup()
+		controller.sessionConfigBuilder.build = async () => ({ providerId: "cline", modelId: "new-model" })
+
+		const snapshot = await capture()
+
+		expect(snapshot.config.modelId).toBe("new-model")
+		expect(snapshot.messages).toEqual([{ role: "user", content: "Finish the widget" }])
+		expect(session.startConfig.modelId).toBe("test-model")
+		expect(controller.sessions.getActiveSession()).toBe(session)
+	})
+
+	it("waits for a provider change to rebuild the session before capturing", async () => {
+		const { controller, host, inspect, capture } = setup()
+		controller.sessionConfigBuilder.build = async () => ({ providerId: "anthropic", modelId: "test-model" })
+
+		await expect(capture()).rejects.toThrow("Wait for the provider change")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(inspect).not.toHaveBeenCalled()
+	})
+
 	it("refuses capture while a workspace command is running", async () => {
 		const { controller, host, inspect, capture } = setup()
 		controller.foregroundCommands.isRunning = true

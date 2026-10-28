@@ -115,16 +115,18 @@ const createInput = creationOptions
 				message: "Cloud workspace must match the approved Git preparation",
 			});
 	});
+const sendArgs = z.tuple([
+	id,
+	z.string(),
+	z.enum(["queue", "steer"]).nullish(),
+	optionalString,
+	z.array(z.string()).nullish(),
+]);
 const schemas = {
 	create: z.tuple([createInput]),
 	attach: z.tuple([id, creationOptions.nullish()]),
-	send: z.tuple([
-		id,
-		z.string(),
-		z.enum(["queue", "steer"]).nullish(),
-		optionalString,
-		z.array(z.string()).nullish(),
-	]),
+	send: sendArgs,
+	sendWithOutcome: sendArgs,
 	abort: z.tuple([id]),
 	pendingPrompts: z.tuple([id]),
 	updatePendingPrompt: z.tuple([
@@ -461,16 +463,29 @@ export class HubCloudSessionService {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}
-		this.checkScope();
 		const expected = z
-			.object({ serviceId: z.string(), scopeGeneration: z.number().int() })
+			.object({
+				serviceId: z.string(),
+				scopeGeneration: z.number().int(),
+				expectedAccountId: id.optional(),
+			})
 			.parse(expectedScope) satisfies CloudHubScope;
+		const controller = this.getController();
 		if (
 			expected.serviceId !== this.serviceId ||
 			expected.scopeGeneration !== this.scopeGeneration
 		)
 			throw new Error("Cloud account changed before request");
-		const controller = this.getController();
+		if (expected.expectedAccountId !== undefined) {
+			const account = this.scope;
+			if (
+				account?.kind !== "account" ||
+				account.identity !== expected.expectedAccountId
+			)
+				throw new Error(
+					"The cloud account does not match the signed-in account. Sign in again before continuing.",
+				);
+		}
 		this.activeCommands++;
 		try {
 			const result =

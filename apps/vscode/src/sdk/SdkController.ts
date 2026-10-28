@@ -760,6 +760,7 @@ export class Controller {
 				const org = this.authService.getUserOrganizations()?.find((organization) => organization.active)
 				return {
 					key: `${user.uid}:${org?.organizationId ?? ""}`,
+					accountId: user.uid,
 					organizationId: org?.organizationId ?? null,
 					organizationName: org?.name ?? "Personal",
 				}
@@ -1724,11 +1725,8 @@ export class Controller {
 					(await this.getWorkspaceRoot())
 				const mode = session?.mode ?? (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act")
 				const config = await this.sessionConfigBuilder.build({ cwd, mode })
-				if (
-					session?.startConfig &&
-					(config.providerId !== session.startConfig.providerId || config.modelId !== session.startConfig.modelId)
-				) {
-					throw new Error("Wait for the model change to finish before using /cloud.")
+				if (session?.startConfig && config.providerId !== session.startConfig.providerId) {
+					throw new Error("Wait for the provider change to finish before using /cloud.")
 				}
 				const messages = structuredClone(
 					session
