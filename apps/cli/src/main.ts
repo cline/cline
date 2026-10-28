@@ -791,7 +791,9 @@ export async function runCli(): Promise<void> {
 	}
 	setCurrentOutputMode(args.outputMode);
 
-	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
+	const hasJsonPrompt =
+		!!args.prompt || (!!args.cloud && stdinHasPipedInput());
+	if (args.outputMode === "json" && (args.interactive || !hasJsonPrompt)) {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
