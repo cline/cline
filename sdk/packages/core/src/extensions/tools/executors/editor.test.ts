@@ -1,8 +1,14 @@
+import { readFileSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createEditorExecutor } from "./editor";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+	const original = await importOriginal<typeof import("node:fs/promises")>();
+	return { ...original, access: vi.fn(original.access), readFile: vi.fn(original.readFile) };
+});
 
 const context = {
 	agentId: "agent-1",
@@ -25,6 +31,29 @@ async function withTempFile(
 }
 
 describe("createEditorExecutor", () => {
+	it("preserves concurrent replacements through absolute and relative paths", async () => {
+		await withTempFile("alpha: old\nbeta: old\n", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			const access = vi.mocked(fs.access).mockResolvedValue(undefined);
+			const read = vi.mocked(fs.readFile).mockImplementation(async () => {
+				const snapshot = readFileSync(filePath, "utf-8");
+				await Promise.resolve();
+				return snapshot;
+			});
+			try {
+				const results = await Promise.all([
+					editor({ path: filePath, old_text: "alpha: old", new_text: "alpha: new" }, dir, context),
+					editor({ path: "./example.txt", old_text: "beta: old", new_text: "beta: new" }, dir, context),
+				]);
+				expect(results.every((result) => result.startsWith(`Edited ${filePath}`))).toBe(true);
+			} finally {
+				read.mockRestore();
+				access.mockRestore();
+			}
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("alpha: new\nbeta: new\n");
+		});
+	});
+
 	it("creates a missing file when edit is used", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
 		const filePath = path.join(dir, "example.txt");
