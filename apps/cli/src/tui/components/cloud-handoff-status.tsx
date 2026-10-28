@@ -28,7 +28,7 @@ export function CloudHandoffStatusBar(props: {
 		if (url) void open(url, { wait: false }).catch(() => {});
 	};
 	useKeyboard((key) => {
-		if (props.disabled || !key.meta) return;
+		if (props.disabled || !key.meta || key.ctrl || key.shift) return;
 		if (key.name === "o" && url) {
 			key.preventDefault();
 			openCloud();

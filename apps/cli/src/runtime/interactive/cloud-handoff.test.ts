@@ -44,8 +44,8 @@ function fixture() {
 			status: "running",
 			initialSend: { sessionId: "ses-example", ok: true, queued: true },
 		}),
-		send: vi
-			.fn<HubCloudSessionClient["send"]>()
+		sendWithOutcome: vi
+			.fn<HubCloudSessionClient["sendWithOutcome"]>()
 			.mockResolvedValue({ sessionId: "ses-example", ok: true, queued: true }),
 		subscribe: vi.fn<HubCloudSessionClient["subscribe"]>(() => vi.fn()),
 	};
@@ -201,7 +201,7 @@ describe("summary cloud handoff", () => {
 		if (!dispatched) {
 			expect(result.retrySend).toBeDefined();
 			await result.retrySend?.();
-			expect(input.cloud.send).toHaveBeenCalledWith(
+			expect(input.cloud.sendWithOutcome).toHaveBeenCalledWith(
 				"ses-example",
 				expect.stringContaining(
 					"Next instruction from the user:\nAdd focused tests",
@@ -212,8 +212,49 @@ describe("summary cloud handoff", () => {
 			);
 			expect(input.cloud.create).toHaveBeenCalledOnce();
 		} else {
-			expect(input.cloud.send).not.toHaveBeenCalled();
+			expect(input.cloud.sendWithOutcome).not.toHaveBeenCalled();
 		}
+	});
+
+	it.each([
+		"unsent",
+		"dispatched",
+		"unknown",
+	])("keeps retry only for a confirmed unsent retry (%s)", async (outcome) => {
+		const input = fixture();
+		input.cloud.create.mockResolvedValue({
+			sessionId: "ses-example",
+			status: "running",
+			initialSend: { dispatched: false, message: "Not connected" },
+		});
+		const prepared = await prepareCloudHandoff(input);
+		const initial = await prepared.start(vi.fn());
+		if (outcome === "unknown") {
+			input.cloud.sendWithOutcome.mockRejectedValueOnce(
+				new Error("Hub disconnected"),
+			);
+		} else {
+			input.cloud.sendWithOutcome.mockResolvedValueOnce({
+				dispatched: outcome === "dispatched",
+				message: "Connection failed",
+			});
+		}
+		const retried = await initial.retrySend?.();
+		expect(retried?.warning).toContain(
+			outcome === "unsent" ? "not sent" : "unconfirmed",
+		);
+		expect(Boolean(retried?.retrySend)).toBe(outcome === "unsent");
+		if (outcome === "unsent") {
+			const completed = await retried?.retrySend?.();
+			expect(completed?.retrySend).toBeUndefined();
+			expect(completed?.warning).toBeUndefined();
+			expect(input.cloud.sendWithOutcome).toHaveBeenCalledTimes(2);
+			expect(input.cloud.sendWithOutcome.mock.calls[1]).toEqual(
+				input.cloud.sendWithOutcome.mock.calls[0],
+			);
+		}
+		expect(helpers.summarize).toHaveBeenCalledOnce();
+		expect(input.cloud.create).toHaveBeenCalledOnce();
 	});
 
 	it("rejects invalid image data before capture or publication", async () => {

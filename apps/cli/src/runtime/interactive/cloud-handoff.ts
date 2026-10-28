@@ -49,7 +49,7 @@ export async function prepareCloudHandoff(input: {
 		| "prepareHandoffRepository"
 		| "listModels"
 		| "create"
-		| "send"
+		| "sendWithOutcome"
 		| "subscribe"
 	>;
 	draft: CloudHandoffDraft;
@@ -194,7 +194,7 @@ export async function prepareCloudHandoff(input: {
 						const retrySend = async (): Promise<CloudHandoffResult> => {
 							assertAccount();
 							try {
-								const sent = await cloud.send(
+								const sent = await cloud.sendWithOutcome(
 									result.sessionId,
 									prompt,
 									"queue",
@@ -202,6 +202,19 @@ export async function prepareCloudHandoff(input: {
 									draft.images,
 								);
 								assertAccount();
+								if ("dispatched" in sent) {
+									if (!sent.dispatched)
+										return {
+											dashboardUrl,
+											warning: `The prompt was not sent. ${sent.detail ?? sent.message}`,
+											retrySend,
+										};
+									return {
+										dashboardUrl,
+										warning:
+											"Delivery is unconfirmed. Check the cloud task before resending.",
+									};
+								}
 								return {
 									dashboardUrl,
 									...(sent.recoveredAfterDisconnect

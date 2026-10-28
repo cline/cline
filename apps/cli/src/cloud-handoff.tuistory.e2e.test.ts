@@ -187,6 +187,11 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Synthetic publish failure", { timeout });
 		const failedScreen = await session.text();
 		expect(failedScreen).not.toContain("CLOUD_SESSION_ERROR:");
+		// Kitty keyboard protocol encodes Ctrl+Alt+D without dropping a modifier.
+		session.writeRaw("\u001b[100;7u");
+		const afterScroll = await session.text();
+		expect(afterScroll).toContain("Synthetic publish failure");
+		expect(afterScroll).toContain("Restore /cloud draft (Alt+R)");
 		await session.press(["alt", "r"]);
 		await session.waitForText(`/cloud ${instruction}`, { timeout });
 	});
