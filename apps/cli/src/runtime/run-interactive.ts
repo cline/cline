@@ -52,6 +52,10 @@ import {
 } from "./active-runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
+import {
+	createCliCloudSessions,
+	isCloudSessionsEnabled,
+} from "./interactive/cloud-sessions";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
 import {
 	formatInteractiveExitSummary,
@@ -518,8 +522,13 @@ export async function runInteractive(
 			}
 		: undefined;
 
+	const cloudSessions = isCloudSessionsEnabled()
+		? createCliCloudSessions(config.workspaceRoot?.trim() || config.cwd)
+		: undefined;
+
 	tuiApp = await renderOpenTui({
 		config,
+		cloudSessions: cloudSessions?.client,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
@@ -865,6 +874,7 @@ export async function runInteractive(
 	try {
 		await tuiApp.waitUntilExit();
 	} finally {
+		await cloudSessions?.dispose().catch(() => {});
 		exitSummary = await cleanupRuntime();
 	}
 	if (exitSummary) {
