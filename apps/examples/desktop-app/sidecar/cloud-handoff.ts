@@ -521,8 +521,7 @@ export function invalidateHandoffCaptureForWorkspace(
 	for (const capture of gitPreparations.get(ctx)?.values() ?? []) {
 		if (
 			capture.status === "capturing" &&
-			capture.cwd &&
-			workspacePathsOverlap(capture.cwd, workspacePath)
+			(!capture.cwd || workspacePathsOverlap(capture.cwd, workspacePath))
 		) {
 			capture.status = "changed";
 		}

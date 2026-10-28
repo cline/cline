@@ -307,38 +307,56 @@ describe("summary cloud handoff", () => {
 		}
 	});
 	it.each([
-		false,
-		true,
-	])("invalidates checkpoint restores only during capture (captured=%s)", async (captured) => {
+		"before workspace resolution",
+		"during capture",
+		"after capture",
+	])("invalidates checkpoint restores only during capture (%s)", async (timing) => {
 		const f = await fixture();
 		const ctx = getEnvironmentContext(f.ctx, "local");
-		const restore = vi
-			.fn()
-			.mockRejectedValue(new Error("Restore reached runtime"));
+		const captured = timing === "after capture";
+		const restore = vi.fn().mockResolvedValue({
+			sessionId: "restored-source",
+			messages: f.messages.slice(0, 1),
+		});
 		Object.assign(localSessionManager(f.ctx), { restore });
+		const restoreCheckpoint = async () => {
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "restore_checkpoint",
+					sessionId: f.sourceSessionId,
+					checkpointRunCount: 1,
+					config: { ...f.request.config, cwd: f.plan.root },
+				}),
+			).resolves.toMatchObject({ sessionId: "restored-source" });
+			expect(ctx.restoringWorkspacePaths.size).toBe(0);
+		};
+		if (timing === "before workspace resolution") {
+			f.pending.mockImplementationOnce(async () => {
+				await restoreCheckpoint();
+				return [];
+			});
+		}
 		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(
 			async (_cwd, onCaptured) => {
 				if (captured) onCaptured?.();
-				await expect(
-					handleChatSessionCommand(ctx, {
-						action: "restore_checkpoint",
-						sessionId: f.sourceSessionId,
-						checkpointRunCount: 1,
-						config: { ...f.request.config, cwd: f.plan.root },
-					}),
-				).rejects.toThrow("Restore reached runtime");
-				expect(restore).toHaveBeenCalledOnce();
+				if (timing !== "before workspace resolution") await restoreCheckpoint();
 				if (!captured) onCaptured?.();
 				return f.plan;
 			},
 		);
 		const preparation = handlePrepareHandoff(ctx, f.request, f.summarize);
-		if (captured)
-			await expect(preparation).resolves.toHaveProperty("gitPreparation");
-		else {
+		if (captured) {
+			await expect(preparation).resolves.toMatchObject({
+				gitPreparation: { id: f.plan.id },
+			});
+		} else {
 			await expect(preparation).rejects.toThrow("changed during capture");
-			await expect(f.handoff()).rejects.toThrow("review the preparation plan");
+			await expect(handleHandoff(ctx, f.request)).rejects.toThrow(
+				"review the preparation plan",
+			);
+			expect(f.summarize).not.toHaveBeenCalled();
 		}
+		expect(restore).toHaveBeenCalledOnce();
 		expect(f.launch).not.toHaveBeenCalled();
 	});
 	it("releases the restore lock when capture invalidation throws", async () => {
