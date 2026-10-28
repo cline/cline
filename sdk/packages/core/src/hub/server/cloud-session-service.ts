@@ -178,6 +178,25 @@ export interface HubCloudSessionServiceOptions {
 	createController?: () => CloudSessionController;
 }
 
+/**
+ * Identifies the stored Cline credentials for in-memory comparison only;
+ * never serialized or logged.
+ */
+function credentialFingerprint(
+	settings: ReturnType<ProviderSettingsManager["getProviderSettings"]>,
+): string {
+	const auth = settings?.auth as
+		| { accessToken?: string; refreshToken?: string; expiresAt?: number }
+		| undefined;
+	return JSON.stringify([
+		auth?.accessToken,
+		auth?.refreshToken,
+		auth?.expiresAt,
+		settings?.apiKey,
+		settings?.baseUrl,
+	]);
+}
+
 /** Private change-detection state; never serialized or logged. */
 type CloudAccountScope = {
 	kind: "account" | "credential" | "custom";
@@ -309,8 +328,20 @@ export class HubCloudSessionService {
 				.getProviderSettings("cline")
 				?.baseUrl?.trim()
 				.replace(/\/api\/v1\/*$/, "") || environment.apiBaseUrl;
+		// The stored credentials the auth server last rejected outright. The
+		// controller polls through getAuthToken every few seconds; without this,
+		// a signed-out user's dead refresh token was re-sent on every poll, and
+		// each rejection re-emitted user.auth_logged_out plus a soft-failure
+		// event (~670 of each per machine per 3h on core 0.2.0). Any write to
+		// the stored credentials (sign-in, sign-out, rotation) clears it.
+		let rejectedCredentials: string | undefined;
 		const getAuthToken = async () => {
 			if (!this.isCurrentScope(scope)) throw new Error("Cline account changed");
+			const credentials = credentialFingerprint(
+				this.settings.getProviderSettings("cline"),
+			);
+			if (credentials === rejectedCredentials) return undefined;
+			rejectedCredentials = undefined;
 			let token: string | undefined;
 			let refreshError: unknown;
 			try {
@@ -320,7 +351,15 @@ export class HubCloudSessionService {
 			} catch (error) {
 				refreshError = error;
 			}
-			if (!token && !(refreshError instanceof OAuthReauthRequiredError)) {
+			if (refreshError instanceof OAuthReauthRequiredError) {
+				// A definitive rejection, already reported once as
+				// user.auth_logged_out by the refresh path. Not a soft failure.
+				rejectedCredentials = credentials;
+				if (!this.isCurrentScope(scope))
+					throw new Error("Cline account changed");
+				return undefined;
+			}
+			if (!token) {
 				token = getProviderAuthHandler("cline")?.getApiKey(
 					this.settings.getProviderSettings("cline"),
 				);
