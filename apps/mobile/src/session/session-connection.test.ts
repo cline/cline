@@ -18,6 +18,11 @@ import {
 	type PendingApprovalInfo,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import {
+	type AttentionEvent,
+	CloudLaunches,
+} from "../connection/cloud-launches";
+import { SessionConnectionController } from "../connection/controller";
 import type { ApprovalPolicy } from "./approval-policy";
 import type { SessionHandle } from "./cloud-resolver";
 import { asHubSessionId, asRemoteSessionId } from "./ids";
@@ -2222,3 +2227,208 @@ async function waitFor(
 		await new Promise((resolve) => setTimeout(resolve, 2));
 	}
 }
+
+describe("live attention across queued transcript hydration", () => {
+	async function fixture(
+		mode: "transcript" | "initial" | "reconnect" = "transcript",
+	) {
+		const { client } = setUp();
+		const descriptor = {
+			mode: "cloud" as const,
+			url: "https://core.example/session/attention",
+			remoteSessionId: "rs_1",
+			hubSessionId: "ses_1",
+		};
+		const controller = new SessionConnectionController(descriptor, {
+			createHandle: async () => handleFor(client),
+		});
+		const launches = new CloudLaunches(() => controller);
+		launches.open(descriptor);
+		const events: AttentionEvent[] = [];
+		launches.subscribeAttention((event) => events.push(event));
+		const history = deferred<Record<string, unknown>>();
+		if (mode === "initial")
+			client.handlers.set("session.messages", () => history.promise);
+		const started = controller.start();
+		if (mode !== "initial") await started;
+		client.handlers.set("session.messages", () => history.promise);
+		if (mode === "reconnect") client.reportConnectionState("connected");
+		if (mode === "transcript")
+			client.emit({
+				version: "v1",
+				event: "session.pending_prompt_submitted",
+				eventId: "submitted",
+				sessionId: "ses_1",
+				payload: { prompt: { id: "queued", prompt: "next", createdAt: 1 } },
+			});
+		await waitFor(
+			() => controller.getSnapshot().view.connectionStatus === "hydrating",
+		);
+		const question = (id = "fresh") =>
+			client.emit({
+				version: "v1",
+				event: "capability.requested",
+				sessionId: "ses_1",
+				payload: {
+					requestId: id,
+					targetClientId: client.getClientId(),
+					capabilityName: "tool_executor.askQuestion",
+					payload: { args: ["Ready?", ["Yes", "No"]] },
+				},
+			});
+		return {
+			client,
+			controller,
+			launches,
+			descriptor,
+			started,
+			events,
+			history,
+			question,
+		};
+	}
+	it("delivers an actual new question once after a transcript-only refresh", async () => {
+		const f = await fixture();
+		f.question();
+		f.question();
+		expect(f.events).toEqual([]);
+		f.history.resolve({ messages: [] });
+		await waitFor(() => f.events.length === 1);
+		expect(f.events[0]).toMatchObject({
+			type: "attention",
+			kind: "question",
+			id: expect.stringContaining("question:fresh"),
+			sessionId: "ses_1",
+			remoteSessionId: "rs_1",
+			focused: false,
+		});
+		f.launches.clear();
+	});
+	it.each([
+		"initial",
+		"reconnect",
+	] as const)("does not mistake %s hydration for live attention", async (mode) => {
+		const f = await fixture(mode);
+		f.question();
+		f.history.resolve({ messages: [] });
+		await f.started;
+		await waitFor(
+			() => f.controller.getSnapshot().view.connectionStatus === "live",
+		);
+		expect(f.events).toEqual([]);
+		f.launches.clear();
+	});
+	it.each([
+		"approval",
+		"completed",
+		"error",
+	] as const)("preserves a fresh %s observed during refresh", async (kind) => {
+		const f = await fixture();
+		f.client.emit({
+			version: "v1",
+			event: "run.started",
+			eventId: "start",
+			sessionId: "ses_1",
+			payload: {},
+		});
+		const event =
+			kind === "approval"
+				? "approval.requested"
+				: kind === "completed"
+					? "run.completed"
+					: "run.failed";
+		f.client.emit({
+			version: "v1",
+			event,
+			eventId: "attention",
+			timestamp: 12345,
+			sessionId: "ses_1",
+			payload:
+				kind === "approval"
+					? approval()
+					: kind === "error"
+						? { error: "failed" }
+						: {},
+		});
+		expect(f.events).toEqual([]);
+		f.history.resolve({ messages: [] });
+		await waitFor(() => f.events.length === 1);
+		expect(f.events[0]).toMatchObject({ type: "attention", kind });
+		f.launches.clear();
+	});
+
+	it.each([
+		"resolved",
+		"disconnected",
+	])("does not deliver a stale question when %s", async (mode) => {
+		const f = await fixture();
+		f.question();
+		if (mode === "resolved")
+			f.client.emit({
+				version: "v1",
+				event: "capability.resolved",
+				sessionId: "ses_1",
+				payload: {
+					requestId: "fresh",
+					targetClientId: f.client.getClientId(),
+					capabilityName: "tool_executor.askQuestion",
+					ok: true,
+				},
+			});
+		if (mode === "disconnected") f.client.reportConnectionState("closed");
+		f.history.resolve({ messages: [] });
+		await settle();
+		expect(f.events).toEqual([]);
+		f.launches.clear();
+	});
+});
+
+it("preserves task focus for the notification watcher's foreground/background decision after refresh", async () => {
+	const { client } = setUp();
+	const descriptor = {
+		mode: "cloud" as const,
+		url: "https://core.example/session/focus",
+		remoteSessionId: "rs_1",
+		hubSessionId: "ses_1",
+	};
+	const controller = new SessionConnectionController(descriptor, {
+		createHandle: async () => handleFor(client),
+	});
+	const launches = new CloudLaunches(() => controller);
+	launches.open(descriptor);
+	const events: AttentionEvent[] = [];
+	launches.subscribeAttention((event) => events.push(event));
+	await controller.start();
+	launches.focusForAttention(descriptor);
+	const history = deferred<Record<string, unknown>>();
+	client.handlers.set("session.messages", () => history.promise);
+	client.emit({
+		version: "v1",
+		event: "session.pending_prompt_submitted",
+		eventId: "submitted",
+		sessionId: "ses_1",
+		payload: { prompt: { id: "queued", prompt: "next", createdAt: 1 } },
+	});
+	await waitFor(
+		() => controller.getSnapshot().view.connectionStatus === "hydrating",
+	);
+	client.emit({
+		version: "v1",
+		event: "capability.requested",
+		sessionId: "ses_1",
+		payload: {
+			requestId: "fresh",
+			targetClientId: client.getClientId(),
+			capabilityName: "tool_executor.askQuestion",
+			payload: { args: ["Ready?", ["Yes", "No"]] },
+		},
+	});
+	history.resolve({ messages: [] });
+	await waitFor(() => events.length === 1);
+	expect(events[0]).toMatchObject({
+		type: "attention",
+		kind: "question",
+		focused: true,
+	});
+	launches.clear();
+});

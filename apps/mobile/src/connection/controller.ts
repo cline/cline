@@ -109,6 +109,7 @@ export function initialSnapshot(): ConnectionSnapshot {
 }
 
 import type { ReasoningChoice } from "@/session/reasoning";
+import type { TranscriptAttentionEvent } from "../session/session-connection";
 export class SessionConnectionController {
 	private reasoningChoice?: ReasoningChoice;
 	private reasoningInitialized = false;
@@ -127,6 +128,17 @@ export class SessionConnectionController {
 		status: this.status,
 	};
 	private readonly listeners = new Set<() => void>();
+	private readonly transcriptAttentionListeners = new Set<
+		(event: TranscriptAttentionEvent) => void
+	>();
+	subscribeTranscriptAttention(
+		listener: (event: TranscriptAttentionEvent) => void,
+	): () => void {
+		this.transcriptAttentionListeners.add(listener);
+		return () => {
+			this.transcriptAttentionListeners.delete(listener);
+		};
+	}
 	private bootstrap: Promise<void> | undefined;
 	/**
 	 * Whether {@link bootstrap} is still running. `bootstrap` itself is kept after
@@ -552,6 +564,15 @@ export class SessionConnectionController {
 			}
 			const connection = new SessionConnection({
 				handle,
+				onTranscriptAttention: (event) => {
+					for (const listener of [...this.transcriptAttentionListeners]) {
+						try {
+							listener(event);
+						} catch {
+							/* One observer cannot block the others. */
+						}
+					}
+				},
 				getReasoningChoice: () => this.reasoningChoice,
 				onReasoningApplied: (choice) => {
 					// A newer edit made during the request still needs to be sent.

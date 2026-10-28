@@ -26,6 +26,10 @@ import {
 	type HubEventEnvelope,
 } from "@cline/shared";
 import { userErrorMessage } from "../error-message";
+import {
+	type AttentionChange,
+	attentionChanges,
+} from "../notifications/attention-events";
 import { type ApprovalPolicy, shouldAutoApprove } from "./approval-policy";
 import { checkpointForkInput, listSessionCheckpoints } from "./checkpoints";
 import type { SessionHandle } from "./cloud-resolver";
@@ -56,7 +60,13 @@ import {
 	pendingPromptsSchema,
 	toPendingPromptView,
 } from "./schemas";
+/** Live-wire provenance retained only across a same-socket transcript refresh. */
+export type TranscriptAttentionEvent =
+	| { type: "started" | "ready" | "retired"; windowId: number }
+	| { type: "observed"; windowId: number; change: AttentionChange };
+
 export interface SessionConnectionOptions {
+	onTranscriptAttention?(event: TranscriptAttentionEvent): void;
 	handle: SessionHandle;
 	onDiagnostic?: (diagnostic: SessionDiagnostic) => void;
 	/**
@@ -155,6 +165,12 @@ export class SessionConnection {
 	private appliedQueueMutation = 0;
 	private queuedTurnNeedsSnapshot = false;
 	private lastSubmittedPromptId?: string;
+	private transcriptAttentionSequence = 0;
+	private transcriptAttention?: {
+		id: number;
+		state: SessionState;
+		seen: Set<string>;
+	};
 	/** approvalIds already auto-answered, so auto-approve never double-responds. */
 	private readonly autoAnswered = new Set<string>();
 	/** Failed auto-approve attempts per approvalId, for the retry bound. */
@@ -648,6 +664,7 @@ export class SessionConnection {
 	 * connection owns the socket for the lifetime of the screen behind it.
 	 */
 	dispose(): void {
+		this.retireTranscriptAttention();
 		if (this.disposed) {
 			return;
 		}
@@ -722,7 +739,7 @@ export class SessionConnection {
 				this.handle.client.getClientId(),
 			);
 			if (parsed.status === "ok") {
-				this.dispatch({
+				this.dispatchLive({
 					type: "question_requested",
 					question: parsed.question,
 				});
@@ -745,11 +762,11 @@ export class SessionConnection {
 				this.handle.client.getClientId(),
 			);
 			if (requestId) {
-				this.dispatch({ type: "question_resolved", requestId });
+				this.dispatchLive({ type: "question_resolved", requestId });
 			}
 			return;
 		}
-		this.dispatch({ type: "event", envelope });
+		this.dispatchLive({ type: "event", envelope });
 		if (envelope.event === "session.pending_prompt_submitted") {
 			const parsed = parseHubEvent(envelope);
 			if (
@@ -763,7 +780,7 @@ export class SessionConnection {
 			// Match desktop's queued-prompt start: this is the hub's actual submitted
 			// text (including edits), not the original local draft. Persistence can lag;
 			// the existing user-message reconciliation merges it once snapshots catch up.
-			this.dispatch({
+			this.dispatchLive({
 				type: "user_input",
 				text: prompt.prompt,
 				userImages: Array.isArray(prompt.userImages)
@@ -839,12 +856,41 @@ export class SessionConnection {
 		requireHydrate?: boolean;
 		transcriptOnly?: boolean;
 	}): Promise<void> {
+		this.retireTranscriptAttention();
+		// Keep a live reducer projection: the main reducer buffers wire events while
+		// hydrating. Full history loads/reconnects deliberately never open this window.
+		if (options.transcriptOnly && this.view.connectionStatus === "live") {
+			this.transcriptAttention = {
+				id: ++this.transcriptAttentionSequence,
+				state: this.state,
+				seen: new Set(),
+			};
+			this.emitTranscriptAttention({
+				type: "started",
+				windowId: this.transcriptAttention.id,
+			});
+		}
+		const attentionWindow = this.transcriptAttention;
 		this.dispatch({ type: "hydrate_started" });
 		if (options.transcriptOnly) {
 			// Queue changes do not replace the socket. Keep its newer lifecycle
 			// events instead of overwriting completion with a lagging attach record.
-			await this.hydrate(this.state.runStatus);
-			await this.refreshPendingPrompts();
+			try {
+				await this.hydrate(this.state.runStatus);
+				await this.refreshPendingPrompts();
+			} finally {
+				if (attentionWindow && this.transcriptAttention === attentionWindow) {
+					this.transcriptAttention = undefined;
+					this.emitTranscriptAttention({
+						type:
+							this.view.connectionStatus === "live" &&
+							this.handle.client.isConnected()
+								? "ready"
+								: "retired",
+						windowId: attentionWindow.id,
+					});
+				}
+			}
 			return;
 		}
 		if (
@@ -1098,6 +1144,7 @@ export class SessionConnection {
 				if (change.connectionEpoch <= this.lastSeenEpoch) {
 					return;
 				}
+				this.retireTranscriptAttention();
 				this.lastSeenEpoch = change.connectionEpoch;
 				// A new socket invalidates client-owned questions even when the drop
 				// happened too quickly for this observer to see a reconnecting state.
@@ -1110,6 +1157,7 @@ export class SessionConnection {
 				this.queueResync();
 				return;
 			case "reconnecting":
+				this.retireTranscriptAttention();
 				this.dispatch({
 					type: "transport_dropped",
 					clearApprovals: !this.handle.client.hasCapability(
@@ -1120,6 +1168,7 @@ export class SessionConnection {
 				});
 				return;
 			case "closed":
+				this.retireTranscriptAttention();
 				this.dispatch({
 					type: "transport_dropped",
 					clearApprovals: !this.handle.client.hasCapability(
@@ -1290,6 +1339,40 @@ export class SessionConnection {
 				detail: errorDetail(error),
 			},
 		});
+	}
+
+	private emitTranscriptAttention(event: TranscriptAttentionEvent): void {
+		try {
+			this.options.onTranscriptAttention?.(event);
+		} catch {
+			/* Observers cannot stop the conversation. */
+		}
+	}
+	private retireTranscriptAttention(): void {
+		const window = this.transcriptAttention;
+		this.transcriptAttention = undefined;
+		if (window)
+			this.emitTranscriptAttention({ type: "retired", windowId: window.id });
+	}
+	private dispatchLive(action: SessionAction): void {
+		const window = this.transcriptAttention;
+		if (window && this.view.connectionStatus !== "live") {
+			const before = selectViewModel(window.state);
+			window.state = reduceSession(window.state, action);
+			for (const change of attentionChanges(
+				before,
+				selectViewModel(window.state),
+			)) {
+				if (window.seen.has(change.id) || window.seen.size >= 256) continue;
+				window.seen.add(change.id);
+				this.emitTranscriptAttention({
+					type: "observed",
+					windowId: window.id,
+					change,
+				});
+			}
+		}
+		this.dispatch(action);
 	}
 
 	private dispatch(action: SessionAction): void {

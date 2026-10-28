@@ -1,4 +1,5 @@
 import {
+	type AttentionChange,
 	type AttentionKind,
 	attentionChanges,
 } from "@/notifications/attention-events";
@@ -32,6 +33,10 @@ interface Launch {
 	descriptor: ConnectionDescriptor;
 	retained?: boolean;
 	previousView?: SessionViewModel;
+	pendingAttention?: {
+		windowId: number;
+		changes: Map<string, AttentionChange>;
+	};
 	controller: SessionConnectionController;
 	viewers: number;
 	opened: boolean;
@@ -111,6 +116,64 @@ export class CloudLaunches {
 		}
 		this.statuses = next;
 		for (const listener of this.listeners) listener();
+	}
+
+	private subscribeTranscriptAttention(entry: Launch): () => void {
+		return entry.controller.subscribeTranscriptAttention((event) => {
+			if (this.launches.get(entry.key) !== entry) return;
+			if (event.type === "started") {
+				entry.pendingAttention = {
+					windowId: event.windowId,
+					changes: new Map(),
+				};
+				return;
+			}
+			const pending = entry.pendingAttention;
+			if (!pending || pending.windowId !== event.windowId) return;
+			if (event.type === "observed") {
+				if (pending.changes.size < 256)
+					pending.changes.set(event.change.id, event.change);
+				return;
+			}
+			entry.pendingAttention = undefined;
+			if (event.type !== "ready") return;
+			const snapshot = entry.controller.getSnapshot();
+			const view = snapshot.view;
+			if (
+				snapshot.status.phase !== "ready" ||
+				view.connectionStatus !== "live" ||
+				entry.descriptor.mode !== "cloud" ||
+				!entry.descriptor.remoteSessionId ||
+				!snapshot.sessionId
+			)
+				return;
+			for (const change of pending.changes.values()) {
+				// A request resolved while history was loading no longer needs attention.
+				const relevant =
+					change.kind === "question"
+						? view.pendingQuestions.some(
+								(q) => change.id === `question:${q.requestId}`,
+							)
+						: change.kind === "approval"
+							? view.pendingApprovals.some(
+									(a) => change.id === `approval:${a.approvalId}`,
+								)
+							: change.kind === "completed"
+								? view.runStatus === "completed" &&
+									view.pendingPrompts.length === 0
+								: view.runStatus === "failed";
+				if (relevant)
+					this.emitAttention({
+						type: "attention",
+						...change,
+						id: `${entry.key}:${snapshot.sessionId}:${change.id}`,
+						endpointKey: entry.key,
+						remoteSessionId: entry.descriptor.remoteSessionId,
+						sessionId: snapshot.sessionId,
+						focused: this.isAttentionFocused(entry.key),
+					});
+			}
+		});
 	}
 
 	private observe(key: string, entry: Launch): void {
@@ -214,7 +277,9 @@ export class CloudLaunches {
 			const unsubscribePolicy = input.subscribePolicy?.(
 				controller.setApprovalPolicy,
 			);
+			const unsubscribeAttention = this.subscribeTranscriptAttention(entry);
 			entry.unsubscribe = () => {
+				unsubscribeAttention();
 				unsubscribeView();
 				unsubscribePolicy?.();
 			};
@@ -301,11 +366,16 @@ export class CloudLaunches {
 				unsubscribe: () => {},
 			};
 			this.launches.set(key, entry);
-			entry.unsubscribe = controller.subscribe(() => {
+			const unsubscribeAttention = this.subscribeTranscriptAttention(entry);
+			const unsubscribeView = controller.subscribe(() => {
 				this.pinLocalSession(entry!);
 				this.observe(entry!.key, entry!);
 				this.releaseIfUnused(entry!);
 			});
+			entry.unsubscribe = () => {
+				unsubscribeView();
+				unsubscribeAttention();
+			};
 		}
 		entry.retained = true;
 		// Map order is last-opened order, not message-arrival order.
@@ -335,10 +405,15 @@ export class CloudLaunches {
 			unsubscribe: () => {},
 		};
 		this.launches.set(key, entry);
-		entry.unsubscribe = controller.subscribe(() => {
+		const unsubscribeAttention = this.subscribeTranscriptAttention(entry);
+		const unsubscribeView = controller.subscribe(() => {
 			this.observe(key, entry);
 			this.releaseIfUnused(entry);
 		});
+		entry.unsubscribe = () => {
+			unsubscribeView();
+			unsubscribeAttention();
+		};
 		this.observe(key, entry);
 		this.trimIdle(entry);
 	}
