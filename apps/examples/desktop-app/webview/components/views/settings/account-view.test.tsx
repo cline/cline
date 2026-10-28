@@ -235,3 +235,53 @@ describe("AccountView signed-out state", () => {
 		expect(container.textContent).not.toContain("Sign in to Cline");
 	});
 });
+
+describe("AccountView privacy settings", () => {
+	async function renderSignedIn(dataPrivacyPath?: string) {
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						return {
+							id: "user-1",
+							email: "beatrix@cline.bot",
+							displayName: "Beatrix",
+							createdAt: "2024-01-01T00:00:00Z",
+							updatedAt: "2024-01-01T00:00:00Z",
+							organizations: [],
+							dataPrivacyPath,
+						};
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [];
+					default:
+						return {};
+				}
+			},
+		);
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Beatrix");
+		});
+		return container.querySelector<HTMLButtonElement>(
+			'button[title="Privacy settings"]',
+		);
+	}
+
+	it("opens the privacy settings path on the Cline web app", async () => {
+		const button = await renderSignedIn("/dashboard/account?tab=privacy");
+
+		await act(async () => button?.click());
+
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/dashboard/account?tab=privacy",
+		);
+	});
+
+	it("hides the button when the account has no privacy settings path", async () => {
+		expect(await renderSignedIn(undefined)).toBeNull();
+	});
+});

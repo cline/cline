@@ -35,6 +35,7 @@ function AuthStateProbe() {
 	return (
 		<>
 			<div data-testid="user-state">{clineUser?.uid ?? "signed-out"}</div>
+			<div data-testid="privacy-path-state">{clineUser?.dataPrivacyPath ?? "none"}</div>
 			<button onClick={() => void switchOrganization("org-next")} type="button">
 				Switch
 			</button>
@@ -302,5 +303,25 @@ describe("ClineAuthProvider", () => {
 			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-a" } })
 		})
 		expect(screen.getByTestId("switch-error")).toHaveTextContent("none")
+	})
+
+	it("picks up updated user info for the same signed-in user", async () => {
+		grpcMocks.getUserOrganizations.mockResolvedValue({ organizations: [] })
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		expect(screen.getByTestId("privacy-path-state")).toHaveTextContent("none")
+
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({
+				user: { uid: "user-1", dataPrivacyPath: "/dashboard/account?tab=privacy" },
+			})
+		})
+		expect(screen.getByTestId("privacy-path-state")).toHaveTextContent("/dashboard/account?tab=privacy")
 	})
 })
