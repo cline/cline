@@ -62,3 +62,43 @@ it("offers only Cloud after hydration and updates without deleting saved compute
 	});
 	result.unmount();
 });
+
+it("prevents a route callback captured before sign-out from restoring a retired prompt", async () => {
+	const store = new SavedEndpointsStore();
+	let api!: ReturnType<typeof useEndpoints>;
+	function Observe() {
+		api = useEndpoints();
+		return null;
+	}
+	const mounted = render(
+		<EndpointsProvider store={store}>
+			<Observe />
+		</EndpointsProvider>,
+	);
+	await act(async () => {});
+	const pending: ConnectionDescriptor = {
+		mode: "cloud",
+		url: "https://fixture.invalid/session",
+		pendingInitialMessage: "Private route text",
+	};
+	await act(async () => {
+		await api.save(pending);
+	});
+	const retiredSave = api.save;
+	await act(async () => {
+		await store.retirePendingInitialMessages();
+	});
+	await act(async () => {
+		await retiredSave({ ...pending, hubSessionId: "resolved-after-signout" });
+	});
+	expect(store.list()).toEqual([
+		{ mode: "cloud", url: pending.url, hubSessionId: "resolved-after-signout" },
+	]);
+	await act(async () => {
+		await api.save(pending);
+	});
+	expect(store.list()[0].pendingInitialMessage).toBe(
+		pending.pendingInitialMessage,
+	);
+	mounted.unmount();
+});

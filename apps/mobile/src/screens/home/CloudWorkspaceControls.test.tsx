@@ -226,6 +226,7 @@ describe("Cloud work context", () => {
 		expect(save).not.toHaveBeenCalled();
 	});
 	it("exposes one context action, omits branch before repository selection, and keeps location explicit", async () => {
+		vi.useFakeTimers();
 		const { root, setTarget, chooseLocation } = mount();
 		const context = root.find(
 			(node) => node.props.testID === "cloud-workspace-controls",
@@ -246,7 +247,7 @@ describe("Cloud work context", () => {
 		);
 		expect(chooseLocation).not.toHaveBeenCalled();
 		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await vi.runOnlyPendingTimersAsync();
 		});
 		expect(chooseLocation).toHaveBeenCalledOnce();
 		act(() => setTarget({ ...target, branch: "feature" }));

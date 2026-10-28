@@ -94,10 +94,11 @@ export function useEndpoints(): UseEndpoints {
 				: endpoints.filter((endpoint) => endpoint.mode === "cloud"),
 		[endpoints],
 	);
+	const submissionGeneration = store.pendingSubmissionGeneration();
 	return {
 		endpoints: availableEndpoints,
 		hydrated,
-		save: (descriptor) => store.save(descriptor),
+		save: (descriptor) => store.save(descriptor, submissionGeneration),
 		remove: (key) => store.remove(key),
 		store,
 	};

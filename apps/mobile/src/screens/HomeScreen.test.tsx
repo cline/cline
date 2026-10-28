@@ -8,6 +8,7 @@
  */
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+import * as ImagePicker from "expo-image-picker";
 import * as Native from "react-native";
 import { Alert } from "react-native";
 import type { ReactTestInstance } from "react-test-renderer";
@@ -17,9 +18,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
 
 import {
+	ClineAuthStore,
 	type CloudModelOption,
 	type CloudRepository,
 	CloudSetupApiError,
+	createInMemoryAuthStorage,
 } from "@/cloud";
 import { AmbiguousCloudSessionCreateError } from "@/cloud/rest/CloudSessionGateway";
 import { type ConnectionDescriptor, SavedEndpointsStore } from "@/connection";
@@ -29,7 +32,12 @@ import {
 	type RemoteSession,
 	type SessionInputAttachments,
 } from "@/session";
-import { CloudAuthProvider, useCloudAccountScope } from "@/state/cloud-auth";
+import {
+	CloudAuthProvider,
+	type UseCloudAuth,
+	useCloudAccountScope,
+	useCloudAuth,
+} from "@/state/cloud-auth";
 import { cloudStartStore } from "@/state/cloud-starts";
 import { EndpointsProvider } from "@/state/endpoints";
 import {
@@ -176,6 +184,7 @@ function labels(root: ReactTestInstance): string[] {
 
 async function mount(
 	options: {
+		authStore?: ClineAuthStore;
 		endpoints?: ConnectionDescriptor[];
 		lastOpened?: Record<string, number>;
 		activeKey?: string;
@@ -212,12 +221,18 @@ async function mount(
 		await lastOpenedStore.touch(key, at);
 	}
 	let accountScope!: ReturnType<typeof useCloudAccountScope>;
+	let auth!: UseCloudAuth;
+	function AuthObserver() {
+		auth = useCloudAuth();
+		return null;
+	}
 	function AccountObserver() {
 		accountScope = useCloudAccountScope();
 		return null;
 	}
 	const result = render(
-		<CloudAuthProvider>
+		<CloudAuthProvider store={options.authStore}>
+			{options.authStore ? <AuthObserver /> : null}
 			<AccountObserver />
 			<EndpointsProvider store={endpointStore}>
 				<ExecutionTargetsProvider store={executionTargetStore}>
@@ -268,6 +283,7 @@ async function mount(
 	await act(async () => {});
 	return {
 		...result,
+		getAuth: () => auth,
 		endpointStore,
 		lastOpenedStore,
 		executionTargetStore,
@@ -275,6 +291,62 @@ async function mount(
 			accountScope.selectScope({ organizationId }),
 	};
 }
+
+it("retires mounted Home text and images after explicit sign-out and re-sign-in", async () => {
+	const credentials = {
+		access: "fixture",
+		refresh: "fixture-refresh",
+		expires: Date.now() + 60_000,
+		accountId: "fixture-user",
+		email: "fixture@example.invalid",
+		metadata: { provider: "cline" as const },
+	};
+	const authStore = new ClineAuthStore({
+		storage: createInMemoryAuthStorage(credentials),
+	});
+	const mounted = await mount({ endpoints: [LAPTOP], authStore });
+	expect(mounted.getAuth().account.phase).toBe("signed-in");
+	act(() =>
+		findByLabel(mounted.root, "Message Cline from Home")!.props.onChangeText(
+			"Private mounted Home draft",
+		),
+	);
+	vi.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValueOnce({
+		canceled: false,
+		assets: [
+			{
+				assetId: null,
+				base64: "/9j/",
+				duration: null,
+				exif: null,
+				fileName: "private-image.jpg",
+				fileSize: 3,
+				height: 1,
+				mimeType: "image/jpeg",
+				type: "image",
+				uri: "file:///private.jpg",
+				width: 1,
+			},
+		],
+	});
+	act(() => findByLabel(mounted.root, "Add attachment")!.props.onPress());
+	await act(async () => {
+		vi.mocked(Native.ActionSheetIOS.showActionSheetWithOptions).mock.calls.at(
+			-1,
+		)![1](0);
+	});
+	expect(findByLabel(mounted.root, "Remove private-image.jpg")).toBeDefined();
+	await act(async () => {
+		await mounted.getAuth().signOut();
+		await authStore.setCredentials(credentials);
+	});
+	expect(await authStore.getCredentials()).not.toBeNull();
+	expect(
+		findByLabel(mounted.root, "Message Cline from Home")!.props.value,
+	).toBe("");
+	expect(findByLabel(mounted.root, "Remove private-image.jpg")).toBeUndefined();
+	mounted.unmount();
+});
 
 it.each([
 	"jwt",
@@ -961,8 +1033,7 @@ describe("HomeScreen Cline welcome", () => {
 		hoisted.getValidAccessToken.mockResolvedValue("jwt");
 		hoisted.createRemoteSession.mockResolvedValue({
 			sessionId: "remote-1",
-			sandboxUrl:
-				"https://api.example.com/api/v1/session/remote-1",
+			sandboxUrl: "https://api.example.com/api/v1/session/remote-1",
 		});
 		const onStartMessage = vi.fn();
 		const onStartSubmission = vi.fn();
@@ -1058,8 +1129,7 @@ describe("HomeScreen Cline welcome", () => {
 		await act(async () => {
 			await onCreated?.({
 				sessionId: "remote-persisted",
-				sandboxUrl:
-					"https://api.example.com/api/v1/session/remote-persisted",
+				sandboxUrl: "https://api.example.com/api/v1/session/remote-persisted",
 				initialStatus: "provisioning",
 			});
 		});

@@ -5,7 +5,11 @@ import * as SafeArea from "react-native-safe-area-context";
 import { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionMessageView, SessionViewModel } from "@/session";
-import { clearAllSessionDrafts } from "@/state/session-drafts";
+import {
+	clearAllSessionDrafts,
+	readSessionDraft,
+	readSessionDraftImages,
+} from "@/state/session-drafts";
 import { render } from "../ui/__testing__/render";
 import { flattenStyle } from "../ui/__testing__/rn-host";
 import {
@@ -407,6 +411,52 @@ describe("ChatScreen", () => {
 		);
 		second.unmount();
 		clearAllSessionDrafts();
+	});
+
+	it("retires mounted chat text/images and ignores callbacks from the old signed-in epoch", () => {
+		const mounted = render(
+			<ChatScreen
+				connection={fakeConnection({ status: { phase: "connecting" } })}
+				draftKey="private-route"
+				initialMessage="Private staged prompt"
+				initialAttachments={{ userImages: ["data:image/jpeg;base64,/9j/"] }}
+			/>,
+		);
+		const composer = mounted.root.find((node) => node.type === Composer);
+		const oldTextChange = composer.props.onDraftChange;
+		const oldImageChange = composer.props.onUserImagesChange;
+		act(() => oldTextChange("Private edited draft"));
+		expect(findByLabel(mounted.root, "Image 1")).toBeDefined();
+		act(() => clearAllSessionDrafts());
+		expect(findByLabel(mounted.root, "Message composer")!.props.value).toBe("");
+		expect(findByLabel(mounted.root, "Image 1")).toBeUndefined();
+		act(() => {
+			oldTextChange("Late private result");
+			oldImageChange(["data:image/jpeg;base64,/9j/"]);
+		});
+		expect(readSessionDraft("private-route")).toBeUndefined();
+		expect(readSessionDraftImages("private-route")).toBeUndefined();
+		expect(findByLabel(mounted.root, "Message composer")!.props.value).toBe("");
+		mounted.unmount();
+	});
+
+	it("never sends a retired Home prompt when a pending durable-consumption callback resolves", async () => {
+		const consumption = Promise.withResolvers<void>();
+		const sendInput = vi.fn(async () => {});
+		const mounted = render(
+			<ChatScreen
+				connection={fakeConnection({ sendInput })}
+				initialMessage="Private pending Home prompt"
+				onInitialMessageConsumed={() => consumption.promise}
+			/>,
+		);
+		await act(async () => {});
+		expect(sendInput).not.toHaveBeenCalled();
+		act(() => clearAllSessionDrafts());
+		await act(async () => consumption.resolve());
+		expect(sendInput).not.toHaveBeenCalled();
+		expect(findByLabel(mounted.root, "Message composer")!.props.value).toBe("");
+		mounted.unmount();
 	});
 
 	it("moves an unsent Cloud draft when latest resolves to an exact session", () => {

@@ -3,7 +3,8 @@
  *
  * It covers the subset the desktop chat renders (DESIGN_SPEC §4): ATX headings,
  * fenced + inline code, ordered/unordered lists, blockquotes, horizontal rules
- * and paragraphs, plus inline **bold**, *italic*, `code` and [links](url). It is
+ * and paragraphs, GFM tables, plus inline **bold**, *italic*, ~~strike~~,
+ * `code` and [links](url). It is
  * deliberately not a full CommonMark implementation — unknown syntax degrades to
  * plain text rather than throwing, which is the safe behavior for streaming,
  * partially-formed model output.
@@ -137,6 +138,117 @@ function parseBlocks(source: string): Block[] {
 			continue;
 		}
 
+		// Wait for a complete delimiter row before treating streamed text as a table.
+		const header = tableCells(line);
+		const delimiter = tableCells(lines[i + 1] ?? "");
+		if (
+			header.hasPipe &&
+			header.cells.length > 0 &&
+			delimiter.cells.length === header.cells.length &&
+			delimiter.cells.every((cell) => /^:?-{3,}:?$/.test(cell))
+		) {
+			flushParagraph();
+			flushList();
+			const rows: string[][] = [];
+			let next = i + 2;
+			while (
+				next < lines.length &&
+				lines[next].trim() &&
+				!/^\s*```/.test(lines[next])
+			) {
+				const row = tableCells(lines[next]);
+				if (!row.hasPipe || row.cells.length > header.cells.length) break;
+				rows.push(header.cells.map((_, column) => row.cells[column] ?? ""));
+				next += 1;
+			}
+			i = next - 1;
+			const id = `table${key++}`;
+			const alignments = delimiter.cells.map((cell) =>
+				cell.endsWith(":")
+					? cell.startsWith(":")
+						? ("center" as const)
+						: ("right" as const)
+					: ("left" as const),
+			);
+			const widths = header.cells.map((cell, column) =>
+				Math.min(
+					260,
+					Math.max(
+						120,
+						rows.reduce(
+							(length, row) => Math.max(length, row[column].length),
+							cell.length,
+						) *
+							7 +
+							24,
+					),
+				),
+			);
+			blocks.push({
+				key: id,
+				render: (theme) => (
+					<ScrollView
+						horizontal
+						accessibilityLabel={`Table, ${header.cells.length} columns, ${rows.length} data rows`}
+						showsHorizontalScrollIndicator
+					>
+						<View
+							style={{
+								borderWidth: 1,
+								borderColor: theme.color.border,
+								borderRadius: theme.radius.sm,
+								overflow: "hidden",
+							}}
+						>
+							{[header.cells, ...rows].map((row, rowIndex) => (
+								<View
+									key={`${id}-row-${rowIndex}`}
+									style={{
+										flexDirection: "row",
+										backgroundColor:
+											rowIndex === 0 ? theme.color.surfaceMuted : undefined,
+									}}
+								>
+									{row.map((cell, column) => (
+										<View
+											key={`${id}-cell-${rowIndex}-${column}`}
+											style={{
+												width: widths[column],
+												paddingHorizontal: 12,
+												paddingVertical: 8,
+												borderRightWidth: column < row.length - 1 ? 1 : 0,
+												borderBottomWidth: rowIndex < rows.length ? 1 : 0,
+												borderColor: theme.color.border,
+											}}
+										>
+											<Text
+												variant="body"
+												weight={rowIndex === 0 ? "600" : undefined}
+												accessibilityRole={
+													rowIndex === 0 ? "header" : undefined
+												}
+												style={{
+													textAlign: alignments[column],
+													color: theme.color.text,
+												}}
+											>
+												{renderInline(
+													cell,
+													theme,
+													`${id}-${rowIndex}-${column}`,
+												)}
+											</Text>
+										</View>
+									))}
+								</View>
+							))}
+						</View>
+					</ScrollView>
+				),
+			});
+			continue;
+		}
+
 		// Horizontal rule.
 		if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
 			flushParagraph();
@@ -225,43 +337,150 @@ function parseBlocks(source: string): Block[] {
 	return blocks;
 }
 
+/** Keep escaped pipes and pipes inside code spans within their authored cell. */
+function tableCells(line: string): { cells: string[]; hasPipe: boolean } {
+	const text = line.trim();
+	const cells: string[] = [];
+	let cell = "";
+	let codeTicks = 0;
+	let hasPipe = false;
+	let trailingBorder = false;
+	for (let index = 0; index < text.length; index += 1) {
+		const char = text[index];
+		if (char === "\\" && index + 1 < text.length) {
+			const next = text[index + 1];
+			if (next === "|") {
+				cell += "|";
+				index += 1;
+				trailingBorder = false;
+				continue;
+			}
+			if (next === "\\") {
+				cell += "\\\\";
+				index += 1;
+				trailingBorder = false;
+				continue;
+			}
+		}
+		if (char === "`") {
+			let end = index + 1;
+			while (text[end] === "`") end += 1;
+			const count = end - index;
+			if (codeTicks === 0) codeTicks = count;
+			else if (codeTicks === count) codeTicks = 0;
+			cell += text.slice(index, end);
+			index = end - 1;
+			trailingBorder = false;
+			continue;
+		}
+		if (char === "|" && codeTicks === 0) {
+			hasPipe = true;
+			if (index !== 0) cells.push(cell.trim());
+			cell = "";
+			trailingBorder = true;
+		} else {
+			cell += char;
+			trailingBorder = false;
+		}
+	}
+	if (!trailingBorder || cell) cells.push(cell.trim());
+	return { cells, hasPipe };
+}
+
 interface InlineToken {
-	kind: "text" | "bold" | "italic" | "code" | "link";
+	kind: "text" | "bold" | "italic" | "code" | "link" | "strike";
 	value: string;
 	href?: string;
 }
 
-/** Tokenizes one line of inline markdown. Non-greedy, single pass, left to right. */
+interface InlineMatch {
+	start: number;
+	end: number;
+	token: InlineToken;
+}
+
+/** Match strike delimiters once, including incomplete streamed input. */
+function strikeMatches(input: string): InlineMatch[] {
+	const matches: InlineMatch[] = [];
+	// Use the same code-span recognition as the existing inline renderer. A
+	// delimiter shown as code must never start or finish a strike span.
+	const codePattern = /`([^`]+)`/g;
+	let code = codePattern.exec(input);
+	let opening = -1;
+	for (let index = 0; index < input.length; ) {
+		if (code && index >= code.index) {
+			index = codePattern.lastIndex;
+			code = codePattern.exec(input);
+			continue;
+		}
+		if (input[index] === "\\") {
+			index += 2;
+			continue;
+		}
+		if (!input.startsWith("~~", index)) {
+			index += 1;
+			continue;
+		}
+		const before = input[index - 1];
+		const after = input[index + 2];
+		if (opening >= 0 && index > opening + 2 && before && !/\s/.test(before)) {
+			matches.push({
+				start: opening,
+				end: index + 2,
+				token: { kind: "strike", value: input.slice(opening + 2, index) },
+			});
+			opening = -1;
+		} else if (opening < 0 && after && !/\s/.test(after)) {
+			opening = index;
+		}
+		index += 2;
+	}
+	return matches;
+}
+
+/** Tokenizes one line without re-scanning unmatched strike openers. */
 function tokenizeInline(input: string): InlineToken[] {
-	const tokens: InlineToken[] = [];
+	const matches: InlineMatch[] = [];
 	// Underscores inside identifiers are literal (CommonMark's intraword rule).
 	// Keep asterisks separate: unlike underscores, they can emphasize within words.
 	const pattern =
 		/\*\*(.+?)\*\*|(?<![\p{L}\p{M}\p{N}_])__(\S(?:.*?\S)?)__(?![\p{L}\p{M}\p{N}_])|\*(.+?)\*|(?<![\p{L}\p{M}\p{N}_])_(\S(?:.*?\S)?)_(?![\p{L}\p{M}\p{N}_])|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/gu;
-	let lastIndex = 0;
 	let match: RegExpExecArray | null;
-	match = pattern.exec(input);
-	while (match !== null) {
-		if (match.index > lastIndex) {
-			tokens.push({ kind: "text", value: input.slice(lastIndex, match.index) });
-		}
+	while ((match = pattern.exec(input)) !== null) {
 		const bold = match[1] ?? match[2];
 		const italic = match[3] ?? match[4];
-		if (bold !== undefined) {
-			tokens.push({ kind: "bold", value: bold });
-		} else if (italic !== undefined) {
-			tokens.push({ kind: "italic", value: italic });
-		} else if (match[5] !== undefined) {
-			tokens.push({ kind: "code", value: match[5] });
-		} else if (match[6] !== undefined) {
-			tokens.push({ kind: "link", value: match[6], href: match[7] });
-		}
-		lastIndex = pattern.lastIndex;
-		match = pattern.exec(input);
+		const token: InlineToken =
+			bold !== undefined
+				? { kind: "bold", value: bold }
+				: italic !== undefined
+					? { kind: "italic", value: italic }
+					: match[5] !== undefined
+						? { kind: "code", value: match[5] }
+						: { kind: "link", value: match[6], href: match[7] };
+		matches.push({ start: match.index, end: pattern.lastIndex, token });
 	}
-	if (lastIndex < input.length) {
-		tokens.push({ kind: "text", value: input.slice(lastIndex) });
+	const strikes = strikeMatches(input);
+	const tokens: InlineToken[] = [];
+	let normal = 0;
+	let strike = 0;
+	let cursor = 0;
+	// Both match lists are ordered. Merge once; earlier outer syntax owns any
+	// overlapping markers, matching the renderer's existing non-nested behavior.
+	while (normal < matches.length || strike < strikes.length) {
+		const nextNormal = matches[normal];
+		const nextStrike = strikes[strike];
+		const next =
+			nextNormal && (!nextStrike || nextNormal.start <= nextStrike.start)
+				? matches[normal++]
+				: strikes[strike++];
+		if (next.start < cursor) continue;
+		if (next.start > cursor)
+			tokens.push({ kind: "text", value: input.slice(cursor, next.start) });
+		tokens.push(next.token);
+		cursor = next.end;
 	}
+	if (cursor < input.length)
+		tokens.push({ kind: "text", value: input.slice(cursor) });
 	return tokens;
 }
 
@@ -292,6 +511,12 @@ function renderInline(
 						variant="mono"
 						style={{ backgroundColor: theme.color.surfaceRaised }}
 					>
+						{token.value}
+					</Text>
+				);
+			case "strike":
+				return (
+					<Text key={key} style={{ textDecorationLine: "line-through" }}>
 						{token.value}
 					</Text>
 				);

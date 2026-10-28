@@ -6,6 +6,8 @@
  * separate privacy/product decision.
  */
 
+import { useSyncExternalStore } from "react";
+
 const MAX_DRAFTS = 24;
 // Image-picker payloads are base64 strings. Bound their aggregate process memory
 // separately from the entry count: a handful of large photos can otherwise retain
@@ -17,6 +19,25 @@ interface SessionDraft {
 }
 
 const drafts = new Map<string, SessionDraft>();
+let retirementEpoch = 0;
+const retirementListeners = new Set<() => void>();
+function subscribeDraftRetirement(listener: () => void): () => void {
+	retirementListeners.add(listener);
+	return () => {
+		retirementListeners.delete(listener);
+	};
+}
+export function sessionDraftEpoch(): number {
+	return retirementEpoch;
+}
+/** Mounted screens also own private React state, independently of the cache. */
+export function useSessionDraftEpoch(): number {
+	return useSyncExternalStore(
+		subscribeDraftRetirement,
+		sessionDraftEpoch,
+		sessionDraftEpoch,
+	);
+}
 
 export function readSessionDraft(key: string): string | undefined {
 	return drafts.get(key)?.text || undefined;
@@ -83,7 +104,9 @@ export function clearSessionDraft(key: string): void {
 	drafts.delete(key);
 }
 
-/** Test-only reset; intentionally not exported from the state barrel. */
+/** Retire private unsent text and image payloads on explicit account sign-out. */
 export function clearAllSessionDrafts(): void {
 	drafts.clear();
+	retirementEpoch += 1;
+	for (const listener of [...retirementListeners]) listener();
 }

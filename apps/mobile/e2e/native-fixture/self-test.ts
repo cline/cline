@@ -145,6 +145,8 @@ for (const prompt of [
 	"sample-video",
 	"sample-file",
 	"ux-fixture",
+	"rich-fixture",
+	"invalid-media",
 ]) {
 	const completedBefore = seen.filter(
 		(event) => event.event === "run.completed",
@@ -171,9 +173,9 @@ const persistedMedia = historyReply.payload.messages
 		Array.isArray(message.content) ? message.content : [],
 	)
 	.filter((block: any) => block.type === "media");
-if (persistedMedia.length !== 4)
+if (persistedMedia.length !== 7)
 	throw new Error(
-		`Expected four persisted media blocks, got ${persistedMedia.length}`,
+		`Expected seven persisted media blocks, got ${persistedMedia.length}`,
 	);
 const archive = await (
 	await fetch(`${base}/api/v1/session/${data.sessionId}/history`, { headers })

@@ -182,6 +182,8 @@ function isDescriptor(value: unknown): value is ConnectionDescriptor {
 export class SavedEndpointsStore {
 	private endpoints: ConnectionDescriptor[] = [];
 	private persistenceTail: Promise<void> = Promise.resolve();
+	private submissionGeneration = 0;
+	private pendingRetirements = 0;
 	private readonly listeners = new Set<
 		(endpoints: ConnectionDescriptor[]) => void
 	>();
@@ -193,6 +195,8 @@ export class SavedEndpointsStore {
 		if (!this.persistence) {
 			return;
 		}
+		const generation = this.submissionGeneration;
+		const retiring = this.pendingRetirements > 0;
 		const raw = await this.persistence.getItem(STORAGE_KEY);
 		if (!raw) {
 			return;
@@ -200,7 +204,17 @@ export class SavedEndpointsStore {
 		try {
 			const parsed: unknown = JSON.parse(raw);
 			if (Array.isArray(parsed)) {
-				this.endpoints = parsed.filter(isDescriptor);
+				const loaded = parsed.filter(isDescriptor);
+				if (
+					retiring ||
+					this.pendingRetirements > 0 ||
+					generation !== this.submissionGeneration
+				) {
+					this.mergeRetiredEndpoints(loaded);
+					await this.persist();
+				} else {
+					this.endpoints = loaded;
+				}
 				this.emit();
 			}
 		} catch {
@@ -224,7 +238,13 @@ export class SavedEndpointsStore {
 	}
 
 	/** Adds or updates a hub, moving it to the front. Persists write-through. */
-	async save(descriptor: ConnectionDescriptor): Promise<void> {
+	async save(
+		descriptor: ConnectionDescriptor,
+		generation = this.submissionGeneration,
+	): Promise<void> {
+		if (generation !== this.submissionGeneration) {
+			descriptor = this.withoutPendingMessage(descriptor);
+		}
 		const key = descriptorKey(descriptor);
 		this.endpoints = [
 			descriptor,
@@ -232,6 +252,59 @@ export class SavedEndpointsStore {
 		];
 		this.emit();
 		await this.persist();
+	}
+
+	/** Captured by route callbacks so a retired account cannot restore its prompt. */
+	pendingSubmissionGeneration(): number {
+		return this.submissionGeneration;
+	}
+
+	/** Retire unsent asks while preserving saved destinations and conversation ids. */
+	async retirePendingInitialMessages(): Promise<void> {
+		this.submissionGeneration++;
+		this.pendingRetirements++;
+		this.endpoints = this.endpoints.map((entry) =>
+			this.withoutPendingMessage(entry),
+		);
+		this.emit();
+		try {
+			if (this.persistence) {
+				// Also cover sign-out before provider hydration has finished. Merge with
+				// current memory so this read cannot overwrite a newer route update.
+				const raw = await this.persistence.getItem(STORAGE_KEY);
+				if (raw) {
+					try {
+						const parsed: unknown = JSON.parse(raw);
+						if (Array.isArray(parsed))
+							this.mergeRetiredEndpoints(parsed.filter(isDescriptor));
+					} catch {
+						// Keep the known destinations if persisted data is corrupt.
+					}
+				}
+			}
+			this.emit();
+			await this.persist();
+		} finally {
+			this.pendingRetirements--;
+		}
+	}
+
+	private withoutPendingMessage(
+		descriptor: ConnectionDescriptor,
+	): ConnectionDescriptor {
+		const next = { ...descriptor };
+		delete next.pendingInitialMessage;
+		return next;
+	}
+
+	private mergeRetiredEndpoints(loaded: ConnectionDescriptor[]): void {
+		const currentKeys = new Set(this.endpoints.map(descriptorKey));
+		this.endpoints = [
+			...this.endpoints,
+			...loaded
+				.filter((entry) => !currentKeys.has(descriptorKey(entry)))
+				.map((entry) => this.withoutPendingMessage(entry)),
+		];
 	}
 
 	async remove(key: string): Promise<void> {

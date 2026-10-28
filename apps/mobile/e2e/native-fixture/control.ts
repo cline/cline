@@ -17,14 +17,27 @@ if (
 		"hydrate-error",
 		"abort-error",
 		"events",
+		"set",
+		"clear",
+		"state",
+		"snapshot",
 	].includes(action)
 )
 	throw new Error(
-		"Use archive | resume | release | history-error | hydrate-error | abort-error | events [0|1]",
+		"Use set FAULT VALUE | clear | state | snapshot | archive | resume | release | history-error | hydrate-error | abort-error | events [0|1]. Set FIXTURE_WORKSPACE_ID to scope to one workspace.",
 	);
-const response = await fetch(
-	`${config.base}/control/${action}?enabled=${process.argv[3] || "1"}`,
-	{ headers: { "x-fixture-key": config.controlKey } },
-);
-if (!response.ok) throw new Error(`Control failed: ${response.status}`);
+const query = new URLSearchParams();
+if (action === "set") {
+	query.set("fault", process.argv[3] || "");
+	query.set("value", process.argv[4] || "1");
+} else query.set("enabled", process.argv[3] || "1");
+const workspaceId = process.env.FIXTURE_WORKSPACE_ID;
+if (workspaceId) query.set("id", workspaceId);
+const response = await fetch(`${config.base}/control/${action}?${query}`, {
+	headers: { "x-fixture-key": config.controlKey },
+});
+if (!response.ok)
+	throw new Error(
+		`Control failed: ${response.status}: ${await response.text()}`,
+	);
 console.log(JSON.stringify(await response.json(), null, 2));

@@ -75,6 +75,84 @@ describe("chatRouteParams", () => {
 });
 
 describe("SavedEndpointsStore", () => {
+	it("retires durable asks without removing saved destinations, and rejects stale route rewrites", async () => {
+		const persistence = memoryPersistence();
+		const store = new SavedEndpointsStore(persistence);
+		const pending = {
+			...cloud,
+			pendingInitialMessage: "Private ask",
+			hubSessionId: "inner-1",
+			repoUrl: "https://github.com/fixture/repo",
+		};
+		await store.save(pending);
+		const staleGeneration = store.pendingSubmissionGeneration();
+		await store.retirePendingInitialMessages();
+		await store.save({ ...pending, modelId: "new-model" }, staleGeneration);
+		expect(store.list()).toEqual([
+			{
+				...cloud,
+				hubSessionId: "inner-1",
+				repoUrl: pending.repoUrl,
+				modelId: "new-model",
+			},
+		]);
+		const revived = new SavedEndpointsStore(persistence);
+		await revived.hydrate();
+		expect(revived.list()).toEqual(store.list());
+		// A new account epoch may deliberately submit even the same words.
+		await store.save(pending);
+		expect(store.list()[0].pendingInitialMessage).toBe("Private ask");
+	});
+
+	it.each([
+		"before",
+		"during",
+	])("scrubs a delayed hydration started %s retirement", async (timing) => {
+		const persistence = memoryPersistence();
+		const seeded = new SavedEndpointsStore(persistence);
+		await seeded.save({
+			...cloud,
+			pendingInitialMessage: "Private delayed ask",
+		});
+		let resolveRead!: (value: string | null) => void;
+		const originalRead = persistence.getItem;
+		let first = true;
+		persistence.getItem = async (key) => {
+			if (!first) return originalRead(key);
+			first = false;
+			return new Promise((resolve) => {
+				resolveRead = resolve;
+			});
+		};
+		const store = new SavedEndpointsStore(persistence);
+		let releaseRetirement!: () => void;
+		let retirement: Promise<void> | undefined;
+		if (timing === "during") {
+			const read = persistence.getItem;
+			persistence.getItem = () =>
+				new Promise<string | null>((resolve) => {
+					releaseRetirement = () => resolve(null);
+				});
+			retirement = store.retirePendingInitialMessages();
+			persistence.getItem = read;
+		}
+		const hydration = store.hydrate();
+		const staleBlob = [...persistence.store.values()][0];
+		if (retirement) {
+			releaseRetirement();
+			await retirement;
+		} else await store.retirePendingInitialMessages();
+		await store.save({ ...cloud, label: "Updated after sign-out" });
+		resolveRead(staleBlob);
+		await hydration;
+		expect(store.list()).toEqual([
+			{ ...cloud, label: "Updated after sign-out" },
+		]);
+		const revived = new SavedEndpointsStore(persistence);
+		await revived.hydrate();
+		expect(revived.list()).toEqual(store.list());
+	});
+
 	it("persists Cloud repository context without changing connection identity", async () => {
 		const persistence = memoryPersistence();
 		const store = new SavedEndpointsStore(persistence);

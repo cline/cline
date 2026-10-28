@@ -48,6 +48,8 @@ import {
 	clearSessionDraft,
 	readSessionDraft,
 	readSessionDraftImages,
+	sessionDraftEpoch,
+	useSessionDraftEpoch,
 	writeSessionDraft,
 	writeSessionDraftImages,
 } from "@/state/session-drafts";
@@ -140,7 +142,23 @@ export interface ChatScreenProps {
 	onChooseAnotherSession?: () => void;
 }
 
-export function ChatScreen({
+export function ChatScreen(props: ChatScreenProps) {
+	const epoch = useSessionDraftEpoch();
+	const initialEpoch = useRef(epoch);
+	const ownsInitialSubmission = initialEpoch.current === epoch;
+	return (
+		<ChatScreenBody
+			key={epoch}
+			{...props}
+			initialMessage={ownsInitialSubmission ? props.initialMessage : undefined}
+			initialAttachments={
+				ownsInitialSubmission ? props.initialAttachments : undefined
+			}
+		/>
+	);
+}
+
+function ChatScreenBody({
 	connection,
 	extendIntoSideInsets = false,
 	onFork,
@@ -260,12 +278,14 @@ export function ChatScreen({
 			(draftKey ? readSessionDraft(draftKey) : undefined) ??
 			"",
 	);
+	const ownedDraftEpoch = useRef(sessionDraftEpoch()).current;
 	const updateDraft = useCallback(
 		(next: string) => {
+			if (sessionDraftEpoch() !== ownedDraftEpoch) return;
 			setDraft(next);
 			if (draftKey) writeSessionDraft(draftKey, next);
 		},
-		[draftKey],
+		[draftKey, ownedDraftEpoch],
 	);
 	const sentInitialMessage = useRef(false);
 	const initialSubmission = useRef({
@@ -298,22 +318,23 @@ export function ChatScreen({
 	stagedInitialAttachmentsRef.current = stagedInitialAttachments;
 	const updateStagedImages = useCallback(
 		(userImages: string[]) => {
+			if (sessionDraftEpoch() !== ownedDraftEpoch) return;
 			setStagedInitialAttachments(
 				userImages.length > 0 ? { userImages } : undefined,
 			);
 			if (draftKey) writeSessionDraftImages(draftKey, userImages);
 			onInitialAttachmentsChange?.(userImages);
 		},
-		[draftKey, onInitialAttachmentsChange],
+		[draftKey, onInitialAttachmentsChange, ownedDraftEpoch],
 	);
 	useEffect(() => {
-		if (draftKey) {
+		if (draftKey && sessionDraftEpoch() === ownedDraftEpoch) {
 			writeSessionDraftImages(
 				draftKey,
 				stagedInitialAttachments?.userImages ?? [],
 			);
 		}
-	}, [draftKey, stagedInitialAttachments]);
+	}, [draftKey, stagedInitialAttachments, ownedDraftEpoch]);
 	const [followingTranscript, setFollowingTranscript] = useState(true);
 	const [modelSection, setModelSection] = useState<"providers" | "models">(
 		"models",
@@ -378,6 +399,7 @@ export function ChatScreen({
 	draftRef.current = draft;
 	const previousDraftKeyRef = useRef(draftKey);
 	useEffect(() => {
+		if (sessionDraftEpoch() !== ownedDraftEpoch) return;
 		const previousKey = previousDraftKeyRef.current;
 		if (previousKey === draftKey) {
 			return;
@@ -392,7 +414,7 @@ export function ChatScreen({
 			writeSessionDraft(draftKey, draftRef.current);
 		}
 		previousDraftKeyRef.current = draftKey;
-	}, [draftKey]);
+	}, [draftKey, ownedDraftEpoch]);
 	useEffect(() => {
 		// A tap on the retry banner advances this token to re-run the one-shot.
 		void initialConsumptionAttempt;
@@ -421,6 +443,7 @@ export function ChatScreen({
 			}
 			// Persistence can be slow. Re-read both editable values after it settles;
 			// any text edit is takeover, and removed images must never be uploaded.
+			if (sessionDraftEpoch() !== ownedDraftEpoch) return;
 			const currentAttachments = stagedInitialAttachmentsRef.current;
 			if (draftRef.current.trim() !== message) {
 				setConsumingInitialSubmission(false);
@@ -443,6 +466,7 @@ export function ChatScreen({
 		connection.sendInput,
 		initialConsumptionAttempt,
 		onInitialMessageConsumed,
+		ownedDraftEpoch,
 		status.phase,
 		supportsImages,
 		checkingImageSupport,

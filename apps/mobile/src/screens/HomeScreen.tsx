@@ -34,6 +34,7 @@ import {
 import { useEndpoints } from "@/state/endpoints";
 import { useExecutionTargets } from "@/state/execution-targets";
 import { useLastOpened } from "@/state/last-opened";
+import { useSessionDraftEpoch } from "@/state/session-drafts";
 import { useApprovalPolicy } from "@/state/settings";
 import {
 	Button,
@@ -106,7 +107,12 @@ export interface HomeScreenProps {
 	onFinishSetup?(): void;
 }
 
-export function HomeScreen({
+export function HomeScreen(props: HomeScreenProps) {
+	const epoch = useSessionDraftEpoch();
+	return <HomeScreenBody key={epoch} {...props} />;
+}
+
+function HomeScreenBody({
 	forceSetup = false,
 	preferCloudOnMount = false,
 	openSessionsOnMount = false,

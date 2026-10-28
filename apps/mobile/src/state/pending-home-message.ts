@@ -50,6 +50,11 @@ export function clearPendingHomeMessage(id: string): void {
 	messages.delete(id);
 }
 
+/** Explicit sign-out retires every unsent Home launch, including its photos. */
+export function clearAllPendingHomeSubmissions(): void {
+	messages.clear();
+}
+
 /** Keep an editable launch's attachment payload aligned with its composer. */
 export function updatePendingHomeAttachments(
 	id: string,

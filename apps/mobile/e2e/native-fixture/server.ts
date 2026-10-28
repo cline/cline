@@ -5,6 +5,12 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMobileFixtureHost } from "../../scripts/dev-hub";
+import {
+	attachmentMessages,
+	type SubmittedAttachments,
+} from "./attachment-history";
+import { commandFault, FixtureFaults } from "./faults";
+import { fixtureLifecycleDto, scopedFixtureRows } from "./rest-contract";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { startHubWebSocketServer, createLocalHubScheduleRuntimeHandlers } =
@@ -14,6 +20,12 @@ const { ScriptedRuntimeHost } = await import(
 );
 const { HubClient } = await import(
 	resolve(root, "sdk/packages/hub-client/src/index.ts")
+);
+const { PendingPromptsController } = await import(
+	resolve(
+		root,
+		"sdk/packages/core/src/runtime/turn-queue/pending-prompt-service.ts",
+	)
 );
 const MobileFixtureHost = createMobileFixtureHost(ScriptedRuntimeHost);
 const stateDir =
@@ -57,6 +69,141 @@ function fixtureTone() {
 	return bytes;
 }
 class NativeFixtureHost extends MobileFixtureHost {
+	queueStates = new Map<string, any>();
+	submittedAttachments = new Map<string, SubmittedAttachments[]>();
+	heldSessions = new Set<string>();
+	releaseGate(id: string) {
+		if (id.startsWith("native-queue-"))
+			this.heldSessions.delete(id.slice("native-queue-".length));
+		super.releaseGate(id);
+	}
+	injectedHistory = new Map<string, { index: number; message: unknown }[]>();
+	pendingController = new PendingPromptsController({
+		getSession: (sessionId: string) => this.queueState(sessionId),
+		emit: (event: unknown) => this.emitCore(event),
+		send: (input: any) => this.runTurn(input),
+	});
+	pendingPrompts = {
+		list: async ({ sessionId }: any) => this.pendingController.list(sessionId),
+		update: async (input: any) => this.pendingController.update(input),
+		delete: async (input: any) => this.pendingController.delete(input),
+		steerFirst: async ({ sessionId }: any) =>
+			this.pendingController.steerFirst(sessionId),
+	};
+	queueState(sessionId: string) {
+		let state = this.queueStates.get(sessionId);
+		if (!state) {
+			state = {
+				sessionId,
+				pendingPrompts: [],
+				aborting: false,
+				drainingPendingPrompts: false,
+				busy: false,
+				status: "idle",
+				agent: {
+					canStartRun: () => !state.busy,
+					notifyPendingUserMessage: () => {
+						queueMicrotask(() => {
+							void this.consumeFixtureSteer(sessionId);
+						});
+					},
+				},
+			};
+			this.queueStates.set(sessionId, state);
+		}
+		return state;
+	}
+	emitCore(event: unknown) {
+		for (const listener of this.extraListeners) listener(event);
+	}
+	async consumeFixtureSteer(sessionId: string) {
+		const entry = this.pendingController.consumeSteer(sessionId);
+		if (!entry) return;
+		const raw = await ScriptedRuntimeHost.prototype.readSessionMessages.call(
+			this,
+			sessionId,
+		);
+		const history = this.injectedHistory.get(sessionId) ?? [];
+		history.push({
+			index: raw.length,
+			message: { role: "user", content: entry.prompt },
+		});
+		history.push({
+			index: raw.length,
+			message: {
+				role: "assistant",
+				content: `STEER_FIXTURE_RECEIVED: ${entry.prompt}`,
+			},
+		});
+		this.injectedHistory.set(sessionId, history);
+		this.emitExtra(sessionId, {
+			type: "content_start",
+			contentType: "text",
+			text: `STEER_FIXTURE_RECEIVED: ${entry.prompt}`,
+		});
+		this.emitExtra(sessionId, {
+			type: "content_end",
+			contentType: "text",
+			text: `STEER_FIXTURE_RECEIVED: ${entry.prompt}`,
+		});
+		record("steer-consumed", { sessionId, id: entry.id, prompt: entry.prompt });
+	}
+	async abort(sessionId: string, reason?: unknown) {
+		const state = this.queueState(sessionId);
+		state.aborting = true;
+		if (state.drainingPendingPrompts)
+			this.pendingController.discardQueue(state);
+		await super.abort(sessionId, reason);
+		if (this.heldSessions.has(sessionId))
+			this.releaseGate(`native-queue-${sessionId}`);
+	}
+	async runTurn(input: {
+		sessionId: string;
+		prompt: string;
+		delivery?: "queue" | "steer";
+		mode?: any;
+		userImages?: string[];
+		userFiles?: string[];
+	}) {
+		const state = this.queueState(input.sessionId);
+		const delivery = input.delivery ?? (state.busy ? "queue" : undefined);
+		if (delivery === "queue" || delivery === "steer") {
+			this.pendingController.enqueue(input.sessionId, { ...input, delivery });
+			return undefined;
+		}
+		state.busy = true;
+		state.status = "running";
+		this.emitCore({
+			type: "status",
+			payload: { sessionId: input.sessionId, status: "running" },
+		});
+		let result: any;
+		try {
+			result = await this.executeFixtureTurn(input);
+			return result;
+		} finally {
+			this.heldSessions.delete(input.sessionId);
+			state.busy = false;
+			state.aborting = false;
+			state.status =
+				result?.finishReason === "error"
+					? "failed"
+					: result?.finishReason === "aborted"
+						? "cancelled"
+						: "completed";
+			this.emitCore({
+				type: "ended",
+				payload: {
+					sessionId: input.sessionId,
+					reason: result?.finishReason ?? "error",
+				},
+			});
+			if (result && result.finishReason !== "error")
+				queueMicrotask(() => {
+					void this.pendingController.drain(input.sessionId);
+				});
+		}
+	}
 	thinkingChoices = new Map<string, boolean>();
 	async updateSessionConnection(
 		sessionId: string,
@@ -78,7 +225,10 @@ class NativeFixtureHost extends MobileFixtureHost {
 			modelsByProvider: Object.fromEntries(
 				Object.entries(catalog.modelsByProvider).map(([provider, models]) => [
 					provider,
-					models.map((model) => ({ ...model, supportsThinking: true })),
+					models.map((model) => ({
+						...model,
+						supportsThinking: !model.id.endsWith("-mini"),
+					})),
 				]),
 			),
 		};
@@ -87,8 +237,12 @@ class NativeFixtureHost extends MobileFixtureHost {
 		const session = await super.getSession(sessionId);
 		if (!session || typeof session !== "object") return session;
 		const record = session as Record<string, unknown>;
+		const state = this.queueStates.get(sessionId);
 		return {
 			...record,
+			// The core status event can be projected before the scripted agent has
+			// entered runTurn. Busy admission owns status throughout that window.
+			status: state?.busy ? "running" : (state?.status ?? record.status),
 			metadata: {
 				...(record.metadata as Record<string, unknown> | undefined),
 				mode: record.mode ?? "act",
@@ -141,6 +295,8 @@ class NativeFixtureHost extends MobileFixtureHost {
 			);
 		const result: unknown[] = [];
 		for (let index = 0; index <= messages.length; index++) {
+			for (const entry of this.injectedHistory.get(sessionId) ?? [])
+				if (entry.index === index) result.push(entry.message);
 			for (const entry of this.mediaHistory.get(sessionId) || [])
 				if (entry.index === index)
 					result.push({
@@ -149,9 +305,25 @@ class NativeFixtureHost extends MobileFixtureHost {
 					});
 			if (index < messages.length) result.push(messages[index]);
 		}
-		return [...(this.uxHistory.get(sessionId) ?? []), ...result];
+		return [
+			...(this.uxHistory.get(sessionId) ?? []),
+			...attachmentMessages(
+				result,
+				this.submittedAttachments.get(sessionId) ?? [],
+			),
+		];
 	}
-	async runTurn(input: { sessionId: string; prompt: string }) {
+	async executeFixtureTurn(input: {
+		sessionId: string;
+		prompt: string;
+		userImages?: string[];
+		userFiles?: string[];
+	}) {
+		if (input.userImages?.length || input.userFiles?.length) {
+			const entries = this.submittedAttachments.get(input.sessionId) ?? [];
+			entries.push(input);
+			this.submittedAttachments.set(input.sessionId, entries);
+		}
 		this.messageBase.set(
 			input.sessionId,
 			(
@@ -232,6 +404,85 @@ class NativeFixtureHost extends MobileFixtureHost {
 			});
 			return ScriptedRuntimeHost.prototype.runTurn.call(this, input);
 		}
+		if (prompt.includes("rich-fixture")) {
+			this.enqueue({
+				steps: [
+					{
+						kind: "text",
+						chunks: [
+							"# Rich transcript fixture\n\n**Bold**, *italic*, ~~strike~~, task_id and `inline_code`.\n\n- First bullet\n- Second bullet\n\n1. Numbered first\n2. Numbered second\n\n> Block quote\n\n| Column | Value |\n| --- | --- |\n| alpha | beta |\n\n```typescript\nconst task_id = '<div>authored code</div>';\nconsole.log(task_id);\n```\n\n[Safe documentation](https://example.com) and [blocked scheme](javascript:alert(1)).\n\n---\n\nRICH_FIXTURE_END",
+						],
+					},
+					{
+						kind: "tool",
+						name: "execute_command",
+						input: { command: "fixture-only: no shell is executed" },
+						output: Array.from(
+							{ length: 180 },
+							(_, i) => `Output line ${i + 1}: task_id preserved`,
+						).join("\n"),
+						requiresApproval: false,
+					},
+					{
+						kind: "tool",
+						name: "read_file",
+						input: { path: "missing-fixture.txt" },
+						error: "Fixture file not found; deterministic tool failure",
+						requiresApproval: false,
+					},
+					{ kind: "text", chunks: ["RICH_FIXTURE_COMPLETE"] },
+				],
+			});
+			return ScriptedRuntimeHost.prototype.runTurn.call(this, input);
+		}
+		if (prompt.includes("invalid-media")) {
+			for (const modality of ["image", "audio", "video"] as const)
+				this.emitExtra(input.sessionId, {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: `invalid-${modality}-${crypto.randomUUID()}`,
+						modality,
+						mediaType: {
+							image: "image/png",
+							audio: "audio/wav",
+							video: "video/mp4",
+						}[modality],
+						name: `invalid-fixture.${modality}`,
+						source: {
+							type: "base64",
+							data: Buffer.from(
+								"Intentionally invalid native media bytes",
+							).toString("base64"),
+						},
+					},
+				});
+			this.enqueue({
+				steps: [{ kind: "text", chunks: ["INVALID_MEDIA_FIXTURE_READY"] }],
+			});
+			return ScriptedRuntimeHost.prototype.runTurn.call(this, input);
+		}
+		if (prompt.includes("approval-fixture")) {
+			this.enqueue({
+				steps: [
+					{
+						kind: "tool",
+						name: "bash",
+						input: { command: "git diff -- src/Example.tsx" },
+						output:
+							"diff --git a/src/Example.tsx b/src/Example.tsx\n--- a/src/Example.tsx\n+++ b/src/Example.tsx\n@@ -1 +1 @@\n-export const title = 'Example';\n+export const title = 'Fixture';",
+						requiresApproval: true,
+					},
+					{
+						kind: "text",
+						chunks: [
+							"Approval fixture finished; the tool outcome above records whether it was allowed or denied.",
+						],
+					},
+				],
+			});
+			return ScriptedRuntimeHost.prototype.runTurn.call(this, input);
+		}
 		if (prompt.includes("fixture-error"))
 			throw new Error("Native fixture requested a deterministic run failure.");
 		if (prompt.includes("edit-fixture")) {
@@ -251,10 +502,11 @@ class NativeFixtureHost extends MobileFixtureHost {
 			return ScriptedRuntimeHost.prototype.runTurn.call(this, input);
 		}
 		if (prompt.includes("hold-fixture")) {
+			this.heldSessions.add(input.sessionId);
 			this.enqueue({
 				steps: [
 					{ kind: "text", chunks: ["QUEUE_FIXTURE_HOLDING"] },
-					{ kind: "gate", id: "native-queue" },
+					{ kind: "gate", id: `native-queue-${input.sessionId}` },
 					{ kind: "text", chunks: ["QUEUE_FIXTURE_RELEASED"] },
 				],
 			});
@@ -360,8 +612,34 @@ let approved = existsSync(resolve(stateDir, "authorized"));
 let historyError = false;
 let hydrateError = false;
 let abortError = false;
+const faults = new FixtureFaults();
+const pendingUntil = new Map<string, number>();
 const rows: Record<string, unknown>[] = [];
 let nextWorkspaceId = 0;
+const restorePath = process.env.FIXTURE_RESTORE_PATH;
+if (restorePath && existsSync(restorePath)) {
+	const saved = JSON.parse(readFileSync(restorePath, "utf8"));
+	for (const entry of saved.entries ?? []) {
+		const row = entry.row;
+		const taskId = row.metadata.taskId;
+		await runtime.startSession({
+			config: {
+				sessionId: taskId,
+				providerId: "cline",
+				modelId: row.metadata.modelId,
+				mode: "act",
+				workspaceRoot: "/native-fixture",
+			},
+		});
+		runtime.uxHistory.set(taskId, entry.messages);
+		rows.push(row);
+		nextWorkspaceId = Math.max(
+			nextWorkspaceId,
+			Number(String(row.id).split("-").at(-1)) || 0,
+		);
+	}
+	record("fixture-state-restored", { count: rows.length });
+}
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const auth = (request: Request) =>
 	request.headers.get("authorization") === `Bearer workos:${token}`;
@@ -376,7 +654,48 @@ const server = Bun.serve({
 			if (request.headers.get("x-fixture-key") !== controlKey)
 				return json({ error: "fixture control key required" }, 403);
 			const action = path.slice(9);
-			if (action === "release") runtime.releaseGate("native-queue");
+			const scope = url.searchParams.get("id") || "global";
+			if (action === "set") {
+				try {
+					faults.set(
+						scope,
+						url.searchParams.get("fault") || "",
+						Number(url.searchParams.get("value") ?? 1),
+					);
+				} catch (error) {
+					return json({ error: String(error) }, 400);
+				}
+				return json({ ok: true, faults: faults.view() });
+			}
+			if (action === "clear") {
+				faults.clear(scope);
+				return json({ ok: true, faults: faults.view() });
+			}
+			if (action === "state") return json({ rows, faults: faults.view() });
+			if (action === "snapshot") {
+				const entries = await Promise.all(
+					rows.map(async (row) => ({
+						row,
+						messages: await runtime.readSessionMessages(
+							(row.metadata as { taskId: string }).taskId,
+						),
+					})),
+				);
+				writeFileSync(
+					resolve(stateDir, "restore.json"),
+					JSON.stringify({ entries }, null, 2),
+					{ mode: 0o600 },
+				);
+				return json({ ok: true, count: entries.length });
+			}
+			if (action === "release") {
+				const selected =
+					scope === "global" ? rows : rows.filter((row) => row.id === scope);
+				for (const row of selected)
+					runtime.releaseGate(
+						`native-queue-${(row.metadata as { taskId: string }).taskId}`,
+					);
+			}
 			if (action === "archive" || action === "resume") {
 				const row = url.searchParams.get("id")
 					? rows.find((row) => row.id === url.searchParams.get("id"))
@@ -390,6 +709,19 @@ const server = Bun.serve({
 				hydrateError = url.searchParams.get("enabled") !== "0";
 			if (action === "abort-error")
 				abortError = url.searchParams.get("enabled") !== "0";
+			if (
+				scope !== "global" &&
+				["history-error", "hydrate-error", "abort-error"].includes(action)
+			) {
+				faults.set(
+					scope,
+					action,
+					url.searchParams.get("enabled") === "0" ? 0 : 1,
+				);
+				if (action === "history-error") historyError = false;
+				if (action === "hydrate-error") hydrateError = false;
+				if (action === "abort-error") abortError = false;
+			}
 			if (action === "events") return json(events);
 			return json({ ok: true, historyError, hydrateError, abortError });
 		}
@@ -404,6 +736,11 @@ const server = Bun.serve({
 				{ headers: { "content-type": "text/html" } },
 			);
 		}
+		if (
+			path === "/user_management/authorize/device" &&
+			faults.get("global", "auth-authorize-error")
+		)
+			return json({ error: "Fixture device authorization unavailable" }, 503);
 		if (path === "/user_management/authorize/device")
 			return json({
 				device_code: "fixture-device",
@@ -413,8 +750,30 @@ const server = Bun.serve({
 				expires_in: 900,
 				interval: 1,
 			});
+		if (
+			path === "/user_management/authenticate" &&
+			faults.get("global", "auth-expired")
+		)
+			return json(
+				{
+					error: "expired_token",
+					error_description: "Fixture sign-in code expired",
+				},
+				400,
+			);
+		if (
+			path === "/user_management/authenticate" &&
+			faults.get("global", "auth-error")
+		)
+			return json(
+				{
+					error: "server_error",
+					error_description: "Fixture sign-in temporarily unavailable",
+				},
+				503,
+			);
 		if (path === "/user_management/authenticate")
-			return approved
+			return approved && !faults.get("global", "auth-pending")
 				? json({
 						access_token: "fixture-workos",
 						refresh_token: "fixture-workos-refresh",
@@ -438,6 +797,11 @@ const server = Bun.serve({
 					},
 				},
 			});
+		if (
+			path === "/api/v1/ai/cline/models" &&
+			faults.get("global", "models-error")
+		)
+			return json({ error: "Fixture models unavailable" }, 503);
 		if (path === "/api/v1/ai/cline/models")
 			return json({
 				data: [
@@ -446,6 +810,12 @@ const server = Bun.serve({
 						name: "Fixture Sonnet",
 						supported_parameters: ["reasoning"],
 						architecture: { input_modalities: ["text", "image"] },
+					},
+					{
+						id: "anthropic/claude-sonnet-4-6-mini",
+						name: "Fixture Fast (no thinking)",
+						supported_parameters: [],
+						architecture: { input_modalities: ["text"] },
 					},
 				],
 			});
@@ -463,11 +833,28 @@ const server = Bun.serve({
 		if (path === "/api/v1/users/me")
 			return json({ data: { organizations: [] } });
 		if (path === "/api/v1/users/active-account") return json({ success: true });
-		if (path === "/api/v1/integrations/github/repositories/1/branches")
-			return json({ data: { items: [{ name: "main" }], nextToken: null } });
+		if (
+			path === "/api/v1/integrations/github/repositories/1/branches" ||
+			(path === "/api/v1/integrations/github/repositories" &&
+				url.searchParams.has("repository"))
+		) {
+			await Bun.sleep(faults.get("global", "branches-delay-ms"));
+			if (faults.get("global", "branches-error"))
+				return json({ error: "Fixture branches unavailable" }, 503);
+			return json({
+				data: {
+					items: faults.get("global", "branches-empty")
+						? []
+						: [{ name: "main" }, { name: "fixture-safe-branch" }],
+					nextToken: null,
+				},
+			});
+		}
 		if (path === "/api/v1/integrations/github/repositories") {
-			if (url.searchParams.has("repository"))
-				return json({ data: { items: [{ name: "main" }], nextToken: null } });
+			await Bun.sleep(faults.get("global", "repositories-delay-ms"));
+			if (faults.get("global", "repositories-error"))
+				return json({ error: "Fixture GitHub integration unavailable" }, 403);
+			if (faults.get("global", "repositories-empty")) return json({ data: [] });
 			return json({
 				data: [
 					{
@@ -483,10 +870,27 @@ const server = Bun.serve({
 			});
 		}
 		if (path === "/api/v1/session" && request.method === "GET")
-			return historyError
+			return historyError || faults.get("global", "list-error")
 				? json({ success: false, error: "Fixture history unavailable" }, 503)
-				: json({ success: true, data: rows });
+				: json({
+						success: true,
+						data: faults.get("global", "list-empty")
+							? []
+							: scopedFixtureRows(
+									rows,
+									url.searchParams.get("organizationId") || undefined,
+								),
+					});
 		if (path === "/api/v1/session" && request.method === "POST") {
+			await Bun.sleep(faults.get("global", "create-delay-ms"));
+			if (faults.get("global", "create-error"))
+				return json(
+					{
+						success: false,
+						error: "Fixture rejected create before acceptance",
+					},
+					503,
+				);
 			const body = await request.json();
 			const id = `fixture-workspace-${String(++nextWorkspaceId).padStart(8, "0")}`;
 			const taskId = `fixture-task-${String(nextWorkspaceId).padStart(8, "0")}`;
@@ -495,6 +899,9 @@ const server = Bun.serve({
 				status: "running",
 				sandboxType: "resumable",
 				title: body.title || "Native fixture conversation",
+				...(typeof body.organizationId === "string" && body.organizationId
+					? { organizationId: body.organizationId }
+					: {}),
 				metadata: {
 					taskId,
 					modelId: body.modelId || "anthropic/claude-sonnet-4-6",
@@ -508,22 +915,39 @@ const server = Bun.serve({
 				updatedAt: new Date().toISOString(),
 			});
 			record("workspace-created", { id, taskId });
+			const pending = faults.get("global", "create-pending-ms");
+			if (pending) {
+				rows[0].status = "provisioning";
+				pendingUntil.set(id, Date.now() + pending);
+			}
+			if (faults.get("global", "create-ambiguous"))
+				return json(
+					{
+						success: false,
+						error: "Fixture accepted create but acknowledgement was lost",
+					},
+					503,
+				);
 			return json({
 				success: true,
-				data: { sessionId: id, status: "running" },
+				data: { sessionId: id, status: rows[0].status },
 			});
 		}
 		const archive = path.match(/^\/api\/v1\/session\/([^/]+)\/history$/);
 		if (archive) {
 			const row = rows.find((row) => row.id === archive[1]);
 			if (!row) return json({ error: "No fixture workspace exists" }, 404);
+			if (faults.get(String(row.id), "history-error"))
+				return json({ error: "Fixture archive unavailable" }, 503);
 			const taskId = (row.metadata as { taskId: string }).taskId;
 			return json({
 				version: 1,
 				messages: await runtime.readSessionMessages(taskId),
 			});
 		}
-		const match = path.match(/^\/api\/v1\/session\/([^/]+)(?:\/(status))?$/);
+		const match = path.match(
+			/^\/api\/v1\/session\/([^/]+)(?:\/(status|resume|suspend))?$/,
+		);
 		if (match) {
 			const row = rows.find((row) => row.id === match[1]);
 			if (!row)
@@ -531,11 +955,38 @@ const server = Bun.serve({
 			if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
 				if (
 					server.upgrade(request, {
-						data: { pending: [], upstream: undefined },
+						data: { pending: [], upstream: undefined, workspaceId: row.id },
 					})
 				)
 					return;
 				return json({ error: "upgrade failed" }, 400);
+			}
+			if (
+				pendingUntil.has(String(row.id)) &&
+				Date.now() >= pendingUntil.get(String(row.id))!
+			) {
+				row.status = "running";
+				pendingUntil.delete(String(row.id));
+			}
+			const fault = match[2]
+				? `${match[2]}-error`
+				: request.method === "PATCH"
+					? "rename-error"
+					: request.method === "DELETE"
+						? "delete-error"
+						: "details-error";
+			if (faults.get(String(row.id), fault))
+				return json({ success: false, error: `Fixture ${fault}` }, 503);
+			if (match[2] === "suspend" || match[2] === "resume") {
+				const dto = fixtureLifecycleDto(
+					row as { id: unknown; status: unknown },
+					match[2],
+				);
+				record(`workspace-${match[2]}`, { id: row.id });
+				return json({
+					success: true,
+					data: dto,
+				});
 			}
 			if (request.method === "DELETE") {
 				rows.splice(rows.indexOf(row), 1);
@@ -574,12 +1025,14 @@ const server = Bun.serve({
 				for (const message of socket.data.pending) upstream.send(message);
 				socket.data.pending = [];
 			};
-			upstream.onmessage = (event) =>
+			upstream.onmessage = (event) => {
+				if (faults.get(String(socket.data.workspaceId), "drop-replies")) return;
 				socket.send(
 					typeof event.data === "string"
 						? event.data
 						: new Uint8Array(event.data),
 				);
+			};
 			upstream.onclose = () => socket.close();
 			upstream.onerror = () => socket.close(1011, "Fixture upstream failure");
 		},
@@ -595,7 +1048,12 @@ const server = Bun.serve({
 					frame.kind === "command" &&
 					envelope &&
 					((hydrateError && envelope.command === "session.messages") ||
-						(abortError && envelope.command === "run.abort"))
+						(abortError && envelope.command === "run.abort") ||
+						(commandFault(envelope.command) &&
+							faults.get(
+								String(socket.data.workspaceId),
+								commandFault(envelope.command)!,
+							)))
 				) {
 					socket.send(
 						JSON.stringify({

@@ -6,12 +6,29 @@ const MAX_TEXT_FILE_BYTES = 128 * 1024;
 
 class TextFileValidationError extends Error {}
 
+/** Validate the original bytes before native string conversion can truncate them. */
+export function decodeTextFile(bytes: Uint8Array): string {
+	if (bytes.byteLength > MAX_TEXT_FILE_BYTES) {
+		throw new TextFileValidationError(
+			"Choose a text file smaller than 128 KB.",
+		);
+	}
+	if (bytes.includes(0)) {
+		throw new TextFileValidationError("Choose a UTF-8 text file.");
+	}
+	try {
+		return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	} catch {
+		throw new TextFileValidationError("Choose a UTF-8 text file.");
+	}
+}
+
 export function appendTextFile(
 	draft: string,
 	name: string,
 	content: string,
 ): string {
-	if (content.includes("\0") || content.includes("\uFFFD")) {
+	if (content.includes("\0")) {
 		throw new TextFileValidationError("Choose a UTF-8 text file.");
 	}
 	if (new TextEncoder().encode(content).length > MAX_TEXT_FILE_BYTES) {
@@ -66,7 +83,7 @@ export function useTextFileAttachment(
 					throw new TextFileValidationError(
 						"Choose a text file smaller than 128 KB.",
 					);
-				const content = await file.text();
+				const content = decodeTextFile(await file.bytes());
 				if (mounted.current)
 					current.current.onChange(
 						appendTextFile(current.current.draft, asset.name, content),

@@ -27,6 +27,9 @@ import {
 	createInMemoryAuthStorage,
 } from "@/cloud";
 import { cloudStartStore } from "./cloud-starts";
+import { useEndpoints } from "./endpoints";
+import { clearAllPendingHomeSubmissions } from "./pending-home-message";
+import { clearAllSessionDrafts } from "./session-drafts";
 
 export type CloudAccountState =
 	/** Storage has not been read yet. */
@@ -119,6 +122,7 @@ export interface UseCloudAuth {
 export function useCloudAuth(): UseCloudAuth {
 	const store = useContext(CloudAuthContext);
 	const { selectScope } = useCloudAccountScope();
+	const { store: endpointsStore } = useEndpoints();
 	const [account, setAccount] = useState<CloudAccountState>({
 		phase: "loading",
 	});
@@ -147,9 +151,19 @@ export function useCloudAuth(): UseCloudAuth {
 	const signOut = useCallback(async () => {
 		selectScope(undefined);
 		cloudStartStore.clear();
-		await store.signOut().catch(() => {});
+		// Unsent text/photos belong to the signed-in person, even if credential
+		// storage cannot finish signing out. Keep saved destination preferences.
+		clearAllSessionDrafts();
+		clearAllPendingHomeSubmissions();
+		// Invalidate credential cache/generation immediately; endpoint storage may be
+		// slow, and must not leave the old account usable while cleanup waits.
+		const credentialSignOut = store.signOut();
+		await Promise.allSettled([
+			credentialSignOut,
+			endpointsStore.retirePendingInitialMessages(),
+		]);
 		setAccount({ phase: "signed-out" });
-	}, [store, selectScope]);
+	}, [store, selectScope, endpointsStore]);
 
 	return { account, signOut, store };
 }

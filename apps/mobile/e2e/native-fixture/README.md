@@ -27,7 +27,7 @@ Commands below run from `apps/mobile` unless stated otherwise.
 2. Generate a tiny valid H.264 video locally:
    `xcrun swift e2e/native-fixture/generate-video.swift /absolute/scratch/state/fixture-video.mp4`.
 3. Optional transport check: `bun e2e/native-fixture/self-test.ts`. This validates
-   thirteen protocol checks through the real WebSocket proxy/Hub. It is a harness
+   fifteen protocol checks through the real WebSocket proxy/Hub. It is a harness
    check and does not replace native UI testing. Its temporary history row is deleted through the fixture REST API after the
    check. Create a new UI conversation for UI tests. The fixture runtime and REST catalog
    use the same model ID and expose thinking capability plus persisted High/Off
@@ -97,8 +97,8 @@ as emitting the live Hub event, so media can be checked after rehydrate/reopen.
 Text, tool, and question-answer history use the shared host's normal transcript.
 Stopped workspaces expose the same messages through the archive REST contract;
 disposable session deletion removes the fixture row and runtime session. Server
-restart resets session state; completed fixture browser authorization is retained
-in the scratch state directory.
+restart resets session state unless an explicit snapshot/restore is used (below);
+completed fixture browser authorization is retained in the scratch state directory.
 
 The audio and video fixtures are five seconds long; native controls and successful decoding can be exercised, but audible output cannot be
 proven by screenshots. Camera hardware capture, real microphone quality, remote
@@ -131,7 +131,157 @@ adb -s emulator-5554 shell am start -n bot.cline.app.e2e/bot.cline.app.MainActiv
 same loopback server as iOS. Sign in normally and create an independent fixture
 workspace. Both variants use the same test identity/account; history therefore
 shows the fixture workspaces created on either device. The original package and
-its account data are separate and remain installed. Do not run two `hold-fixture`
-turns concurrently: the shared scripted-runtime gate is named `native-queue`.
-After testing Stop during a held fixture turn, release that gate through the
-control tool to drain the scripted turn before sending the next message.
+its account data are separate and remain installed. Held turns use per-session gates; release with the exact
+`FIXTURE_WORKSPACE_ID` when testing two workspaces concurrently. After testing
+Stop during a held turn, release that task gate through the control tool to drain
+the scripted turn before sending the next message.
+
+## Scoped fault and content controls
+
+The opt-in proxy can now expose additional user-facing recovery states without
+changing shipping UI or real services. Set `FIXTURE_CONFIG_PATH` to its private
+scratch config as above. Set `FIXTURE_WORKSPACE_ID=fixture-workspace-00000042` for
+one task's faults. Omit it only when intentionally testing global setup/create/list
+behavior. Scope by the **outer** workspace ID, never the inner task ID. `state`
+prints fixture IDs/titles and enabled faults; it does not print credentials.
+
+```sh
+FIXTURE_CONFIG_PATH=/absolute/scratch/state/config.json bun e2e/native-fixture/control.ts state
+FIXTURE_CONFIG_PATH=/absolute/scratch/state/config.json FIXTURE_WORKSPACE_ID=fixture-workspace-00000042 bun e2e/native-fixture/control.ts set approval-error 1
+FIXTURE_CONFIG_PATH=/absolute/scratch/state/config.json FIXTURE_WORKSPACE_ID=fixture-workspace-00000042 bun e2e/native-fixture/control.ts clear
+```
+
+`set FAULT VALUE` enables a fault (`1`), disables it (`0`), or sets a delay in
+milliseconds. Values are bounded to 0–60000. `clear` clears only the selected
+scope, and `state` shows all scopes. Per-task zero overrides a global fault.
+Global setup faults affect both simulators: coordinate them before changing.
+
+| Control | User-facing state and recovery |
+| --- | --- |
+| `create-delay-ms` | Delay before create acceptance; exercise double tap/Back/draft retention |
+| `create-pending-ms` | Accept once, report provisioning until elapsed, then running on normal status poll |
+| `create-error` | Return 503 before acceptance; no workspace created |
+| `create-ambiguous` | Create exactly once, then return 503 without a usable acknowledgement; Check sessions must recover that existing row |
+| `list-error`, `list-empty` | Session list 503 or successful empty list; clear and refresh |
+| `repositories-error`, `repositories-empty`, `repositories-delay-ms` | Repository 403/reconnect, empty results or loading; clear and Retry/refresh |
+| `branches-error`, `branches-empty`, `branches-delay-ms` | Branch loading/retry/empty; available safe branches are main and fixture-safe-branch |
+| `models-error` | Model REST catalog 503; clear then Retry |
+| `history-error`, `details-error`, `status-error` | Selected task archive/detail/status request 503; clear and Retry |
+| `rename-error`, `delete-error`, `suspend-error`, `resume-error` | Selected task action rejected before mutation; cancel/clear/retry then confirm exact task |
+| `hydrate-error`, `abort-error`, `send-error` | Selected task protocol read/Abort/send rejected before dispatch; retained transcript/draft/Retry |
+| `approval-error`, `question-error` | Reject real response command; prompt remains pending for clear+Retry |
+| `reasoning-error`, `catalog-error` | Model/effort update or Hub model catalog rejected; clear then retry |
+| `queue-error` | Reject pending-prompt edit/remove/steer commands; clear then retry |
+| `drop-replies` | Keep WebSocket open but discard replies/events for selected task; clear then reconnect/resync |
+
+A held turn now uses one gate per inner session, so two independent workspaces
+can run `hold-fixture` concurrently. Scope `release` with `FIXTURE_WORKSPACE_ID`
+to release exactly one. Unscoped release releases all fixture rows. After Abort,
+release that task's gate before reusing it.
+
+Send `rich-fixture` for deterministic headings, lists, quote, table, code, long
+synthetic tool output and failed tool cards. It includes safe `https://example.com`
+and a blocked JavaScript-scheme Markdown link; the latter must not launch a
+browser. Send `invalid-media` for structurally valid image/audio/video blocks
+containing intentionally undecodable bytes. Exercise error/close/retry without
+assuming successful playback. The normal Sonnet fixture model supports thinking;
+`Fixture Fast (no thinking)` is the alternate unsupported model.
+
+Run `FIXTURE_CONFIG_PATH=... bun e2e/native-fixture/fault-self-test.ts` only when
+setup/list faults will not interfere with another tester. It creates and deletes
+its own disposable fixture rows; it validates proxy contracts rather than native
+UI. The ordinary `self-test.ts` includes rich/invalid content and now performs
+fifteen checks.
+
+Before a coordinated server upgrade, wait for both testers to finish active
+turns, run `FIXTURE_CONFIG_PATH=... bun e2e/native-fixture/snapshot.ts`, and start
+the new server with `FIXTURE_RESTORE_PATH=/absolute/scratch/state/restore.json`.
+This preserves outer IDs and completed visible/internal/media history. It does
+not restore pending approvals, queued work, active tool/gate state, creator-bound
+question capabilities or model/effort session overrides. Use a fresh workspace
+for those flows after restarting. Authorization remains in the scratch directory.
+No restart is needed to change any control on the upgraded server.
+
+### Queue fidelity and sign-in recovery
+
+The upgraded fixture reuses the production `PendingPromptsController` from
+`runtime/turn-queue/pending-prompt-service.ts` rather than inventing Hub queue
+frames. Busy sessions admit follow-ups into that controller; unchanged Hub
+handlers/projectors expose list/edit/remove/steer and submitted events. A released
+held turn drains edited prompts exactly once. Abort settles that task's held gate;
+queued prompts follow production controller draining rules. The scripted runtime
+acts as the agent boundary: a steer is consumed during the held turn, appears as
+one canonical user message and emits `STEER_FIXTURE_RECEIVED`. This establishes
+client/protocol queue behavior, not real-model adherence to steering instructions.
+
+For sign-in tests, coordinate these **global** faults while the fixture app is
+signed out. They change only ordinary WorkOS-shaped device-flow responses:
+
+- `auth-pending`: keep polling as authorization_pending even after browser return;
+  clear to let the same pending sign-in finish normally.
+- `auth-expired`: return expired_token; assert expired-code error, clear, Retry.
+- `auth-error`: return503/server_error during token polling; assert error, clear,
+  Retry.
+- `auth-authorize-error`: reject initial device authorization with503; clear and
+  Retry. Normal browser/device-flow steps remain necessary.
+
+Submitted `userImages`/`userFiles` are retained by the test runtime using the
+production persisted text/image/file block schema, including MIME-aware decoding
+of data URLs. The ordinary ScriptedRuntimeHost does not persist those inputs on
+its own. Reopen/cold hydrate therefore tests the shipping client against real
+canonical attachment blocks. When recovering an older fixture photo that was
+already absent from history, `FIXTURE_ATTACHMENT_EVENTS_PATH=/absolute/previous/events.json`
+lets the read-only snapshot tool recover that exact submitted input; it never
+creates an image that was not submitted.
+
+After a server restart, **cold relaunch fixture apps or create a fresh
+workspace/controller** before live assertions. The in-memory Hub's event counters
+restart, while a still-open app connection can retain an older cursor. Snapshot
+restore preserves transcript/outer IDs, not the old event-log cursor namespace.
+
+### REST Gateway contract audit
+
+`FIXTURE_CONFIG_PATH=... bun e2e/native-fixture/gateway-self-test.ts` drives the
+shipping `CloudSessionGateway` through fixture HTTP for create/list/get/status,
+Personal/organization isolation, suspend/resume, rename, history and deletion.
+Lifecycle POSTs return the full selected SessionDTO (including `id`) and suspend
+confirms `status: suspended`; GET status retains `{sessionId, status}`. Personal
+lists exclude organization rows, and an organization query returns only that exact
+scope. `src/cloud/rest/native-fixture-contract.test.ts` additionally runs shipping
+parsers against the same response builders used by the server, so successful HTTP
+status alone cannot conceal an invalid client-facing DTO.
+
+### Operational fallback for a blocked runtime ancestor
+
+If Bun stalls before JavaScript starts while enumerating an ancestor directory,
+keep the existing service running until a replacement has passed its checks.
+This is separate from an app or fixture failure. Do not change filesystem modes,
+macOS privacy controls or shipping configuration to work around it.
+
+An owned temporary runtime copy can contain the exact existing package manifest,
+`sdk/packages`, `sdk/tsconfig.json`, root `node_modules`, and these mobile paths:
+`package.json`, `tsconfig.json`, `node_modules`, `src`, `e2e`, `scripts`, `assets`.
+Use APFS copy-on-write clones when available, preserve relative workspace links,
+and exclude Git metadata, environment files and native build directories. A
+symlink back to the blocked source ancestor does not isolate module resolution.
+Do not install or update dependencies. Compare source hashes with the copy, then
+run the server on a separate loopback port and execute all three checks from the
+copy: `self-test.ts`, `fault-self-test.ts`, and `gateway-self-test.ts`.
+
+After both native testers reach a safe checkpoint, snapshot every fixture scope
+with `snapshot.ts`, preserve observed events, and launch that same validated copy
+with the original `FIXTURE_STATE_DIR` and its `FIXTURE_RESTORE_PATH`. The normal
+private config/event paths can remain unchanged. Cold relaunch fixture apps after
+replacement to reset the old in-memory Hub event cursor. Keep the runtime copy
+until the service is stopped; it is disposable test infrastructure.
+
+For fixture bundling when only Bun's command runner is affected, the existing
+Expo CLI can run through an explicit available Node binary:
+`"$NODE_BINARY" node_modules/expo/bin/cli export:embed ...`. Preserve the exact
+arguments and opt-in fixture environment assignments from `build-ios.sh` (or the
+Android fixture build), including its Metro override. This is an invocation
+fallback and must not alter the shipping Metro config, endpoints or bundle ID.
+
+The legacy unscoped `control.ts history-error 1` affects session-list reads. For
+an archived transcript error, use `set history-error 1` with the exact
+`FIXTURE_WORKSPACE_ID`; clear that same scope before retrying.

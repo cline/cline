@@ -509,10 +509,21 @@ vi.mock("expo-file-system", () => ({
 	Paths: { cache: "file:///cache" },
 	Directory: class {
 		uri: string;
-		constructor(...parts: string[]) {
-			this.uri = parts.join("/");
+		exists = false;
+		constructor(...parts: Array<string | { uri: string }>) {
+			this.uri = parts
+				.map((part) => (typeof part === "string" ? part : part.uri))
+				.join("/");
 		}
-		create() {}
+		get name() {
+			return this.uri.split("/").at(-1) ?? "";
+		}
+		create() {
+			this.exists = true;
+		}
+		delete() {
+			this.exists = false;
+		}
 		list() {
 			return [];
 		}

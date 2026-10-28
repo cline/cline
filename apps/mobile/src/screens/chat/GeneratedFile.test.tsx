@@ -28,7 +28,7 @@ describe("generated file sharing", () => {
 		expect(write).toHaveBeenCalledWith("YSxiCg==", { encoding: "base64" });
 		expect(Sharing.shareAsync).toHaveBeenCalledWith(
 			expect.stringMatching(
-				/^file:\/\/\/cache\/shared-generated-files\/[^/]+-report\.csv$/,
+				/^file:\/\/\/cache\/shared-generated-files\/[^/]+\/report\.csv$/,
 			),
 			expect.objectContaining({ mimeType: "text/csv" }),
 		);
@@ -47,7 +47,7 @@ describe("generated file sharing", () => {
 		expect(Sharing.shareAsync).not.toHaveBeenCalled();
 	});
 	it("cleans up after a failed native share and exposes a retryable action", async () => {
-		const remove = vi.spyOn(File.prototype, "delete");
+		const remove = vi.spyOn(Directory.prototype, "delete");
 		vi.mocked(Sharing.shareAsync).mockRejectedValueOnce(
 			new Error("Share failed. Try again."),
 		);
@@ -111,6 +111,27 @@ describe("generated file sharing", () => {
 		expect(removeExpired).toHaveBeenCalledOnce();
 		expect(removeRecent).not.toHaveBeenCalled();
 		Object.defineProperty(recent, "size", { value: 64 * 1024 * 1024 });
+		await expect(shareGeneratedFile(media)).rejects.toThrow("cache is full");
+	});
+	it("bounds and expires files in unique share directories as well as legacy cache files", async () => {
+		const expired = new Directory(
+			"file:///cache",
+			`${Date.now() - 25 * 60 * 60 * 1000}-old`,
+		);
+		const recent = new Directory("file:///cache", `${Date.now()}-recent`);
+		const recipient = new File(recent, "report.csv");
+		const removeExpired = vi.spyOn(expired, "delete");
+		const removeRecent = vi.spyOn(recent, "delete");
+		vi.spyOn(Directory.prototype, "list").mockImplementation(function (
+			this: Directory,
+		) {
+			if (this === recent) return [recipient];
+			return [expired, recent];
+		});
+		await shareGeneratedFile(media);
+		expect(removeExpired).toHaveBeenCalledOnce();
+		expect(removeRecent).not.toHaveBeenCalled();
+		Object.defineProperty(recipient, "size", { value: 64 * 1024 * 1024 });
 		await expect(shareGeneratedFile(media)).rejects.toThrow("cache is full");
 	});
 	it("reports unavailable sharing without writing a file", async () => {

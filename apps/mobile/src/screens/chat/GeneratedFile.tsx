@@ -33,19 +33,25 @@ export async function shareGeneratedFile(media: GeneratedMedia): Promise<void> {
 	cache.create({ idempotent: true, intermediates: true });
 	let bytes = 0;
 	for (const entry of cache.list()) {
-		if (!(entry instanceof File)) continue;
 		const timestamp = Number(entry.name.split("-")[0]);
 		if (timestamp > 0 && Date.now() - timestamp > 24 * 60 * 60 * 1000)
 			entry.delete();
-		else bytes += entry.size;
+		else if (entry instanceof File) bytes += entry.size;
+		else
+			for (const file of entry.list())
+				if (file instanceof File) bytes += file.size;
 	}
 	if (bytes + validated.decodedBytes > 64 * 1024 * 1024)
 		throw new Error("The file sharing cache is full. Try again later.");
-	const file = new File(
+	// Keep uniqueness in the directory so the system chooser and saved document
+	// retain the human-readable filename instead of exposing a cache prefix.
+	const share = new Directory(
 		cache,
-		`${Date.now()}-${Math.random().toString(36).slice(2)}-${name}`,
+		`${Date.now()}-${Math.random().toString(36).slice(2)}`,
 	);
+	const file = new File(share, name);
 	try {
+		share.create();
 		file.create();
 		file.write(validated.base64, { encoding: "base64" });
 		await Sharing.shareAsync(file.uri, {
@@ -56,7 +62,7 @@ export async function shareGeneratedFile(media: GeneratedMedia): Promise<void> {
 		});
 	} catch (error) {
 		try {
-			if (file.exists) file.delete();
+			if (share.exists) share.delete();
 		} catch {
 			/* OS cache cleanup. */
 		}
