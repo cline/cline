@@ -1,4 +1,4 @@
-import type { CreateCloudSessionInput } from "./api";
+import type { HandoffGitPublication } from "../services/cloud-handoff/git-preparation";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
@@ -22,13 +22,28 @@ export const CLOUD_HUB_OPERATIONS = [
 	"respondApproval",
 	"restoreCreationOptions",
 	"refreshOrganization",
+	"prepareHandoffRepository",
 ] as const;
 export type CloudHubScope = { serviceId: string; scopeGeneration: number };
 
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
+type CloudCreateInput = Omit<
+	Parameters<CloudSessionController["create"]>[0],
+	"handoff"
+>;
+export type CloudHubCreateInput = CloudCreateInput &
+	(
+		| { localGit?: never }
+		| {
+				localGit: HandoffGitPublication;
+				organizationId: string | null;
+				requestId: string;
+				initialMessage: { text: string; images?: string[] };
+		  }
+	);
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
-	? [input: Omit<CreateCloudSessionInput, "handoff">]
+	? [input: CloudHubCreateInput]
 	: K extends "send"
 		? [
 				sessionId: string,
