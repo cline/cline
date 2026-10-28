@@ -30,7 +30,7 @@ export function CloudHandoffGitConfirmation({
 				if (!open) onDecision(false);
 			}}
 		>
-			<AlertDialogContent>
+			<AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
 				<AlertDialogHeader>
 					<AlertDialogTitle>Continue in cloud?</AlertDialogTitle>
 					<AlertDialogDescription>
@@ -113,18 +113,57 @@ export function CloudHandoffStatus({
 	state,
 	onOpenCloud,
 	onRestoreDraft,
+	onConnectGitHub,
 	onDismiss,
 }: {
 	state: CloudHandoffUiEntry;
 	onOpenCloud: () => void;
 	onRestoreDraft: (destination: "local" | "cloud") => void;
+	onConnectGitHub: (url: string) => void;
 	onDismiss: () => void;
 }) {
 	const pending = state.preparing || state.status === "progress";
 	const canRestoreDraft =
 		state.status === "failed" ||
 		(state.status === "complete" && Boolean(state.unsentDraft));
+	const hasRecoveryDraft = Boolean(
+		(state.status === "failed" &&
+			(state.retryDraft.trim() || state.retryAttachments.length)) ||
+			(state.status === "complete" &&
+				(state.unsentDraft?.text.trim() ||
+					state.unsentDraft?.attachments.length)) ||
+			state.preparationFailure?.draft.text.trim() ||
+			state.preparationFailure?.draft.attachments.length,
+	);
 	const dashboardUrl = "dashboardUrl" in state ? state.dashboardUrl : undefined;
+	const connectUrl =
+		state.status === "failed"
+			? state.connectUrl
+			: state.preparationFailure?.connectUrl;
+	const connectAction = connectUrl ? (
+		<Button
+			className="h-7 shrink-0 px-2 text-xs"
+			onClick={() => onConnectGitHub(connectUrl)}
+			size="sm"
+			variant="outline"
+		>
+			Connect GitHub
+		</Button>
+	) : null;
+	const restoreAction = canRestoreDraft ? (
+		<Button
+			className="ml-auto h-7 shrink-0 px-2 text-xs"
+			onClick={() =>
+				onRestoreDraft(state.status === "complete" ? "cloud" : "local")
+			}
+			size="sm"
+			variant="outline"
+		>
+			{state.status === "complete"
+				? "Open cloud task with draft"
+				: "Restore /cloud draft"}
+		</Button>
+	) : null;
 	const label = state.preparing
 		? HANDOFF_PROGRESS_LABELS.checking
 		: state.status === "progress"
@@ -133,7 +172,7 @@ export function CloudHandoffStatus({
 				? state.message
 					? "Check the cloud task"
 					: "Cloud task ready"
-				: "Cloud handoff needs attention";
+				: state.message.trim() || "Cloud handoff stopped";
 	return (
 		<output
 			aria-live="polite"
@@ -162,7 +201,13 @@ export function CloudHandoffStatus({
 						<ExternalLink aria-hidden="true" className="size-3.5" />
 					</Button>
 				)}
-				{!pending && (
+				{!pending && state.status === "failed" && (
+					<>
+						{restoreAction}
+						{connectAction}
+					</>
+				)}
+				{!pending && !hasRecoveryDraft && (
 					<Button
 						aria-label="Dismiss cloud handoff status"
 						className="size-7 shrink-0"
@@ -174,29 +219,18 @@ export function CloudHandoffStatus({
 					</Button>
 				)}
 			</div>
-			{!pending && (state.message || canRestoreDraft) && (
-				<div className="flex flex-wrap items-center gap-2 pb-3">
-					{state.message && (
-						<p className="min-w-0 flex-1 basis-48 break-words text-xs text-muted-foreground">
-							{state.message}
-						</p>
-					)}
-					{canRestoreDraft && (
-						<Button
-							className="ml-auto h-7 shrink-0 px-2 text-xs"
-							onClick={() =>
-								onRestoreDraft(state.status === "complete" ? "cloud" : "local")
-							}
-							size="sm"
-							variant="outline"
-						>
-							{state.status === "complete"
-								? "Open cloud task with draft"
-								: "Restore /cloud draft"}
-						</Button>
-					)}
-				</div>
-			)}
+			{!pending &&
+				state.status === "complete" &&
+				(state.message || canRestoreDraft) && (
+					<div className="flex flex-wrap items-center gap-2 pb-3">
+						{state.message && (
+							<p className="min-w-0 flex-1 basis-48 break-words text-xs text-muted-foreground">
+								{state.message}
+							</p>
+						)}
+						{restoreAction}
+					</div>
+				)}
 			{!pending && state.status !== "failed" && state.preparationFailure && (
 				<div className="flex flex-wrap items-center gap-2 pb-3">
 					<p className="min-w-0 flex-1 basis-48 break-words text-xs text-muted-foreground">
@@ -210,6 +244,7 @@ export function CloudHandoffStatus({
 					>
 						Restore /cloud draft
 					</Button>
+					{connectAction}
 				</div>
 			)}
 		</output>

@@ -12,7 +12,7 @@ export type { HandoffResult } from "../../sidecar/cloud-handoff";
 export type HandoffProgressPhase = "checking" | "provisioning" | "complete";
 
 export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
-	checking: "Checking the local session...",
+	checking: "Preparing cloud handoff…",
 	provisioning: "Preparing the cloud workspace...",
 	complete: "Cloud handoff complete.",
 };

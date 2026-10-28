@@ -78,7 +78,7 @@ export function humanizeCloudHandoffError(value: string): string {
 		normalized === "network request failed" ||
 		normalized === "load failed"
 	) {
-		return "Couldn’t reach Cline Cloud. Your local conversation is still available.";
+		return "A network request failed during cloud handoff. Your local conversation is still available.";
 	}
 	return message;
 }

@@ -11,7 +11,7 @@ const result = {
 	sessionId: "cloud",
 	dashboardUrl: "https://app.cline.bot/agents/cloud",
 };
-function harness() {
+function harness(isSourceVisible: (source: string) => boolean = () => false) {
 	let state: CloudHandoffUiState = {};
 	const dispatch = vi.fn((action: CloudHandoffUiAction) => {
 		state = cloudHandoffUiReducer(state, action);
@@ -22,6 +22,7 @@ function harness() {
 		dispatch,
 		toast,
 		dismissConfirmation,
+		isSourceVisible,
 	});
 	const start = (attachments: File[] = []) => {
 		const id = lifecycle.onRpcStarted("local", attachments);
@@ -38,6 +39,67 @@ function harness() {
 }
 
 describe("summary handoff lifecycle", () => {
+	it.each([
+		true,
+		false,
+	])("keeps the GitHub action in recovery and only toasts in the background (visible=%s)", async (visible) => {
+		const h = harness((source) => visible && source === "local");
+		const connectUrl = "https://app.cline.bot/settings/github";
+		const attachments = [new File(["image"], "image.png")];
+		const failure = {
+			error: new Error(
+				`CLOUD_SESSION_ERROR:${JSON.stringify({ code: "github_not_connected", message: "Connect GitHub to continue.", connectUrl })}`,
+			),
+			nextCommand: "Continue",
+			sourceAttachments: attachments,
+		};
+		h.lifecycle.onPreparationStarted("local");
+		h.lifecycle.onPreparationRejected("local", failure);
+		expect(h.state().local).toMatchObject({
+			status: "failed",
+			connectUrl,
+			retryDraft: "Continue",
+			retryAttachments: attachments,
+			preparationFailure: { connectUrl },
+		});
+		expect(h.toast.mock.calls).toEqual(
+			visible
+				? []
+				: [
+						[
+							{
+								title: "Cloud preparation failed",
+								description: "Connect GitHub to continue.",
+								variant: "destructive",
+								connectUrl,
+							},
+						],
+					],
+		);
+		h.toast.mockClear();
+		const handoffAttemptId = h.start(attachments);
+		await h.lifecycle.onRpcRejected("local", { ...failure, handoffAttemptId });
+		expect(h.state().local).toMatchObject({
+			status: "failed",
+			connectUrl,
+			retryDraft: "Continue",
+			retryAttachments: attachments,
+		});
+		expect(h.toast.mock.calls).toEqual(
+			visible
+				? []
+				: [
+						[
+							{
+								title: "Cloud request needs attention",
+								description: "Connect GitHub to continue.",
+								variant: "destructive",
+								connectUrl,
+							},
+						],
+					],
+		);
+	});
 	it.each([
 		"provisioning",
 		"complete",

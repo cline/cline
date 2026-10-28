@@ -17,6 +17,7 @@ type HandoffLifecycleEffects = {
 	dispatch: (action: CloudHandoffUiAction) => void;
 	toast: (toast: HandoffLifecycleToast) => void;
 	dismissConfirmation: () => void;
+	isSourceVisible: (sourceSessionId: string) => boolean;
 };
 
 export type HandoffProgressEventPayload = {
@@ -54,6 +55,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		attachments: File[];
 	};
 	const sources = new Map<string, { attempt?: Attempt; preparing: boolean }>();
+	const notify = (source: string, toast: HandoffLifecycleToast) => {
+		if (!effects.isSourceVisible(source)) effects.toast(toast);
+	};
 	let account = new AbortController();
 	const current = (source: string, id?: string) => {
 		const attempt = sources.get(source)?.attempt;
@@ -81,7 +85,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		const warning =
 			typeof result.warning === "string" ? result.warning.trim() : "";
 		if (warning)
-			effects.toast({
+			notify(source, {
 				title: "Handoff completed with a warning",
 				description: warning,
 				...(result.warningKind === "unconfirmed"
@@ -146,11 +150,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				type: "preparation_failed",
 				sourceSessionId,
 				message,
+				connectUrl,
 				retryDraft: ctx.nextCommand,
 				retryAttachments: ctx.sourceAttachments,
 			});
 			if (!ctx.silent)
-				effects.toast({
+				notify(sourceSessionId, {
 					title: "Cloud preparation failed",
 					description: message,
 					variant: "destructive",
@@ -216,7 +221,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					message:
 						"Delivery could not be confirmed. Check the cloud task before sending again.",
 				});
-				effects.toast({
+				notify(sourceSessionId, {
 					title: "Check the cloud task",
 					description: `Delivery could not be confirmed. Open ${attempt.target.dashboardUrl} before sending again.`,
 				});
@@ -227,10 +232,11 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				type: "failed",
 				sourceSessionId,
 				message,
+				connectUrl,
 				retryDraft: ctx.nextCommand,
 				retryAttachments: ctx.sourceAttachments,
 			});
-			effects.toast({
+			notify(sourceSessionId, {
 				title: "Cloud request needs attention",
 				description: message,
 				variant: "destructive",

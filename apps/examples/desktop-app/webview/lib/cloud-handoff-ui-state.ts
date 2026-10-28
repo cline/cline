@@ -20,13 +20,18 @@ type HandoffStatus =
 	| {
 			status: "failed";
 			message: string;
+			connectUrl?: string;
 			retryDraft: string;
 			retryAttachments: File[];
 	  };
 
 export type CloudHandoffUiEntry = HandoffStatus & {
 	preparing?: true;
-	preparationFailure?: { message: string; draft: HandoffDraft };
+	preparationFailure?: {
+		message: string;
+		connectUrl?: string;
+		draft: HandoffDraft;
+	};
 };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
@@ -63,6 +68,7 @@ export type CloudHandoffUiAction =
 			retryDraft: string;
 			retryAttachments: File[];
 			message: string;
+			connectUrl?: string;
 	  };
 
 export function cloudHandoffUiReducer(
@@ -114,6 +120,7 @@ export function cloudHandoffUiReducer(
 				action.type === "preparation_failed"
 					? {
 							message: action.message,
+							connectUrl: action.connectUrl,
 							draft: {
 								text: action.retryDraft,
 								attachments: action.retryAttachments,
@@ -130,6 +137,7 @@ export function cloudHandoffUiReducer(
 						: {
 								status: "failed",
 								message: action.message,
+								connectUrl: action.connectUrl,
 								retryDraft: action.retryDraft,
 								retryAttachments: action.retryAttachments,
 							}),

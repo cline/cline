@@ -69,7 +69,7 @@ describe("parseCloudSessionError", () => {
 			"Load failed",
 		]) {
 			expect(humanizeCloudHandoffError(message)).toBe(
-				"Couldn’t reach Cline Cloud. Your local conversation is still available.",
+				"A network request failed during cloud handoff. Your local conversation is still available.",
 			);
 		}
 		expect(humanizeCloudHandoffError("Cloud session expired")).toBe(

@@ -64,12 +64,13 @@ describe("CloudHandoffStatus", () => {
 			<CloudHandoffStatus
 				state={state.local}
 				onOpenCloud={vi.fn()}
+				onConnectGitHub={vi.fn()}
 				onRestoreDraft={vi.fn()}
 				onDismiss={vi.fn()}
 			/>
 		);
 		const view = render(status());
-		expect(view.textContent).toContain("Checking the local session");
+		expect(view.textContent).toContain("Preparing cloud handoff");
 		expect(view.querySelector(".animate-spin")).not.toBeNull();
 		expect(view.textContent).not.toContain("Restore /cloud draft");
 		expect(view.textContent).not.toContain("with draft");
@@ -136,6 +137,7 @@ describe("CloudHandoffStatus", () => {
 			<CloudHandoffStatus
 				state={state.local}
 				onOpenCloud={open}
+				onConnectGitHub={vi.fn()}
 				onRestoreDraft={(destination) =>
 					destination === "cloud" ? restore() : restorePreparation()
 				}
@@ -143,6 +145,9 @@ describe("CloudHandoffStatus", () => {
 			/>
 		);
 		const view = render(status());
+		expect(
+			view.querySelector('[aria-label="Dismiss cloud handoff status"]'),
+		).toBeNull();
 		act(() =>
 			Array.from(view.querySelectorAll("button"))
 				.find((button) => button.textContent === "Restore /cloud draft")
@@ -164,6 +169,9 @@ describe("CloudHandoffStatus", () => {
 		expect(open).not.toHaveBeenCalled();
 		expect(view.textContent).not.toContain("with draft");
 		expect(view.textContent).toContain("Open cloud task");
+		expect(
+			view.querySelector('[aria-label="Dismiss cloud handoff status"]'),
+		).not.toBeNull();
 	});
 	it.each([
 		"provisioning",
@@ -192,6 +200,7 @@ describe("CloudHandoffStatus", () => {
 							}
 				}
 				onOpenCloud={onOpenCloud}
+				onConnectGitHub={vi.fn()}
 				onDismiss={vi.fn()}
 				onRestoreDraft={vi.fn()}
 			/>,
@@ -218,11 +227,13 @@ describe("CloudHandoffStatus", () => {
 		const failure = {
 			type: "failed",
 			sourceSessionId: "local",
-			message: "Summary failed",
+			message: "Connect GitHub to continue.",
+			connectUrl: "https://app.cline.bot/settings/github",
 			retryDraft: "continue",
 			retryAttachments: [],
 		} as const;
 		let state = cloudHandoffUiReducer({}, { ...failure, retryAttachments: [] });
+		const connect = vi.fn();
 		const restore = vi.fn(() => {
 			state = cloudHandoffUiReducer(state, {
 				type: "dismiss",
@@ -237,11 +248,21 @@ describe("CloudHandoffStatus", () => {
 					state={state.local}
 					onOpenCloud={vi.fn()}
 					onRestoreDraft={restore}
+					onConnectGitHub={connect}
 					onDismiss={vi.fn()}
 				/>
 			) : null;
 		const view = render(status());
-		expect(view.textContent).toContain("Summary failed");
+		expect(view.textContent).toContain("Connect GitHub to continue.");
+		expect(
+			view.querySelector('[aria-label="Dismiss cloud handoff status"]'),
+		).toBeNull();
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent === "Connect GitHub")
+				?.click(),
+		);
+		expect(connect).toHaveBeenCalledWith(failure.connectUrl);
 		expect(restore).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(view.querySelectorAll("button"))
@@ -259,6 +280,33 @@ describe("CloudHandoffStatus", () => {
 		});
 		act(() => root?.render(status("remount")));
 		expect(view.textContent).toContain("Restore /cloud draft");
+	});
+	it("allows dismissal when a bare /cloud invocation has no text or images to recover", () => {
+		const dismiss = vi.fn();
+		const view = render(
+			<CloudHandoffStatus
+				state={{
+					status: "failed",
+					message: "Cloud preparation cancelled.",
+					retryDraft: "",
+					retryAttachments: [],
+				}}
+				onOpenCloud={vi.fn()}
+				onRestoreDraft={vi.fn()}
+				onConnectGitHub={vi.fn()}
+				onDismiss={dismiss}
+			/>,
+		);
+		expect(view.textContent).toContain("Cloud preparation cancelled.");
+		expect(view.textContent).not.toContain("Cloud handoff stopped");
+		act(() =>
+			view
+				.querySelector<HTMLButtonElement>(
+					'[aria-label="Dismiss cloud handoff status"]',
+				)
+				?.click(),
+		);
+		expect(dismiss).toHaveBeenCalledOnce();
 	});
 });
 

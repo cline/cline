@@ -1123,6 +1123,19 @@ function App() {
 	if (handoffLifecycleRef.current === null) {
 		handoffLifecycleRef.current = createHandoffLifecycle({
 			dispatch: dispatchHandoffUi,
+			isSourceVisible: (sourceSessionId) => {
+				const location = activeLocationRef.current;
+				const thread =
+					threadsRef.current.find(
+						(thread) => thread.id === location.activeThreadId,
+					) ?? threadsRef.current[0];
+				return (
+					location.view === "chat" &&
+					thread?.environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					(thread.sessionId ?? thread.historySession?.sessionId) ===
+						sourceSessionId
+				);
+			},
 			dismissConfirmation: () => finishGitConfirmation(false),
 			toast: ({ connectUrl, ...toastFields }) =>
 				toast({
@@ -3294,6 +3307,7 @@ function ChatThreadPane({
 					state={handoffUi}
 					onOpenCloud={handleOpenHandoffProgressLink}
 					onRestoreDraft={handleRestoreHandoffDraft}
+					onConnectGitHub={openGitHubConnect}
 					onDismiss={() =>
 						onHandoffUiAction({ type: "dismiss", sourceSessionId })
 					}
