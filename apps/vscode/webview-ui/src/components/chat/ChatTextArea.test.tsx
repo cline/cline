@@ -49,8 +49,8 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-vi.mock("../cline-rules/ClineRulesToggleModal", () => ({ default: () => null }))
-vi.mock("./ServersToggleModal", () => ({ default: () => null }))
+vi.mock("../cline-rules/ClineRulesToggleModal", () => ({ default: () => <div data-testid="rules-toggle" /> }))
+vi.mock("./ServersToggleModal", () => ({ default: () => <div data-testid="mcp-toggle" /> }))
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo="
 
@@ -90,19 +90,32 @@ describe("ChatTextArea model label", () => {
 		mocks.cloudState = {}
 	})
 
-	it("shows the local provider and model for a local task", () => {
-		renderTextArea()
+	it("shows the local provider, model, and local-only controls for a local task", () => {
+		const { textarea } = renderTextArea()
 		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("anthropic:text-only-model")
+		expect(screen.getByTestId("context-button")).toBeInTheDocument()
+		expect(screen.getByTestId("mcp-toggle")).toBeInTheDocument()
+		expect(screen.getByTestId("rules-toggle")).toBeInTheDocument()
+		expect(screen.getByText(/Type @ for context/)).toBeInTheDocument()
+		fireEvent.change(textarea, { target: { value: "@", selectionStart: 1 } })
+		expect(screen.getByText("Problems")).toBeInTheDocument()
 	})
 
 	it.each([
 		["a new task targets Cloud", { cloudSessionsEnabled: true, cloudTaskTarget: { target: "cloud" } }],
 		["a cloud task is shown", { currentCloudTask: { sessionId: "ses-1", status: "running" } }],
-	])("shows the cloud model and hides the Plan/Act toggle when %s", (_case, cloudState) => {
+	])("shows the cloud model and hides local-only controls when %s", (_case, cloudState) => {
 		mocks.cloudState = { ...cloudState, cloudModelId: "anthropic/claude-sonnet-4.5" }
-		renderTextArea()
+		const { textarea } = renderTextArea()
 		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("cline:anthropic/claude-sonnet-4.5")
 		expect(screen.queryByTestId("mode-switch")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("context-button")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("mcp-toggle")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("rules-toggle")).not.toBeInTheDocument()
+		expect(screen.getByTestId("files-button")).toBeInTheDocument()
+		expect(screen.queryByText(/Type @ for context/)).not.toBeInTheDocument()
+		fireEvent.change(textarea, { target: { value: "@", selectionStart: 1 } })
+		expect(screen.queryByText("Problems")).not.toBeInTheDocument()
 	})
 })
 

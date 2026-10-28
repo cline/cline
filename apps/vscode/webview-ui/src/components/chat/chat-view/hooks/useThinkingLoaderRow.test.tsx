@@ -178,6 +178,16 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		expect(result.current).toBe(true)
 	})
 
+	it("stays hidden while a cloud sandbox provisions, even before the optimistic send is acknowledged", () => {
+		const provisioning = say(1, "cloud_provisioning", false, JSON.stringify({ phase: "starting" }))
+		const idle: TurnState = { phase: "idle", seq: 1 }
+		const { result, rerender } = renderLoader({ ...inputsFor([provisioning], idle), forceShow: true })
+		expect(result.current).toBe(false)
+
+		rerender({ ...inputsFor([provisioning, say(2, "api_req_started", false)], idle), forceShow: true })
+		expect(result.current).toBe(true)
+	})
+
 	it("does not flash on attempt_completion turns even without the debounce timing", () => {
 		const { result, rerender } = renderLoader(inputsFor([say(1, "completion_result", true)], streaming()))
 		expect(result.current).toBe(false)

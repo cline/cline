@@ -30,7 +30,7 @@ describe("resolvePortableReasoning", () => {
 		[{ effort: "medium" }, "medium"],
 		[{ effort: "high" }, "high"],
 		[{ effort: "xhigh" }, "xhigh"],
-		[{ effort: "max" }, "xhigh"],
+		[{ effort: "max" }, "max"],
 		[{ enabled: true }, "medium"],
 	] as const)("maps %o to %s", (reasoning, expected) => {
 		expect(resolvePortableReasoning(request(reasoning))).toBe(expected);
@@ -178,10 +178,8 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 		[{ effort: "medium" }, "high"],
 		[{ effort: "high" }, "high"],
 		[{ enabled: true }, "high"],
-		// The nearest advertised level is max, which the portable setting
-		// cannot carry, so the requested level is kept instead of lowered.
-		[{ effort: "xhigh" }, "xhigh"],
-		[{ effort: "max" }, "xhigh"],
+		[{ effort: "xhigh" }, "max"],
+		[{ effort: "max" }, "max"],
 	] as const)("snaps %o to %s for a verbatim adapter", (reasoning, expected) => {
 		expect(
 			resolvePortableReasoning(
@@ -198,6 +196,15 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 				wire("cline", throughXhigh),
 			),
 		).toBe("low");
+	});
+
+	it("sends a model without max its top advertised level for max", () => {
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "cline" },
+				wire("cline", throughXhigh),
+			),
+		).toBe("xhigh");
 	});
 
 	it("leaves the level to adapters that map effort per model themselves", () => {
