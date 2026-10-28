@@ -16,6 +16,7 @@ import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
+import { refreshCloudSession } from "@/hooks/chat-session/cloud-session-refresh";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
@@ -2543,37 +2544,35 @@ export function useChatSession(environmentId: string) {
 				const pollStartedAt = Date.now();
 				const statusRevision = authoritativeStatusRevisionRef.current;
 				const isCloudSession = config.executionTarget === "cloud";
-				const readMessages = () =>
-					desktopClient
-						.invoke<ChatMessage[]>("read_session_messages", {
+				const refresh = isCloudSession
+					? await refreshCloudSession({
 							environmentId,
 							sessionId,
 							maxMessages: MAX_MESSAGES,
+							isCurrent: () =>
+								!cancelled &&
+								activeSessionIdRef.current === sessionId &&
+								authoritativeStatusRevisionRef.current === statusRevision,
 						})
-						.catch(() => null);
-				const recordPromise = desktopClient
-					.invoke<{ status?: string } | null>("get_discovered_session", {
-						environmentId,
-						sessionId,
-					})
-					.catch(() => null);
-				// Cloud history reads can resume a suspended sandbox.
-				const [historyMessages, record] = await Promise.all([
-					isCloudSession
-						? recordPromise.then((discovered) => {
-								if (
-									cancelled ||
-									activeSessionIdRef.current !== sessionId ||
-									authoritativeStatusRevisionRef.current !== statusRevision ||
-									discovered?.status?.trim() === "suspended"
-								) {
-									return null;
-								}
-								return readMessages();
-							})
-						: readMessages(),
-					recordPromise,
-				]);
+					: await Promise.all([
+							desktopClient
+								.invoke<{ status?: string } | null>("get_discovered_session", {
+									environmentId,
+									sessionId,
+								})
+								.catch(() => null),
+							desktopClient
+								.invoke<ChatMessage[]>("read_session_messages", {
+									environmentId,
+									sessionId,
+									maxMessages: MAX_MESSAGES,
+								})
+								.catch(() => null),
+						]).then(([record, messages]) => ({
+							kind: "refreshed" as const,
+							messages,
+							record,
+						}));
 				if (
 					cancelled ||
 					authoritativeStatusRevisionRef.current !== statusRevision ||
@@ -2588,11 +2587,13 @@ export function useChatSession(environmentId: string) {
 				) {
 					return;
 				}
-				if (isCloudSession && record?.status?.trim() === "suspended") {
+				if (refresh.kind === "stale") return;
+				if (refresh.kind === "suspended") {
 					authoritativeStatusRevisionRef.current += 1;
 					setStatus("idle");
 					return;
 				}
+				const { messages: historyMessages, record } = refresh;
 				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: historyMessages,
