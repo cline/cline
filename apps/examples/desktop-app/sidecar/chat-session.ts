@@ -1056,21 +1056,31 @@ async function handleStart(
 	const requestedSessionId = String(
 		config.sessionId ?? config.session_id ?? "",
 	).trim();
-	const initialMessages =
+	const callerInitialMessages =
 		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
-			: requestedSessionId
-				? binding.kind === "ssh"
-					? await manager
-							.readMessages(requestedSessionId)
-							.catch((error: unknown) => {
-								// The desktop supplies an ID before a new remote session exists.
-								// Only this startup read may treat missing history as empty.
-								if (isSessionNotFoundError(error)) return undefined;
-								throw error;
-							})
-					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
-				: undefined;
+			: undefined;
+	const initialMessages =
+		callerInitialMessages ??
+		(requestedSessionId
+			? binding.kind === "ssh"
+				? await manager
+						.readMessages(requestedSessionId)
+						.catch((error: unknown) => {
+							// The desktop supplies an ID before a new remote session exists.
+							// Only this startup read may treat missing history as empty.
+							if (isSessionNotFoundError(error)) return undefined;
+							throw error;
+						})
+				: (readPersistedChatMessages(requestedSessionId) ?? undefined)
+			: undefined);
+	// A local transcript read unmodified from the session store can be loaded by
+	// the Hub itself. Sending a long one inline can exceed the Hub's inbound
+	// frame limit, which makes the chat impossible to reopen.
+	const resumeFromStore =
+		binding.kind === "local" &&
+		callerInitialMessages === undefined &&
+		initialMessages !== undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
 	const coreConfig: JsonRecord = {
@@ -1096,6 +1106,7 @@ async function handleStart(
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
+		...(resumeFromStore ? { resumeFromStore } : {}),
 		toolPolicies: resolveToolPolicies(config),
 		sessionMetadata:
 			binding.kind === "ssh"

@@ -1,3 +1,4 @@
+import type { MessageWithMetadata } from "@cline/llms";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
@@ -80,6 +81,121 @@ describe("HubRuntimeHost", () => {
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
+	});
+
+	describe("resuming a saved session by ID", () => {
+		const transcript: MessageWithMetadata[] = [
+			{ role: "user", content: "hello" },
+			{ role: "assistant", content: "hi" },
+		];
+		// Bun closes any inbound websocket frame above this size with code 1006
+		// ("Received too big message"), which made such a chat impossible to
+		// reopen.
+		const HUB_INBOUND_FRAME_LIMIT_BYTES = 16 * 1024 * 1024;
+		const sessionReply = {
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "idle",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		};
+		const frameBytes = (payload: unknown) =>
+			Buffer.byteLength(JSON.stringify(payload));
+
+		async function startSaved(
+			resumeFromStore: boolean,
+			initialMessages: MessageWithMetadata[] = transcript,
+		) {
+			subscribeMock.mockReturnValue(() => {});
+			const { HubRuntimeHost } = await import("./hub-runtime-host");
+			const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+			return host.startSession({
+				config: { ...createConfig(), sessionId: "sess-1" },
+				source: SessionSource.DESKTOP,
+				initialMessages,
+				...(resumeFromStore ? { resumeFromStore } : {}),
+			});
+		}
+
+		const sentCommands = () =>
+			commandMock.mock.calls.map(([command]) => command as string);
+		const payloadOf = (index: number) =>
+			commandMock.mock.calls[index]?.[1] as Record<string, unknown>;
+
+		it("asks the hub to load the history instead of sending it", async () => {
+			commandMock.mockResolvedValue(sessionReply);
+
+			await startSaved(true);
+
+			expect(sentCommands()).toEqual(["session.resume"]);
+			expect(payloadOf(0)).not.toHaveProperty("initialMessages");
+			expect(payloadOf(0).sessionConfig).toMatchObject({ sessionId: "sess-1" });
+		});
+
+		it("keeps the frame far below the hub's limit for a transcript larger than it", async () => {
+			commandMock.mockResolvedValue(sessionReply);
+			const oversized: MessageWithMetadata[] = [
+				{ role: "user", content: "hello" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "text",
+							text: "x".repeat(HUB_INBOUND_FRAME_LIMIT_BYTES + 1),
+						},
+					],
+				},
+			];
+
+			await startSaved(true, oversized);
+
+			expect(frameBytes(payloadOf(0))).toBeLessThan(
+				HUB_INBOUND_FRAME_LIMIT_BYTES / 16,
+			);
+		});
+
+		it("sends the history through session.create when the hub does not know session.resume", async () => {
+			commandMock
+				.mockRejectedValueOnce(
+					Object.assign(new Error("unsupported"), {
+						code: "unsupported_command",
+					}),
+				)
+				.mockResolvedValueOnce(sessionReply);
+
+			await startSaved(true);
+
+			expect(sentCommands()).toEqual(["session.resume", "session.create"]);
+			expect(payloadOf(1).initialMessages).toEqual(transcript);
+		});
+
+		it("does not fall back when the hub rejects the resume for another reason", async () => {
+			commandMock.mockRejectedValue(
+				Object.assign(new Error("The saved session was not found."), {
+					code: "session_not_found",
+				}),
+			);
+
+			await expect(startSaved(true)).rejects.toThrow(
+				"The saved session was not found.",
+			);
+
+			expect(sentCommands()).toEqual(["session.resume"]);
+		});
+
+		it("sends the history through session.create when resuming was not requested", async () => {
+			commandMock.mockResolvedValue(sessionReply);
+
+			await startSaved(false);
+
+			expect(sentCommands()).toEqual(["session.create"]);
+			expect(payloadOf(0).initialMessages).toEqual(transcript);
+		});
 	});
 
 	it("does not auto-start a run during session creation", async () => {
