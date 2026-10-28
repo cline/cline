@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url"
+import path from "node:path"
 import { ensureCompatibleLocalHubUrl, NodeHubClient, setHubDaemonLauncher } from "@cline/core"
 import { HubCloudSessionClient } from "@cline/core/cloud"
 
@@ -23,7 +23,7 @@ export class VscodeCloudHub {
 	private async open(): Promise<NodeHubClient> {
 		setHubDaemonLauncher({
 			command: process.execPath,
-			args: [fileURLToPath(new URL("./cloud-hub-daemon.js", import.meta.url))],
+			args: [path.join(__dirname, "cloud-hub-daemon.js")],
 			env: { ELECTRON_RUN_AS_NODE: "1" },
 		})
 		const url = await ensureCompatibleLocalHubUrl({ strategy: "require-hub", cwd: this.cwd, workspaceRoot: this.cwd })
