@@ -13,6 +13,7 @@ export type KeybindingActionId =
 	| "new-session"
 	| "command-bar"
 	| "open-settings"
+	| "toggle-terminal"
 	| "quit";
 
 export type KeybindingEntry = {
@@ -55,6 +56,12 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
 		supportsHold: false,
 	},
 	{
+		id: "toggle-terminal",
+		label: "Toggle terminal",
+		description: "Show or hide the terminal panel.",
+		supportsHold: false,
+	},
+	{
 		id: "quit",
 		label: "Quit",
 		description:
@@ -81,6 +88,8 @@ export function defaultKeybindings(
 		"new-session": { key: "Mod+N" },
 		"command-bar": { key: "Mod+P" },
 		"open-settings": { key: "Mod+," },
+		// Ctrl on every platform, as in VS Code: Cmd+` switches windows on macOS.
+		"toggle-terminal": { key: "Ctrl+`" },
 		quit: mac ? { key: "Mod+Q", holdMs: DEFAULT_QUIT_HOLD_MS } : { key: "" },
 	};
 }
