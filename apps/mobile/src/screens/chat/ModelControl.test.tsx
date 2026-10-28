@@ -447,3 +447,69 @@ describe("ModelControl", () => {
 		expect(findByLabel(root, "Use model Cline fast")).toBeDefined();
 	});
 });
+
+it("hands off settings once when an opening model sheet closes with only onClose", async () => {
+	let dismiss!: (then: () => void) => void;
+	const next = vi.fn();
+	const { root } = render(
+		<ModelSheet
+			canChange
+			loadModels={async () => models}
+			onChange={async () => {}}
+			settings={(close) => {
+				dismiss = close;
+				return null;
+			}}
+		/>,
+	);
+	const sheet = root
+		.findAll(
+			(node) => typeof node.type === "string" && node.type === "BottomSheet",
+		)
+		.at(-1);
+	act(() => sheet?.props.onAnimate(-1, 0));
+	act(() => dismiss(next));
+	expect(next).not.toHaveBeenCalled();
+	// Gorhom finishes at the original current index (-1), so no onChange fires.
+	act(() => sheet?.props.onClose?.());
+	expect(next).toHaveBeenCalledOnce();
+	await act(async () => sheet?.props.onChange(0));
+	act(() => sheet?.props.onChange(-1));
+	act(() => sheet?.props.onClose?.());
+	expect(next).toHaveBeenCalledOnce();
+});
+
+it("does not repeat a normal settings handoff when onChange is followed by onClose", async () => {
+	let dismiss!: (then: () => void) => void;
+	const next = vi.fn(),
+		fresh = vi.fn();
+	const { root } = render(
+		<ModelSheet
+			canChange
+			loadModels={async () => models}
+			onChange={async () => {}}
+			settings={(close) => {
+				dismiss = close;
+				return null;
+			}}
+		/>,
+	);
+	const sheet = root
+		.findAll(
+			(node) => typeof node.type === "string" && node.type === "BottomSheet",
+		)
+		.at(-1);
+	await openModelSheet(root);
+	act(() => dismiss(next));
+	act(() => sheet?.props.onChange(-1));
+	act(() => sheet?.props.onClose?.());
+	expect(next).toHaveBeenCalledOnce();
+	await openModelSheet(root);
+	act(() => dismiss(fresh));
+	act(() => sheet?.props.onChange(-1));
+	act(() => sheet?.props.onClose?.());
+	expect(fresh).toHaveBeenCalledOnce();
+	expect(next).toHaveBeenCalledOnce();
+	act(() => sheet?.props.onChange(-1));
+	expect(fresh).toHaveBeenCalledOnce();
+});

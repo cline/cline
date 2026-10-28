@@ -140,6 +140,12 @@ export function useCloudWorkspaceControls({
 			action();
 		});
 	};
+	const finishBranchClose = () => {
+		setBranchPickerOpen(false);
+		const action = afterBranchClose.current;
+		afterBranchClose.current = undefined;
+		finishSheetHandoff(action);
+	};
 	const accountGateway = useMemo(
 		() =>
 			new CloudAccountGateway({
@@ -655,12 +661,11 @@ export function useCloudWorkspaceControls({
 					snapPoints={["70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
+					onClose={finishBranchClose}
 					onChange={(index) => {
 						setBranchPickerOpen(index >= 0);
 						if (index !== -1) return;
-						const action = afterBranchClose.current;
-						afterBranchClose.current = undefined;
-						finishSheetHandoff(action);
+						finishBranchClose();
 					}}
 					scrollable
 				>

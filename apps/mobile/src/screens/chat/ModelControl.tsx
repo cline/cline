@@ -8,6 +8,7 @@ import { Check, ChevronRight, ChevronUp, Cpu, Lock } from "lucide-react-native";
 import {
 	type ReactNode,
 	type RefObject,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -229,6 +230,12 @@ export function ModelSheet({
 	const loadGeneration = useRef(0);
 	const sheetOpen = useRef(false);
 	const afterDismiss = useRef<(() => void) | undefined>(undefined);
+	const finishDismiss = useCallback(() => {
+		sheetOpen.current = false;
+		const next = afterDismiss.current;
+		afterDismiss.current = undefined;
+		next?.();
+	}, []);
 	const dismissForSettings = (then: () => void) => {
 		afterDismiss.current = then;
 		sheetRef.current?.close();
@@ -309,14 +316,11 @@ export function ModelSheet({
 			snapPoints={["70%"]}
 			scrollable
 			enablePanDownToClose
+			onClose={finishDismiss}
 			onChange={(index) => {
 				const opening = index >= 0 && !sheetOpen.current;
 				sheetOpen.current = index >= 0;
-				if (index === -1) {
-					const next = afterDismiss.current;
-					afterDismiss.current = undefined;
-					next?.();
-				}
+				if (index === -1) finishDismiss();
 				// Keyboard/dynamic-size changes also emit onChange. Reloading there
 				// unmounts the focused search input and drops the user's keyboard.
 				if (opening) {

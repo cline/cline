@@ -611,3 +611,53 @@ describe("Cloud workspace account scope", () => {
 		expect(mocks.switchAccount).not.toHaveBeenCalled();
 	});
 });
+
+it("retires an interrupted branch picker so a subsequent repository request opens immediately", async () => {
+	const { root, openRepositories, save } = mount(target);
+	await act(async () =>
+		byLabel(root, "Cloud branch: default")?.props.onPress(),
+	);
+	const branch = root.findAll((node) => node.type === "BottomSheet")[2];
+	act(() => branch?.props.onAnimate(-1, 0));
+	act(() => branch?.props.onClose?.()); // No onChange: native current index stayed -1.
+	const loaded = mocks.listRepositories.mock.calls.length;
+	await act(async () =>
+		openRepositories("Repository picker explicitly reopened"),
+	);
+	expect(containsText(root, "Repository picker explicitly reopened")).toBe(
+		true,
+	);
+	expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded + 1);
+	expect(save).not.toHaveBeenCalled();
+});
+
+it("finishes branch recovery once on an interrupted opening's onClose-only completion", async () => {
+	vi.useFakeTimers();
+	mocks.listRepositories.mockResolvedValue([]);
+	const { root, save } = mount(target);
+	await act(async () =>
+		byLabel(root, "Cloud branch: default")?.props.onPress(),
+	);
+	await act(async () => {
+		await vi.runOnlyPendingTimersAsync();
+	});
+	expect(byLabel(root, "Change repository")).toBeDefined();
+	const branch = root.findAll((node) => node.type === "BottomSheet")[2];
+	act(() => branch?.props.onAnimate(-1, 0));
+	const loaded = mocks.listRepositories.mock.calls.length;
+	await act(async () => byLabel(root, "Change repository")?.props.onPress());
+	expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded);
+	act(() => branch?.props.onClose?.());
+	await act(async () => {
+		await vi.runOnlyPendingTimersAsync();
+	});
+	expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded + 1);
+	expect(containsText(root, "Your draft is unchanged")).toBe(true);
+	act(() => branch?.props.onChange(-1));
+	act(() => branch?.props.onClose?.());
+	await act(async () => {
+		await vi.runOnlyPendingTimersAsync();
+	});
+	expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded + 1);
+	expect(save).not.toHaveBeenCalled();
+});

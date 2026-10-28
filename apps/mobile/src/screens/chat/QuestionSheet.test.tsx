@@ -235,3 +235,38 @@ it("auto-opens a newly arrived question after the screen previously had none", (
 	expect(sheet?.props.index).toBe(0);
 	expect(field(result.root, "Custom answer").props.value).toBe("");
 });
+
+it("keeps an interrupted question sheet closed until an explicit banner reopen, retaining the answer", () => {
+	const sheetRef = createRef<Pick<GorhomBottomSheet, "expand" | "close">>();
+	const onAnswer = vi.fn();
+	const props = {
+		sheetRef,
+		questions: [question],
+		onAnswer,
+		draftKey: "cloud:interrupted-question",
+	};
+	const result = render(<QuestionSheet {...props} />);
+	const sheet = () =>
+		result.root
+			.findAll(
+				(node) => typeof node.type === "string" && node.type === "BottomSheet",
+			)
+			.at(-1);
+	act(() =>
+		field(result.root, "Custom answer").props.onChangeText(
+			"Retain private answer",
+		),
+	);
+	act(() => sheet()?.props.onAnimate(-1, 0));
+	act(() => sheet()?.props.onClose?.()); // Initial native animation still had current index -1.
+	expect(sheet()?.props.index).toBe(-1);
+	act(() => result.renderer.update(<QuestionSheet {...props} />));
+	expect(sheet()?.props.index).toBe(-1);
+	expect(onAnswer).not.toHaveBeenCalled();
+	act(() => sheetRef.current?.expand());
+	expect(sheet()?.props.index).toBe(0);
+	expect(field(result.root, "Custom answer").props.value).toBe(
+		"Retain private answer",
+	);
+	expect(onAnswer).not.toHaveBeenCalled();
+});

@@ -82,6 +82,7 @@ function PendingQuestionSheet({
 			ref={nativeRef}
 			index={open ? 0 : -1}
 			onChange={(index) => setOpen(index >= 0)}
+			onClose={() => setOpen(false)}
 			enableDynamicSizing
 			enablePanDownToClose
 			scrollable
