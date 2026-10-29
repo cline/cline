@@ -205,12 +205,6 @@ Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
 features and cannot cross this RPC boundary. Hub-backed creation defaults to
 `"resumable"` sandboxes.
 
-Both the controller and Hub client expose `sendWithOutcome` with the first five
-arguments of `send`. On failure, it returns `dispatched`, `message`, and optional
-`detail`. Offer a retry only for a returned `dispatched: false` result. A rejected
-Hub request, including a lost reply or account change, does not establish that
-the prompt was unsent. The existing `send` method still throws on failure.
-
 Hosts with a separate signed-in account can include `expectedAccountId` in the
 scope passed to `prepareHandoffRepository`, `listModels`, and `create`. The Hub
 rejects a mismatch with its persisted account before running the operation.
