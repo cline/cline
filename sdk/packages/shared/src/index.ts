@@ -1,6 +1,11 @@
 export * from "./agent";
 export * from "./agents";
 export type {
+	ArtifactReference,
+	ArtifactResolver,
+	ArtifactResource,
+} from "./artifacts";
+export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
 	ConnectorEventActor,

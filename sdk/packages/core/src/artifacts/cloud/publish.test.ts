@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { type TestContext, test } from "vitest";
-import { createPublishArtifactsTool } from "../../artifacts/publish";
+import { createPublishArtifactsTool } from "../publish";
 import { createArtifactPublisher } from "./publish";
 
 type Scenario =

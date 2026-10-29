@@ -8,9 +8,9 @@ import {
 	ArtifactDownloadSchema,
 	artifactDownloadPath,
 	type CloudArtifactDownload,
-} from "./artifacts/download-url";
+} from "../artifacts/cloud/download-url";
 
-export type { CloudArtifactDownload } from "./artifacts/download-url";
+export type { CloudArtifactDownload } from "../artifacts/cloud/download-url";
 
 import type {
 	CloudBranchListOptions,
