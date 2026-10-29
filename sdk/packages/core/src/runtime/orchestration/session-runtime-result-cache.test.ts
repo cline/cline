@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createAgentRuntime } from "@cline/agents";
 import type {
 	AgentConfig,
@@ -6,6 +9,7 @@ import type {
 	AgentToolResultPart,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { createPublishArtifactsTool } from "../../artifacts/publish";
 import { createDefaultTools } from "../../extensions/tools/definitions";
 import { createFileReadExecutor } from "../../extensions/tools/executors/file-read";
 import {
@@ -27,6 +31,97 @@ function findResult(
 }
 
 describe("runtime memory result recovery", () => {
+	it("recovers generated publication IDs omitted from a large batch without publishing twice", async (t) => {
+		const root = await mkdtemp(join(tmpdir(), "artifact-recovery-"));
+		t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+		const directory = join(root, ...Array(4).fill("directory".repeat(13)));
+		await mkdir(directory, { recursive: true });
+		const path = join(directory, "report.txt");
+		await writeFile(path, "report");
+		let files: { path: string; artifactId: string }[] = [];
+		let publications = 0;
+		const tool = createPublishArtifactsTool({
+			publish: async (prepared) => {
+				publications++;
+				files = prepared.map(({ path, artifactId }) => ({ path, artifactId }));
+				return files;
+			},
+		});
+		let calls = 0;
+		let omittedId = "";
+		const model: AgentModel = {
+			async stream(request) {
+				const call = calls++;
+				let input: unknown = {
+					files: Array.from({ length: 20 }, () => ({ path })),
+				};
+				if (call === 1) {
+					const preview = JSON.stringify(
+						findResult(request.messages, tool.name)?.output,
+					);
+					omittedId =
+						files.find((file) => !preview.includes(file.artifactId))
+							?.artifactId ?? "";
+					expect(omittedId).not.toBe("");
+					const uri =
+						preview.match(/cline:\/\/cache\/[^ ]+\.result\.txt/)?.[0] ?? "";
+					expect(uri).not.toBe("");
+					const lines =
+						prepareToolResultRecovery({ files }).text?.split("\n") ?? [];
+					const line = lines.findIndex((text) => text.includes(omittedId)) + 1;
+					input = { files: [{ path: uri, start_line: line, end_line: line }] };
+				} else if (call === 2) {
+					expect(
+						JSON.stringify(findResult(request.messages, "read_files")?.output),
+					).toContain(omittedId);
+				}
+				return (async function* () {
+					if (call < 2) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: `publication_${call}`,
+							toolName: call === 0 ? tool.name : "read_files",
+							inputText: JSON.stringify(input),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "recovered" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			{
+				providerId: "anthropic",
+				modelId: "claude-3-5-sonnet",
+				apiKey: "test",
+				sessionId: "publication-recovery",
+				systemPrompt: "test",
+				tools: [
+					tool,
+					...createDefaultTools({
+						executors: { readFile: createFileReadExecutor() },
+					}),
+				],
+			},
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		try {
+			const result = await session.run("publish");
+			expect(result.text).toBe("recovered");
+			expect(calls).toBe(3);
+			expect(publications).toBe(1);
+			const history = JSON.stringify(session.getMessages());
+			for (const file of files) expect(history).toContain(file.artifactId);
+		} finally {
+			await session.shutdown();
+		}
+	});
+
 	it("caches quote-heavy MCP output when persisted JSON exceeds the limit but YAML does not", async () => {
 		const output = {
 			content: [
