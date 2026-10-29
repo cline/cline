@@ -321,11 +321,19 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const rawMaxInputTokens =
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: context.model.info?.maxInputTokens,
-				contextWindow: context.model.info?.contextWindow,
-			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
+			maxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+		});
+		// An unknown model limit is not evidence that the request is full.
+		// Custom models can have any context window; using a guessed limit here
+		// can trigger compaction even on a new session's system prompt/tools.
+		// Manual compaction and provider-confirmed overflow recovery still need
+		// a working budget, so only those modes use the default.
+		if (effectiveMode === "auto" && modelMaxInputTokens === undefined) {
+			return undefined;
+		}
+		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
 		// The char-based estimate under-counts dense content (disassembly, image
 		// dumps, minified sources). When the provider's actual count for the
 		// PREVIOUS request already exceeds our estimate for the (larger) current
@@ -746,6 +754,15 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
+	 * The runtime's provider-request transform (extension message builders +
+	 * `MessageBuilder.buildForApi`), i.e. what produced `context.apiMessages`
+	 * from `context.messages`. Re-compaction swaps in a projected transcript
+	 * and must estimate against its API-safe form, not the raw projection.
+	 */
+	prepareApiMessages: (
+		messages: CoreCompactionContext["messages"],
+	) => Promise<CoreCompactionContext["messages"]>;
+	/**
 	 * Persist a freshly-computed compaction state. `sourceMessages` are the
 	 * exact canonical messages the state's source-prefix hash was computed
 	 * over; hosts must validate projection against these rather than a
@@ -771,7 +788,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: await input.prepareApiMessages(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {

@@ -23,9 +23,22 @@ import { AuthService } from "./auth-service"
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
+	private accountChangeBoundary: ((change: () => Promise<void>) => Promise<void>) | undefined
+	private pendingSwitch: Promise<void> | undefined
 
 	constructor() {
 		this._authService = AuthService.getInstance()
+	}
+
+	/**
+	 * Installs the boundary every account change runs inside. The controller
+	 * uses it to tear down the previous account's cloud task and connections
+	 * before `change` sends the request, and to hold cloud reads until it has
+	 * settled. Owned here so that every path that changes the account (the
+	 * Account view, ClinePass selection, remote-config discovery) runs it.
+	 */
+	onAccountChange(boundary: (change: () => Promise<void>) => Promise<void>): void {
+		this.accountChangeBoundary = boundary
 	}
 
 	/**
@@ -61,6 +74,7 @@ export class ClineAccountService {
 			throw new Error("No Cline account auth token found")
 		}
 		const requestConfig: AxiosRequestConfig = {
+			timeout: 10_000,
 			...config,
 			headers: {
 				Authorization: `Bearer ${clineAccountAuthToken}`,
@@ -256,29 +270,79 @@ export class ClineAccountService {
 	}
 
 	/**
-	 * Switches the active account to the specified organization or personal account.
+	 * Whether the user has a ClinePass subscription, or undefined when that
+	 * could not be checked. ClinePass is the only individual plan. The API
+	 * answers 404 when the user has no current plan and 402 when the plan is
+	 * unpaid; inference on a ClinePass model is refused in both cases.
 	 */
-	async switchAccount(organizationId?: string): Promise<void> {
+	async fetchClinePassSubscribedRPC(): Promise<boolean | undefined> {
 		try {
-			await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				data: {
-					organizationId: organizationId || null,
-				},
-			})
-			const activeOrgId = this._authService.getActiveOrganizationId()
-			if (activeOrgId !== organizationId) {
+			const current = await this.authenticatedRequest<{ plan?: unknown } | null>(
+				"/api/v1/users/me/plan",
+				{},
+				{ allowNullData: true },
+			)
+			return !!current?.plan
+		} catch (error) {
+			if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 402)) {
+				return false
+			}
+			Logger.error("Failed to fetch ClinePass subscription (RPC):", error)
+			return undefined
+		}
+	}
+
+	/**
+	 * Switches the active account to the specified organization, or to the
+	 * personal account when none is given. This is the only path that changes
+	 * the account. Switches are serialised: one requested while another is in
+	 * flight waits for it, then decides against the account as it is then, so
+	 * a caller that read a stale account cannot tear down cloud state it does
+	 * not need to. The account changes when this resolves; when the cached
+	 * account changes, its cloud state is gone before the request is sent.
+	 */
+	switchAccount(organizationId?: string): Promise<void> {
+		const previous = this.pendingSwitch ?? Promise.resolve()
+		const switching = previous.then(
+			() => this.switchAccountNow(organizationId),
+			() => this.switchAccountNow(organizationId),
+		)
+		this.pendingSwitch = switching
+		return switching.finally(() => {
+			if (this.pendingSwitch === switching) this.pendingSwitch = undefined
+		})
+	}
+
+	private async switchAccountNow(organizationId: string | undefined): Promise<void> {
+		// The server's active account is shared by every client on this login, so
+		// another client may have moved it; the request is always sent to restore
+		// it. The cloud state held here was scoped by the cached account, so it
+		// is torn down only when that cached account changes.
+		const changesCachedAccount = (this._authService.getActiveOrganizationId() ?? undefined) !== (organizationId || undefined)
+		const change = async () => {
+			try {
+				await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
+					method: "PUT",
+					// No client deadline: the server can still commit a PUT the client gave
+					// up on, and only its answer triggers the auth refresh below that brings
+					// this window onto the new account. setUserOrganization bounds the UI wait.
+					timeout: 0,
+					headers: {
+						"Content-Type": "application/json",
+					},
+					data: {
+						organizationId: organizationId || null,
+					},
+				})
 				// Force a refresh of the auth info after switching
 				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			} catch (error) {
+				Logger.error("Error switching account:", error)
+				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				throw error
 			}
-		} catch (error) {
-			Logger.error("Error switching account:", error)
-			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
-			throw error
 		}
+		await (changesCachedAccount && this.accountChangeBoundary ? this.accountChangeBoundary(change) : change())
 	}
 
 	private getCurrentUser() {

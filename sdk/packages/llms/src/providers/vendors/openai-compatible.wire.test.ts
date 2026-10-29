@@ -8,9 +8,8 @@
 //   1. a level the model does not advertise is snapped to the nearest level
 //      it does advertise, so endpoints with a short ladder (Kimi K3 accepts
 //      only low, high and max) are not sent values they reject;
-//   2. the gateway never sends less effort than asked just because the
-//      nearest advertised level cannot be expressed through the AI SDK's
-//      portable reasoning setting;
+//   2. `max` reaches the wire, both for models that advertise it and as the
+//      nearest advertised level for `xhigh`;
 //   3. models the catalog does not describe get the requested level as-is;
 //   4. disabling reasoning sends `none`, since default-on reasoning models
 //      otherwise keep thinking, except to models known not to reason and
@@ -123,21 +122,19 @@ describe("OpenAI-compatible reasoning effort wire contract", () => {
 	it.each([
 		"xhigh",
 		"max",
-	] as const)("keeps %s at xhigh rather than lowering it to high", async (effort) => {
-		// The nearest advertised level is max, which the AI SDK's portable
-		// reasoning setting cannot carry yet; sending high instead would
-		// silently cut the effort the user picked.
+	] as const)("sends Kimi K3 max for %s", async (effort) => {
 		const body = await wireBody({
 			modelId: KIMI_K3_ID,
 			reasoning: { effort },
 			reasoningOptions: KIMI_K3_EFFORTS,
 		});
-		expect(body.reasoning_effort).toBe("xhigh");
+		expect(body.reasoning_effort).toBe("max");
 	});
 
 	it.each([
 		"medium",
 		"xhigh",
+		"max",
 	] as const)("sends %s unchanged for a model the catalog does not list", async (effort) => {
 		const body = await wireBody({
 			modelId: "custom/kimi-k3-finetune",

@@ -9,7 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveClineDir, setClineDir } from "@cline/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -116,7 +117,7 @@ function localRuntimeContext(
 					workspaceRoot,
 					sessionManager,
 					hubClient: {
-						command: vi.fn(async () => undefined),
+						command: vi.fn(async () => ({ ok: true, payload: {} })),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
@@ -229,6 +230,11 @@ describe("starting SSH sessions", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: transcript }),
 		);
+		// The hub sends config and top-level initialMessages in one frame, so a
+		// second copy in config doubles it past the hub's 16 MiB limit.
+		expect(
+			(start.mock.calls[0]?.[0] as { config: object }).config,
+		).not.toHaveProperty("initialMessages");
 	});
 });
 
@@ -2233,13 +2239,29 @@ describe("workspace metadata prewarming", () => {
 
 describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
+	let originalClineDir: string;
+	beforeEach(() => {
+		originalClineDir = resolveClineDir();
+		const settingsRoot = mkdtempSync(
+			join(tmpdir(), "desktop-command-settings-"),
+		);
+		tempRoots.push(settingsRoot);
+		setClineDir(settingsRoot);
+	});
 
 	afterEach(() => {
+		setClineDir(originalClineDir);
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
 		tempRoots.length = 0;
 	});
+
+	function goalCatalog(workspacePath: string) {
+		return {
+			catalog: { workspacePath, status: "ready", commands: [{ name: "goal" }] },
+		};
+	}
 
 	function createWorkspaceWithSkill(): string {
 		const workspace = mkdtempSync(join(tmpdir(), "desktop-slash-send-"));
@@ -2328,15 +2350,95 @@ Follow the desktop send workflow instructions.`,
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("still sends a skill command when a workspace plugin fails to load", async () => {
+	it.each([
+		"local",
+		"ssh",
+	] as const)("dispatches plugin commands through the owning %s hub", async (kind) => {
 		const workspace = createWorkspaceWithSkill();
-		const pluginsDir = join(workspace, ".cline", "plugins");
-		mkdirSync(pluginsDir, { recursive: true });
-		writeFileSync(
-			join(pluginsDir, "broken.js"),
-			"export default { name: 'broken', manifest: { capabilities: ['bogus'] }, setup() {} };",
-		);
 		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		binding.kind = kind;
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (liveSession) liveSession.config.apiKey = "test-key";
+		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
+		const command = vi.fn(async (name: string) => ({
+			version: "v1" as const,
+			ok: true,
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: {
+							result: {
+								reply: "Goal set",
+								submitPrompt: "expanded  goal\nnext line",
+							},
+						},
+		}));
+		binding.hubClient.command = command;
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal original",
+		});
+		expect(result).toMatchObject({
+			result: { finishReason: "completed", text: "done" },
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.objectContaining({
+				workspacePath: workspace,
+				sessionId,
+				prompt: "/goal original",
+			}),
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
+		);
+	});
+
+	it("targets the session's workspace root when its cwd is a subdirectory", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, session, sessionId } = createContext(workspace);
+		Object.assign(session.config, {
+			cwd: join(workspace, "packages", "app"),
+			workspaceRoot: workspace,
+		});
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async (name: string) => ({
+			version: "v1" as const,
+			ok: true,
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: { result: { reply: "Goal set" } },
+		}));
+		binding.hubClient.command = command;
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal original",
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.objectContaining({ workspacePath: workspace, sessionId }),
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+	});
+
+	it("still sends a skill command when the plugin catalog cannot be read", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection closed");
+		});
+		binding.hubClient.command = command;
 
 		await handleChatSessionCommand(ctx, {
 			action: "send",
@@ -2344,6 +2446,12 @@ Follow the desktop send workflow instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		expect(command).not.toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+		);
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "/desktop-send-skill write the docs",
@@ -2670,7 +2778,7 @@ describe("mistake-limit prompt", () => {
 			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
 	};
 
-	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
+	it("decides Continue only after recovery guidance is queued", async () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		let finishSteering!: () => void;
 		steer.mockImplementationOnce(
@@ -2684,17 +2792,12 @@ describe("mistake-limit prompt", () => {
 		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
 			decision,
 		);
-		let released = false;
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]).then((results) => {
-			released = true;
-			return results;
+		let decided = false;
+		void decision.then(() => {
+			decided = true;
 		});
 		await Promise.resolve();
-		expect(released).toBe(false);
+		expect(decided).toBe(false);
 		expect(ctx.pendingQuestions.size).toBe(1);
 		resolveSidecarAskQuestion(
 			ctx,
@@ -2703,12 +2806,9 @@ describe("mistake-limit prompt", () => {
 		);
 		await Promise.resolve();
 		expect(steer).toHaveBeenCalledTimes(1);
-		expect(released).toBe(false);
+		expect(decided).toBe(false);
 		finishSteering();
 		await expect(decision).resolves.toMatchObject({ action: "continue" });
-		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
-		expect(released).toBe(true);
-		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
 	});
 
 	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
@@ -2739,15 +2839,10 @@ describe("mistake-limit prompt", () => {
 	it.each([
 		"answer",
 		"abort",
-	] as const)("releases waiting hooks with Stop on %s", async (action) => {
+	] as const)("decides Stop on %s", async (action) => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
 		if (action === "answer") {
 			resolveSidecarAskQuestion(
 				ctx,
@@ -2761,8 +2856,6 @@ describe("mistake-limit prompt", () => {
 			});
 		}
 		await expect(decision).resolves.toMatchObject({ action: "stop" });
-		for (const control of await waiting)
-			expect(control).toMatchObject({ stop: true });
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(steer).not.toHaveBeenCalled();
 	});
@@ -2842,18 +2935,13 @@ describe("mistake-limit prompt", () => {
 	it.each([
 		"rejected",
 		"unavailable",
-	])("stops waiting hooks when steering is %s", async (failure) => {
+	])("decides Stop when steering is %s", async (failure) => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		if (failure === "rejected")
 			steer.mockRejectedValueOnce(new Error("Disconnected"));
 		else ctx.runtimeBindings.clear();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
 		resolveSidecarAskQuestion(
 			ctx,
 			readQuestionRequest()?.requestId ?? "",
@@ -2863,8 +2951,6 @@ describe("mistake-limit prompt", () => {
 			action: "stop",
 			reason: expect.stringContaining("Could not send recovery guidance"),
 		});
-		for (const result of await waiting)
-			expect(result).toMatchObject({ stop: true });
 		expect(ctx.pendingQuestions.size).toBe(0);
 	});
 
@@ -3079,12 +3165,10 @@ describe("mistake-limit prompt", () => {
 				expect(
 					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
 				).toBe("function");
+				// The SDK pauses the run on the decision itself; per-step hooks
+				// would round-trip to the sidecar on every model and tool call.
 				expect(input.config).not.toHaveProperty("hooks");
-				expect(input.localRuntime?.hooks).toMatchObject({
-					beforeModel: expect.any(Function),
-					beforeTool: expect.any(Function),
-					afterTool: expect.any(Function),
-				});
+				expect(input.localRuntime).not.toHaveProperty("hooks");
 				return {
 					sessionId: "session-limit",
 					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },

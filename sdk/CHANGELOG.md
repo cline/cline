@@ -1,5 +1,49 @@
 # Cline SDK Changelog
 
+## 0.2.0
+
+- Starting a session that already has a run in progress now reattaches to the live session instead of replacing its runtime. Before, the original run kept going but couldn't be reached, and its transcript writes landed on a stale snapshot. A start that includes a prompt while a run is in progress is rejected
+- The hub records every client that registered a capability for a session, including clients that join a task that's already running, and sends each request to the first one still connected. If none is left, the request fails quickly with a message the user can act on, instead of waiting forever
+- A turn whose connection drops after the model has streamed only reasoning is now retried, and the partial reasoning is discarded. Turns with text, media or tool calls are still never retried
+- Model requests retry at most 3 times after the first attempt (down from 5). Failed attempts are recorded in Langfuse traces, and cancelled requests are no longer reported as Langfuse errors
+- AI SDK updated to `ai` 7.0.136 / `@ai-sdk/provider-utils` 5.0.58. `max` reasoning now reaches the provider: the gateway no longer turns it into `xhigh`, and Kimi K3 gets `max` for Extra High and Max. Empty Anthropic turns are still retried despite the new `anthropic.*` custom stream parts
+- The `gemini` provider no longer sends native Google Search. On Gemini 3+, free-tier keys failed every turn with a 429 quota error, and on Gemini 2.x it dropped every Cline tool. Vertex keeps native search
+- Auto-compaction no longer runs when the model's input limit is unknown. Manual and overflow-recovery compaction still work
+- After the first compaction, the size estimate now uses the messages as they are actually sent, with tool results truncated. Before, it overestimated about 7x and compaction ran again every few tool calls
+- Checkpoint diffs read file contents with a single `git cat-file --batch` process instead of up to two `git show` processes per file. Workspaces with many untracked files used to spawn thousands of git processes
+- SSH remotes work behind a ProxyJump alias. The connect budget goes from 10s to 30s, the per-command limit to 60s, and tunnel readiness to 40s. When ssh exits mid-upload, its real error is reported instead of `EPIPE`, and a `LocalForward` on the alias no longer collides with the tunnel
+- `ask_question` answers are framed so the model keeps going after a bare choice. Empty answers are rejected, and an answer with only an attachment counts as answered
+- `run_commands` rejects an empty `commands` list with a tool error, and its schema now advertises `minItems: 1`
+- On PowerShell, the `run_commands` description explains backtick escaping, single-quoting literal paths, preferring cmdlets over `cmd /c`, and confirming recursive deletes first
+- Plugin commands run in the active session runtime and the hub. Plugin watches start working again when discovery directories appear
+- Compiled binaries load embedded plugin and dashboard resources straight from the binary, and every declared SDK runtime export is packaged
+- A configured `CLINE_PLUGIN_RUNTIME_DIR` is resolved to an absolute path
+- When OpenRouter has no match for a Cline recommended model, its capabilities are filled in from the Vercel catalog
+- Desktop cloud session orchestration moved into the hub. `session.list` reports `activeCloudCommands`, and the hub isn't replaced while cloud commands are still running
+- Core adds conversation summaries and cloud continuation support
+- Run stall telemetry: `agent.run-finished` and `agent.run-failed` carry stall signals from a new `RunHealthObserver`
+- `@cline/ui` now ships with the SDK packages on the shared version. It adds a `Kbd` component and token chips for slash commands and file mentions in `AgentComposer`
+- Refreshed the model catalog (7,041 → 6,457 models). Adds the Liquid Inference, Munito AI and Munito AI (EU) providers and drops CrofAI, iFlow and Llama. The Cline free list adds Reflection Beam, Nemotron 3.5 Lightning and Laguna S 2.1 and drops Mimo V2.6 Flash and Muse Spark 1.3 Contributor. ClinePass adds Kimi K3.1 Pro (now its default), MiniMax M3.1 Flash and DeepSeek V4.1 Flash 1017, and drops Mimo V2.5 and V2.5 Pro. Default models change for 56 other providers, mostly to Kimi K3.1 Pro, MiniMax M3.1 Flash or DeepSeek V4.1 Flash 1017
+
+## 0.0.95
+
+- OpenAI-compatible requests for GPT-6 models (`gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-1-sol`, and later gpt-5 through gpt-9 ids) send `max_completion_tokens` instead of `max_tokens`, so OpenAI and Azure no longer reject them. Azure's `gpt-35-turbo` keeps `max_tokens`
+- The hub daemon records which client started it (`CLINE_HUB_LAUNCHER_CLIENT`, `CLINE_HUB_LAUNCHER_VERSION`, `CLINE_HUB_LAUNCHER_TRANSPORT`) and publishes that as OTel resource attributes. SSH remote hubs report the local client with transport `ssh`. `@cline/shared` adds `withHubLauncherIdentity`, `claimHubLauncherIdentity` and `readHubLauncherIdentity`
+- The telemetry self-check report includes `traces_exporter`
+- Refreshed the model catalog (6,952 → 7,041 models). Adds the CommandCode and Reflection providers. The Cline recommended list leads with Claude Sonnet 5.5 again, so the `cline` provider's bundled default goes back to Claude Sonnet 5.5 from Gemini 4 Argon. Default models change for 302.AI (Gemini 4 Argon), Eden AI and Prime Inference (Muse Spark Open), CoreWeave (Reflection Beam 1.0), NanoGPT, Pioneer (Nemotron 3.5 Super VL), and Scaleway (DeepSeek V4.1 Flash). OpenCode Go keeps its `https://opencode.ai/inference/go/v1` base URL, now pinned, because models.dev moved its provider-level URL to an OpenAI-only path
+
+## 0.0.94
+
+- Plugins now run only in worker threads (the default, `CLINE_PLUGIN_MODE=worker`) or in the subprocess sandbox (`sandbox`). The `in_process` mode is removed, along with its silent fallback. A host that ships no `plugin-sandbox-bootstrap.js` fails every plugin load with `PluginBootstrapMissingError`, which names `CLINE_PLUGIN_BOOTSTRAP_PATH`, instead of quietly running plugins inside the hub. The hub daemon's uncaught error handlers are fatal again. The SSH remote hub ships no bootstrap yet, so it reports plugin tools as missing
+- Provider errors that arrive after a model stream has started are retried up to 3 times, and the final failure is reported as an error in logs and Langfuse traces. Exhausted retries no longer also trigger the agent's whole-turn retry, so retry budgets don't multiply
+- Model request failure logs include the provider's request id
+- `setHubDaemonLauncher` lets an embedding host start the hub daemon through a bundled Cline CLI, and `ensureDetachedHubServer` gains a `beforeSpawn` hook that runs only when a new daemon actually starts. The standalone SSH remote helper entrypoint is removed: SSH remotes run the hub through the uploaded Cline CLI
+- `NodeHubClient` accepts `resolveConnectionHeaders`, so a remote proxy's WebSocket upgrade can be authenticated with HTTP headers refreshed on every reconnect. It is threaded through `HubRuntimeHost` and `RemoteRuntimeHost`
+- `AskQuestionExecutor` may return text and image blocks, so attachments sent with an answer reach the model
+- New `buildTelemetrySelfcheckReport` export in `@cline/shared`
+- The `cline` provider's bundled default (the first Cline recommended model) is now Gemini 4 Argon instead of Claude Sonnet 5.5, because the recommended list now leads with it
+- Refreshed the model catalog (6,862 → 6,952 models). Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova
+
 ## 0.0.93
 
 - Plugins load in-process through one registry per process instead of a node/bun subprocess, so the compiled CLI and its hub no longer need a runtime on PATH, and plugins can use the Bun global under the Bun-built hub. `CLINE_PLUGIN_MODE=sandbox` keeps the subprocess sandbox. The registry wraps import, setup, hooks, tools and commands with timeouts and error capture, and tracks each plugin's state (loading/ready/degraded/failed/disabled) with its last error. A failing plugin no longer silently drops its tools: `session.create` accepts a `plugins` policy and returns `pluginIssues`, later failures reach affected sessions as status notices, the hub answers `plugins.list`/`plugins.status`/`plugins.reload` and broadcasts `plugin.status_changed`, and the daemon marks a plugin failed instead of shutting down when an uncaught error comes from it. Each session gets its own copy of every plugin module, so plugins that keep per-session state at module level keep working

@@ -1,4 +1,8 @@
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
+import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
+import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { describe, expect, it, vi } from "vitest"
+import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
@@ -42,6 +46,7 @@ describe("SDK remote-config coordination", () => {
 		const controller = {
 			stateManager: {
 				getGlobalSettingsKey: () => undefined,
+				getGlobalStateKey: () => undefined,
 				getRemoteConfigSettings: () => ({}),
 				setGlobalState: vi.fn(),
 			},
@@ -53,6 +58,7 @@ describe("SDK remote-config coordination", () => {
 			ensureWorkspaceManager: async () => undefined,
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
+			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
 		}
@@ -70,6 +76,7 @@ describe("SDK remote-config coordination", () => {
 		const controller = {
 			stateManager: {
 				getGlobalSettingsKey: () => undefined,
+				getGlobalStateKey: () => undefined,
 				getRemoteConfigSettings: () => ({}),
 				setGlobalState: vi.fn(),
 			},
@@ -88,6 +95,12 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
+			cloud: {
+				getCurrentTaskInfo: () => undefined,
+				getCloudModelId: () => "cloud-model",
+				nextCloudModelId: () => "cloud-model",
+				clinePassSubscribed: () => undefined,
+			},
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },
 			getStateToPostToWebview: SdkController.prototype.getStateToPostToWebview,
@@ -290,6 +303,7 @@ describe("SDK remote-config coordination", () => {
 				messageTranslatorState: { clearTurnOutcome: vi.fn() },
 				messages: { appendAndEmit: vi.fn() },
 				sessions: { getActiveSession: () => undefined },
+				cloud: { isCloudSessionId: () => false },
 				postStateToWebview: vi.fn(async () => {}),
 				initTask: vi.fn(async () => "task-id"),
 				followups: { askResponse: vi.fn(async () => {}) },
@@ -316,21 +330,42 @@ describe("SDK remote-config coordination", () => {
 		it("restarts a new task with the original prompt when Retry is clicked", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
-			expect(controller.initTask).toHaveBeenCalledWith("original prompt", undefined, undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"original prompt",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 		})
 
 		it("restarts a new task with a revised prompt submitted from the composer", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt", ["img"])
-			expect(controller.initTask).toHaveBeenCalledWith("revised prompt", ["img"], undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"revised prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 		})
 
 		it("keeps the original prompt when the revised submission has attachments but no text", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("messageResponse", "  ", ["img"])
-			expect(controller.initTask).toHaveBeenCalledWith("original prompt", ["img"], undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"original prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 		})
 
 		it("continues an existing conversation with a message submitted from the composer", async () => {
@@ -362,6 +397,114 @@ describe("SDK remote-config coordination", () => {
 				undefined,
 				"yesButtonClicked",
 				"error",
+			)
+		})
+	})
+
+	describe("after a cloud start fails before it has a session", () => {
+		const input = { prompt: "cloud prompt", images: ["img"], repoUrl: "https://github.com/cline/fixture", branch: "main" }
+		const cloudTarget = { repoUrl: input.repoUrl, branch: input.branch }
+
+		function controllerShowingCloudStartError(unconfirmedAsk?: ClineMessage) {
+			const controller = {
+				task: undefined as TaskProxy | undefined,
+				turnStateTracker: {
+					set: vi.fn(),
+					get: (): TurnState => ({ phase: "error", anchorTs: unconfirmedAsk?.ts, seq: 1 }),
+				},
+				messageTranslatorState: { clearTurnOutcome: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				sessions: { getActiveSession: () => undefined },
+				cloud: { isCloudSessionId: () => true, getCurrentTaskInfo: () => ({ status: "unknown" }) },
+				postStateToWebview: vi.fn(async () => {}),
+				initTask: vi.fn(async () => "ses-retried"),
+				followups: { askResponse: vi.fn(async () => {}) },
+				cancelTask: vi.fn(async () => {}),
+				askResponse(prompt?: string, images?: string[], files?: string[]) {
+					return SdkController.prototype.askResponse.call(controller as never, prompt, images, files)
+				},
+			}
+			const errorTask = createTaskProxy("cloud-provisioning-1", controller.askResponse, controller.cancelTask)
+			controller.task = errorTask
+			if (unconfirmedAsk) errorTask.messageStateHandler.addMessages([unconfirmedAsk])
+			else SdkController.prototype["offerCloudStartRetry"].call(controller as never, errorTask, input)
+			return { controller, errorTask }
+		}
+
+		it("keeps unconfirmed-create guidance and its anchor when a stale Retry reaches the controller", async () => {
+			const message = "Cloud session creation could not be confirmed. Check History or the cloud dashboard."
+			const ask: ClineMessage = {
+				ts: Date.now() + 1_000,
+				type: "ask",
+				ask: "api_req_failed",
+				text: new ClineError({ message, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
+			}
+			const { controller, errorTask } = controllerShowingCloudStartError(ask)
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
+			expect(controller.messages.appendAndEmit).toHaveBeenCalledWith(
+				[expect.objectContaining({ say: "error", text: message })],
+				expect.objectContaining({ type: "status" }),
+			)
+			expect(controller.messages.appendAndEmit.mock.calls[0]?.[0][0].ts).toBeGreaterThan(ask.ts)
+			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error", ask.ts)
+		})
+
+		it("starts the same cloud task again when Retry is clicked", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"cloud prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+			expect(controller.messages.appendAndEmit).not.toHaveBeenCalled()
+		})
+
+		it("keeps the original attachments when Retry arrives with the webview's empty image list", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			// Protobuf decodes the Retry request's omitted repeated images field as an empty array.
+			await errorTask.handleWebviewAskResponse("yesButtonClicked", "", [])
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"cloud prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+		})
+
+		it("starts a cloud task on the same target with a prompt typed into the composer", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt")
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"revised prompt",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+		})
+
+		it("advances the turn phase when it refuses a response to a session that is gone", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			// The retry is consumed by the first response; a second one finds no session to send to.
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			controller.initTask.mockClear()
+
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.messages.appendAndEmit).toHaveBeenCalledOnce()
+			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error")
+			expect(controller.turnStateTracker.set.mock.invocationCallOrder[0]).toBeLessThan(
+				controller.postStateToWebview.mock.invocationCallOrder.at(-1)!,
 			)
 		})
 	})
@@ -424,9 +567,11 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		const readLiveMessages = vi.fn().mockResolvedValue(sdkMessages)
 		const readMessages = vi.fn().mockResolvedValue(sdkMessages.slice(0, 2))
 		const restore = vi.fn().mockRejectedValue(new Error("stop at restore"))
-		const controller = {
+		// The prototype supplies the private implementation the public method delegates to.
+		const controller = Object.assign(Object.create(SdkController.prototype), {
 			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
 			sessions: {
+				trackSessionStart: (operation: () => Promise<unknown>) => operation(),
 				getActiveSession: () => ({
 					sessionId: "task-a",
 					isRunning: false,
@@ -446,7 +591,7 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			stateManager: { getGlobalSettingsKey: () => "act" },
 			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
 			resolveContextMentions: async (text: string) => text,
-		}
+		})
 
 		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(true)
 		await expect(
@@ -458,6 +603,68 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		).rejects.toThrow("stop at restore")
 		expect(restore).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "task-a", checkpointRunCount: 2 }))
 		expect(readMessages).not.toHaveBeenCalled()
+	})
+
+	it("runs message edits and checkpoint restores inside a tracked session start", async () => {
+		// Both read the mode setting and swap the session outside the rebuild
+		// lock, so a mode toggle must be able to wait for them to finish.
+		let tracking = false
+		const trackedRestores: boolean[] = []
+		const restore = vi.fn(async () => {
+			trackedRestores.push(tracking)
+			throw new Error("stop at restore")
+		})
+		const restoreActiveSession = vi.fn(async () => {
+			trackedRestores.push(tracking)
+			return {}
+		})
+		const controller = Object.assign(Object.create(SdkController.prototype), {
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: {
+				trackSessionStart: async (operation: () => Promise<unknown>) => {
+					tracking = true
+					try {
+						return await operation()
+					} finally {
+						tracking = false
+					}
+				},
+				restoreActiveSession,
+				getActiveSession: () => ({
+					sessionId: "task-a",
+					isRunning: false,
+					sdkHost: {
+						get: async () => ({
+							cwd: "C:/work",
+							metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 2 }] } },
+						}),
+						readLiveMessages: vi.fn().mockResolvedValue(sdkMessages),
+						readMessages: vi.fn().mockResolvedValue(sdkMessages),
+						restore,
+					},
+				}),
+			},
+			taskHistory: { findHistoryItem: async () => undefined },
+			getWorkspaceRoot: async () => "C:/work",
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
+			resolveContextMentions: async (text: string) => text,
+			postStateToWebview: async () => undefined,
+		})
+
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, {
+				messageTs: 3,
+				text: "continue, edited",
+				restoreWorkspace: true,
+			}),
+		).rejects.toThrow("stop at restore")
+		await SdkController.prototype.restoreCheckpoint.call(controller as never, {
+			checkpointRunCount: 2,
+			restoreType: "workspace",
+		})
+
+		expect(trackedRestores).toEqual([true, true])
 	})
 
 	it("uses and disposes a temporary host for a history task", async () => {
@@ -530,5 +737,163 @@ describe("resolveWorkspaceManagerPaths", () => {
 	it("returns no roots when the fallback is also unavailable", () => {
 		expect(resolveWorkspaceManagerPaths([], undefined)).toEqual([])
 		expect(resolveWorkspaceManagerPaths([], "  ")).toEqual([])
+	})
+})
+
+describe("starting a cloud task", () => {
+	it("leaves the turn phase to the coordinator so a start cancelled during policy loading stays idle", async () => {
+		const run = vi.fn(async () => undefined)
+		const controller = {
+			cloud: { beginCloudTask: vi.fn(() => run) },
+			waitForInitialRemoteConfig: vi.fn(async () => undefined),
+			turnStateTracker: { set: vi.fn() },
+			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+		}
+
+		await SdkController.prototype.initTask.call(controller as never, "prompt", undefined, undefined, undefined, undefined, {
+			repoUrl: "https://github.com/cline/fixture",
+		})
+
+		expect(controller.cloud.beginCloudTask.mock.invocationCallOrder[0]).toBeLessThan(
+			controller.waitForInitialRemoteConfig.mock.invocationCallOrder[0],
+		)
+		expect(run).toHaveBeenCalledOnce()
+		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
+		expect(controller.messageTranslatorState.clearTurnOutcome).not.toHaveBeenCalled()
+	})
+})
+
+describe("cancelling a provisioning cloud task", () => {
+	it("returns to the home view instead of offering Resume Task", async () => {
+		const phases: string[] = []
+		const controller = {
+			turnStateTracker: { set: (phase: string) => phases.push(phase) },
+			cloud: { cancelPendingStartFor: vi.fn(() => true) },
+			clearTask: vi.fn(async () => phases.push("cleared")),
+			taskControl: { cancelTask: vi.fn() },
+		}
+
+		await SdkController.prototype.cancelTask.call(controller as never)
+
+		expect(phases).toEqual(["resumable", "cleared"])
+		expect(controller.taskControl.cancelTask).not.toHaveBeenCalled()
+	})
+
+	it("cancels the pending cloud start when the user starts a new task", async () => {
+		const cancelPendingStart = vi.fn(() => true)
+		const controller = {
+			turnStateTracker: { set: vi.fn() },
+			cloud: { cancelPendingStart },
+			taskControl: { clearTask: vi.fn(async () => undefined) },
+			postStateToWebview: vi.fn(async () => undefined),
+		}
+
+		await SdkController.prototype.clearTask.call(controller as never)
+
+		expect(cancelPendingStart).toHaveBeenCalledOnce()
+		expect(controller.taskControl.clearTask).toHaveBeenCalledOnce()
+	})
+})
+
+describe("getTaskHistory with Cloud Only", () => {
+	function record(sessionId: string, updatedAt: number, executionTarget?: "cloud") {
+		return {
+			sessionId,
+			prompt: `task ${sessionId}`,
+			startedAt: new Date(updatedAt).toISOString(),
+			updatedAt: new Date(updatedAt).toISOString(),
+			metadata: executionTarget ? { executionTarget } : {},
+		}
+	}
+
+	it("finds cloud tasks that sit behind a full page of newer local tasks", async () => {
+		// 60 local tasks are newer than the 2 cloud tasks, so a page of 50 merged
+		// records holds no cloud task at all.
+		const history = [
+			...Array.from({ length: 60 }, (_, i) => record(`local-${i}`, 2_000_000 - i)),
+			record("ses-a", 1_000_000, "cloud"),
+			record("ses-b", 999_999, "cloud"),
+		]
+		const listHistory = vi.fn(async ({ limit = history.length, offset = 0 }: { limit?: number; offset?: number }) =>
+			history.slice(offset, offset + limit),
+		)
+		const controller = {
+			task: undefined,
+			taskHistory: { listHistory },
+			cloud: { getCurrentTaskInfo: () => undefined },
+			getWorkspaceRoot: async () => "/workspace",
+		}
+
+		const page = await SdkController.prototype.getTaskHistory.call(
+			controller as never,
+			GetTaskHistoryRequest.create({ cloudOnly: true, limit: 50, offset: 0 }),
+		)
+
+		expect(page.tasks.map((task) => task.id)).toEqual(["ses-a", "ses-b"])
+		expect(page.hasMore).toBe(false)
+	})
+
+	it("pages the filtered cloud tasks, not the merged list", async () => {
+		const history = [
+			...Array.from({ length: 5 }, (_, i) => record(`local-${i}`, 2_000_000 - i)),
+			...Array.from({ length: 3 }, (_, i) => record(`ses-${i}`, 1_000_000 - i, "cloud")),
+		]
+		const listHistory = vi.fn(async ({ limit = history.length, offset = 0 }: { limit?: number; offset?: number }) =>
+			history.slice(offset, offset + limit),
+		)
+		const controller = {
+			task: undefined,
+			taskHistory: { listHistory },
+			cloud: { getCurrentTaskInfo: () => undefined },
+			getWorkspaceRoot: async () => "/workspace",
+		}
+		const page = (offset: number) =>
+			SdkController.prototype.getTaskHistory.call(
+				controller as never,
+				GetTaskHistoryRequest.create({ cloudOnly: true, limit: 2, offset }),
+			)
+
+		const first = await page(0)
+		const second = await page(2)
+
+		expect(first.tasks.map((task) => task.id)).toEqual(["ses-0", "ses-1"])
+		expect(first.hasMore).toBe(true)
+		expect(second.tasks.map((task) => task.id)).toEqual(["ses-2"])
+		expect(second.hasMore).toBe(false)
+	})
+})
+
+describe("cloud tasks stay in the cloud", () => {
+	const stateManager = { getGlobalSettingsKey: (key: string) => (key === "mode" ? "plan" : undefined) }
+
+	it("refuses to rebuild a cloud task's conversation as a local session", async () => {
+		const startNewSession = vi.fn()
+		// The prototype supplies the private implementation the public method delegates to.
+		const controller = Object.assign(Object.create(SdkController.prototype), {
+			task: { taskId: "ses-cloud", messageStateHandler: { getClineMessages: () => [] } },
+			sessions: {
+				getActiveSession: () => undefined,
+				startNewSession,
+				trackSessionStart: (operation: () => Promise<unknown>) => operation(),
+			},
+			stateManager,
+		})
+
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, { messageTs: 1, text: "edited" }),
+		).rejects.toThrow("not available for cloud tasks")
+		expect(startNewSession).not.toHaveBeenCalled()
+	})
+
+	it("renders a displayed cloud task in Act while the saved local mode is Plan", () => {
+		const mode = (taskId: string | undefined) =>
+			SdkController.prototype["getDisplayedTaskMode"].call({
+				task: taskId ? { taskId } : undefined,
+				stateManager,
+			} as never)
+
+		expect(mode("ses-cloud")).toBe("act")
+		expect(mode("local-task")).toBe("plan")
+		expect(mode(undefined)).toBe("plan")
 	})
 })

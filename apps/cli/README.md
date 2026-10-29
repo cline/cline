@@ -291,6 +291,12 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
 
+Compiled CLI binaries embed the plugin bootstrap, SDK modules, and dashboard
+assets. They can start the Hub, load SDK plugins, and serve the dashboard without
+a separate Node/Bun installation or adjacent runtime files. Resources are read directly from the binary’s read-only Bun filesystem; no
+runtime cache is extracted. `--plugin-sandbox` is an internal subprocess dispatch
+flag, not a user command.
+
 ## Hub dashboard
 
 Run `cline hub` to list hub subcommands. To start the browser dashboard:
@@ -366,6 +372,7 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_PATH` - Runtime log file path (default `<CLINE_DATA_DIR>/logs/cline.log`)
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
 - `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
+- `CLINE_CLOUD_SESSIONS` - Set to `1`/`true` to enable the experimental Local/Cloud toggle (`Ctrl+O`) for running tasks in Cline Cloud sandboxes
 
 `--key` takes precedence over environment variables.
 

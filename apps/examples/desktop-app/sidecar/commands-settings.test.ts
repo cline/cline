@@ -9,12 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
 import { createSidecarContext } from "./context";
-import { setCloudSessionsEnabled } from "./desktop-settings";
 import {
 	getDesktopFeatureFlagsService,
 	resetDesktopFeatureFlagsForTesting,
 } from "./feature-flags";
-import type { SidecarContext } from "./types";
+import { recordHubActivity } from "./hub-admin";
+import {
+	LOCAL_ENVIRONMENT_ID,
+	type SessionRuntimeBinding,
+	type SidecarContext,
+} from "./types";
 
 function createContext(): {
 	ctx: SidecarContext;
@@ -47,6 +51,42 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("only returns hub notification content to trusted desktop connections", async () => {
+		const { ctx } = createContext();
+		const command = vi
+			.fn()
+			.mockResolvedValue({ ok: true, payload: { clients: [] } });
+		ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+			hubClient: { command, getUrl: () => "ws://127.0.0.1:1234/hub" },
+		} as unknown as SessionRuntimeBinding);
+		recordHubActivity(ctx, {
+			event: "ui.notify",
+			payload: { title: "Task completed", body: "Private task reply" },
+		});
+		await expect(handleCommand(ctx, "get_hub_status")).rejects.toThrow(
+			"hub status requires a trusted desktop connection",
+		);
+		await expect(
+			handleCommand(ctx, "get_hub_status", undefined, {
+				connection: { send: vi.fn(), data: { canApproveTools: false } },
+			}),
+		).rejects.toThrow("hub status requires a trusted desktop connection");
+		expect(command).not.toHaveBeenCalled();
+		const result = await handleCommand(ctx, "get_hub_status", undefined, {
+			connection: { send: vi.fn(), data: { canApproveTools: true } },
+		});
+		expect(command).toHaveBeenCalledWith("client.list");
+		expect(result).toMatchObject({
+			events: [{ title: "Task completed", detail: "Private task reply" }],
+		});
+	});
+
+	it("rejects hub restarts from untrusted connections", async () => {
+		const { ctx } = createContext();
+		await expect(handleCommand(ctx, "restart_hub")).rejects.toThrow(
+			"trusted desktop connection",
+		);
+	});
 	it("lists only current gateway transcription models for voice input", async () => {
 		const { ctx } = createContext();
 		vi.stubGlobal(
@@ -79,7 +119,7 @@ describe("desktop settings commands", () => {
 		"list_chat_sessions",
 		"list_discovered_sessions",
 		"search_sessions",
-	])("hides cloud rows from %s unless rollout and user toggle are enabled", async (command) => {
+	])("hides cloud rows from %s unless the rollout flag is enabled", async (command) => {
 		const { ctx } = createContext();
 		for (const target of ["local", "cloud"] as const) {
 			ctx.liveSessions.set(target, {
@@ -113,16 +153,13 @@ describe("desktop settings commands", () => {
 				.map((row) => row.sessionId)
 				.sort();
 
-		expect(await rows()).toEqual(["local"]);
-		expect(discovery).not.toHaveBeenCalled();
-		setCloudSessionsEnabled(true);
 		expect(await rows()).toEqual(["cloud", "local"]);
 		discovery.mockImplementationOnce(async () => {
-			setCloudSessionsEnabled(false);
+			process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 			return cloudRows;
 		});
 		expect(await rows()).toEqual(["local"]);
-		setCloudSessionsEnabled(true);
+		delete process.env.CLINE_CODE_CLOUD_AGENTS;
 		discovery.mockClear();
 		flags.hydrateCache({
 			userId: null,
@@ -171,46 +208,5 @@ describe("desktop settings commands", () => {
 		expect(cloud.models).toContainEqual(
 			expect.objectContaining({ id: "cline-cloud/cloud-only" }),
 		);
-	});
-
-	it("rejects a non-boolean cloud sessions toggle value", async () => {
-		const { ctx, events } = createContext();
-
-		await expect(
-			handleCommand(ctx, "set_cloud_sessions_enabled", {
-				cloud_sessions_enabled: "yes",
-			}),
-		).rejects.toThrow("cloud_sessions_enabled must be a boolean");
-		expect(events).toEqual([]);
-	});
-
-	it.each([
-		true,
-		false,
-	])("persists toggle %s and refreshes cloud history immediately", async (enabled) => {
-		const { ctx, events } = createContext();
-
-		await expect(
-			handleCommand(ctx, "set_cloud_sessions_enabled", {
-				cloud_sessions_enabled: enabled,
-			}),
-		).resolves.toEqual({ cloudSessionsEnabled: enabled });
-		expect(events).toEqual([
-			{ name: "cloud_sessions_changed", payload: { environmentId: "local" } },
-			{
-				name: "feature_flags_changed",
-				payload: {
-					cloudAgents: false,
-					cloudAgentsAvailable: false,
-					environmentId: "local",
-				},
-			},
-		]);
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({ cloudAgents: false });
-		await expect(
-			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: enabled });
 	});
 });

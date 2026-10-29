@@ -6,6 +6,7 @@ import {
 	createContext,
 	forwardRef,
 	useContext,
+	useState,
 } from "react";
 
 /** Presentation only. Hosts retain drafts, input events, menus, and runtime actions. */
@@ -96,28 +97,102 @@ export const AgentComposerField = forwardRef<
 	);
 });
 
+/** Chip style for composer tokens; hosts reuse it where sent messages echo them. */
+export const agentComposerTokenClassName =
+	"-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-px inset-ring inset-ring-cline-ui-primary/50";
+
 export type AgentComposerTextareaProps = ComponentPropsWithoutRef<"textarea"> &
-	VariantProps;
+	VariantProps & {
+		/**
+		 * Sorted, non-overlapping `[start, end)` ranges of `value` drawn as inline
+		 * tokens (slash commands, file mentions). Backspace at a token's end or
+		 * Delete at its start removes the whole token.
+		 */
+		highlights?: { start: number; end: number }[];
+	};
 
 export const AgentComposerTextarea = forwardRef<
 	HTMLTextAreaElement,
 	AgentComposerTextareaProps
 >(function AgentComposerTextarea(
-	{ variant: variantProp, className, ...props },
+	{
+		variant: variantProp,
+		className,
+		highlights,
+		onKeyDown,
+		onScroll,
+		...props
+	},
 	ref,
 ) {
 	const variant = useAgentComposerVariant(variantProp);
+	const [scrollTop, setScrollTop] = useState(0);
+	const value = typeof props.value === "string" ? props.value : "";
+	let renderedUpTo = 0;
+	// The wrapper is always rendered so toggling the highlight never remounts
+	// (and blurs) the textarea mid-typing. Both layers reserve the scrollbar
+	// gutter so text wraps identically once the textarea scrolls.
 	return (
-		<textarea
-			{...props}
-			ref={ref}
+		<div
 			className={clsx(
-				variant === "welcome"
-					? "field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none self-start"
-					: "field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
-				className,
+				"relative flex min-w-0 flex-1",
+				variant === "welcome" && "self-start",
 			)}
-		/>
+		>
+			{highlights && highlights.length > 0 && (
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-0 overflow-y-hidden [scrollbar-gutter:stable] whitespace-pre-wrap break-words text-cline-ui-sm leading-5 text-transparent"
+				>
+					<div style={{ transform: `translateY(${-scrollTop}px)` }}>
+						{highlights.map(({ start, end }) => {
+							const before = value.slice(renderedUpTo, start);
+							renderedUpTo = end;
+							return [
+								before,
+								<span className={agentComposerTokenClassName} key={start}>
+									{value.slice(start, end)}
+								</span>,
+							];
+						})}
+					</div>
+				</div>
+			)}
+			<textarea
+				{...props}
+				ref={ref}
+				onKeyDown={(event) => {
+					onKeyDown?.(event);
+					const textarea = event.currentTarget;
+					if (
+						event.defaultPrevented ||
+						event.nativeEvent.isComposing ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey ||
+						textarea.selectionStart !== textarea.selectionEnd
+					) {
+						return;
+					}
+					const caret = textarea.selectionStart;
+					const token = highlights?.find((range) =>
+						event.key === "Backspace"
+							? range.end === caret
+							: event.key === "Delete" && range.start === caret,
+					);
+					// Selecting the token lets the native delete remove it, keeping undo intact.
+					if (token) textarea.setSelectionRange(token.start, token.end);
+				}}
+				onScroll={(event) => {
+					setScrollTop(event.currentTarget.scrollTop);
+					onScroll?.(event);
+				}}
+				className={clsx(
+					"relative field-sizing-content flex-1 resize-none overflow-y-auto [scrollbar-gutter:stable] bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
+					className,
+				)}
+			/>
+		</div>
 	);
 });
 

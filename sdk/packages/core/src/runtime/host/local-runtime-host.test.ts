@@ -301,6 +301,38 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("settles activity when session startup fails", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: {
+				build: () => {
+					clock.mockReturnValue(2_000);
+					throw new Error("runtime setup failed");
+				},
+			},
+		});
+		try {
+			await expect(
+				manager.startSession({
+					config: createConfig({
+						cwd: isolatedHomeDir,
+						enableAgentTeams: false,
+					}),
+					prompt: "hello",
+				}),
+			).rejects.toThrow("runtime setup failed");
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 2_000,
+			});
+		} finally {
+			await manager.dispose();
+			clock.mockRestore();
+		}
+	});
+
 	it("renews activity for accepted queue mutations, not missing prompts or sessions", async () => {
 		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		const manager = new RuntimeHostUnderTest({
@@ -601,6 +633,153 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("routes MCP Apps requests to the session runtime", async () => {
+		const mcpApps = {
+			resolveTool: vi.fn().mockResolvedValue({
+				serverName: "weather",
+				toolName: "show_weather",
+				resourceUri: "ui://weather/view.html",
+			}),
+			readResource: vi.fn().mockResolvedValue({ contents: [] }),
+			callTool: vi.fn().mockResolvedValue({ content: [] }),
+		};
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockReturnValueOnce({
+					tools: [],
+					mcpApps,
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-mcp-apps"),
+			getConversationId: vi.fn().mockReturnValue("conv-mcp-apps"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const telemetry = { capture: vi.fn(), setDistinctId: vi.fn() };
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			telemetry: telemetry as never,
+			sessionService: new FileSessionService(
+				join(isolatedHomeDir, "sessions-mcp-apps"),
+			),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const config = {
+			providerId: "mock-provider",
+			modelId: "mock-model",
+			systemPrompt: "You are a test agent",
+			cwd: isolatedHomeDir,
+			enableTools: false,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		};
+
+		try {
+			const withApps = await manager.startSession({
+				config: { ...config, sessionId: "with-apps", mcpApps: true },
+			});
+			const withoutApps = await manager.startSession({
+				config: { ...config, sessionId: "without-apps" },
+			});
+
+			expect(runtimeBuilder.build).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					config: expect.objectContaining({ mcpApps: true }),
+				}),
+			);
+			await expect(
+				manager.resolveMcpAppTool(withApps.sessionId, "weather__show_weather"),
+			).resolves.toMatchObject({ resourceUri: "ui://weather/view.html" });
+			await manager.readMcpAppResource(withApps.sessionId, {
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			await manager.callMcpAppTool(withApps.sessionId, {
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+			mcpApps.callTool.mockRejectedValueOnce(new Error("server failed"));
+			await expect(
+				manager.callMcpAppTool(withApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("server failed");
+			expect(
+				telemetry.capture.mock.calls
+					.map(([event]) => event)
+					.filter(
+						({ event }) => event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					),
+			).toEqual([
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({
+						ulid: "with-apps",
+						tool: "weather__refresh_view",
+						success: true,
+					}),
+				},
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({ success: false }),
+				},
+			]);
+			expect(mcpApps.resolveTool).toHaveBeenCalledWith("weather__show_weather");
+			expect(mcpApps.readResource).toHaveBeenCalledWith({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			expect(mcpApps.callTool).toHaveBeenCalledWith({
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+
+			await expect(
+				manager.resolveMcpAppTool(
+					withoutApps.sessionId,
+					"weather__show_weather",
+				),
+			).resolves.toBeUndefined();
+			await expect(
+				manager.callMcpAppTool(withoutApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("MCP Apps is not enabled");
+
+			const withoutServers = await manager.startSession({
+				config: { ...config, sessionId: "without-servers", mcpApps: true },
+			});
+			await expect(
+				manager.readMcpAppResource(withoutServers.sessionId, {
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				}),
+			).rejects.toThrow("has no MCP servers available to MCP Apps");
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");
 		mkdirSync(workspaceRoot, { recursive: true });
@@ -805,6 +984,80 @@ describe("LocalRuntimeHost", () => {
 				distinct_id: distinctId,
 			}),
 		);
+	});
+
+	it("labels prompts sent during a queued run but not the queued replay", async () => {
+		const sessionId = "sess-queued-input";
+		const capture = vi.fn();
+		const telemetry = { capture, captureRequired: vi.fn() } as never;
+		let busy = false;
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn(() => !busy),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest: createManifest(sessionId),
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ telemetry, sessionId }),
+				interactive: true,
+			}),
+		);
+		const session = (
+			manager as unknown as {
+				sessions: Map<
+					string,
+					{ drainingPendingPrompts: boolean; replayingQueuedPrompt?: boolean }
+				>;
+			}
+		).sessions.get(sessionId);
+		if (!session) throw new Error("session not started");
+		const inputSent = () =>
+			capture.mock.calls
+				.map(([e]) => e)
+				.filter((e) => e.event === "session.input_sent")
+				.map((e) => e.properties);
+
+		// The drain replays a queued prompt: only that input is unlabelled.
+		session.drainingPendingPrompts = true;
+		session.replayingQueuedPrompt = true;
+		await manager.runTurn({ sessionId, prompt: "continue" });
+		// The user reacts while that queued run is busy, and again just as
+		// it goes idle: both are fresh input and stay labelled.
+		busy = true;
+		await manager.runTurn({ sessionId, prompt: "are you stuck?" });
+		busy = false;
+		await manager.runTurn({ sessionId, prompt: "hello?" });
+
+		const [replay, whileBusy, whileIdle] = inputSent();
+		expect(replay).not.toHaveProperty("bumpKind");
+		expect(whileBusy).toMatchObject({ agentBusy: true, bumpKind: "probe" });
+		expect(whileIdle).toHaveProperty("bumpKind");
 	});
 
 	it("resolves OAuth credentials before creating the agent", async () => {
@@ -3757,6 +4010,109 @@ describe("LocalRuntimeHost", () => {
 			]);
 			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
 		});
+	});
+
+	it("reattaches instead of replacing a session that is mid-run", async () => {
+		const sessionId = "sess-live-takeover";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const createAgentStub = (onRun: () => Promise<void>) => {
+			let activeRun = false;
+			let rejectRun: ((error: Error) => void) | undefined;
+			return {
+				run: vi.fn(() => {
+					activeRun = true;
+					return new Promise<AgentResult>((_resolve, reject) => {
+						rejectRun = (error) => {
+							activeRun = false;
+							reject(error);
+						};
+						void onRun();
+					});
+				}),
+				continue: vi.fn(),
+				abort: vi.fn(() => rejectRun?.(new Error("aborted by user"))),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue([]),
+				canStartRun: vi.fn(() => !activeRun),
+			};
+		};
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agents = [
+			createAgentStub(async () => markRunStarted?.()),
+			createAgentStub(async () => {}),
+		];
+		const createAgent = vi.fn(() => agents[createAgent.mock.calls.length - 1]);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: createAgent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+
+		// A second client (desktop reload, CLI resume) starts the same session
+		// with its on-disk snapshot while the run is still in flight.
+		const reattached = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages: [
+					{ role: "user", content: [{ type: "text", text: "slow" }] },
+				] as never,
+			}),
+		);
+		expect(reattached).toMatchObject({
+			sessionId,
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+		});
+		expect(createAgent).toHaveBeenCalledTimes(1);
+		await expect(
+			manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+					prompt: "hello",
+				}),
+			),
+		).rejects.toThrow(/already has a run in progress/);
+
+		// Stop still reaches the original run instead of an idle replacement.
+		await manager.abort(sessionId);
+		expect(agents[0].abort).toHaveBeenCalled();
+		await expect(firstTurn).resolves.toMatchObject({ finishReason: "aborted" });
 	});
 
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
@@ -6772,6 +7128,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(initialMessages),
 				messages: initialMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const compact = vi.fn(
 				options.compact ??
@@ -7000,6 +7359,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(liveMessages),
 				messages: liveMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const manager = new RuntimeHostUnderTest({
 				distinctId,
@@ -7068,6 +7430,12 @@ describe("LocalRuntimeHost", () => {
 					{ role: "user", content: "next" },
 				],
 			});
+			expect(
+				createAgent.mock.results[0]?.value.prepareProviderMessagesForApi,
+			).toHaveBeenCalledWith([
+				{ role: "user", content: "summary" },
+				{ role: "user", content: "next" },
+			]);
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}
