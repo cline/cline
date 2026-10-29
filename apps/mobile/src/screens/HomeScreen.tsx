@@ -241,6 +241,11 @@ function HomeScreenBody({
 		() => rows.filter((row) => row.kind === "session"),
 		[rows],
 	);
+	const cloudAuthenticated =
+		cloud.state.phase === "ready" ||
+		((cloud.state.phase === "loading" || cloud.state.phase === "error") &&
+			cloud.state.authenticated === true);
+	const cloudCanStart = cloudAuthenticated && accountScope !== undefined;
 	const targets = useMemo(
 		() =>
 			buildHomeExecutionTargets({
@@ -249,10 +254,18 @@ function HomeScreenBody({
 					? cloudTargets.filter(
 							(target) => target.organizationId === accountScope.organizationId,
 						)
-					: cloudTargets,
+					: cloudAuthenticated
+						? []
+						: cloudTargets,
 				unavailableLocalMachineIds: local.unavailableMachineIds,
 			}),
-		[endpoints, cloudTargets, local.unavailableMachineIds, accountScope],
+		[
+			endpoints,
+			cloudTargets,
+			local.unavailableMachineIds,
+			accountScope,
+			cloudAuthenticated,
+		],
 	);
 	const rememberedTarget =
 		targets.find((candidate) => candidate.id === selectedKey) ??
@@ -266,10 +279,6 @@ function HomeScreenBody({
 	const showAutoApprove =
 		COMPUTER_CONNECTIONS_ENABLED &&
 		(target?.mode === "local" || target?.mode === "local-session");
-	const cloudAuthenticated =
-		cloud.state.phase === "ready" ||
-		((cloud.state.phase === "loading" || cloud.state.phase === "error") &&
-			cloud.state.authenticated === true);
 	const cloudMode = !target || target.mode === "cloud";
 	const localModelOverride = target
 		? localModelOverrides[target.id]
@@ -336,7 +345,7 @@ function HomeScreenBody({
 	const needsCloudSetup =
 		!target || (target.mode === "cloud" && !cloudAuthenticated);
 	const cloudWorkspace = useCloudWorkspaceControls({
-		setup: needsCloudSetup && cloudAuthenticated,
+		setup: needsCloudSetup && cloudCanStart,
 		setupScope: accountScope?.organizationId,
 		target: target?.mode === "cloud" ? target.cloud : undefined,
 		onChooseLocation: () => {
@@ -376,7 +385,7 @@ function HomeScreenBody({
 		// A persisted Cloud target can outlive the account credential that created
 		// it. Keep the person's draft on Home until Cloud is authenticated instead
 		// of creating a provisioning job that can only fail on the next screen.
-		if (target.mode === "cloud" && !cloudAuthenticated) return;
+		if (target.mode === "cloud" && !cloudCanStart) return;
 		void select(target.id).catch(() => {});
 		if (
 			target.mode === "local" ||
@@ -501,7 +510,7 @@ function HomeScreenBody({
 	if (!cloudResolving || cloudAuthenticated)
 		cloudInitiallyResolved.current = true;
 	const hasSessions = sessionRows.length > 0;
-	const cloudTargetBlocked = target?.mode === "cloud" && !cloudAuthenticated;
+	const cloudTargetBlocked = cloudMode && !cloudCanStart;
 	if (
 		!endpointsHydrated ||
 		!targetsHydrated ||
@@ -537,6 +546,7 @@ function HomeScreenBody({
 	const cloudNotice = (
 		<CloudNotice
 			state={cloud.state}
+			accountScopeKnown={accountScope !== undefined}
 			cloudTargetSelected={needsCloudSetup || target?.mode === "cloud"}
 			onboarding={needsCloudSetup}
 			onRetry={cloud.refresh}
@@ -570,7 +580,7 @@ function HomeScreenBody({
 			target={target}
 			busy={cloudTargetBlocked}
 			onChooseTarget={
-				cloudAuthenticated && !target
+				cloudCanStart && !target
 					? () =>
 							cloudWorkspace.openRepositories(
 								"Choose a repository before starting your task.",
@@ -744,7 +754,7 @@ function HomeScreenBody({
 					composer={composer}
 					setup={
 						needsCloudSetup
-							? cloudAuthenticated
+							? cloudCanStart
 								? cloudWorkspace.setupContent
 								: cloudNotice
 							: undefined
@@ -968,6 +978,7 @@ function CloudNotice({
 	state,
 	onboarding = false,
 	cloudTargetSelected,
+	accountScopeKnown,
 	onRetry,
 	onSignIn,
 	onOpenBrowser,
@@ -975,11 +986,13 @@ function CloudNotice({
 	state: CloudSessionsState;
 	onboarding?: boolean;
 	cloudTargetSelected: boolean;
+	accountScopeKnown: boolean;
 	onRetry: () => void;
 	onSignIn: () => void;
 	onOpenBrowser: () => void;
 }) {
 	const accountReadyDespiteListState =
+		accountScopeKnown &&
 		(state.phase === "loading" || state.phase === "error") &&
 		state.authenticated === true;
 	if (

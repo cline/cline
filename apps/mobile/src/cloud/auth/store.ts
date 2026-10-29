@@ -107,7 +107,10 @@ export class ClineAuthStore {
 	/** Explicit sign-in/sign-out retires reads and refreshes for the prior identity. */
 	private generation = 0;
 	private readonly identityListeners = new Set<
-		(credentials: ClineOAuthCredentials | null) => void
+		(
+			credentials: ClineOAuthCredentials | null,
+			previous?: ClineOAuthCredentials | null,
+		) => void
 	>();
 	private pendingWrite: Promise<void> = Promise.resolve();
 
@@ -117,7 +120,10 @@ export class ClineAuthStore {
 	}
 
 	subscribeIdentity(
-		listener: (credentials: ClineOAuthCredentials | null) => void,
+		listener: (
+			credentials: ClineOAuthCredentials | null,
+			previous?: ClineOAuthCredentials | null,
+		) => void,
 	): () => void {
 		this.identityListeners.add(listener);
 		return () => {
@@ -125,10 +131,13 @@ export class ClineAuthStore {
 		};
 	}
 
-	private publishIdentity(credentials: ClineOAuthCredentials | null): void {
+	private publishIdentity(
+		credentials: ClineOAuthCredentials | null,
+		previous?: ClineOAuthCredentials | null,
+	): void {
 		for (const listener of [...this.identityListeners]) {
 			try {
-				listener(credentials);
+				listener(credentials, previous);
 			} catch {
 				/* UI observers cannot prevent credential retirement. */
 			}
@@ -152,11 +161,12 @@ export class ClineAuthStore {
 	}
 
 	async setCredentials(credentials: ClineOAuthCredentials): Promise<void> {
+		const previous = this.cached;
 		this.generation += 1;
 		this.refreshInFlight = undefined;
 		// Enqueue the write before notifying observers, preserving reentrant write order.
 		const persisted = this.persist(credentials, this.generation);
-		this.publishIdentity(credentials);
+		this.publishIdentity(credentials, previous);
 		await persisted;
 	}
 

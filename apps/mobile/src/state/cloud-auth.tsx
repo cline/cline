@@ -42,6 +42,27 @@ const CloudAuthContext = createContext<ClineAuthStore>(
 	new ClineAuthStore({ storage: createInMemoryAuthStorage() }),
 );
 
+const privateRetirements = new WeakMap<
+	ClineAuthStore,
+	{
+		version: number;
+		pending: Promise<void>;
+	}
+>();
+function retirePrivateInput(
+	store: ClineAuthStore,
+	endpoints: { retirePendingInitialMessages(): Promise<void> },
+): Promise<void> {
+	const version = store.identityVersion;
+	const existing = privateRetirements.get(store);
+	if (existing?.version === version) return existing.pending;
+	clearAllSessionDrafts();
+	clearAllPendingHomeSubmissions();
+	const pending = endpoints.retirePendingInitialMessages();
+	privateRetirements.set(store, { version, pending });
+	return pending;
+}
+
 export interface CloudAccountScope {
 	organizationId?: string;
 }
@@ -88,21 +109,29 @@ export function CloudAuthProvider({
 	store?: ClineAuthStore;
 }) {
 	const [value] = useState(() => store ?? cloudAuthStore);
+	const { store: endpointsStore } = useEndpoints();
 	const [scope, setScope] = useState<CloudAccountScope>();
 	const revision = useRef(0);
 	const selectScope = useCallback((next: CloudAccountScope | undefined) => {
 		revision.current += 1;
 		setScope(next);
 	}, []);
-	useEffect(
-		() =>
-			value.subscribeIdentity(() => {
-				selectScope(undefined);
-				// Cached controllers and pending launches cannot outlive their account.
-				cloudStartStore.clear();
-			}),
-		[value, selectScope],
-	);
+	useEffect(() => {
+		return value.subscribeIdentity((credentials, previous) => {
+			selectScope(undefined);
+			// Cached controllers and pending launches cannot outlive their account.
+			cloudStartStore.clear();
+			if (
+				!credentials ||
+				(previous &&
+					(!previous.accountId || previous.accountId !== credentials.accountId))
+			) {
+				// Token resolution can sign out without calling the Settings hook.
+				// Also retire private input before a different person signs in.
+				void retirePrivateInput(value, endpointsStore).catch(() => {});
+			}
+		});
+	}, [value, selectScope, endpointsStore]);
 	const beginSelection = useCallback(() => {
 		// Starting a newer selection retires older switches/discovery. Publishing
 		// increments again so discovery begun during the RPC cannot undo success.
@@ -181,17 +210,13 @@ export function useCloudAuth(): UseCloudAuth {
 	const signOut = useCallback(async () => {
 		selectScope(undefined);
 		cloudStartStore.clear();
-		// Unsent text/photos belong to the signed-in person, even if credential
-		// storage cannot finish signing out. Keep saved destination preferences.
-		clearAllSessionDrafts();
-		clearAllPendingHomeSubmissions();
 		// Invalidate credential cache/generation immediately; endpoint storage may be
 		// slow, and must not leave the old account usable while cleanup waits.
 		const credentialSignOut = store.signOut();
-		await Promise.allSettled([
-			credentialSignOut,
-			endpointsStore.retirePendingInitialMessages(),
-		]);
+		// The identity observer and explicit Sign out share one retirement. Also
+		// cover consumers rendered without the app-wide provider.
+		const privateRetirement = retirePrivateInput(store, endpointsStore);
+		await Promise.allSettled([credentialSignOut, privateRetirement]);
 		// The store's synchronous identity notification already retired every consumer.
 		// A newer sign-in during storage cleanup must not be overwritten here.
 	}, [store, selectScope, endpointsStore]);

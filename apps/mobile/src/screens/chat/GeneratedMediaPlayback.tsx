@@ -1,6 +1,6 @@
 import {
-	type GeneratedMedia,
 	createMediaBudgetState,
+	type GeneratedMedia,
 	validateAndReserveBase64Media,
 } from "@cline/shared";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -125,12 +125,35 @@ function usePauseWhenInactive(player: { pause(): void }) {
 	return () => focused.current && AppState.currentState === "active";
 }
 
+/** A native player can miss its terminal event (including an already-failed
+ * AVPlayer snapshot). Bound initial preparation and latch failure until the
+ * explicit Retry remounts this attempt; late ready events never restart it. */
+function usePlaybackLoadFailure(ready: boolean, nativeFailure: boolean) {
+	const [failed, setFailed] = useState(false);
+	const loaded = useRef(false);
+	useEffect(() => {
+		if (nativeFailure) {
+			setFailed(true);
+			return;
+		}
+		if (ready) loaded.current = true;
+		if (failed || loaded.current) return;
+		const timer = setTimeout(() => setFailed(true), 15_000);
+		return () => clearTimeout(timer);
+	}, [ready, nativeFailure, failed]);
+	return failed || nativeFailure;
+}
+
 function AudioPlayback({ uri, onRetry }: { uri: string; onRetry(): void }) {
 	const player = useAudioPlayer(uri);
 	const status = useAudioPlayerStatus(player);
 	const [failed, setFailed] = useState(false);
 	const canPlay = usePauseWhenInactive(player);
-	if (failed || status.error)
+	const loadFailed = usePlaybackLoadFailure(
+		status.isLoaded,
+		Boolean(status.error) || status.playbackState === "failed",
+	);
+	if (failed || loadFailed)
 		return <PlaybackError modality="audio" onRetry={onRetry} />;
 	const toggle = async () => {
 		try {
@@ -176,8 +199,11 @@ function VideoPlayback({ uri, onRetry }: { uri: string; onRetry(): void }) {
 		);
 		return () => subscription.remove();
 	}, [player]);
-	if (status === "error")
-		return <PlaybackError modality="video" onRetry={onRetry} />;
+	const loadFailed = usePlaybackLoadFailure(
+		status === "readyToPlay",
+		status === "error",
+	);
+	if (loadFailed) return <PlaybackError modality="video" onRetry={onRetry} />;
 	return (
 		<View style={{ gap: 8 }}>
 			{status === "loading" ? <Text tone="muted">Loading video…</Text> : null}

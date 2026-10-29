@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import * as Native from "react-native";
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CloudSessionGateway } from "@/cloud";
 import type { ConnectionDescriptor } from "@/connection";
 import { descriptorKey, SavedEndpointsStore } from "@/connection";
 import { initialSnapshot } from "@/connection/controller";
@@ -23,6 +24,8 @@ const state = vi.hoisted(() => ({
 	setParams: vi.fn(),
 	mountChat: vi.fn(),
 	unmountChat: vi.fn(),
+	dismissTo: vi.fn(),
+	focused: true,
 }));
 vi.mock("expo-router", () => ({
 	useFocusEffect: (callback: () => void | (() => void)) =>
@@ -31,10 +34,13 @@ vi.mock("expo-router", () => ({
 	useRouter: () => ({
 		replace: state.replace,
 		setParams: state.setParams,
-		dismissTo: vi.fn(),
+		dismissTo: state.dismissTo,
 		back: vi.fn(),
 	}),
-	useNavigation: () => ({ addListener: () => () => {} }),
+	useNavigation: () => ({
+		addListener: () => () => {},
+		isFocused: () => state.focused,
+	}),
 }));
 vi.mock("@/connection", async (original) => ({
 	...(await original<typeof import("@/connection")>()),
@@ -60,6 +66,7 @@ vi.mock("@/cloud", async (original) => ({
 beforeEach(() => {
 	act(() => cloudStartStore.clear());
 	vi.clearAllMocks();
+	state.focused = true;
 	state.connection.mockReturnValue({
 		...initialSnapshot(),
 		setApprovalPolicy: vi.fn(),
@@ -332,4 +339,65 @@ it("saves a chat's accepted model as its account default, but preserves it when 
 		"accepted/model",
 	);
 	screen.unmount();
+});
+
+it.each([
+	"blurred by newer route",
+	"same route changed to B",
+])("does not dismiss a newer chat when Stop A completes after %s", async (boundary) => {
+	const endpoints = new SavedEndpointsStore();
+	const a: ConnectionDescriptor = {
+		mode: "cloud",
+		url: "https://core.example/session/action-A",
+		remoteSessionId: "action-A",
+	};
+	const b: ConnectionDescriptor = {
+		...a,
+		url: "https://core.example/session/action-B",
+		remoteSessionId: "action-B",
+	};
+	await endpoints.save(a);
+	await endpoints.save(b);
+	state.key = descriptorKey(a);
+	let finish!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	const stop = vi
+		.spyOn(CloudSessionGateway.prototype, "suspendRemoteSession")
+		.mockImplementation(async () => {
+			await gate;
+		});
+	try {
+		const element = () => (
+			<EndpointsProvider store={endpoints}>
+				<ChatRoute />
+			</EndpointsProvider>
+		);
+		const screen = render(element());
+		await act(async () => {});
+		const sidebar = screen.root.find((node) => node.type === SessionSidebar);
+		let pending!: Promise<void>;
+		act(() => {
+			pending = sidebar.props.onStopWorkspace({
+				key: descriptorKey(a),
+				descriptor: a,
+			});
+		});
+		if (boundary === "blurred by newer route") state.focused = false;
+		else {
+			state.key = descriptorKey(b);
+			act(() => screen.renderer.update(element()));
+		}
+		await act(async () => {
+			finish();
+			await pending;
+		});
+		expect(stop).toHaveBeenCalledOnce();
+		expect(state.dismissTo).not.toHaveBeenCalled();
+		expect(endpoints.get(descriptorKey(b))).toBeDefined();
+		screen.unmount();
+	} finally {
+		stop.mockRestore();
+	}
 });
