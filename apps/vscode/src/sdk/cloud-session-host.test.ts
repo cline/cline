@@ -9,6 +9,7 @@ const runtime = vi.hoisted(() => ({
 	pendingDelete: vi.fn(),
 	listSessions: vi.fn(),
 	updateSessionConnection: vi.fn(),
+	getAccumulatedUsage: vi.fn(),
 	readSessionMessages: vi.fn(),
 	startSession: vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId })),
 }))
@@ -19,6 +20,7 @@ vi.mock("@cline/core", () => ({
 		connect = vi.fn(async () => undefined)
 		listSessions = runtime.listSessions
 		updateSessionConnection = runtime.updateSessionConnection
+		getAccumulatedUsage = runtime.getAccumulatedUsage
 		readSessionMessages = runtime.readSessionMessages
 		startSession = runtime.startSession
 		subscribe(listener: (event: unknown) => void) {
@@ -41,6 +43,7 @@ describe("CloudSessionHost status", () => {
 		runtime.pendingDelete.mockReset()
 		runtime.listSessions.mockReset().mockResolvedValue([{ sessionId: "inner-session", status: "idle" }])
 		runtime.updateSessionConnection.mockReset().mockResolvedValue(undefined)
+		runtime.getAccumulatedUsage.mockReset().mockResolvedValue({ usage: { tokensIn: 1, tokensOut: 2 } })
 		runtime.readSessionMessages.mockReset().mockResolvedValue([])
 		runtime.startSession.mockClear()
 	})
@@ -60,6 +63,7 @@ describe("CloudSessionHost status", () => {
 			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model", systemPrompt: "guidance" }) as never,
 		})
 
+		await host.prepareForSend("ses-outer")
 		await host.send({ sessionId: "ses-outer", prompt: "follow-up" })
 		await host.send({ sessionId: "ses-outer", prompt: "another" })
 
@@ -73,6 +77,59 @@ describe("CloudSessionHost status", () => {
 		)
 		expect(runtime.updateSessionConnection).toHaveBeenCalledOnce()
 		expect(runtime.runTurn).toHaveBeenCalledTimes(2)
+		expect(runtime.runTurn).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ sessionId: "inner-session", prompt: "follow-up" }),
+		)
+	})
+
+	it("probes a healthy runtime before send and does not rebuild it", async () => {
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model" }) as never,
+		})
+
+		await host.prepareForSend("ses-outer")
+		expect(runtime.updateSessionConnection).toHaveBeenCalledWith("inner-session", {})
+		expect(runtime.startSession).not.toHaveBeenCalled()
+		expect(runtime.runTurn).not.toHaveBeenCalled()
+
+		await host.send({ sessionId: "ses-outer", prompt: "the original follow-up" })
+		expect(runtime.updateSessionConnection).toHaveBeenCalledOnce()
+		expect(runtime.runTurn).toHaveBeenCalledOnce()
+		expect(runtime.runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId: "inner-session", prompt: "the original follow-up" }),
+		)
+	})
+
+	it("rejects captured calls after disposal without reopening the Hub connection", async () => {
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+		})
+		await host.dispose()
+		runtime.listSessions.mockClear()
+		runtime.pendingList.mockClear()
+		runtime.updateSessionConnection.mockClear()
+		runtime.getAccumulatedUsage.mockClear()
+		runtime.runTurn.mockClear()
+
+		await expect(host.pendingPrompts("list", { sessionId: "ses-outer" })).rejects.toThrow("connection is closed")
+		await expect(host.getAccumulatedUsage("ses-outer")).rejects.toThrow("connection is closed")
+		await expect(host.prepareForSend("ses-outer")).rejects.toThrow("connection is closed")
+		await expect(host.refreshStatus()).rejects.toThrow("connection is closed")
+		await expect(host.send({ sessionId: "ses-outer", prompt: "stale follow-up" })).rejects.toThrow("connection is closed")
+
+		expect(runtime.listSessions).not.toHaveBeenCalled()
+		expect(runtime.pendingList).not.toHaveBeenCalled()
+		expect(runtime.updateSessionConnection).not.toHaveBeenCalled()
+		expect(runtime.getAccumulatedUsage).not.toHaveBeenCalled()
+		expect(runtime.runTurn).not.toHaveBeenCalled()
 	})
 
 	it("leaves a live runtime alone and surfaces other probe failures", async () => {

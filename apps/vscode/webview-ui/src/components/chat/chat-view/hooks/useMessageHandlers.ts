@@ -30,7 +30,11 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget, currentCloudTask } = useExtensionState()
+	const cloudTaskRef = useRef({ sessionId: currentCloudTask?.sessionId })
+	if (cloudTaskRef.current.sessionId !== currentCloudTask?.sessionId) {
+		cloudTaskRef.current = { sessionId: currentCloudTask?.sessionId }
+	}
 	const {
 		setInputValue,
 		activeQuote,
@@ -96,6 +100,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
+			const submittedCloudTask = cloudTaskRef.current
 			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
 			const submittedText = recoveryDraft?.text ?? text
 			const submittedImages = recoveryDraft?.images ?? images
@@ -155,6 +160,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setEnableButtons(false)
 				}
 				const restorePendingMessageState = () => {
+					if (submittedCloudTask.sessionId && cloudTaskRef.current !== submittedCloudTask) return
 					setInputValue(text)
 					setActiveQuote(activeQuote)
 					setSendingDisabled(sendingDisabled)
@@ -438,6 +444,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
+			currentCloudTask?.sessionId,
 		],
 	)
 

@@ -20,6 +20,7 @@ import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
@@ -1230,8 +1231,12 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			const after = host("after")
 			const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before).mockResolvedValueOnce(after)
 			const attached: unknown[] = []
+			const endActiveSessionIfHost = vi.fn(async () => undefined)
 			const { coordinator, cloudSessions } = makeCoordinator({
-				sessions: { attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost) } as never,
+				sessions: {
+					attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost),
+					endActiveSessionIfHost,
+				} as never,
 			})
 			cloudSessions.listSessions.mockResolvedValue([finished])
 			await coordinator.openCloudTask(finished.id)
@@ -1243,6 +1248,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			await coordinator.openCloudTask(finished.id)
 
 			expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+			expect(endActiveSessionIfHost).toHaveBeenCalledWith(before, "suspended")
 			expect(before.dispose).toHaveBeenCalled()
 			expect(connect).toHaveBeenCalledTimes(2)
 			expect(attached).toEqual([before, after])
@@ -2042,5 +2048,341 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		const [history] = await pending
 
 		expect(history.metadata).not.toHaveProperty("usageAvailable")
+	})
+})
+
+describe("cloud follow-up preparation", () => {
+	function makePreparedHost(status: "idle" | "running" = "idle") {
+		return {
+			status,
+			sessionModelId: "fixture-model",
+			prepareForSend: vi.fn(async () => undefined),
+			refreshStatus: vi.fn(async () => status),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as CloudSessionHost & {
+			prepareForSend: ReturnType<typeof vi.fn>
+			refreshStatus: ReturnType<typeof vi.fn>
+			dispose: ReturnType<typeof vi.fn>
+		}
+	}
+
+	it("does not offer follow-up while the initial cloud start is still attaching its first session", async () => {
+		const attaching = deferred<void>()
+		const releaseAttach = deferred<void>()
+		const host = { status: "idle", dispose: vi.fn(async () => undefined) } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				startNewSession: vi.fn(async () => {
+					attaching.resolve()
+					await releaseAttach.promise
+					return { sdkHost: host, startResult: { sessionId: record.id } }
+				}),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		cloudSessions.createSession.mockResolvedValue(record)
+
+		const starting = coordinator.beginCloudTask({ prompt: "initial prompt", repoUrl: record.repoContext.repoUrl! })()
+		await attaching.promise
+		expect(options.getTask()?.taskId).toBe(record.id)
+		expect(coordinator.canPrepareFollowup(record.id)).toBe(false)
+
+		releaseAttach.resolve()
+		await starting
+		expect(coordinator.canPrepareFollowup(record.id)).toBe(true)
+		await coordinator.dispose()
+	})
+
+	it("does not offer follow-up for an expired suspended record", async () => {
+		const expired = { ...record, id: "ses-expired-suspended", status: "suspended", expiredAt: new Date(0).toISOString() }
+		const current = { ...record, id: "ses-current-suspended", status: "suspended" }
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([expired, current])
+		await coordinator.listHistoryRecords()
+
+		expect(coordinator.canPrepareFollowup(expired.id)).toBe(false)
+		expect(coordinator.canPrepareFollowup(current.id)).toBe(true)
+		await coordinator.dispose()
+	})
+
+	it("probes an active cloud session without consulting REST", async () => {
+		const activeRecord = { ...record, status: "active" }
+		const host = makePreparedHost()
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let active: { sessionId: string; sdkHost: unknown; isRunning: boolean } | undefined
+		const attachExistingSession = vi.fn(
+			async ({ sdkHost, sessionId, isRunning }: { sdkHost: unknown; sessionId: string; isRunning: boolean }) => {
+				active = { sessionId, sdkHost, isRunning }
+				return active
+			},
+		)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				getActiveSession: () => active,
+				attachExistingSession,
+				endActiveSessionIfHost: vi.fn(async () => undefined),
+			} as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([activeRecord])
+		await coordinator.listHistoryRecords()
+		const task = createTaskProxy(activeRecord.id, vi.fn(), vi.fn())
+		options.setTask(task)
+
+		const preparation = coordinator.beginFollowup(task, () => true)
+		const session = await preparation.prepare()
+
+		expect(session.sdkHost).toBe(host)
+		expect(host.prepareForSend).toHaveBeenCalledOnce()
+		expect(attachExistingSession).toHaveBeenCalledOnce()
+		expect(cloudSessions.getStatus).not.toHaveBeenCalled()
+		expect(cloudSessions.resumeSession).not.toHaveBeenCalled()
+		expect(preparation.isCurrent()).toBe(true)
+		expect(connect).toHaveBeenCalledOnce()
+		await coordinator.dispose()
+	})
+
+	it("wakes a known suspended task once and attaches a fresh host", async () => {
+		const suspendedRecord = { ...record, status: "suspended" }
+		const oldHost = makePreparedHost("idle")
+		const freshHost = makePreparedHost("idle")
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(freshHost)
+		let active: { sessionId: string; sdkHost: unknown; isRunning: boolean } | undefined
+		const endActiveSessionIfHost = vi.fn(async (host: unknown) => {
+			if (active?.sdkHost === host) active = undefined
+		})
+		const attachExistingSession = vi.fn(
+			async ({ sdkHost, sessionId, isRunning }: { sdkHost: unknown; sessionId: string; isRunning: boolean }) => {
+				active = { sessionId, sdkHost, isRunning }
+				return active
+			},
+		)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { getActiveSession: () => active, attachExistingSession, endActiveSessionIfHost } as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([suspendedRecord])
+		await coordinator.listHistoryRecords()
+		const task = createTaskProxy(suspendedRecord.id, vi.fn(), vi.fn())
+		options.setTask(task)
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(suspendedRecord.id)!.host = oldHost
+		active = { sessionId: suspendedRecord.id, sdkHost: oldHost, isRunning: false }
+
+		const preparation = coordinator.beginFollowup(task, () => true)
+		const session = await preparation.prepare()
+
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(cloudSessions.getStatus).not.toHaveBeenCalled()
+		expect(oldHost.dispose).toHaveBeenCalledWith("suspended")
+		expect(endActiveSessionIfHost).toHaveBeenCalledWith(oldHost, "suspended")
+		expect(connect).toHaveBeenCalledOnce()
+		expect(freshHost.prepareForSend).toHaveBeenCalledOnce()
+		expect(session.sdkHost).toBe(freshHost)
+		expect(attachExistingSession).toHaveBeenCalledOnce()
+		await coordinator.dispose()
+	})
+
+	it("uses REST only after a stale-ready preflight fails and confirms suspension", async () => {
+		const activeRecord = { ...record, status: "active" }
+		const oldHost = {
+			...makePreparedHost("idle"),
+			prepareForSend: vi.fn().mockRejectedValue(new Error("pre-dispatch socket unavailable")),
+		}
+		const freshHost = makePreparedHost("idle")
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(freshHost)
+		let active: { sessionId: string; sdkHost: unknown; isRunning: boolean } | undefined
+		const attachExistingSession = vi.fn(
+			async ({ sdkHost, sessionId, isRunning }: { sdkHost: unknown; sessionId: string; isRunning: boolean }) => {
+				active = { sessionId, sdkHost, isRunning }
+				return active
+			},
+		)
+		const endActiveSessionIfHost = vi.fn(async (host: unknown) => {
+			if (active?.sdkHost === host) active = undefined
+		})
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { getActiveSession: () => active, attachExistingSession, endActiveSessionIfHost } as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([activeRecord])
+		cloudSessions.getStatus.mockResolvedValue({ status: "suspended" })
+		await coordinator.listHistoryRecords()
+		const task = createTaskProxy(activeRecord.id, vi.fn(), vi.fn())
+		options.setTask(task)
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(activeRecord.id)!.host = oldHost
+
+		const session = await coordinator.beginFollowup(task, () => true).prepare()
+
+		expect(oldHost.prepareForSend).toHaveBeenCalledOnce()
+		expect(cloudSessions.getStatus).toHaveBeenCalledOnce()
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(oldHost.dispose).toHaveBeenCalledWith("suspended")
+		expect(connect).toHaveBeenCalledOnce()
+		expect(freshHost.prepareForSend).toHaveBeenCalledOnce()
+		expect(attachExistingSession).toHaveBeenCalledOnce()
+		expect(session.sdkHost).toBe(freshHost)
+		await coordinator.dispose()
+	})
+
+	it("does not let a suspended list started before a successful preflight retire the new host", async () => {
+		const activeRecord = { ...record, status: "active" }
+		const host = makePreparedHost()
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let active: { sessionId: string; sdkHost: unknown; isRunning: boolean } | undefined
+		const attachExistingSession = vi.fn(
+			async ({ sdkHost, sessionId, isRunning }: { sdkHost: unknown; sessionId: string; isRunning: boolean }) => {
+				active = { sessionId, sdkHost, isRunning }
+				return active
+			},
+		)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				getActiveSession: () => active,
+				attachExistingSession,
+				endActiveSessionIfHost: vi.fn(async () => undefined),
+			} as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([activeRecord])
+		await coordinator.listHistoryRecords()
+		const oldList = deferred<CloudSessionRecord[]>()
+		const listEntered = deferred<void>()
+		cloudSessions.listSessions.mockImplementationOnce(() => {
+			listEntered.resolve()
+			return oldList.promise
+		})
+		const listing = (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		await listEntered.promise
+
+		const task = createTaskProxy(activeRecord.id, vi.fn(), vi.fn())
+		options.setTask(task)
+		await coordinator.beginFollowup(task, () => true).prepare()
+		oldList.resolve([{ ...activeRecord, status: "suspended" }])
+		await listing
+
+		const entry = (
+			coordinator as unknown as { entries: Map<string, { record: CloudSessionRecord; host?: unknown }> }
+		).entries.get(activeRecord.id)
+		expect(entry?.record.status).toBe("active")
+		expect(entry?.host).toBe(host)
+		expect(host.dispose).not.toHaveBeenCalled()
+		expect(cloudSessions.resumeSession).not.toHaveBeenCalled()
+		expect(connect).toHaveBeenCalledOnce()
+		expect(attachExistingSession).toHaveBeenCalledOnce()
+		await coordinator.dispose()
+	})
+
+	it("does not reinstall a retained host whose refresh completes after suspension retires it", async () => {
+		const activeRecord = { ...record, status: "active" }
+		let resolveRefresh!: (status: CloudSessionStatus) => void
+		const retainedHost = {
+			...makePreparedHost("idle"),
+			refreshStatus: vi.fn(
+				() =>
+					new Promise<CloudSessionStatus>((resolve) => {
+						resolveRefresh = resolve
+					}),
+			),
+		}
+		const connect = vi.spyOn(CloudSessionHost, "connect")
+		const attachExistingSession = vi.fn()
+		const endActiveSessionIfHost = vi.fn(async () => undefined)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				getActiveSession: () => undefined,
+				attachExistingSession,
+				endActiveSessionIfHost,
+			} as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([activeRecord])
+		await coordinator.listHistoryRecords()
+		const task = createTaskProxy(activeRecord.id, vi.fn(), vi.fn())
+		options.setTask(task)
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(activeRecord.id)!.host = retainedHost
+
+		const pending = coordinator.beginFollowup(task, () => true).prepare()
+		await vi.waitFor(() => expect(retainedHost.refreshStatus).toHaveBeenCalledOnce())
+		cloudSessions.listSessions.mockResolvedValueOnce([{ ...activeRecord, status: "suspended" }])
+		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		expect(entries.get(activeRecord.id)?.host).toBeUndefined()
+		expect(endActiveSessionIfHost).toHaveBeenCalledWith(retainedHost, "suspended")
+
+		cloudSessions.getStatus.mockResolvedValue({ status: "ready" })
+		resolveRefresh("idle")
+		await expect(pending).rejects.toThrow("connection was superseded")
+		expect(entries.get(activeRecord.id)?.host).toBeUndefined()
+		expect(connect).not.toHaveBeenCalled()
+		expect(attachExistingSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+	})
+
+	it("releases the task-transition lock on cancellation and lets a new submission join the pending wake", async () => {
+		vi.useFakeTimers()
+		const suspendedRecord = { ...record, status: "suspended" }
+		const oldHost = makePreparedHost("idle")
+		const freshHost = makePreparedHost("idle")
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(freshHost)
+		const resumeStarted = deferred<void>()
+		const resumeGate = deferred<void>()
+		let active: { sessionId: string; sdkHost: unknown; isRunning: boolean } | undefined
+		const attachExistingSession = vi.fn(
+			async ({ sdkHost, sessionId, isRunning }: { sdkHost: unknown; sessionId: string; isRunning: boolean }) => {
+				active = { sessionId, sdkHost, isRunning }
+				return active
+			},
+		)
+		const endActiveSessionIfHost = vi.fn(async (host: unknown) => {
+			if (active?.sdkHost === host) active = undefined
+		})
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { getActiveSession: () => active, attachExistingSession, endActiveSessionIfHost } as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([suspendedRecord])
+		cloudSessions.resumeSession.mockImplementation(async () => {
+			resumeStarted.resolve()
+			await resumeGate.promise
+		})
+		await coordinator.listHistoryRecords()
+		const firstTask = createTaskProxy(suspendedRecord.id, vi.fn(), vi.fn())
+		options.setTask(firstTask)
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(suspendedRecord.id)!.host = oldHost
+		active = { sessionId: suspendedRecord.id, sdkHost: oldHost, isRunning: false }
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => active as never } })
+
+		const first = scheduler.runExclusive(() => coordinator.beginFollowup(firstTask, () => true).prepare())
+		await resumeStarted.promise
+		coordinator.cancelPendingFollowup()
+		await expect(first).rejects.toThrow("cancelled")
+
+		const reselectedTask = createTaskProxy(suspendedRecord.id, vi.fn(), vi.fn())
+		let transitionCompleted = false
+		await scheduler.runTaskTransition(async () => {
+			options.setTask(reselectedTask)
+			transitionCompleted = true
+		})
+		expect(transitionCompleted).toBe(true)
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(connect).not.toHaveBeenCalled()
+		expect(attachExistingSession).not.toHaveBeenCalled()
+		expect(oldHost.prepareForSend).not.toHaveBeenCalled()
+
+		const second = scheduler.runExclusive(() => coordinator.beginFollowup(reselectedTask, () => true).prepare())
+		await Promise.resolve()
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(cloudSessions.getStatus).not.toHaveBeenCalled()
+		expect(connect).not.toHaveBeenCalled()
+		expect(freshHost.prepareForSend).not.toHaveBeenCalled()
+		expect(attachExistingSession).not.toHaveBeenCalled()
+
+		resumeGate.resolve()
+		const prepared = await second
+		expect(prepared.sdkHost).toBe(freshHost)
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(connect).toHaveBeenCalledOnce()
+		expect(freshHost.prepareForSend).toHaveBeenCalledOnce()
+		expect(attachExistingSession).toHaveBeenCalledOnce()
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
 	})
 })

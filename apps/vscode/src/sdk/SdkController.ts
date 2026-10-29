@@ -612,6 +612,8 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
+			beginCloudFollowup: (task) =>
+				isCloudSessionId(task.taskId) ? this.cloud.beginFollowup(task, this.taskControl.captureTaskView()) : undefined,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
@@ -665,6 +667,7 @@ export class Controller {
 			createHistoryItemFromSession,
 			clearTask: async () => {
 				this.pendingStartRetry = undefined
+				this.cloud.cancelPendingFollowup()
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -1548,6 +1551,7 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 		cloudTarget?: CloudTarget,
 	): Promise<string | undefined> {
+		this.cloud.cancelPendingFollowup()
 		if (cloudTarget) {
 			// Register the cloud start before the first await so a Cancel that
 			// arrives while remote config is still loading finds it and stops it.
@@ -1594,6 +1598,7 @@ export class Controller {
 		// Fence first: mark resumable and invalidate provisioning before any abort await,
 		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
+		if (this.task && isCloudSessionId(this.task.taskId)) this.cloud.cancelPendingFollowup()
 		if (this.cloud.cancelPendingStartFor(this.task)) {
 			// The sandbox never started and its record is being deleted, so there is
 			// nothing to resume: return to the home view instead of offering Resume Task.
@@ -1601,6 +1606,9 @@ export class Controller {
 			return
 		}
 		await this.taskControl.cancelTask()
+		if (this.task && isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
+			await this.postStateToWebview()
+		}
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -1656,6 +1664,7 @@ export class Controller {
 
 	async clearTask(): Promise<void> {
 		this.pendingStartRetry = undefined
+		this.cloud.cancelPendingFollowup()
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		// A cloud task still provisioning has no SDK session for taskControl to end;
@@ -1714,7 +1723,12 @@ export class Controller {
 			}
 		}
 
-		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
+		if (
+			this.task &&
+			this.cloud.isCloudSessionId(this.task.taskId) &&
+			!this.sessions.getActiveSession() &&
+			!this.cloud.canPrepareFollowup(this.task.taskId)
+		) {
 			// No sandbox to send to: still provisioning (only reachable through the
 			// extension API, the composer is disabled), expired, or unconfirmed. Refusing the
 			// response is itself a turn outcome: the footer holds its Retry claim
@@ -2205,6 +2219,7 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		this.cloud.cancelPendingFollowup()
 		const historyItem = this.cloud.isCloudSessionId(taskId)
 			? await this.cloud.openCloudTask(taskId)
 			: await this.taskControl.showTaskWithId(taskId)

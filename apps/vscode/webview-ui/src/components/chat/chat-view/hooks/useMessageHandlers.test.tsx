@@ -46,6 +46,7 @@ vi.mock("@shared/proto/cline/common", () => ({
 
 // useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
+let mockCurrentCloudTask: { sessionId: string; status: "idle" } | undefined
 let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
@@ -53,6 +54,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		turnState: mockTurnState,
 		cloudSessionsEnabled: true,
 		cloudTaskTarget: mockCloudTaskTarget,
+		currentCloudTask: mockCurrentCloudTask,
 	}),
 }))
 
@@ -124,6 +126,7 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockReset()
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
+		mockCurrentCloudTask = undefined
 		mockCloudTaskTarget = undefined
 	})
 
@@ -393,6 +396,73 @@ describe("useMessageHandlers — send routing", () => {
 		expect(rollbackResponse(pendingResponse)).toBeUndefined()
 		const newerResponse = { ...pendingResponse, id: 2 }
 		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
+	})
+
+	it.each([
+		false,
+		true,
+	])("does not restore a rejected cloud follow-up draft after a cloud task switch (back to origin: %s)", async (switchBackToOrigin) => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-task-a", status: "idle" }
+		let rejectAskResponse: (error: Error) => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectAskResponse = reject
+				}),
+		)
+		const taskA = completedConversation
+		const taskB: ClineMessage[] = [
+			{ ts: 3, type: "say", say: "text", text: "task B" },
+			{ ts: 4, type: "say", say: "completion_result", text: "all done" },
+		]
+		const { result, rerender } = renderHook(
+			({ messages }: { messages: ClineMessage[] }) => {
+				const chatState = useChatState(messages)
+				return { chatState, handlers: useMessageHandlers(messages, chatState) }
+			},
+			{ initialProps: { messages: taskA } },
+		)
+
+		act(() => {
+			result.current.chatState.setInputValue("draft for task A")
+			result.current.chatState.setActiveQuote("quote A")
+			result.current.chatState.setSelectedImages(["image-A.png"])
+			result.current.chatState.setSelectedFiles(["file-A.ts"])
+		})
+
+		let sendA!: Promise<void>
+		await act(async () => {
+			sendA = result.current.handlers.handleSendMessage("draft for task A", ["image-A.png"], ["file-A.ts"])
+			await Promise.resolve()
+		})
+
+		await act(async () => {
+			mockCurrentCloudTask = { sessionId: "ses-task-b", status: "idle" }
+			rerender({ messages: taskB })
+		})
+		if (switchBackToOrigin) {
+			await act(async () => {
+				mockCurrentCloudTask = { sessionId: "ses-task-a", status: "idle" }
+				rerender({ messages: taskA })
+			})
+		}
+		act(() => {
+			result.current.chatState.setInputValue("draft for current task")
+			result.current.chatState.setActiveQuote("quote current")
+			result.current.chatState.setSelectedImages(["image-current.png"])
+			result.current.chatState.setSelectedFiles(["file-current.ts"])
+		})
+
+		await act(async () => {
+			rejectAskResponse(new Error("cloud preparation failed"))
+			await sendA.catch(() => undefined)
+		})
+
+		expect(result.current.chatState.inputValue).toBe("draft for current task")
+		expect(result.current.chatState.activeQuote).toBe("quote current")
+		expect(result.current.chatState.selectedImages).toEqual(["image-current.png"])
+		expect(result.current.chatState.selectedFiles).toEqual(["file-current.ts"])
 	})
 
 	it("shows a pending chat bubble immediately when sending a message to a task resumed from history", async () => {
