@@ -2951,6 +2951,7 @@ describe("useChatSession", () => {
 		["snapshot", "ready", "running"],
 		["failed", "failed", "failed"],
 		["expired", "expired", "completed"],
+		["suspended", "suspended", "idle"],
 	] as const)("recovers an attached provisioning cloud session: %s", async (outcome, readyStatus, expectedStatus) => {
 		let discoveryReads = 0;
 		let readyReads = 0;
@@ -2979,6 +2980,7 @@ describe("useChatSession", () => {
 				if (command === "read_cloud_session_if_awake") {
 					discoveryReads += 1;
 					if (discoveryReads === 1) return { kind: "deferred" };
+					if (outcome === "suspended") return { kind: "suspended" };
 					readyReads += 1;
 					if (outcome === "failed" || outcome === "expired")
 						return { kind: "status", status: readyStatus };
@@ -3056,7 +3058,13 @@ describe("useChatSession", () => {
 				expect(current.status).toBe("running");
 			}
 			expect(current.isCloudSessionExpired).toBe(outcome === "expired");
-			if (outcome !== "failed" && outcome !== "expired") {
+			if (outcome === "suspended") {
+				expect(current.messages.map((message) => message.content)).toEqual([
+					"Fix the provisioning flow",
+				]);
+				await act(async () => vi.advanceTimersByTimeAsync(15_000));
+				expect(discoveryReads).toBe(2);
+			} else if (outcome !== "failed" && outcome !== "expired") {
 				expect(current.messages).toContainEqual(
 					expect.objectContaining({ role: "assistant", content: "Ready" }),
 				);

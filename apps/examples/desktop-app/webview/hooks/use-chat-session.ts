@@ -2594,10 +2594,8 @@ export function useChatSession(environmentId: string) {
 				}
 				if (refresh.kind === "deferred") return;
 				if (refresh.kind === "suspended") {
-					if (status !== "starting") {
-						authoritativeStatusRevisionRef.current += 1;
-						setStatus("idle");
-					}
+					authoritativeStatusRevisionRef.current += 1;
+					setStatus("idle");
 					return;
 				}
 				const historyMessages =
