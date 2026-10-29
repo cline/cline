@@ -56,9 +56,33 @@ async function mount() {
 			visible = false;
 			result.renderer.update(<Harness />);
 		},
+		show: () => {
+			visible = true;
+			result.renderer.update(<Harness />);
+		},
 	};
 }
 describe("Account settings switcher", () => {
+	it("keeps a remounted switcher disabled while the shared account RPC is pending", async () => {
+		const pending = Promise.withResolvers<void>();
+		mocks.switchAccount.mockReturnValue(pending.promise);
+		const screen = await mount();
+		act(() => screen.row("Personal")?.props.onPress());
+		act(() => screen.hide());
+		await act(async () => screen.show());
+		act(() => screen.row("Personal")?.props.onPress());
+		expect(mocks.switchAccount).toHaveBeenCalledOnce();
+		expect(screen.row("Personal")?.props.accessibilityState.disabled).toBe(
+			true,
+		);
+		expect(screen.row("Team")?.props.accessibilityState.disabled).toBe(true);
+		await act(async () => pending.resolve());
+		expect(screen.getScope().scope).toEqual({ organizationId: undefined });
+		expect(screen.row("Personal")?.props.accessibilityState.checked).toBe(true);
+		expect(screen.row("Personal")?.props.accessibilityState.disabled).toBe(
+			false,
+		);
+	});
 	it("shows the current Personal account even when there is nothing to switch", async () => {
 		mocks.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
 		const { row, root } = await mount();
@@ -160,4 +184,19 @@ it("finishes the selected account switch when Settings is left before the respon
 	// the Settings route. Home must use the same account as the server.
 	expect(screen.getScope().scope).toEqual({ organizationId: undefined });
 	screen.unmount();
+});
+
+it("publishes an owned failure after Settings unmounts so Home can explain the retained account", async () => {
+	const pending = Promise.withResolvers<void>();
+	mocks.switchAccount.mockReturnValue(pending.promise);
+	const screen = await mount();
+	act(() => screen.row("Personal")?.props.onPress());
+	expect(screen.getScope().selectionPending).toBe(true);
+	act(() => screen.hide());
+	await act(async () => pending.reject(new Error("Network unavailable")));
+	expect(screen.getScope().selectionPending).toBe(false);
+	expect(screen.getScope().scope).toEqual({ organizationId: "org-1" });
+	expect(screen.getScope().selectionError).toBe(
+		"Account could not be changed. Your previous account is still selected.",
+	);
 });

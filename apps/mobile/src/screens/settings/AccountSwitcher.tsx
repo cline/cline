@@ -14,7 +14,13 @@ import { Button, Text, useTheme } from "@/ui";
 export function AccountSwitcher() {
 	const theme = useTheme();
 	const { store } = useCloudAuth();
-	const { beginSelection, beginRefresh } = useCloudAccountScope();
+	const {
+		scope,
+		beginSelection,
+		beginRefresh,
+		selectionPending,
+		isSelectionPending,
+	} = useCloudAccountScope();
 	const gateway = useMemo(
 		() =>
 			new CloudAccountGateway({
@@ -24,6 +30,13 @@ export function AccountSwitcher() {
 		[store],
 	);
 	const [accounts, setAccounts] = useState<CloudAccount[]>([]);
+	const visibleAccounts = accounts.map((account) => ({
+		...account,
+		active:
+			scope === undefined
+				? account.active
+				: account.organizationId === scope.organizationId,
+	}));
 	const [error, setError] = useState<string>();
 	const [loading, setLoading] = useState(true);
 	const [retry, setRetry] = useState(0);
@@ -67,7 +80,7 @@ export function AccountSwitcher() {
 		};
 	}, [gateway, retry, beginRefresh]);
 	const choose = async (account: CloudAccount) => {
-		if (busy.current || account.active) return;
+		if (busy.current || isSelectionPending() || account.active) return;
 		busy.current = true;
 		const publishSelection = beginSelection();
 		setSwitching(true);
@@ -85,7 +98,7 @@ export function AccountSwitcher() {
 					})),
 				);
 		} catch (cause) {
-			if (mounted.current)
+			if (publishSelection.fail() && mounted.current)
 				setError(
 					userErrorMessage(
 						cause,
@@ -107,10 +120,11 @@ export function AccountSwitcher() {
 			{!loading && accounts.length > 0 ? (
 				<Text
 					variant="small"
-					accessibilityLabel={`Current account: ${accounts.find((account) => account.active)?.name ?? "Unavailable"}`}
+					accessibilityLabel={`Current account: ${visibleAccounts.find((account) => account.active)?.name ?? "Unavailable"}`}
 				>
 					Current account:{" "}
-					{accounts.find((account) => account.active)?.name ?? "Unavailable"}
+					{visibleAccounts.find((account) => account.active)?.name ??
+						"Unavailable"}
 				</Text>
 			) : null}
 			{accounts.length > 1 ? (
@@ -118,16 +132,16 @@ export function AccountSwitcher() {
 					<Text variant="small" weight="500">
 						Accounts
 					</Text>
-					{accounts.map((account) => (
+					{visibleAccounts.map((account) => (
 						<Pressable
 							key={account.organizationId ?? "personal"}
 							accessibilityRole="radio"
 							accessibilityLabel={account.name}
 							accessibilityState={{
 								checked: account.active,
-								disabled: switching,
+								disabled: switching || selectionPending,
 							}}
-							disabled={switching}
+							disabled={switching || selectionPending}
 							onPress={() => void choose(account)}
 							style={{
 								minHeight: 46,
@@ -139,7 +153,7 @@ export function AccountSwitcher() {
 								backgroundColor: account.active
 									? theme.color.surfaceMuted
 									: "transparent",
-								opacity: switching ? 0.6 : 1,
+								opacity: switching || selectionPending ? 0.6 : 1,
 							}}
 						>
 							<Text variant="small" style={{ flex: 1 }}>

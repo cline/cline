@@ -66,16 +66,31 @@ function retirePrivateInput(
 export interface CloudAccountScope {
 	organizationId?: string;
 }
+interface CloudAccountSelection {
+	(scope: CloudAccountScope): boolean;
+	fail(): boolean;
+	cancel(): boolean;
+}
+export const ACCOUNT_SELECTION_ERROR =
+	"Account could not be changed. Your previous account is still selected.";
 const CloudAccountScopeContext = createContext<{
 	scope: CloudAccountScope | undefined;
+	selectionPending: boolean;
+	selectionError?: string;
+	isSelectionPending(): boolean;
+	isScopeCurrent(scope: CloudAccountScope | undefined): boolean;
 	selectScope(scope: CloudAccountScope | undefined): void;
 	beginRefresh(): (scope: CloudAccountScope) => void;
-	beginSelection(): (scope: CloudAccountScope) => boolean;
+	beginSelection(): CloudAccountSelection;
 }>({
 	scope: undefined,
+	selectionPending: false,
+	isSelectionPending: () => false,
+	isScopeCurrent: (scope) => scope === undefined,
 	selectScope: () => {},
 	beginRefresh: () => () => {},
-	beginSelection: () => () => false,
+	beginSelection: () =>
+		Object.assign(() => false, { fail: () => false, cancel: () => false }),
 });
 
 export function useCloudAccountScope() {
@@ -111,9 +126,28 @@ export function CloudAuthProvider({
 	const [value] = useState(() => store ?? cloudAuthStore);
 	const { store: endpointsStore } = useEndpoints();
 	const [scope, setScope] = useState<CloudAccountScope>();
+	const scopeAuthority = useRef<CloudAccountScope | undefined>(undefined);
+	const isScopeCurrent = useCallback(
+		(expected: CloudAccountScope | undefined) =>
+			(expected === undefined) === (scopeAuthority.current === undefined) &&
+			expected?.organizationId === scopeAuthority.current?.organizationId,
+		[],
+	);
+	const [selection, setSelection] = useState<{
+		pending: boolean;
+		error?: string;
+	}>({ pending: false });
+	const pendingSelection = useRef<number | undefined>(undefined);
+	const isSelectionPending = useCallback(
+		() => pendingSelection.current !== undefined,
+		[],
+	);
 	const revision = useRef(0);
 	const selectScope = useCallback((next: CloudAccountScope | undefined) => {
 		revision.current += 1;
+		scopeAuthority.current = next;
+		pendingSelection.current = undefined;
+		setSelection({ pending: false });
 		setScope(next);
 	}, []);
 	useEffect(() => {
@@ -136,28 +170,59 @@ export function CloudAuthProvider({
 		// Starting a newer selection retires older switches/discovery. Publishing
 		// increments again so discovery begun during the RPC cannot undo success.
 		const started = ++revision.current;
-		return (next: CloudAccountScope) => {
-			if (revision.current !== started) return false;
+		pendingSelection.current = started;
+		setSelection({ pending: true });
+		const owned = () =>
+			revision.current === started && pendingSelection.current === started;
+		const finish = (next: CloudAccountScope) => {
+			if (!owned()) return false;
 			selectScope(next);
 			return true;
 		};
+		const retire = (error?: string) => {
+			if (!owned()) return false;
+			revision.current += 1;
+			pendingSelection.current = undefined;
+			setSelection({ pending: false, ...(error ? { error } : {}) });
+			return true;
+		};
+		return Object.assign(finish, {
+			fail: () => retire(ACCOUNT_SELECTION_ERROR),
+			cancel: () => retire(),
+		});
 	}, [selectScope]);
 	const beginRefresh = useCallback(() => {
 		const started = revision.current;
+		const allowed = pendingSelection.current === undefined;
 		return (next: CloudAccountScope) => {
 			// Discovery started before a Settings switch must not restore the old account.
-			if (revision.current === started)
+			if (
+				allowed &&
+				pendingSelection.current === undefined &&
+				revision.current === started
+			) {
+				scopeAuthority.current = next;
 				setScope((current) =>
 					current && current.organizationId === next.organizationId
 						? current
 						: next,
 				);
+			}
 		};
 	}, []);
 	return (
 		<CloudAuthContext.Provider value={value}>
 			<CloudAccountScopeContext.Provider
-				value={{ scope, selectScope, beginRefresh, beginSelection }}
+				value={{
+					scope,
+					selectionPending: selection.pending,
+					selectionError: selection.error,
+					isSelectionPending,
+					isScopeCurrent,
+					selectScope,
+					beginRefresh,
+					beginSelection,
+				}}
 			>
 				{children}
 			</CloudAccountScopeContext.Provider>

@@ -245,6 +245,51 @@ describe("account selection revision ownership", () => {
 		);
 		return { ...screen, current: () => current };
 	}
+	it("keeps selection pending through stale discovery and rejects an old failure after a newer selection starts", () => {
+		const screen = mountScope();
+		act(() => screen.current().selectScope({}));
+		expect(screen.current().isScopeCurrent(undefined)).toBe(false);
+		expect(screen.current().isScopeCurrent({})).toBe(true);
+		let first!: ReturnType<
+			ReturnType<typeof useCloudAccountScope>["beginSelection"]
+		>;
+		let second!: typeof first;
+		act(() => {
+			first = screen.current().beginSelection();
+		});
+		const during = screen.current().beginRefresh();
+		act(() => during({ organizationId: "stale" }));
+		expect(screen.current().scope).toEqual({});
+		expect(screen.current().selectionPending).toBe(true);
+		act(() => {
+			second = screen.current().beginSelection();
+		});
+		act(() => expect(first.fail()).toBe(false));
+		expect(screen.current().selectionPending).toBe(true);
+		act(() => expect(second.fail()).toBe(true));
+		expect(screen.current().scope).toEqual({});
+		expect(screen.current().selectionPending).toBe(false);
+		expect(screen.current().selectionError).toContain(
+			"previous account is still selected",
+		);
+		act(() => during({ organizationId: "late-after-failure" }));
+		expect(screen.current().scope).toEqual({});
+	});
+	it("retires a canceled selection without an error and prevents its late response", () => {
+		const screen = mountScope();
+		act(() => screen.current().selectScope({}));
+		let pending!: ReturnType<
+			ReturnType<typeof useCloudAccountScope>["beginSelection"]
+		>;
+		act(() => {
+			pending = screen.current().beginSelection();
+		});
+		act(() => expect(pending.cancel()).toBe(true));
+		act(() => expect(pending({ organizationId: "retired" })).toBe(false));
+		expect(screen.current().selectionPending).toBe(false);
+		expect(screen.current().selectionError).toBeUndefined();
+		expect(screen.current().scope).toEqual({});
+	});
 	it("retires older selections when a newer intent begins, and selection publications are one-shot", () => {
 		const screen = mountScope();
 		const old = screen.current().beginSelection();
@@ -261,8 +306,11 @@ describe("account selection revision ownership", () => {
 		act(() => {
 			screen.current().selectScope(undefined);
 			expect(pending({ organizationId: "retired" })).toBe(false);
+			expect(pending.fail()).toBe(false);
 		});
 		expect(screen.current().scope).toBeUndefined();
+		expect(screen.current().selectionPending).toBe(false);
+		expect(screen.current().selectionError).toBeUndefined();
 		screen.unmount();
 	});
 	it("successful selection retires discovery started before and during its RPC", () => {

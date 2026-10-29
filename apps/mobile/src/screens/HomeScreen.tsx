@@ -128,7 +128,17 @@ function HomeScreenBody({
 	onFinishSetup,
 }: HomeScreenProps) {
 	const theme = useTheme();
-	const { scope: accountScope } = useCloudAccountScope();
+	const {
+		scope: accountScope,
+		selectionPending,
+		selectionError,
+		isSelectionPending,
+		isScopeCurrent,
+	} = useCloudAccountScope();
+	const hasCloudScopeAuthority = useCallback(
+		() => !isSelectionPending() && isScopeCurrent(accountScope),
+		[isSelectionPending, isScopeCurrent, accountScope],
+	);
 	const insets = useSafeAreaInsets();
 	const { endpoints, hydrated: endpointsHydrated, save } = useEndpoints();
 	const {
@@ -245,7 +255,8 @@ function HomeScreenBody({
 		cloud.state.phase === "ready" ||
 		((cloud.state.phase === "loading" || cloud.state.phase === "error") &&
 			cloud.state.authenticated === true);
-	const cloudCanStart = cloudAuthenticated && accountScope !== undefined;
+	const cloudCanStart =
+		cloudAuthenticated && accountScope !== undefined && !selectionPending;
 	const targets = useMemo(
 		() =>
 			buildHomeExecutionTargets({
@@ -296,7 +307,7 @@ function HomeScreenBody({
 					? pendingCloudModelId
 					: undefined);
 	const canChooseNewModel =
-		target?.mode === "local" || (cloudMode && cloudAuthenticated);
+		target?.mode === "local" || (cloudMode && cloudCanStart);
 	const supportsReasoning = cloudModels.find(
 		(model) => model.id === selectedModelId,
 	)?.supportsReasoning;
@@ -318,6 +329,7 @@ function HomeScreenBody({
 	}, [target, cloudMode, loadCloudModels]);
 	const changeTargetModel = useCallback(
 		async (modelId: string, option?: CloudModelOption) => {
+			if (cloudMode && !hasCloudScopeAuthority()) return;
 			if (!target) {
 				await saveCloudModel(modelId, accountScope?.organizationId);
 				return;
@@ -335,6 +347,8 @@ function HomeScreenBody({
 			}
 		},
 		[
+			cloudMode,
+			hasCloudScopeAuthority,
 			saveCloudTarget,
 			saveCloudModel,
 			accountScope?.organizationId,
@@ -352,6 +366,7 @@ function HomeScreenBody({
 			expandBottomSheetAfterKeyboardDismiss(targetSheetRef);
 		},
 		onSaveTarget: async (input) => {
+			if (!hasCloudScopeAuthority()) return;
 			const saved = await saveCloudTarget({
 				...input,
 				...(!target ? { modelId: pendingCloudModelId } : {}),
@@ -385,7 +400,11 @@ function HomeScreenBody({
 		// A persisted Cloud target can outlive the account credential that created
 		// it. Keep the person's draft on Home until Cloud is authenticated instead
 		// of creating a provisioning job that can only fail on the next screen.
-		if (target.mode === "cloud" && !cloudCanStart) return;
+		if (
+			target.mode === "cloud" &&
+			(!cloudCanStart || !hasCloudScopeAuthority())
+		)
+			return;
 		void select(target.id).catch(() => {});
 		if (
 			target.mode === "local" ||
@@ -543,7 +562,22 @@ function HomeScreenBody({
 		);
 	}
 
-	const cloudNotice = (
+	const cloudNotice = selectionPending ? (
+		<Text tone="muted">Changing account… Your draft is saved.</Text>
+	) : selectionError ? (
+		<View style={{ gap: 8 }}>
+			<Text tone="danger" accessibilityRole="alert">
+				{selectionError}
+			</Text>
+			{onOpenSettings ? (
+				<Button
+					label="Account settings"
+					variant="outline"
+					onPress={onOpenSettings}
+				/>
+			) : null}
+		</View>
+	) : (
 		<CloudNotice
 			state={cloud.state}
 			accountScopeKnown={accountScope !== undefined}
@@ -559,7 +593,10 @@ function HomeScreenBody({
 		/>
 	);
 	const contextControl =
-		needsCloudSetup && (!cloudAuthenticated || cloudWorkspace.setupContent) ? (
+		selectionPending && cloudMode ? (
+			<Text tone="muted">Changing account…</Text>
+		) : needsCloudSetup &&
+			(!cloudAuthenticated || cloudWorkspace.setupContent) ? (
 			cloudWorkspace.locationControl
 		) : cloudAuthenticated &&
 			(choosingCloud || !target || target.mode === "cloud") ? (
@@ -863,6 +900,7 @@ function HomeScreenBody({
 						value={target.cloud.reasoning}
 						supported={supportsReasoning}
 						onChange={(choice) => {
+							if (!hasCloudScopeAuthority()) return;
 							void saveCloudTarget({ ...target.cloud, reasoning: choice });
 						}}
 					/>

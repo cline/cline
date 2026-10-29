@@ -287,6 +287,7 @@ async function mount(
 	return {
 		...result,
 		getAuth: () => auth,
+		getAccountScope: () => accountScope,
 		endpointStore,
 		lastOpenedStore,
 		executionTargetStore,
@@ -294,6 +295,165 @@ async function mount(
 			accountScope.selectScope({ organizationId }),
 	};
 }
+
+it("blocks Home new-task submission during an account selection lease while retaining its draft", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
+	const screen = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/team/personal",
+				label: "team/personal",
+				modelId: "model",
+			},
+			{
+				repoUrl: "https://github.com/team/organization",
+				label: "team/organization",
+				modelId: "model",
+				organizationId: "team-a",
+			},
+		],
+	});
+	act(() =>
+		findByLabel(screen.root, "Message Cline from Home")!.props.onChangeText(
+			"Keep this draft",
+		),
+	);
+	let finish!: ReturnType<
+		ReturnType<typeof useCloudAccountScope>["beginSelection"]
+	>;
+	const capturedSend = screen.root.find((node) => node.type === HomeComposer)
+		.props.onSend;
+	const capturedModelChange = screen.root.find(
+		(node) => node.type === ModelSheet,
+	).props.onChange;
+	let modelChange!: Promise<void>;
+	act(() => {
+		finish = screen.getAccountScope().beginSelection();
+		capturedSend("Keep this draft");
+		modelChange = capturedModelChange("model-before-React-commit");
+	});
+	await act(async () => {
+		await modelChange;
+	});
+	await act(async () =>
+		screen.root
+			.find((node) => node.type === ModelSheet)
+			.props.onChange("model-during-switch"),
+	);
+	expect(
+		screen.executionTargetStore
+			.get()
+			.cloudTargets.every((row) => row.modelId === "model"),
+	).toBe(true);
+	act(() =>
+		screen.root
+			.find((node) => node.type === HomeComposer)
+			.props.onSend("Keep this draft"),
+	);
+	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+	expect(
+		screen.root.find((node) => node.type === HomeComposer).props.busy,
+	).toBe(true);
+	expect(findByLabel(screen.root, "Message Cline from Home")!.props.value).toBe(
+		"Keep this draft",
+	);
+	await act(async () => {
+		finish({ organizationId: "team-a" });
+		capturedSend("Keep this draft");
+		await capturedModelChange("model-after-commit-before-render");
+	});
+	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+	expect(
+		screen.executionTargetStore
+			.get()
+			.cloudTargets.every((row) => row.modelId === "model"),
+	).toBe(true);
+	expect(
+		screen.root.find((node) => node.type === HomeComposer).props.busy,
+	).toBe(false);
+	expect(findByLabel(screen.root, "Message Cline from Home")!.props.value).toBe(
+		"Keep this draft",
+	);
+});
+
+it("rejects a captured Home send/model callback immediately after its account scope is retired", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
+	const screen = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/team/personal",
+				label: "team/personal",
+				modelId: "model",
+			},
+		],
+	});
+	const send = screen.root.find((node) => node.type === HomeComposer).props
+		.onSend;
+	const model = screen.root.find((node) => node.type === ModelSheet).props
+		.onChange;
+	await act(async () => {
+		screen.getAccountScope().selectScope(undefined);
+		send("Old account input");
+		await model("wrong-model");
+	});
+	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+	expect(screen.executionTargetStore.get().cloudTargets[0]?.modelId).toBe(
+		"model",
+	);
+});
+
+it("retains Home draft and explains a failed account change after leaving Settings", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
+	const screen = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/team/personal",
+				label: "team/personal",
+				modelId: "model",
+			},
+		],
+	});
+	act(() =>
+		findByLabel(screen.root, "Message Cline from Home")!.props.onChangeText(
+			"Keep on failure",
+		),
+	);
+	const capturedModel = screen.root.find((node) => node.type === ModelSheet)
+		.props.onChange;
+	let pending!: ReturnType<
+		ReturnType<typeof useCloudAccountScope>["beginSelection"]
+	>;
+	act(() => {
+		pending = screen.getAccountScope().beginSelection();
+	});
+	expect(
+		screen.root.find((node) => node.type === HomeComposer).props.busy,
+	).toBe(true);
+	await act(async () => {
+		expect(pending.fail()).toBe(true);
+		await capturedModel("model-after-failed-selection");
+	});
+	expect(screen.executionTargetStore.get().cloudTargets[0]?.modelId).toBe(
+		"model-after-failed-selection",
+	);
+	expect(
+		screen.root.find((node) => node.type === HomeComposer).props.busy,
+	).toBe(false);
+	expect(findByLabel(screen.root, "Message Cline from Home")!.props.value).toBe(
+		"Keep on failure",
+	);
+	expect(
+		containsText(
+			screen.root,
+			"Account could not be changed. Your previous account is still selected.",
+		),
+	).toBe(true);
+	expect(screen.getAccountScope().scope).toEqual({ organizationId: undefined });
+	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+});
 
 it("retires mounted Home text and images after explicit sign-out and re-sign-in", async () => {
 	const credentials = {
