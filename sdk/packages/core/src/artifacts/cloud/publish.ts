@@ -1,14 +1,13 @@
 import { openAsBlob } from "node:fs";
-import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
 import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import {
 	ArtifactPublicationError,
-	type ArtifactPublicationFile,
 	type ArtifactPublicationResult,
 	type ArtifactPublisher,
+	checkUnchanged,
 	publicationFailure,
 } from "../publish";
 
@@ -30,15 +29,6 @@ const UploadPolicyResponseSchema = z.object({
 	success: z.literal(true),
 	data: UploadPolicySchema,
 });
-
-async function checkUnchanged(file: ArtifactPublicationFile) {
-	const current = await stat(file.path);
-	if (current.size !== file.size || current.mtimeMs !== file.modifiedAt)
-		throw new ArtifactPublicationError(
-			"FILE_CHANGED",
-			"Local file changed after it was selected",
-		);
-}
 
 export function createArtifactPublisher({
 	request,

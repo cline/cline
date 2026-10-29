@@ -984,6 +984,11 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
+export type { ArtifactFetcher } from "./artifacts/fetch";
+export {
+	createLocalArtifactFetcher,
+	createLocalArtifactPublisher,
+} from "./artifacts/local";
 export {
 	type ArtifactPublicationFile,
 	type ArtifactPublicationResult,

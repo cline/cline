@@ -143,6 +143,17 @@ consumes or cancels the response body and applies any read size limit. The optio
 signal cancels the download, including while reading its body. This helper does not
 register an agent tool or attach files to messages.
 
+For local storage, `createLocalArtifactPublisher({ directory })` and
+`createLocalArtifactFetcher({ directory })` are exported from `@cline/core`.
+Bind both to the same absolute, host-owned directory, using a distinct directory
+for each session. The publisher copies files there, so their IDs remain usable
+after the source is removed or the store is reopened. Reusing an ID replaces its
+file atomically. The fetcher implements the same streaming `ArtifactFetcher`
+contract as the cloud fetcher; callers consume or cancel the returned `Response`.
+Constructing either adapter has no filesystem side effects. Hosts own directory
+retention, access policy, and explicit tool registration; Hub protocols, default
+tools, and client rendering are unchanged.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
