@@ -337,11 +337,45 @@ configured interval to finish. Clear only the owned control by setting its value
 to0 for subsequent requests; this does not replay or cancel an in-flight wait.
 Existing status/history reads and other workspace IDs are not held.
 
+The fixture HTTP server explicitly uses a 75-second idle timeout so its bounded
+60-second controlled waits can finish without a fixture-side idle disconnect.
+Shipping clients retain their own request timeouts (currently 30 seconds);
+longer waits may therefore exercise client timeout recovery. Admission counts
+remain necessary: an idle disconnect or transport retry must not be reported as
+an application double submission without evidence of its origin.
+
 `status-auth-error` also requires an exact outer ID (global rejected). When set,
 only that workspace's GET status returns HTTP401 `{success:false,error:"Unauthorized"}`.
 Use it for post-create sign-in recovery, then clear the same scoped control.
 Neither control requires a shipping app bypass. Coordinate a fixture restart
 after source changes only when every native tester is at a safe checkpoint.
+
+## Synthetic account switching
+
+The isolated service exposes Personal plus `fixture-org-team-a` (Fixture Team A)
+and `fixture-org-team-b` (Fixture Team B), with respective balances of $12.34,
+$42.00 and $6.50. The normal account gateway reads/writes the fake active-account
+preference; unknown memberships and invalid requests are rejected. Organization
+repository and branch routes use the same synthetic repository. None of these
+identities, preferences or balances access real accounts.
+
+Coordinate account tests across devices: the fake preference is shared, just as
+the API preference is. Use `/control/set` with `id=fixture-user-00000001` for
+`accounts-error`, `account-switch-error`, and `account-switch-delay-ms`. Error
+value `1` means HTTP503; values401–599 select that exact HTTP status. Delays are
+bounded to0–60000ms and hold the admitted switch before mutation. An admission
+event and a separate successful-update event distinguish pending from committed
+writes. Clear each control with value0; clearing a delay does not cancel an
+already admitted request.
+
+For delayed list responses, set `list-delay-ms` on an exact organization ID or
+`fixture-user-00000001` for Personal. The response captures its rows and account
+scope before waiting, so a late reply can exercise real client generation guards
+without changing another account's response. A global delay affects every scope.
+
+`bun run test scripts/native-fixture-accounts.test.ts` exercises the shipping
+account/setup/session gateways against the same fixture response router. This is
+HTTP contract coverage, not native or production-account authorization coverage.
 
 ## SDK contract profiles (opt-in)
 

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMobileFixtureHost } from "../../scripts/dev-hub";
+import { FixtureAccounts, fixtureSessionList } from "./accounts";
 import {
 	attachmentMessages,
 	type SubmittedAttachments,
@@ -15,7 +16,7 @@ import {
 	fixtureStatusAuthenticationFailure,
 	holdFixtureWorkspaceMutation,
 } from "./faults";
-import { fixtureLifecycleDto, scopedFixtureRows } from "./rest-contract";
+import { fixtureLifecycleDto } from "./rest-contract";
 import {
 	SDK_PROFILE_PROVENANCE,
 	SdkContractProfiles,
@@ -659,6 +660,11 @@ let historyError = false;
 let hydrateError = false;
 let abortError = false;
 const faults = new FixtureFaults();
+const fixtureAccounts = new FixtureAccounts({
+	faults,
+	record,
+	sleep: (milliseconds) => Bun.sleep(milliseconds),
+});
 const pendingUntil = new Map<string, number>();
 const rows: Record<string, unknown>[] = [];
 let nextWorkspaceId = 0;
@@ -692,6 +698,8 @@ const auth = (request: Request) =>
 const server = Bun.serve({
 	hostname: "127.0.0.1",
 	port,
+	// Controlled responses can wait up to 60s without sending bytes.
+	idleTimeout: 75,
 	async fetch(request, server) {
 		const url = new URL(request.url),
 			path = url.pathname;
@@ -894,64 +902,22 @@ const server = Bun.serve({
 				{ success: false, error: "Isolated fixture identity required" },
 				401,
 			);
-		if (path === "/api/v1/users/me")
-			return json({ data: { id: "fixture-user-00000001", organizations: [] } });
-		if (path === "/api/v1/users/fixture-user-00000001/balance")
-			return faults.get("global", "balance-error")
-				? json({ error: "Fixture balance unavailable" }, 503)
-				: json({
-						success: true,
-						data: { userId: "fixture-user-00000001", balance: 12_340_000 },
-					});
-		if (path === "/api/v1/users/active-account") return json({ success: true });
-		if (
-			path === "/api/v1/integrations/github/repositories/1/branches" ||
-			(path === "/api/v1/integrations/github/repositories" &&
-				url.searchParams.has("repository"))
-		) {
-			await Bun.sleep(faults.get("global", "branches-delay-ms"));
-			if (faults.get("global", "branches-error"))
-				return json({ error: "Fixture branches unavailable" }, 503);
-			return json({
-				data: {
-					items: faults.get("global", "branches-empty")
-						? []
-						: [{ name: "main" }, { name: "fixture-safe-branch" }],
-					nextToken: null,
-				},
+		const accountResponse = await fixtureAccounts.handle(request);
+		if (accountResponse) return accountResponse;
+		if (path === "/api/v1/session" && request.method === "GET") {
+			const scopedRows = await fixtureSessionList({
+				rows,
+				organizationId: url.searchParams.get("organizationId") || undefined,
+				faults,
+				sleep: (milliseconds) => Bun.sleep(milliseconds),
 			});
-		}
-		if (path === "/api/v1/integrations/github/repositories") {
-			await Bun.sleep(faults.get("global", "repositories-delay-ms"));
-			if (faults.get("global", "repositories-error"))
-				return json({ error: "Fixture GitHub integration unavailable" }, 403);
-			if (faults.get("global", "repositories-empty")) return json({ data: [] });
-			return json({
-				data: [
-					{
-						id: 1,
-						name: "native-fixture",
-						full_name: "fixture/native-fixture",
-						html_url: "https://github.com/fixture/native-fixture",
-						clone_url: "https://github.com/fixture/native-fixture.git",
-						private: true,
-						default_branch: "main",
-					},
-				],
-			});
-		}
-		if (path === "/api/v1/session" && request.method === "GET")
 			return historyError || faults.get("global", "list-error")
 				? json({ success: false, error: "Fixture history unavailable" }, 503)
 				: json({
 						success: true,
-						data: faults.get("global", "list-empty")
-							? []
-							: scopedFixtureRows(
-									rows,
-									url.searchParams.get("organizationId") || undefined,
-								),
+						data: faults.get("global", "list-empty") ? [] : scopedRows,
 					});
+		}
 		if (path === "/api/v1/session" && request.method === "POST") {
 			await Bun.sleep(faults.get("global", "create-delay-ms"));
 			if (faults.get("global", "create-error"))
