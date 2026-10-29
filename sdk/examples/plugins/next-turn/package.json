@@ -17,8 +17,12 @@
 	"cline": {
 		"plugins": [
 			{
-				"paths": ["./src/index.ts"],
-				"capabilities": ["hooks"]
+				"paths": [
+					"./src/index.ts"
+				],
+				"capabilities": [
+					"hooks"
+				]
 			}
 		]
 	},
@@ -27,7 +31,11 @@
 		"@cline/shared": "*"
 	},
 	"peerDependenciesMeta": {
-		"@cline/core": { "optional": true },
-		"@cline/shared": { "optional": true }
+		"@cline/core": {
+			"optional": true
+		},
+		"@cline/shared": {
+			"optional": true
+		}
 	}
 }
