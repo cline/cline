@@ -180,6 +180,29 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
 	})
 
+	it("clears the existing-handoff warning after dismissal without consuming the draft", async () => {
+		mockTaskId = "local-task"
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "failed", message: "Preparation unavailable" }
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("/cloud finish tests")
+			result.current.chatState.setSelectedImages(["image"])
+		})
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], [])
+		})
+		expect(result.current.handlers.handoffError).toBe("Review or dismiss the existing cloud handoff before starting another.")
+		expect(prepareHandoff).not.toHaveBeenCalled()
+		mockHandoff = undefined
+		rerender()
+		expect(result.current.handlers.handoffError).toBeUndefined()
+		expect(result.current.chatState.inputValue).toBe("/cloud finish tests")
+		expect(result.current.chatState.selectedImages).toEqual(["image"])
+	})
+
 	it("does not send /cloud to the model without a local conversation", async () => {
 		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
 		await act(async () => {

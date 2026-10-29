@@ -13,7 +13,7 @@ export function useCloudHandoff(chatState: ChatState) {
 
 	useEffect(() => {
 		setFailure(undefined)
-	}, [sourceTaskId])
+	}, [sourceTaskId, cloudHandoff?.id])
 	useEffect(() => {
 		if (!sourceTaskId) return
 		const submitted = drafts.current.get(sourceTaskId)
