@@ -1,7 +1,9 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { HubReplyEnvelope } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import WebSocket from "ws";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { resetClineRecommendedModelsCacheForTests } from "../../services/llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../../services/llms/provider-defaults";
@@ -275,12 +277,96 @@ describe("hub provider management", () => {
 		);
 	});
 
-	it("serves the provider API over a registered WebSocket connection", async () => {
+	it("denies provider access to a registered loopback page without the Hub token", async () => {
+		await api.saveSettings({ providerId: "anthropic", apiKey: "original-key" });
+		const server = await startHubWebSocketServer({
+			host: "127.0.0.1",
+			port: 0,
+			owner: createInMemoryHubOwnerContext("provider-origin-test"),
+			workspaceRoot: root,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			eventLog: false,
+			runQueue: false,
+			sessionSearchOptions: { dbPath: ":memory:" },
+		});
+		const socket = new WebSocket(server.url, {
+			origin: "http://localhost:3125",
+		});
+		let requestId = 0;
+		const command = (name: string, payload: Record<string, unknown> = {}) =>
+			new Promise<HubReplyEnvelope>((resolve, reject) => {
+				const id = String(++requestId);
+				socket.once("message", (data) => {
+					try {
+						resolve(JSON.parse(String(data)).envelope);
+					} catch (error) {
+						reject(error);
+					}
+				});
+				socket.send(
+					JSON.stringify({
+						kind: "command",
+						envelope: {
+							version: "v1",
+							requestId: id,
+							clientId: "local-page",
+							command: name,
+							payload,
+						},
+					}),
+				);
+			});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				socket.once("open", resolve);
+				socket.once("error", reject);
+			});
+			expect(
+				await command("client.register", {
+					clientId: "local-page",
+					clientType: "browser",
+					displayName: "Local page",
+					transport: "browser",
+					actorKind: "client",
+					// A caller cannot grant itself token authority through registration.
+					tokenAuthenticated: true,
+					crossWorkspace: true,
+				}),
+			).toMatchObject({ ok: true });
+			for (const name of [
+				"providers.list",
+				"providers.models.list",
+				"providers.models.recommended",
+				"providers.settings.save",
+				"providers.add",
+				"providers.models.update",
+			]) {
+				const reply = await command(name, {
+					providerId: "anthropic",
+					apiKey: "attacker-key",
+					tokenAuthenticated: true,
+				});
+				expect(reply).toMatchObject({
+					ok: false,
+					error: { code: "authentication_required" },
+				});
+				expect(reply.payload).toBeUndefined();
+				expect(JSON.stringify(reply)).not.toContain("original-key");
+			}
+			expect(
+				new ProviderSettingsManager().getProviderSettings("anthropic")?.apiKey,
+			).toBe("original-key");
+		} finally {
+			socket.terminate();
+			await server.close();
+		}
+	});
+
+	it("serves provider reads and writes over a token-authenticated connection without a workspace", async () => {
 		const server = await startHubWebSocketServer({
 			host: "127.0.0.1",
 			port: 0,
 			owner: createInMemoryHubOwnerContext("provider-rpc-test"),
-			workspaceRoot: root,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			eventLog: false,
 			runQueue: false,

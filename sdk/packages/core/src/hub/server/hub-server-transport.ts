@@ -829,6 +829,18 @@ export class HubServerTransport implements NativeHubTransport {
 					"Register before accessing provider settings",
 				);
 			}
+			if (
+				envelope.command.startsWith("providers.") &&
+				authority !== undefined &&
+				authority?.tokenAuthenticated !== true
+			) {
+				return errorReply(
+					envelope,
+					"authentication_required",
+					"Provider management requires a token-authenticated Hub connection",
+				);
+			}
+
 			const clientId = envelope.clientId?.trim();
 			// Omitted authority is reserved for trusted in-process callers. A remote
 			// transport passes null until registration so caller-controlled envelope
