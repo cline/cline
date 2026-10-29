@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	FixtureFaults,
+	fixtureSessionListFailure,
 	fixtureStatusAuthenticationFailure,
 } from "../../../e2e/native-fixture/faults";
 import {
@@ -12,6 +13,34 @@ import { asRemoteSessionId } from "../../session";
 import { CloudSessionGateway } from "./CloudSessionGateway";
 
 describe("native fixture shipping Gateway contracts", () => {
+	it.each([
+		[1, 503],
+		[401, 401],
+		[403, 403],
+	])("preserves a controlled list fault%s as HTTP%s and clears it without replay", async (value, status) => {
+		const faults = new FixtureFaults();
+		let requests = 0;
+		const gateway = new CloudSessionGateway({
+			apiBaseUrl: "http://fixture",
+			getAccessToken: async () => "fixture",
+			fetchImpl: async () => {
+				requests += 1;
+				return (
+					fixtureSessionListFailure(faults) ??
+					Response.json({ success: true, data: [] })
+				);
+			},
+		});
+		faults.set("global", "list-error", value);
+		await expect(gateway.listRemoteSessions()).rejects.toMatchObject({
+			status,
+		});
+		expect(requests).toBe(1);
+		faults.set("global", "list-error", 0);
+		expect(await gateway.listRemoteSessions()).toEqual([]);
+		expect(requests).toBe(2);
+		expect(fixtureSessionListFailure(faults, true)?.status).toBe(503);
+	});
 	it("scopes opt-in status401 to one outer workspace and preserves typed authentication metadata", async () => {
 		const faults = new FixtureFaults();
 		expect(() => faults.set("global", "status-auth-error", 1)).toThrow(

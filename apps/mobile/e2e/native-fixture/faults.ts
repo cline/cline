@@ -87,6 +87,29 @@ export class FixtureFaults {
 	}
 }
 
+/** Keep the existing boolean503 fault, with explicit HTTP codes for auth recovery. */
+export function fixtureSessionListFailure(
+	faults: FixtureFaults,
+	legacyHistoryError = false,
+): Response | undefined {
+	const value = faults.get("global", "list-error");
+	if (!legacyHistoryError && !value) return undefined;
+	const status =
+		!legacyHistoryError &&
+		Number.isInteger(value) &&
+		value >= 400 &&
+		value <= 599
+			? value
+			: 503;
+	return Response.json(
+		{
+			success: false,
+			error: status === 401 ? "Unauthorized" : "Fixture history unavailable",
+		},
+		{ status },
+	);
+}
+
 /** The same scoped HTTP401 response is used by the proxy and Gateway contract test. */
 export function fixtureStatusAuthenticationFailure(
 	faults: FixtureFaults,

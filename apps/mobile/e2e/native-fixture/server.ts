@@ -14,6 +14,7 @@ import { fixtureAuthResponse } from "./auth";
 import {
 	commandFault,
 	FixtureFaults,
+	fixtureSessionListFailure,
 	fixtureStatusAuthenticationFailure,
 	holdFixtureWorkspaceMutation,
 } from "./faults";
@@ -907,12 +908,18 @@ const server = Bun.serve({
 				faults,
 				sleep: (milliseconds) => Bun.sleep(milliseconds),
 			});
-			return historyError || faults.get("global", "list-error")
-				? json({ success: false, error: "Fixture history unavailable" }, 503)
-				: json({
-						success: true,
-						data: faults.get("global", "list-empty") ? [] : scopedRows,
-					});
+			const failure = fixtureSessionListFailure(faults, historyError);
+			if (failure) {
+				record("fixture-session-list-failed", {
+					status: failure.status,
+					organizationId: url.searchParams.get("organizationId"),
+				});
+				return failure;
+			}
+			return json({
+				success: true,
+				data: faults.get("global", "list-empty") ? [] : scopedRows,
+			});
 		}
 		if (path === "/api/v1/session" && request.method === "POST") {
 			await Bun.sleep(faults.get("global", "create-delay-ms"));

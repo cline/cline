@@ -366,6 +366,14 @@ after source changes only when every native tester is at a safe checkpoint.
 
 ## Synthetic account switching
 
+For cached-credential reauthentication, `list-error=401` returns a real HTTP401
+from the fixture session-list endpoint without signing out the client or changing
+the synthetic credential. The legacy value1 still returns503; explicit HTTP
+values400–599 preserve their status. Clear with0. This lets the shipping sign-in
+recovery surface run while a same-account failed task still owns its prompt and
+photos. Use only in a coordinated global fault window; pair with the existing
+owned `status-auth-error` receipt control rather than creating duplicate work.
+
 The isolated service exposes Personal plus `fixture-org-team-a` (Fixture Team A)
 and `fixture-org-team-b` (Fixture Team B), with respective balances of $12.34,
 $42.00 and $6.50. The normal account gateway reads/writes the fake active-account
