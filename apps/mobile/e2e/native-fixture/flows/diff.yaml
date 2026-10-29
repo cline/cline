@@ -1,13 +1,17 @@
 appId: bot.cline.app.e2e
 name: Deterministic edit diff review
 ---
-- tapOn: "Message composer"
+- tapOn: "Message composer Message Cline…"
 - inputText: "edit-fixture"
 - tapOn: "Send"
 - assertVisible: "EDIT_FIXTURE_COMPLETE"
-- tapOn: "Review diff.*"
+- tapOn: "Work, 1 tool, expand"
+- tapOn: "Tool Edited 2 files, expand"
+- tapOn: "Review diff, 2 files, 2 additions, 1 deletions"
 - assertVisible: "src/Fixture.ts"
+- takeScreenshot: fixture-first-file-diff
 - tapOn: "Next file"
 - assertVisible: "src/NewFixture.ts"
 - takeScreenshot: fixture-second-file-diff
 - tapOn: "Close diff"
+- assertVisible: "EDIT_FIXTURE_COMPLETE"

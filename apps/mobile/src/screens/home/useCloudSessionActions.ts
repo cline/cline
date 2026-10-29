@@ -67,9 +67,10 @@ export function useCloudSessionActions(
 			await gateway.deleteRemoteSession(
 				asRemoteSessionId(row.descriptor.remoteSessionId!),
 			);
-			await remove(row.key).catch(() => {});
 			cloudLaunches.remove(row.key);
+			// Removing the active endpoint unmounts its sidebar and navigation callback.
 			publish(row.key);
+			await remove(row.key).catch(() => {});
 		},
 	};
 }
