@@ -92,6 +92,14 @@ host presentation.
 
 `createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
 
+## Starting a runtime from saved Hub history
+
+`session.resume` starts a runtime for a saved `sessionConfig.sessionId`. It accepts the execution configuration used by `session.create`, but reads conversation history on the Hub instead of requiring `initialMessages`. It prefers the live conversation when available and otherwise reads persisted history. Startup, replies, and session events use the existing `session.create` path.
+
+A missing ID returns `invalid_resume`, a missing session returns `session_not_found`, and empty history returns `session_messages_not_found`. These errors do not start a runtime. `session.create` remains unchanged, including empty context when `initialMessages` is omitted.
+
+Only `unsupported_command` permits falling back to `session.messages` followed by `session.create` with explicit history.
+
 ## Cloud sessions (experimental)
 
 `summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
@@ -109,6 +117,30 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+`createPublishArtifactsTool({ request, cloudSessionId })` from `@cline/core/cloud`
+creates the opt-in `publish_artifacts` tool. The host supplies an authenticated
+request function and the owning cloud session ID, then registers the tool through
+an extension. It accepts `files: [{ path, artifactId? }]` with absolute local paths
+and returns per-file IDs or errors. Files upload directly using the session's
+signed policy. Importing or constructing the tool does not upload anything, read
+credentials, or add it to default local tools. Registration controls availability;
+the service remains responsible for upload authorization and limits.
+
+`createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
+returns `fetchArtifact({ artifactId, signal? })`, which downloads a streaming
+`Response`. Each fetcher caches up to 128 signed URLs, refreshing 30 seconds before
+expiry or once after a storage HTTP 403. Missing files and file bytes are not cached.
+Reuse one fetcher per authenticated account/session; discard it on sign-out or
+account changes. Cache hits do not recheck session permissions until URL renewal.
+Wait for a successful publication result before fetching a new artifact. The caller
+consumes or cancels the response body and applies any read size limit. The optional
+signal cancels the download, including while reading its body. This helper does not
+register an agent tool or attach files to messages.
+
+`HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
+an existing artifact through the authenticated Hub without starting its sandbox.
+It returns a signed HTTPS URL and expiry for clients that download directly.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
@@ -121,6 +153,23 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
+`create({ ...input, initialMessage: { text, images } })` creates the task and sends
+the first message, returning the session attachment and `initialSend`. Without
+`initialMessage`, creation does not send; `initialPrompt` is metadata only.
+Retry a failed initial send on the created target only when `dispatched` is `false`.
+The Hub continues after viewer disconnects. A lost reply raises `request_failed`;
+check cloud tasks before retrying.
+Hub clients can publish an approved snapshot before creation with `localGit`.
+Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for Personal.
+Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
+This requires token-authenticated workspace access.
+Attachments must be image data URLs within the shared media-size limits.
+New checkpoint commits are unsigned and skip commit hooks, including pre-commit secret scans.
+Pre-push hooks run in the live source checkout and can modify it.
+Git supplies the captured commit SHA to those hooks on stdin.
+The sensitive-path checks inspect filenames, not file contents.
+Publication creates no local branch or tracking configuration.
+Remote branches remain if verification or cloud creation fails.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
@@ -509,15 +558,6 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
-
-## Host artifact reads
-
-`LocalRuntimeHost` accepts `readArtifact(sessionId, artifactId, options)`.
-The callback receives the calling runtime’s session ID so the host can resolve
-the file within that session’s remote scope. `read_files` uses this callback
-for attached `artifact://` files, including after history restore.
-`generatedMediaModalityFromMediaType(mediaType)` maps a MIME type to `image`,
-`audio`, `video`, or `file` when describing an attachment.
 
 ## MCP Apps (experimental)
 

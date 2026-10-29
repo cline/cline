@@ -9,9 +9,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
-import { type AgentToolContext, SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared";
+import type { AgentToolContext } from "@cline/shared";
 import { resolveExistingFilePath } from "@cline/shared/storage";
-import { ArtifactFiles } from "../../../session/services/artifact-files";
 import {
 	TOOL_RESULT_CACHE_MISS,
 	ToolResultCache,
@@ -216,35 +215,6 @@ export function createFileReadExecutor(
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
-		if (filePath.startsWith("artifact://")) {
-			const artifacts = context.metadata?.artifactFiles;
-			if (!(artifacts instanceof ArtifactFiles))
-				throw new Error("Artifact retrieval is unavailable in this runtime");
-			const media = artifacts.resolve(filePath);
-			if (
-				media.modality === "image" &&
-				SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === media.mediaType)
-			) {
-				if (context.metadata?.modelSupportsImages !== true)
-					throw new Error("Current model does not support image input");
-				return artifacts.readImage(media, maxFileSizeBytes, context.signal);
-			}
-			const bytes = await artifacts.read(
-				media,
-				maxFileSizeBytes,
-				context.signal,
-			);
-			const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-			if (text.includes("\0"))
-				throw new Error("Binary artifacts are not supported by read_files");
-			return readTextWindow(
-				Readable.from([text]),
-				includeLineNumbers,
-				start_line,
-				end_line,
-				context.signal,
-			);
-		}
 		if (filePath.startsWith("cline://")) {
 			context.signal?.throwIfAborted();
 			const cache = context.metadata?.toolResultCache;

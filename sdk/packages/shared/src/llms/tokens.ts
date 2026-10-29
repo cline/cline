@@ -1,5 +1,3 @@
-import { isGeneratedMedia } from "./media";
-
 /**
  * Conservative chars-per-token approximation used for compaction triggering
  * and request-size diagnostics. Uses 3 chars/token (slightly over-counts vs
@@ -29,8 +27,15 @@ export interface TokenEstimatedRequest {
 }
 
 /**
- * Count image references and inline images at a flat token cost, excluding pixel
- * bytes from the character estimate. Handles nested tool-result images too.
+ * Build a JSON.stringify replacer that blanks an image node's base64
+ * payload wherever it's nested in the serialized value, so it's never
+ * billed at CHARS_PER_TOKEN. Two image shapes reach this replacer:
+ * `ImageContent { type: "image", data: string }` (compaction's
+ * `MessageWithMetadata`) and `AgentImagePart { type: "image", image:
+ * string | Uint8Array | ArrayBuffer | URL }` (the gateway's
+ * `AgentMessage`). Returns the replacer alongside an `imageCount`
+ * accessor so the caller can add a flat per-image token cost back in
+ * afterwards.
  */
 export function createImageAwareReplacer(): {
 	replacer: (key: string, value: unknown) => unknown;
@@ -38,18 +43,6 @@ export function createImageAwareReplacer(): {
 } {
 	let count = 0;
 	const replacer = (_key: string, value: unknown): unknown => {
-		if (
-			value &&
-			typeof value === "object" &&
-			"type" in value &&
-			value.type === "media" &&
-			"media" in value &&
-			isGeneratedMedia(value.media) &&
-			value.media.modality === "image"
-		) {
-			count += 1;
-			return { type: "image", data: "", mediaType: value.media.mediaType };
-		}
 		if (
 			value === null ||
 			typeof value !== "object" ||

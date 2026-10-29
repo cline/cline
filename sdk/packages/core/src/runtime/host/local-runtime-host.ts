@@ -9,8 +9,6 @@ import {
 	type BasicLogger,
 	captureSdkError,
 	createSessionId,
-	type GeneratedMedia,
-	GeneratedMediaSchema,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
@@ -101,7 +99,6 @@ import {
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
-import type { ReadArtifact } from "../../session/services/artifact-files";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -265,11 +262,6 @@ function isIncomingCompactionStateStale(
 }
 
 export interface LocalRuntimeHostOptions {
-	readArtifact?: (
-		sessionId: string,
-		artifactId: string,
-		options: Parameters<ReadArtifact>[1],
-	) => ReturnType<ReadArtifact>;
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
@@ -340,18 +332,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
-			options.createAgent ??
-			((config) => {
-				const sessionId = config.sessionId;
-				const readArtifact = options.readArtifact;
-				return new SessionRuntime(config, {
-					readArtifact:
-						sessionId && readArtifact
-							? (artifactId, readOptions) =>
-								readArtifact(sessionId, artifactId, readOptions)
-							: undefined,
-				});
-			});
+			options.createAgent ?? ((config) => new SessionRuntime(config));
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
 			options.capabilities,
 		);
@@ -1808,27 +1789,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
-	async attachMedia(sessionId: string, input: GeneratedMedia): Promise<void> {
-		const media = GeneratedMediaSchema.parse(input);
-		const session = this.sessions.get(sessionId);
-		if (!session) throw new Error(`Session ${sessionId} is not running`);
-		await this.ensureSessionPersisted(session);
-		session.agent.attachMedia(media);
-		await this.invoke<void>(
-			"persistSessionMessages",
-			sessionId,
-			session.agent.getMessages(),
-			session.config.systemPrompt,
-		);
-		this.emit({
-			type: "agent_event",
-			payload: {
-				sessionId,
-				event: { type: "content_end", contentType: "media", media },
-			},
-		});
-	}
-
 	async readLiveSessionMessages(
 		sessionId: string,
 	): Promise<LlmsProviders.MessageWithMetadata[]> {
@@ -2822,7 +2782,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async runWithAuthRetry(
 		session: ActiveSession,
 		run: () => Promise<AgentResult>,
-		baselineMessages: LlmsProviders.MessageWithMetadata[],
+		baselineMessages: LlmsProviders.Message[],
 	): Promise<AgentResult> {
 		try {
 			return await run();
@@ -2834,17 +2794,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
-			const publishedMedia = session.agent
-				.getMessages()
-				.filter(
-					(message) =>
-						message.metadata?.displayOnly === true &&
-						Array.isArray(message.content) &&
-						message.content.length > 0 &&
-						message.content.every((part) => part.type === "media") &&
-						!baselineMessages.some((previous) => previous.id === message.id),
-				);
-			session.agent.restore([...baselineMessages, ...publishedMedia]);
+			session.agent.restore(baselineMessages);
 			return run();
 		}
 	}

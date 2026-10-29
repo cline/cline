@@ -13,6 +13,7 @@ import {
 	resolveModelDisplayName,
 	resolveModelMaxInputTokens,
 	StatusBar,
+	type StatusBarCloud,
 } from "../components/status-bar";
 import { useSession } from "../contexts/session-context";
 import { useTheme } from "../hooks/use-theme";
@@ -58,6 +59,7 @@ export function ChatView(props: {
 	runtimeInteraction?: RuntimeToolInteraction | null;
 	onResolveToolApproval: (id: number, approved: boolean) => void;
 	onResolveAskQuestion: (id: number, answer: string | null) => void;
+	cloud?: StatusBarCloud;
 }) {
 	const {
 		config,
@@ -159,6 +161,7 @@ export function ChatView(props: {
 					gitDiffStats={repoStatus.diffStats}
 					onToggleMode={props.onToggleMode}
 					variant="chat"
+					cloud={props.cloud}
 				/>
 			</box>
 		</box>

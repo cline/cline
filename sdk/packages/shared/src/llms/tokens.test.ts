@@ -7,26 +7,6 @@ import {
 } from "./tokens";
 
 describe("estimateRequestInputTokens", () => {
-	it("budgets referenced tool-result images before their bytes are downloaded", () => {
-		const image = { type: "image", data: "", mediaType: "image/png" };
-		const reference = {
-			type: "media",
-			media: {
-				id: "frame",
-				modality: "image",
-				mediaType: "image/png",
-				source: { type: "artifact", artifactId: "frame" },
-			},
-		};
-		const estimate = (result: unknown) =>
-			estimateRequestInputTokens({
-				messages: [{ role: "tool", content: [{ result }] }],
-			});
-		expect(estimate(reference)).toBe(estimate(image));
-		expect(estimate(reference) - estimate(null)).toBeGreaterThanOrEqual(
-			ESTIMATED_TOKENS_PER_IMAGE,
-		);
-	});
 	it("estimates text-only messages by char count", () => {
 		const message = { role: "user", content: "hello world" };
 		const tokens = estimateRequestInputTokens({ messages: [message] });

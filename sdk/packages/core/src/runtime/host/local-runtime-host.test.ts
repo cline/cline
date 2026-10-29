@@ -203,66 +203,6 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
-	it("persists attached media and restores it after the session stops", async () => {
-		const service = new FileSessionService(join(isolatedHomeDir, "sessions"));
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: service,
-		});
-		const media = {
-			id: "artifact_frame",
-			modality: "image",
-			mediaType: "image/png",
-			source: { type: "artifact", artifactId: "frame" },
-		} as const;
-		try {
-			const session = await manager.startSession({
-				config: {
-					providerId: "anthropic",
-					modelId: "claude-3-5-sonnet",
-					apiKey: "test-key",
-					systemPrompt: "Test",
-					cwd: isolatedHomeDir,
-					workspaceRoot: isolatedHomeDir,
-					enableTools: false,
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
-				},
-				interactive: true,
-			});
-			const events: unknown[] = [];
-			const unsubscribe = manager.subscribe((event) => {
-				if (
-					event.type === "agent_event" &&
-					event.payload.event.type === "content_end"
-				)
-					events.push(event);
-			});
-			await manager.attachMedia(session.sessionId, media);
-			await manager.attachMedia(session.sessionId, media);
-			expect(await manager.readLiveSessionMessages(session.sessionId)).toEqual([
-				expect.objectContaining({
-					metadata: { displayOnly: true },
-					content: [{ type: "media", media }],
-				}),
-			]);
-			expect(events).toHaveLength(2);
-			expect(await manager.readSessionMessages(session.sessionId)).toEqual(
-				await manager.readLiveSessionMessages(session.sessionId),
-			);
-			unsubscribe();
-			await manager.stopSession(session.sessionId);
-			expect(await manager.readSessionMessages(session.sessionId)).toEqual([
-				expect.objectContaining({ content: [{ type: "media", media }] }),
-			]);
-			await expect(manager.attachMedia("missing", media)).rejects.toThrow(
-				"not running",
-			);
-		} finally {
-			await manager.dispose();
-		}
-	});
-
 	it("recovers stale detached command logs for non-daemon hosts", async () => {
 		const detachedLogDirectory = mkdtempSync(
 			join(tmpdir(), "cline-command-local-host-recovery-"),
@@ -7507,7 +7447,7 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("retries auth failures while keeping published media and discarding failed-attempt text", async () => {
+	it("force refreshes and retries once when turn fails with auth error", async () => {
 		const sessionId = "sess-oauth-retry";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -7535,37 +7475,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn(),
 			}),
 		};
-		const published: MessageWithMetadata = {
-			id: "published_frame",
-			role: "assistant",
-			metadata: { displayOnly: true },
-			content: [
-				{
-					type: "media",
-					media: {
-						id: "frame",
-						modality: "image",
-						mediaType: "image/png",
-						source: { type: "artifact", artifactId: "frame" },
-					},
-				},
-			],
-		};
-		let currentMessages: MessageWithMetadata[] = [];
 		const run = vi
 			.fn()
-			.mockImplementationOnce(async () => {
-				currentMessages = [
-					published,
-					{
-						id: "failed",
-						role: "assistant",
-						content: "401 Unauthorized",
-						metadata: { displayOnly: true, displayRole: "error" },
-					},
-				];
-				throw new Error("401 Unauthorized");
-			})
+			.mockRejectedValueOnce(new Error("401 Unauthorized"))
 			.mockResolvedValueOnce(
 				createResult({
 					text: "retried",
@@ -7618,7 +7530,7 @@ describe("LocalRuntimeHost", () => {
 					restore,
 					updateConnection,
 					shutdown: vi.fn().mockResolvedValue(undefined),
-					getMessages: vi.fn(() => currentMessages),
+					getMessages: vi.fn().mockReturnValue([]),
 					messages: [],
 				}) as never,
 		});
@@ -7638,7 +7550,6 @@ describe("LocalRuntimeHost", () => {
 		expect(result?.text).toBe("retried");
 		expect(run).toHaveBeenCalledTimes(2);
 		expect(restore).toHaveBeenCalledTimes(1);
-		expect(restore).toHaveBeenCalledWith([published]);
 		expect(resolveProviderApiKey).toHaveBeenNthCalledWith(1, {
 			providerId: "openai-codex",
 			forceRefresh: undefined,

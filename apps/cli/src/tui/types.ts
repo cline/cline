@@ -5,6 +5,7 @@ import type {
 	ClineSubscriptionPlan,
 	TeamEvent,
 } from "@cline/core";
+import type { HubCloudSessionClient } from "@cline/core/cloud";
 import type {
 	MessageWithMetadata,
 	ToolApprovalRequest,
@@ -130,6 +131,18 @@ export interface PendingPromptMutationResult {
 	removed?: boolean;
 }
 
+export type CloudSessionsClient = Pick<
+	HubCloudSessionClient,
+	| "listRepositories"
+	| "listBranches"
+	| "listModels"
+	| "create"
+	| "send"
+	| "abort"
+	| "subscribe"
+	| "getSnapshot"
+>;
+
 export type AppView = "onboarding" | "home" | "chat";
 export type TuiStartupTarget = "chat" | "config" | "history";
 
@@ -248,6 +261,8 @@ export interface TuiProps {
 		handler: ((question: string, options: string[]) => Promise<string>) | null,
 	) => void;
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
+	/** Omitted when cloud sessions are unavailable. */
+	cloudSessions?: CloudSessionsClient;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;

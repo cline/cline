@@ -39,7 +39,6 @@ import {
 	type BasicLogger,
 	type ContributionRegistry,
 	createContributionRegistry,
-	type GeneratedMedia,
 	type ITelemetryService,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
@@ -65,10 +64,6 @@ import {
 } from "../../services/telemetry/core-events";
 import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
-import {
-	ArtifactFiles,
-	type ReadArtifact,
-} from "../../session/services/artifact-files";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
@@ -306,7 +301,6 @@ export type SessionEventListener = (event: AgentEvent) => void;
 
 /** Subset of host-side deps needed by the session orchestrator. */
 export interface SessionRuntimeOrchestratorDeps {
-	readonly readArtifact?: ReadArtifact;
 	readonly logger?: BasicLogger;
 	readonly telemetry?: ITelemetryService;
 	/**
@@ -331,7 +325,6 @@ export type ConnectionOverrides = ConnectionUpdate;
  * runtime-facing session surface.
  */
 export class SessionRuntime {
-	private readonly artifactFiles?: ArtifactFiles;
 	private config: AgentConfig;
 	private readonly agentId: string;
 	private readonly parentAgentId?: string;
@@ -440,10 +433,6 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		if (deps.readArtifact)
-			this.artifactFiles = new ArtifactFiles(deps.readArtifact, () =>
-				this.conversation.getMessages(),
-			);
 		this.toolResultCache = new ToolResultCache(
 			config.sessionId ?? this.agentId,
 		);
@@ -540,19 +529,6 @@ export class SessionRuntime {
 		return this.conversation.getMessages();
 	}
 
-	attachMedia(media: GeneratedMedia): void {
-		const id = `published_${media.id}`;
-		if (this.conversation.getMessages().some((message) => message.id === id))
-			return;
-		this.conversation.appendMessage({
-			id,
-			role: "assistant",
-			content: [{ type: "media", media }],
-			ts: Date.now(),
-			metadata: { displayOnly: true },
-		});
-	}
-
 	/** True when no run is currently active and the session is not shut down. */
 	canStartRun(): boolean {
 		return !this.running && !this.activeRunPromise && !this.shutdownCalled;
@@ -629,7 +605,6 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
-		this.artifactFiles?.clear();
 		this.toolResultCache.clear();
 		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
@@ -736,7 +711,6 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
-		this.artifactFiles?.clear();
 		this.toolResultCache.clear();
 	}
 
@@ -1059,9 +1033,8 @@ export class SessionRuntime {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
 				toolResultCache: this.toolResultCache,
-				artifactFiles: this.artifactFiles,
 			},
-			hooks: this.createRuntimeHooks(modelSupportsImageInput(modelInfo ?? {})),
+			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
 			completionPolicy: toolCallingDisabled ? null : undefined,
@@ -1127,7 +1100,6 @@ export class SessionRuntime {
 				);
 			}
 			this.activeRuntime = null;
-			this.artifactFiles?.clear();
 			this.running = false;
 			this.abortRequested = false;
 			this.abortReason = undefined;
@@ -1204,9 +1176,7 @@ export class SessionRuntime {
 		this.extensionsInitialized = true;
 	}
 
-	private createRuntimeHooks(
-		supportsImages: boolean,
-	): Partial<AgentRuntimeHooks> {
+	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {
 		const hooks = mergeRuntimeHooks([
 			this.config.hooks,
 			...this.contributionRegistry
@@ -1264,13 +1234,7 @@ export class SessionRuntime {
 					await this.prepareMessagesForModelRequest(messages);
 				return {
 					...control,
-					messages: this.artifactFiles
-						? await this.artifactFiles.project(
-								preparedMessages,
-								supportsImages,
-								ctx.request.signal,
-							)
-						: preparedMessages,
+					messages: preparedMessages,
 				};
 			},
 		};
@@ -1353,10 +1317,7 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		const reference = this.artifactFiles?.referenceMessage();
-		return this.messageBuilder.buildForApi(
-			reference ? [...providerMessages, reference] : providerMessages,
-		);
+		return this.messageBuilder.buildForApi(providerMessages);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {

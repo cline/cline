@@ -53,6 +53,12 @@ import type {
 	JsonRecord,
 } from "./types";
 
+type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
+
 function isHubReconnectableTransportError(error: unknown): boolean {
 	return (
 		error instanceof Error &&
@@ -450,7 +456,14 @@ export class CloudSessionController {
 	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
 		string,
-		Promise<CloudSessionAttachment>
+		ReturnType<CloudSessionController["create"]>
+	>();
+	private readonly initialSends = new Map<
+		string,
+		{
+			lifecycle: CloudSendLifecycle;
+			settled: Promise<CloudSendFailure | undefined>;
+		}
 	>();
 	private readonly provisioningControllers = new Map<
 		string,
@@ -1031,19 +1044,87 @@ export class CloudSessionController {
 	}
 
 	async create(
-		input: CreateCloudSessionInput,
-	): Promise<CloudSessionAttachment> {
+		input: CreateCloudSessionInput & {
+			initialMessage?: { text: string; images?: string[] };
+		},
+	): Promise<
+		CloudSessionAttachment & {
+			initialSend?:
+				| Awaited<ReturnType<CloudSessionController["send"]>>
+				| CloudSendFailure;
+		}
+	> {
 		const key = input.requestId?.trim();
-		if (!key) return await this.createOnce(input);
+		if (!key) return this.createSession(input);
 		const existing = this.createRequests.get(key);
-		if (existing) return await existing;
-		const creating = this.createOnce(input).finally(() => {
+		if (existing) return existing;
+		const creating = this.createSession(input).finally(() => {
 			if (this.createRequests.get(key) === creating) {
 				this.createRequests.delete(key);
 			}
 		});
 		this.createRequests.set(key, creating);
-		return await creating;
+		return creating;
+	}
+
+	private async createSession(
+		input: Parameters<CloudSessionController["create"]>[0],
+	): ReturnType<CloudSessionController["create"]> {
+		const { initialMessage, ...creation } = input;
+		if (!initialMessage) return this.createOnce(creation);
+		let dispatched = false;
+		let settle!: (failure?: CloudSendFailure) => void;
+		const initial = {
+			lifecycle: {
+				beforeDispatch: () => {
+					dispatched = true;
+				},
+			},
+			settled: new Promise<CloudSendFailure | undefined>((resolve) => {
+				settle = resolve;
+			}),
+		};
+		let target: CloudSessionAttachment | undefined;
+		let reservedSessionId: string | undefined;
+		try {
+			target = await this.createOnce(
+				{ ...creation, initialPrompt: initialMessage.text },
+				(sessionId) => {
+					reservedSessionId = sessionId;
+					if (!this.initialSends.has(sessionId))
+						this.initialSends.set(sessionId, initial);
+				},
+			);
+			const send = await this.send(
+				target.sessionId,
+				initialMessage.text,
+				"queue",
+				input.modelId,
+				initialMessage.images,
+				initial.lifecycle,
+			);
+			settle();
+			return { ...target, initialSend: send };
+		} catch (error) {
+			const send: CloudSendFailure = {
+				dispatched,
+				message: error instanceof Error ? error.message : String(error),
+				...(error instanceof Error &&
+				"detail" in error &&
+				typeof error.detail === "string"
+					? { detail: error.detail }
+					: {}),
+			};
+			settle(send);
+			if (!target) throw error;
+			return { ...target, initialSend: send };
+		} finally {
+			if (
+				reservedSessionId &&
+				this.initialSends.get(reservedSessionId) === initial
+			)
+				this.initialSends.delete(reservedSessionId);
+		}
 	}
 
 	private trackProvisioningController(
@@ -1162,6 +1243,7 @@ export class CloudSessionController {
 
 	private async createOnce(
 		input: CreateCloudSessionInput,
+		reserveInitialSend?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const cwd = cloudWorkspaceCwd(input.workspaceRelativePath);
@@ -1218,6 +1300,7 @@ export class CloudSessionController {
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
+		reserveInitialSend?.(record.id);
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, { record, organizationId });
 		// REST does not round-trip these client-side first-task preferences.
@@ -1378,6 +1461,16 @@ export class CloudSessionController {
 		result?: unknown;
 	}> {
 		const abortToken = this.sendAbortTokens.get(outerSessionId);
+		const initial = this.initialSends.get(outerSessionId);
+		// Only the initial send may bypass its own reservation.
+		if (initial && lifecycle !== initial.lifecycle) {
+			if (await initial.settled) {
+				throw new CloudSessionError(
+					"request_failed",
+					"The initial cloud prompt was not confirmed. Check the cloud task before sending another message.",
+				);
+			}
+		}
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(
@@ -2686,11 +2779,7 @@ export class CloudSessionController {
 				workspaceRoot,
 				cwd,
 				initialMessages,
-				metadata: {
-					...metadata,
-					outerSessionId: connection.remote.id,
-					interactive: true,
-				},
+				metadata: { ...metadata, interactive: true },
 				sessionConfig: {
 					sessionId,
 					providerId: metadata.provider ?? "cline",
@@ -2875,7 +2964,6 @@ export class CloudSessionController {
 					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
 				},
 				metadata: {
-					outerSessionId: connection.remote.id,
 					source: this.options.clientIdentity?.source ?? "sdk",
 					provider: "cline",
 					model: modelId,

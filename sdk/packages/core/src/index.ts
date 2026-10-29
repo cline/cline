@@ -112,7 +112,6 @@ export {
 	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
-	generatedMediaModalityFromMediaType,
 	noopBasicLogger,
 	normalizeSdkError,
 	normalizeUserInput,
@@ -619,6 +618,7 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -630,6 +630,7 @@ export {
 	resolveDisabledToolNames,
 	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
@@ -911,7 +912,6 @@ export {
 export type { SessionManifest } from "./session/models/session-manifest";
 export type { SessionRow } from "./session/models/session-row";
 export * from "./session/search";
-export type { ReadArtifact } from "./session/services/artifact-files";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,

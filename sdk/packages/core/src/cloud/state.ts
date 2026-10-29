@@ -1,8 +1,6 @@
 import {
-	type ContentBlock,
 	formatDisplayUserInput,
 	type HubEventEnvelope,
-	isGeneratedMedia,
 	type MessageWithMetadata,
 } from "@cline/shared";
 import type { CloudSessionState, JsonRecord } from "./types";
@@ -164,11 +162,6 @@ export function reduceCloudEvent(
 		if (last?.type === type) last[key] = `${last[key] ?? ""}${text}`;
 		else content.push({ type, [key]: text });
 	};
-	const hasContentPart = (predicate: (part: ContentBlock) => boolean) =>
-		state.messages.some(
-			(message) =>
-				Array.isArray(message.content) && message.content.some(predicate),
-		);
 	switch (event.event) {
 		case "assistant.delta":
 			if (typeof payload.text === "string")
@@ -183,26 +176,24 @@ export function reduceCloudEvent(
 		case "assistant.finished":
 			streams.delete(sessionId);
 			return;
-		case "assistant.media": {
-			const media = payload.media;
-			if (!isGeneratedMedia(media)) return;
-			if (
-				hasContentPart(
-					(part) => part.type === "media" && part.media.id === media.id,
-				)
-			)
-				return;
-			assistant().push({
-				type: "media",
-				media: structuredClone(media),
-			});
+		case "assistant.media":
+			if (payload.media)
+				assistant().push({
+					type: "media",
+					media: structuredClone(payload.media),
+				});
 			return;
-		}
 		case "tool.started": {
 			const id = String(payload.toolCallId ?? "");
 			if (
 				id &&
-				!hasContentPart((part) => part.type === "tool_use" && part.id === id)
+				!state.messages.some(
+					(message) =>
+						Array.isArray(message.content) &&
+						message.content.some(
+							(part) => part.type === "tool_use" && part.id === id,
+						),
+				)
 			) {
 				assistant().push({
 					type: "tool_use",
@@ -217,8 +208,12 @@ export function reduceCloudEvent(
 			const id = String(payload.toolCallId ?? "");
 			if (
 				id &&
-				!hasContentPart(
-					(part) => part.type === "tool_result" && part.tool_use_id === id,
+				!state.messages.some(
+					(message) =>
+						Array.isArray(message.content) &&
+						message.content.some(
+							(part) => part.type === "tool_result" && part.tool_use_id === id,
+						),
 				)
 			) {
 				state.messages.push({
