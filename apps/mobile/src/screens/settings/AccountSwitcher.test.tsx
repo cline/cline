@@ -1,5 +1,6 @@
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ClineAuthStore, createInMemoryAuthStorage } from "@/cloud";
 import { CloudAuthProvider, useCloudAccountScope } from "@/state/cloud-auth";
 import { render } from "@/ui/__testing__/render";
 import { containsText } from "../__testing__/harness";
@@ -23,7 +24,7 @@ beforeEach(() => {
 	]);
 	mocks.switchAccount.mockResolvedValue(undefined);
 });
-async function mount() {
+async function mount(store?: ClineAuthStore) {
 	let scope!: ReturnType<typeof useCloudAccountScope>;
 	function Observe() {
 		scope = useCloudAccountScope();
@@ -32,7 +33,7 @@ async function mount() {
 	let visible = true;
 	function Harness() {
 		return (
-			<CloudAuthProvider>
+			<CloudAuthProvider store={store}>
 				<Observe />
 				{visible ? <AccountSwitcher /> : null}
 			</CloudAuthProvider>
@@ -63,6 +64,85 @@ async function mount() {
 	};
 }
 describe("Account settings switcher", () => {
+	it("ignores account discovery from an identity replaced before its response arrives", async () => {
+		const credentials = {
+			access: "a",
+			refresh: "r",
+			expires: Date.now() + 86400000,
+			accountId: "person-a",
+		};
+		const store = new ClineAuthStore({
+			storage: createInMemoryAuthStorage(credentials),
+		});
+		await store.getCredentials();
+		const old =
+			Promise.withResolvers<
+				Array<{ name: string; active: boolean; organizationId?: string }>
+			>();
+		mocks.listAccounts.mockReturnValueOnce(old.promise).mockResolvedValueOnce([
+			{ name: "Personal", active: true },
+			{ name: "Current Org B", organizationId: "current-b", active: false },
+		]);
+		const screen = await mount(store);
+		await act(async () => {
+			await store.setCredentials({
+				...credentials,
+				access: "b",
+				accountId: "person-b",
+			});
+		});
+		await act(async () =>
+			old.resolve([
+				{ name: "Personal", active: true },
+				{ name: "Retired Org A", organizationId: "retired-a", active: false },
+			]),
+		);
+		expect(screen.row("Current Org B")).toBeDefined();
+		expect(screen.row("Retired Org A")).toBeUndefined();
+	});
+	it("retires a mounted previous identity's organization rows and rejects their captured click before a new identity renders", async () => {
+		const credentials = {
+			access: "a",
+			refresh: "r",
+			expires: Date.now() + 86400000,
+			accountId: "person-a",
+		};
+		const store = new ClineAuthStore({
+			storage: createInMemoryAuthStorage(credentials),
+		});
+		await store.getCredentials();
+		mocks.listAccounts.mockResolvedValueOnce([
+			{ name: "Personal", active: true },
+			{ name: "Private Org A", organizationId: "private-a", active: false },
+		]);
+		const screen = await mount(store);
+		const stalePress = screen.row("Private Org A")!.props.onPress;
+		const next =
+			Promise.withResolvers<
+				Array<{ name: string; active: boolean; organizationId?: string }>
+			>();
+		mocks.listAccounts.mockReturnValueOnce(next.promise);
+		await act(async () => {
+			const changed = store.setCredentials({
+				...credentials,
+				access: "b",
+				accountId: "person-b",
+			});
+			stalePress();
+			await changed;
+		});
+		expect(mocks.switchAccount).not.toHaveBeenCalled();
+		expect(screen.row("Private Org A")).toBeUndefined();
+		expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
+		await act(async () =>
+			next.resolve([
+				{ name: "Personal", active: true },
+				{ name: "Private Org B", organizationId: "private-b", active: false },
+			]),
+		);
+		expect(screen.row("Private Org B")).toBeDefined();
+		expect(screen.row("Private Org A")).toBeUndefined();
+	});
 	it("keeps a remounted switcher disabled while the shared account RPC is pending", async () => {
 		const pending = Promise.withResolvers<void>();
 		mocks.switchAccount.mockReturnValue(pending.promise);

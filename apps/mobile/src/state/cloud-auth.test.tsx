@@ -9,6 +9,7 @@ import {
 	useCloudAccountScope,
 	useCloudAuth,
 } from "./cloud-auth";
+import { cloudStartStore } from "./cloud-starts";
 import { EndpointsProvider } from "./endpoints";
 import {
 	readPendingHomeSubmission,
@@ -23,6 +24,81 @@ import {
 } from "./session-drafts";
 
 afterEach(clearAllSessionDrafts);
+afterEach(() => cloudStartStore.clear());
+
+it.each([
+	"same",
+	"different",
+	"signed-out",
+	"unprovable",
+])("keeps a failed Cloud prompt/photo only for the same stable identity (%s)", async (change) => {
+	const credentials = {
+		access: "old",
+		refresh: "r",
+		expires: Date.now() + 86400000,
+		...(change === "unprovable" ? {} : { accountId: "person-a" }),
+	};
+	const store = new ClineAuthStore({
+		storage: createInMemoryAuthStorage(credentials),
+	});
+	await store.getCredentials();
+	render(
+		<CloudAuthProvider store={store}>
+			<></>
+		</CloudAuthProvider>,
+	);
+	const descriptor = {
+		mode: "cloud" as const,
+		url: "https://fixture.invalid/ready",
+		remoteSessionId: "ready",
+	};
+	const provision = vi
+		.fn()
+		.mockRejectedValueOnce(new Error("Not signed in (401)"))
+		.mockResolvedValueOnce(descriptor);
+	let id!: string;
+	await act(async () => {
+		id = cloudStartStore.start({
+			target: {
+				id: "target",
+				mode: "cloud",
+				repoUrl: "https://github.com/fixture/repo",
+				label: "repo",
+				modelId: "model",
+			},
+			message: "Only private caption",
+			attachments: { userImages: ["data:image/png;base64,cGhvdG8="] },
+			provision,
+		});
+	});
+	const failed = cloudStartStore.getSnapshot()[0];
+	expect(failed?.phase).toBe("error");
+	await act(async () => {
+		if (change === "signed-out") await store.signOut();
+		else
+			await store.setCredentials({
+				...credentials,
+				access: "fresh",
+				accountId: change === "same" ? "person-a" : "person-b",
+			});
+	});
+	if (change === "same") {
+		expect(cloudStartStore.getSnapshot()[0]).toBe(failed);
+		expect(provision).toHaveBeenCalledOnce();
+		await act(async () => cloudStartStore.retry(id));
+		expect(provision).toHaveBeenCalledTimes(2);
+		expect(cloudStartStore.getSnapshot()[0]).toMatchObject({
+			id,
+			phase: "ready",
+			message: "Only private caption",
+			attachments: { userImages: ["data:image/png;base64,cGhvdG8="] },
+		});
+	} else {
+		expect(cloudStartStore.getSnapshot()).toEqual([]);
+		act(() => cloudStartStore.retry(id));
+		expect(provision).toHaveBeenCalledOnce();
+	}
+});
 
 it("retires private drafts and pending submissions when token resolution signs out automatically", async () => {
 	const store = new ClineAuthStore({
@@ -245,6 +321,26 @@ describe("account selection revision ownership", () => {
 		);
 		return { ...screen, current: () => current };
 	}
+	it("clears a failed-selection notice only after a fresh accepted account discovery", () => {
+		const screen = mountScope();
+		act(() => screen.current().selectScope({}));
+		let failed!: ReturnType<
+			ReturnType<typeof useCloudAccountScope>["beginSelection"]
+		>;
+		act(() => {
+			failed = screen.current().beginSelection();
+		});
+		const stale = screen.current().beginRefresh();
+		act(() => {
+			failed.fail();
+		});
+		act(() => stale({ organizationId: "stale" }));
+		expect(screen.current().selectionError).toBeDefined();
+		const fresh = screen.current().beginRefresh();
+		act(() => fresh({}));
+		expect(screen.current().selectionError).toBeUndefined();
+		expect(screen.current().scope).toEqual({});
+	});
 	it("keeps selection pending through stale discovery and rejects an old failure after a newer selection starts", () => {
 		const screen = mountScope();
 		act(() => screen.current().selectScope({}));

@@ -564,33 +564,36 @@ function HomeScreenBody({
 
 	const cloudNotice = selectionPending ? (
 		<Text tone="muted">Changing account… Your draft is saved.</Text>
-	) : selectionError ? (
-		<View style={{ gap: 8 }}>
-			<Text tone="danger" accessibilityRole="alert">
-				{selectionError}
-			</Text>
-			{onOpenSettings ? (
-				<Button
-					label="Account settings"
-					variant="outline"
-					onPress={onOpenSettings}
-				/>
-			) : null}
-		</View>
 	) : (
-		<CloudNotice
-			state={cloud.state}
-			accountScopeKnown={accountScope !== undefined}
-			cloudTargetSelected={needsCloudSetup || target?.mode === "cloud"}
-			onboarding={needsCloudSetup}
-			onRetry={cloud.refresh}
-			onSignIn={cloud.signIn}
-			onOpenBrowser={() => {
-				if (cloud.state.phase === "authorizing") {
-					openVerificationUrl(cloud.state.verificationUrl);
-				}
-			}}
-		/>
+		<View style={{ gap: 8 }}>
+			{selectionError ? (
+				<>
+					<Text tone="danger" accessibilityRole="alert">
+						{selectionError}
+					</Text>
+					{onOpenSettings ? (
+						<Button
+							label="Account settings"
+							variant="outline"
+							onPress={onOpenSettings}
+						/>
+					) : null}
+				</>
+			) : null}
+			<CloudNotice
+				state={cloud.state}
+				accountScopeKnown={accountScope !== undefined}
+				cloudTargetSelected={needsCloudSetup || target?.mode === "cloud"}
+				onboarding={needsCloudSetup}
+				onRetry={cloud.refresh}
+				onSignIn={cloud.signIn}
+				onOpenBrowser={() => {
+					if (cloud.state.phase === "authorizing") {
+						openVerificationUrl(cloud.state.verificationUrl);
+					}
+				}}
+			/>
+		</View>
 	);
 	const contextControl =
 		selectionPending && cloudMode ? (

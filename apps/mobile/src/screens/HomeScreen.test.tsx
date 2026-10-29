@@ -14,6 +14,7 @@ import { Alert } from "react-native";
 import type { ReactTestInstance } from "react-test-renderer";
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as CloudApi from "@/cloud";
 
 vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
 
@@ -21,6 +22,7 @@ import {
 	ClineAuthStore,
 	type CloudModelOption,
 	type CloudRepository,
+	CloudSessionApiError,
 	CloudSetupApiError,
 	createInMemoryAuthStorage,
 } from "@/cloud";
@@ -453,6 +455,59 @@ it("retains Home draft and explains a failed account change after leaving Settin
 	).toBe(true);
 	expect(screen.getAccountScope().scope).toEqual({ organizationId: undefined });
 	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
+});
+
+it("keeps Cloud sign-in recovery visible alongside a failed account-selection notice", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
+	hoisted.listRemoteSessions.mockRejectedValue(
+		new CloudSessionApiError("Unauthorized", 401),
+	);
+	const screen = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/team/repo",
+				label: "team/repo",
+				modelId: "model",
+			},
+		],
+	});
+	act(() => {
+		const selection = screen.getAccountScope().beginSelection();
+		selection.fail();
+	});
+	expect(
+		containsText(
+			screen.root,
+			"Account could not be changed. Your previous account is still selected.",
+		),
+	).toBe(true);
+	expect(findByLabel(screen.root, "Sign in to Cline")).toBeDefined();
+	const start = vi.spyOn(CloudApi, "startClineDeviceAuth").mockResolvedValue({
+		deviceCode: "reauth",
+		userCode: "REAUTH-CODE",
+		verificationUri: "https://example.invalid/verify",
+		expiresInSeconds: 900,
+		pollIntervalSeconds: 1,
+	});
+	const complete = vi
+		.spyOn(CloudApi, "completeClineDeviceAuth")
+		.mockReturnValue(new Promise(() => {}));
+	try {
+		await act(async () =>
+			findByLabel(screen.root, "Sign in to Cline")?.props.onPress(),
+		);
+		expect(containsText(screen.root, "REAUTH-CODE")).toBe(true);
+		expect(
+			containsText(
+				screen.root,
+				"Account could not be changed. Your previous account is still selected.",
+			),
+		).toBe(true);
+	} finally {
+		start.mockRestore();
+		complete.mockRestore();
+	}
 });
 
 it("retires mounted Home text and images after explicit sign-out and re-sign-in", async () => {

@@ -1,6 +1,7 @@
 import { Check } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
+import type { ClineAuthStore } from "@/cloud";
 import {
 	type CloudAccount,
 	CloudAccountGateway,
@@ -12,8 +13,13 @@ import { Button, Text, useTheme } from "@/ui";
 
 /** Account switching belongs in Account settings, just as it does on desktop. */
 export function AccountSwitcher() {
-	const theme = useTheme();
 	const { store } = useCloudAuth();
+	return <AccountSwitcherBody key={store.identityVersion} store={store} />;
+}
+
+function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
+	const theme = useTheme();
+	const identityVersion = store.identityVersion;
 	const {
 		scope,
 		beginSelection,
@@ -80,7 +86,13 @@ export function AccountSwitcher() {
 		};
 	}, [gateway, retry, beginRefresh]);
 	const choose = async (account: CloudAccount) => {
-		if (busy.current || isSelectionPending() || account.active) return;
+		if (
+			identityVersion !== store.identityVersion ||
+			busy.current ||
+			isSelectionPending() ||
+			account.active
+		)
+			return;
 		busy.current = true;
 		const publishSelection = beginSelection();
 		setSwitching(true);

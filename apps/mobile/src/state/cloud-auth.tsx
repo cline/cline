@@ -153,13 +153,13 @@ export function CloudAuthProvider({
 	useEffect(() => {
 		return value.subscribeIdentity((credentials, previous) => {
 			selectScope(undefined);
-			// Cached controllers and pending launches cannot outlive their account.
-			cloudStartStore.clear();
 			if (
 				!credentials ||
 				(previous &&
 					(!previous.accountId || previous.accountId !== credentials.accountId))
 			) {
+				// Same-owner reauthentication must keep failed starts for explicit Retry.
+				cloudStartStore.clear();
 				// Token resolution can sign out without calling the Settings hook.
 				// Also retire private input before a different person signs in.
 				void retirePrivateInput(value, endpointsStore).catch(() => {});
@@ -202,6 +202,7 @@ export function CloudAuthProvider({
 				revision.current === started
 			) {
 				scopeAuthority.current = next;
+				setSelection({ pending: false });
 				setScope((current) =>
 					current && current.organizationId === next.organizationId
 						? current
