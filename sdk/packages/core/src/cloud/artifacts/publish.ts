@@ -172,11 +172,11 @@ async function publish(
 				continue;
 			}
 			if (response.status === 429 || response.status >= 500) {
-				await response.body?.cancel();
+				await response.body?.cancel().catch(() => {});
 				continue;
 			}
 			if (!response.ok) {
-				await response.body?.cancel();
+				await response.body?.cancel().catch(() => {});
 				throw new PublishError(
 					"CORE_REJECTED",
 					`Artifact service returned HTTP ${response.status}`,
@@ -251,13 +251,21 @@ async function publish(
 					await checkUnchanged(file);
 				}
 				if (response?.ok) {
-					await response.body?.cancel();
+					await response.body?.cancel().catch(() => {});
 					break;
 				}
+				let interrupted = false;
 				const expired =
 					(response?.status === 400 || response?.status === 403) &&
-					/expired/i.test(await response.text());
+					/expired/i.test(
+						await response.text().catch(() => {
+							interrupted = true;
+							return "";
+						}),
+					);
+				signal?.throwIfAborted();
 				const transient =
+					interrupted ||
 					!response ||
 					response.status === 408 ||
 					response.status === 429 ||

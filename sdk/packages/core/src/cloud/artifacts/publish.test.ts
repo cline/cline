@@ -15,6 +15,7 @@ type Scenario =
 	| "expired"
 	| "transient"
 	| "lost"
+	| "body-interrupted"
 	| "forbidden"
 	| "unavailable"
 	| "reject";
@@ -87,6 +88,12 @@ async function fixture(
 		uploads++;
 		keys.push(key);
 		const artifactId = key.slice(prefix.length);
+		if (scenario === "body-interrupted" && uploads === 1) {
+			res.writeHead(403, { "Content-Length": 100 });
+			res.write("partial error body");
+			setTimeout(() => res.destroy(), 10);
+			return;
+		}
 		if ((scenario === "expired" || scenario === "expired400") && uploads === 1)
 			return void res
 				.writeHead(scenario === "expired400" ? 400 : 403)
@@ -180,6 +187,7 @@ for (const scenario of [
 	"expired400",
 	"transient",
 	"lost",
+	"body-interrupted",
 ] as const) {
 	test(`retries ${scenario} uploads using the same artifact ID`, async (t) => {
 		const f = await fixture(t, scenario);
