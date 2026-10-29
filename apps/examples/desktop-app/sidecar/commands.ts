@@ -207,7 +207,6 @@ import {
 } from "./session-data/common";
 import {
 	discoverChatSessions,
-	findLocalSideSessionId,
 	mergeDiscoveredSessionLists,
 } from "./session-data/discovery";
 import {
@@ -2534,23 +2533,6 @@ export async function handleCommand(
 	}
 
 	// ── Session discovery ─────────────────────────────────────────────
-	if (command === "find_side_session") {
-		const parentSessionId = asTrimmedString(args?.parentSessionId);
-		if (!parentSessionId) throw new Error("parent session id is required");
-		if (
-			(requestedEnvironmentId(args) ?? LOCAL_ENVIRONMENT_ID) !==
-			LOCAL_ENVIRONMENT_ID
-		)
-			throw new Error("Side conversations are available only for local chats.");
-		const sessionId = findLocalSideSessionId(parentSessionId, ctx.bootId);
-		return sessionId
-			? ((await getSessionFromSidecarManager(
-					ctx,
-					sessionId,
-					LOCAL_ENVIRONMENT_ID,
-				)) ?? null)
-			: null;
-	}
 	if (command === "list_chat_sessions") {
 		const limit = typeof args?.limit === "number" ? args.limit : 300;
 		const local = discoverChatSessions(ctx, limit);

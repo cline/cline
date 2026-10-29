@@ -56,7 +56,6 @@ export type DesktopAppLocation<SettingsSection extends string> = {
 export type DesktopAppState<SettingsSection extends string> = {
 	navigation: NavigationHistory<DesktopAppLocation<SettingsSection>>;
 	threads: DesktopThread[];
-	selectedSideByParent: Record<string, string>;
 	sideOpenVersion: number;
 };
 
@@ -81,7 +80,6 @@ export type DesktopAppAction<SettingsSection extends string> =
 	  }
 	| {
 			type: "open-side";
-			parentThreadId: string;
 			session: SessionHistoryItem;
 			submission?: InitialSideSubmission;
 			reveal?: boolean;
@@ -126,7 +124,6 @@ export function createDesktopAppState<SettingsSection extends string>(
 ): DesktopAppState<SettingsSection> {
 	return {
 		threads: [{ id: initialThreadId, environmentId: initialEnvironmentId }],
-		selectedSideByParent: {},
 		sideOpenVersion: 0,
 		navigation: createNavigationHistory({
 			activeThreadId: initialThreadId,
@@ -231,10 +228,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				...opened,
 				navigation: state.navigation,
-				selectedSideByParent: {
-					...state.selectedSideByParent,
-					[action.parentThreadId]: opened.navigation.current.activeThreadId,
-				},
 				sideOpenVersion:
 					state.sideOpenVersion + (action.reveal === false ? 0 : 1),
 			};
@@ -392,12 +385,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				...state,
 				threads,
-				selectedSideByParent: Object.fromEntries(
-					Object.entries(state.selectedSideByParent).filter(
-						([parentId, sideId]) =>
-							!deletedThreadIds.has(parentId) && !deletedThreadIds.has(sideId),
-					),
-				),
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "reconcile",
 					fallback,

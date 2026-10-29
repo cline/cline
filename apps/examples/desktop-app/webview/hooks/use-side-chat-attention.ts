@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { desktopClient } from "@/lib/desktop-client";
 import type { SessionHistoryItem } from "@/lib/session-history";
-import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
-import { readSideConversation } from "../../shared/side-conversation";
+import { eventEnvironmentId } from "@/lib/session-identity";
 
-export type SideChatAttention = {
+type SideChatAttention = {
 	kind: "ready" | "unknown";
 	status: string | null;
 	approvals: number;
@@ -38,7 +37,6 @@ type PendingRequests = {
 };
 type AttentionEntry = {
 	session: Pick<SessionHistoryItem, "sessionId" | "environmentId">;
-	parentSessionId?: string;
 	status: string | null;
 	statusRevision: number;
 	statusReadId: number;
@@ -54,67 +52,56 @@ const pendingRequests = (): PendingRequests => ({
 });
 
 /** Keeps hidden side activity visible in the main toolbar. */
-export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
-	const sessionsRef = useRef(sessions);
-	sessionsRef.current = sessions;
-	const identities = sessions.map(sessionKey).sort().join("\n");
-	const [attention, setAttention] = useState<
-		ReadonlyMap<string, SideChatAttention>
-	>(new Map());
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reconcile on scoped identity changes; status updates arrive through events.
+export function useSideChatAttention(session: SessionHistoryItem | undefined) {
+	const sessionId = session?.sessionId;
+	const environmentId = session?.environmentId;
+	const [observed, setObserved] = useState<{
+		sessionId: string;
+		environmentId: string;
+		attention: SideChatAttention;
+	}>();
 	useEffect(() => {
+		if (!sessionId || !environmentId) return;
 		let disposed = false;
-		const entries = new Map<string, AttentionEntry>(
-			sessionsRef.current.map((session) => [
-				sessionKey(session),
-				{
-					session: {
-						sessionId: session.sessionId,
-						environmentId: session.environmentId,
-					},
-					parentSessionId: readSideConversation(session.metadata)
-						?.parentSessionId,
-					status: session.status,
-					statusRevision: 0,
-					statusReadId: 0,
-					approvals: pendingRequests(),
-					questions: pendingRequests(),
-				},
-			]),
-		);
-		const publish = () => {
-			if (disposed) return;
-			setAttention(
-				new Map(
-					[...entries].map(([key, entry]) => [
-						key,
-						{
-							kind:
-								entry.approvals.known &&
-								entry.questions.known &&
-								entry.status !== null
-									? "ready"
-									: "unknown",
-							status: entry.status,
-							approvals: entry.approvals.ids.size,
-							questions: entry.questions.ids.size,
-						},
-					]),
-				),
+		const entry: AttentionEntry = {
+			session: { sessionId, environmentId },
+			status: null,
+			statusRevision: 0,
+			statusReadId: 0,
+			approvals: pendingRequests(),
+			questions: pendingRequests(),
+		};
+		const matchesSession = (payload: unknown) => {
+			const result = SessionEventSchema.safeParse(payload);
+			return (
+				result.success &&
+				result.data.sessionId === sessionId &&
+				eventEnvironmentId(payload) === environmentId
 			);
 		};
-		const read = async (
-			entry: AttentionEntry,
-			channel: Channel,
-		): Promise<void> => {
+		const publish = () => {
+			if (!disposed)
+				setObserved({
+					sessionId,
+					environmentId,
+					attention: {
+						kind:
+							entry.approvals.known &&
+							entry.questions.known &&
+							entry.status !== null
+								? "ready"
+								: "unknown",
+						status: entry.status,
+						approvals: entry.approvals.ids.size,
+						questions: entry.questions.ids.size,
+					},
+				});
+		};
+		const read = async (channel: Channel): Promise<void> => {
 			const state = entry[channel];
 			const readId = ++state.readId;
 			const revision = state.revision;
-			const stillCurrent = () =>
-				!disposed &&
-				entries.get(sessionKey(entry.session)) === entry &&
-				state.readId === readId;
+			const stillCurrent = () => !disposed && state.readId === readId;
 			try {
 				const value = await desktopClient.invoke(
 					channel === "approvals"
@@ -126,7 +113,7 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 				// An event may resolve a request while its old snapshot is in flight.
 				// Reconcile again rather than resurrect it or lose other pending items.
 				if (state.revision !== revision) {
-					void read(entry, channel);
+					void read(channel);
 					return;
 				}
 				state.ids = new Set(
@@ -141,20 +128,18 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 			}
 			publish();
 		};
-		const readStatus = async (entry: AttentionEntry) => {
-			if (!entry.parentSessionId) return;
+		const readStatus = async () => {
 			const readId = ++entry.statusReadId;
 			const revision = entry.statusRevision;
 			const stillCurrent = () =>
 				!disposed &&
-				entries.get(sessionKey(entry.session)) === entry &&
 				entry.statusReadId === readId &&
 				entry.statusRevision === revision;
 			try {
-				const value = await desktopClient.invoke("find_side_session", {
-					parentSessionId: entry.parentSessionId,
-					environmentId: entry.session.environmentId,
-				});
+				const value = await desktopClient.invoke(
+					"get_discovered_session",
+					entry.session,
+				);
 				if (!stillCurrent()) return;
 				const result = StatusEventSchema.safeParse(value);
 				entry.status =
@@ -168,51 +153,30 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 			publish();
 		};
 		const hydrate = () => {
-			for (const entry of entries.values()) {
-				void readStatus(entry);
-				void read(entry, "approvals");
-				void read(entry, "questions");
-			}
+			void readStatus();
+			void read("approvals");
+			void read("questions");
 		};
 		const removeQuestion = (payload: unknown) => {
 			const result = ResolvedQuestionSchema.safeParse(payload);
-			if (!result.success) return;
-			for (const entry of entries.values()) {
-				if (entry.session.environmentId !== eventEnvironmentId(payload))
-					continue;
-				entry.questions.revision++;
-				entry.questions.ids.delete(result.data.requestId);
-			}
+			if (!result.success || eventEnvironmentId(payload) !== environmentId)
+				return;
+			entry.questions.revision++;
+			entry.questions.ids.delete(result.data.requestId);
 			publish();
 		};
 		const reconcileSession = (payload: unknown, status: string) => {
-			const result = SessionEventSchema.safeParse(payload);
-			if (!result.success) return;
-			const entry = entries.get(
-				sessionKey({
-					...result.data,
-					environmentId: eventEnvironmentId(payload),
-				}),
-			);
-			if (entry) {
-				entry.status = status;
-				entry.statusRevision++;
-				publish();
-				void read(entry, "approvals");
-				void read(entry, "questions");
-			}
+			if (!matchesSession(payload)) return;
+			entry.status = status;
+			entry.statusRevision++;
+			publish();
+			void read("approvals");
+			void read("questions");
 		};
 		const unsubscribers = [
 			desktopClient.subscribe("tool_approval_state", (payload) => {
 				const result = ApprovalEventSchema.safeParse(payload);
-				if (!result.success) return;
-				const entry = entries.get(
-					sessionKey({
-						sessionId: result.data.sessionId,
-						environmentId: eventEnvironmentId(payload),
-					}),
-				);
-				if (!entry) return;
+				if (!result.success || !matchesSession(payload)) return;
 				entry.approvals.revision++;
 				entry.approvals.ids = new Set(
 					result.data.items
@@ -224,14 +188,7 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 			}),
 			desktopClient.subscribe("ask_question_requested", (payload) => {
 				const result = RequestSchema.safeParse(payload);
-				if (!result.success) return;
-				const entry = entries.get(
-					sessionKey({
-						sessionId: result.data.sessionId,
-						environmentId: eventEnvironmentId(payload),
-					}),
-				);
-				if (!entry) return;
+				if (!result.success || !matchesSession(payload)) return;
 				entry.questions.revision++;
 				entry.questions.ids.add(result.data.requestId);
 				publish();
@@ -248,15 +205,9 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 				if (result.success) reconcileSession(payload, result.data.status);
 			}),
 			desktopClient.subscribe("session_deleted", (payload) => {
-				const result = SessionEventSchema.safeParse(payload);
-				if (!result.success) return;
-				entries.delete(
-					sessionKey({
-						...result.data,
-						environmentId: eventEnvironmentId(payload),
-					}),
-				);
-				publish();
+				if (!matchesSession(payload)) return;
+				disposed = true;
+				setObserved(undefined);
 			}),
 		];
 		publish();
@@ -266,15 +217,10 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 					hydrate();
 					return;
 				}
-				for (const entry of entries.values()) {
-					entry.statusReadId++;
-					for (const channel of [
-						"approvals",
-						"questions",
-					] satisfies Channel[]) {
-						entry[channel].known = false;
-						entry[channel].readId++;
-					}
+				entry.statusReadId++;
+				for (const channel of ["approvals", "questions"] satisfies Channel[]) {
+					entry[channel].known = false;
+					entry[channel].readId++;
 				}
 				publish();
 			}),
@@ -283,7 +229,10 @@ export function useSideChatAttention(sessions: readonly SessionHistoryItem[]) {
 			disposed = true;
 			for (const unsubscribe of unsubscribers) unsubscribe();
 		};
-	}, [identities]);
+	}, [sessionId, environmentId]);
 
-	return { attention };
+	return observed?.sessionId === sessionId &&
+		observed?.environmentId === environmentId
+		? observed?.attention
+		: undefined;
 }

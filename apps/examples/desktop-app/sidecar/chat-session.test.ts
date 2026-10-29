@@ -45,7 +45,10 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import { writeSessionManifest } from "./paths";
-import { discoverChatSessions } from "./session-data/discovery";
+import {
+	discoverChatSessions,
+	findLocalSideSessionId,
+} from "./session-data/discovery";
 import {
 	persistSessionMessages,
 	readPersistedChatMessages,
@@ -3569,10 +3572,7 @@ describe("side conversation lifecycle", () => {
 		expect(readMessages).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledTimes(1);
 		ctx.bootId = "another-app-run";
-		const { handleCommand } = await import("./commands");
-		await expect(
-			handleCommand(ctx, "find_side_session", { parentSessionId: parentId }),
-		).resolves.toBeNull();
+		expect(findLocalSideSessionId(parentId, ctx.bootId)).toBeUndefined();
 		for (const action of ["attach", "send"] as const) {
 			await expect(
 				handleChatSessionCommand(ctx, {
@@ -4076,8 +4076,7 @@ describe("side conversation lifecycle", () => {
 	});
 
 	it("looks up a saved side without paging unrelated history or accepting malformed metadata", async () => {
-		const { handleCommand } = await import("./commands");
-		const { ctx, create, get } = setup(false);
+		const { ctx, create } = setup(false);
 		await create();
 		const side = store.get(sideId);
 		if (!side) throw new Error("side fixture missing");
@@ -4105,34 +4104,8 @@ describe("side conversation lifecycle", () => {
 			"not-json",
 			"unrelated-0",
 		]);
-		get.mockClear();
-		await expect(
-			handleCommand(ctx, "find_side_session", {
-				parentSessionId: parentId,
-				environmentId: "local",
-			}),
-		).resolves.toMatchObject({
-			sessionId: sideId,
-			environmentId: "local",
-			prompt: "Side chat",
-		});
-		expect(get).toHaveBeenCalledTimes(1);
-		expect(
-			ctx.runtimeBindings.get("local")?.sessionManager.list,
-		).not.toHaveBeenCalled();
-		await expect(
-			handleCommand(ctx, "find_side_session", {
-				parentSessionId: "absent",
-				environmentId: "local",
-			}),
-		).resolves.toBeNull();
-		expect(get).toHaveBeenCalledTimes(1);
-		await expect(
-			handleCommand(ctx, "find_side_session", {
-				parentSessionId: parentId,
-				environmentId: "remote",
-			}),
-		).rejects.toThrow("only for local");
+		expect(findLocalSideSessionId(parentId, ctx.bootId)).toBe(sideId);
+		expect(findLocalSideSessionId("absent", ctx.bootId)).toBeUndefined();
 	});
 
 	it("retains side history and live state when runtime deletion fails", async () => {

@@ -966,11 +966,11 @@ function App() {
 							});
 						dispatchApp({
 							type: "open-side",
-							parentThreadId,
 							session,
 						});
 						return { opened: true };
 					}
+					throw new Error("The main conversation is no longer available.");
 				}
 			} catch (error) {
 				if (navigationIntentRef.current === intent)
@@ -1408,43 +1408,28 @@ function App() {
 		sessionHistory.threads,
 	]);
 
-	const selectedSideThread = threads.find(
-		(thread) =>
-			thread.id === appState.selectedSideByParent[activeThread?.id ?? ""],
-	);
 	const activeParentId =
 		activeThread?.sessionId ?? activeThread?.historySession?.sessionId;
-	const sideSessions = useMemo(
-		() =>
-			threads.flatMap((thread) => {
-				const session = thread.historySession;
-				return session &&
-					session.environmentId === activeThread?.environmentId &&
-					readSideConversation(session.metadata)?.parentSessionId ===
-						activeParentId
-					? [session]
-					: [];
-			}),
-		[activeParentId, activeThread?.environmentId, threads],
+	const sideThread = threads.find(
+		(thread) =>
+			activeParentId !== undefined &&
+			thread.environmentId === activeThread?.environmentId &&
+			readSideConversation(thread.historySession?.metadata)?.parentSessionId ===
+				activeParentId,
 	);
-	const { attention: sideAttention } = useSideChatAttention(sideSessions);
-	const sideAttentionLabel = useCallback(
-		(session: SessionHistoryItem) => {
-			const value = sideAttention.get(sessionKey(session));
-			if (value && (value.approvals > 0 || value.questions > 0))
-				return "Needs input";
-			if (!value || value.kind === "unknown") return "Connection unknown";
-			if (value.status === "running" || value.status === "provisioning")
-				return "Working";
-			if (value.status === "failed" || value.status === "error")
-				return "Failed";
-			return "";
-		},
-		[sideAttention],
-	);
-	const orphanSide = readSideConversation(
-		activeThread?.historySession?.metadata,
-	);
+	const selectedSideSession = sideThread?.historySession;
+	const attention = useSideChatAttention(selectedSideSession);
+	const sideAttentionLabel = (() => {
+		if (!selectedSideSession) return "";
+		if (attention && (attention.approvals > 0 || attention.questions > 0))
+			return "Needs input";
+		if (!attention || attention.kind === "unknown") return "Connection unknown";
+		if (attention.status === "running" || attention.status === "provisioning")
+			return "Working";
+		if (attention.status === "failed" || attention.status === "error")
+			return "Failed";
+		return "";
+	})();
 
 	const renderThread = (
 		thread: DesktopThread,
@@ -1468,14 +1453,10 @@ function App() {
 			presentation={presentation}
 			interactive={view === "chat" && side?.active !== false}
 			sideAttentionLabel={sideAttentionLabel}
-			sideSessions={sideSessions}
-			selectedSideSession={
-				selectedSideThread?.historySession ?? sideSessions[0]
-			}
+			selectedSideSession={selectedSideSession}
 			onOpenSide={(session, submission, reveal) =>
 				dispatchApp({
 					type: "open-side",
-					parentThreadId: activeThread.id,
 					session,
 					submission,
 					reveal,
@@ -1599,82 +1580,18 @@ function App() {
 										<ConversationWorkspace
 											key={activeThread.id}
 											mainThreadId={activeThread.id}
-											sideThreadId={
-												orphanSide ? activeThread.id : selectedSideThread?.id
-											}
+											sideThreadId={sideThread?.id}
 											openVersion={appState.sideOpenVersion}
 											main={(workspace) =>
-												orphanSide ? (
-													<div className="p-6 text-sm text-muted-foreground">
-														<WindowTitleBarContent>
-															<div className="flex h-full items-center justify-end gap-1 px-3">
-																{workspace.narrow && !workspace.mainVisible && (
-																	<Button
-																		variant="toolbar"
-																		size="sm"
-																		onClick={workspace.showMain}
-																	>
-																		Main
-																	</Button>
-																)}
-																<Button
-																	variant="toolbar"
-																	size="sm"
-																	onClick={() => {
-																		workspace.open({ kind: "side" });
-																		requestPromptInputFocus(activeThread.id);
-																	}}
-																>
-																	Side chat
-																</Button>
-															</div>
-														</WindowTitleBarContent>
-														Main chat unavailable.
-													</div>
-												) : (
-													renderThread(activeThread, "main", workspace, {
-														renderSide: ({ active, mainConfig }) =>
-															threads
-																.filter(
-																	(thread) =>
-																		thread.environmentId ===
-																			activeThread.environmentId &&
-																		readSideConversation(
-																			thread.historySession?.metadata,
-																		)?.parentSessionId === activeParentId,
-																)
-																.map((thread) => (
-																	<div
-																		key={thread.id}
-																		className="min-h-0 flex-1 flex-col"
-																		style={{
-																			display:
-																				thread.id === selectedSideThread?.id
-																					? "flex"
-																					: "none",
-																		}}
-																		inert={
-																			thread.id !== selectedSideThread?.id ||
-																			undefined
-																		}
-																		aria-hidden={
-																			thread.id !== selectedSideThread?.id ||
-																			undefined
-																		}
-																	>
-																		{renderThread(thread, "side", workspace, {
-																			active,
-																			mainConfig,
-																		})}
-																	</div>
-																)),
-													})
-												)
-											}
-											side={(workspace) =>
-												orphanSide
-													? renderThread(activeThread, "side", workspace)
-													: null
+												renderThread(activeThread, "main", workspace, {
+													renderSide: ({ active, mainConfig }) =>
+														sideThread
+															? renderThread(sideThread, "side", workspace, {
+																	active,
+																	mainConfig,
+																})
+															: null,
+												})
 											}
 										/>
 									</div>
@@ -1780,7 +1697,6 @@ function ChatThreadPane({
 	renderSide,
 	presentation,
 	interactive,
-	sideSessions,
 	selectedSideSession,
 	onOpenSide,
 	sideAttentionLabel,
@@ -1824,8 +1740,7 @@ function ChatThreadPane({
 	renderSide?: (controls: SidePresentationControls) => ReactNode;
 	presentation: "main" | "side";
 	interactive: boolean;
-	sideAttentionLabel: (session: SessionHistoryItem) => string;
-	sideSessions: readonly SessionHistoryItem[];
+	sideAttentionLabel: string;
 	selectedSideSession?: SessionHistoryItem;
 	onOpenSide: (
 		session: SessionHistoryItem,
@@ -2724,10 +2639,6 @@ function ChatThreadPane({
 		!historySession?.isSubagent &&
 		!historySession?.parentSessionId;
 	const sideAvailable = Boolean(sessionId) && isLocalMain;
-	const sideAttentionLabels = sideSessions.map(sideAttentionLabel);
-	const sideAttentionSummary =
-		sideAttentionLabels.find((label) => label === "Needs input") ??
-		sideAttentionLabels.find(Boolean);
 	const revealSide = useCallback(
 		() => workspace.open({ kind: "side" }),
 		[workspace.open],
@@ -3830,7 +3741,7 @@ function ChatThreadPane({
 										: undefined
 								}
 								sideOpen={workspace.sideVisible}
-								sideAttention={sideAttentionSummary}
+								sideAttention={sideAttentionLabel}
 								onShowMain={
 									workspace.narrow && !workspace.mainVisible
 										? workspace.showMain

@@ -26,14 +26,13 @@ describe("desktopAppReducer", () => {
 	it.each([
 		"parent",
 		"side",
-	])("prunes side selection when deleting its %s", (target) => {
+	])("removes the deleted %s thread without removing the other conversation", (target) => {
 		let state = createDesktopAppState("parent", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "open-side",
-			parentThreadId: "parent",
 			session: createSession("side"),
 		});
-		const sideThreadId = state.selectedSideByParent.parent;
+		const sideThreadId = state.threads[1].id;
 		state = desktopAppReducer(state, {
 			type: "delete-session",
 			deletedSessionId: target,
@@ -42,7 +41,12 @@ describe("desktopAppReducer", () => {
 			fallbackThreadId: "fallback",
 			fallbackEnvironmentId: "local",
 		});
-		expect(state.selectedSideByParent).toEqual({});
+		expect(
+			state.threads.some(
+				(thread) =>
+					thread.id === (target === "parent" ? "parent" : sideThreadId),
+			),
+		).toBe(false);
 		expect(
 			state.threads.some(
 				(thread) =>
@@ -62,19 +66,17 @@ describe("desktopAppReducer", () => {
 		const child = createSession("side");
 		state = desktopAppReducer(state, {
 			type: "open-side",
-			parentThreadId: parent.id,
 			session: child,
 		});
-		const childThreadId = state.selectedSideByParent[parent.id];
+		const childThreadId = state.threads[1].id;
 		expect(state.navigation).toBe(navigation);
 		expect(state.threads[0]).toBe(parent);
 		state = desktopAppReducer(state, {
 			type: "open-side",
-			parentThreadId: parent.id,
 			session: child,
 			submission: { question: "continue" },
 		});
-		expect(state.selectedSideByParent[parent.id]).toBe(childThreadId);
+		expect(state.threads[1].id).toBe(childThreadId);
 		expect(state.threads).toHaveLength(2);
 		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe(
 			"continue",

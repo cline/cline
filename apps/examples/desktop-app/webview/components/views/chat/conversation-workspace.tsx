@@ -33,13 +33,11 @@ export function ConversationWorkspace({
 	sideThreadId,
 	openVersion,
 	main,
-	side,
 }: {
 	mainThreadId: string;
 	sideThreadId?: string;
 	openVersion: number;
 	main: (controls: ConversationWorkspaceControls) => ReactNode;
-	side: (controls: ConversationWorkspaceControls) => ReactNode;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	const epoch = useRef(0);
@@ -154,9 +152,7 @@ export function ConversationWorkspace({
 					inert={!sideVisible || undefined}
 					aria-hidden={!sideVisible || undefined}
 					aria-label="Side conversation"
-				>
-					{side(controls)}
-				</section>
+				/>
 				<div
 					ref={setTarget}
 					className="min-h-0 min-w-0 flex-1"

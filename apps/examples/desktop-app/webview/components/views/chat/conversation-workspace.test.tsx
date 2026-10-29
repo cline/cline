@@ -79,9 +79,14 @@ async function render(version = 1) {
 				openVersion={version}
 				main={(controls) => {
 					rail = controls;
-					return <Chat surface="main" />;
+					return (
+						<>
+							<Chat surface="main" />
+							{controls.sideTarget &&
+								createPortal(<Chat surface="side" />, controls.sideTarget)}
+						</>
+					);
 				}}
-				side={() => <Chat surface="side" />}
 			/>,
 		),
 	);
@@ -182,7 +187,6 @@ it("does not reveal a late selected child without an open version change", async
 					rail = controls;
 					return <Chat surface="main" />;
 				}}
-				side={() => null}
 			/>,
 		),
 	);
@@ -206,21 +210,27 @@ it("keeps source-owned detail controls usable when their narrow conversation is 
 				openVersion={1}
 				main={(controls) => {
 					rail = controls;
-					return <Chat surface="main" />;
+					return (
+						<>
+							<Chat surface="main" />
+							{controls.sideTarget &&
+								createPortal(
+									<>
+										<Chat surface="side" />
+										{controls.target && controls.surface.kind === "changes"
+											? createPortal(
+													<button type="button" onClick={clicked}>
+														Detail action
+													</button>,
+													controls.target,
+												)
+											: null}
+									</>,
+									controls.sideTarget,
+								)}
+						</>
+					);
 				}}
-				side={(controls) => (
-					<>
-						<Chat surface="side" />
-						{controls.target && controls.surface.kind === "changes"
-							? createPortal(
-									<button type="button" onClick={clicked}>
-										Detail action
-									</button>,
-									controls.target,
-								)
-							: null}
-					</>
-				)}
 			/>,
 		),
 	);
@@ -269,7 +279,6 @@ it("opens an empty side host immediately and retains its portal through main rea
 						rail = controls;
 						return <Main ready={ready} controls={controls} />;
 					}}
-					side={() => null}
 				/>,
 			),
 		);

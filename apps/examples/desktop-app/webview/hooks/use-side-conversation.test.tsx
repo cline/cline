@@ -107,7 +107,6 @@ async function renderQueued(hydrated: boolean | null) {
 function enqueue(question?: string) {
 	queuedDispatch({
 		type: "open-side",
-		parentThreadId: "parent-thread",
 		session: { ...result, status: "idle", startedAt: "2026-10-28T00:00:00Z" },
 		submission: question ? { question } : undefined,
 	});
