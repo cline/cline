@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CloudServiceClient } from "@/services/grpc-client"
+import { CloudServiceClient, TaskServiceClient } from "@/services/grpc-client"
 
 function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): string {
 	switch (view.phase) {
@@ -177,13 +177,20 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 					{sessionId && (
 						<div className="flex flex-wrap gap-2 mt-2">
 							<VSCodeButton
+								disabled={view.phase === "launching"}
+								onClick={() =>
+									void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: sessionId })))
+								}>
+								Open in Cline
+							</VSCodeButton>
+							<VSCodeButton
 								appearance="secondary"
 								onClick={() =>
 									void run(() =>
 										CloudServiceClient.openCloudSessionDashboard(StringRequest.create({ value: sessionId })),
 									)
 								}>
-								Open cloud task
+								Open in browser
 							</VSCodeButton>
 							{view.phase === "complete" && view.delivery === "unsent" && (
 								<VSCodeButton

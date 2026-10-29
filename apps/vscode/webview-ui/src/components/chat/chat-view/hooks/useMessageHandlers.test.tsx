@@ -178,6 +178,17 @@ describe("useMessageHandlers — send routing", () => {
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
+		const completedHandoff = mockHandoff
+		mockTaskId = "ses_example"
+		mockHandoff = undefined
+		rerender()
+		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
+		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
+		mockTaskId = "local-task"
+		mockHandoff = completedHandoff
+		rerender()
+		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
+		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
 	})
 
 	it("clears the existing-handoff warning after dismissal without consuming the draft", async () => {
