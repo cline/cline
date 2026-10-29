@@ -13,6 +13,11 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { HANDOFF_PROGRESS_LABELS } from "@/lib/cloud-handoff";
 import type { CloudHandoffUiEntry } from "@/lib/cloud-handoff-ui-state";
 
@@ -123,6 +128,12 @@ export function CloudHandoffStatus({
 	onDismiss: () => void;
 }) {
 	const pending = state.preparing || state.status === "progress";
+	const failureMessage = state.status === "failed" ? state.message.trim() : "";
+	const failureLabel = failureMessage.startsWith("Couldn't complete the push.")
+		? "Couldn't push the checkpoint"
+		: failureMessage === "Cloud preparation cancelled."
+			? failureMessage
+			: "Cloud handoff needs attention";
 	const canRestoreDraft =
 		state.status === "failed" ||
 		(state.status === "complete" && Boolean(state.unsentDraft));
@@ -161,7 +172,7 @@ export function CloudHandoffStatus({
 		>
 			{state.status === "complete"
 				? "Open cloud task with draft"
-				: "Restore /cloud draft"}
+				: "Restore draft"}
 		</Button>
 	) : null;
 	const label = state.preparing
@@ -172,7 +183,7 @@ export function CloudHandoffStatus({
 				? state.message
 					? "Check the cloud task"
 					: "Cloud task ready"
-				: state.message.trim() || "Cloud handoff stopped";
+				: failureLabel;
 	return (
 		<output
 			aria-live="polite"
@@ -203,6 +214,26 @@ export function CloudHandoffStatus({
 				)}
 				{!pending && state.status === "failed" && (
 					<>
+						{failureMessage && failureMessage !== label && (
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										className="h-7 shrink-0 px-2 text-xs"
+										size="sm"
+										variant="ghost"
+									>
+										Details
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									aria-label="Cloud handoff details"
+									className="cline-chat-selectable max-h-64 max-w-[calc(100vw-2rem)] overflow-y-auto whitespace-pre-wrap break-words text-xs"
+									side="top"
+								>
+									{failureMessage}
+								</PopoverContent>
+							</Popover>
+						)}
 						{restoreAction}
 						{connectAction}
 					</>
@@ -242,7 +273,7 @@ export function CloudHandoffStatus({
 						size="sm"
 						variant="outline"
 					>
-						Restore /cloud draft
+						Restore draft
 					</Button>
 					{connectAction}
 				</div>

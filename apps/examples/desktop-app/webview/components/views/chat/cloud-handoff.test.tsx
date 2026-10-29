@@ -72,7 +72,7 @@ describe("CloudHandoffStatus", () => {
 		const view = render(status());
 		expect(view.textContent).toContain("Preparing cloud handoff");
 		expect(view.querySelector(".animate-spin")).not.toBeNull();
-		expect(view.textContent).not.toContain("Restore /cloud draft");
+		expect(view.textContent).not.toContain("Restore draft");
 		expect(view.textContent).not.toContain("with draft");
 		if (previous === "complete")
 			expect(view.textContent).toContain("Open cloud task");
@@ -85,7 +85,7 @@ describe("CloudHandoffStatus", () => {
 		});
 		act(() => root?.render(status()));
 		expect(view.querySelector(".animate-spin")).toBeNull();
-		expect(view.textContent).toContain("Restore /cloud draft");
+		expect(view.textContent).toContain("Restore draft");
 		if (previous === "complete") {
 			expect(state.local).toMatchObject({
 				sessionId: "cloud",
@@ -150,7 +150,7 @@ describe("CloudHandoffStatus", () => {
 		).toBeNull();
 		act(() =>
 			Array.from(view.querySelectorAll("button"))
-				.find((button) => button.textContent === "Restore /cloud draft")
+				.find((button) => button.textContent === "Restore draft")
 				?.click(),
 		);
 		expect(restorePreparation).toHaveBeenCalledOnce();
@@ -223,11 +223,17 @@ describe("CloudHandoffStatus", () => {
 		act(() => button?.click());
 		expect(onOpenCloud).toHaveBeenCalledOnce();
 	});
-	it("shows preparation failure without automatically restoring the saved draft", () => {
+	it.each([
+		["Connect GitHub to continue.", "Cloud handoff needs attention"],
+		[
+			"Couldn't complete the push. Check GitHub write access, branch rules (including required signatures), pre-push hooks, and your connection.",
+			"Couldn't push the checkpoint",
+		],
+	])("shows details for %s without automatically restoring the saved draft", (message, label) => {
 		const failure = {
 			type: "failed",
 			sourceSessionId: "local",
-			message: "Connect GitHub to continue.",
+			message,
 			connectUrl: "https://app.cline.bot/settings/github",
 			retryDraft: "continue",
 			retryAttachments: [],
@@ -253,7 +259,17 @@ describe("CloudHandoffStatus", () => {
 				/>
 			) : null;
 		const view = render(status());
-		expect(view.textContent).toContain("Connect GitHub to continue.");
+		expect(view.textContent).toContain(label);
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent === "Details")
+				?.click(),
+		);
+		expect(document.querySelector('[role="dialog"]')?.textContent).toBe(
+			message,
+		);
+		expect(restore).not.toHaveBeenCalled();
 		expect(
 			view.querySelector('[aria-label="Dismiss cloud handoff status"]'),
 		).toBeNull();
@@ -266,20 +282,20 @@ describe("CloudHandoffStatus", () => {
 		expect(restore).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(view.querySelectorAll("button"))
-				.find((button) => button.textContent === "Restore /cloud draft")
+				.find((button) => button.textContent === "Restore draft")
 				?.click(),
 		);
 		expect(restore).toHaveBeenCalledOnce();
-		expect(view.textContent).not.toContain("Restore /cloud draft");
+		expect(view.textContent).not.toContain("Restore draft");
 		act(() => root?.render(status("remount")));
-		expect(view.textContent).not.toContain("Restore /cloud draft");
+		expect(view.textContent).not.toContain("Restore draft");
 		state = cloudHandoffUiReducer(state, {
 			...failure,
 			retryDraft: "new attempt",
 			retryAttachments: [],
 		});
 		act(() => root?.render(status("remount")));
-		expect(view.textContent).toContain("Restore /cloud draft");
+		expect(view.textContent).toContain("Restore draft");
 	});
 	it("allows dismissal when a bare /cloud invocation has no text or images to recover", () => {
 		const dismiss = vi.fn();
