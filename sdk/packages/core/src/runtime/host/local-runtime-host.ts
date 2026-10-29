@@ -1,3 +1,8 @@
+import {
+	applyChatProfile,
+	applyPersonalProfile,
+	assertChatProvider,
+} from "./chat-profile";
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -252,6 +257,8 @@ function isIncomingCompactionStateStale(
 }
 
 export interface LocalRuntimeHostOptions {
+	/** Host-enforced capability profile; coding remains the default. */
+	runtimeProfile?: "coding" | "chat" | "personal";
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
@@ -298,6 +305,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly connectorsRequest?: ConnectorsRequest;
+	private readonly runtimeProfile: "coding" | "chat" | "personal";
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -405,6 +413,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		this.defaultFetch = options.fetch;
 		this.connectorsRequest = options.connectorsRequest;
+		this.runtimeProfile = options.runtimeProfile ?? "coding";
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -490,6 +499,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		if (this.runtimeProfile === "chat") input = applyChatProfile(input);
+		if (this.runtimeProfile === "personal") input = applyPersonalProfile(input);
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =
@@ -665,6 +676,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}),
 		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
+			inspectWorkspace: this.runtimeProfile === "coding",
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
@@ -1756,6 +1768,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		rawUpdates: SessionConnectionUpdate,
 	): Promise<void> {
 		const updates = normalizeConnectionUpdate(rawUpdates);
+		if (this.runtimeProfile !== "coding" && updates.providerId)
+			assertChatProvider(updates.providerId);
 		const session = this.getSessionOrThrow(sessionId);
 		if (updates.providerId !== undefined)
 			session.config.providerId = updates.providerId;
@@ -2292,6 +2306,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<PreparedTurnInput> {
+		if (this.runtimeProfile === "chat") {
+			if (input.userFiles?.length)
+				throw new Error(
+					"Local file attachments are unavailable in chat sessions.",
+				);
+			return {
+				prompt: normalizeUserInput(input.prompt).trim(),
+				userImages: input.userImages,
+			};
+		}
 		const mentionBaseDir = resolveWorkspacePath(session.config);
 		const normalizedPrompt = normalizeUserInput(input.prompt).trim();
 		if (!normalizedPrompt) {
@@ -2381,6 +2405,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		knownState?: GitWorkspaceState,
 	): Promise<void> {
+		if (this.runtimeProfile !== "coding") return;
 		try {
 			const state =
 				knownState ??

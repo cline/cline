@@ -268,6 +268,7 @@ function buildProviderConfig(
 }
 
 export interface PrepareLocalRuntimeBootstrapOptions {
+	inspectWorkspace?: boolean;
 	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
@@ -371,7 +372,9 @@ export async function prepareLocalRuntimeBootstrap(
 		durationMs,
 		vcsType,
 		initError,
-	} = await buildWorkspaceMetadataWithInfo(workspacePath);
+	} = options.inspectWorkspace === false
+		? { workspaceInfo: { rootPath: workspacePath }, workspaceMetadata: "", gitState: {}, durationMs: 0, vcsType: "none" as const, initError: undefined }
+		: await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const headerClientContext = configuredExtensionContext?.client
 		? undefined

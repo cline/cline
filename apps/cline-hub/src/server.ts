@@ -7,6 +7,7 @@ import {
 import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
+	options,
 	host,
 	inviteUrl,
 	port,
@@ -118,7 +119,10 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			}
 			if (url.pathname === "/health") {
 				await syncHubHealth(ctx);
-				return createJsonResponse(hubStatusPayload(ctx));
+				return createJsonResponse({
+					...hubStatusPayload(ctx),
+					runtimeProfile: options.runtimeProfile,
+				});
 			}
 			if (url.pathname === "/browser") {
 				const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;

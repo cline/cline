@@ -36,6 +36,8 @@ export type {
 	AgentExtensionCommand as AgentPluginCommand,
 	AgentExtensionCommandResult,
 	AgentHooks,
+	AgentMessage,
+	AgentRuntimeHooks,
 	AgentMode,
 	AgentResult,
 	AgentRunResult,
@@ -494,6 +496,8 @@ export {
 	resolveSessionBackend,
 } from "./runtime/host/host";
 export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
+// Hosts persisting hook snapshots must use the same codec as local session storage.
+export { agentMessagesToMessagesWithMetadata, messagesToAgentMessages } from "./runtime/config/agent-message-codec";
 export type {
 	CommandExecutionRuntimeService,
 	PendingPromptMutationResult,
@@ -1188,3 +1192,13 @@ export type {
 	SessionRef,
 } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
+
+/** Capability marker for cloud hosts: fail closed with older SDK builds. */
+export const CHAT_RUNTIME_PROFILE_VERSION = 1;
+export const PERSONAL_RUNTIME_PROFILE_VERSION = 1;
+
+export {
+	DurablePersonalRuntimeHost,
+	type PersonalRuntimeState,
+	type PersonalRuntimeStateStore,
+} from "./runtime/host/durable-runtime-host";

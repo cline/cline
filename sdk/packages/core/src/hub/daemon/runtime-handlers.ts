@@ -63,6 +63,7 @@ function resolveMode(
 
 export interface CreateLocalHubScheduleRuntimeHandlersOptions
 	extends Pick<HubScheduleServiceOptions, "logger"> {
+	runtimeProfile?: "coding" | "chat" | "personal";
 	/**
 	 * Custom `fetch` implementation forwarded to the scheduler's internal
 	 * `LocalRuntimeHost`. Used by the AI gateway providers for every
@@ -78,6 +79,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 ): HubScheduleRuntimeHandlers {
 	const submitScheduledRun: VerifySubmitExecutor = async (summary) => summary;
 	const sessionHost = new LocalRuntimeHost({
+		runtimeProfile: options.runtimeProfile,
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
 		capabilities: {
 			toolExecutors: {

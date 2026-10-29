@@ -139,10 +139,20 @@ export async function executeComposioMetaTool(
 	} catch (error) {
 		return {
 			successful: false,
+			outcomeUnknown: true,
 			error: `Cline connectors request failed: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
-	const text = await response.text();
+	let text: string;
+	try {
+		text = await response.text();
+	} catch (error) {
+		return {
+			successful: false,
+			outcomeUnknown: true,
+			error: `Connector response was lost: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
 	let parsed: unknown;
 	try {
 		parsed = text ? JSON.parse(text) : undefined;
@@ -156,6 +166,7 @@ export async function executeComposioMetaTool(
 				: text.slice(0, 600);
 		return {
 			successful: false,
+			outcomeUnknown: response.status >= 500 || response.status === 408,
 			error: `Cline connectors proxy returned HTTP ${response.status} for ${slug}${preview ? `: ${preview}` : ""}`,
 		};
 	}

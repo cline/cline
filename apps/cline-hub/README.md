@@ -44,6 +44,10 @@ This starts the Vite webview server on <http://127.0.0.1:5173> and the hub dashb
 
 To start a brand-new session, the dashboard needs to know which provider and model to use. It picks them up automatically from the most recent session on the hub. If there are no recent sessions, set `CLINE_PROVIDER` and `CLINE_MODEL` in the environment before running.
 
+## Chat-only local testing
+
+Run `CLINE_RUNTIME_PROFILE=chat bun run start` to use this same dashboard with an in-process chat-profile hub. This owns a separate loopback hub, uses the existing provider sign-in and Composio account flow, and closes its hub on stop/restart. The normal detached coding hub is unaffected. Set `CLINE_DIR` to a separate local directory to isolate test history and provider settings. This mode runs the harness locally; it does not provision a cloud instance or exercise production durable recovery.
+
 ## Configuration
 
 Environment variables:

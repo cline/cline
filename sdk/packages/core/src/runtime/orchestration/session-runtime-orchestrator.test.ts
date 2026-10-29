@@ -3096,3 +3096,58 @@ describe("SessionRuntime auth retry", () => {
 		expect(result.finishReason).toBe("error");
 	});
 });
+
+describe("restored connector results", () => {
+	it("rebuilds paging from saved output without running the tool", async () => {
+		const execute = vi.fn();
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const output = "retained output\n".repeat(10000);
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				sessionId: "restored-task",
+				tools: [
+					{
+						name: "connector",
+						description: "fixture",
+						inputSchema: {},
+						execute,
+						resultPolicy: "cache-oversized",
+					},
+				],
+				initialMessages: [
+					{
+						role: "assistant",
+						content: [
+							{
+								type: "tool_use",
+								id: "saved-call",
+								name: "connector",
+								input: {},
+							},
+						],
+					},
+					{
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "saved-call",
+								name: "connector",
+								content: output,
+							},
+						],
+					},
+				],
+			}),
+			deps,
+		);
+		await session.continue("Read the prior output");
+		const cache = configs[0]?.toolContextMetadata?.toolResultCache as {
+			uriFor(id: string): string;
+			read(uri: string): string;
+		};
+		expect(cache.read(cache.uriFor("saved-call"))).toBe(output);
+		expect(execute).not.toHaveBeenCalled();
+		await session.shutdown();
+	});
+});

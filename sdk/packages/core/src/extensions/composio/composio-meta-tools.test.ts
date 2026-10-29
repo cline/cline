@@ -155,3 +155,31 @@ describe("executeComposioMetaTool", () => {
 		expect((result as { error: string }).error).toContain("HTTP 404");
 	});
 });
+
+describe("connector outcome evidence", () => {
+	it("distinguishes a rejected request from a lost or server-failed outcome", async () => {
+		const denied = await executeComposioMetaTool(
+			async () => Response.json({ error: "bad arguments" }, { status: 400 }),
+			"session",
+			"COMPOSIO_MULTI_EXECUTE_TOOL",
+			{},
+		);
+		expect(denied).toMatchObject({ successful: false, outcomeUnknown: false });
+		const failed = await executeComposioMetaTool(
+			async () => Response.json({ error: "gateway failed" }, { status: 502 }),
+			"session",
+			"COMPOSIO_MULTI_EXECUTE_TOOL",
+			{},
+		);
+		expect(failed).toMatchObject({ successful: false, outcomeUnknown: true });
+		const lost = await executeComposioMetaTool(
+			async () => {
+				throw Error("network lost");
+			},
+			"session",
+			"COMPOSIO_MULTI_EXECUTE_TOOL",
+			{},
+		);
+		expect(lost).toMatchObject({ successful: false, outcomeUnknown: true });
+	});
+});

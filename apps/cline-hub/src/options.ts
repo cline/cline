@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 
 export interface ClineHubServerOptions {
+	runtimeProfile: "coding" | "chat" | "personal";
 	host: string;
 	port: number;
 	publicUrl: string;
@@ -72,6 +73,14 @@ export function isNonLocalBindHost(host: string): boolean {
 export function resolveClineHubServerOptions(
 	env: NodeJS.ProcessEnv = process.env,
 ): ClineHubServerOptions {
+	const runtimeProfile = env.CLINE_RUNTIME_PROFILE?.trim() || "coding";
+	if (
+		runtimeProfile !== "coding" &&
+		runtimeProfile !== "chat" &&
+		runtimeProfile !== "personal"
+	) {
+		throw new Error("CLINE_RUNTIME_PROFILE must be coding, chat or personal");
+	}
 	const host = normalizeHost(env.HOST);
 	const port = parsePort(env[DASHBOARD_PORT_ENV]);
 	const publicUrl = normalizePublicUrl(env.PUBLIC_URL, host, port);
@@ -82,6 +91,7 @@ export function resolveClineHubServerOptions(
 		);
 	}
 	return {
+		runtimeProfile,
 		host,
 		port,
 		publicUrl,

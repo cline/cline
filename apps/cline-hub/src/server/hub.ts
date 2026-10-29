@@ -1,8 +1,12 @@
 import {
 	ClineCore,
+	createLocalHubScheduleRuntimeHandlers,
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
+	LocalRuntimeHost,
+	resolveSessionBackend,
+	startHubWebSocketServer,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
 } from "@cline/core";
@@ -13,7 +17,7 @@ import {
 	requestToolApprovalFromWebview,
 } from "./approvals";
 import { configureConnectorCliLaunch } from "./connectors";
-import { workspaceRoot } from "./deps";
+import { options, workspaceRoot } from "./deps";
 import {
 	formatClientDetails,
 	formatSessionCreator,
@@ -23,7 +27,14 @@ import {
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
-import { asRecord, asString, basename, clientMetadata, isActiveSession, isVisibleClient } from "./utils";
+import {
+	asRecord,
+	asString,
+	basename,
+	clientMetadata,
+	isActiveSession,
+	isVisibleClient,
+} from "./utils";
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
@@ -92,8 +103,25 @@ export async function syncHubClientsAndSessions(
 }
 
 export async function attachHub(ctx: HubContext): Promise<void> {
-	configureConnectorCliLaunch();
-	const hub = await ensureDetachedHubServer(workspaceRoot);
+	let hub: { url: string; authToken: string };
+	if (options.runtimeProfile !== "coding") {
+		ctx.ownedHub = await startHubWebSocketServer({
+			host: "127.0.0.1",
+			port: 0,
+			workspaceRoot,
+			sessionHost: new LocalRuntimeHost({
+				runtimeProfile: options.runtimeProfile,
+				sessionService: await resolveSessionBackend({}),
+			}),
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				runtimeProfile: options.runtimeProfile,
+			}),
+		});
+		hub = ctx.ownedHub;
+	} else {
+		configureConnectorCliLaunch();
+		hub = await ensureDetachedHubServer(workspaceRoot);
+	}
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
 
@@ -247,6 +275,8 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 		// ignore
 	}
 	ctx.cline = undefined;
+	await ctx.ownedHub?.close();
+	ctx.ownedHub = undefined;
 	ctx.clients.clear();
 	ctx.sessions.clear();
 	ctx.hubStartedAt = undefined;
@@ -263,7 +293,8 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 	});
 	await detachHub(ctx);
 	try {
-		await stopLocalHubServerGracefully();
+		if (options.runtimeProfile === "coding")
+			await stopLocalHubServerGracefully();
 	} catch (error) {
 		console.warn("stopLocalHubServerGracefully failed:", error);
 	}

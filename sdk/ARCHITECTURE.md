@@ -1294,3 +1294,68 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+## Chat-only host profile
+
+`LocalRuntimeHost({ runtimeProfile: "chat", ... })` composes a personal-assistant runtime before every session bootstrap, including resumed sessions. It skips the default tool factory entirely (`enableTools: false`) and supplies a cache-result reader as an explicit tool. It does not construct coding tools, agents/teams, MCP settings tools, file-based configuration discovery, or Git checkpoints; workspace inspection and file mention expansion are skipped. There is no chat coding-tool denylist. Composio's existing host transport and four meta tools are unchanged. `read_files` remains available only for session-local `cline://cache/` results. Local file attachments are unsupported. The default profile remains `coding`.
+
+The profile does not change persistence guarantees: local session files still require an external save/restore boundary to survive deletion of an ephemeral instance. Recovery must not automatically replay uncertain connector actions.
+
+
+### Capable personal profile and disposable execution
+
+`LocalRuntimeHost({ runtimeProfile: "personal", ... })` uses the same agent loop,
+provider system, Composio transport and default tool factory as coding Cline.
+It adds personal-assistant instructions and current UTC context, retains local
+files, computation, research and delegation, and skips repository inspection and
+Git checkpoints. It preserves caller hooks/extensions. `chat` remains the small
+five-tool experiment; it is not the capability ceiling for the personal product.
+
+The original experimental `DurablePersonalRuntimeHost` remains available for pilot
+compatibility. Cloud personal instances now use `CloudPersonalRuntimeHost` in
+cloud-platform/apps/cline-core, composing the same public LocalRuntimeHost hooks.
+The cloud application owns the archive, bounded recovery checkpoint, connector
+session, action evidence and bounded
+`artifacts/` files. Raw connector results remain in the transcript; a restored
+session rebuilds paging references without rerunning the connector action. Old
+cache URIs are temporary; newly projected history advertises the replacement URIs.
+
+Before a tool runs its intent is saved; before an approval is displayed its pending
+state is saved. Successful tool-completion checkpoints capture bounded artifacts
+before acknowledgement, including delegated tools, so a crash before the next
+model call cannot discard an acknowledged artifact. Recovery is passive, even if a
+start request supplies a prompt.
+A user explicitly continues the task. Pending approval is re-proposed through the
+existing approval flow; an unknown action outcome is never treated as permission
+to repeat it. Potentially mutating tools wait for host-side evidence reconciliation;
+reads remain usable. This is conservative recovery, not exactly-once execution.
+The existing host method `resolveUnknownAction` requires a known action ID, verified
+outcome and evidence. It is not a model tool; a user-facing reconciliation flow is
+still needed before releasing this hosted pilot.
+
+The cloud application connects this state store to core-platform's existing
+history bucket and session row. Immutable snapshots use revision + sandbox-ID
+compare-and-swap. The existing resume endpoint can replace a failed/expired
+personal instance, preserve task/session/state identity, and rotate its credentials.
+No new service or PVC is introduced. Initial bootstrap waits briefly for core to
+bind the session row; stale writers fail closed. A lost save reply is accepted only
+when a read proves the exact commit ID and revision on the same instance.
+
+Pilot limits: 1 MiB per artifact, 4 MiB total artifacts, 8 MiB entire state. Larger
+artifacts are skipped with retained warnings; storage failures stop execution.
+Only the primary conversation is checkpointed. Subagent private transcripts,
+background schedules, cross-conversation memory, large-file storage and action
+reconciliation UI are not covered by this milestone. Bucket retention must be
+configured before deployment. Browser-local personal mode uses ordinary Cline
+local storage; it is separate from the disposable-process recovery test.
+
+Cloud-only incremental history uses the existing core-platform history bucket and
+a fenced SQL archive index. Stable snapshots append original messages; a projected
+compaction seed restores without hydrating the full archive. The cloud host
+normalizes codec round trips and keeps exact pending action evidence outside that
+summary. Public `messagesToAgentMessages` and
+`agentMessagesToMessagesWithMetadata` exports expose the existing codecs for hosts;
+SDK defaults and local session persistence do not change. A cloud-only history tool
+retrieves old originals in bounded fragments. Live SDK raw-history memory remains
+unbounded until a coordinated idle rebase is implemented. See cloud-platform's
+`apps/cline-core/PERSONAL_PROFILE.md` for storage limits and migration ordering.

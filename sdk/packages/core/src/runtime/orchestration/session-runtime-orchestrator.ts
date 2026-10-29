@@ -337,6 +337,7 @@ export class SessionRuntime {
 	private readonly conversation: ConversationStore;
 	private readonly toolResultCache: ToolResultCache;
 	private cacheableToolNames = new Set<string>();
+	private seedResultCache = true;
 	private readonly maxCachedResultChars: number;
 	private pendingTerminalError:
 		| Extract<AgentEvent, { type: "error" }>
@@ -604,6 +605,7 @@ export class SessionRuntime {
 
 	private resetConversationBoundaryTrackers(): void {
 		this.toolResultCache.clear();
+		this.seedResultCache = true;
 		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
@@ -1005,6 +1007,26 @@ export class SessionRuntime {
 				.filter((tool) => tool.resultPolicy === "cache-oversized")
 				.map((tool) => tool.name.toLowerCase()),
 		);
+		// Raw results already live in the transcript. Rebuild their paging cache
+		// once on restore; never re-execute an app action to recover its output.
+		if (this.seedResultCache) {
+			for (const message of initialMessages)
+				for (const part of message.content) {
+					if (
+						part.type !== "tool-result" ||
+						!this.cacheableToolNames.has(part.toolName.toLowerCase())
+					)
+						continue;
+					const preview = prepareToolResultPreview(
+						toPersistedToolResultContent(part.output),
+					);
+					if (preview.text && preview.text.length > this.maxCachedResultChars) {
+						const { text } = prepareToolResultRecovery(part.output);
+						if (text) this.toolResultCache.store(part.toolCallId, text);
+					}
+				}
+			this.seedResultCache = false;
+		}
 		const runHealth =
 			this.telemetry &&
 			new RunHealthObserver(this.telemetry, {

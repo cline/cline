@@ -496,3 +496,29 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+
+## Personal runtime pilot
+
+Set `runtimeProfile: "personal"` on `LocalRuntimeHost` for the capable, repository-free
+assistant. `coding` remains the default; `chat` selects the smaller connector-only
+experiment. API-backed providers, including configured local-model providers, are
+supported. Provider performance/quality must be evaluated separately from profile
+capability. Files and ordinary Cline tools are available in personal mode.
+
+`DurablePersonalRuntimeHost({ ...hostOptions, sessionId, stateStore })` adds external
+state for one primary task. `stateStore.load()` returns `{revision,state}` and
+`save(expectedRevision,state)` must atomically fence stale writers and return the
+next revision. Never use an unconditional object overwrite. Restoring suppresses
+the initial prompt; call `runTurn` explicitly after recovery. See ARCHITECTURE.md
+for approval, unknown-outcome and pilot artifact-limit semantics.
+
+### Host message serialization
+
+`messagesToAgentMessages(messages)` and
+`agentMessagesToMessagesWithMetadata(messages)` expose the same codecs used by
+local session storage. Hosts persisting runtime hook snapshots can reuse them
+without importing internal modules. Conversion preserves supported media and tool
+results and can split grouped tool-result messages; persisted message counts and
+source-compaction anchors must be interpreted in their original representation.
+These exports do not enable cloud archival or change default runtime behavior.

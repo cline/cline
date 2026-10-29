@@ -2,6 +2,7 @@ import {
 	type ClineCore,
 	CORE_BUILD_VERSION,
 	type HubUIClient,
+	type startHubWebSocketServer,
 } from "@cline/core";
 import type { WebviewHubEvent } from "../webview-protocol";
 import type {
@@ -24,6 +25,7 @@ export class HubContext {
 	readonly pendingToolApprovals = new Map<string, PendingToolApproval>();
 	readonly events: WebviewHubEvent[] = [];
 
+	ownedHub: Awaited<ReturnType<typeof startHubWebSocketServer>> | undefined;
 	hubUrl = "";
 	hubAuthToken = "";
 	hubHealthy = false;

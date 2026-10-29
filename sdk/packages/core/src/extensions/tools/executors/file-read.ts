@@ -192,6 +192,25 @@ async function readTextWindow(
 	);
 }
 
+/** Read paged tool-result cache content without a filesystem executor. */
+export function createToolResultReadExecutor(
+	options: Pick<FileReadExecutorOptions, "includeLineNumbers"> = {},
+): FileReadExecutor {
+	return async (request, context) => {
+		context.signal?.throwIfAborted();
+		const cache = context.metadata?.toolResultCache;
+		if (!(cache instanceof ToolResultCache))
+			throw new Error(TOOL_RESULT_CACHE_MISS);
+		return readTextWindow(
+			Readable.from([cache.read(request.path)]),
+			options.includeLineNumbers ?? true,
+			request.start_line,
+			request.end_line,
+			context.signal,
+		);
+	};
+}
+
 /**
  * Create a file read executor using Node.js fs module
  *
@@ -213,20 +232,12 @@ export function createFileReadExecutor(
 		...options,
 	};
 
+	const readCachedResult = createToolResultReadExecutor({ includeLineNumbers });
+
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
 		if (filePath.startsWith("cline://")) {
-			context.signal?.throwIfAborted();
-			const cache = context.metadata?.toolResultCache;
-			if (!(cache instanceof ToolResultCache))
-				throw new Error(TOOL_RESULT_CACHE_MISS);
-			return readTextWindow(
-				Readable.from([cache.read(filePath)]),
-				includeLineNumbers,
-				start_line,
-				end_line,
-				context.signal,
-			);
+			return readCachedResult(request, context);
 		}
 		const initialPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
