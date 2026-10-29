@@ -388,7 +388,7 @@ it("leaves the active chat after deletion even while endpoint persistence is pen
 	const write = Promise.withResolvers<void>();
 	const screen = render(
 		<EndpointsProvider store={endpoints}>
-			<ChatRoute />
+			<SignedInChatRoute />
 		</EndpointsProvider>,
 	);
 	try {
