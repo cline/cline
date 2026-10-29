@@ -417,7 +417,9 @@ function ToolActivityCard({
 					tone={block.approvalStatus ? "muted" : "danger"}
 					style={{ marginTop: 4 }}
 				>
-					{userErrorMessage(block.error, "This tool could not finish.")}
+					{block.approvalStatus === "expired"
+						? "This approval expired before a response was received."
+						: userErrorMessage(block.error, "This tool could not finish.")}
 				</Text>
 			) : null}
 		</Disclosure>

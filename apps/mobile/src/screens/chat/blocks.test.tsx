@@ -488,3 +488,30 @@ describe("Generated media", () => {
 		});
 	});
 });
+
+it("explains confirmed approval expiry without implying uncertain command completion", () => {
+	const { root } = render(
+		<AssistantMessage
+			message={{
+				id: "expired",
+				role: "assistant",
+				origin: "live",
+				blocks: [
+					{
+						kind: "tool",
+						toolCallId: "expiredcall",
+						name: "bash",
+						state: "failed",
+						approvalStatus: "expired",
+						input: { command: "git diff" },
+						error: "approval_timeout",
+					},
+				],
+			}}
+		/>,
+	);
+	expect(
+		containsText(root, "This approval expired before a response was received."),
+	).toBe(true);
+	expect(containsText(root, "Check whether it completed")).toBe(false);
+});

@@ -1,3 +1,4 @@
+import * as Native from "react-native";
 import { Keyboard } from "react-native";
 import { withTiming } from "react-native-reanimated";
 import { act } from "react-test-renderer";
@@ -272,4 +273,53 @@ describe("SessionSidebar", () => {
 			findByLabel(root, "Open Unrelated session on Cline Cloud"),
 		).toBeUndefined();
 	});
+});
+
+it("keeps searchable history and Settings reachable on short screens without duplicate chrome", () => {
+	const dimensions = vi
+		.spyOn(Native, "useWindowDimensions")
+		.mockReturnValue({ width: 685, height: 320, scale: 2.625, fontScale: 1.3 });
+	try {
+		const { root, renderer } = render(
+			<SessionSidebar
+				open
+				rows={[ROW]}
+				now={0}
+				onClose={() => {}}
+				onNew={() => {}}
+				onOpen={() => {}}
+				onOpenSettings={() => {}}
+			/>,
+		);
+		expect(findByLabel(root, "Settings")).toBeDefined();
+		expect(
+			root.find((node) => node.props.testID === "sidebar-short-header"),
+		).toBeDefined();
+		expect(containsText(root, "Sessions")).toBe(false);
+		const input = findByLabel(root, "Search sessions")!;
+		act(() => input.props.onChangeText("Fix"));
+		dimensions.mockReturnValue({
+			width: 411,
+			height: 923,
+			scale: 2.625,
+			fontScale: 1.3,
+		});
+		act(() =>
+			renderer.update(
+				<SessionSidebar
+					open
+					rows={[ROW]}
+					now={0}
+					onClose={() => {}}
+					onNew={() => {}}
+					onOpen={() => {}}
+					onOpenSettings={() => {}}
+				/>,
+			),
+		);
+		expect(findByLabel(root, "Search sessions")).toBe(input);
+		expect(findByLabel(root, "Search sessions")!.props.value).toBe("Fix");
+	} finally {
+		dimensions.mockRestore();
+	}
 });

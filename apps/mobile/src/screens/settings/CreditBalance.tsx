@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react-native";
+import { RefreshCw, Settings } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 import { CloudAccountGateway } from "@/cloud/rest/CloudAccountGateway";
@@ -129,15 +129,63 @@ function CreditBalanceBody({
 }
 
 /** Read accepted scope metadata only; account discovery stays with its existing owners. */
-export function SidebarAccountSummary({ onPress }: { onPress(): void }) {
+export function SidebarAccountSummary({
+	onPress,
+	compact = false,
+}: {
+	onPress(): void;
+	compact?: boolean;
+}) {
 	const { account } = useCloudAuth();
 	const { scope, selectionPending } = useCloudAccountScope();
 	const theme = useTheme();
-	if (account.phase !== "signed-in") return null;
+	if (account.phase !== "signed-in")
+		return compact ? (
+			<IconButton accessibilityLabel="Settings" onPress={onPress}>
+				<Settings size={19} color={theme.color.textMuted} />
+			</IconButton>
+		) : null;
 	const name = scope
 		? scope.accountName?.trim() ||
 			(scope.organizationId ? "Organization account" : "Personal")
 		: "Account unavailable";
+	if (compact)
+		return (
+			<Pressable
+				accessibilityRole="button"
+				accessibilityLabel={`Account: ${name}`}
+				accessibilityHint={
+					selectionPending
+						? "Changing account. Opens account settings."
+						: "Opens account settings"
+				}
+				onPress={onPress}
+				style={({ pressed }) => ({
+					minHeight: 44,
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 8,
+					paddingHorizontal: 8,
+					borderRadius: theme.radius.sm,
+					backgroundColor: pressed ? theme.color.surfaceHover : "transparent",
+				})}
+			>
+				<Text
+					variant="small"
+					weight="500"
+					numberOfLines={1}
+					style={{ flex: 1, minWidth: 0 }}
+				>
+					{name}
+				</Text>
+				{selectionPending ? (
+					<Text variant="caption" tone="muted">
+						Changing…
+					</Text>
+				) : null}
+				<Settings size={17} color={theme.color.textMuted} />
+			</Pressable>
+		);
 	return (
 		<View style={{ paddingHorizontal: 12, paddingBottom: 8, gap: 2 }}>
 			<Pressable

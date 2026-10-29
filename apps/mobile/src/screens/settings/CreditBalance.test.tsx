@@ -207,3 +207,20 @@ describe("Compact drawer account summary", () => {
 		).toBeUndefined();
 	});
 });
+
+it("short account footer keeps Settings reachable without fetching or showing credit", async () => {
+	const open = vi.fn();
+	const { root } = render(<SidebarAccountSummary compact onPress={open} />);
+	await act(async () => {});
+	expect(findByLabel(root, "Account: Personal")).toBeDefined();
+	expect(fixture.balance).not.toHaveBeenCalled();
+	expect(containsText(root, "Credit balance")).toBe(false);
+	act(() => findByLabel(root, "Account: Personal")!.props.onPress());
+	expect(open).toHaveBeenCalledOnce();
+});
+it("short signed-out footer still offers Settings", () => {
+	fixture.account.phase = "signed-out";
+	const { root } = render(<SidebarAccountSummary compact onPress={() => {}} />);
+	expect(findByLabel(root, "Settings")).toBeDefined();
+	expect(findByLabel(root, "Account: Personal")).toBeUndefined();
+});

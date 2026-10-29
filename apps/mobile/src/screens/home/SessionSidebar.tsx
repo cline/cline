@@ -106,7 +106,8 @@ export function SessionSidebar({
 	navigationRef.current = navigation;
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
-	const { width: screenWidth } = useWindowDimensions();
+	const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+	const short = screenHeight - insets.top - insets.bottom < 400;
 	const reduceMotion = useReducedMotion();
 	const drawerWidth = Math.min(
 		MAX_DRAWER_WIDTH,
@@ -205,29 +206,47 @@ export function SessionSidebar({
 
 	const body = (
 		<>
-			<View style={styles.header}>
+			<View
+				testID={short ? "sidebar-short-header" : undefined}
+				style={[styles.header, short ? { minHeight: 44 } : undefined]}
+			>
 				<View style={styles.brand}>
 					<ClineLogo size={21} accessibilityLabel="" />
 					<Text variant="body" weight="600">
 						Cline
 					</Text>
 				</View>
+				{short ? (
+					<IconButton
+						accessibilityLabel="New"
+						onPress={() => {
+							Keyboard.dismiss();
+							retireActions();
+							onNew();
+						}}
+					>
+						<Plus size={19} color={theme.color.text} />
+					</IconButton>
+				) : null}
 				<IconButton accessibilityLabel="Collapse sidebar" onPress={close}>
 					<PanelLeftClose size={19} color={theme.color.textMuted} />
 				</IconButton>
 			</View>
 
 			<View style={styles.actions}>
-				<SidebarAction
-					label="New"
-					onPress={() => {
-						Keyboard.dismiss();
-						retireActions();
-						onNew();
-					}}
-					icon={<Plus size={17} color={theme.color.text} />}
-				/>
+				{!short ? (
+					<SidebarAction
+						label="New"
+						onPress={() => {
+							Keyboard.dismiss();
+							retireActions();
+							onNew();
+						}}
+						icon={<Plus size={17} color={theme.color.text} />}
+					/>
+				) : null}
 				<TextField
+					key="session-search"
 					accessibilityLabel="Search sessions"
 					autoCapitalize="none"
 					autoCorrect={false}
@@ -240,12 +259,14 @@ export function SessionSidebar({
 				/>
 			</View>
 
-			<View style={styles.sectionHeader}>
-				<Text variant="small" weight="500" tone="muted">
-					Sessions
-				</Text>
-				{loading ? <Spinner size={13} /> : null}
-			</View>
+			{!short ? (
+				<View style={styles.sectionHeader}>
+					<Text variant="small" weight="500" tone="muted">
+						Sessions
+					</Text>
+					{loading ? <Spinner size={13} /> : null}
+				</View>
+			) : null}
 
 			{error ? (
 				<View style={styles.notice}>
@@ -327,9 +348,16 @@ export function SessionSidebar({
 			/>
 
 			{onOpenSettings ? (
-				<View style={[styles.footer, { borderTopColor: theme.color.border }]}>
+				<View
+					style={[
+						styles.footer,
+						{ borderTopColor: theme.color.border },
+						short ? { paddingTop: 0, paddingBottom: 0 } : undefined,
+					]}
+				>
 					{open ? (
 						<SidebarAccountSummary
+							compact={short}
 							onPress={() => {
 								Keyboard.dismiss();
 								retireActions();
@@ -337,15 +365,17 @@ export function SessionSidebar({
 							}}
 						/>
 					) : null}
-					<SidebarAction
-						label="Settings"
-						onPress={() => {
-							Keyboard.dismiss();
-							retireActions();
-							onOpenSettings();
-						}}
-						icon={<Settings size={17} color={theme.color.textMuted} />}
-					/>
+					{!short ? (
+						<SidebarAction
+							label="Settings"
+							onPress={() => {
+								Keyboard.dismiss();
+								retireActions();
+								onOpenSettings();
+							}}
+							icon={<Settings size={17} color={theme.color.textMuted} />}
+						/>
+					) : null}
 				</View>
 			) : null}
 		</>
@@ -561,6 +591,7 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		flex: 1,
+		minHeight: 0,
 	},
 	listContent: {
 		paddingHorizontal: 8,
