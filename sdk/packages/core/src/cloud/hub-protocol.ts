@@ -24,11 +24,7 @@ export const CLOUD_HUB_OPERATIONS = [
 	"refreshOrganization",
 	"prepareHandoffRepository",
 ] as const;
-export type CloudHubScope = {
-	serviceId: string;
-	scopeGeneration: number;
-	expectedAccountId?: string;
-};
+export type CloudHubScope = { serviceId: string; scopeGeneration: number };
 
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;

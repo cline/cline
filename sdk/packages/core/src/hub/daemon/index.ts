@@ -423,8 +423,6 @@ export interface HubDaemonLauncher {
 	command: string;
 	/** Arguments before the daemon's `--cwd`/endpoint arguments. Defaults to the daemon marker flag. */
 	args?: string[];
-	/** Child-only runtime settings, for example Electron's Node mode. */
-	env?: NodeJS.ProcessEnv;
 }
 
 let configuredHubDaemonLauncher: HubDaemonLauncher | undefined;
@@ -433,11 +431,7 @@ let configuredHubDaemonLauncher: HubDaemonLauncher | undefined;
 export function setHubDaemonLauncher(launcher?: HubDaemonLauncher): void {
 	const command = launcher?.command.trim();
 	configuredHubDaemonLauncher = command
-		? {
-				command,
-				args: launcher?.args ? [...launcher.args] : undefined,
-				env: launcher?.env ? { ...launcher.env } : undefined,
-			}
+		? { command, args: launcher?.args ? [...launcher.args] : undefined }
 		: undefined;
 }
 
@@ -482,10 +476,7 @@ function resolveLaunchCommand(
 			// running `cline-cli hub ensure`) keeps its own identity; otherwise
 			// this process's client identity (cline-cli, cline-acp, ...) is used.
 			...withHubLauncherIdentity(
-				withResolvedClineBuildEnv({
-					...process.env,
-					...configuredHubDaemonLauncher?.env,
-				}),
+				withResolvedClineBuildEnv(process.env),
 				resolveSelfLauncherIdentity(),
 			),
 			CLINE_NO_INTERACTIVE: "1",

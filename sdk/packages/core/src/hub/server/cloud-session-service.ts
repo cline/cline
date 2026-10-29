@@ -461,29 +461,16 @@ export class HubCloudSessionService {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}
+		this.checkScope();
 		const expected = z
-			.object({
-				serviceId: z.string(),
-				scopeGeneration: z.number().int(),
-				expectedAccountId: id.optional(),
-			})
+			.object({ serviceId: z.string(), scopeGeneration: z.number().int() })
 			.parse(expectedScope) satisfies CloudHubScope;
-		const controller = this.getController();
 		if (
 			expected.serviceId !== this.serviceId ||
 			expected.scopeGeneration !== this.scopeGeneration
 		)
 			throw new Error("Cloud account changed before request");
-		if (expected.expectedAccountId !== undefined) {
-			const account = this.scope;
-			if (
-				account?.kind !== "account" ||
-				account.identity !== expected.expectedAccountId
-			)
-				throw new Error(
-					"The cloud account does not match the signed-in account. Sign in again before continuing.",
-				);
-		}
+		const controller = this.getController();
 		this.activeCommands++;
 		try {
 			const result =
