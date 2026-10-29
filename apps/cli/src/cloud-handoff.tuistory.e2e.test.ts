@@ -210,9 +210,8 @@ describe("cloud handoff TUI", () => {
 		await runPaletteAction(session, "Connect GitHub");
 		await session.text({
 			waitFor: () =>
-				readState(statePath).openedUrls?.includes(
-					"https://app.cline.bot/settings/integrations",
-				) === true,
+				readState(statePath).openedUrls?.at(-1) ===
+				"https://app.cline.bot/settings/integrations",
 			timeout,
 		});
 	});
@@ -792,9 +791,8 @@ describe("cloud handoff TUI", () => {
 		await session.click("Browser");
 		await session.text({
 			waitFor: () =>
-				readState(statePath).openedUrls?.includes(
-					"https://app.cline.bot/tasks/synthetic-task-1",
-				) === true,
+				readState(statePath).openedUrls?.at(-1) ===
+				"https://app.cline.bot/tasks/synthetic-task-1",
 			timeout,
 		});
 		await session.click("Hide");
@@ -1021,9 +1019,8 @@ describe("cloud handoff TUI", () => {
 		await runPaletteAction(session, "Open cloud task in browser");
 		await session.text({
 			waitFor: () =>
-				readState(statePath).openedUrls?.includes(
-					"https://app.cline.bot/tasks/synthetic-task-4",
-				) === true,
+				readState(statePath).openedUrls?.at(-1) ===
+				"https://app.cline.bot/tasks/synthetic-task-4",
 			timeout,
 		});
 		expect(readState(statePath).preparations).toHaveLength(4);
