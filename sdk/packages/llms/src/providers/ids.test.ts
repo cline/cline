@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import {
 	createClineProvider,
 	createOpenAICompatibleProvider,
@@ -278,12 +279,19 @@ describe("provider-ids", () => {
 		expect(Object.hasOwn(models, "glm-5.3")).toBe(true);
 	});
 
+	it("defaults SAP AI Core to a model in its generated catalog", async () => {
+		const provider = await getProvider("sapaicore");
+		const catalog = GENERATED_PROVIDER_MODELS.providers.sapaicore;
+		expect(provider.defaultModelId).toBeTruthy();
+		expect(catalog[provider.defaultModelId ?? ""]).toBeDefined();
+	});
+
 	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {
 		await expect(getProvider("sapaicore")).resolves.toMatchObject({
 			id: "sapaicore",
 			name: "SAP AI Core",
 			client: "ai-sdk-community",
-			defaultModelId: "anthropic--claude-3.5-sonnet",
+			defaultModelId: "anthropic--claude-4.6-sonnet",
 		});
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
