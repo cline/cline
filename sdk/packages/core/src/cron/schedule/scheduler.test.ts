@@ -1,6 +1,20 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { ModuleKind, ScriptTarget, transpileModule } from "typescript";
 import { describe, expect, it } from "vitest";
 import { getNextCronTime } from "./scheduler";
+
+const schedulerModule = `data:text/javascript;base64,${Buffer.from(
+	transpileModule(
+		readFileSync(new URL("./scheduler.ts", import.meta.url), "utf8"),
+		{
+			compilerOptions: {
+				module: ModuleKind.ESNext,
+				target: ScriptTarget.ES2022,
+			},
+		},
+	).outputText,
+).toString("base64")}`;
 
 function getNextCronTimeWithHostTimezone(
 	pattern: string,
@@ -17,11 +31,10 @@ function getNextCronTimeWithHostTimezone(
 		"node",
 		[
 			"--no-warnings",
-			"--experimental-strip-types",
 			"--input-type=module",
 			"-e",
 			script,
-			new URL("./scheduler.ts", import.meta.url).href,
+			schedulerModule,
 			JSON.stringify([pattern, after, timezone]),
 		],
 		{
@@ -131,5 +144,35 @@ describe("hub scheduler cron helpers", () => {
 				"Asia/Kathmandu",
 			),
 		).toBe("2026-04-21T03:15:00.000Z");
+	});
+
+	it.each([
+		undefined,
+		"Australia/Lord_Howe",
+	])("finds the repeated half-hour in %s", (timezone) => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"45 1 * * *",
+				"2026-04-04T14:45:00.000Z",
+				timezone,
+				"Australia/Lord_Howe",
+			),
+		).toBe("2026-04-04T15:15:00.000Z");
+	});
+
+	it("finds a sparse annual local schedule", () => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"0 0 1 1 *",
+				"2026-01-01T05:00:00.000Z",
+				undefined,
+			),
+		).toBe("2027-01-01T05:00:00.000Z");
+	});
+
+	it("rejects an impossible local calendar date", () => {
+		expect(() =>
+			getNextCronTime("0 0 31 2 *", Date.parse("2026-01-01T00:00:00.000Z")),
+		).toThrow("No cron occurrence found within 4 years");
 	});
 });
