@@ -5,10 +5,14 @@ import { prepareCloudHandoff } from "./cloud-handoff";
 const helpers = vi.hoisted(() => ({
 	inspect: vi.fn(),
 	summarize: vi.fn(),
+	resolveCredentials: vi.fn(),
 }));
 vi.mock("@cline/core", async (original) => ({
 	...(await original<typeof import("@cline/core")>()),
 	summarizeConversation: helpers.summarize,
+	RuntimeOAuthTokenManager: class {
+		resolveProviderApiKey = helpers.resolveCredentials;
+	},
 }));
 vi.mock("@cline/core/cloud", async (original) => ({
 	...(await original<typeof import("@cline/core/cloud")>()),
@@ -59,13 +63,18 @@ function fixture() {
 	return {
 		cloud,
 		readSource,
-		connection: { providerId: "anthropic", modelId: "model" },
+		connection: {
+			providerId: "anthropic",
+			modelId: "model",
+			apiKey: "original-token",
+		},
 		creationOptions: { mode: "plan" as const, autoApproveTools: false },
 		draft: { instruction: "Add focused tests", images: [] as string[] },
 	};
 }
 beforeEach(() => {
 	vi.clearAllMocks();
+	helpers.resolveCredentials.mockResolvedValue(null);
 	helpers.inspect.mockResolvedValue(plan);
 	helpers.summarize.mockResolvedValue(
 		"The example feature is half implemented.",
@@ -91,6 +100,9 @@ describe("summary cloud handoff", () => {
 		expect(prepared.start(progress)).toBe(starting);
 		const result = await starting;
 		expect(await prepared.start(progress)).toEqual(result);
+		expect(helpers.summarize).toHaveBeenCalledWith(
+			expect.objectContaining({ config: input.connection }),
+	);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -134,6 +146,55 @@ describe("summary cloud handoff", () => {
 		expect(input.cloud.create).not.toHaveBeenCalled();
 	});
 
+	it("resolves current credentials after confirmation while preserving the captured model", async () => {
+		const input = fixture();
+		input.connection = { ...input.connection, providerId: "cline" };
+		const prepared = await prepareCloudHandoff(input);
+		expect(helpers.resolveCredentials).not.toHaveBeenCalled();
+		helpers.resolveCredentials.mockResolvedValue({
+			apiKey: "refreshed-token",
+			accountId: "account-one",
+			refreshed: true,
+		});
+		await prepared.start(vi.fn());
+		expect(helpers.resolveCredentials).toHaveBeenCalledWith({
+			providerId: "cline",
+		});
+		expect(helpers.summarize).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: "cline",
+					modelId: "model",
+					apiKey: "refreshed-token",
+				}),
+			}),
+		);
+		expect(input.cloud.create).toHaveBeenCalledOnce();
+	});
+
+	it("does not summarize or publish when credential refresh fails", async () => {
+		const input = fixture();
+		const prepared = await prepareCloudHandoff(input);
+		helpers.resolveCredentials.mockRejectedValueOnce(
+			new Error("Sign in again"),
+		);
+		await expect(prepared.start(vi.fn())).rejects.toThrow("Sign in again");
+		expect(helpers.summarize).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
+	});
+
+	it("rejects an account change during credential refresh before summarizing", async () => {
+		const input = fixture();
+		const prepared = await prepareCloudHandoff(input);
+		helpers.resolveCredentials.mockImplementationOnce(async () => {
+			input.cloud.scope = { serviceId: "hub", scopeGeneration: 2 };
+			return { apiKey: "other-account-token", refreshed: false };
+		});
+		await expect(prepared.start(vi.fn())).rejects.toThrow("account changed");
+		expect(helpers.summarize).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
+	});
+
 	it("does not publish when summarization fails", async () => {
 		const input = fixture();
 		const prepared = await prepareCloudHandoff(input);
@@ -152,14 +213,14 @@ describe("summary cloud handoff", () => {
 		try {
 			const input = fixture();
 			const prepared = await prepareCloudHandoff(input);
-			helpers.summarize.mockImplementationOnce(
-				({ signal }) =>
-					new Promise((_, reject) =>
-						signal?.addEventListener("abort", () => reject(signal.reason), {
-							once: true,
-						}),
-					),
-			);
+			helpers.summarize.mockImplementationOnce(({ signal }) => {
+				signal?.throwIfAborted();
+				return new Promise((_, reject) =>
+					signal?.addEventListener("abort", () => reject(signal.reason), {
+						once: true,
+					}),
+				);
+			});
 			const starting = prepared.start(vi.fn());
 			const rejected = expect(starting).rejects.toThrow("Summary timed out");
 			timeout.abort(new Error("Summary timed out"));

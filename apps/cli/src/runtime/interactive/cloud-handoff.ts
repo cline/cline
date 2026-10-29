@@ -1,5 +1,6 @@
 import {
 	buildCloudHandoffDashboardUrl,
+	RuntimeOAuthTokenManager,
 	summarizeConversation,
 } from "@cline/core";
 import {
@@ -118,10 +119,18 @@ export async function prepareCloudHandoff(input: {
 			started ??= (async () => {
 				assertAccount();
 				onProgress({ message: "Preparing a summary of this conversation." });
+				const credentials =
+					await new RuntimeOAuthTokenManager().resolveProviderApiKey({
+						providerId: input.connection.providerId,
+					});
+				assertAccount();
 				const summary = (
 					await summarizeConversation({
 						messages: source.messages,
-						config: input.connection,
+						config: {
+							...input.connection,
+							...(credentials && { apiKey: credentials.apiKey }),
+						},
 						signal: AbortSignal.timeout(120_000),
 					})
 				).trim();
