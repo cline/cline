@@ -1,5 +1,36 @@
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { getNextCronTime } from "./scheduler";
+
+function getNextCronTimeWithHostTimezone(
+	pattern: string,
+	after: string,
+	timezone: string | undefined,
+	hostTimezone = "America/New_York",
+): string {
+	const script = `
+		const { getNextCronTime } = await import(process.argv[1]);
+		const [pattern, after, timezone] = JSON.parse(process.argv[2]);
+		process.stdout.write(new Date(getNextCronTime(pattern, Date.parse(after), timezone)).toISOString());
+	`;
+	return execFileSync(
+		"node",
+		[
+			"--no-warnings",
+			"--experimental-strip-types",
+			"--input-type=module",
+			"-e",
+			script,
+			new URL("./scheduler.ts", import.meta.url).href,
+			JSON.stringify([pattern, after, timezone]),
+		],
+		{
+			env: { ...process.env, TZ: hostTimezone },
+			encoding: "utf8",
+			timeout: 10_000,
+		},
+	);
+}
 
 describe("hub scheduler cron helpers", () => {
 	it("computes the next matching cron timestamp", () => {
@@ -12,5 +43,93 @@ describe("hub scheduler cron helpers", () => {
 		const after = Date.parse("2026-04-21T15:30:00.000Z");
 		const next = getNextCronTime("0 9 * * *", after, "America/New_York");
 		expect(next).toBe(Date.parse("2026-04-22T13:00:00.000Z"));
+	});
+
+	it.each([
+		[
+			"a UTC occurrence at the start of the repeated hour",
+			"30 6 * * *",
+			"2026-11-01T06:30:00.000Z",
+			"UTC",
+			"2026-11-02T06:30:00.000Z",
+		],
+		[
+			"a UTC occurrence 15 seconds into the repeated hour",
+			"30 6 * * *",
+			"2026-11-01T06:30:15.000Z",
+			"UTC",
+			"2026-11-02T06:30:00.000Z",
+		],
+		[
+			"a UTC occurrence 30 seconds into the repeated hour",
+			"30 6 * * *",
+			"2026-11-01T06:30:30.000Z",
+			"UTC",
+			"2026-11-02T06:30:00.000Z",
+		],
+		[
+			"the second occurrence in an explicit timezone",
+			"30 1 * * *",
+			"2026-11-01T06:00:00.000Z",
+			"America/New_York",
+			"2026-11-01T06:30:00.000Z",
+		],
+		[
+			"the second occurrence in the local timezone",
+			"30 1 * * *",
+			"2026-11-01T06:00:00.000Z",
+			undefined,
+			"2026-11-01T06:30:00.000Z",
+		],
+		[
+			"a later minute in the second occurrence of a local hour",
+			"30 1 * * *",
+			"2026-11-01T06:01:00.000Z",
+			undefined,
+			"2026-11-01T06:30:00.000Z",
+		],
+		[
+			"a repeated local hour after the first occurrence has passed",
+			"30 1 * * *",
+			"2026-11-01T05:45:00.000Z",
+			undefined,
+			"2026-11-01T06:30:00.000Z",
+		],
+		[
+			"the start of the repeated local hour",
+			"0 1 * * *",
+			"2026-11-01T05:15:00.000Z",
+			undefined,
+			"2026-11-01T06:00:00.000Z",
+		],
+		[
+			"a local time skipped by the spring transition",
+			"30 2 * * *",
+			"2026-03-08T06:55:00.000Z",
+			undefined,
+			"2026-03-09T06:30:00.000Z",
+		],
+		[
+			"a weekday in the local timezone",
+			"0 9 * * 1",
+			"2026-04-21T15:30:00.000Z",
+			undefined,
+			"2026-04-27T13:00:00.000Z",
+		],
+	])("finds %s", (_description, pattern, after, timezone, expected) => {
+		expect(getNextCronTimeWithHostTimezone(pattern, after, timezone)).toBe(
+			expected,
+		);
+	});
+
+	it("uses a local timezone with a fractional-hour offset", () => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"0 9 * * *",
+				"2026-04-21T03:00:00.000Z",
+				undefined,
+				"Asia/Kathmandu",
+			),
+		).toBe("2026-04-21T03:15:00.000Z");
 	});
 });
