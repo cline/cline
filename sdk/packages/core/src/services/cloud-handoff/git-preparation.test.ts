@@ -138,6 +138,24 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
 
+	it("does not fetch already-local published ancestry", async () => {
+		writeFileSync(
+			join(repo, "credentials.json"),
+			"synthetic published content\n",
+		);
+		git("add", ".");
+		git("commit", "-m", "published change");
+		const source = git("rev-parse", "HEAD");
+		git("commit", "--allow-empty", "-m", "published descendant");
+		git("push", "origin", "main");
+		git("switch", "-c", "work", source);
+		writeFileSync(join(repo, "new.txt"), "local change\n");
+		transport.rejectFetch = true;
+		const plan = await inspectHandoffGit(repo);
+		expect(plan.commits).toEqual([]);
+		expect(plan.files).toEqual([{ path: "new.txt", status: "??" }]);
+		expect(git("rev-parse", "HEAD")).toBe(source);
+	});
 	it("excludes published sensitive history when the remote advances beyond local objects", async () => {
 		const path = "credentials.json";
 		writeFileSync(join(repo, path), "synthetic published content\n");

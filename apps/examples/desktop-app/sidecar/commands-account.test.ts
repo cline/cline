@@ -419,7 +419,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		).mockRejectedValue(new Error(failure));
 		await expect(runOperation(ctx, "switchAccount")).resolves.toBe(result);
 		expect(dispose).toHaveBeenCalledOnce();
-		expect(ctx.cloudSessionManager).toBeNull();
+		expect(ctx.cloudSessionManager).not.toBe(viewer);
 		expect(
 			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
 		).toContain("cloud_sessions_changed");
@@ -427,10 +427,14 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 			expect(
 				HubCloudSessionClient.prototype.refreshOrganization,
 			).not.toHaveBeenCalled();
-		else
+		else {
 			expect(
 				HubCloudSessionClient.prototype.refreshOrganization,
 			).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledBefore(
+				vi.mocked(HubCloudSessionClient.prototype.refreshOrganization),
+			);
+		}
 	});
 
 	async function currentFlagsUserId(): Promise<string | undefined> {

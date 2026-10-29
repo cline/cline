@@ -6,7 +6,7 @@ import type {
 	MessageWithMetadata,
 	ToolApprovalResult,
 } from "@cline/shared";
-import { NodeHubClient } from "../hub/client/index";
+import { HubCommandError, NodeHubClient } from "../hub/client/index";
 import { isSessionNotFoundError } from "../runtime/host/runtime-host";
 import {
 	CloudHandoffTranscriptMismatchError,
@@ -2744,16 +2744,6 @@ export class CloudSessionController {
 			if (!missing) throw error;
 		}
 		this.assertSessionActive(connection.remote.id, connection);
-		const history = await connection.client.command(
-			"session.messages",
-			{},
-			sessionId,
-		);
-		this.assertSessionActive(connection.remote.id, connection);
-		const initialMessages = history.payload?.messages;
-		if (!Array.isArray(initialMessages) || initialMessages.length === 0) {
-			throw new Error("The saved conversation is empty or unavailable.");
-		}
 		const metadata = (saved.metadata ?? {}) as JsonRecord;
 		const runtimeOptions = (saved.runtimeOptions ?? {}) as JsonRecord;
 		const config = this.sessions.get(connection.remote.id)?.config;
@@ -2770,10 +2760,9 @@ export class CloudSessionController {
 		const cwd = saved.cwd ?? saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
 		const workspaceRoot = saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
 		try {
-			const reply = await connection.client.command("session.create", {
+			const payload = {
 				workspaceRoot,
 				cwd,
-				initialMessages,
 				metadata: { ...metadata, interactive: true },
 				sessionConfig: {
 					sessionId,
@@ -2797,7 +2786,31 @@ export class CloudSessionController {
 				...(typeof autoApproveTools === "boolean"
 					? { toolPolicies: { "*": { autoApprove: autoApproveTools } } }
 					: {}),
-			});
+			};
+			const reply = await connection.client
+				.command("session.resume", payload)
+				.catch(async (error: unknown) => {
+					if (
+						!(error instanceof HubCommandError) ||
+						error.code !== "unsupported_command"
+					)
+						throw error;
+					this.assertSessionActive(connection.remote.id, connection);
+					const history = await connection.client.command(
+						"session.messages",
+						{},
+						sessionId,
+					);
+					this.assertSessionActive(connection.remote.id, connection);
+					const initialMessages = history.payload?.messages;
+					if (!Array.isArray(initialMessages) || initialMessages.length === 0) {
+						throw new Error("The saved conversation is empty or unavailable.");
+					}
+					return connection.client.command("session.create", {
+						...payload,
+						initialMessages,
+					});
+				});
 			this.assertSessionActive(connection.remote.id, connection);
 			const restored = reply.payload?.session as JsonRecord | undefined;
 			if ((restored?.sessionId ?? reply.payload?.sessionId) !== sessionId) {
