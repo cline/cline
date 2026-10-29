@@ -428,12 +428,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				<CloudHandoff
-					error={messageHandlers.handoffError}
-					hasDraft={
-						!!(chatState.inputValue.trim() || selectedImages.length || selectedFiles.length || chatState.activeQuote)
-					}
-				/>
+				<CloudHandoff error={messageHandlers.handoffError} />
 				{!hideAutoApprove && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}

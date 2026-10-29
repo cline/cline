@@ -27,13 +27,12 @@ function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): str
 	}
 }
 
-export function CloudHandoff({ error: preparationError, hasDraft = false }: { error?: string; hasDraft?: boolean }) {
+export function CloudHandoff({ error: preparationError }: { error?: string }) {
 	const { cloudHandoff: view, currentCloudTask } = useExtensionState()
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	const insideCloud = !!sessionId && currentCloudTask?.sessionId === sessionId
 	return (
 		<CloudHandoffNotice
-			hasDraft={hasDraft}
 			insideCloud={insideCloud}
 			key={JSON.stringify([view?.id, view?.phase, sessionId, insideCloud])}
 			preparationError={preparationError}
@@ -46,12 +45,10 @@ function CloudHandoffNotice({
 	view,
 	preparationError,
 	insideCloud,
-	hasDraft,
 }: {
 	view?: CloudHandoffView
 	preparationError?: string
 	insideCloud: boolean
-	hasDraft: boolean
 }) {
 	const [error, setError] = useState<string>()
 	const [nativeOpenFailed, setNativeOpenFailed] = useState(false)
@@ -84,13 +81,9 @@ function CloudHandoffNotice({
 		return (
 			<section aria-label="Cloud handoff" className="m-2 text-sm">
 				<VSCodeButton
-					onClick={() => {
-						if (hasDraft) {
-							setError("Send or clear your draft before returning to the local conversation.")
-							return
-						}
+					onClick={() =>
 						void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: view.sourceTaskId })))
-					}}>
+					}>
 					Back to local
 				</VSCodeButton>
 				{error && (
