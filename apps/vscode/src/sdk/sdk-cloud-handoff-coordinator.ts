@@ -307,8 +307,15 @@ export class SdkCloudHandoffCoordinator {
 			try {
 				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
 				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
-			} catch {
-				// A send error does not prove the message stayed unsent.
+			} catch (error) {
+				if (
+					error instanceof Error &&
+					error.name === "HubCommandError" &&
+					"code" in error &&
+					error.code === "hub_draining"
+				)
+					throw error
+				// Other send errors do not prove the message stayed unsent.
 			}
 			settled = { ...base, phase: "complete", delivery }
 		} finally {
@@ -321,7 +328,7 @@ export class SdkCloudHandoffCoordinator {
 
 	async discard(id: string): Promise<void> {
 		const attempt = [...this.attempts.values()].find((entry) => entry.id === id)
-		if (!attempt || attempt.phase === "launching") return
+		if (!attempt || attempt.phase === "launching" || (attempt.phase === "complete" && attempt.delivery === "unsent")) return
 		if (attempt.phase === "preparing") attempt.abort.abort()
 		this.attempts.delete(attempt.sourceTaskId)
 		await this.options.changed()

@@ -312,7 +312,12 @@ describe("cloud conversation handoff", () => {
 		})
 		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
-	it.each(["sent", "recovered", "error"])("retries only the unsent continuation in the existing task (%s)", async (outcome) => {
+	it.each([
+		"sent",
+		"recovered",
+		"error",
+		"draining",
+	])("retries only the unsent continuation in the existing task (%s)", async (outcome) => {
 		const { coordinator, cloud, id } = setup()
 		cloud.create.mockResolvedValue({
 			sessionId: "ses_example",
@@ -322,9 +327,15 @@ describe("cloud conversation handoff", () => {
 		await coordinator.prepare(input)
 		await coordinator.confirm(id())
 		if (outcome === "error") cloud.send.mockRejectedValueOnce(new Error("connection closed"))
+		else if (outcome === "draining")
+			cloud.send.mockRejectedValueOnce(
+				Object.assign(new Error("Hub is restarting"), { name: "HubCommandError", code: "hub_draining" }),
+			)
 		else if (outcome === "recovered")
 			cloud.send.mockResolvedValueOnce({ sessionId: "ses_example", ok: true, recoveredAfterDisconnect: true })
-		await Promise.all([coordinator.retryMessage(id()), coordinator.retryMessage(id())])
+		const retry = Promise.all([coordinator.retryMessage(id()), coordinator.retryMessage(id())])
+		if (outcome === "draining") await expect(retry).rejects.toThrow("Hub is restarting")
+		else await retry
 		expect(cloud.create).toHaveBeenCalledTimes(1)
 		expect(cloud.send).toHaveBeenCalledTimes(1)
 		expect(cloud.send).toHaveBeenCalledWith(
@@ -336,11 +347,40 @@ describe("cloud conversation handoff", () => {
 		)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
 			phase: "complete",
-			delivery: outcome === "sent" ? "sent" : "unconfirmed",
+			delivery: outcome === "sent" ? "sent" : outcome === "draining" ? "unsent" : "unconfirmed",
 		})
 		await coordinator.retryMessage(id())
-		expect(cloud.send).toHaveBeenCalledTimes(1)
+		expect(cloud.send).toHaveBeenCalledTimes(outcome === "draining" ? 2 : 1)
+		if (outcome === "draining") {
+			expect(cloud.send.mock.calls[1]).toEqual(cloud.send.mock.calls[0])
+			expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ delivery: "sent" })
+		}
 		expect(cloud.create).toHaveBeenCalledTimes(1)
+	})
+
+	it("keeps an unsent continuation through discard until it can be retried", async () => {
+		const { coordinator, cloud, id } = setup()
+		cloud.create.mockResolvedValue({
+			sessionId: "ses_example",
+			status: "idle",
+			initialSend: { dispatched: false, message: "unavailable" },
+		})
+		await coordinator.prepare(input)
+		await coordinator.confirm(id())
+		const handoffId = id()
+		await coordinator.discard(handoffId)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ id: handoffId, delivery: "unsent" })
+		await coordinator.retryMessage(handoffId)
+		expect(cloud.send).toHaveBeenCalledWith(
+			"ses_example",
+			expect.stringContaining("Widget implemented; tests remain."),
+			"queue",
+			"test-model",
+			[image],
+		)
+		expect(cloud.create).toHaveBeenCalledTimes(1)
+		await coordinator.discard(handoffId)
+		expect(coordinator.viewFor(input.sourceTaskId)).toBeUndefined()
 	})
 
 	it("keeps a safe retry when state publication fails before sending", async () => {

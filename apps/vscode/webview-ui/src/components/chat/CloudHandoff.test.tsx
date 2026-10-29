@@ -7,6 +7,8 @@ import { CloudHandoff } from "./CloudHandoff"
 const clients = vi.hoisted(() => ({
 	showTaskWithId: vi.fn(),
 	openCloudSessionDashboard: vi.fn(),
+	retryHandoffMessage: vi.fn(),
+	discardHandoff: vi.fn(),
 }))
 let view: CloudHandoffView
 
@@ -15,7 +17,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 }))
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: { showTaskWithId: clients.showTaskWithId },
-	CloudServiceClient: { openCloudSessionDashboard: clients.openCloudSessionDashboard },
+	CloudServiceClient: clients,
 }))
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeButton: ({ appearance: _appearance, ...props }: ComponentProps<"button"> & { appearance?: string }) => (
@@ -56,6 +58,19 @@ describe("cloud handoff navigation", () => {
 		expect(clients.openCloudSessionDashboard).toHaveBeenCalledExactlyOnceWith(
 			expect.objectContaining({ value: "ses-cloud-task" }),
 		)
+	})
+
+	it("keeps recovery available until the continuation has been sent", () => {
+		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery: "unsent" }
+		const { rerender } = render(<CloudHandoff />)
+		expect(screen.queryByRole("button", { name: "Dismiss handoff" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Retry continuation" }))
+		expect(clients.retryHandoffMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
+		view = { ...view, delivery: "sent" }
+		rerender(<CloudHandoff />)
+		expect(screen.queryByRole("button", { name: "Retry continuation" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Dismiss handoff" }))
+		expect(clients.discardHandoff).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
 	})
 
 	it("shows a failed in-panel open without silently launching a browser", async () => {

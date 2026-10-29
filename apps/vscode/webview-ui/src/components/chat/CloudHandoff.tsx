@@ -153,7 +153,7 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 								</div>
 							)}
 						</div>
-						{view.phase !== "launching" && (
+						{view.phase !== "launching" && !(view.phase === "complete" && view.delivery === "unsent") && (
 							<Button
 								aria-label={dismissLabel}
 								className="size-5 shrink-0"
