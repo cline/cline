@@ -9,7 +9,7 @@ export {
 } from "../services/cloud-handoff/git-preparation";
 export * from "./api";
 export { createArtifactFetcher } from "./artifacts/fetch";
-export { createPublishArtifactsTool } from "./artifacts/publish";
+export { createArtifactPublisher } from "./artifacts/publish";
 export * from "./controller";
 export * from "./hub-client";
 export * from "./hub-protocol";
