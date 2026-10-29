@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto"
-import { type CoreSessionConfig, summarizeConversation } from "@cline/core"
+import { type CoreSessionConfig, RuntimeOAuthTokenManager, summarizeConversation } from "@cline/core"
 import { type CloudHubScope, type HandoffGitPlan, type HubCloudSessionClient, previewHandoffGit } from "@cline/core/cloud"
 import { createMediaBudgetState, validateAndReserveImageMedia } from "@cline/shared"
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { z } from "zod"
+import { getProviderSettingsManager } from "./provider-migration"
 
 const cloudErrorDetail = z.object({ message: z.string().trim().min(1) })
 
@@ -134,10 +135,14 @@ export class SdkCloudHandoffCoordinator {
 				)
 			}
 			this.assertCurrent(attempt)
+			const credentials = await new RuntimeOAuthTokenManager({
+				providerSettingsManager: getProviderSettingsManager(),
+			}).resolveProviderApiKey({ providerId: source.config.providerId })
+			this.assertCurrent(attempt)
 			const summary = (
 				await (this.options.summarize ?? summarizeConversation)({
 					messages: source.messages,
-					config: source.config,
+					config: { ...source.config, ...(credentials && { apiKey: credentials.apiKey }) },
 					signal: AbortSignal.any([attempt.abort.signal, AbortSignal.timeout(120_000)]),
 				})
 			).trim()

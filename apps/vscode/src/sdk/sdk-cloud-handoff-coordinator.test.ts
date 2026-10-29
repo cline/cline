@@ -1,6 +1,15 @@
 import { CloudSessionError, type HubCloudSessionClient } from "@cline/core/cloud"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
+
+const resolveCredentials = vi.hoisted(() => vi.fn())
+vi.mock("@cline/core", async (original) => ({
+	...(await original<typeof import("@cline/core")>()),
+	RuntimeOAuthTokenManager: class {
+		resolveProviderApiKey = resolveCredentials
+	},
+}))
+beforeEach(() => resolveCredentials.mockReset().mockResolvedValue(null))
 
 const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9WQAAAAASUVORK5CYII="
 const input = { sourceTaskId: "local-task", instruction: "Finish the tests", images: [image], files: [] }
@@ -8,7 +17,7 @@ const input = { sourceTaskId: "local-task", instruction: "Finish the tests", ima
 function setup() {
 	const source: CapturedHandoffSource = {
 		messages: [{ role: "user", content: "Implement the widget" }],
-		config: { providerId: "cline", modelId: "test-model", thinking: false },
+		config: { providerId: "cline", modelId: "test-model", apiKey: "original-token", thinking: false },
 		mode: "act",
 		plan: {
 			id: "git-plan",
@@ -78,6 +87,44 @@ function setup() {
 }
 
 describe("cloud conversation handoff", () => {
+	it("resolves fresh summary credentials after Hub preparation without changing the captured model", async () => {
+		const { coordinator, cloud, summarize } = setup()
+		cloud.listModels.mockImplementationOnce(async () => {
+			resolveCredentials.mockResolvedValue({ apiKey: "refreshed-token", refreshed: true })
+			return [{ id: "test-model", name: "Test model", catalogId: "cline" }]
+		})
+		await coordinator.prepare(input)
+		expect(resolveCredentials).toHaveBeenCalledWith({ providerId: "cline" })
+		expect(summarize).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({ providerId: "cline", modelId: "test-model", apiKey: "refreshed-token" }),
+			}),
+		)
+		expect(coordinator.viewFor(input.sourceTaskId)?.phase).toBe("ready")
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it("shows a credential refresh failure without summarizing or publishing", async () => {
+		const { coordinator, cloud, summarize } = setup()
+		resolveCredentials.mockRejectedValueOnce(new Error("Sign in again"))
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message: "Sign in again" })
+		expect(summarize).not.toHaveBeenCalled()
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it("stops preparation when the window account changes during credential refresh", async () => {
+		const { coordinator, cloud, summarize, switchAccount } = setup()
+		resolveCredentials.mockImplementationOnce(async () => {
+			switchAccount()
+			return { apiKey: "other-account-token", refreshed: false }
+		})
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toBeUndefined()
+		expect(summarize).not.toHaveBeenCalled()
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
 	it("settles a failed state update so preparation can be dismissed and restarted", async () => {
 		const { coordinator, changed, capture, id } = setup()
 		changed.mockRejectedValueOnce(new Error("Webview unavailable"))
