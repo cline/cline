@@ -323,3 +323,37 @@ test("rejects invalid batches without network requests", async (t) => {
 	);
 	assert.equal(f.counts().signs, 0);
 });
+
+test("rejects malformed upload policies before sending files", async (t) => {
+	const f = await fixture(t);
+	const policy = {
+		url: "http://127.0.0.1:1",
+		fields: { policy: "synthetic-policy" },
+		keyPrefix: "artifacts/",
+		maxBytes: 1024,
+		expiresAt: new Date(Date.now() + 60_000).toISOString(),
+	};
+	for (const invalid of [
+		{ keyPrefix: "artifacts" },
+		{ maxBytes: 0 },
+		{ maxBytes: 1.5 },
+		{ maxBytes: Number.MAX_SAFE_INTEGER + 1 },
+		{ expiresAt: "invalid" },
+		{ fields: { File: "reserved" } },
+		{ fields: { key: "reserved" } },
+		{ fields: { policy: 123 } },
+	]) {
+		const tool = createPublishArtifactsTool({
+			cloudSessionId: "session_demo",
+			request: async () =>
+				Response.json({ success: true, data: { ...policy, ...invalid } }),
+		});
+		const result = await tool.execute(
+			{ files: [{ path: f.filePath, artifactId: "given" }] },
+			f.context(),
+		);
+		assert.equal(result.files[0].artifactId, "given");
+		assert.ok("error" in result.files[0]);
+		assert.equal(result.files[0].error.code, "INVALID_RESPONSE");
+	}
+});

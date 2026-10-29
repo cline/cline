@@ -4,6 +4,7 @@ import { stat } from "node:fs/promises";
 import { basename, isAbsolute } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { createTool } from "@cline/shared";
+import { z } from "zod";
 import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 
 type Result =
@@ -20,13 +21,20 @@ type LocalFile = {
 	size: number;
 	modifiedAt: number;
 };
-type UploadPolicy = {
-	url: string;
-	fields: Record<string, string>;
-	keyPrefix: string;
-	maxBytes: number;
-	expiresAt: number;
-};
+const UploadPolicySchema = z.object({
+	url: z.string(),
+	fields: z.record(
+		z.string().refine((key) => !/^(key|file)$/i.test(key)),
+		z.string(),
+	),
+	keyPrefix: z.string().endsWith("/"),
+	maxBytes: z.number().int().positive(),
+	expiresAt: z
+		.string()
+		.refine((value) => Number.isFinite(Date.parse(value)))
+		.transform(Date.parse),
+});
+type UploadPolicy = z.infer<typeof UploadPolicySchema>;
 
 class PublishError extends Error {
 	code: string;
@@ -115,34 +123,6 @@ async function checkUnchanged(file: LocalFile) {
 		);
 }
 
-function parsePolicy(value: unknown): UploadPolicy {
-	const policy = object(value);
-	if (
-		typeof policy.url !== "string" ||
-		typeof policy.keyPrefix !== "string" ||
-		!policy.keyPrefix.endsWith("/") ||
-		typeof policy.maxBytes !== "number" ||
-		!Number.isSafeInteger(policy.maxBytes) ||
-		policy.maxBytes < 1 ||
-		typeof policy.expiresAt !== "string" ||
-		!Number.isFinite(Date.parse(policy.expiresAt))
-	)
-		throw new PublishError("INVALID_RESPONSE", "Invalid upload policy");
-	const fields: Record<string, string> = {};
-	for (const [key, value] of Object.entries(object(policy.fields))) {
-		if (typeof value !== "string" || /^(key|file)$/i.test(key))
-			throw new PublishError("INVALID_RESPONSE", "Invalid upload fields");
-		fields[key] = value;
-	}
-	return {
-		url: policy.url,
-		fields,
-		keyPrefix: policy.keyPrefix,
-		maxBytes: policy.maxBytes,
-		expiresAt: Date.parse(policy.expiresAt),
-	};
-}
-
 async function publish(
 	files: LocalFile[],
 	results: Result[],
@@ -197,7 +177,10 @@ async function publish(
 					"INVALID_RESPONSE",
 					"Artifact service returned an unsuccessful response",
 				);
-			return parsePolicy(envelope.data);
+			const parsed = UploadPolicySchema.safeParse(envelope.data);
+			if (!parsed.success)
+				throw new PublishError("INVALID_RESPONSE", "Invalid upload policy");
+			return parsed.data;
 		}
 		throw new PublishError(
 			"CORE_UNAVAILABLE",
