@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { CoreSessionService, SqliteSessionStore } from "@cline/core";
+import { CloudSessionError } from "@cline/core/cloud";
 import { renderOpenTui } from "../../tui";
 import type { TuiProps } from "../../tui/types";
 import type { Config } from "../../utils/types";
@@ -194,6 +195,15 @@ const props = {
 		},
 	},
 	onPrepareCloudHandoff: async (draft) => {
+		if (scenario === "github-disconnected") {
+			throw new Error(
+				new CloudSessionError(
+					"github_not_connected",
+					"Connect GitHub before handing this session off to cloud.",
+					"https://app.cline.bot/settings/integrations",
+				).message,
+			);
+		}
 		record("preparations", [
 			...(state.preparations ?? []),
 			{ sessionId: activeSessionId, draft },

@@ -27,6 +27,7 @@ const bunExec = process.env.BUN_EXEC_PATH ?? "bun";
 const sessions: Session[] = [];
 const tempDirs: string[] = [];
 const timeout = 20_000;
+const modifierLabel = process.platform === "darwin" ? "Option" : "Alt";
 type FixtureProvider = "cline" | "cline-pass" | "anthropic" | "openrouter";
 
 function launch({
@@ -170,6 +171,20 @@ describe("cloud handoff TUI", () => {
 		await session.press("escape");
 	});
 
+	it("offers GitHub setup when preparation reports a disconnected integration", async () => {
+		const { session } = await launch({ scenario: "github-disconnected" });
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud continue the synthetic task");
+		await session.press("enter");
+		await session.waitForText(
+			`Connect GitHub (${modifierLabel}+G): https://app.cline.bot/settings/integrations`,
+			{ timeout },
+		);
+		expect(await session.text()).toContain(
+			"/cloud continue the synthetic task",
+		);
+	});
+
 	it("cancels without losing the instruction", async () => {
 		const { session, statePath, stateDir } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
@@ -243,7 +258,7 @@ describe("cloud handoff TUI", () => {
 			{ timeout },
 		);
 		await session.waitForText(
-			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
+			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
 			{ timeout },
 		);
 		expect(readState(statePath).started).toBe(true);
@@ -266,7 +281,7 @@ describe("cloud handoff TUI", () => {
 		session.writeRaw("\u001b[100;7u");
 		const afterScroll = await session.text();
 		expect(afterScroll).toContain("Synthetic publish failure");
-		expect(afterScroll).toContain("Restore /cloud draft (Alt+E)");
+		expect(afterScroll).toContain(`Restore /cloud draft (${modifierLabel}+E)`);
 		await session.press(["alt", "e"]);
 		await session.waitForText(`/cloud ${instruction}`, { timeout });
 		expect(await session.text()).not.toContain(
@@ -390,7 +405,7 @@ describe("cloud handoff TUI", () => {
 			},
 		);
 		await session.waitForText(
-			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
+			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
 			{ timeout },
 		);
 		expect(
@@ -427,16 +442,16 @@ describe("cloud handoff TUI", () => {
 		});
 		const rejectedScreen = await session.text();
 		expect(rejectedScreen).toContain(rejectedDraft);
-		expect(rejectedScreen).toContain("Retry saved prompt (Alt+E)");
+		expect(rejectedScreen).toContain(`Retry saved prompt (${modifierLabel}+E)`);
 		await session.writeRaw("\u0015");
 		await session.type("/cloud canceled replacement plan");
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("escape");
 		const afterCancel = await session.text();
-		expect(afterCancel).toContain("Retry saved prompt (Alt+E)");
+		expect(afterCancel).toContain(`Retry saved prompt (${modifierLabel}+E)`);
 		expect(afterCancel).toContain(
-			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
+			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
 		);
 		expect(readState(statePath).retryTargets).toBeUndefined();
 
@@ -458,7 +473,7 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
 		await session.waitForText(
-			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-4",
+			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-4`,
 			{ timeout },
 		);
 		expect(readState(statePath).preparations).toHaveLength(4);

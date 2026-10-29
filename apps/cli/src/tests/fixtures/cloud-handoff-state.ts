@@ -19,6 +19,7 @@ export const fixtureStateSchema = z.object({
 
 export type FixtureState = z.infer<typeof fixtureStateSchema>;
 export type FixtureScenario =
+	| "github-disconnected"
 	| "success"
 	| "failure"
 	| "held-success"

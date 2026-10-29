@@ -1,4 +1,3 @@
-import { CloudSessionError } from "@cline/core/cloud";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useRef, useState, useSyncExternalStore } from "react";
@@ -15,7 +14,12 @@ import type { TuiProps } from "../types";
 export type CloudHandoffStatus =
 	| { kind: "progress"; progress: CloudHandoffProgress }
 	| { kind: "complete"; result: CloudHandoffResult }
-	| { kind: "failed"; message: string; draft: CloudHandoffDraft };
+	| {
+			kind: "failed";
+			message: string;
+			connectUrl?: string;
+			draft: CloudHandoffDraft;
+	  };
 
 const noSession = {
 	getId: () => "",
@@ -110,7 +114,7 @@ export function useCloudHandoff(input: {
 					(error) =>
 						attempt.setStatus({
 							kind: "failed",
-							message: handoffErrorMessage(error),
+							...handoffError(error),
 							draft,
 						}),
 				)
@@ -118,10 +122,11 @@ export function useCloudHandoff(input: {
 			return true;
 		} catch (error) {
 			if (attempt.isCurrent()) {
-				const message = handoffErrorMessage(error);
+				const failure = handoffError(error);
 				if (statuses[sourceId]?.kind === "complete") {
-					if (activeSession.getId() === sourceId) input.showError(message);
-				} else attempt.setStatus({ kind: "failed", message, draft });
+					if (activeSession.getId() === sourceId)
+						input.showError(failure.message);
+				} else attempt.setStatus({ kind: "failed", ...failure, draft });
 			}
 			return false;
 		} finally {
@@ -152,7 +157,7 @@ export function useCloudHandoff(input: {
 				kind: "complete",
 				result: {
 					dashboardUrl: status.result.dashboardUrl,
-					warning: handoffErrorMessage(error),
+					warning: handoffError(error).message,
 				},
 			});
 		} finally {
@@ -175,16 +180,31 @@ export function useCloudHandoff(input: {
 	};
 }
 
-function handoffErrorMessage(error: unknown): string {
-	if (error instanceof CloudSessionError) return error.detail;
+function handoffError(error: unknown): {
+	message: string;
+	connectUrl?: string;
+} {
 	const message = error instanceof Error ? error.message : String(error);
 	const prefix = "CLOUD_SESSION_ERROR:";
-	if (!message.startsWith(prefix)) return message;
+	if (!message.startsWith(prefix)) return { message };
 	try {
-		return z
-			.object({ message: z.string() })
-			.parse(JSON.parse(message.slice(prefix.length))).message;
+		const parsed = z
+			.object({
+				code: z.string(),
+				message: z.string(),
+				connectUrl: z.string().optional(),
+			})
+			.parse(JSON.parse(message.slice(prefix.length)));
+		const connectUrl = z.string().url().safeParse(parsed.connectUrl?.trim());
+		return {
+			message: parsed.message,
+			...(parsed.code === "github_not_connected" &&
+			connectUrl.success &&
+			/^https?:\/\//i.test(connectUrl.data)
+				? { connectUrl: connectUrl.data }
+				: {}),
+		};
 	} catch {
-		return message;
+		return { message };
 	}
 }

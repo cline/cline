@@ -3,6 +3,8 @@ import type { CloudHandoffDraft } from "../../runtime/interactive/cloud-handoff"
 import open from "../../utils/open";
 import type { CloudHandoffStatus } from "../hooks/use-cloud-handoff";
 
+const modifierLabel = process.platform === "darwin" ? "Option" : "Alt";
+
 export function CloudHandoffStatusBar(props: {
 	status: CloudHandoffStatus;
 	disabled: boolean;
@@ -24,6 +26,10 @@ export function CloudHandoffStatusBar(props: {
 				? status.message
 				: (status.result.warning ??
 					"Cloud task ready. You can keep working locally.");
+	const connectUrl = status.kind === "failed" ? status.connectUrl : undefined;
+	const connectGitHub = () => {
+		if (connectUrl) void open(connectUrl, { wait: false }).catch(() => {});
+	};
 	const openCloud = () => {
 		if (url) void open(url, { wait: false }).catch(() => {});
 	};
@@ -32,6 +38,9 @@ export function CloudHandoffStatusBar(props: {
 		if (key.name === "o" && url) {
 			key.preventDefault();
 			openCloud();
+		} else if (key.name === "g" && connectUrl) {
+			key.preventDefault();
+			connectGitHub();
 		} else if (key.name === "e" && status.kind === "failed") {
 			key.preventDefault();
 			props.onRestore(status.draft);
@@ -55,7 +64,18 @@ export function CloudHandoffStatusBar(props: {
 			{url && (
 				<box onMouseDown={openCloud}>
 					<text>
-						<a href={url}>Open cloud task (Alt+O): {url}</a>
+						<a href={url}>
+							Open cloud task ({modifierLabel}+O): {url}
+						</a>
+					</text>
+				</box>
+			)}
+			{connectUrl && (
+				<box onMouseDown={connectGitHub}>
+					<text>
+						<a href={connectUrl}>
+							Connect GitHub ({modifierLabel}+G): {connectUrl}
+						</a>
 					</text>
 				</box>
 			)}
@@ -63,7 +83,7 @@ export function CloudHandoffStatusBar(props: {
 				<box flexDirection="row" gap={2}>
 					{status.kind === "failed" && (
 						<box onMouseDown={() => props.onRestore(status.draft)}>
-							<text>Restore /cloud draft (Alt+E)</text>
+							<text>Restore /cloud draft ({modifierLabel}+E)</text>
 						</box>
 					)}
 					{status.kind === "complete" && status.result.retrySend && (
@@ -72,11 +92,11 @@ export function CloudHandoffStatusBar(props: {
 								void props.onRetry();
 							}}
 						>
-							<text>Retry saved prompt (Alt+E)</text>
+							<text>Retry saved prompt ({modifierLabel}+E)</text>
 						</box>
 					)}
 					<box onMouseDown={props.onDismiss}>
-						<text fg="gray">Dismiss (Alt+D)</text>
+						<text fg="gray">Dismiss ({modifierLabel}+D)</text>
 					</box>
 				</box>
 			)}
