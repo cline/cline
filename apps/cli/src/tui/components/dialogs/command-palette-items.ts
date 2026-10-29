@@ -218,11 +218,12 @@ export function buildCommandPaletteItems(input: {
 			"Leave the cloud task running and return to its local conversation",
 		);
 	if (handoff?.kind === "complete") {
-		addCloudAction(
-			"cloud-open",
-			"Open cloud task in TUI",
-			"Continue in the existing cloud task",
-		);
+		if (!handoff.nativeOpenFailed)
+			addCloudAction(
+				"cloud-open",
+				"Open cloud task",
+				"Continue in the existing cloud task",
+			);
 		if (handoff.result.retrySend)
 			addCloudAction(
 				"cloud-retry",
@@ -232,8 +233,7 @@ export function buildCommandPaletteItems(input: {
 	}
 	if (
 		input.cloudSessionUrl ||
-		handoff?.kind === "complete" ||
-		(handoff?.kind === "progress" && handoff.progress.dashboardUrl)
+		(handoff?.kind === "complete" && handoff.nativeOpenFailed)
 	) {
 		addCloudAction(
 			"cloud-browser",

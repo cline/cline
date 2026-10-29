@@ -16,6 +16,7 @@ export const fixtureStateSchema = z.object({
 	activeSessionId: z.string().optional(),
 	resumeCalls: z.array(z.string()).optional(),
 	attachedSessions: z.array(z.string()).optional(),
+	attachAttempts: z.array(z.string()).optional(),
 	abortedSessions: z.array(z.string()).optional(),
 	acceptedCloudSends: z
 		.array(

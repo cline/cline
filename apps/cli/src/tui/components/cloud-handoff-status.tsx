@@ -14,10 +14,12 @@ export function CloudHandoffStatusBar(props: {
 	const { status } = props;
 	const url =
 		status.kind === "complete"
-			? status.result.dashboardUrl
-			: status.kind === "progress"
-				? status.progress.dashboardUrl
-				: status.connectUrl;
+			? status.nativeOpenFailed
+				? status.result.dashboardUrl
+				: undefined
+			: status.kind === "failed"
+				? status.connectUrl
+				: undefined;
 	const message =
 		status.kind === "progress"
 			? status.progress.message
@@ -41,13 +43,15 @@ export function CloudHandoffStatusBar(props: {
 				{status.kind === "complete" && (
 					<>
 						{!message && <text fg="cyan">Cloud task started</text>}
-						<text onMouseDown={openInTui}>Open cloud (Ctrl+O)</text>
+						{!status.nativeOpenFailed && (
+							<text onMouseDown={openInTui}>Open cloud task (Ctrl+O)</text>
+						)}
 					</>
 				)}
 				{url && (
 					<text onMouseDown={openLink}>
 						<a href={url}>
-							{status.kind === "failed" ? "Connect GitHub" : "Browser"}
+							{status.kind === "failed" ? "Connect GitHub" : "Open in browser"}
 						</a>
 					</text>
 				)}

@@ -1,6 +1,5 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
-import open from "../../utils/open";
 import {
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
@@ -320,29 +319,16 @@ export function StatusBar(props: StatusBarProps) {
 					(Ctrl+O)
 				</text>
 			)}
-			{isCloud &&
-				(cloud.sessionStatus || cloud.dashboardUrl || onReturnToLocal) && (
-					<box flexDirection="row" flexWrap="wrap" gap={2}>
-						{cloud.sessionStatus && (
-							<text fg={actAccent}>{cloud.sessionStatus}</text>
-						)}
-						{onReturnToLocal && (
-							<text onMouseDown={onReturnToLocal}>Local (Ctrl+O)</text>
-						)}
-						{cloud.dashboardUrl && (
-							<text
-								onMouseDown={() => {
-									if (cloud.dashboardUrl)
-										void open(cloud.dashboardUrl, { wait: false }).catch(
-											() => {},
-										);
-								}}
-							>
-								<a href={cloud.dashboardUrl}>Browser</a>
-							</text>
-						)}
-					</box>
-				)}
+			{isCloud && (cloud.sessionStatus || onReturnToLocal) && (
+				<box flexDirection="row" flexWrap="wrap" gap={2}>
+					{cloud.sessionStatus && (
+						<text fg={actAccent}>{cloud.sessionStatus}</text>
+					)}
+					{onReturnToLocal && (
+						<text onMouseDown={onReturnToLocal}>Back to local (Ctrl+O)</text>
+					)}
+				</box>
+			)}
 
 			{!isCloud &&
 				(autoApproveAll ? (

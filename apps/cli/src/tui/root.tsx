@@ -1004,7 +1004,9 @@ function App(props: TuiProps) {
 			await withLoadingDialog(dialog, "Opening cloud task…", () =>
 				cloud.openExisting(status.result.sessionId),
 			);
+			handoff.setNativeOpenFailed(status.result, false);
 		} catch (error) {
+			handoff.setNativeOpenFailed(status.result, true);
 			if (localHandoffViewRef.current === localView)
 				localHandoffViewRef.current = undefined;
 			showToast(
@@ -1101,11 +1103,9 @@ function App(props: TuiProps) {
 				case "cloud-browser": {
 					const url =
 						cloud.statusBar?.dashboardUrl ??
-						(status?.kind === "complete"
+						(status?.kind === "complete" && status.nativeOpenFailed
 							? status.result.dashboardUrl
-							: status?.kind === "progress"
-								? status.progress.dashboardUrl
-								: undefined);
+							: undefined);
 					if (url)
 						await open(url, { wait: false }).catch(() =>
 							showToast("Unable to open the browser.", "error"),

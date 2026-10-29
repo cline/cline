@@ -13,7 +13,7 @@ import type { TuiProps } from "../types";
 
 export type CloudHandoffStatus =
 	| { kind: "progress"; progress: CloudHandoffProgress }
-	| { kind: "complete"; result: CloudHandoffResult }
+	| { kind: "complete"; result: CloudHandoffResult; nativeOpenFailed?: boolean }
 	| {
 			kind: "failed";
 			message: string;
@@ -183,6 +183,14 @@ export function useCloudHandoff(input: {
 				? sourceStatus.result.sessionId
 				: undefined,
 		canHide,
+		setNativeOpenFailed: (result: CloudHandoffResult, failed: boolean) => {
+			setStatuses((current) => {
+				const entry = current[sourceId];
+				return entry?.kind === "complete" && entry.result === result
+					? { ...current, [sourceId]: { ...entry, nativeOpenFailed: failed } }
+					: current;
+			});
+		},
 		retry,
 		hide: () => {
 			if (activeSession.getId() !== sourceId || !canHide) return;

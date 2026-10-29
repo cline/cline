@@ -28,6 +28,54 @@ describe("command palette", () => {
 		expect(items.map((item) => item.shortcut)).not.toContain("Opt+?");
 	});
 
+	it.each([
+		false,
+		true,
+	])("shows one handoff navigation action (native failed: %s)", (nativeOpenFailed) => {
+		const items = buildCommandPaletteItems({
+			canForkSession: false,
+			handoff: {
+				kind: "complete",
+				result: {
+					sessionId: "synthetic-session",
+					dashboardUrl: "https://example.test/task",
+				},
+				nativeOpenFailed,
+			},
+		});
+		expect(
+			items
+				.filter((item) => item.result.action.startsWith("cloud-"))
+				.map((item) => item.result.action),
+		).toEqual([nativeOpenFailed ? "cloud-browser" : "cloud-open"]);
+	});
+
+	it("offers browser access for active cloud sessions but not handoff progress", () => {
+		const progress = buildCommandPaletteItems({
+			canForkSession: false,
+			handoff: {
+				kind: "progress",
+				progress: {
+					message: "Starting",
+					dashboardUrl: "https://example.test/task",
+				},
+			},
+		});
+		expect(
+			progress.some((item) => item.result.action === "cloud-browser"),
+		).toBe(false);
+		const active = buildCommandPaletteItems({
+			canForkSession: false,
+			cloudSessionUrl: "https://example.test/task",
+			canReturnToLocal: true,
+		});
+		expect(
+			active
+				.filter((item) => item.result.action.startsWith("cloud-"))
+				.map((item) => item.result.action),
+		).toEqual(["cloud-local", "cloud-browser"]);
+	});
+
 	it("shows fork only when the current session can be forked", () => {
 		const items = buildCommandPaletteItems({
 			canForkSession: true,

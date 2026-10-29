@@ -191,7 +191,10 @@ const props = {
 	cloudSessions: {
 		scope: { serviceId: "synthetic-cloud-service", scopeGeneration: 1 },
 		attach: async (sessionId: string) => {
-			if (scenario === "attach-failure")
+			record("attachAttempts", [...(state.attachAttempts ?? []), sessionId]);
+			if (
+				scenario === "attach-failure" && state.attachAttempts?.length === 1
+			)
 				throw new Error("Synthetic attach failure");
 			record("attachedSessions", [
 				...(state.attachedSessions ?? []),
