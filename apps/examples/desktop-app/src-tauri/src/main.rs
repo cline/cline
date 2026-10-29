@@ -1,7 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux_tray;
+#[cfg(target_os = "linux")]
+mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
+mod terminal;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -12,7 +17,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{
@@ -30,8 +35,11 @@ const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
+const KEYBINDINGS_MENU_ID: &str = "keybindings";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
+#[cfg(any(target_os = "macos", test))]
+const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
 #[cfg(any(target_os = "macos", test))]
@@ -44,7 +52,9 @@ const VIEW_ZOOM_RESET_MENU_ID: &str = "view-zoom-reset";
 enum DesktopAction {
     NewSession,
     OpenSettings,
+    OpenKeybindings,
     CheckForUpdates,
+    ExportDiagnostics,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -89,6 +99,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    resource_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,11 +129,13 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
-    // Windows only: the downloaded-but-not-installed update. On Windows,
+    // Windows and Linux: the downloaded-but-not-installed update. On Windows,
     // Update::install launches the NSIS installer and std::process::exit(0)s
-    // immediately, so installation must wait for the user-initiated restart
-    // instead of running inside the background cycle like it does on macOS.
-    #[cfg(windows)]
+    // immediately; on Linux (deb/rpm) it runs `pkexec dpkg -i` / `rpm -U`,
+    // which pops a root password prompt. Either way installation must wait
+    // for the user-initiated restart instead of running inside the
+    // background cycle like it does on macOS.
+    #[cfg(not(target_os = "macos"))]
     pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
@@ -278,18 +291,19 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
             // macOS: install right away — it only swaps the .app on disk and
-            // the running app keeps going until the user restarts. Windows:
-            // download only, because install() launches the NSIS installer
-            // and exits the process on the spot; the staged bytes are
-            // installed by restart_to_apply_update instead.
-            #[cfg(not(windows))]
+            // the running app keeps going until the user restarts. Windows
+            // and Linux: download only, because install() launches the NSIS
+            // installer and exits the process on the spot (Windows) or asks
+            // for the root password via pkexec (Linux deb/rpm); the staged
+            // bytes are installed by restart_to_apply_update instead.
+            #[cfg(target_os = "macos")]
             match update.download_and_install(|_, _| {}, || {}).await {
                 Ok(()) => set_update_status(app, state, "ready", Some(version), None),
                 Err(error) => {
                     set_update_status(app, state, "error", Some(version), Some(error.to_string()))
                 }
             }
-            #[cfg(windows)]
+            #[cfg(not(target_os = "macos"))]
             match update.download(|_, _| {}, || {}).await {
                 Ok(bytes) => {
                     if let Ok(mut pending) = state.pending_install.lock() {
@@ -353,7 +367,7 @@ impl DesktopBackendState {
                 let _ = Command::new("kill").arg(child.id().to_string()).status();
                 // Windows has no SIGTERM equivalent, so terminate outright.
                 // Reap the child too: TerminateProcess is quick, and the
-                // update-restart path needs the sidecar exe's file lock
+                // update-restart path needs the bundled CLI's file lock
                 // released before the NSIS installer replaces it.
                 #[cfg(not(unix))]
                 {
@@ -388,7 +402,7 @@ struct DesktopBackendReadyLine {
 }
 
 /// The release binary is a GUI-subsystem app (no console), so on Windows
-/// every console-subsystem child (git, cmd, the sidecar) would otherwise
+/// every console-subsystem child (git, cmd, the bundled CLI) would otherwise
 /// allocate its own visible console window. Piped stdio does not prevent
 /// that; only CREATE_NO_WINDOW does.
 #[cfg(windows)]
@@ -448,9 +462,12 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn desktop_backend_binary_names() -> Vec<String> {
+/// The bundled Cline CLI (a Tauri `externalBin`). It starts or reuses the
+/// shared Hub, runs as the Hub daemon, and is the runtime the packaged
+/// desktop backend script executes on, so the app needs no Node or Bun.
+fn desktop_cli_binary_names() -> Vec<String> {
     let extension = if cfg!(windows) { ".exe" } else { "" };
-    let bundled_name = format!("code-sidecar{extension}");
+    let bundled_name = format!("cline-cli{extension}");
     let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
     if target_triple.is_empty() {
         return vec![bundled_name];
@@ -458,72 +475,114 @@ fn desktop_backend_binary_names() -> Vec<String> {
 
     vec![
         bundled_name,
-        format!("code-sidecar-{target_triple}{extension}"),
+        format!("cline-cli-{target_triple}{extension}"),
     ]
 }
 
-fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> {
-    if cfg!(debug_assertions) {
-        return None;
-    }
-    let explicit = std::env::var("CLINE_CODE_SIDECAR_BIN")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from);
+fn non_empty_env_path(name: &str) -> Option<PathBuf> {
+    non_empty_env(name).map(PathBuf::from)
+}
+
+fn desktop_app_bin_dir(context: &AppContext) -> PathBuf {
+    PathBuf::from(&context.workspace_root)
+        .join("apps")
+        .join("examples")
+        .join("desktop-app")
+        .join("src-tauri")
+        .join("bin")
+}
+
+fn resolve_desktop_cli_path(context: &AppContext) -> Option<PathBuf> {
     let current_exe = std::env::current_exe().ok();
     let mut candidates = Vec::new();
-    if let Some(path) = explicit {
+    if let Some(path) = non_empty_env_path("CLINE_DESKTOP_CLI_BIN") {
         candidates.push(path);
     }
-
-    for binary_name in desktop_backend_binary_names() {
-        candidates.push(
-            PathBuf::from(&context.workspace_root)
-                .join("apps")
-                .join("examples")
-                .join("desktop-app")
-                .join("src-tauri")
-                .join("bin")
-                .join(&binary_name),
-        );
+    for binary_name in desktop_cli_binary_names() {
         if let Some(path) = current_exe
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
         {
             candidates.push(path);
         }
-        if let Some(path) = current_exe.as_ref().and_then(|path| {
-            path.parent()
-                .and_then(|parent| parent.parent())
-                .map(|parent| parent.join("Resources").join(&binary_name))
-        }) {
-            candidates.push(path);
-        }
+        candidates.push(desktop_app_bin_dir(context).join(&binary_name));
     }
+    candidates.into_iter().find(|path| path.is_file())
+}
 
-    candidates.into_iter().find(|path| path.exists())
+fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
+    vec![resource_dir
+        .join("bin")
+        .join("desktop-backend")
+        .join("index.js")]
+}
+
+fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = non_empty_env_path("CLINE_DESKTOP_BACKEND_BUNDLE") {
+        candidates.push(path);
+    }
+    candidates.extend(desktop_backend_bundle_candidates(&context.resource_dir));
+    candidates.push(
+        desktop_app_bin_dir(context)
+            .join("desktop-backend")
+            .join("index.js"),
+    );
+    candidates.into_iter().find(|path| path.is_file())
 }
 
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
-    let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
-        let mut command = Command::new(binary_path);
-        command.current_dir(&context.workspace_root);
-        command
-    } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
+    let cli_path = resolve_desktop_cli_path(context);
+    let script_path = if cfg!(debug_assertions) {
+        resolve_desktop_backend_script_path(context)
+    } else {
+        None
+    };
+    let mut command = if let Some(script_path) = script_path {
         let mut command = Command::new("bun");
         command
             .arg("run")
             .arg(script_path.to_string_lossy().to_string())
             .current_dir(&context.workspace_root);
         command
+    } else if let (Some(cli_path), Some(bundle_path)) = (
+        cli_path.as_ref(),
+        resolve_desktop_backend_bundle_path(context),
+    ) {
+        let mut command = Command::new(cli_path);
+        // Under BUN_BE_BUN the CLI's baked-in --use-system-ca does not apply,
+        // so pass it again or the backend only trusts Bun's bundled roots.
+        command
+            .arg("run")
+            .arg("--use-system-ca")
+            .arg("--no-env-file")
+            .arg(&bundle_path);
+        // Run from the bundle's own directory so the runtime cannot pick up
+        // a workspace .env or bunfig.toml; the backend moves to the
+        // workspace root itself (CLINE_DESKTOP_WORKSPACE_ROOT).
+        if let Some(bundle_dir) = bundle_path.parent() {
+            command.current_dir(bundle_dir);
+        }
+        command
+            .env("BUN_BE_BUN", "1")
+            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
+            .env(
+                "CLINE_REMOTE_HELPER_DIRECTORY",
+                context.resource_dir.join("bin").join("remote-helpers"),
+            );
+        command
     } else {
         return Err(format!(
-            "desktop backend sidecar not found. checked binary/script under workspace_root={} and launch_cwd={}",
-            context.workspace_root, context.launch_cwd
+            "desktop backend not found: needs the bundled Cline CLI ({}) and backend bundle. checked under workspace_root={} and launch_cwd={}",
+            if cli_path.is_some() { "found" } else { "missing" },
+            context.workspace_root,
+            context.launch_cwd
         ));
     };
 
+    if let Some(cli_path) = cli_path.as_ref() {
+        command.env("CLINE_DESKTOP_CLI_PATH", cli_path);
+    }
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -531,7 +590,7 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     hide_console_window(&mut command);
     command
         .spawn()
-        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
+        .map_err(|e| format!("failed to start desktop backend: {e}"))
 }
 
 fn ensure_desktop_backend_started(
@@ -661,23 +720,35 @@ fn ensure_desktop_backend_started_locked(
     Ok(())
 }
 
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// Mirrors `resolveMcpSettingsPath()` in `@cline/shared/storage` (the resolver
+/// the sidecar and the hub runtime use): explicit path override, then the data
+/// dir override, then the cline dir override, then `~/.cline/data`. Keeping the
+/// same precedence here means the "Open MCP settings" window action opens the
+/// exact file the runtime reads (cline/cline#14152).
 fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
-    if let Ok(value) = std::env::var("CLINE_MCP_SETTINGS_PATH") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
+    if let Some(explicit) = non_empty_env("CLINE_MCP_SETTINGS_PATH") {
+        return Ok(PathBuf::from(explicit));
     }
-    // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
-    // homedir() resolves there); HOME is usually unset on Windows.
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join(".cline")
-        .join("data")
-        .join("settings")
-        .join("cline_mcp_settings.json"))
+    let data_dir = if let Some(data_dir) = non_empty_env("CLINE_DATA_DIR") {
+        PathBuf::from(data_dir)
+    } else if let Some(cline_dir) = non_empty_env("CLINE_DIR") {
+        PathBuf::from(cline_dir).join("data")
+    } else {
+        // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
+        // homedir() resolves there); HOME is usually unset on Windows.
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
+        PathBuf::from(home).join(".cline").join("data")
+    };
+    Ok(data_dir.join("settings").join("cline_mcp_settings.json"))
 }
 
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
@@ -724,32 +795,42 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
     Err("opening files is not supported on this platform".to_string())
 }
 
-#[tauri::command]
-async fn get_desktop_backend_endpoint(
-    backend_state: State<'_, Arc<DesktopBackendState>>,
-    context: State<'_, AppContext>,
-) -> Result<String, String> {
-    let backend_state = backend_state.inner().clone();
-    let context = context.inner().clone();
-    let state_for_start = backend_state.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        ensure_desktop_backend_started(&state_for_start, &context)
-    })
-    .await
-    .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
+/// How long one `get_desktop_backend_endpoint` call waits for the sidecar's
+/// ready line. Sidecar startup includes login-shell PATH resolution (bounded
+/// at ~7.5s worst case, see sdk/packages/core/src/remote/shell-path.ts) plus session-manager init,
+/// and a first spawn that dies (e.g. no compatible hub runtime yet, see
+/// cline/cline#14129) is respawned inside the wait — the window must cover a
+/// failed first start plus a full second startup. The wait returns as soon as
+/// the ready line arrives, so only failure waits long, and the webview keeps
+/// re-requesting the endpoint after a failure anyway.
+const ENDPOINT_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+const ENDPOINT_WAIT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+/// Minimum spacing between respawn attempts inside one endpoint wait, so a
+/// crash-looping sidecar is not relaunched on every poll tick.
+const ENDPOINT_RESPAWN_BACKOFF: Duration = Duration::from_secs(2);
 
-    // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
-    // see sidecar/shell-path.ts) plus session-manager init, whose duration
-    // varies by machine. Poll well past that combined worst case; the loop
-    // returns as soon as the ready line arrives, so only failure waits long.
-    // While pending this only waits — respawning is ensure's job, and it
-    // refuses to start a second sidecar while the first one is still alive.
-    // A child that dies mid-poll makes this return an error rather than
-    // respawn: the next ensure call — the health-check loop within 5 seconds,
-    // or this command when the webview reconnects — replaces the dead child.
-    // Async sleeps keep Tauri's window event loop responsive while pending.
-    for _ in 0..150 {
-        if let Some(endpoint) = backend_state
+/// Wait until the tracked sidecar publishes its WebSocket endpoint.
+///
+/// A live child owns startup — this only waits on it. A child that dies
+/// before publishing is respawned here (paced by `respawn_backoff`) instead
+/// of failing the wait: recovery used to be left to the 5s health-check loop
+/// plus a webview retry, which made the first sign-in fail whenever the
+/// sidecar's first spawn lost a startup race (cline/cline#14201, #14129).
+/// Runs on the blocking pool; `respawn` may take the process lock and spawn.
+fn wait_for_desktop_backend_endpoint(
+    state: &Arc<DesktopBackendState>,
+    total_wait: Duration,
+    poll_interval: Duration,
+    respawn_backoff: Duration,
+    mut respawn: impl FnMut() -> Result<(), String>,
+) -> Result<String, String> {
+    let deadline = Instant::now() + total_wait;
+    let mut last_respawn: Option<Instant> = None;
+    loop {
+        if state.is_shutting_down() {
+            return Err("desktop backend is shutting down".to_string());
+        }
+        if let Some(endpoint) = state
             .ws_endpoint
             .lock()
             .ok()
@@ -758,7 +839,7 @@ async fn get_desktop_backend_endpoint(
         {
             return Ok(endpoint);
         }
-        let child_exited = backend_state
+        let child_exited = state
             .process
             .lock()
             .ok()
@@ -767,26 +848,91 @@ async fn get_desktop_backend_endpoint(
                 None => true,
             })
             .unwrap_or(false);
-        if child_exited {
-            return Err("desktop backend exited before publishing its endpoint".to_string());
+        if child_exited
+            && last_respawn
+                .map(|at| at.elapsed() >= respawn_backoff)
+                .unwrap_or(true)
+        {
+            last_respawn = Some(Instant::now());
+            // A spawn error (bundled CLI or backend missing) is permanent for this
+            // wait; report it instead of burning the rest of the window.
+            respawn()?;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        if Instant::now() >= deadline {
+            return Err("desktop backend endpoint not ready".to_string());
+        }
+        thread::sleep(poll_interval);
     }
-    Err("desktop backend endpoint not ready".to_string())
 }
 
 #[tauri::command]
-fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
-    let mut dialog = rfd::FileDialog::new();
-    if let Some(path) = initial_path
+async fn get_desktop_backend_endpoint(
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+    context: State<'_, AppContext>,
+) -> Result<String, String> {
+    let backend_state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    // The whole wait runs on the blocking pool: it sleeps, takes the process
+    // lock, and may spawn a replacement sidecar, and Tauri's async runtime
+    // (window events, other commands) must stay responsive meanwhile.
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&backend_state, &context)?;
+        wait_for_desktop_backend_endpoint(
+            &backend_state,
+            ENDPOINT_WAIT_TIMEOUT,
+            ENDPOINT_WAIT_POLL_INTERVAL,
+            ENDPOINT_RESPAWN_BACKOFF,
+            || ensure_desktop_backend_started(&backend_state, &context),
+        )
+    })
+    .await
+    .map_err(|error| format!("desktop backend startup task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn pick_workspace_directory(
+    app: tauri::AppHandle,
+    initial_path: Option<String>,
+) -> Option<String> {
+    let initial_path = initial_path
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
-        dialog = dialog.set_directory(path);
-    }
-    dialog
-        .pick_folder()
-        .map(|path| path.to_string_lossy().to_string())
+        .filter(|value| !value.is_empty());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    // Same shape as tauri-plugin-dialog: the dialog is created on the main
+    // thread (native dialogs must be) and this async command awaits the
+    // result off it.
+    let _ = app.run_on_main_thread(move || {
+        // GTK: rfd drives the dialog through the GLib main loop that Tauri
+        // already owns, so it must be created here and awaited on another
+        // thread; a blocking pick_folder() on the main thread deadlocks.
+        #[cfg(target_os = "linux")]
+        {
+            let mut dialog = rfd::AsyncFileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let picked = dialog.pick_folder();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_string_lossy().to_string()));
+            });
+        }
+        // macOS and Windows: the blocking dialog runs its own nested event
+        // loop on the main thread, as before.
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let _ = tx.send(
+                dialog
+                    .pick_folder()
+                    .map(|path| path.to_string_lossy().to_string()),
+            );
+        }
+    });
+    rx.await.ok().flatten()
 }
 
 #[tauri::command]
@@ -804,14 +950,17 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     let update_state = app.state::<Arc<UpdateState>>();
     // Neither restart() nor install() returns, so the run-loop Exit handler
     // does not get a chance to stop the sidecar; shut it down explicitly
-    // first. On Windows this also releases the sidecar exe's file lock,
+    // first. On Windows this also releases the bundled CLI's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
-    // Windows: install the bytes staged by the background cycle. install()
-    // launches the NSIS installer (which relaunches the app when done) and
-    // exits this process, so it only returns on failure — fall through to a
-    // plain restart of the current version in that case.
-    #[cfg(windows)]
+    // Windows and Linux: install the bytes staged by the background cycle.
+    // On Windows install() launches the NSIS installer (which relaunches the
+    // app when done) and exits this process, so it only returns on failure.
+    // On Linux it installs the deb/rpm through pkexec and returns, and the
+    // restart below launches the new version. Either way a failure (or a
+    // dismissed password prompt) falls through to a plain restart of the
+    // current version.
+    #[cfg(not(target_os = "macos"))]
     if let Some((update, bytes)) = update_state
         .pending_install
         .lock()
@@ -819,10 +968,10 @@ fn apply_staged_update(app: &tauri::AppHandle) {
         .and_then(|mut pending| pending.take())
     {
         if let Err(error) = update.install(bytes) {
-            eprintln!("[updater] failed to launch the update installer: {error}");
+            eprintln!("[updater] failed to install the update: {error}");
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     let _ = update_state;
     app.restart();
 }
@@ -836,6 +985,26 @@ fn apply_staged_update(app: &tauri::AppHandle) {
 fn relaunch_app(app: tauri::AppHandle, backend_state: State<'_, Arc<DesktopBackendState>>) {
     backend_state.stop();
     app.restart();
+}
+
+/// The native Cmd+Q accelerator quits instantly, so the webview releases it
+/// while a hold-to-quit keybinding is active and handles the key itself.
+#[tauri::command]
+fn set_quit_shortcut_native(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        app.run_on_main_thread(move || {
+            if let Err(error) = set_macos_quit_key_equivalent(enabled) {
+                eprintln!("[menu] failed updating the Quit shortcut: {error}");
+            }
+        })
+        .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, enabled);
+        Ok(())
+    }
 }
 
 /// Quit the app. Used by the "Cline Hub update required" flow when the user
@@ -918,17 +1087,14 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             use objc2_foundation::NSString;
 
             let result: Result<(), String> = (|| {
-                let mtm = MainThreadMarker::new().ok_or_else(|| {
-                    "app icon update did not run on the main thread".to_string()
-                })?;
+                let mtm = MainThreadMarker::new()
+                    .ok_or_else(|| "app icon update did not run on the main thread".to_string())?;
                 let ns_app = NSApplication::sharedApplication(mtm);
                 let image = NSImage::initWithContentsOfFile(
                     NSImage::alloc(),
                     &NSString::from_str(&icon_path.to_string_lossy()),
                 )
-                .ok_or_else(|| {
-                    format!("failed loading app icon image: {}", icon_path.display())
-                })?;
+                .ok_or_else(|| format!("failed loading app icon image: {}", icon_path.display()))?;
                 // SAFETY: called on the main thread with a valid, non-nil image.
                 unsafe { ns_app.setApplicationIconImage(Some(&image)) };
                 Ok(())
@@ -989,6 +1155,57 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+/// The inner size a too-large window should shrink to, or `None` when it
+/// already fits. All values are logical pixels; `chrome` is the size the OS
+/// decorations add around the webview (outer minus inner).
+fn clamped_inner_window_size(
+    inner: (f64, f64),
+    work_area: (f64, f64),
+    chrome: (f64, f64),
+) -> Option<(f64, f64)> {
+    let max_width = work_area.0 - chrome.0.max(0.0);
+    let max_height = work_area.1 - chrome.1.max(0.0);
+    if max_width <= 0.0 || max_height <= 0.0 {
+        // A zero or nonsense work area (headless monitor enumeration quirks)
+        // must never collapse the window.
+        return None;
+    }
+    let clamped = (inner.0.min(max_width), inner.1.min(max_height));
+    if clamped.0 < inner.0 || clamped.1 < inner.1 {
+        Some(clamped)
+    } else {
+        None
+    }
+}
+
+/// The configured window is 1500x980 logical pixels. On small or DPI-scaled
+/// displays — a 1920x1080 laptop at 150% has only a 1280x720 logical desktop —
+/// it opened larger than the screen, leaving the bottom and side of the UI
+/// (the settings and account controls among them) off-screen and unreachable
+/// (cline/cline#14270). Shrink an oversized window to the monitor's work area
+/// (which excludes the taskbar/dock) and re-center it.
+fn clamp_main_window_to_work_area(window: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let scale = monitor.scale_factor();
+    let work_area = monitor.work_area().size.to_logical::<f64>(scale);
+    let (Ok(outer), Ok(inner)) = (window.outer_size(), window.inner_size()) else {
+        return;
+    };
+    let outer = outer.to_logical::<f64>(scale);
+    let inner = inner.to_logical::<f64>(scale);
+    let Some((width, height)) = clamped_inner_window_size(
+        (inner.width, inner.height),
+        (work_area.width, work_area.height),
+        (outer.width - inner.width, outer.height - inner.height),
+    ) else {
+        return;
+    };
+    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    let _ = window.center();
 }
 
 /// Hide the main window instead of destroying it so the tray and Dock can
@@ -1104,6 +1321,8 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        KEYBINDINGS_MENU_ID => Some(DesktopAction::OpenKeybindings),
+        EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
         VIEW_ZOOM_RESET_MENU_ID => Some(DesktopAction::ZoomReset),
@@ -1124,6 +1343,15 @@ fn setup_application_menu(
     {
         app_menu.insert_items(&[check_for_updates], 1)?;
     }
+    // "Keybindings…" sits next to Settings… in the application menu.
+    if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.first() {
+        let keybindings =
+            MenuItem::with_id(app, KEYBINDINGS_MENU_ID, "Keybindings…", true, None::<&str>)?;
+        // The default macOS menu has no Settings item, so sit right below
+        // About (and "Check for Updates…" when present).
+        let position = if check_for_updates.is_some() { 2 } else { 1 };
+        app_menu.insert_items(&[&keybindings], position)?;
+    }
     let zoom_in = MenuItem::with_id(app, VIEW_ZOOM_IN_MENU_ID, "Zoom In", true, None::<&str>)?;
     let zoom_out = MenuItem::with_id(
         app,
@@ -1141,12 +1369,23 @@ fn setup_application_menu(
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
 
+    let export_diagnostics = MenuItem::with_id(
+        app,
+        EXPORT_DIAGNOSTICS_MENU_ID,
+        "Export Diagnostics…",
+        true,
+        None::<&str>,
+    )?;
+    let help_keybindings =
+        MenuItem::with_id(app, KEYBINDINGS_MENU_ID, "Keybindings…", true, None::<&str>)?;
+    let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
-            if submenu.text()? == "View" {
-                view_menu = Some(submenu);
-                break;
+            match submenu.text()?.as_str() {
+                "View" => view_menu = Some(submenu),
+                "Help" => help_menu = Some(submenu),
+                _ => {}
             }
         }
     }
@@ -1159,12 +1398,24 @@ fn setup_application_menu(
         menu.append(&view_menu)?;
     }
 
+    if let Some(help_menu) = help_menu {
+        help_menu.append(&help_keybindings)?;
+        help_menu.append(&export_diagnostics)?;
+    } else {
+        menu.append(&Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&help_keybindings, &export_diagnostics],
+        )?)?;
+    }
+
     app.set_menu(menu)?;
     set_macos_menu_key_equivalent("View", "Zoom In", "+")?;
     app.on_menu_event(|app, event| {
-        if event.id().as_ref() == CHECK_FOR_UPDATES_MENU_ID {
-            handle_check_for_updates_menu(app);
-        } else if let Some(action) = application_menu_action(event.id().as_ref()) {
+        // Both menu handlers are global listeners, so the tray handler receives
+        // application menu events too and handles Check for Updates once.
+        if let Some(action) = application_menu_action(event.id().as_ref()) {
             queue_desktop_action(app, action);
         }
     });
@@ -1206,6 +1457,35 @@ fn set_macos_menu_key_equivalent(
     item.setKeyEquivalent(&NSString::from_str(key_equivalent));
     item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn set_macos_quit_key_equivalent(enabled: bool) -> Result<(), String> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSEventModifierFlags};
+    use objc2_foundation::NSString;
+
+    let mtm = MainThreadMarker::new().ok_or("must run on the main thread")?;
+    let main_menu = NSApplication::sharedApplication(mtm)
+        .mainMenu()
+        .ok_or("main menu not found")?;
+    let app_menu = main_menu
+        .itemAtIndex(0)
+        .and_then(|item| item.submenu())
+        .ok_or("application menu not found")?;
+    // The Quit item is the one carrying (or, once released, formerly carrying)
+    // the terminate: action; match it by its title instead.
+    for index in 0..app_menu.numberOfItems() {
+        let Some(item) = app_menu.itemAtIndex(index) else {
+            continue;
+        };
+        if item.title().to_string().starts_with("Quit") {
+            item.setKeyEquivalent(&NSString::from_str(if enabled { "q" } else { "" }));
+            item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+            return Ok(());
+        }
+    }
+    Err("Quit menu item not found".to_string())
 }
 
 fn setup_tray_icon(
@@ -1304,7 +1584,7 @@ fn set_tray_status(
             app.package_info().name.as_str(),
             running_sessions,
         )))
-            .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
+        .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
         tray.set_title(tray_badge_text(running_sessions))
             .map_err(|error| format!("failed updating tray badge: {error}"))?;
     }
@@ -1312,24 +1592,38 @@ fn set_tray_status(
 }
 
 fn main() {
+    // Must stay first: WebKitGTK reads the environment while initializing,
+    // and the variable has to be in place before any thread exists.
+    #[cfg(target_os = "linux")]
+    linux_webview::configure_environment();
+
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
-    let app_context = AppContext {
-        launch_cwd,
-        workspace_root,
-    };
 
     tauri::Builder::default()
+        // Closing the window only hides it, so on Windows a second launch from
+        // Start used to start another full copy (tray icon, sidecar) instead
+        // of showing this one. Must be the first plugin so the duplicate exits
+        // before setup creates the tray icon or spawns the sidecar. Keyed on
+        // the bundle identifier, so Cline and Cline Beta still run side by side.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .manage(terminal::TerminalState::default())
+        .setup(move |app| {
+            app.manage(AppContext {
+                launch_cwd: launch_cwd.clone(),
+                workspace_root: workspace_root.clone(),
+                resource_dir: app.path().resource_dir()?,
+            });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),
@@ -1337,6 +1631,9 @@ fn main() {
                 ) {
                     window.set_title(product_name)?;
                 }
+            }
+            if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                clamp_main_window_to_work_area(&window);
             }
             #[cfg(target_os = "macos")]
             if let Err(error) = macos_notification::configure(app.handle()) {
@@ -1392,6 +1689,15 @@ fn main() {
             if window.label() == MAIN_WINDOW_LABEL {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
+                    // Without a tray (Linux with no StatusNotifier host, e.g.
+                    // stock GNOME) nothing could bring a hidden window back or
+                    // quit the app, so close quits instead, through the same
+                    // exit path as the tray's Quit item.
+                    #[cfg(target_os = "linux")]
+                    if !linux_tray::status_notifier_host_registered() {
+                        window.app_handle().exit(0);
+                        return;
+                    }
                     hide_main_window(window);
                 }
             }
@@ -1408,7 +1714,14 @@ fn main() {
             drain_desktop_actions,
             set_tray_status,
             relaunch_app,
-            quit_app
+            quit_app,
+            set_quit_shortcut_native,
+            terminal::terminal_spawn,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_kill,
+            terminal::terminal_kill_all,
+            terminal::terminal_windows_build
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1419,6 +1732,7 @@ fn main() {
                 ..
             } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+                app_handle.state::<terminal::TerminalState>().kill_all();
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
@@ -1441,6 +1755,61 @@ mod tests {
 
         let entitlements = include_str!("../entitlements.plist");
         assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+    }
+
+    #[test]
+    fn backend_bundle_uses_only_the_running_apps_resource_directory() {
+        let relative = Path::new("bin").join("desktop-backend").join("index.js");
+        for resource_dir in [
+            Path::new("/Applications/Cline.app/Contents/Resources"),
+            Path::new("C:/Program Files/Cline"),
+            Path::new("/usr/lib/Cline"),
+            Path::new("/usr/lib/Cline Beta"),
+            Path::new("/usr/lib/Cline Nightly"),
+        ] {
+            assert_eq!(
+                desktop_backend_bundle_candidates(resource_dir),
+                vec![resource_dir.join(&relative)]
+            );
+        }
+    }
+
+    #[test]
+    fn oversized_window_is_clamped_to_the_work_area() {
+        // 1920x1080 at 150% scaling: 1280x720 logical work area (minus a
+        // 40px-tall taskbar already excluded from the work area) cannot hold
+        // the configured 1500x980 window (cline/cline#14270).
+        let clamped = clamped_inner_window_size(
+            (1500.0, 980.0),
+            (1280.0, 693.0),
+            (16.0, 39.0), // typical Windows decorated-frame chrome
+        );
+        assert_eq!(clamped, Some((1264.0, 654.0)));
+    }
+
+    #[test]
+    fn window_that_fits_is_left_alone() {
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (2560.0, 1400.0), (16.0, 39.0)),
+            None
+        );
+        // Exactly filling the available space needs no resize either.
+        assert_eq!(
+            clamped_inner_window_size((1264.0, 654.0), (1280.0, 693.0), (16.0, 39.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn nonsense_work_area_never_collapses_the_window() {
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (0.0, 0.0), (16.0, 39.0)),
+            None
+        );
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (10.0, 30.0), (16.0, 39.0)),
+            None
+        );
     }
 
     #[test]
@@ -1492,7 +1861,7 @@ mod tests {
     }
 
     #[test]
-    fn application_menu_ids_map_to_zoom_actions() {
+    fn application_menu_ids_map_to_desktop_actions() {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_IN_MENU_ID),
             Some(DesktopAction::ZoomIn)
@@ -1504,6 +1873,22 @@ mod tests {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
             Some(DesktopAction::ZoomReset)
+        );
+        assert_eq!(
+            application_menu_action(EXPORT_DIAGNOSTICS_MENU_ID),
+            Some(DesktopAction::ExportDiagnostics)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
+            serde_json::json!({ "type": "export-diagnostics" })
+        );
+        assert_eq!(
+            application_menu_action(KEYBINDINGS_MENU_ID),
+            Some(DesktopAction::OpenKeybindings)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::OpenKeybindings).unwrap(),
+            serde_json::json!({ "type": "open-keybindings" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }
@@ -1676,6 +2061,207 @@ mod tests {
         .expect("shutdown should make startup a no-op");
 
         assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
+    }
+
+    /// A stand-in sidecar that publishes a ready line like the real one and
+    /// then stays alive.
+    fn spawn_ready_sidecar(endpoint: &str) -> Result<Child, String> {
+        Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "printf '%s\\n' '{{\"type\":\"ready\",\"wsEndpoint\":\"{endpoint}\"}}'; sleep 30"
+            ))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    /// A stand-in sidecar that exits immediately without publishing —
+    /// the "first spawn lost a startup race" failure from issue #14129.
+    fn spawn_exiting_sidecar() -> Result<Child, String> {
+        Command::new("true")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    fn wait_until_tracked_child_exits(state: &Arc<DesktopBackendState>) {
+        for _ in 0..200 {
+            let exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if exited {
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        panic!("tracked child did not exit in time");
+    }
+
+    #[test]
+    fn endpoint_wait_returns_the_endpoint_published_by_a_live_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, || {
+            spawn_ready_sidecar("ws://127.0.0.1:3126/transport?approval_token=t")
+        })
+        .expect("startup should succeed");
+
+        let endpoint = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("a live child must not be respawned"),
+        )
+        .expect("endpoint should become ready");
+        assert_eq!(endpoint, "ws://127.0.0.1:3126/transport?approval_token=t");
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    /// The launch race from issues #14201/#14129: the first sidecar exits
+    /// before publishing its endpoint. The wait must respawn it and keep
+    /// waiting for the replacement's ready line instead of failing the
+    /// webview's endpoint request.
+    #[test]
+    fn endpoint_wait_respawns_a_dead_child_and_returns_its_successor_endpoint() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let respawn_count = AtomicUsize::new(0);
+        let endpoint = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+            || {
+                respawn_count.fetch_add(1, Ordering::SeqCst);
+                ensure_desktop_backend_started_with(&state, || {
+                    spawn_ready_sidecar("ws://127.0.0.1:3126/transport?approval_token=respawned")
+                })
+            },
+        )
+        .expect("endpoint should become ready after the respawn");
+        assert_eq!(
+            endpoint,
+            "ws://127.0.0.1:3126/transport?approval_token=respawned"
+        );
+        assert!(respawn_count.load(Ordering::SeqCst) >= 1);
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_paces_respawns_of_a_crash_looping_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let respawn_count = AtomicUsize::new(0);
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_millis(400),
+            Duration::from_millis(10),
+            Duration::from_millis(150),
+            || {
+                respawn_count.fetch_add(1, Ordering::SeqCst);
+                ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            },
+        );
+        assert_eq!(
+            result,
+            Err("desktop backend endpoint not ready".to_string())
+        );
+        // 400ms window with a 150ms backoff allows the initial respawn plus
+        // at most a few paced ones — not one per 10ms poll tick.
+        let respawns = respawn_count.load(Ordering::SeqCst);
+        assert!(
+            (1..=4).contains(&respawns),
+            "expected paced respawns, got {respawns}"
+        );
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_times_out_while_the_child_stays_pending() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_pending_sidecar)
+            .expect("startup should succeed");
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("a live child must not be respawned"),
+        );
+        assert_eq!(
+            result,
+            Err("desktop backend endpoint not ready".to_string())
+        );
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_stops_when_shutdown_begins() {
+        let state = Arc::new(DesktopBackendState::default());
+        state.shutting_down.store(true, AtomicOrdering::Release);
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("shutdown must not respawn"),
+        );
+        assert_eq!(result, Err("desktop backend is shutting down".to_string()));
+    }
+
+    #[test]
+    fn endpoint_wait_surfaces_a_permanent_respawn_failure() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+            || Err("desktop backend sidecar not found".to_string()),
+        );
+        assert_eq!(result, Err("desktop backend sidecar not found".to_string()));
+        state.stop();
     }
 
     #[test]

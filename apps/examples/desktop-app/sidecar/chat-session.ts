@@ -6,10 +6,13 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
+	formatSessionPluginIssue,
 	getCoreBuiltinToolCatalog,
+	isSessionNotFoundError,
 	isSkillsToolAvailable,
 	ProviderSettingsManager,
 	projectSessionCompactionState,
@@ -22,15 +25,20 @@ import {
 	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	summarizeConversation,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { MessageWithMetadata } from "@cline/llms";
+import {
+	getGeneratedModelsForRuntimeProvider,
+	type MessageWithMetadata,
+} from "@cline/llms";
 import {
 	buildClineSystemPrompt,
 	type ConsecutiveMistakeLimitContext,
 	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
+	type SessionPluginIssue,
 } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -39,6 +47,13 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
+import {
+	beginActiveSessionSend,
+	handleDiscardHandoff,
+	handleHandoff,
+	handlePrepareHandoff,
+	invalidateHandoffCaptureForWorkspace,
+} from "./cloud-handoff";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -55,6 +70,13 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { runPluginSlashCommand } from "./plugin-commands";
+import {
+	readReasoningEffort,
+	readWorkspacePath,
+	workspacePathKey,
+} from "./session-config";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -90,42 +112,98 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
 
-type WorkspacePathSource = {
-	cwd?: unknown;
-	workspaceRoot?: unknown;
-	workspace_root?: unknown;
-};
-
-function readWorkspacePath(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
-	if (cwd) return cwd;
-	const workspaceRoot =
-		typeof source?.workspaceRoot === "string"
-			? source.workspaceRoot.trim()
-			: "";
-	if (workspaceRoot) return workspaceRoot;
-	const snakeCaseWorkspaceRoot =
-		typeof source?.workspace_root === "string"
-			? source.workspace_root.trim()
-			: "";
-	return snakeCaseWorkspaceRoot || undefined;
-}
-
-function workspacePathKey(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
-}
-
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["compact", "fork", "team"]);
+
+const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
+const COMPACT_WHILE_RUNNING_MESSAGE =
+	"Cannot compact while a response is in progress. Try again once the current turn finishes.";
+
+/**
+ * Manual `/compact`, mirroring the CLI's local command: summarizes the full
+ * canonical transcript and stores it as the session's compaction sidecar, so
+ * the next turn and resumes use the compacted working context while the saved
+ * history stays intact. Returns the text shown to the user.
+ */
+async function compactSession(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+): Promise<string> {
+	if ((await manager.get(sessionId))?.status === "running") {
+		return COMPACT_WHILE_RUNNING_MESSAGE;
+	}
+	const messages = await manager.readMessages(sessionId);
+	const conversationMessages = messages.filter(
+		(message) => message.metadata?.displayOnly !== true,
+	);
+	if (conversationMessages.length === 0) {
+		return "No messages to compact.";
+	}
+	const {
+		providerId = "",
+		modelId = "",
+		apiKey,
+		baseUrl,
+		headers,
+		providerConfig,
+	} = buildSessionConnectionUpdate(await withRemoteProviderCredentials(config));
+	const compact = createContextCompactionPrepareTurn(
+		{
+			providerId,
+			modelId,
+			apiKey,
+			baseUrl,
+			headers,
+			providerConfig,
+			compaction: { enabled: true },
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+			sessionId,
+		},
+		{ mode: "manual" },
+	);
+	const result = await compact?.({
+		agentId: "cline-desktop",
+		conversationId: sessionId,
+		parentAgentId: null,
+		iteration: 0,
+		messages: conversationMessages,
+		apiMessages: conversationMessages,
+		abortSignal: new AbortController().signal,
+		systemPrompt: "",
+		tools: [],
+		model: {
+			id: modelId,
+			provider: providerId,
+			info: getGeneratedModelsForRuntimeProvider(providerId)[modelId] ?? {
+				id: modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			},
+		},
+	});
+	if (!result?.messages) {
+		return "No compaction needed.";
+	}
+	const { updated } = await manager.updateSessionCompactionState(
+		sessionId,
+		createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: result.messages,
+			conversationId: sessionId,
+			systemPrompt: result.systemPrompt,
+		}),
+	);
+	if (!updated) {
+		throw new Error("Compaction could not be saved. Try again.");
+	}
+	return `Compacted context from ${messages.length} to ${result.messages.length} messages.`;
+}
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -260,6 +338,7 @@ async function withWorkspaceRestoreLock<T>(
 
 	ctx.restoringWorkspacePaths.add(key);
 	try {
+		invalidateHandoffCaptureForWorkspace(ctx, key);
 		return await work();
 	} finally {
 		ctx.restoringWorkspacePaths.delete(key);
@@ -359,19 +438,6 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 		: undefined;
 }
 
-function derivePromptFromMessages(messages: unknown[]): string {
-	for (const msg of messages) {
-		if (!msg || typeof msg !== "object") continue;
-		const m = msg as JsonRecord;
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") {
-			const line = m.content.trim().split("\n")[0]?.trim();
-			if (line) return line.slice(0, 200);
-		}
-	}
-	return "";
-}
-
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -404,20 +470,6 @@ function isoTimestampToMs(
 	}
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readReasoningEffort(
-	value: unknown,
-): "low" | "medium" | "high" | "xhigh" | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh"
-	) {
-		return value;
-	}
-	return undefined;
 }
 
 function readPositiveInteger(value: unknown): number | undefined {
@@ -566,12 +618,8 @@ export function createDesktopMistakeRecovery(
 ) {
 	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
 	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	const waitForDecision = async () => {
-		const decision = await pendingDecision;
-		return decision?.action === "stop"
-			? { stop: true, reason: decision.reason }
-			: undefined;
-	};
+	// The SDK holds the run at its next model/tool boundary until this
+	// decision settles, so no per-step hooks are needed to pause it.
 	return {
 		onConsecutiveMistakeLimitReached: (
 			context: ConsecutiveMistakeLimitContext,
@@ -582,15 +630,6 @@ export function createDesktopMistakeRecovery(
 				});
 			}
 			return pendingDecision;
-		},
-		hooks: {
-			// The decision callback alone does not pause the SDK. These existing
-			// awaited hooks hold desktop runs at tool/model boundaries until the
-			// user answers. afterTool holds before the next iteration consumes
-			// the recovery guidance queued by the prompt's Continue action.
-			beforeModel: waitForDecision,
-			beforeTool: waitForDecision,
-			afterTool: waitForDecision,
 		},
 	};
 }
@@ -640,8 +679,10 @@ function buildCoreSessionConfig(
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
 		checkpoint: { enabled: true },
+		// Core auto-compaction is opt-in; without this the 90% trigger never
+		// runs and long desktop sessions overflow the context window.
+		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -990,7 +1031,14 @@ async function handleStart(
 			? config.initialMessages
 			: requestedSessionId
 				? binding.kind === "ssh"
-					? await manager.readMessages(requestedSessionId)
+					? await manager
+							.readMessages(requestedSessionId)
+							.catch((error: unknown) => {
+								// The desktop supplies an ID before a new remote session exists.
+								// Only this startup read may treat missing history as empty.
+								if (isSessionNotFoundError(error)) return undefined;
+								throw error;
+							})
 					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
@@ -1002,7 +1050,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -1061,7 +1108,22 @@ async function handleStart(
 		cwd,
 		workspaceRoot,
 		environmentId: binding.environmentId,
+		...pluginWarningsOf(startResult.pluginIssues),
 	};
+}
+
+/**
+ * Plugins the session asked for but could not load, as display lines.
+ * Failures that happen later (setup and hooks run on the first turn) arrive
+ * as notices on the session stream instead.
+ */
+function pluginWarningsOf(
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): { pluginWarnings?: string[] } {
+	const pluginWarnings = (issues ?? [])
+		.filter((issue) => issue.state === "failed")
+		.map(formatSessionPluginIssue);
+	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
 }
 
 async function handleAttach(
@@ -1281,6 +1343,241 @@ async function rebuildSessionForProviderChange(
 	}
 }
 
+const HUB_RECONNECT_WINDOW_MS = 60_000;
+const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
+const HUB_INTERRUPTED_TEXT =
+	"Interrupted: Cline Hub restarted. Send your message again to continue.";
+
+// Reconnect loops in flight, so stop/abort/reset can end them before they
+// rebuild a session the user has since walked away from.
+const hubReconnects = new Map<
+	string,
+	{
+		session: LiveSession;
+		controller: AbortController;
+		completion: Promise<HubReconnectOutcome>;
+		outcome: Promise<HubReconnectOutcome>;
+	}
+>();
+
+function cancelHubReconnect(sessionId: string): void {
+	hubReconnects.get(sessionId)?.controller.abort();
+}
+
+// Only run.start replies carry the session_not_found code; other hub commands
+// wrap the runtime's SessionNotFoundError as a generic command failure.
+function isMissingSessionError(error: unknown): boolean {
+	return (
+		isSessionNotFoundError(error) ||
+		(error instanceof Error && error.message.startsWith("session not found"))
+	);
+}
+
+// A killed hub surfaces as a transport close, or as "session not found" when
+// the client's automatic retry lands on a replacement hub that never had it.
+function isHubLossError(error: unknown): boolean {
+	return (
+		isMissingSessionError(error) ||
+		(error instanceof Error && error.name === "HubTransportError")
+	);
+}
+
+function emitHubReconnectActivity(
+	ctx: SidecarContext,
+	sessionId: string,
+	phase: "started" | "finished",
+	message: string,
+): void {
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_core_log",
+		JSON.stringify({
+			level: "info",
+			message,
+			metadata: { hubReconnect: phase },
+		}),
+	);
+}
+
+function waitForRetry(ms: number, signal: AbortSignal): Promise<void> {
+	if (signal.aborted) return Promise.resolve();
+	return new Promise((resolve) => {
+		const timer = setTimeout(done, ms);
+		function done() {
+			clearTimeout(timer);
+			signal.removeEventListener("abort", done);
+			resolve();
+		}
+		signal.addEventListener("abort", done, { once: true });
+	});
+}
+
+type HubReconnectOutcome = "rebuilt" | "survived" | "failed";
+
+/**
+ * Waits up to a minute for the hub to answer again after a hub-loss error.
+ * A session the hub still runs is left alone ("survived"); only one the hub
+ * reports missing is re-created from its persisted history ("rebuilt").
+ * Stop, abort, or reset during the wait ends it with "failed".
+ */
+async function reconnectSessionAfterHubLoss(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	session: LiveSession | undefined,
+): Promise<HubReconnectOutcome> {
+	if (!session) return "failed";
+	const existing = hubReconnects.get(sessionId);
+	if (existing?.session === session && !existing.controller.signal.aborted) {
+		return existing.outcome;
+	}
+	const controller = new AbortController();
+	const deadline = Date.now() + HUB_RECONNECT_WINDOW_MS;
+	// Keep the underlying completion as the serialization barrier, even when
+	// cancellation/deadline returns to the caller before a Hub startup settles.
+	existing?.controller.abort();
+	emitHubReconnectActivity(
+		ctx,
+		sessionId,
+		"started",
+		"Cline Hub connection lost; reconnecting",
+	);
+	const completion = Promise.resolve(existing?.completion)
+		.catch(() => undefined)
+		.then(() =>
+			recoverSessionAfterHubLoss(
+				ctx,
+				manager,
+				sessionId,
+				session,
+				controller.signal,
+				deadline,
+			),
+		)
+		.finally(() => {
+			if (hubReconnects.get(sessionId)?.controller === controller) {
+				hubReconnects.delete(sessionId);
+			}
+		});
+	const outcome = waitForHubRecovery(completion, controller, deadline).then(
+		(result) => {
+			const current = hubReconnects.get(sessionId);
+			if (!current || current.controller === controller)
+				emitHubReconnectActivity(
+					ctx,
+					sessionId,
+					"finished",
+					result === "failed"
+						? "Cline Hub reconnect gave up"
+						: "Cline Hub reconnected",
+				);
+			return result;
+		},
+	);
+	hubReconnects.set(sessionId, { session, controller, completion, outcome });
+	return outcome;
+}
+
+function waitForHubRecovery(
+	completion: Promise<HubReconnectOutcome>,
+	controller: AbortController,
+	deadline: number,
+): Promise<HubReconnectOutcome> {
+	return new Promise((resolve) => {
+		const finish = (result: HubReconnectOutcome) => {
+			clearTimeout(timer);
+			controller.signal.removeEventListener("abort", cancelled);
+			resolve(result);
+		};
+		const cancelled = () => finish("failed");
+		const timer = setTimeout(
+			() => controller.abort(),
+			Math.max(0, deadline - Date.now()),
+		);
+		controller.signal.addEventListener("abort", cancelled, { once: true });
+		completion.then(finish, () => finish("failed"));
+		if (controller.signal.aborted) cancelled();
+	});
+}
+
+async function recoverSessionAfterHubLoss(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	session: LiveSession,
+	signal: AbortSignal,
+	deadline: number,
+): Promise<HubReconnectOutcome> {
+	const stillWanted = () =>
+		!signal.aborted &&
+		Date.now() < deadline &&
+		ctx.liveSessions.get(sessionId) === session;
+	let delay = 1_000;
+	let lastError: unknown;
+	let outcome: HubReconnectOutcome = "failed";
+	while (Date.now() < deadline && stillWanted()) {
+		try {
+			// The same connection refresh a send performs. It only succeeds
+			// against a hub that holds the session live, so it tells a
+			// surviving session apart from one lost with its hub.
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(session.config),
+			);
+			if (stillWanted()) outcome = "survived";
+			break;
+		} catch (error) {
+			lastError = error;
+			if (!stillWanted()) break;
+			if (isMissingSessionError(error)) {
+				try {
+					const systemPrompt = await resolveSystemPrompt(session.config);
+					if (!stillWanted()) break;
+					const compactionState = await manager
+						.readSessionCompactionState(sessionId)
+						.catch(() => undefined);
+					if (!stillWanted()) break;
+					await startRebuiltSession(
+						manager,
+						ctx,
+						sessionId,
+						session.config,
+						systemPrompt,
+						readPersistedChatMessages(sessionId) ?? session.messages ?? [],
+						compactionState,
+					);
+					if (!stillWanted()) {
+						// Undo a cancelled rebuild only while the projection still
+						// belongs to it, or reset removed it. A newly attached
+						// projection owns the session now and must be left alone.
+						const current = ctx.liveSessions.get(sessionId);
+						if (signal.aborted && (!current || current === session)) {
+							await manager.stop(sessionId).catch(() => undefined);
+						}
+						break;
+					}
+					outcome = "rebuilt";
+					break;
+				} catch (rebuildError) {
+					lastError = rebuildError;
+				}
+			}
+		}
+		await waitForRetry(
+			Math.min(delay, Math.max(0, deadline - Date.now())),
+			signal,
+		);
+		delay = Math.min(delay * 2, HUB_RECONNECT_MAX_DELAY_MS);
+	}
+	ctx.logger?.log("Desktop session hub reconnect finished", {
+		sessionId,
+		outcome,
+		...(outcome === "failed" ? { error: lastError } : {}),
+	});
+	return outcome;
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1294,6 +1591,20 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
+	try {
+		return await handleSendOnce(ctx, request, sessionId, prompt);
+	} finally {
+		finishActiveSend();
+	}
+}
+
+async function handleSendOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+): Promise<unknown> {
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1313,18 +1624,69 @@ async function handleSend(
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
+	const workspacePath =
+		readWorkspacePath(session?.config ?? request.config) ??
+		ctx.localWorkspaceRoot;
+	// Plugin slash commands execute in the session runtime.
+	// The handler's reply goes to the webview as a toast and
+	// only its `submitPrompt` (if any) reaches the model.
+	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (commandName === "compact") {
+		let text: string;
+		try {
+			text = session?.busy
+				? COMPACT_WHILE_RUNNING_MESSAGE
+				: await compactSession(
+						ctx,
+						manager,
+						sessionId,
+						request.config
+							? mergeSessionConfig(session?.config ?? {}, request.config)
+							: (session?.config ?? {}),
+					);
+		} catch (error) {
+			text = `Compaction failed: ${error instanceof Error ? error.message : String(error)}`;
+		}
+		sendEvent(ctx, "chat_command_output", {
+			sessionId,
+			command: commandName,
+			text,
+		});
+		return { sessionId, ok: true, commandHandled: true };
+	}
+	const pluginCommand =
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand(ctx, {
+					workspacePath,
+					prompt,
+					sessionId,
+					environmentId: binding.environmentId,
+				})
+			: undefined;
+	if (pluginCommand) {
+		if (pluginCommand.reply) {
+			sendEvent(ctx, "chat_command_output", {
+				sessionId,
+				command: commandName,
+				text: pluginCommand.reply,
+			});
+		}
+		if (!pluginCommand.submitPrompt) {
+			return { sessionId, ok: true, commandHandled: true };
+		}
+	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		binding.kind === "ssh"
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
 			? prompt
 			: await resolveDesktopRuntimePrompt(
 					ctx,
-					readWorkspacePath(session?.config ?? request.config) ??
-						ctx.localWorkspaceRoot,
+					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				);
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -1369,14 +1731,30 @@ async function handleSend(
 				session.attachedViaHub ||
 				shouldUpdateSessionConnection(session.config, nextConfig)
 			) {
-				await manager.updateSessionConnection(
-					sessionId,
-					buildSessionConnectionUpdate(
-						binding.kind === "ssh"
-							? await withRemoteProviderCredentials(nextConfig)
-							: nextConfig,
-					),
+				const connectionUpdate = buildSessionConnectionUpdate(
+					binding.kind === "ssh"
+						? await withRemoteProviderCredentials(nextConfig)
+						: nextConfig,
 				);
+				try {
+					await manager.updateSessionConnection(sessionId, connectionUpdate);
+				} catch (error) {
+					if (
+						binding.kind === "ssh" ||
+						!isHubLossError(error) ||
+						(await reconnectSessionAfterHubLoss(
+							ctx,
+							manager,
+							sessionId,
+							session,
+						)) === "failed"
+					) {
+						throw error;
+					}
+					// No prompt was dispatched yet; refresh the recovered session
+					// and continue with this send and its requested configuration.
+					await manager.updateSessionConnection(sessionId, connectionUpdate);
+				}
 			}
 			if (session) {
 				session.config = nextConfig;
@@ -1408,13 +1786,33 @@ async function handleSend(
 			if (session) {
 				session.prompt = prompt;
 			}
-			await manager.send({
-				sessionId,
-				prompt: runtimePrompt,
-				delivery: "queue",
-				userImages: request.attachments?.userImages,
-				userFiles,
-			});
+			const queuePrompt = () =>
+				manager.send({
+					sessionId,
+					prompt: runtimePrompt,
+					delivery: "queue",
+					userImages: request.attachments?.userImages,
+					userFiles,
+				});
+			try {
+				await queuePrompt();
+			} catch (error) {
+				// A surviving hub may have accepted the prompt before its reply
+				// was lost. Only a rebuilt session is safe to enqueue into again.
+				if (
+					binding.kind === "ssh" ||
+					!isHubLossError(error) ||
+					(await reconnectSessionAfterHubLoss(
+						ctx,
+						manager,
+						sessionId,
+						session,
+					)) !== "rebuilt"
+				) {
+					throw error;
+				}
+				await queuePrompt();
+			}
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
 			return {
@@ -1457,7 +1855,30 @@ async function handleSend(
 			});
 		} catch (error) {
 			deleteMaterializedAttachments(sessionId, userFiles);
-			throw error;
+			if (
+				binding.kind === "ssh" ||
+				!isHubLossError(error) ||
+				(await reconnectSessionAfterHubLoss(
+					ctx,
+					manager,
+					sessionId,
+					session,
+				)) !== "rebuilt"
+			) {
+				throw error;
+			}
+			// The hub died mid-turn and the session is back on a fresh hub. End
+			// the turn as interrupted rather than failed; the user re-sends.
+			if (session && ownsBusyState) session.status = "idle";
+			return {
+				sessionId,
+				ok: true,
+				result: {
+					finishReason: "aborted",
+					text: HUB_INTERRUPTED_TEXT,
+					hubInterrupted: true,
+				},
+			};
 		}
 		if (result === undefined) {
 			// The runtime queued or steered the prompt instead of running it
@@ -1536,6 +1957,7 @@ async function handleStop(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelHubReconnect(sessionId);
 	cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
 	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
@@ -1552,6 +1974,7 @@ async function handleAbort(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelHubReconnect(sessionId);
 	cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
 	await getSessionManager(ctx, sessionId, request.config).abort(
 		sessionId,
@@ -1821,6 +2244,7 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
+		cancelHubReconnect(sessionId);
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
@@ -2204,20 +2628,50 @@ export async function handleChatSessionCommand(
 		}
 	}
 	const handler = ACTION_HANDLERS[request.action];
-	if (!handler) throw new Error("unsupported action");
+	if (!handler && request.action !== "handoff")
+		throw new Error("unsupported action");
 	const explicitEnvironment = readEnvironmentId(request.config);
 	const binding =
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	ctx = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (request.action === "handoff") {
+		if (getSessionRuntimeBinding(ctx).kind !== "local")
+			throw new Error("Cloud handoff is only supported for local sessions.");
+		switch (request.operation) {
+			case "prepare":
+				return handlePrepareHandoff(ctx, request, async (messages, config) => {
+					const connection = buildSessionConnectionUpdate(
+						await withRemoteProviderCredentials(config),
+					);
+					if (!connection.providerId || !connection.modelId)
+						throw new Error(
+							"Select a local model before preparing a cloud summary.",
+						);
+					return summarizeConversation({
+						messages,
+						signal: AbortSignal.timeout(120_000),
+						config: {
+							...connection,
+							providerId: connection.providerId,
+							modelId: connection.modelId,
+						},
+					});
+				});
+			case "discard":
+				return handleDiscardHandoff(ctx, request);
+			case "launch":
+				return handleHandoff(ctx, request);
+			default:
+				throw new Error("unsupported handoff operation");
+		}
+	}
+	return handler(ctx, request);
 }

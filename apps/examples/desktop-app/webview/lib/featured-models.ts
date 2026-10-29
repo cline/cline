@@ -81,7 +81,7 @@ export function buildModelPickerData(
 			"recommended",
 			(model) => model.featured?.tags[0],
 		);
-		const free = tierOptions(models, "free", "free", () => "Free");
+		const free = tierOptions(models, "free", "free");
 		if (recommended.length === 0 && free.length === 0) {
 			return { options: flatOptions(models) };
 		}
@@ -109,7 +109,7 @@ export function buildModelPickerData(
 
 	if (providerId === "cline-pass") {
 		const subscribed = tierOptions(models, "subscribed", "subscribed");
-		const free = tierOptions(models, "free", "free", () => "Free");
+		const free = tierOptions(models, "free", "free");
 		if (subscribed.length === 0) {
 			// ClinePass catalogs contain subscription routes under cline-pass/
 			// plus the free feed overlay (cline-free/ or upstream IDs). Keep those
@@ -123,7 +123,7 @@ export function buildModelPickerData(
 			free.push(
 				...flatOptions(
 					fallback.filter((model) => !model.id.startsWith("cline-pass/")),
-				).map((option) => ({ ...option, section: "free", badge: "Free" })),
+				).map((option) => ({ ...option, section: "free" })),
 			);
 		}
 		return {

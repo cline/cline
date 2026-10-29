@@ -204,6 +204,7 @@ export type {
 	OcaTokenResolution,
 } from "./auth/types";
 export { ClineCore } from "./ClineCore";
+export { toClineCoreStartInput } from "./cline-core/start-input";
 export type {
 	ClineAutomationEventIngressResult,
 	ClineAutomationEventLog,
@@ -240,22 +241,34 @@ export type {
 	LoadAgentPluginPackagesOptions,
 	LoadedAgentPluginPackage,
 	ParsedAgentSkill,
+	PluginExecutionMode,
+	PluginHookErrorMode,
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 	PluginLoadDiagnostics,
+	PluginRegistryOptions,
+	PluginSessionLoadInput,
+	PluginSessionLoadResult,
+	PluginStatusListener,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
 	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
 	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	CLINE_PLUGIN_BOOTSTRAP_PATH_ENV,
 	discoverPluginModulePaths,
+	formatSessionPluginIssue,
 	getPluginDisplayName,
+	getProcessPluginRegistry,
 	loadAgentPluginFromPath,
 	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
 	loadAgentPluginsFromPathsWithDiagnostics,
+	PluginCallTimeoutError,
+	PluginRegistry,
 	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
+	resolveAgentPluginPathsWithDiagnostics,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -307,24 +320,42 @@ export {
 	authorizeMcpServerOAuth,
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
+	type CreateMcpAppsRuntimeOptions,
 	type CreateMcpToolsOptions,
 	createDefaultMcpServerClientFactory,
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
+	createMcpAppsClientCapabilities,
+	createMcpAppsRuntime,
 	createMcpTools,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	type DefaultMcpServerClientFactoryOptions,
+	getMcpAppToolMeta,
 	getMcpServerOAuthState,
 	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
 	type LoadMcpSettingsOptions,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+	type McpAppResourceReadRequest,
+	type McpAppsRuntime,
+	type McpAppToolBinding,
+	type McpAppToolCallRequest,
+	type McpAppToolMeta,
+	type McpAppToolVisibility,
 	type McpConnectionStatus,
 	type McpManager,
 	type McpManagerOptions,
 	McpOAuthClientChangedError,
+	type McpResourceContents,
+	type McpResourceReadRequest,
+	type McpResourceReadResult,
 	type McpServerClient,
 	type McpServerClientFactory,
 	type McpServerOAuthClientConfig,
@@ -522,6 +553,7 @@ export {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
+	loadRulesForSystemPromptFromRecords,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -533,6 +565,11 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./runtime/tools/worker-sandbox";
+export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
 	disableConnectorAutostart,
@@ -581,6 +618,7 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -592,6 +630,7 @@ export {
 	resolveDisabledToolNames,
 	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
@@ -634,9 +673,21 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";
+export type {
+	PluginCommandCatalog,
+	PluginCommandResult,
+	PluginCommandsApi,
+	PluginCommandTarget,
+	PluginSlashCommand,
+} from "./services/plugin-command-api";
+export {
+	normalizePluginCommandName,
+	parsePluginCommand,
+} from "./services/plugin-command-api";
 export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
@@ -692,6 +743,7 @@ export {
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
@@ -738,6 +790,7 @@ export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
+	GitSnapshotProperties,
 	TelemetryAgentIdentityProperties,
 	TelemetryAgentKind,
 	TelemetryCompactionMode,
@@ -761,6 +814,7 @@ export {
 	captureConversationTurnEvent,
 	captureDiffEditFailure,
 	captureExtensionActivated,
+	captureGitSnapshot,
 	captureHookDiscovery,
 	captureMentionFailed,
 	captureMentionSearchResults,
@@ -848,6 +902,7 @@ export {
 	projectSessionMessagesForDisplay,
 	type SessionDisplayMessage,
 } from "./session/display-messages";
+export { createForkSessionMetadata } from "./session/fork-metadata";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
@@ -929,11 +984,24 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
+export {
+	type ArtifactPublicationFile,
+	type ArtifactPublicationResult,
+	type ArtifactPublisher,
+	createPublishArtifactsTool,
+} from "./artifacts/publish";
+export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
+export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
+export { summarizeConversation } from "./extensions/context/summarize-conversation";
+export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
@@ -941,6 +1009,8 @@ export {
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	computePatchChanges,
@@ -986,6 +1056,7 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
@@ -1003,6 +1074,7 @@ export {
 export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	clearPublicModelsCatalogCache,
 	DEFAULT_MODELS_CATALOG_URL,
 	getLiveModelsCatalog,
 	getProviderConfig,
@@ -1073,6 +1145,7 @@ export type {
 	RegisterModelInput,
 	RegisterProviderInput,
 } from "./services/llms/runtime-types";
+export { SKILLS_CLI_PACKAGE, SKILLS_CLI_VERSION } from "./services/skills-cli";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

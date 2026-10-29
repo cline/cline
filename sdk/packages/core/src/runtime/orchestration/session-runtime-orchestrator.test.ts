@@ -33,7 +33,10 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import { createDefaultTools } from "../../extensions/tools/definitions";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
+import type { CoreCompactionContext } from "../../types/config";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -620,6 +623,64 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("aggregates beforeRun appendContext across config and extension hooks", async () => {
+		const extension: AgentExtension = {
+			name: "run-start-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeRun: () => ({ appendContext: "ext-context" }),
+			},
+		};
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeRun: () => ({ appendContext: "config-context" }),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeRun = hooks?.beforeRun;
+		expect(beforeRun).toBeDefined();
+
+		const result = await beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({
+			appendContext: "config-context\n\next-context",
+		});
+	});
+
+	it("returns a stopping beforeRun result without aggregating context into it", async () => {
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					beforeRun: () => ({ stop: true, reason: "blocked at start" }),
+				},
+			}),
+			deps,
+		);
+
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const result = await hooks?.beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({ stop: true, reason: "blocked at start" });
+	});
+
 	it("merges beforeModel metadata through final message preparation", async () => {
 		const extension: AgentExtension = {
 			name: "metadata-ext",
@@ -829,6 +890,52 @@ describe("SessionRuntime message preparation", () => {
 		expect(prepareTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
 		);
+	});
+
+	it("passes the resolved model context limit to auto compaction", async () => {
+		const modelId = "local-model";
+		const contextWindow = 65_536;
+		const compact = vi.fn((_context: CoreCompactionContext) => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId,
+			compaction: { enabled: true, compact },
+		});
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				// The discovered catalog entry has no limit; a selected-model
+				// override supplies the limit used by the gateway request.
+				knownModels: { [modelId]: { id: modelId, name: modelId } },
+				providerConfig: {
+					providerId: "anthropic",
+					modelId,
+					maxInputTokens: 128_000,
+					modelInfo: { id: modelId, contextWindow },
+				},
+				prepareTurn,
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		await configs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [makeAgentMessage("m1", "user", "x".repeat(300_000))],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.model.info).toMatchObject({ contextWindow });
+		expect(context?.budget.request.maxInputTokens).toBe(contextWindow);
+		expect(context?.budget.request.triggerTokens).toBe(contextWindow * 0.9);
 	});
 
 	it("allows prepareTurn to return only a system prompt", async () => {
@@ -1155,6 +1262,10 @@ describe("SessionRuntime.run", () => {
 		const { deps } = withFakeRuntime({ throwError: new Error("boom") });
 		const session = new SessionRuntime(makeAgentConfig(), deps);
 		await expect(session.run("go")).rejects.toThrow("boom");
+		expect(session.getMessages().at(-1)).toMatchObject({
+			content: [{ type: "text", text: "boom" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
 	});
 
 	it("rejects re-entrant run while the previous run is still active", async () => {
@@ -1221,13 +1332,30 @@ describe("SessionRuntime.run", () => {
 			},
 		} as unknown as AgentRuntime;
 
-		const session = new SessionRuntime(makeAgentConfig(), {
-			createAgentRuntimeImpl: () => slowRuntime,
-		});
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			{
+				createAgentRuntimeImpl: () => slowRuntime,
+			},
+		);
 		const first = session.run("one");
 		await Promise.resolve();
 		expect(session.canStartRun()).toBe(false);
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
 		await expect(session.continue("two")).rejects.toThrow(/"running"/i);
+		await expect(session.run("three")).rejects.toThrow(/"running"/i);
+		expect(session.getMessages()).toEqual(before);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+		expect(events.filter((event) => event.type === "error")).toHaveLength(0);
 		release?.();
 		await first;
 		expect(session.canStartRun()).toBe(true);
@@ -1712,13 +1840,25 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		const first = await session.run("first");
 		expect(first.finishReason).toBe("error");
 		expect(first.text).toBe("upstream failed");
-		expect(session.getMessages().map((message) => message.role)).toEqual([
-			"user",
-		]);
+		expect(first.messages.at(-1)).toMatchObject({
+			content: [{ type: "text", text: "upstream failed" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
+		// Exercise a disk round-trip before retrying.
+		session.restore(JSON.parse(JSON.stringify(first.messages)));
 
 		const second = await session.continue("second");
 		expect(second.finishReason).toBe("completed");
 		expect(second.text).toBe("second ok");
+		expect(
+			second.messages.filter((message) => message.metadata?.displayOnly),
+		).toHaveLength(1);
+		expect(second.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
 		expect(modelRequests).toHaveLength(2);
 		expect(
 			modelRequests[1]?.some((message) =>
@@ -1795,8 +1935,9 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 			"assistant",
 			"user",
+			"assistant",
 		]);
-		const lastContent = session.getMessages().at(-1)?.content[0];
+		const lastContent = session.getMessages().at(-2)?.content[0];
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
@@ -1921,6 +2062,29 @@ describe("SessionRuntime external abort signal", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.shutdown", () => {
+	it("rejects new runs without changing a stopped transcript", async () => {
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			withFakeRuntime().deps,
+		);
+		await session.run("done");
+		await session.shutdown();
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await expect(session.run("again")).rejects.toThrow("after shutdown");
+		await expect(session.continue("again")).rejects.toThrow("after shutdown");
+		expect(session.getMessages()).toEqual(before);
+		expect(events).toEqual([]);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+	});
 	it("completes successfully when no run is active and locks out future runs", async () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		await expect(session.shutdown()).resolves.toBeUndefined();
@@ -2702,6 +2866,119 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("holds model and tool boundaries until the mistake-limit decision settles", async () => {
+		let decide!: (decision: { action: "continue" }) => void;
+		const decision = new Promise<{ action: "continue" }>((resolve) => {
+			decide = resolve;
+		});
+		const order: string[] = [];
+		let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+		let hooks: AgentRuntimeConfig["hooks"];
+		const runtime = {
+			async run() {
+				for (const e of failedToolTurnEvents()) listener?.(e);
+				// The next boundary after the failed turn must wait for the user.
+				await hooks?.beforeTool?.({} as never);
+				order.push("next tool");
+				return {
+					agentId: "agent_fake",
+					runId: "run_fake",
+					status: "completed",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+				} satisfies AgentRunResult;
+			},
+			abort() {},
+			subscribe(l: (e: AgentRuntimeEvent) => void) {
+				listener = l;
+				return () => {
+					listener = undefined;
+				};
+			},
+			snapshot: makeSnapshot,
+		} as unknown as AgentRuntime;
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 1 },
+				onConsecutiveMistakeLimitReached: () => decision,
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					hooks = config.hooks;
+					return runtime;
+				},
+			},
+		);
+		const running = session.run("go");
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(order).toEqual([]);
+		order.push("user decided");
+		decide({ action: "continue" });
+		await running;
+		expect(order).toEqual(["user decided", "next tool"]);
+	});
+
+	it("returns stop control to the rest of a tool batch once the decision is Stop", async () => {
+		let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+		let hooks: AgentRuntimeConfig["hooks"];
+		let nextToolControl: unknown;
+		const runtime = {
+			async run() {
+				for (const e of failedToolTurnEvents()) listener?.(e);
+				// A later tool in the same batch must not run after Stop.
+				nextToolControl = await hooks?.afterTool?.({} as never);
+				return {
+					agentId: "agent_fake",
+					runId: "run_fake",
+					status: "aborted",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+				} satisfies AgentRunResult;
+			},
+			abort() {},
+			subscribe(l: (e: AgentRuntimeEvent) => void) {
+				listener = l;
+				return () => {
+					listener = undefined;
+				};
+			},
+			snapshot: makeSnapshot,
+		} as unknown as AgentRuntime;
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 1 },
+				onConsecutiveMistakeLimitReached: async () => ({
+					action: "stop",
+					reason: "User chose Stop",
+				}),
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					hooks = config.hooks;
+					return runtime;
+				},
+			},
+		);
+		await session.run("go");
+		expect(nextToolControl).toMatchObject({ stop: true });
+	});
+
 	it("does not abort on productive turns (successful tool calls)", async () => {
 		const events: AgentRuntimeEvent[] = [
 			{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
@@ -2764,12 +3041,12 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime auth retry", () => {
-	const authFailure: Partial<AgentRunResult> = {
+	const authFailure = {
 		status: "failed",
 		error: new Error(
 			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
 		),
-	};
+	} satisfies Partial<AgentRunResult>;
 
 	/** Runtime factory that scripts each successive AgentRuntime build. */
 	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
@@ -2792,7 +3069,16 @@ describe("SessionRuntime auth retry", () => {
 		const capture = vi.fn();
 		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
 		const { deps, createdCount } = withSequencedRuntimes([
-			{ result: authFailure },
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
 			{ result: { outputText: "recovered" } },
 		]);
 		const session = new SessionRuntime(
@@ -2800,22 +3086,101 @@ describe("SessionRuntime auth retry", () => {
 			deps,
 		);
 
+		const terminalEvents: AgentEvent[] = [];
+		session.subscribeEvents((event) => terminalEvents.push(event));
 		const result = await session.run("go");
 
 		expect(onAuthError).toHaveBeenCalledTimes(1);
 		expect(createdCount()).toBe(2);
 		expect(result.finishReason).toBe("completed");
 		expect(result.text).toBe("recovered");
+		expect(
+			terminalEvents.filter(
+				(event) => event.type === "error" && !event.recoverable,
+			),
+		).toHaveLength(0);
+		expect(
+			result.messages.some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			session.getMessages().some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			capture.mock.calls.some(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toBe(false);
 		expect(capture).toHaveBeenCalledWith({
 			event: "user.auth_run_retry",
 			properties: { provider: "anthropic", recovered: true },
 		});
 	});
 
+	it("records and reports only the final failed authentication attempt", async () => {
+		const capture = vi.fn();
+		const { deps } = withSequencedRuntimes([
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
+			{
+				result: {
+					status: "failed",
+					error: new Error("API key expired after refresh"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				onAuthError: async () => true,
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			deps,
+		);
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		const result = await session.run("go");
+		expect(
+			result.messages.filter((message) => message.metadata?.displayOnly),
+		).toEqual([
+			expect.objectContaining({
+				content: [{ type: "text", text: "API key expired after refresh" }],
+			}),
+		]);
+		expect(
+			events.filter((event) => event.type === "error" && !event.recoverable),
+		).toHaveLength(1);
+		const recorded = capture.mock.calls.filter(
+			([event]) => event.event === "session.error_recorded",
+		);
+		expect(recorded).toHaveLength(1);
+		expect(recorded[0]?.[0].properties).toEqual({
+			sessionId: undefined,
+			provider: "anthropic",
+			model: "claude-3-5-sonnet",
+			source: "result",
+		});
+	});
+
 	it("returns the failed result when the host cannot refresh credentials", async () => {
 		const onAuthError = vi.fn(async () => false);
 		const { deps, createdCount } = withSequencedRuntimes([
-			{ result: authFailure },
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
 		]);
 		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
 
@@ -2843,5 +3208,108 @@ describe("SessionRuntime auth retry", () => {
 		expect(onAuthError).not.toHaveBeenCalled();
 		expect(createdCount()).toBe(1);
 		expect(result.finishReason).toBe("error");
+	});
+});
+
+describe("question continuation context", () => {
+	it.each([
+		{ toolName: "ask_question", fails: false, shouldContinue: true },
+		{ toolName: "ask_question", fails: true, shouldContinue: false },
+		{ toolName: "other_tool", fails: false, shouldContinue: false },
+	])("separates the answer and context for $toolName (fails: $fails)", async ({
+		toolName,
+		fails,
+		shouldContinue,
+	}) => {
+		const requests: AgentMessage[][] = [];
+		const answer = 'use $& and "$1"';
+		const reminder =
+			"The user has answered the question. Continue working on their task using that answer.";
+		const model: AgentModel = {
+			async stream(request) {
+				requests.push(structuredClone([...request.messages]));
+				const first = requests.length === 1;
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "question-1",
+							toolName,
+							inputText: JSON.stringify({
+								question: "Which?",
+								options: ["a", "b"],
+							}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "Done." };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				tools:
+					toolName === "ask_question"
+						? createDefaultTools({
+								executors: {
+									askQuestion: async () => {
+										if (fails) throw new Error("No answer");
+										return answer;
+									},
+								},
+								enableAskQuestion: true,
+							})
+						: [
+								{
+									name: toolName,
+									description: "Other",
+									inputSchema: { type: "object" },
+									execute: async () => answer,
+								},
+							],
+				hooks: {
+					afterTool: () => ({ appendContext: "Existing hook context" }),
+				},
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await session.run("Work on the task");
+
+		expect(requests).toHaveLength(2);
+		const next = requests[1] ?? [];
+		const resultIndex = next.findIndex((message) =>
+			message.content.some((part) => part.type === "tool-result"),
+		);
+		expect(resultIndex).toBeGreaterThan(0);
+		const result = next[resultIndex]?.content.find(
+			(part) => part.type === "tool-result",
+		);
+		if (!fails) expect(result).toMatchObject({ output: answer });
+		expect(JSON.stringify(next.slice(resultIndex + 1))).toContain(
+			"Existing hook context",
+		);
+		expect(JSON.stringify(next).includes(reminder)).toBe(shouldContinue);
+		const history = session.getMessages();
+		const context = history.find((message) =>
+			JSON.stringify(message.content).includes("Existing hook context"),
+		);
+		expect(context).toMatchObject({ metadata: { displayRole: "system" } });
+		expect(JSON.stringify(context).includes(reminder)).toBe(shouldContinue);
+		if (!fails) {
+			expect(events).toContainEqual(
+				expect.objectContaining({
+					type: "content_end",
+					contentType: "tool",
+					output: answer,
+				}),
+			);
+		}
 	});
 });

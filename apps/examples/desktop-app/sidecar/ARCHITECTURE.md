@@ -19,9 +19,8 @@ sidecar/
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
-├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cloud-sessions.ts     # Desktop projection of hub-owned cloud sessions
 ├── cline-auth.ts         # Refresh-aware Cline auth token resolution
-├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
 ├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
@@ -82,9 +81,16 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
-the desktop start the same detached Hub when no CLI process has started it yet.
-Startup discovery and locking ensure concurrent clients converge on one Hub.
+The packaged backend runs on the bundled Cline CLI and has it start the Hub:
+`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+Hub daemon is that same CLI binary. Any Hub the backend itself has to start
+later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
+and locking ensure concurrent clients converge on one Hub.
+
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
@@ -111,9 +117,11 @@ const pendingApprovals = new Map<string, {
 // When frontend responds → resolve promise
 ```
 
-Cloud sessions route approvals the same way, but the resolver forwards the
-response to the sandbox Hub (`approval.respond`), which is why `resolve` may
-be async.
+Cloud sessions project approval snapshots from the shared Hub. Their async
+resolvers send `respondApproval` through the cloud RPC facade; the daemon forwards
+the response to the sandbox Hub. Desktop owns no cloud API client or sandbox connection.
+Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
+are owned by the daemon.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -163,29 +171,61 @@ five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
+The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
+command/docs) through the shared RPC contract. The sidecar resolves these facts
+from the registered provider catalog; chat validation and credential-error UI use
+that data rather than importing the browser LLM registry. Error-message metadata
+retains the provider facts used for that message, so changing providers does not
+change an existing message's recovery action. The same response carries
+`modelTools` for provider-level settings indicators such as web-search support.
+
+Voice settings and the composer's microphone separately call
+`list_transcription_models`. Exact audio-only input and text-only output identify
+speech-to-text models; operation labels do not admit additional modalities.
+Multimodal live models are categorized as `realtime` and are currently unsupported.
+The core service restricts voice choices to executable transcription transports. Vercel voice discovery uses its current `/v1/models` response and
+`websocket-transcription` tags, without merging bundled entries. Discovery errors
+hide that provider's voice choices; they do not block ordinary chat model loading.
+Saving a voice choice, transcribing a recording, and creating a streaming session
+all validate against this same catalog. The network-free provider snapshot carries
+the saved voice choice, which is not proof of current availability.
+
+The webview caches verified voice models for five minutes and renders their
+snapshot when reopening Voice settings. Provider credential changes invalidate
+this cache; changing only the selected voice model preserves it. Session startup
+still validates on the sidecar. Streaming sessions declare the transport and PCM
+sample rate, including Gemini's 16 kHz input and ElevenLabs Scribe v2 Realtime.
+Provider WebSocket handlers are installed before capture starts; Gateway raw
+error events preserve upstream failures that its generic stream error omits.
+
 Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
+| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
+| `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
+| `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |
+| `pull_local_model` / `cancel_local_model_pull` | `ollama` SDK `pull`, or LM Studio `POST /api/v1/models/download` polled until done (not cancellable); progress is broadcast as `local_model_pull_progress` events and survives closing the page |
+| `load_local_model` / `unload_local_model` / `delete_local_model` | Ollama: `generate` (`keep_alive` -1 / 0) and `delete`. LM Studio: `POST /api/v1/models/load` / `unload`, and deleting a Hub model's files listed in its manifest |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
-| `get_desktop_settings` | `readDesktopSettings()` |
-| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
@@ -196,6 +236,8 @@ Supported commands:
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
+| `get_session_changes` | `session-changes.ts`: the first and latest checkpoints (each tree plus its untracked-files parent) and the working tree (via a temp copy of the index) become git trees; `diff-tree` against the working tree gives the session's and the last turn's files and line counts. Local only |
+| `read_session_change` | `session-changes.ts`: both sides of one change by blob id, capped at 1 MiB, binary-aware |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |

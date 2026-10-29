@@ -12,15 +12,8 @@ import {
 } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import {
-	basename,
-	dirname,
-	extname,
-	join,
-	relative,
-	resolve,
-	sep,
-} from "node:path";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { toPosixSeparators } from "@cline/shared";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -129,10 +122,6 @@ function resolveHomePath(value: string): string {
 		return join(homedir(), value.slice(2));
 	}
 	return value;
-}
-
-function toPosixPath(path: string): string {
-	return path.split(sep).join("/");
 }
 
 function hashSource(source: string): string {
@@ -729,7 +718,7 @@ function toWrapperEntryPaths(
 		throw new Error(`No plugin entry files found in ${packageRoot}`);
 	}
 	return entries.map(
-		(entry) => `./${toPosixPath(relative(wrapperRoot, entry))}`,
+		(entry) => `./${toPosixSeparators(relative(wrapperRoot, entry))}`,
 	);
 }
 
@@ -1182,7 +1171,7 @@ export async function installPlugin(
 			(parsed.type === "local" || parsed.type === "remote") &&
 			packageRoot === stagingRoot
 				? collectPluginEntries(stagingRoot).map(
-						(entry) => `./${toPosixPath(relative(stagingRoot, entry))}`,
+						(entry) => `./${toPosixSeparators(relative(stagingRoot, entry))}`,
 					)
 				: await writeWrapperManifest(
 						stagingRoot,

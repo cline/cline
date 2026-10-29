@@ -10,6 +10,7 @@ import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	fetchClineRecommendedModels,
 	getCachedClineRecommendedModels,
+	idSlug,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./cline-recommended-models";
@@ -120,6 +121,32 @@ describe("fetchClineRecommendedModels", () => {
 			"deepseek/deepseek-v4-flash",
 			"cline-free/glm-5.2",
 			"poolside/laguna-s-2.1:free",
+		]);
+	});
+
+	it("keeps the cloud-only ClineFree models", async () => {
+		const data = await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: jsonResponse({
+				...ENDPOINT_PAYLOAD,
+				clineCloud: [
+					{
+						id: "cline-cloud/deepseek-v4.1-flash",
+						name: "cline-cloud/deepseek-v4.1-flash",
+						description: "",
+					},
+				],
+			}),
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(data.clineCloud).toEqual([
+			{
+				id: "cline-cloud/deepseek-v4.1-flash",
+				name: "deepseek-v4.1-flash",
+				description: "",
+				tags: [],
+			},
 		]);
 	});
 
@@ -556,15 +583,19 @@ describe("generated offline featured models", () => {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
+				// The feed can spell a vendor differently from the catalog
+				// ("spacexai/grok-4.7" vs OpenRouter's "x-ai/grok-4.7"); the matcher
+				// then stamps the catalog's id via its slug fallback, so compare
+				// models by slug rather than verbatim id.
 				expect(
 					stamped.map((entry) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description ?? "",
 						featured: entry.featured,
 					})),
 				).toEqual(
 					entries.map((entry, rank) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description.trim(),
 						featured: { tier, rank, tags: entry.tags },
 					})),

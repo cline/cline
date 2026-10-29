@@ -1,3 +1,4 @@
+import { getGeneratedModelsForProvider } from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -467,9 +468,14 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
+		const [generatedId, generatedModel] =
+			Object.entries(getGeneratedModelsForProvider("cline-pass")).find(([id]) =>
+				id.startsWith("cline-pass/"),
+			) ?? [];
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
-			"MiMo-V2.5-Pro",
+		expect(generatedId).toBeDefined();
+		expect(resolved?.knownModels?.[generatedId ?? ""]?.name).toBe(
+			generatedModel?.name,
 		);
 		expect(
 			resolved?.knownModels?.["vendor/live-openrouter-model"],
@@ -573,6 +579,43 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.3-live"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 		expect(resolved?.knownModels?.["o-live"]).toBeUndefined();
+	});
+
+	it("authenticates live model sources and isolates cached catalogs by credentials", async () => {
+		const fetchMock = vi.fn(async (_url: unknown, init: RequestInit) => {
+			const headers = new Headers(init.headers);
+			return new Response(
+				JSON.stringify({
+					models: [
+						{
+							name: `${headers.get("authorization")}:${headers.get("x-tenant")}`,
+						},
+					],
+				}),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		for (const [apiKey, tenant] of [
+			["first", "a"],
+			["second", "a"],
+			["second", "b"],
+		]) {
+			const resolved = await resolveProviderConfig(
+				"ollama",
+				{ cacheTtlMs: 60_000 },
+				{
+					providerId: "ollama",
+					modelId: "",
+					baseUrl: "https://local.example/v1",
+					apiKey,
+					headers: { "X-Tenant": tenant },
+				},
+			);
+			expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+				`Bearer ${apiKey}:${tenant}`,
+			]);
+		}
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {

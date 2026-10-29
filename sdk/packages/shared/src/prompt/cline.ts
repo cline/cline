@@ -8,12 +8,9 @@ const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 /**
  * Explains the <user_input mode="..."> wrapper and <mode_notice> elements the
  * runtime stamps on user messages (prepareTurnInput / formatUserInputBlock).
- * Every host that sends through the SDK runtime produces those tags, so every
- * host's system prompt must explain them: without this section the model has
- * no idea what the attribute means, and a mid-conversation mode switch is an
- * invisible system-prompt swap it cannot diff. Included for BOTH modes, since
- * after a switch the transcript still contains messages tagged with the other
- * mode.
+ * Included in plan and act prompts so the model can interpret mode switches
+ * and earlier messages tagged with the other mode. YOLO prompts omit these
+ * instructions because they do not use the plan/act workflow.
  */
 export const MODE_TAG_INSTRUCTIONS = `# Plan / Act Modes
 
@@ -186,13 +183,11 @@ export function buildClineSystemPrompt(
 			? DEFAULT_CLINE_SYSTEM_PROMPTS.YOLO
 			: DEFAULT_CLINE_SYSTEM_PROMPTS.ACT;
 
-	// Mode semantics ride in the rules slot so every host emits them without
-	// composing its own copy. Order matches what the CLI historically built by
-	// hand (caller rules, then the mode-tag explanation, then the plan-mode
-	// contract), keeping CLI output byte-identical after the promotion.
+	// Keep mode semantics shared across hosts, but omit the plan/act workflow
+	// instructions in YOLO mode. Caller rules apply in every mode.
 	const effectiveRules = [
 		rules,
-		MODE_TAG_INSTRUCTIONS,
+		mode === "yolo" ? undefined : MODE_TAG_INSTRUCTIONS,
 		mode === "plan"
 			? planModeSwitchTool
 				? PLAN_MODE_INSTRUCTIONS

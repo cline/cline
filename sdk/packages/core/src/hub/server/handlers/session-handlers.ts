@@ -4,6 +4,7 @@ import type {
 	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
+	PluginPolicies,
 	ToolApprovalRequest,
 	UserContext,
 } from "@cline/shared";
@@ -33,7 +34,10 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
-import { cancelPendingCapabilityRequests } from "./capability-handlers";
+import {
+	CAPABILITY_OWNER_GONE_MESSAGE,
+	cancelPendingCapabilityRequests,
+} from "./capability-handlers";
 import {
 	asPlainRecord,
 	ensureSessionParticipant,
@@ -203,6 +207,11 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/** `null` is meaningful for prompt/title updates (it clears the field). */
+function asNullableString(value: unknown): string | null | undefined {
+	return typeof value === "string" || value === null ? value : undefined;
+}
+
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
@@ -255,6 +264,63 @@ function authorizeSessionCompactionAccess(input: {
 		);
 	}
 	return undefined;
+}
+
+/** Accepts `{ "*"?: { enabled?: boolean }, [plugin]: { enabled?: boolean } }`. */
+export function parsePluginPolicies(
+	value: unknown,
+): PluginPolicies | undefined {
+	const record = asPlainRecord(value);
+	if (!record) return undefined;
+	const policies: PluginPolicies = {};
+	for (const [name, policy] of Object.entries(record)) {
+		const enabled = asPlainRecord(policy)?.enabled;
+		policies[name] = typeof enabled === "boolean" ? { enabled } : {};
+	}
+	return Object.keys(policies).length > 0 ? policies : undefined;
+}
+
+export async function handleSessionResume(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const sessionConfig = asPlainRecord(envelope.payload?.sessionConfig);
+	const sessionId =
+		typeof sessionConfig?.sessionId === "string"
+			? sessionConfig.sessionId.trim()
+			: "";
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_resume",
+			"sessionConfig.sessionId is required",
+		);
+	}
+	if (!(await ctx.sessionHost.getSession(sessionId))) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			"The saved session was not found.",
+		);
+	}
+	const initialMessages = await (ctx.sessionHost.readLiveSessionMessages
+		? ctx.sessionHost.readLiveSessionMessages(sessionId)
+		: ctx.sessionHost.readSessionMessages(sessionId));
+	if (initialMessages.length === 0) {
+		return errorReply(
+			envelope,
+			"session_messages_not_found",
+			"The saved conversation is empty or unavailable.",
+		);
+	}
+	return handleSessionCreate(
+		ctx,
+		{ ...envelope, payload: { ...envelope.payload, initialMessages } },
+		requestToolApproval,
+	);
 }
 
 export async function handleSessionCreate(
@@ -348,6 +414,9 @@ export async function handleSessionCreate(
 		sessionId,
 		configExtensionCount: configExtensions?.length ?? 0,
 	});
+	// Re-creating after a detach makes this client the owner again, including
+	// for callbacks raised while the session starts.
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
@@ -487,7 +556,22 @@ export async function handleSessionCreate(
 				: runtimeOptions.autoApproveTools === true
 					? { "*": { autoApprove: true } }
 					: undefined,
+		plugins: parsePluginPolicies(payload.plugins),
 	});
+	const pluginIssues = started.pluginIssues ?? [];
+	if (pluginIssues.length > 0) {
+		logHubMessage("warn", "session.create.plugin_issues", {
+			...baseLogContext,
+			sessionId: started.sessionId,
+			plugins: pluginIssues.map((issue) => ({
+				name: issue.name,
+				state: issue.state,
+				reason: issue.reason,
+				phase: issue.lastError?.phase,
+				message: issue.lastError?.message,
+			})),
+		});
+	}
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
 		sessionId: started.sessionId,
@@ -512,11 +596,19 @@ export async function handleSessionCreate(
 		hasSnapshot: !!snapshot,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
+	const pluginIssuePayload =
+		pluginIssues.length > 0
+			? { pluginIssues: JSON.parse(JSON.stringify(pluginIssues)) }
+			: {};
 	if (session) {
 		ctx.publish(
 			ctx.buildEvent(
 				"session.created",
-				{ session, ...(snapshot ? { snapshot } : {}) },
+				{
+					session,
+					...(snapshot ? { snapshot } : {}),
+					...pluginIssuePayload,
+				},
 				started.sessionId,
 			),
 		);
@@ -526,7 +618,11 @@ export async function handleSessionCreate(
 		sessionId: started.sessionId,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
-	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
+	return okReply(envelope, {
+		session,
+		...(snapshot ? { snapshot } : {}),
+		...pluginIssuePayload,
+	});
 }
 
 export async function handleSessionRestore(
@@ -628,6 +724,7 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
+		ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 		const clientContributionRuntime = createHubClientContributionRuntime({
 			sessionId,
 			targetClientId: clientId,
@@ -778,6 +875,7 @@ export async function handleSessionRestore(
 							: runtimeOptions.autoApproveTools === true
 								? { "*": { autoApprove: true } }
 								: undefined,
+					plugins: parsePluginPolicies(payload.plugins),
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
@@ -894,6 +992,13 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
+	// ponytail: entries live as long as the hub process; prune on session delete if it grows.
+	let detached = ctx.detachedClientsBySession?.get(sessionId);
+	if (!detached && ctx.detachedClientsBySession) {
+		detached = new Set();
+		ctx.detachedClientsBySession.set(sessionId, detached);
+	}
+	detached?.add(clientId);
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
@@ -908,7 +1013,7 @@ export async function handleSessionDetach(
 		ctx,
 		(request) =>
 			request.sessionId === sessionId && request.targetClientId === clientId,
-		`Capability owner client ${clientId} detached before request was resolved.`,
+		CAPABILITY_OWNER_GONE_MESSAGE,
 	);
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
@@ -1052,7 +1157,13 @@ export async function handleSessionUpdate(
 	const metadata = stripServerOwnedSessionMetadata(
 		asPlainRecord(envelope.payload?.metadata),
 	);
-	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const prompt = asNullableString(envelope.payload?.prompt);
+	const title = asNullableString(envelope.payload?.title);
+	const updated = await ctx.sessionHost.updateSession(sessionId, {
+		metadata,
+		...(prompt !== undefined ? { prompt } : {}),
+		...(title !== undefined ? { title } : {}),
+	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
 		readCoreSessionSnapshot(ctx, sessionId),

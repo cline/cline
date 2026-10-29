@@ -1,10 +1,30 @@
-import type { IncomingMessage } from "node:http";
-import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { spawn } from "node:child_process";
+import { createPrivateKey } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { type AddressInfo, connect as connectTcp, type Socket } from "node:net";
+import { delimiter, join } from "node:path";
+import type { Duplex } from "node:stream";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { NodeHubClient } from ".";
 
 const servers: WebSocketServer[] = [];
+const networkServers: Server[] = [];
+const tunnelSockets = new Set<Socket | Duplex>();
+const proxyEnvironmentKeys = [
+	"HTTP_PROXY",
+	"http_proxy",
+	"HTTPS_PROXY",
+	"https_proxy",
+	"ALL_PROXY",
+	"all_proxy",
+	"NO_PROXY",
+	"no_proxy",
+] as const;
+let proxyEnvironment = new Map<string, string | undefined>();
 
 type CommandContext = {
 	command: string;
@@ -16,13 +36,13 @@ type CommandContext = {
 	) => void;
 };
 
-async function startHubServer(options?: {
-	onConnection?: (request: IncomingMessage) => void;
-	onCommand?: (context: CommandContext) => void;
-}): Promise<{ server: WebSocketServer; url: string }> {
-	const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-	servers.push(server);
-	await new Promise<void>((resolve) => server.once("listening", resolve));
+function configureHubServer(
+	server: WebSocketServer,
+	options?: {
+		onConnection?: (request: IncomingMessage) => void;
+		onCommand?: (context: CommandContext) => void;
+	},
+): void {
 	server.on("connection", (socket, request) => {
 		options?.onConnection?.(request);
 		socket.on("message", (data) => {
@@ -66,9 +86,85 @@ async function startHubServer(options?: {
 			}
 		});
 	});
+}
+
+async function startHubServer(options?: {
+	onConnection?: (request: IncomingMessage) => void;
+	onCommand?: (context: CommandContext) => void;
+}): Promise<{ server: WebSocketServer; url: string }> {
+	const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+	servers.push(server);
+	await new Promise<void>((resolve) => server.once("listening", resolve));
+	configureHubServer(server, options);
 	const { port } = server.address() as AddressInfo;
 	return { server, url: `ws://127.0.0.1:${port}/hub` };
 }
+
+/**
+ * The header-authenticated client ships to two runtimes that resolve `ws`
+ * differently: Node loads the npm package, Bun substitutes its own. The
+ * tunnel fixture runs under each so a client shape that works on one cannot
+ * silently break the other.
+ *
+ * When Bun runs vitest it puts a Bun-backed `node` shim first on PATH and
+ * reports it as execPath; that shim is Bun, so look past it for an installed
+ * Node.
+ */
+function resolveNodeExecutable(): string | undefined {
+	if (!process.versions.bun) {
+		return process.execPath;
+	}
+	const names =
+		process.platform === "win32" ? ["node.exe", "node.cmd"] : ["node"];
+	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+		if (!dir || dir.includes("bun-node-")) continue;
+		for (const name of names) {
+			const candidate = join(dir, name);
+			if (existsSync(candidate)) return candidate;
+		}
+	}
+	return undefined;
+}
+
+function resolveBunExecutable(): string | undefined {
+	if (process.versions.bun) {
+		return process.execPath;
+	}
+	const names = process.platform === "win32" ? ["bun.exe"] : ["bun"];
+	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+		if (!dir) continue;
+		for (const name of names) {
+			const candidate = join(dir, name);
+			if (existsSync(candidate)) return candidate;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * One leg per runtime. Node trusts the fixture certificate through
+ * NODE_EXTRA_CA_CERTS; Bun's TLS client has no equivalent, so its leg tunnels
+ * a plain `ws://` destination and covers the CONNECT handshake, the upgrade
+ * and header placement without TLS.
+ */
+const tunnelLegs = [
+	{ runtime: "Node", executable: resolveNodeExecutable(), secure: true },
+	{ runtime: "Bun", executable: resolveBunExecutable(), secure: false },
+];
+
+async function listen(server: Server): Promise<number> {
+	networkServers.push(server);
+	server.listen(0, "127.0.0.1");
+	await new Promise<void>((resolve) => server.once("listening", resolve));
+	return (server.address() as AddressInfo).port;
+}
+
+beforeEach(() => {
+	proxyEnvironment = new Map(
+		proxyEnvironmentKeys.map((name) => [name, process.env[name]]),
+	);
+	for (const name of proxyEnvironmentKeys) process.env[name] = "";
+});
 
 afterEach(async () => {
 	for (const server of servers.splice(0)) {
@@ -77,10 +173,120 @@ afterEach(async () => {
 		}
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
+	for (const socket of tunnelSockets) socket.destroy();
+	tunnelSockets.clear();
+	for (const server of networkServers.splice(0)) {
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
+	for (const name of proxyEnvironmentKeys) delete process.env[name];
+	for (const [name, value] of proxyEnvironment) {
+		if (value !== undefined) process.env[name] = value;
+	}
 	vi.restoreAllMocks();
 });
 
 describe("NodeHubClient connection headers", () => {
+	for (const { runtime, executable, secure } of tunnelLegs) {
+		it.skipIf(!executable)(
+			`${runtime}: tunnels through the proxy without leaking origin authorization to it`,
+			async () => {
+				const certificateUrl = new URL(
+					"./__fixtures__/localhost-cert.pem",
+					import.meta.url,
+				);
+				const certificatePath = fileURLToPath(certificateUrl);
+				const certificate = readFileSync(certificateUrl, "utf8");
+				const key = createPrivateKey({
+					key: readFileSync(
+						new URL("./__fixtures__/localhost-key.der", import.meta.url),
+					),
+					format: "der",
+					type: "pkcs8",
+				}).export({ format: "pem", type: "pkcs8" });
+				const destinationUpgrades: IncomingMessage[] = [];
+				const destinationServer = secure
+					? createHttpsServer({ cert: certificate, key })
+					: createServer();
+				const hubServer = new WebSocketServer({ server: destinationServer });
+				servers.push(hubServer);
+				configureHubServer(hubServer, {
+					onConnection: (request) => destinationUpgrades.push(request),
+				});
+				const destinationPort = await listen(destinationServer);
+
+				const proxyConnects: IncomingMessage[] = [];
+				const proxyServer = createServer();
+				proxyServer.on("connect", (request, clientSocket, head) => {
+					proxyConnects.push(request);
+					tunnelSockets.add(clientSocket);
+					const separator = request.url?.lastIndexOf(":") ?? -1;
+					const host = request.url?.slice(0, separator);
+					const port = Number(request.url?.slice(separator + 1));
+					const upstream = connectTcp({ host, port });
+					tunnelSockets.add(upstream);
+					// The fixture exits as soon as it has connected, so either end of
+					// the tunnel may see a reset; a proxy treats that as the end of
+					// the tunnel, not an error.
+					clientSocket.on("error", () => upstream.destroy());
+					upstream.on("error", () => clientSocket.destroy());
+					upstream.once("connect", () => {
+						clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+						if (head.length > 0) upstream.write(head);
+						clientSocket.pipe(upstream);
+						upstream.pipe(clientSocket);
+					});
+				});
+				const proxyPort = await listen(proxyServer);
+
+				const proxyUrl = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`;
+				const url = `${secure ? "wss" : "ws"}://127.0.0.1:${destinationPort}/hub`;
+				const fixture = fileURLToPath(
+					new URL("./__fixtures__/proxy-client.mjs", import.meta.url),
+				);
+				const child = spawn(executable as string, [fixture], {
+					env: {
+						...process.env,
+						...(secure
+							? { HTTPS_PROXY: proxyUrl, NODE_EXTRA_CA_CERTS: certificatePath }
+							: { HTTP_PROXY: proxyUrl }),
+						CLINE_TEST_HUB_URL: url,
+						CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:destination-token",
+					},
+					stdio: ["ignore", "pipe", "pipe"],
+				});
+				const stdout: Buffer[] = [];
+				const stderr: Buffer[] = [];
+				child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+				child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+				const exitCode = await new Promise<number | null>((resolve, reject) => {
+					child.once("error", reject);
+					child.once("exit", resolve);
+				});
+				expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
+				expect(Buffer.concat(stdout).toString()).toContain(
+					`connected under ${runtime}`,
+				);
+
+				expect(proxyConnects).toHaveLength(1);
+				expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
+				for (const request of proxyConnects) {
+					expect(request.headers.authorization).toBeUndefined();
+					expect(request.headers["proxy-authorization"]).toBe(
+						`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
+					);
+				}
+				expect(destinationUpgrades).toHaveLength(1);
+				expect(destinationUpgrades[0].url).toBe("/hub");
+				expect(destinationUpgrades[0].headers.authorization).toBe(
+					"Bearer workos:destination-token",
+				);
+				expect(
+					destinationUpgrades[0].headers["proxy-authorization"],
+				).toBeUndefined();
+			},
+		);
+	}
+
 	it("keeps concurrent connects pending until registration finishes", async () => {
 		let acknowledgeRegistration: (() => void) | undefined;
 		let registrationReceived: (() => void) | undefined;

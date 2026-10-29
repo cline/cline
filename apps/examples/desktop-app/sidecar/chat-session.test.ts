@@ -8,7 +8,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { SessionNotFoundError } from "@cline/core";
+import { resolveClineDir, setClineDir } from "@cline/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -25,11 +27,37 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import * as sessionPaths from "./paths";
+import * as pluginCommands from "./plugin-commands";
+import {
+	cleanupCloudHandoffGates,
+	enableCloudHandoffGates,
+	localRuntimeContext,
+	localSessionManager,
+} from "./session-test-helpers";
 import type { SidecarContext } from "./types";
+
+afterEach(cleanupCloudHandoffGates);
+
+const { createContextCompactionPrepareTurnMock } = vi.hoisted(() => ({
+	createContextCompactionPrepareTurnMock: vi.fn(),
+}));
+
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	createContextCompactionPrepareTurnMock.mockImplementation(
+		actual.createContextCompactionPrepareTurn,
+	);
+	return {
+		...actual,
+		createContextCompactionPrepareTurn: createContextCompactionPrepareTurnMock,
+	};
+});
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -84,42 +112,104 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
-function localRuntimeContext(
-	sessionManager: Record<string, unknown>,
-	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
-) {
-	const workspaceRoot = options.workspaceRoot ?? "/workspace";
-	return {
-		runtimeBindings: new Map([
-			[
-				"local",
-				{
-					environmentId: "local",
-					kind: "local" as const,
-					workspaceRoot,
-					sessionManager,
-					hubClient: {
-						command: vi.fn(async () => undefined),
-					},
-					unsubscribeSessionEvents: () => {},
-				},
-			],
-		]),
-		sessionEnvironmentIds: new Map(
-			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
-		),
-		activeEnvironmentId: "local",
-		remoteEnvironments: null,
-		localWorkspaceRoot: workspaceRoot,
-	};
-}
+describe("starting SSH sessions", () => {
+	const sessionId = "session-new-ssh";
+	const environmentId = "ssh-test";
+	const transcript = [{ role: "user" as const, content: "earlier prompt" }];
 
-function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
-	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
-		string,
-		unknown
-	>;
-}
+	function setup() {
+		const readMessages = vi.fn(async () => transcript);
+		const start = vi.fn(async (_input: unknown) => ({
+			sessionId,
+			manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map(),
+			runtimeBindings: new Map([
+				[
+					environmentId,
+					{
+						environmentId,
+						kind: "ssh",
+						sessionManager: { readMessages, start },
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+		const config = { sessionId, environmentId };
+		return {
+			ctx: getEnvironmentContext(ctx, environmentId),
+			config,
+			readMessages,
+			start,
+		};
+	}
+
+	it.each([
+		new SessionNotFoundError(sessionId),
+		Object.assign(new Error(`Unknown session: ${sessionId}`), {
+			code: "session_not_found",
+		}),
+	])("creates a fresh remote session when history is missing (%s)", async (error) => {
+		const { ctx, config, readMessages, start } = setup();
+		readMessages.mockRejectedValueOnce(error);
+
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).resolves.toMatchObject({ sessionId, environmentId });
+
+		expect(readMessages).toHaveBeenCalledWith(sessionId);
+		expect(start).toHaveBeenCalledOnce();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({ sessionId }),
+			}),
+		);
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("initialMessages");
+		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual([]);
+		expect(ctx.sessionEnvironmentIds.get(sessionId)).toBe(environmentId);
+	});
+
+	it("preserves existing remote history when starting a session", async () => {
+		const { ctx, config, start } = setup();
+		await handleChatSessionCommand(ctx, { action: "start", config });
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: transcript }),
+		);
+		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
+	});
+
+	it("propagates other read failures without creating a session", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		const error = Object.assign(new Error("Hub disconnected"), {
+			code: "hub_command_timeout",
+		});
+		readMessages.mockRejectedValueOnce(error);
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).rejects.toBe(error);
+		expect(start).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.size).toBe(0);
+	});
+
+	it("uses explicit initial messages without reading remote history", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, initialMessages: transcript },
+		});
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: transcript }),
+		);
+		// The hub sends config and top-level initialMessages in one frame, so a
+		// second copy in config doubles it past the hub's 16 MiB limit.
+		expect(
+			(start.mock.calls[0]?.[0] as { config: object }).config,
+		).not.toHaveProperty("initialMessages");
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -251,6 +341,10 @@ describe("pathless session starts", () => {
 				expect(input.config).not.toHaveProperty("workspaceRoot");
 				expect(input.config).not.toHaveProperty("enableSpawnAgent");
 				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.config).toMatchObject({
+					checkpoint: { enabled: true },
+					compaction: { enabled: true },
+				});
 				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
 					name: "cline-desktop",
 					platform: "Cline Desktop",
@@ -905,7 +999,12 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				...localRuntimeContext({ restore }),
+				...localRuntimeContext({
+					restore,
+					get: vi.fn(async () => ({
+						sessionId,
+					})),
+				}),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -1010,6 +1109,7 @@ describe("first-send connection updates", () => {
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
 		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
+		const get = vi.fn(async () => ({ sessionId, status: "idle" }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -1030,6 +1130,7 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
+					get,
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -1046,6 +1147,7 @@ describe("first-send connection updates", () => {
 		return {
 			ctx,
 			readMessages,
+			readSessionCompactionState,
 			send,
 			sessionId,
 			start,
@@ -1053,6 +1155,47 @@ describe("first-send connection updates", () => {
 			updateSessionConnection,
 		};
 	}
+
+	it("blocks handoff while a local prompt is still being prepared", async () => {
+		enableCloudHandoffGates();
+		const { ctx, sessionId, send } = createContext({
+			config: { ...baseConfig, cwd: "/workspace/project/child" },
+		});
+		const preparing = Promise.withResolvers<void>();
+		const prepared = Promise.withResolvers<void>();
+		const command = vi
+			.spyOn(pluginCommands, "runPluginSlashCommand")
+			.mockImplementationOnce(async () => {
+				preparing.resolve();
+				await prepared.promise;
+				return { submitPrompt: "expanded prompt" };
+			});
+		try {
+			const result = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "/custom",
+			});
+			await preparing.promise;
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "handoff",
+					operation: "prepare",
+					sessionId,
+				}),
+			).rejects.toThrow(
+				"Wait for the current send to finish before using /cloud.",
+			);
+			prepared.resolve();
+			await result;
+			expect(send).toHaveBeenCalledWith(
+				expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
+			);
+		} finally {
+			prepared.resolve();
+			command.mockRestore();
+		}
+	});
 
 	it("skips an identical update for a locally-created session", async () => {
 		const { ctx, send, sessionId, updateSessionConnection } = createContext();
@@ -1618,6 +1761,442 @@ describe("first-send connection updates", () => {
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
 		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
+
+	describe("hub loss recovery", () => {
+		const missing = (sessionId: string) =>
+			Object.assign(new Error(`session not found: ${sessionId}`), {
+				code: "command_failed",
+			});
+		const transportLost = () =>
+			Object.assign(new Error("Hub connection closed"), {
+				name: "HubTransportError",
+			});
+
+		it("rebuilds a session the restarted hub lost during send and ends the turn interrupted", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			const manifest = vi
+				.spyOn(sessionPaths, "readSessionManifest")
+				.mockReturnValue({ metadata: {} });
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			try {
+				const response = (await handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "hello",
+					config: { environmentId: "local" },
+				})) as { result?: { finishReason?: string; hubInterrupted?: boolean } };
+
+				expect(start).toHaveBeenCalledTimes(1);
+				expect(start.mock.calls[0]?.[0]).toMatchObject({
+					config: { sessionId },
+				});
+				expect(response.result).toMatchObject({
+					finishReason: "aborted",
+					hubInterrupted: true,
+				});
+			} finally {
+				manifest.mockRestore();
+			}
+		});
+
+		it("leaves a session the hub still holds alone and reports the failure", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			send.mockRejectedValueOnce(transportLost());
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			})) as { result?: { finishReason?: string } };
+
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response.result?.finishReason).toBe("error");
+		});
+
+		it("does not revive a session the user stops during the reconnect window", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(transportLost());
+			updateSessionConnection.mockRejectedValue(transportLost());
+
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			}) as Promise<{ result?: { finishReason?: string } }>;
+			await vi.waitFor(() =>
+				expect(updateSessionConnection).toHaveBeenCalled(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+
+			expect((await pending).result?.finishReason).toBe("error");
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("re-queues a queued prompt once the session is rebuilt", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				delivery: "queue",
+			})) as { queued?: boolean };
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(send).toHaveBeenCalledTimes(2);
+			expect(send.mock.calls[1]?.[0]).toMatchObject({ delivery: "queue" });
+			expect(response.queued).toBe(true);
+		});
+
+		it("does not re-queue an accepted prompt when only its reply was lost", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const acceptedPrompts: string[] = [];
+			send.mockImplementationOnce(async (input) => {
+				acceptedPrompts.push((input as { prompt: string }).prompt);
+				throw transportLost();
+			});
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "execute once",
+				delivery: "queue",
+			});
+			expect(send).toHaveBeenCalledOnce();
+			expect(acceptedPrompts).toEqual(["execute once"]);
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response).toMatchObject({ result: { finishReason: "error" } });
+		});
+
+		it("serializes replacement recovery behind a cancelled rebuild and retains sharing", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			let finishNew!: (result: { sessionId: string }) => void;
+			start
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishOld = resolve;
+						}),
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishNew = resolve;
+						}),
+				);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let queued: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped session");
+				const replacement = {
+					...oldSession,
+					status: "idle" as const,
+					busy: false,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				});
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				// The old Hub startup still owns this session ID. Its late
+				// registration must finish before another startup can begin.
+				expect(start).toHaveBeenCalledOnce();
+				expect(updateSessionConnection).toHaveBeenCalledOnce();
+				finishOld({ sessionId });
+				await expect(first).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+				queued = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "next turn",
+					delivery: "queue",
+				});
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+				// Let the failed send join recovery before resolving startup.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				expect(start).toHaveBeenCalledTimes(2);
+				expect(updateSessionConnection).toHaveBeenCalledTimes(2);
+				finishNew({ sessionId });
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { hubInterrupted: true },
+				});
+				await expect(queued).resolves.toMatchObject({ queued: true });
+				expect(stop).toHaveBeenCalledOnce();
+				expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
+			} finally {
+				finishOld?.({ sessionId });
+				await first;
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				finishNew?.({ sessionId });
+				await Promise.all([replacementSend, queued]);
+			}
+		});
+
+		it.each([
+			30_000,
+			null,
+		])("bounds replacement recovery including a cancelled startup (%s)", async (oldStartupDelay) => {
+			vi.useFakeTimers();
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					}),
+			);
+			send.mockRejectedValue(missing(sessionId));
+			updateSessionConnection
+				.mockRejectedValue(transportLost())
+				.mockRejectedValueOnce(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let laterSend: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped projection");
+				const replacement = {
+					...oldSession,
+					busy: false,
+					status: "idle" as const,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				let finished = false;
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				}).then((result) => {
+					finished = true;
+					return result;
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				if (oldStartupDelay !== null) {
+					await vi.advanceTimersByTimeAsync(oldStartupDelay);
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+				}
+				await vi.advanceTimersByTimeAsync(59_999 - (oldStartupDelay ?? 0));
+				expect(finished).toBe(false);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(finished).toBe(true);
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				expect(start).toHaveBeenCalledOnce();
+				if (oldStartupDelay === null) {
+					// Returning at the deadline must not release the underlying
+					// startup barrier: a further send still waits for registration.
+					updateSessionConnection.mockRejectedValue(missing(sessionId));
+					ctx.liveSessions.set(sessionId, { ...replacement, status: "idle" });
+					laterSend = handleChatSessionCommand(ctx, {
+						action: "send",
+						sessionId,
+						prompt: "retry",
+					});
+					await vi.advanceTimersByTimeAsync(0);
+					expect(start).toHaveBeenCalledOnce();
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+					await expect(laterSend).resolves.toMatchObject({
+						result: { hubInterrupted: true },
+					});
+					expect(start).toHaveBeenCalledTimes(2);
+				}
+			} finally {
+				finishOld?.({ sessionId });
+				await vi.advanceTimersByTimeAsync(60_000);
+				await Promise.all([first, replacementSend, laterSend]);
+				vi.useRealTimers();
+			}
+		});
+
+		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "first",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			const queued = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "next",
+				delivery: "queue",
+			});
+			await vi.waitFor(() =>
+				expect(send.mock.calls.length).toBeGreaterThanOrEqual(2),
+			);
+			finishStart({ sessionId });
+			const [firstResponse, queuedResponse] = await Promise.all([
+				first,
+				queued,
+			]);
+			expect(start).toHaveBeenCalledOnce();
+			expect(stop).not.toHaveBeenCalled();
+			expect(firstResponse).toMatchObject({ result: { hubInterrupted: true } });
+			expect(queuedResponse).toMatchObject({ queued: true });
+		});
+
+		it("recovers hub loss during an attached session's connection refresh", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext({ attachedViaHub: true });
+			updateSessionConnection
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				config: { ...baseConfig },
+			});
+			expect(start).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledOnce();
+			expect(response).toMatchObject({ result: { finishReason: "completed" } });
+		});
+
+		it("does not start a rebuild when stopped while loading recovery state", async () => {
+			const {
+				ctx,
+				send,
+				sessionId,
+				start,
+				readSessionCompactionState,
+				updateSessionConnection,
+			} = createContext();
+			let finishRead!: () => void;
+			readSessionCompactionState.mockImplementationOnce(
+				() =>
+					new Promise<undefined>((resolve) => {
+						finishRead = () => resolve(undefined);
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() =>
+				expect(readSessionCompactionState).toHaveBeenCalledOnce(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishRead();
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("undoes a rebuild stopped while startup was in flight", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
+		});
+
+		it("leaves a newly attached session alone after a cancelled rebuild", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			const previous = ctx.liveSessions.get(sessionId);
+			if (!previous) throw new Error("Expected a live session after stop");
+			const replacement = {
+				...previous,
+				attachedViaHub: true,
+			};
+			ctx.liveSessions.set(sessionId, replacement);
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(stop).toHaveBeenCalledOnce();
+			expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
+		});
+	});
 });
 
 describe("workspace metadata prewarming", () => {
@@ -1691,13 +2270,30 @@ describe("workspace metadata prewarming", () => {
 
 describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
+	let originalClineDir: string;
+	beforeEach(() => {
+		originalClineDir = resolveClineDir();
+		const settingsRoot = mkdtempSync(
+			join(tmpdir(), "desktop-command-settings-"),
+		);
+		tempRoots.push(settingsRoot);
+		setClineDir(settingsRoot);
+	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
+		setClineDir(originalClineDir);
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
 		tempRoots.length = 0;
 	});
+
+	function goalCatalog(workspacePath: string) {
+		return {
+			catalog: { workspacePath, status: "ready", commands: [{ name: "goal" }] },
+		};
+	}
 
 	function createWorkspaceWithSkill(): string {
 		const workspace = mkdtempSync(join(tmpdir(), "desktop-slash-send-"));
@@ -1784,6 +2380,115 @@ Follow the desktop send workflow instructions.`,
 			}),
 		);
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it.each([
+		"local",
+		"ssh",
+	] as const)("dispatches plugin commands through the owning %s hub", async (kind) => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		binding.kind = kind;
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (liveSession) liveSession.config.apiKey = "test-key";
+		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
+		const command = vi.fn(async (name: string) => ({
+			version: "v1" as const,
+			ok: true,
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: {
+							result: {
+								reply: "Goal set",
+								submitPrompt: "expanded  goal\nnext line",
+							},
+						},
+		}));
+		binding.hubClient.command = command;
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal original",
+		});
+		expect(result).toMatchObject({
+			result: { finishReason: "completed", text: "done" },
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.objectContaining({
+				workspacePath: workspace,
+				sessionId,
+				prompt: "/goal original",
+			}),
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
+		);
+	});
+
+	it("targets the session's workspace root when its cwd is a subdirectory", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, session, sessionId } = createContext(workspace);
+		Object.assign(session.config, {
+			cwd: join(workspace, "packages", "app"),
+			workspaceRoot: workspace,
+		});
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async (name: string) => ({
+			version: "v1" as const,
+			ok: true,
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: { result: { reply: "Goal set" } },
+		}));
+		binding.hubClient.command = command;
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal original",
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.objectContaining({ workspacePath: workspace, sessionId }),
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+	});
+
+	it("still sends a skill command when the plugin catalog cannot be read", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection closed");
+		});
+		binding.hubClient.command = command;
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		expect(command).not.toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
 	});
 
 	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
@@ -1882,6 +2587,35 @@ Follow the desktop send workflow instructions.`,
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("expands a user /cloud workflow (Cloud sessions enabled: %s)", async (enabled) => {
+		const workspace = createWorkspaceWithSkill();
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		writeFileSync(
+			join(workflowsDir, "cloud.md"),
+			`---
+name: cloud
+---
+Follow the user cloud workflow instructions.`,
+		);
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		if (enabled) enableCloudHandoffGates();
+		else process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/cloud please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the user cloud workflow instructions. please",
+			}),
+		);
+	});
+
 	it("leaves built-in and unknown slash commands untouched", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, sessionId } = createContext(workspace);
@@ -1903,6 +2637,161 @@ Follow the desktop send workflow instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
 		);
+	});
+});
+
+describe("/compact", () => {
+	function createCompactContext(options: {
+		busy?: boolean;
+		messages?: unknown[];
+		config?: Record<string, unknown>;
+	}) {
+		const sessionId = "compact-session";
+		const wsSend = vi.fn();
+		const send = vi.fn();
+		const updateSessionCompactionState = vi.fn(async () => ({
+			updated: true,
+		}));
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: options.config ?? {
+							provider: "cline",
+							model: "test-model",
+						},
+						messages: [],
+						promptsInQueue: [],
+						busy: options.busy ?? false,
+						startedAt: Date.now(),
+						status: options.busy ? "running" : "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set([{ send: wsSend }]),
+			...localRuntimeContext(
+				{
+					send,
+					get: vi.fn(async () => ({ status: "idle" })),
+					readMessages: vi.fn(async () => options.messages ?? []),
+					updateSessionCompactionState,
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const readCommandOutput = () =>
+			wsSend.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "chat_command_output")?.event
+				.payload;
+		return {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		};
+	}
+
+	it("compacts with the session's connection settings and saves the result", async () => {
+		const summary = { role: "user", content: "Context summary" };
+		const compact = vi.fn(async () => ({ messages: [summary] }));
+		createContextCompactionPrepareTurnMock.mockReturnValueOnce(compact);
+		const {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		} = createCompactContext({
+			config: {
+				provider: "compact-test-provider",
+				model: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+			},
+			messages: [
+				{ role: "user", content: "first prompt" },
+				{ role: "assistant", content: "first response" },
+			],
+		});
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(createContextCompactionPrepareTurnMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerId: "compact-test-provider",
+				modelId: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+				compaction: { enabled: true },
+			}),
+			{ mode: "manual" },
+		);
+		expect(updateSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				source_message_count: 2,
+				messages: [summary],
+			}),
+		);
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "Compacted context from 2 to 1 messages.",
+		});
+	});
+
+	it("refuses to compact while a turn is running without reaching the model", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			busy: true,
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			sessionId,
+			command: "compact",
+			text: expect.stringContaining("Cannot compact while a response"),
+		});
+	});
+
+	it("reports an empty session instead of sending the prompt", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			messages: [],
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "No messages to compact.",
+		});
 	});
 });
 
@@ -1950,7 +2839,7 @@ describe("mistake-limit prompt", () => {
 			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
 	};
 
-	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
+	it("decides Continue only after recovery guidance is queued", async () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		let finishSteering!: () => void;
 		steer.mockImplementationOnce(
@@ -1964,17 +2853,12 @@ describe("mistake-limit prompt", () => {
 		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
 			decision,
 		);
-		let released = false;
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]).then((results) => {
-			released = true;
-			return results;
+		let decided = false;
+		void decision.then(() => {
+			decided = true;
 		});
 		await Promise.resolve();
-		expect(released).toBe(false);
+		expect(decided).toBe(false);
 		expect(ctx.pendingQuestions.size).toBe(1);
 		resolveSidecarAskQuestion(
 			ctx,
@@ -1983,12 +2867,9 @@ describe("mistake-limit prompt", () => {
 		);
 		await Promise.resolve();
 		expect(steer).toHaveBeenCalledTimes(1);
-		expect(released).toBe(false);
+		expect(decided).toBe(false);
 		finishSteering();
 		await expect(decision).resolves.toMatchObject({ action: "continue" });
-		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
-		expect(released).toBe(true);
-		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
 	});
 
 	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
@@ -2019,15 +2900,10 @@ describe("mistake-limit prompt", () => {
 	it.each([
 		"answer",
 		"abort",
-	] as const)("releases waiting hooks with Stop on %s", async (action) => {
+	] as const)("decides Stop on %s", async (action) => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
 		if (action === "answer") {
 			resolveSidecarAskQuestion(
 				ctx,
@@ -2041,8 +2917,6 @@ describe("mistake-limit prompt", () => {
 			});
 		}
 		await expect(decision).resolves.toMatchObject({ action: "stop" });
-		for (const control of await waiting)
-			expect(control).toMatchObject({ stop: true });
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(steer).not.toHaveBeenCalled();
 	});
@@ -2122,18 +2996,13 @@ describe("mistake-limit prompt", () => {
 	it.each([
 		"rejected",
 		"unavailable",
-	])("stops waiting hooks when steering is %s", async (failure) => {
+	])("decides Stop when steering is %s", async (failure) => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		if (failure === "rejected")
 			steer.mockRejectedValueOnce(new Error("Disconnected"));
 		else ctx.runtimeBindings.clear();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
 		resolveSidecarAskQuestion(
 			ctx,
 			readQuestionRequest()?.requestId ?? "",
@@ -2143,8 +3012,6 @@ describe("mistake-limit prompt", () => {
 			action: "stop",
 			reason: expect.stringContaining("Could not send recovery guidance"),
 		});
-		for (const result of await waiting)
-			expect(result).toMatchObject({ stop: true });
 		expect(ctx.pendingQuestions.size).toBe(0);
 	});
 
@@ -2359,12 +3226,10 @@ describe("mistake-limit prompt", () => {
 				expect(
 					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
 				).toBe("function");
+				// The SDK pauses the run on the decision itself; per-step hooks
+				// would round-trip to the sidecar on every model and tool call.
 				expect(input.config).not.toHaveProperty("hooks");
-				expect(input.localRuntime?.hooks).toMatchObject({
-					beforeModel: expect.any(Function),
-					beforeTool: expect.any(Function),
-					afterTool: expect.any(Function),
-				});
+				expect(input.localRuntime).not.toHaveProperty("hooks");
 				return {
 					sessionId: "session-limit",
 					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },

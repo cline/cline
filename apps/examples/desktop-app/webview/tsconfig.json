@@ -5,7 +5,6 @@
 			"@/*": ["./*"],
 			"@cline/agents": ["../../../../sdk/packages/agents/src/index.ts"],
 			"@cline/core": ["../../../../sdk/packages/core/src/index.ts"],
-			"@cline/llms": ["../../../../sdk/packages/llms/src/index.ts"],
 			"@cline/shared": ["../../../../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/storage": [
 				"../../../../sdk/packages/shared/src/storage/index.ts"

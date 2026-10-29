@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
-import { dirname, extname, isAbsolute, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
+
+import { resolvePluginRuntimeDirectory } from "./plugin-runtime";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST_REQUIRE = createRequire(import.meta.url);
@@ -40,6 +42,11 @@ const WORKSPACE_EXPORT_CONDITIONS = [
 
 export interface ImportPluginModuleOptions {
 	useCache?: boolean;
+	/**
+	 * Evaluate the module again (no module cache) but reuse jiti's on-disk
+	 * transform cache, so a fresh per-session copy skips the babel transform.
+	 */
+	freshModule?: boolean;
 }
 
 function collectWorkspaceAliases(root: string): Record<string, string> {
@@ -240,7 +247,9 @@ function resolveFromHostRuntime(specifier: string): string | null {
 	try {
 		return HOST_REQUIRE.resolve(specifier);
 	} catch {
-		// Continue with package export resolution for ESM-only package exports.
+		// Resolve ESM-only exports and embedded bunfs packages through their
+		// manifests. Bun 1.4.2 cannot resolve bare packages inside bunfs with
+		// createRequire.resolve, even though native imports of absolute aliases work.
 	}
 	return resolveHostPackageExport(specifier);
 }
@@ -292,6 +301,8 @@ function resolveHostPackageExport(specifier: string): string | null {
 
 function getHostPackageSearchRoots(): string[] {
 	const roots = [MODULE_DIR];
+	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	if (runtimeDirectory) roots.unshift(runtimeDirectory);
 	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
 	if (wrapperPath) {
 		roots.push(dirname(dirname(wrapperPath)));
@@ -478,6 +489,54 @@ function assertPluginDependenciesInstalled(
 	}
 }
 
+/**
+ * Content fingerprint of a plugin's own source: the entry file plus every
+ * file it reaches through relative static imports (`node_modules` and other
+ * bare imports are not included). Used to tell whether a plugin changed since
+ * it was last imported, including edits outside the entry file and edits that
+ * keep the same size within one clock tick.
+ */
+export function fingerprintPluginSources(pluginPath: string): string {
+	const parts: string[] = [];
+	const visit = (filePath: string, seen: Set<string>) => {
+		if (seen.has(filePath)) return;
+		seen.add(filePath);
+		let source: string;
+		try {
+			source = readFileSync(filePath, "utf8");
+		} catch {
+			parts.push(`${filePath}:missing`);
+			return;
+		}
+		parts.push(`${filePath}:${source.length}:${checksum(source)}`);
+		if (!SUPPORTED_PLUGIN_EXTENSIONS.has(extname(filePath))) return;
+		for (const specifier of collectStaticModuleSpecifiers(source)) {
+			if (isBareSpecifier(specifier)) continue;
+			const resolvedPath = resolveRelativeImportPath(filePath, specifier);
+			if (resolvedPath) visit(resolvedPath, seen);
+		}
+	};
+	visit(pluginPath, new Set());
+	return parts.join("|");
+}
+
+/**
+ * Non-cryptographic change detector (two seeded 32-bit FNV-1a passes plus
+ * the length above). It only has to notice edits to plugin source, so a
+ * cryptographic digest is unnecessary.
+ */
+function checksum(text: string): string {
+	let first = 0x811c9dc5;
+	let second = 0x01000193 ^ text.length;
+	for (let index = 0; index < text.length; index++) {
+		const code = text.charCodeAt(index);
+		first = Math.imul(first ^ code, 0x01000193);
+		second = Math.imul(second ^ code, 0x5bd1e995);
+		second ^= second >>> 15;
+	}
+	return `${(first >>> 0).toString(36)}${(second >>> 0).toString(36)}`;
+}
+
 function collectPluginStaticModuleSpecifiers(
 	pluginPath: string,
 	seen = new Set<string>(),
@@ -619,6 +678,38 @@ function loadJitiBabelTransform(): JitiTransform | null {
 	return cachedJitiTransform;
 }
 
+let cachedStaticJitiTransform: Promise<JitiTransform | null> | undefined;
+
+/**
+ * Fallback for compiled binaries run without an install layout next to them
+ * (no wrapper `node_modules/jiti` on disk). `jiti/static` imports babel
+ * statically, so `bun build --compile` bundles it into the binary. Its
+ * instance `transform` forwards our options last, so the `interopDefault`
+ * override below still reaches babel.
+ */
+function loadStaticJitiTransform(): Promise<JitiTransform | null> {
+	cachedStaticJitiTransform ??= (async () => {
+		try {
+			const staticModule = (await import("jiti/static")) as unknown as {
+				createJiti?: (
+					id: string,
+					opts?: Record<string, unknown>,
+				) => { transform: (opts: Parameters<JitiTransform>[0]) => string };
+			};
+			const createStaticJiti = staticModule.createJiti;
+			if (typeof createStaticJiti !== "function") return null;
+			const instance = createStaticJiti(MODULE_DIR, {
+				cache: false,
+				interopDefault: false,
+			});
+			return (opts) => ({ code: instance.transform(opts) });
+		} catch {
+			return null;
+		}
+	})();
+	return cachedStaticJitiTransform;
+}
+
 export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
@@ -640,6 +731,14 @@ export async function importPluginModule(
 	if (!createJiti) {
 		throw new Error("Unable to load jiti");
 	}
+	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	const nativeSdkModules = Object.entries(sortedAliases)
+		.filter(([specifier, target]) => {
+			if (!runtimeDirectory || !isClineSdkSpecifier(specifier)) return false;
+			const path = relative(runtimeDirectory, target);
+			return !path.startsWith("..") && !isAbsolute(path);
+		})
+		.map(([specifier]) => getPackageName(specifier));
 	const transformModules = Object.entries(sortedAliases)
 		.filter(([, target]) => shouldTransformAliasTarget(target))
 		.map(([specifier]) => specifier);
@@ -658,17 +757,18 @@ export async function importPluginModule(
 	// plugins). Pin `interopDefault: true` going into babel by overriding it
 	// in the transform call, while keeping `interopDefault: false` on the jiti
 	// instance so the loader sees raw exports.
-	const baseBabelTransform = loadJitiBabelTransform();
+	const baseBabelTransform =
+		loadJitiBabelTransform() ?? (await loadStaticJitiTransform());
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
 		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
 		: undefined;
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
-		cache: options.useCache,
-		requireCache: options.useCache,
+		cache: options.freshModule ? true : options.useCache,
+		requireCache: options.freshModule ? false : options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		nativeModules: [...BUILTIN_MODULES, ...nativeSdkModules],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

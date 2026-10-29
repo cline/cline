@@ -22,6 +22,7 @@ interface RequestStartRowProps {
 	classNames?: string
 	isExpanded: boolean
 	handleToggle: () => void
+	retryFailedRequest?: () => Promise<boolean>
 }
 
 // State type for api_req_started rendering
@@ -140,6 +141,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	handleToggle,
 	isExpanded,
 	message,
+	retryFailedRequest,
 }) => {
 	// Derive explicit state
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
@@ -258,6 +260,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					apiRequestFailedMessage={apiRequestFailedMessage}
 					errorType="error"
 					message={message}
+					retryFailedRequest={retryFailedRequest}
 				/>
 			)}
 		</div>

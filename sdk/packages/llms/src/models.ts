@@ -23,6 +23,7 @@ export type {
 	ProviderInfo,
 	ProviderProtocol,
 } from "./catalog/types";
+export { fetchVercelTranscriptionModels } from "./catalog/vercel-transcription-models";
 export type {
 	GetModelsForProviderOptions,
 	ProviderModelFilter,

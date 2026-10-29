@@ -129,9 +129,25 @@ export const ModelOperationSchema = z.enum([
 	"speech-generation",
 	"video-generation",
 	"transcription",
+	"realtime",
 ]);
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+/** Voice input requires exactly audio input and text output. Model names and
+ * operation labels cannot widen this to a multimodal realtime session. */
+export function isTranscriptionModel(model: {
+	modalities?: { input?: readonly string[]; output?: readonly string[] };
+}): boolean {
+	const input = model.modalities?.input;
+	const output = model.modalities?.output;
+	return (
+		input?.length === 1 &&
+		input[0] === "audio" &&
+		output?.length === 1 &&
+		output[0] === "text"
+	);
+}
 
 export type ChatCompatibleModelDescriptor = {
 	readonly operation?: ModelOperation;

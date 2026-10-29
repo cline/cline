@@ -1,7 +1,7 @@
 import type { KeyEvent } from "@opentui/core";
 import { describe, expect, it, vi } from "vitest";
-import { useRootKeyboard } from "./use-root-keyboard";
 import { shouldHandleInputHistory } from "./root-keyboard-routing";
+import { useRootKeyboard } from "./use-root-keyboard";
 
 describe("root keyboard input history routing", () => {
 	it("handles history while idle", () => {
@@ -84,5 +84,68 @@ describe("empty-input queue steering", () => {
 			expect(promotePrompt).toHaveBeenCalledWith("first");
 			expect(preventDefault).toHaveBeenCalledOnce();
 		}
+	});
+});
+
+describe("cloud target keybinds", () => {
+	const keyboardInput = (handlers: {
+		onToggleCloudTarget?: () => void;
+		onChangeCloudRepo?: () => void;
+	}) =>
+		({
+			isDialogOpen: false,
+			appView: "home",
+			autocomplete: { mode: false },
+			transcriptScrollRef: { current: null },
+			getCurrentInputText: () => "",
+			queuedPromptSelection: { items: [], selectedId: null, editingId: null },
+			...handlers,
+		}) as unknown as Parameters<typeof useRootKeyboard>[0];
+
+	const pressCtrl = (name: string) => {
+		const preventDefault = vi.fn();
+		keyboard.handle({
+			name,
+			ctrl: true,
+			meta: false,
+			shift: false,
+			preventDefault,
+		} as unknown as KeyEvent);
+		return preventDefault;
+	};
+
+	it("toggles the target with Ctrl+O and changes the repository with Ctrl+K", () => {
+		const onToggleCloudTarget = vi.fn();
+		const onChangeCloudRepo = vi.fn();
+		useRootKeyboard(keyboardInput({ onToggleCloudTarget, onChangeCloudRepo }));
+		expect(pressCtrl("o")).toHaveBeenCalledOnce();
+		expect(pressCtrl("k")).toHaveBeenCalledOnce();
+		expect(onToggleCloudTarget).toHaveBeenCalledOnce();
+		expect(onChangeCloudRepo).toHaveBeenCalledOnce();
+	});
+
+	it("ignores Tab and Shift+Tab while Cloud is selected", () => {
+		const onToggleMode = vi.fn();
+		useRootKeyboard({
+			...keyboardInput({}),
+			isCloudTarget: true,
+			onToggleMode,
+		});
+		for (const shift of [false, true]) {
+			keyboard.handle({
+				name: "tab",
+				ctrl: false,
+				meta: false,
+				shift,
+				preventDefault: vi.fn(),
+			} as unknown as KeyEvent);
+		}
+		expect(onToggleMode).not.toHaveBeenCalled();
+	});
+
+	it("leaves Ctrl+O and Ctrl+K to the input when cloud is unavailable", () => {
+		useRootKeyboard(keyboardInput({}));
+		expect(pressCtrl("o")).not.toHaveBeenCalled();
+		expect(pressCtrl("k")).not.toHaveBeenCalled();
 	});
 });

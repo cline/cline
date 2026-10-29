@@ -10,8 +10,11 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	getClineClientIdentity,
+	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
+	withHubLauncherIdentity,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
@@ -50,9 +53,23 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
 	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
 	manageConnectors?: boolean;
+	/**
+	 * Runs only when a new daemon is about to be spawned (never when a running
+	 * Hub is reused), e.g. to prepare the environment the daemon inherits.
+	 */
+	beforeSpawn?: () => Promise<void>;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
+/**
+ * How long a freshly spawned Hub gets to publish a usable discovery record.
+ * A cold start of the compiled binary the Hub runs from (first launch after
+ * an install or update, while antivirus scans it) regularly takes 8-13s on
+ * Windows. The old 8s limit gave up just before those Hubs came up, which
+ * failed startup even though the next attempt attached fine. 15s covers most
+ * cold starts and still fits inside the desktop shell's 30s endpoint wait
+ * alongside login-shell PATH resolution.
+ */
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
@@ -71,6 +88,11 @@ export const __test__ = {
 	resetRetireAttempts(): void {
 		retireAttemptsByUrl.clear();
 	},
+	resolveDaemonEntryArgs,
+	resolveLaunchCommand: (
+		workspaceRoot: string,
+		endpoint: DetachedHubOptions = {},
+	) => resolveLaunchCommand(workspaceRoot, endpoint),
 };
 
 /**
@@ -277,7 +299,11 @@ export async function hubHasLiveSessions(
 			record.url,
 			record.authToken,
 		);
-		return activity.activeSessionCount > 0;
+		return (
+			activity.activeSessionCount > 0 ||
+			(activity.activePluginRequests ?? 0) > 0 ||
+			(activity.activeCloudCommands ?? 0) > 0
+		);
 	} catch {
 		return false;
 	}
@@ -367,6 +393,54 @@ function resolveDaemonEntryPath(): string {
 	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
 }
 
+/**
+ * Compiled Bun binaries mount bundled modules on a virtual filesystem that a
+ * child cannot be handed as a script argument, so the child boots its embedded
+ * entrypoint and switches personality on the marker flag.
+ */
+function resolveDaemonEntryArgs(
+	daemonEntryPath: string,
+	isBunRuntime: boolean,
+): string[] {
+	if (isBunEmbeddedModulePath(daemonEntryPath)) {
+		return [COMPILED_BUN_HUB_DAEMON_ARG];
+	}
+	const useDevelopmentConditions =
+		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
+	return [
+		...(useDevelopmentConditions ? ["--conditions=development"] : []),
+		daemonEntryPath,
+	];
+}
+
+/**
+ * An executable that hosts the detached Hub daemon in place of the current
+ * process. Clients that are not themselves a Hub-capable binary (for example
+ * the desktop backend, a script running on the bundled CLI's runtime) point
+ * this at the Cline CLI so every Hub they start is a CLI-managed Hub.
+ */
+export interface HubDaemonLauncher {
+	command: string;
+	/** Arguments before the daemon's `--cwd`/endpoint arguments. Defaults to the daemon marker flag. */
+	args?: string[];
+	/** Child-only runtime settings, for example Electron's Node mode. */
+	env?: NodeJS.ProcessEnv;
+}
+
+let configuredHubDaemonLauncher: HubDaemonLauncher | undefined;
+
+/** Route detached Hub spawns through `launcher`; pass `undefined` to restore the default. */
+export function setHubDaemonLauncher(launcher?: HubDaemonLauncher): void {
+	const command = launcher?.command.trim();
+	configuredHubDaemonLauncher = command
+		? {
+				command,
+				args: launcher?.args ? [...launcher.args] : undefined,
+				env: launcher?.env ? { ...launcher.env } : undefined,
+			}
+		: undefined;
+}
+
 function resolveLaunchCommand(
 	workspaceRoot: string,
 	endpoint: DetachedHubOptions,
@@ -376,23 +450,24 @@ function resolveLaunchCommand(
 	cwd: string;
 	env: NodeJS.ProcessEnv;
 } {
-	const daemonEntryPath = resolveDaemonEntryPath();
-	const execPath = process.execPath?.trim();
-	if (!execPath) {
-		throw new Error("unable to resolve runtime executable for hub daemon");
+	let launcher: string;
+	let entryArgs: string[];
+	if (configuredHubDaemonLauncher) {
+		launcher = configuredHubDaemonLauncher.command;
+		entryArgs = configuredHubDaemonLauncher.args ?? [
+			COMPILED_BUN_HUB_DAEMON_ARG,
+		];
+	} else {
+		const execPath = process.execPath?.trim();
+		if (!execPath) {
+			throw new Error("unable to resolve runtime executable for hub daemon");
+		}
+		const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
+		launcher = execPath;
+		entryArgs = resolveDaemonEntryArgs(resolveDaemonEntryPath(), isBunRuntime);
 	}
-	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const isCompiledBunEmbeddedEntry = daemonEntryPath.startsWith("/$bunfs/");
-	const useDevelopmentConditions =
-		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
-	const entryArgs = isCompiledBunEmbeddedEntry
-		? [COMPILED_BUN_HUB_DAEMON_ARG]
-		: [
-				...(useDevelopmentConditions ? ["--conditions=development"] : []),
-				daemonEntryPath,
-			];
 	return {
-		launcher: execPath,
+		launcher,
 		args: [
 			...entryArgs,
 			"--cwd",
@@ -402,11 +477,31 @@ function resolveLaunchCommand(
 		],
 		cwd: workspaceRoot,
 		env: {
-			...withResolvedClineBuildEnv(process.env),
+			// Record which client's build is starting this shared daemon. An
+			// embedding host that already stamped the launcher (the desktop app
+			// running `cline-cli hub ensure`) keeps its own identity; otherwise
+			// this process's client identity (cline-cli, cline-acp, ...) is used.
+			...withHubLauncherIdentity(
+				withResolvedClineBuildEnv({
+					...process.env,
+					...configuredHubDaemonLauncher?.env,
+				}),
+				resolveSelfLauncherIdentity(),
+			),
 			CLINE_NO_INTERACTIVE: "1",
 			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
 		},
 	};
+}
+
+function resolveSelfLauncherIdentity():
+	| { client: string; version?: string; transport: "local" }
+	| undefined {
+	const identity = getClineClientIdentity();
+	const client = identity?.name?.trim();
+	return client
+		? { client, version: identity?.version, transport: "local" }
+		: undefined;
 }
 
 function isTextFileBusyError(error: unknown): boolean {
@@ -664,6 +759,7 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
+	await endpointOverrides.beforeSpawn?.();
 	await spawnDetachedHubServerWithRetry(workspaceRoot, {
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
@@ -725,7 +821,9 @@ async function ensureDetachedHubServerLocked(
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
-	throw new Error("Timed out waiting for detached hub startup.");
+	throw new Error(
+		`Timed out after ${HUB_STARTUP_TIMEOUT_MS}ms waiting for detached hub startup.`,
+	);
 }
 
 export async function ensureDetachedHubServer(
@@ -880,12 +978,18 @@ export async function upgradeManagedHub(
 	// Only an observed-zero reading ends the window before the deadline.
 	// (Checks at least once so waitForIdleMs: 0 still observes an idle hub.)
 	let observedSessionCount: number | undefined;
+	let observedBackgroundRequests: number | undefined;
 	for (;;) {
 		try {
-			observedSessionCount = (
-				await queryHubSessionActivity(record.url, record.authToken)
-			).activeSessionCount;
-			if (observedSessionCount === 0) {
+			const activity = await queryHubSessionActivity(
+				record.url,
+				record.authToken,
+			);
+			observedSessionCount = activity.activeSessionCount;
+			observedBackgroundRequests =
+				(activity.activePluginRequests ?? 0) +
+				(activity.activeCloudCommands ?? 0);
+			if (observedSessionCount === 0 && observedBackgroundRequests === 0) {
 				break;
 			}
 		} catch {
@@ -898,7 +1002,8 @@ export async function upgradeManagedHub(
 			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
 		);
 	}
-	const confirmedIdle = observedSessionCount === 0;
+	const confirmedIdle =
+		observedSessionCount === 0 && observedBackgroundRequests === 0;
 	// Without force, only a positively idle hub may be replaced: a busy or
 	// unanswerable hub is handed back un-drained. With force, the user has
 	// already consented to interrupting the sessions the prompt showed them,

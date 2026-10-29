@@ -1,6 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
-import { MemoizedMarkdown } from "./markdown";
+import { describe, expect, test, vi } from "vitest";
+import { createDesktopMarkdownPlugins, MemoizedMarkdown } from "./markdown";
+
+const chipTexts = (html: string) =>
+	[...html.matchAll(/<span class="[^"]*inset-ring[^"]*">([^<]*)<\/span>/g)].map(
+		(match) => match[1],
+	);
 
 describe("MemoizedMarkdown", () => {
 	test("renders structured GFM content and blocks remote images", () => {
@@ -41,6 +46,78 @@ const ready = true;
 		expect(html).toContain('src="/images/local.png"');
 		expect(html).toContain('src="/images/second-local.png"');
 		expect(html).not.toContain('data-streamdown="blocked-image"');
+	});
+
+	test("recognizes Mermaid fences as the owned diagram block instead of plain code", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={"```mermaid\nflowchart LR\n  A[Text] --> B[SVG]\n```"}
+			/>,
+		);
+
+		// Diagrams render in the browser, so SSR emits the owned block's shell:
+		// a filename header (derived here from the diagram) and a skeleton, never
+		// Streamdown's literal "mermaid" label or a plain code-block.
+		expect(html).toContain('data-streamdown="mermaid-block"');
+		expect(html).toContain("flowchart-text-svg.mmd");
+		expect(html).toContain("cline-mermaid__skeleton");
+		expect(html).not.toContain('data-streamdown="code-block"');
+		expect(html).not.toContain("flowchart LR");
+	});
+
+	test("renders chip tokens in prose but not in code or mid-sentence commands", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				chipTokens={new Set(["/compact", "@src/app.ts"])}
+				content={
+					"/compact focus on @src/app.ts, then `@src/app.ts` and /compact"
+				}
+			/>,
+		);
+
+		expect(chipTexts(html)).toEqual(["/compact", "@src/app.ts"]);
+		expect(html).toContain("<code");
+		expect(html).toContain("and /compact");
+	});
+
+	test("chips each message with its own tokens", () => {
+		const render = (tokens: string[], content: string) =>
+			chipTexts(
+				renderToStaticMarkup(
+					<MemoizedMarkdown chipTokens={new Set(tokens)} content={content} />,
+				),
+			);
+
+		expect(render(["/team"], "/team plan it")).toEqual(["/team"]);
+		expect(render(["@src/app.ts"], "look at @src/app.ts")).toEqual([
+			"@src/app.ts",
+		]);
+	});
+
+	test("names the diagram from the fence title", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					'```mermaid title="app-infrastructure-architecture"\nflowchart LR\n  A --> B\n```'
+				}
+			/>,
+		);
+
+		expect(html).toContain("app-infrastructure-architecture.mmd");
+	});
+
+	test("owns the Mermaid block through a lazy custom renderer", () => {
+		const loader = vi.fn(async () => ({
+			default: { initialize: vi.fn(), render: vi.fn() },
+		}));
+		const plugins = createDesktopMarkdownPlugins(loader);
+
+		// Streamdown checks `renderers` before its built-in Mermaid block, so the
+		// diagram plugin must not be registered (it would only be dead config).
+		expect(plugins).not.toHaveProperty("mermaid");
+		expect(plugins.renderers).toHaveLength(1);
+		expect(plugins.renderers[0]?.language).toBe("mermaid");
+		expect(loader).not.toHaveBeenCalled();
 	});
 
 	test("repairs an unfinished code fence while streaming", () => {

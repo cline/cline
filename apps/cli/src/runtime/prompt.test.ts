@@ -92,3 +92,24 @@ describe("resolveSystemPrompt workspace metadata", () => {
 		expect(prompt).not.toContain("latestGitCommitHash");
 	});
 });
+
+describe("resolveSystemPrompt YOLO mode", () => {
+	it("preserves caller rules and workspace metadata without plan/act instructions", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-yolo-prompt-"));
+		workspaceDirectories.push(cwd);
+
+		const prompt = await resolveSystemPrompt({
+			cwd,
+			providerId: "cline",
+			mode: "yolo",
+			rules: "Always run the relevant tests.",
+		});
+
+		expect(prompt).toContain("Always run the relevant tests.");
+		expect(prompt).toContain("# Workspace Configuration");
+		expect(prompt).toContain(JSON.stringify(cwd));
+		expect(prompt).not.toContain("# Plan / Act Modes");
+		expect(prompt).not.toContain("# Plan Mode");
+		expect(prompt).not.toContain("switch_to_act_mode");
+	});
+});

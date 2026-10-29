@@ -35,6 +35,33 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("settles a question on cancel even while its state post is still in flight", async () => {
+		const pendingTask = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releaseQuestionPost!: () => void
+		const questionPost = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseQuestionPost = resolve
+				}),
+		)
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: questionPost,
+		})
+		const { options } = makeCoordinator({ activeSession: makeActiveSession() })
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(questionPost).toHaveBeenCalledOnce())
+
+		await coordinator.cancelTask()
+
+		await expect(questionPromise).resolves.toBe("")
+		releaseQuestionPost()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(interactions.resolvePendingAskQuestion("input after cancel")).toBe(false)
+	})
+
 	it("cancels a running Cline task when the user signs out", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -50,6 +77,17 @@ describe("SdkTaskControlCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		await coordinator.cancelClineTaskOnSignOut(false)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+	})
+
+	it("leaves a running cloud host alone on sign-out even without a displayed task", async () => {
+		const activeSession = makeActiveSession()
+		Object.assign(activeSession.sdkHost, { isCloud: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
 
 		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
 		expect(options.sessions.setRunning).not.toHaveBeenCalled()
@@ -79,12 +117,56 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.clearTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(state.task).toBeUndefined()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+	})
+
+	it("waits for the task-transition boundary before ending the active session", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		await Promise.resolve()
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
+
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
+	})
+
+	it("does not end the session when a task selection supersedes clearTask during the rebuild wait", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		void coordinator.showTaskWithId("missing-task")
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalledWith("clearTask")
 	})
 
 	it("drops the task-scoped settings overlay when the task is cleared (#13260)", async () => {
@@ -114,6 +196,7 @@ describe("SdkTaskControlCoordinator", () => {
 
 		await coordinator.showTaskWithId("task-1")
 
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
 		// The overlay must be gone before the new proxy is installed.
 		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
@@ -494,6 +577,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		clearTaskSettings: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			runTaskTransition: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -518,6 +604,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		clearTaskSettings: ReturnType<typeof vi.fn>
+		rebuilds: { runTaskTransition: ReturnType<typeof vi.fn> }
 	}
 
 	return {

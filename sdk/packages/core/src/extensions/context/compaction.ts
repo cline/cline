@@ -1,4 +1,5 @@
 import { estimateRequestInputTokens } from "@cline/shared";
+import { resolveConnectionProviderConfig } from "../../services/llms/handler-factory";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
@@ -92,6 +93,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Overrides layered over `config.compaction`. */
+	compaction?: Partial<CoreCompactionConfig>;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -267,6 +270,9 @@ export function createContextCompactionPrepareTurn(
 		| "providerConfig"
 		| "providerId"
 		| "modelId"
+		| "apiKey"
+		| "baseUrl"
+		| "headers"
 		| "compaction"
 		| "logger"
 		| "telemetry"
@@ -278,17 +284,14 @@ export function createContextCompactionPrepareTurn(
 			context: ContextPipelinePrepareTurnInput,
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
-	const userCompaction = config.compaction;
-	if (userCompaction?.enabled !== true) {
+	const userCompaction: CoreCompactionConfig = {
+		...config.compaction,
+		...options.compaction,
+	};
+	if (userCompaction.enabled !== true) {
 		return undefined;
 	}
 
-	const providerConfig =
-		config.providerConfig ??
-		({
-			providerId: config.providerId,
-			modelId: config.modelId,
-		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -318,11 +321,19 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const rawMaxInputTokens =
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: context.model.info?.maxInputTokens,
-				contextWindow: context.model.info?.contextWindow,
-			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
+			maxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+		});
+		// An unknown model limit is not evidence that the request is full.
+		// Custom models can have any context window; using a guessed limit here
+		// can trigger compaction even on a new session's system prompt/tools.
+		// Manual compaction and provider-confirmed overflow recovery still need
+		// a working budget, so only those modes use the default.
+		if (effectiveMode === "auto" && modelMaxInputTokens === undefined) {
+			return undefined;
+		}
+		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
 		// The char-based estimate under-counts dense content (disassembly, image
 		// dumps, minified sources). When the provider's actual count for the
 		// PREVIOUS request already exceeds our estimate for the (larger) current
@@ -461,8 +472,11 @@ export function createContextCompactionPrepareTurn(
 
 		const builtinOptions = {
 			context: compactionContext,
+			// Resolved per turn from the live session config, with the same
+			// precedence as the main request, so the summarizer never sends
+			// credentials the host has since refreshed or replaced.
 			providerConfig: {
-				...providerConfig,
+				...resolveConnectionProviderConfig(config),
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
@@ -699,18 +713,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	importedFrom: string;
 	next?: ContextPipelinePrepareTurn;
 }): ContextPipelinePrepareTurn {
-	const summarize = createContextCompactionPrepareTurn(
-		{
-			...input.config,
-			compaction: {
-				...input.config.compaction,
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 0,
-			},
-		},
-		{ mode: "manual" },
-	);
+	// Pass the live config through (not a copy) so the summary uses the
+	// credentials and model current on the resumed turn.
+	const summarize = createContextCompactionPrepareTurn(input.config, {
+		mode: "manual",
+		compaction: { enabled: true, strategy: "agentic", preserveRecentTokens: 0 },
+	});
 	let pending = summarize !== undefined;
 	return async (context) => {
 		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {
@@ -746,6 +754,15 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
+	 * The runtime's provider-request transform (extension message builders +
+	 * `MessageBuilder.buildForApi`), i.e. what produced `context.apiMessages`
+	 * from `context.messages`. Re-compaction swaps in a projected transcript
+	 * and must estimate against its API-safe form, not the raw projection.
+	 */
+	prepareApiMessages: (
+		messages: CoreCompactionContext["messages"],
+	) => Promise<CoreCompactionContext["messages"]>;
+	/**
 	 * Persist a freshly-computed compaction state. `sourceMessages` are the
 	 * exact canonical messages the state's source-prefix hash was computed
 	 * over; hosts must validate projection against these rather than a
@@ -771,7 +788,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: await input.prepareApiMessages(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {

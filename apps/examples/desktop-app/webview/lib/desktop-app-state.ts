@@ -16,6 +16,7 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	initialAttachments?: File[];
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -45,6 +46,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			session: SessionHistoryItem;
 			environmentId: string;
 			initialPromptDraft?: string;
+			initialAttachments?: File[];
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
@@ -173,10 +175,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		}
 		case "open-session": {
-			const threadId = `session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const existingIdx = state.threads.findIndex(
-				(thread) => thread.id === threadId,
+				(thread) =>
+					thread.environmentId === action.environmentId &&
+					(thread.sessionId === action.session.sessionId ||
+						thread.historySession?.sessionId === action.session.sessionId),
 			);
+			// A session started in this window already has a thread_* identity.
+			// Keep it when opening history so its pane and draft aren't replaced.
+			const threadId =
+				state.threads[existingIdx]?.id ??
+				`session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const threads =
 				existingIdx >= 0
 					? state.threads.map((thread, index) =>
@@ -190,6 +199,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 											environmentId: action.environmentId,
 										},
 										initialPromptDraft: action.initialPromptDraft,
+										initialAttachments: action.initialAttachments,
 									}
 								: thread,
 						)
@@ -204,12 +214,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 									environmentId: action.environmentId,
 								},
 								initialPromptDraft: action.initialPromptDraft,
+								initialAttachments: action.initialAttachments,
 							},
 						];
 			return {
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
-					type: "navigate",
+					type:
+						state.navigation.current.view === "chat" &&
+						state.navigation.current.activeThreadId === threadId
+							? "replace"
+							: "navigate",
 					destination: {
 						...state.navigation.current,
 						activeThreadId: threadId,
@@ -223,8 +238,13 @@ export function desktopAppReducer<SettingsSection extends string>(
 				...state,
 				threads: state.threads.map((thread) =>
 					thread.id === action.threadId &&
-					thread.initialPromptDraft !== undefined
-						? { ...thread, initialPromptDraft: undefined }
+					(thread.initialPromptDraft !== undefined ||
+						thread.initialAttachments !== undefined)
+						? {
+								...thread,
+								initialPromptDraft: undefined,
+								initialAttachments: undefined,
+							}
 						: thread,
 				),
 			};

@@ -140,7 +140,7 @@ const assertCanBuildPlatform = (platform: DesktopPlatform): void => {
 		throw new Error(
 			[
 				`cannot build ${platform} desktop bundles from ${host}.`,
-				"Tauri desktop bundles are produced on the target OS because the native bundle tools and sidecar binary are platform-specific.",
+				"Tauri desktop bundles are produced on the target OS because the native bundle tools and bundled Cline CLI binary are platform-specific.",
 				"Run this same package script on macOS, Windows, and Linux runners to produce all three artifact sets.",
 			].join("\n"),
 		);
@@ -250,12 +250,7 @@ const collectWindowsArtifacts = (): string[] =>
 
 const collectLinuxArtifacts = (): string[] =>
 	walkFiles(BUNDLE_ROOT)
-		.filter(
-			(file) =>
-				file.endsWith(".AppImage") ||
-				file.endsWith(".deb") ||
-				file.endsWith(".rpm"),
-		)
+		.filter((file) => file.endsWith(".deb") || file.endsWith(".rpm"))
 		.map((file) => copyArtifact(file, path.basename(file)));
 
 const collectArtifacts = async (
@@ -289,7 +284,14 @@ const main = async () => {
 	}
 
 	if (!skipBuild) {
-		await $`bun run build:binary`;
+		// Linux ships deb and rpm only. The AppImage target is skipped because
+		// linuxdeploy cannot process the Bun-compiled Cline CLI (ldd fails on it
+		// and patchelf corrupts it), which aborts the whole bundle step.
+		if (platform === "linux") {
+			await $`bun run build:binary --bundles deb,rpm`;
+		} else {
+			await $`bun run build:binary`;
+		}
 	}
 
 	const artifacts = await collectArtifacts(platform, allowUnsignedMac);

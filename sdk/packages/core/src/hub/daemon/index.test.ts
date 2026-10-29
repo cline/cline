@@ -33,10 +33,18 @@ const {
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
 	// Idle by default, so existing replacement cases are unaffected.
-	queryHubSessionActivity: vi.fn(async () => ({
-		activeSessionCount: 0,
-		participantClientCount: 0,
-	})),
+	queryHubSessionActivity: vi.fn(
+		async (): Promise<{
+			activeSessionCount: number;
+			participantClientCount: number;
+			activePluginRequests: number;
+			activeCloudCommands?: number;
+		}> => ({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+		}),
+	),
 	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
@@ -116,8 +124,31 @@ vi.mock("@cline/shared", () => ({
 	}),
 	isHubDaemonProcess: (env: NodeJS.ProcessEnv = process.env) =>
 		env[CLINE_RUN_AS_HUB_DAEMON_ENV] === "1",
+	// Mirrors the real helper: POSIX and Windows bunfs spellings.
+	isBunEmbeddedModulePath: (path?: string) => {
+		const trimmed = path?.trim() ?? "";
+		return (
+			trimmed.startsWith("/$bunfs/") ||
+			trimmed.replace(/\\/g, "/").toLowerCase().startsWith("b:/~bun/")
+		);
+	},
 	resolveClineBuildEnv: () => "production",
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
+	getClineClientIdentity: () => ({ name: "cline-cli", version: "0.0.0" }),
+	withHubLauncherIdentity: (
+		env: NodeJS.ProcessEnv,
+		identity?: { client: string; version?: string; transport?: string },
+	) =>
+		env.CLINE_HUB_LAUNCHER_CLIENT || !identity
+			? env
+			: {
+					...env,
+					CLINE_HUB_LAUNCHER_CLIENT: identity.client,
+					...(identity.version
+						? { CLINE_HUB_LAUNCHER_VERSION: identity.version }
+						: {}),
+					CLINE_HUB_LAUNCHER_TRANSPORT: identity.transport ?? "local",
+				},
 }));
 
 vi.mock("../client", () => ({
@@ -170,6 +201,7 @@ describe("ensureDetachedHubServer", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -219,10 +251,15 @@ describe("ensureDetachedHubServer", () => {
 			authToken: "new-token",
 		});
 
+		const beforeSpawn = vi.fn(async () => {
+			expect(spawn).not.toHaveBeenCalled();
+		});
 		const { ensureDetachedHubServer } = await import(".");
 		const result = await ensureDetachedHubServer("/workspace", {
 			manageConnectors,
+			beforeSpawn,
 		});
+		expect(beforeSpawn).toHaveBeenCalledOnce();
 		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
 			.mock.calls;
 		const spawnArgs = spawnCalls[0]?.[1] as string[] | undefined;
@@ -321,28 +358,32 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("clears stale discovery when prewarm finds an unreachable discovered hub", async () => {
-		readHubDiscovery.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "old-token",
-		});
-		probeHubServer
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce(undefined);
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+			});
+			probeHubServer
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined);
 
-		const { prewarmDetachedHubServer } = await import(".");
-		prewarmDetachedHubServer("/workspace");
-		await vi.waitFor(() => {
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
-		});
 
-		expect(withHubStartupLock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
-			expect.any(Function),
-		);
-		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
-			probeHubServer.mock.invocationCallOrder[0],
-		);
-		expect(spawn).toHaveBeenCalledOnce();
+			expect(withHubStartupLock).toHaveBeenCalledWith(
+				"/tmp/hub-discovery.json",
+				expect.any(Function),
+			);
+			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+				probeHubServer.mock.invocationCallOrder[0],
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("retries a transient ETXTBSY spawn failure while prewarming the detached daemon", async () => {
@@ -472,6 +513,7 @@ describe("ensureDetachedHubServer", () => {
 			queryHubSessionActivity.mockResolvedValue({
 				activeSessionCount: 1,
 				participantClientCount: 1,
+				activePluginRequests: 0,
 			});
 			readHubDiscovery.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
@@ -517,6 +559,35 @@ describe("ensureDetachedHubServer", () => {
 		} finally {
 			kill.mockRestore();
 		}
+	});
+
+	it("attaches to an older hub that is provisioning a cloud session instead of retiring it", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+			activeCloudCommands: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "busy-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			pid: 12345,
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+
+		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "busy-token",
+		});
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
 	});
 
 	it("reuses a healthy hub from a newer build without retiring it", async () => {
@@ -704,13 +775,17 @@ describe("ensureDetachedHubServer", () => {
 			});
 		verifyHubConnection.mockResolvedValue(true);
 
+		const beforeSpawn = vi.fn(async () => undefined);
 		const { ensureDetachedHubServer } = await import(".");
-		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+		await expect(
+			ensureDetachedHubServer("/workspace", { beforeSpawn }),
+		).resolves.toEqual({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "known-token",
 		});
 		expect(writeHubDiscovery).toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+		expect(beforeSpawn).not.toHaveBeenCalled();
 	});
 
 	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {
@@ -828,6 +903,63 @@ describe("ensureDetachedHubServer", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("gives up on a slow hub after the default 15s startup timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace").catch(
+				(error: unknown) => error,
+			);
+			await vi.advanceTimersByTimeAsync(16_000);
+
+			await expect(pending).resolves.toEqual(
+				new Error("Timed out after 15000ms waiting for detached hub startup."),
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps waiting for a hub that comes up after the old 8s limit", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			let settled = false;
+			const pending = ensureDetachedHubServer("/workspace").finally(() => {
+				settled = true;
+			});
+			// Past the old 8s limit: still waiting instead of failing.
+			await vi.advanceTimersByTimeAsync(12_000);
+			expect(settled).toBe(false);
+
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("upgradeManagedHub", () => {
@@ -846,6 +978,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -872,6 +1005,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 2,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery
 			.mockResolvedValueOnce({
@@ -933,6 +1067,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 3,
 			participantClientCount: 2,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -960,6 +1095,32 @@ describe("upgradeManagedHub", () => {
 			"hub upgrade aborted",
 			{ off: true },
 		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("leaves a hub provisioning a cloud session running when not forced", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+			activeCloudCommands: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result).toMatchObject({ outcome: "still_busy" });
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
@@ -1067,7 +1228,11 @@ describe("upgradeManagedHub", () => {
 	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
 		queryHubSessionActivity
 			.mockRejectedValueOnce(new Error("session.list timed out"))
-			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+			.mockResolvedValue({
+				activeSessionCount: 2,
+				participantClientCount: 1,
+				activePluginRequests: 0,
+			});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
@@ -1173,6 +1338,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1198,5 +1364,85 @@ describe("upgradeManagedHub", () => {
 		);
 		expect(clearHubDiscovery).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+	});
+});
+
+describe("resolveDaemonEntryArgs", () => {
+	it.each([
+		"/$bunfs/root/entry.js",
+		// Windows compiled binaries mount bunfs at B:\~BUN; passing that path
+		// as a script argument spawned a daemon with a dead argument
+		// (cline/cline#14292) instead of the personality marker.
+		"B:\\~BUN\\root\\entry.js",
+		"B:/~BUN/root/entry.js",
+	])("uses the --cline-hub-daemon marker for the embedded entry %s", async (entryPath) => {
+		const { __test__ } = await import(".");
+		expect(__test__.resolveDaemonEntryArgs(entryPath, true)).toEqual([
+			"--cline-hub-daemon",
+		]);
+	});
+
+	it("passes a real source entry path through, with development conditions under Bun", async () => {
+		const { __test__ } = await import(".");
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/sdk/hub/daemon/entry.ts", true),
+		).toEqual(["--conditions=development", "/repo/sdk/hub/daemon/entry.ts"]);
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/dist/hub/daemon/entry.js", false),
+		).toEqual(["/repo/dist/hub/daemon/entry.js"]);
+	});
+});
+
+describe("setHubDaemonLauncher", () => {
+	afterEach(async () => {
+		const { setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher(undefined);
+	});
+
+	it("launches the daemon through the configured CLI binary", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher({ command: "/Applications/Cline.app/cline-cli" });
+		const command = __test__.resolveLaunchCommand("/work", {
+			port: 0,
+			manageConnectors: false,
+		});
+		expect(command.launcher).toBe("/Applications/Cline.app/cline-cli");
+		expect(command.args).toEqual([
+			"--cline-hub-daemon",
+			"--cwd",
+			"/work",
+			"--port",
+			"0",
+			"--no-connectors",
+		]);
+		expect(command.env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+	});
+
+	it("restores the current runtime when cleared", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher({ command: "/opt/cline-cli", args: ["--x"] });
+		setHubDaemonLauncher(undefined);
+		expect(__test__.resolveLaunchCommand("/work").launcher).toBe(
+			process.execPath,
+		);
+	});
+
+	it("applies child-only runtime settings while preserving daemon markers", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		const env = { ELECTRON_RUN_AS_NODE: "1", CLINE_RUN_AS_HUB_DAEMON: "0" };
+		setHubDaemonLauncher({
+			command: "/editor",
+			args: ["/extension/hub.js"],
+			env,
+		});
+		env.ELECTRON_RUN_AS_NODE = "0";
+		const command = __test__.resolveLaunchCommand("/work");
+		expect(command.args.slice(0, 2)).toEqual(["/extension/hub.js", "--cwd"]);
+		expect(command.env.ELECTRON_RUN_AS_NODE).toBe("1");
+		expect(command.env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+		setHubDaemonLauncher(undefined);
+		expect(
+			__test__.resolveLaunchCommand("/work").env.ELECTRON_RUN_AS_NODE,
+		).toBe(process.env.ELECTRON_RUN_AS_NODE);
 	});
 });

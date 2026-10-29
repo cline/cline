@@ -23,15 +23,15 @@ const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
  * switching copies merged settings (including auth) into direct entries, so
  * both must be updated for the manual key to reliably take effect.
  */
-export function saveManualProviderApiKey(
+export async function saveManualProviderApiKey(
 	manager: ProviderSettingsManager,
 	providerId: string,
 	apiKey: string,
-): void {
+): Promise<void> {
 	// Empty strings delete these keys from the stored auth object.
 	const clearedAuth = { accessToken: "", refreshToken: "", apiKey: "" };
 	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
-	saveLocalProviderSettings(manager, {
+	await saveLocalProviderSettings(manager, {
 		providerId: storageProviderId,
 		apiKey,
 		auth: clearedAuth,
@@ -40,7 +40,7 @@ export function saveManualProviderApiKey(
 		providerId !== storageProviderId &&
 		manager.read().providers[providerId]
 	) {
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId,
 			apiKey,
 			auth: clearedAuth,

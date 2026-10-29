@@ -20,9 +20,12 @@ import {
 } from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
+	createMcpAppsRuntime,
 	createMcpTools,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	type McpAppsRuntime,
+	type McpToolDescriptor,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../../extensions/mcp";
@@ -59,6 +62,7 @@ import type {
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
 } from "./session-runtime";
+import { TeamPersistenceWriter } from "./team-persistence-writer";
 
 function hasConfigExtension(
 	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
@@ -206,9 +210,13 @@ const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 async function loadConfiguredMcpTools(options: {
 	logger?: BasicLogger;
 	includeSettings: boolean;
+	mcpApps: boolean;
+	toolPolicies?: CoreSessionConfig["toolPolicies"];
+	disabledToolNames?: ReadonlySet<string>;
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 }): Promise<{
 	tools: AgentTool[];
+	mcpApps?: McpAppsRuntime;
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
@@ -220,9 +228,11 @@ async function loadConfiguredMcpTools(options: {
 
 	const settingsClientFactory = createDefaultMcpServerClientFactory({
 		settingsPath,
+		mcpApps: options.mcpApps,
 	});
 	const agentPluginClientFactory = createDefaultMcpServerClientFactory({
 		restrictConfiguredHeadersToOrigin: true,
+		mcpApps: options.mcpApps,
 	});
 	const manager = new InMemoryMcpManager({
 		clientFactory: (registration) =>
@@ -277,20 +287,27 @@ async function loadConfiguredMcpTools(options: {
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
-		enabled.map((r) =>
-			createMcpTools({
+		enabled.map(async (r) => {
+			const descriptors = await manager.listTools(r.name);
+			const tools = await createMcpTools({
 				serverName: r.name,
-				provider: manager,
+				provider: {
+					listTools: async () => descriptors,
+					callTool: (request) => manager.callTool(request),
+				},
 				// Keep the tool wrapper timeout in agreement with the MCP
 				// request timeout: both derive from the server's registration.
 				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
-			}),
-		),
+			});
+			return { descriptors, tools };
+		}),
 	);
 	const tools: AgentTool[] = [];
+	const agentTools = new Map<string, readonly McpToolDescriptor[]>();
 	for (const [i, result] of results.entries()) {
 		if (result.status === "fulfilled") {
-			tools.push(...result.value);
+			tools.push(...result.value.tools);
+			agentTools.set(enabled[i].name, result.value.descriptors);
 		} else {
 			const message =
 				result.reason instanceof Error
@@ -304,6 +321,18 @@ async function loadConfiguredMcpTools(options: {
 
 	return {
 		tools,
+		...(options.mcpApps
+			? {
+					mcpApps: createMcpAppsRuntime({
+						manager,
+						serverNames: enabled.map((registration) => registration.name),
+						agentTools,
+						isToolEnabled: (agentToolName) =>
+							isToolEnabledByPolicies(agentToolName, options.toolPolicies) &&
+							!options.disabledToolNames?.has(agentToolName),
+					}),
+				}
+			: {}),
 		shutdown: async () => {
 			await manager.dispose();
 		},
@@ -358,6 +387,7 @@ function normalizeConfig(
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
 		| "disableMcpSettingsTools"
+		| "mcpApps"
 		| "yolo"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
@@ -375,6 +405,7 @@ function normalizeConfig(
 		enableAgentTeams:
 			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
 		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
+		mcpApps: config.mcpApps === true,
 		yolo: config.yolo === true,
 		missionLogIntervalSteps:
 			typeof config.missionLogIntervalSteps === "number" &&
@@ -462,6 +493,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+		let mcpApps: McpAppsRuntime | undefined;
 
 		for (const error of configuredAgents.errors) {
 			(logger ?? config.logger)?.log?.(
@@ -589,10 +621,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				const mcpRuntime = await loadConfiguredMcpTools({
 					logger: config.logger,
 					includeSettings: !normalized.disableMcpSettingsTools,
+					mcpApps: normalized.mcpApps,
+					toolPolicies: effectiveToolPolicies,
+					disabledToolNames: globallyDisabledToolNames,
 					agentPluginServers: agentPluginMcpServers,
 				});
 				tools.push(...mcpRuntime.tools);
 				mcpShutdown = mcpRuntime.shutdown;
+				mcpApps = mcpRuntime.mcpApps;
 			}
 		}
 
@@ -606,6 +642,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teammateSpecs = new Map(
 			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
 		);
+		const teamPersistence = teamStore
+			? new TeamPersistenceWriter({
+					teamKey: teamStoreKey,
+					store: teamStore,
+					source: () => teamRuntime,
+					teammates: () => Array.from(teammateSpecs.values()),
+					onError: (error) =>
+						(logger ?? config.logger)?.log?.(
+							`[team] failed to persist team state: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						),
+				})
+			: undefined;
 		const registryKey = config.sessionId || effectiveTeamName;
 		let leadAgentInstance:
 			| {
@@ -700,9 +750,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: config.sessionId || "lead",
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
+					onStateDirty: () => teamPersistence?.markStateDirty(),
 					onTeamEvent: (event: TeamEvent) => {
 						onTeamEvent(event);
-						if (teamRuntime && teamStore) {
+						if (teamPersistence) {
 							if (
 								event.type === "teammate_spawned" &&
 								event.teammate?.rolePrompt
@@ -714,19 +765,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									maxIterations: event.teammate.maxIterations,
 								};
 								teammateSpecs.set(spec.agentId, spec);
+								teamPersistence.markTeammatesDirty();
 							}
 							if (
 								event.type === "teammate_shutdown" &&
 								!isRuntimeLifecycleShutdownReason(event.reason)
 							) {
 								teammateSpecs.delete(event.agentId);
+								teamPersistence.markTeammatesDirty();
 							}
-							teamStore.handleTeamEvent(teamStoreKey, event);
-							teamStore.persistRuntime(
-								teamStoreKey,
-								teamRuntime.exportState(),
-								Array.from(teammateSpecs.values()),
-							);
+							// Telemetry is dropped; durable changes are batched.
+							teamPersistence.onEvent(event);
 						}
 					},
 				});
@@ -861,6 +910,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			extensions: runtimeExtensions,
 			completionPolicy,
+			mcpApps,
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {
@@ -873,6 +923,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
+				// Final synchronous write so nothing batched is lost on exit.
+				teamPersistence?.dispose();
 				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {

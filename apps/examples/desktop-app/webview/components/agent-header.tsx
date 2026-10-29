@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionStatus } from "@cline/ui";
+import { AgentConversationHeader, SessionStatus } from "@cline/ui";
 import {
 	AlertCircle,
 	Bot,
@@ -8,9 +8,12 @@ import {
 	ChevronRight,
 	Clock3,
 	CornerUpLeft,
+	FileDiff,
+	FolderTree,
 	Loader2,
 	MoreHorizontal,
 	Plus,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
@@ -34,6 +37,7 @@ import {
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { normalizeTitle } from "./utils";
+import { PullRequestMenu } from "./views/chat/pull-request-menu";
 
 type AgentHeaderProps = {
 	title?: string;
@@ -44,7 +48,14 @@ type AgentHeaderProps = {
 	onDeleteSession?: () => void;
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
-	onOpenDiff?: () => void;
+	/** Omit when the session has no browsable workspace (e.g. cloud runs). */
+	onToggleFiles?: () => void;
+	filesOpen?: boolean;
+	/** Where to look up the branch's pull request for the PR menu button. */
+	pullRequest?: { cwd: string; branch: string | null };
+	/** Shown with the session's line counts once it has changes. */
+	onToggleChanges?: () => void;
+	changesOpen?: boolean;
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
@@ -60,6 +71,11 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	/** Shown only where a terminal can run (local sessions in the desktop app). */
+	onToggleTerminal?: () => void;
+	terminalOpen?: boolean;
+	/** Display form of the configured toggle shortcut, for the tooltip. */
+	terminalShortcut?: string;
 };
 
 function AgentHeaderImpl({
@@ -71,7 +87,11 @@ function AgentHeaderImpl({
 	onDeleteSession,
 	canDeleteSession,
 	deletingSession,
-	onOpenDiff,
+	onToggleFiles,
+	filesOpen = false,
+	pullRequest,
+	onToggleChanges,
+	changesOpen = false,
 	showSessionActions = true,
 	status,
 	diff,
@@ -83,6 +103,9 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	onToggleTerminal,
+	terminalOpen = false,
+	terminalShortcut,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -123,156 +146,195 @@ function AgentHeaderImpl({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7">
-			{/* Left: thread title */}
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<SessionStatus
-					className="shrink-0 font-mono"
-					label={`Session status: ${status}`}
-					showLabel={false}
-					style={
-						{
-							"--cline-ui-session-status-color": statusColor,
-						} as CSSProperties
-					}
-					tone={statusTone}
-				/>
-				{!canEditTitle ? (
-					<span
-						className="min-w-0 truncate text-sm font-medium text-foreground"
-						title={threadTitle}
-					>
-						{threadTitle}
-					</span>
-				) : isEditingTitle ? (
-					<form
-						className="m-0 min-w-0 max-w-full shrink-0"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void submitTitle();
-						}}
-						style={{ width: titleEditorWidth }}
-					>
-						<Input
-							autoFocus
-							className="h-7 w-full text-sm"
-							disabled={renamingTitle}
-							onBlur={() => {
-								void submitTitle();
-							}}
-							onChange={(event) => setTitleInput(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									event.preventDefault();
-									setTitleInput(threadTitle);
-									setIsEditingTitle(false);
-								}
-							}}
-							value={titleInput}
+		<AgentConversationHeader
+			className="max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
+			actions={
+				showSessionActions ? (
+					<>
+						<AgentActivityStatus
+							activity={agentActivity}
+							agents={agents}
+							error={agentsError}
+							loading={agentsLoading}
+							onOpenAgentSession={onOpenAgentSession}
+							onOpenChange={onAgentsOpenChange}
 						/>
-					</form>
-				) : (
-					<button
-						className={cn(
-							"min-w-0 truncate text-sm font-medium text-foreground",
-							canEditTitle &&
-								"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
-						)}
-						disabled={renamingTitle}
-						onClick={(event) => {
-							if (!canEditTitle || renamingTitle) {
-								return;
-							}
-							setTitleEditorWidth(
-								event.currentTarget.getBoundingClientRect().width,
-							);
-							setTitleInput(threadTitle);
-							setIsEditingTitle(true);
-						}}
-						type="button"
-						title={threadTitle}
-					>
-						{threadTitle}
-					</button>
-				)}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							aria-label="Session actions"
-							className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-							id="show-more-btn"
-							variant="ghost"
-							size="icon-sm"
-							type="button"
-						>
-							<MoreHorizontal className="size-3" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-44">
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							disabled={!canDeleteSession || deletingSession}
-							onClick={triggerDeleteSession}
-						>
-							<Trash2 className="size-4" />
-							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
-
-			{showSessionActions ? (
-				<div className="flex shrink-0 items-center gap-2">
-					<AgentActivityStatus
-						activity={agentActivity}
-						agents={agents}
-						error={agentsError}
-						loading={agentsLoading}
-						onOpenAgentSession={onOpenAgentSession}
-						onOpenChange={onAgentsOpenChange}
-					/>
-					{additions !== 0 && (
-						<Button
-							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
-							className={cn(
-								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-								hasChanges
-									? "hover:bg-secondary/80"
-									: "cursor-default opacity-60",
-							)}
-							disabled={!hasChanges}
-							id="diff-stats"
-							onClick={() => onOpenDiff?.()}
-							size="sm"
-							type="button"
-							variant="secondary"
-						>
-							<span className="text-chart-2">+{additions}</span>
-							<span className="text-destructive">-{deletions}</span>
-						</Button>
-					)}
-					{/* A child agent run leads back to its parent instead of starting a
+						{/* "What did the agent do" and "browse or commit the repo" are
+						    separate questions, so each gets its own control. */}
+						{onToggleChanges && hasChanges ? (
+							<Button
+								aria-label={`${changesOpen ? "Hide" : "Show"} changes: ${additions} additions, ${deletions} deletions`}
+								aria-pressed={changesOpen}
+								className="h-7 gap-1.5 px-2"
+								id="toggle-changes"
+								onClick={onToggleChanges}
+								size="sm"
+								title={changesOpen ? "Hide changes" : "Show changes"}
+								type="button"
+								variant="toolbar"
+							>
+								<FileDiff className="size-4" />
+								<span className="flex items-center gap-1 font-mono text-xs">
+									<span className="text-chart-2">+{additions}</span>
+									<span className="text-destructive">-{deletions}</span>
+								</span>
+							</Button>
+						) : null}
+						{onToggleFiles ? (
+							<Button
+								aria-label={
+									filesOpen ? "Hide project files" : "Show project files"
+								}
+								aria-pressed={filesOpen}
+								id="toggle-project-files"
+								onClick={onToggleFiles}
+								size="icon-xs"
+								title={filesOpen ? "Hide project files" : "Show project files"}
+								type="button"
+								variant="toolbar"
+							>
+								<FolderTree className="size-4" />
+							</Button>
+						) : null}
+						{onToggleTerminal ? (
+							<Button
+								aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+								aria-pressed={terminalOpen}
+								onClick={onToggleTerminal}
+								size="icon-xs"
+								title={
+									terminalShortcut
+										? `Toggle terminal (${terminalShortcut})`
+										: "Toggle terminal"
+								}
+								type="button"
+								variant="toolbar"
+							>
+								<SquareTerminal className="size-4" />
+							</Button>
+						) : null}
+						{pullRequest ? (
+							<PullRequestMenu
+								branch={pullRequest.branch}
+								cwd={pullRequest.cwd}
+							/>
+						) : null}
+						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
-					{parentSession ? (
-						<SubagentSessionBadge
-							onOpenParentSession={onOpenParentSession}
-							parentSession={parentSession}
-						/>
-					) : (
-						<Button
-							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
-							onClick={() => onNewThread?.()}
-							size="icon-sm"
-							variant="ghost"
-						>
-							<Plus className="size-4" />
-						</Button>
+						{parentSession ? (
+							<SubagentSessionBadge
+								onOpenParentSession={onOpenParentSession}
+								parentSession={parentSession}
+							/>
+						) : (
+							<Button
+								aria-label="New session"
+								onClick={() => onNewThread?.()}
+								size="icon-xs"
+								variant="toolbar"
+							>
+								<Plus className="size-4" />
+							</Button>
+						)}
+					</>
+				) : null
+			}
+		>
+			<SessionStatus
+				className="shrink-0 font-mono"
+				label={`Session status: ${status}`}
+				showLabel={false}
+				style={
+					{
+						"--cline-ui-session-status-color": statusColor,
+					} as CSSProperties
+				}
+				tone={statusTone}
+			/>
+			{!canEditTitle ? (
+				<span
+					className="min-w-0 truncate text-sm font-medium text-foreground"
+					title={threadTitle}
+				>
+					{threadTitle}
+				</span>
+			) : isEditingTitle ? (
+				<form
+					className="m-0 min-w-0 max-w-full"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void submitTitle();
+					}}
+					style={{ width: titleEditorWidth }}
+				>
+					<Input
+						autoFocus
+						className="h-7 w-full text-sm"
+						disabled={renamingTitle}
+						onBlur={() => {
+							void submitTitle();
+						}}
+						onChange={(event) => setTitleInput(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								event.preventDefault();
+								setTitleInput(threadTitle);
+								setIsEditingTitle(false);
+							}
+						}}
+						value={titleInput}
+					/>
+				</form>
+			) : (
+				<button
+					className={cn(
+						"min-w-0 truncate text-sm font-medium text-foreground",
+						canEditTitle &&
+							"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
 					)}
-				</div>
-			) : null}
-		</header>
+					disabled={renamingTitle}
+					onClick={(event) => {
+						if (!canEditTitle || renamingTitle) {
+							return;
+						}
+						setTitleEditorWidth(
+							Math.max(240, event.currentTarget.getBoundingClientRect().width),
+						);
+						setTitleInput(threadTitle);
+						setIsEditingTitle(true);
+					}}
+					type="button"
+					title={threadTitle}
+				>
+					{threadTitle}
+				</button>
+			)}
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						aria-label="Session actions"
+						className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+						id="show-more-btn"
+						variant="ghost"
+						size="icon-sm"
+						type="button"
+					>
+						<MoreHorizontal className="size-3" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start" className="w-44">
+					<DropdownMenuItem
+						className="text-destructive focus:text-destructive"
+						disabled={!canDeleteSession || deletingSession}
+						onClick={triggerDeleteSession}
+					>
+						<Trash2 className="size-4" />
+						<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</AgentConversationHeader>
 	);
 }
 
@@ -363,12 +425,12 @@ function AgentActivityStatus({
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={label}
-					className="flex items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-xs font-mono text-muted-foreground transition-colors hover:bg-secondary/80"
+					className="h-7 gap-1.5 px-2 font-mono text-xs"
 					id="agent-activity"
 					size="sm"
 					title={label}
 					type="button"
-					variant="secondary"
+					variant="toolbar"
 				>
 					<Bot aria-hidden="true" className="size-3 shrink-0" />
 					<span className="text-foreground">{activity.total}</span>

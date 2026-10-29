@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import {
 	createWriteStream,
 	type Dirent,
+	existsSync,
 	mkdtempSync,
 	renameSync,
 	rmSync,
@@ -324,6 +325,59 @@ export class CommandExitError extends Error {
 	) {
 		super(`Command exited with code ${exitCode}`);
 		this.name = "CommandExitError";
+	}
+}
+
+function commandCompletionMessage(
+	code: number | null,
+	signal: NodeJS.Signals | null,
+): string {
+	if (code !== null) return `Command exited with code ${code}`;
+	return signal
+		? `Command terminated by signal ${signal}`
+		: "Command terminated without an exit code";
+}
+
+/** The process terminated without a numeric exit code, usually by signal. */
+export class CommandTerminationError extends Error {
+	constructor(
+		readonly signal: NodeJS.Signals | null,
+		readonly output: string,
+	) {
+		super(commandCompletionMessage(null, signal));
+		this.name = "CommandTerminationError";
+	}
+}
+
+/**
+ * The shell process could not be started, so the command never ran and there
+ * is no exit code. `code` carries the operating system error libuv reported —
+ * `ENOENT`, `EACCES`, `EFTYPE` for a file that is not a valid executable — so
+ * a host can count "the shell is missing" separately from "the command
+ * failed" without parsing the message.
+ *
+ * `ENOENT` alone is ambiguous: spawn reports it both when the executable is
+ * not found and when the working directory no longer exists, with the same
+ * message. `missing` settles it by checking the directory at failure time, so
+ * "shell not on PATH" and "workspace folder gone" stay separately countable.
+ */
+export class CommandSpawnError extends Error {
+	readonly code: string | undefined;
+	/** For `ENOENT`, which path was absent. Undefined for every other code. */
+	readonly missing: "executable" | "cwd" | undefined;
+
+	constructor(cause: Error, options: { cwd?: string } = {}) {
+		super(`Failed to execute command: ${cause.message}`);
+		this.name = "CommandSpawnError";
+		const code = (cause as NodeJS.ErrnoException).code;
+		this.code = typeof code === "string" ? code : undefined;
+		if (this.code !== "ENOENT") {
+			this.missing = undefined;
+		} else if (options.cwd !== undefined && !existsSync(options.cwd)) {
+			this.missing = "cwd";
+		} else {
+			this.missing = "executable";
+		}
 	}
 }
 
@@ -909,9 +963,13 @@ function spawnAndCollect(
 
 		// Shared completion path for 'close' (stdio drained) and the
 		// exit-grace fallback below: snapshot the collectors, flush the final
-		// decoder chunks, and settle with the exit code. `trailingNote` is
+		// decoder chunks, and settle with the exit code or signal. `trailingNote` is
 		// appended after truncation so it always reaches the caller.
-		const completeCommand = (code: number | null, trailingNote: string) => {
+		const completeCommand = (
+			code: number | null,
+			signal: NodeJS.Signals | null,
+			trailingNote: string,
+		) => {
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
 			if (out.finalChunk) {
@@ -924,7 +982,6 @@ function spawnAndCollect(
 			cleanup();
 
 			if (code !== 0) {
-				const exitCode = code ?? 1;
 				let failureOutput = combineOutput
 					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
 					: out.text;
@@ -938,16 +995,15 @@ function spawnAndCollect(
 						totalChars,
 					});
 				}
+				const notice = `[${commandCompletionMessage(code, signal)}]`;
 				const result =
-					failureOutput.length > 0
-						? `[Command exited with code ${exitCode}]\n${failureOutput}`
-						: `[Command exited with code ${exitCode}]`;
+					failureOutput.length > 0 ? `${notice}\n${failureOutput}` : notice;
+				const output = trailingNote ? `${result}\n${trailingNote}` : result;
 				settle(() =>
 					reject(
-						new CommandExitError(
-							exitCode,
-							trailingNote ? `${result}\n${trailingNote}` : result,
-						),
+						code === null
+							? new CommandTerminationError(signal, output)
+							: new CommandExitError(code, output),
 					),
 				);
 			} else {
@@ -970,7 +1026,7 @@ function spawnAndCollect(
 			}
 		};
 
-		child.on("close", (code) => {
+		child.on("close", (code, signal) => {
 			if (killed || settledOnExitGrace) return;
 
 			const out = stdout.snapshot();
@@ -983,11 +1039,11 @@ function spawnAndCollect(
 				}
 				detachedLog?.write(out.finalChunk);
 				detachedLog?.write(err.finalChunk);
-				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
+				detachedLog?.write(`\n[${commandCompletionMessage(code, signal)}]\n`);
 				detachedLog?.complete();
 				return;
 			}
-			completeCommand(code, "");
+			completeCommand(code, signal ?? null, "");
 		});
 
 		// 'close' fires only once the stdio streams have drained. A command
@@ -1007,7 +1063,7 @@ function spawnAndCollect(
 		// treatment for its log: without this, a detached shell that exits
 		// while a descendant holds the pipes would leave the log forever in
 		// the active state, waiting for a 'close' that never comes.
-		child.on("exit", (code) => {
+		child.on("exit", (code, signal) => {
 			if (killed) return;
 			exitStreamGraceTimer = setTimeout(() => {
 				if (killed || settledOnExitGrace) return;
@@ -1018,7 +1074,7 @@ function spawnAndCollect(
 					const err = stderr.snapshot();
 					detachedLog?.write(out.finalChunk);
 					detachedLog?.write(err.finalChunk);
-					detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
+					detachedLog?.write(`\n[${commandCompletionMessage(code, signal)}]\n`);
 					detachedLog?.complete();
 					return;
 				}
@@ -1033,6 +1089,7 @@ function spawnAndCollect(
 				child.unref();
 				completeCommand(
 					code,
+					signal ?? null,
 					"[Command completed with background processes still running; their output is no longer captured]",
 				);
 			}, EXIT_STREAM_GRACE_MS);
@@ -1047,9 +1104,7 @@ function spawnAndCollect(
 			}
 			progress.stop({ flush: true });
 			cleanup();
-			settle(() =>
-				reject(new Error(`Failed to execute command: ${error.message}`)),
-			);
+			settle(() => reject(new CommandSpawnError(error, { cwd: config.cwd })));
 		});
 
 		child.stdin?.on("error", (error) => {

@@ -54,7 +54,7 @@ import type {
 	LocalRuntimeStartOptions,
 	RuntimeSessionConfig,
 } from "../../runtime/host/runtime-host";
-import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { loadRulesForSystemPromptFromRecords } from "../../runtime/safety/rules";
 import type { CoreSessionConfig } from "../../types/config";
 
 type RequestCapability = (
@@ -133,6 +133,9 @@ function parseToolContribution(
 		name,
 		description,
 		inputSchema,
+		...(typeof record.successContext === "string"
+			? { successContext: record.successContext }
+			: {}),
 		...(cloneRecord(record.lifecycle)
 			? { lifecycle: cloneRecord(record.lifecycle) }
 			: {}),
@@ -402,11 +405,7 @@ function createUserInstructionServiceProxy(
 						id: "cline-hub-user-instructions:rules",
 						source: "hub-user-instructions",
 						content: () =>
-							formatRulesForSystemPrompt(
-								snapshot.records.rule
-									.map((record) => record.item)
-									.filter((rule) => rule.disabled !== true),
-							),
+							loadRulesForSystemPromptFromRecords(snapshot.records.rule),
 					});
 				}
 				if (options.registerSkillsTool) {
@@ -483,6 +482,7 @@ function createToolProxies(
 		description: contribution.description,
 		inputSchema: contribution.inputSchema,
 		lifecycle: contribution.lifecycle as AgentTool["lifecycle"],
+		successContext: contribution.successContext,
 		async execute(input, context) {
 			const response = await requestCapability(
 				sessionId,
@@ -512,6 +512,7 @@ function createToolProxies(
 const STREAMING_EVENT_TYPES = new Set<AgentRuntimeEvent["type"]>([
 	"assistant-text-delta",
 	"assistant-reasoning-delta",
+	"tool-call-delta",
 	"tool-updated",
 ]);
 

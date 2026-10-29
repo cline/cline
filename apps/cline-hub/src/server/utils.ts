@@ -20,6 +20,18 @@ export function asNumber(value: unknown): number | undefined {
 		: undefined;
 }
 
+export function clientMetadata(metadata: Record<string, unknown> | undefined): {
+	version?: string;
+	pid?: number;
+} {
+	const version = asString(metadata?.version);
+	const pid = asNumber(metadata?.pid);
+	return {
+		...(version ? { version } : {}),
+		...(pid !== undefined ? { pid } : {}),
+	};
+}
+
 export function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object"
 		? (value as Record<string, unknown>)

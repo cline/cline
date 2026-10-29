@@ -1,0 +1,93 @@
+---
+title: "Cline Cloud Agents"
+sidebarTitle: "Cloud Agents"
+description: "Use Cline straight from your browser. Give it a task on one of your GitHub repos and it works in its own secure cloud sandbox, with no IDE, CLI, or app to install."
+---
+
+**Cline Cloud Agents let you use Cline straight from your browser.** Give it a task on one of your GitHub repos and it works in a secure cloud sandbox, writing code and running commands until the job is done, then hands the work back as a branch and pull request.
+
+Nothing to install. The agent keeps working in the cloud when you close the tab, so you can run several tasks at once and check in on them from any device, including your phone.
+
+<Card title="Start a Cloud Agent" icon="cloud" href="https://app.cline.bot/agents">
+  Log in or create a Cline account, connect GitHub, and start your first task.
+</Card>
+
+## Getting started
+
+<Steps>
+  <Step title="Log in or create a Cline account">
+    Go to [app.cline.bot](https://app.cline.bot/) and sign in, or create a free account.
+  </Step>
+  <Step title="Connect GitHub">
+    Connect your GitHub account and choose which repositories Cline can work on. You can connect personal repositories and repositories in organizations you belong to.
+  </Step>
+  <Step title="Start a task">
+    Open the **Agents** tab, pick a repository and branch, choose a model, and describe what you want done.
+  </Step>
+  <Step title="Review the work">
+    Cline commits to its own branch as it works. When the task is done, ask it to open a pull request, then review and merge it on GitHub like any other PR.
+  </Step>
+</Steps>
+
+## Run several agents at once
+
+Every session gets its own sandbox with its own copy of the repository, so sessions never step on each other. Hand off a bug fix, a refactor, and a new feature at the same time, then review the pull requests as they come in.
+
+The sidebar shows every session and its status, so you can see at a glance which agents are working, which are done, and which are waiting on you.
+
+## Check in from your phone
+
+Cloud Agents work in any mobile browser. Start a task on your laptop, close the lid, and check in from your phone. You can read what the agent did, answer its questions, and send follow-up instructions while you're away from your desk.
+
+## Choose a model
+
+Pick a model when you start a task, and switch to a different one mid-session if you want. Cloud Agents support three providers:
+
+- **ClineFree**: free models you can use to try Cloud Agents without paying anything. See [Cline Free Models](/getting-started/free-models). The free models available change over time, so check the model picker for the current list.
+- **[ClinePass](/getting-started/clinepass)**: our subscription for open-weight models, with 2-5x the usage compared to standard API rates.
+- **[Cline (usage-billing)](/getting-started/cline-provider)**: pay-as-you-go access to frontier and open models with Cline credits.
+
+## How your work is saved
+
+Each task works on its own `cline/` branch in your repository, and never commits directly to your default branch. The agent commits and pushes as it goes, so your progress is on GitHub even before the task is finished.
+
+When a session sits idle for 15 minutes, its sandbox pauses. Open the session again and it picks up where it left off, with the workspace intact.
+
+## Steering the agent
+
+Cloud Agents use the same agent as Cline in your editor, desktop app, and terminal:
+
+- **Plan and Act modes**: have Cline plan the change with you before it writes code. See [Plan & Act](/core-workflows/plan-and-act).
+- **Approvals**: approve commands and edits as they happen, or turn on auto-approve to let the agent run on its own.
+- **Images**: paste or drag in screenshots and mockups as context.
+- **Follow-ups**: send new instructions at any time to redirect the agent mid-task.
+
+## Security
+
+Each session runs in an isolated sandbox. Cline's GitHub access in a session is limited to the repository you picked for that session.
+
+## Limits
+
+You can have up to 10 Cloud Agent sessions running at once and start up to 50 new sessions per day. If Cline's cloud is at capacity, you'll see a message asking you to try again shortly.
+
+## Current limitations
+
+Cloud Agents are new, and some things from local Cline don't carry over to cloud sessions yet:
+
+- [Rules](/customization/cline-rules), [skills](/customization/skills), [MCP servers](/mcp/mcp-overview), and [connectors](/cli/connectors) are not loaded in cloud sessions.
+
+## Prefer working locally?
+
+Cline also runs on your own machine, with the same agent and the same models:
+
+<CardGroup cols={3}>
+  <Card title="Cline Desktop" icon="desktop" href="/usage/cline-desktop">
+    A dedicated app for running and managing agent sessions.
+  </Card>
+  <Card title="IDE Extension" icon="code" href="/usage/ide">
+    Cline in VS Code, Cursor, and JetBrains.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/usage/cli-overview">
+    Cline in your terminal and in scripts.
+  </Card>
+</CardGroup>

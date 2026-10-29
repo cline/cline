@@ -2,8 +2,10 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
+	readlinkSync,
 	realpathSync,
 	rmSync,
 	statSync,
@@ -42,8 +44,10 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -53,6 +57,7 @@ import {
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
@@ -66,7 +71,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -85,7 +89,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -125,17 +129,24 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
-import {
-	readDesktopSettings,
-	setCloudSessionsEnabled,
-} from "./desktop-settings";
+import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
-	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { getHubStatus, restartHub } from "./hub-admin";
+import { isHubIndependentCommand } from "./hub-startup";
+import {
+	readKeybindings,
+	resolveKeybindingsPath,
+	writeKeybindings,
+} from "./keybindings";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
+import {
+	handleLocalModelsCommand,
+	LOCAL_MODELS_COMMANDS,
+} from "./local-models";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -160,26 +171,48 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { listPluginCommands } from "./plugin-commands";
+import {
+	listProjectEntries,
+	readLocalProjectFile,
+	readProjectFile,
+} from "./project-files";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
+import {
+	getSessionChanges,
+	localGit,
+	readSessionChangeContents,
+} from "./session-changes";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import {
 	compareSessionRecordsByStartedAtDesc,
+	derivePromptFromMessages,
 	normalizeSessionTitle,
 } from "./session-data/common";
 import {
 	discoverChatSessions,
 	mergeDiscoveredSessionLists,
 } from "./session-data/discovery";
-import { readSessionMessages } from "./session-data/messages";
+import {
+	readPersistedChatMessages,
+	readSessionMessages,
+} from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import {
+	getCommitDetails,
+	getCommitFileDiff,
+	getGitFileDiff,
+	getSourceControlState,
+	parseSourceControlAction,
+	runSourceControlAction,
+} from "./source-control";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -366,6 +399,33 @@ function getCommandRuntimeBinding(
 ) {
 	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
 	return getRuntimeBinding(ctx, environmentId);
+}
+
+/**
+ * Checkpoint history from the hub's session record, falling back to the local
+ * store for sessions the hub no longer holds (finished CLI runs, restarts).
+ */
+async function readSessionCheckpoints(
+	ctx: SidecarContext,
+	sessionId: string,
+	args: Record<string, unknown> | undefined,
+) {
+	let record: { metadata?: Record<string, unknown> } | undefined;
+	try {
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		record = (await binding?.sessionManager.get(sessionId)) ?? undefined;
+	} catch {
+		// Fall through to the local store.
+	}
+	const fromHub = readSessionCheckpointHistory(record);
+	if (fromHub.length > 0) return fromHub;
+	try {
+		return readSessionCheckpointHistory(
+			new SqliteSessionStore().get(sessionId) ?? undefined,
+		);
+	} catch {
+		return [];
+	}
 }
 
 async function getCommandSessionBinding(
@@ -643,6 +703,10 @@ async function getSessionFromSidecarManager(
 		: undefined;
 }
 
+function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
+	return typeof session.prompt === "string" && Boolean(session.prompt.trim());
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -672,6 +736,17 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
+				if (!isSidebarSessionWithPrompt(merged)) {
+					// Attachment-only sessions may have no textual prompt metadata.
+					const messages =
+						binding.kind === "local"
+							? readPersistedChatMessages(sessionId)
+							: await binding.sessionManager
+									.readMessages(sessionId)
+									.catch(() => []);
+					merged.prompt = derivePromptFromMessages(messages ?? []);
+				}
+				if (!isSidebarSessionWithPrompt(merged)) continue;
 				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
@@ -692,6 +767,14 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
+			session.prompt =
+				session.prompt?.trim() ||
+				derivePromptFromMessages(
+					readPersistedChatMessages(session.sessionId) ?? [],
+				);
+			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
+				continue;
+			}
 			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
@@ -701,6 +784,10 @@ async function listSessionsFromSidecarManager(
 
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			if (session.config.executionTarget === "cloud") continue;
+			const prompt =
+				session.prompt?.trim() || derivePromptFromMessages(session.messages);
+			if (!prompt) continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -716,7 +803,7 @@ async function listSessionsFromSidecarManager(
 					existing?.workspaceRoot ??
 					existing?.cwd ??
 					"",
-				prompt: session.prompt ?? existing?.prompt,
+				prompt,
 				startedAt:
 					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
 				endedAt:
@@ -813,58 +900,116 @@ function metadataSessionSearchHits(
 // Git helpers
 // ---------------------------------------------------------------------------
 
+// Resolves to git's stdout, or undefined when the command fails (e.g. the
+// workspace is not a repository). Over SSH each call is its own ssh session.
+async function runGit(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+	args: string[],
+): Promise<string | undefined> {
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const result = await remote
+			.run(binding.environmentId, { command: "git", args, cwd })
+			.catch(() => undefined);
+		return result?.stdout;
+	}
+	const result = await execFileAsync("git", args, {
+		cwd,
+		encoding: "utf8",
+	}).catch(() => undefined);
+	return result?.stdout;
+}
+
+// Unlike runGit, failures surface: source control actions need git's own
+// explanation (nothing to commit, rejected push, ...) shown to the user.
+// The app cannot answer a terminal prompt, so git must fail instead of
+// waiting on one. Background runs also refuse GUI credential prompts.
+const NON_INTERACTIVE_GIT_ENV = { GIT_TERMINAL_PROMPT: "0" };
+const BACKGROUND_GIT_ENV = {
+	...NON_INTERACTIVE_GIT_ENV,
+	GCM_INTERACTIVE: "never",
+	GIT_ASKPASS: "echo",
+	SSH_ASKPASS: "echo",
+};
+const BACKGROUND_GIT_TIMEOUT_MS = 30_000;
+
+async function runGitStrict(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+	args: string[],
+	options: { background?: boolean } = {},
+): Promise<string> {
+	const env = options.background ? BACKGROUND_GIT_ENV : NON_INTERACTIVE_GIT_ENV;
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const result = await remote.run(binding.environmentId, {
+			command: "env",
+			args: [
+				...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+				"git",
+				...args,
+			],
+			cwd,
+		});
+		return result.stdout;
+	}
+	try {
+		const result = await execFileAsync("git", args, {
+			cwd,
+			encoding: "utf8",
+			env: { ...process.env, ...env },
+			maxBuffer: 16 * 1024 * 1024,
+			...(options.background ? { timeout: BACKGROUND_GIT_TIMEOUT_MS } : {}),
+		});
+		return result.stdout;
+	} catch (error) {
+		const stderr =
+			error && typeof error === "object" && "stderr" in error
+				? String((error as { stderr?: unknown }).stderr ?? "").trim()
+				: "";
+		throw new Error(
+			stderr || (error instanceof Error ? error.message : String(error)),
+		);
+	}
+}
+
+async function currentGitBranch(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd?: string,
+): Promise<string | undefined> {
+	const targetCwd = cwd?.trim() || binding.workspaceRoot;
+	const current = await runGit(ctx, binding, targetCwd, [
+		"branch",
+		"--show-current",
+	]);
+	return current?.trim() || undefined;
+}
+
 async function listGitBranches(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
 	cwd?: string,
 ): Promise<{ current?: string; branches?: string[] }> {
 	const targetCwd = cwd?.trim() || binding.workspaceRoot;
-	if (binding.kind === "ssh") {
-		const remote = ctx.remoteEnvironments;
-		if (!remote) throw new Error("Remote environment service is unavailable");
-		const [currentResult, branchesResult] = await Promise.all([
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["branch", "--show-current"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-		]);
-		const current = currentResult?.stdout.trim() ?? "";
-		const branches = (branchesResult?.stdout ?? "")
-			.split("\n")
-			.map((value) => value.trim())
-			.filter(Boolean);
-		return { current: current || undefined, branches };
-	}
-	const [currentResult, branchesResult] = await Promise.all([
-		execFileAsync("git", ["branch", "--show-current"], {
-			cwd: targetCwd,
-			encoding: "utf8",
-		}).catch(() => undefined),
-		execFileAsync(
-			"git",
-			["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-			{
-				cwd: targetCwd,
-				encoding: "utf8",
-			},
-		).catch(() => undefined),
+	const [current, branchesOutput] = await Promise.all([
+		currentGitBranch(ctx, binding, targetCwd),
+		runGit(ctx, binding, targetCwd, [
+			"for-each-ref",
+			"--format=%(refname:short)",
+			"refs/heads",
+		]),
 	]);
-	const current = currentResult?.stdout.trim() ?? "";
-	const branches = (branchesResult?.stdout ?? "")
+	const branches = (branchesOutput ?? "")
 		.split("\n")
-		.map((v) => v.trim())
+		.map((value) => value.trim())
 		.filter(Boolean);
-	return { current: current || undefined, branches };
+	return { current, branches };
 }
 
 /** Where task worktrees live; honors `CLINE_DIR` like the rest of the Cline dir. */
@@ -1394,11 +1539,12 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 
 async function listHubSettings(
 	ctx: SidecarContext,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<CoreSettingsSnapshot> {
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
-		workspaceRoot: ctx.localWorkspaceRoot,
-		cwd: ctx.localWorkspaceRoot,
+		workspaceRoot,
+		cwd: workspaceRoot,
 	});
 	if (!reply.ok) {
 		throw new Error(
@@ -1434,9 +1580,10 @@ async function toggleHubSetting(
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<JsonRecord> {
-	const workspaceRoot = ctx.localWorkspaceRoot;
-	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
+	const hubSettings =
+		settingsSnapshot ?? (await listHubSettings(ctx, workspaceRoot));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -1591,6 +1738,16 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
+				enabled: isModelToolEnabledGlobally("web_search"),
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -1833,6 +1990,20 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	if (command === "retry_hub") {
+		ctx.hubStartup?.start();
+		return ctx.hubStartup?.status ?? null;
+	}
+	// The transport is published before the Hub is ready. Hold Hub-backed
+	// commands until startup settles, as they waited for the transport before.
+	if (ctx.hubStartup && !isHubIndependentCommand(command)) {
+		await ctx.hubStartup.waitUntilSettled();
+		// Its close cleanup already ran, so nothing could cancel work (such as a
+		// browser sign-in) started for a connection that left while waiting.
+		if (options?.connection && !ctx.wsClients.has(options.connection)) {
+			throw new Error("The connection closed while Cline Hub was starting.");
+		}
+	}
 	const explicitEnvironment = requestedEnvironmentId(args);
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
@@ -2025,15 +2196,34 @@ export async function handleCommand(
 			typeof args?.path === "string" ? args.path : undefined,
 		);
 	}
+	// Project explorer. The desktop UI picks the workspace it browses (the
+	// same connection that selects workspaces via validate/pick), so the root
+	// is a coherence check for the tree rather than a sandbox; raw file access
+	// is limited to that trusted connection, like agenda task execution.
+	if (command === "list_project_entries" || command === "read_project_file") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("project files require a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const root = String(args?.workspaceRoot ?? "").trim();
+		if (!root) throw new Error("workspaceRoot is required");
+		const path = String(args?.path ?? "") || root;
+		return command === "list_project_entries"
+			? await listProjectEntries(ctx, binding, root, path)
+			: await readProjectFile(ctx, binding, root, path);
+	}
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
+		const request = (args?.request ?? args) as ChatSessionCommandRequest;
+		if (
+			request.action === "handoff" &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("Git preparation requires a trusted desktop connection");
+		}
 		const { handleChatSessionCommand } = await import("./chat-session");
-		return await handleChatSessionCommand(
-			ctx,
-			(args?.request as ChatSessionCommandRequest | undefined) ??
-				(args as ChatSessionCommandRequest),
-		);
+		return await handleChatSessionCommand(ctx, request);
 	}
 	if (command === "proceed_while_running") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -2074,15 +2264,20 @@ export async function handleCommand(
 			return await readSessionMessages(ctx, sessionId, maxMessages, messages);
 		}
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		const remoteMessages =
-			binding?.kind === "ssh"
-				? await binding.sessionManager.readMessages(sessionId)
-				: undefined;
+		if (binding?.kind !== "ssh") {
+			return await readSessionMessages(ctx, sessionId, maxMessages);
+		}
+		const [remoteMessages, remoteSession] = await Promise.all([
+			binding.sessionManager.readMessages(sessionId),
+			// Only refines mention chips, so a failed lookup must not fail the read.
+			binding.sessionManager.get(sessionId).catch(() => undefined),
+		]);
 		return await readSessionMessages(
 			ctx,
 			sessionId,
 			maxMessages,
 			remoteMessages,
+			remoteSession?.workspaceRoot || remoteSession?.cwd || undefined,
 		);
 	}
 	if (command === "read_session_hooks") {
@@ -2156,8 +2351,6 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Resolve flags in the sidecar: available shows the opt-in;
-		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -2168,11 +2361,10 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
-			cloudAgentsAvailable: isCloudAgentsAvailable({
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			}),
 		};
+	}
+	if (command === "list_cloud_models") {
+		return await getCloudSessionManager(ctx).listModels();
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -2186,6 +2378,20 @@ export async function handleCommand(
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
+	}
+
+	if (command === "get_hub_status") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub status requires a trusted desktop connection");
+		}
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
+	}
+	if (command === "restart_hub") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub restart requires a trusted desktop connection");
+		}
+		await restartHub(ctx, await ensureSharedHubClient(ctx));
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
@@ -2303,8 +2509,7 @@ export async function handleCommand(
 	if (command === "list_chat_sessions") {
 		const limit = typeof args?.limit === "number" ? args.limit : 300;
 		const local = discoverChatSessions(ctx, limit);
-		// Existing cloud sessions stay listed even when the flag is off — the
-		// flag gates NEW creation only, so a rollback never strands a session.
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
@@ -2313,7 +2518,11 @@ export async function handleCommand(
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "list_cli_sessions") {
 		return await listSessionsFromSidecarManager(
@@ -2327,13 +2536,18 @@ export async function handleCommand(
 			ctx,
 			limit,
 		)) as JsonRecord[];
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "search_sessions") {
 		const query = String(args?.query ?? "").trim();
@@ -2348,6 +2562,7 @@ export async function handleCommand(
 				: undefined;
 		// Start now so cloud latency does not add to the local fallback deadline.
 		const cloudDiscovery = (async () => {
+			if (!isCloudAgentsEnabled()) return undefined;
 			const manager = getCloudSessionManager(ctx);
 			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
 			return { manager, sessions };
@@ -2393,7 +2608,11 @@ export async function handleCommand(
 		);
 		const cloud = await cloudDiscovery;
 		// Account changes replace the manager; discard any in-flight old scope.
-		if (cloud && ctx.cloudSessionManager === cloud.manager) {
+		if (
+			cloud &&
+			isCloudAgentsEnabled() &&
+			ctx.cloudSessionManager === cloud.manager
+		) {
 			const seen = new Set(hits.map((hit) => hit.sessionId));
 			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
 				.filter((hit) => {
@@ -2745,9 +2964,16 @@ export async function handleCommand(
 		);
 		if (operation === "switchAccount") {
 			await resetCloudSessionManager(ctx);
-			// The sidebar must re-scope immediately (personal ⇄ org), not on
-			// the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
+			if (isCloudAgentsEnabled()) {
+				try {
+					await getCloudSessionManager(ctx).refreshOrganization();
+				} catch (error) {
+					ctx.logger?.error?.(
+						"Failed to refresh cloud organization after account switch",
+						{ error },
+					);
+				}
+			}
 		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
@@ -2826,23 +3052,31 @@ export async function handleCommand(
 		}
 	}
 
+	// ── Local models (Ollama, LM Studio) ───────────────────────────────
+	if (LOCAL_MODELS_COMMANDS.has(command)) {
+		return await handleLocalModelsCommand(ctx, command, args);
+	}
+
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await listLocalProviders(manager, { isClinePassEnabled: true });
 	}
+	if (command === "list_transcription_models") {
+		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		return getLocalTranscriptionModels(
+			providerId,
+			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+		);
+	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const includeCloudModels =
-			providerId === "cline" &&
-			args?.includeCloudModels === true &&
-			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -2947,7 +3181,6 @@ export async function handleCommand(
 		try {
 			const result = await transcribeConfiguredVoiceInput(manager, {
 				audio: Buffer.from(audioBase64, "base64"),
-				mediaType,
 			});
 			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
 				...diagnostics,
@@ -2991,22 +3224,49 @@ export async function handleCommand(
 		const providerId = String(args?.provider ?? "").trim();
 		const storageProviderId =
 			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
-		const previous =
-			storageProviderId === "cline"
-				? manager.getProviderSettings(storageProviderId)
-				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
-			...readProviderSettingsUpdate(args),
+		const stored = manager.getProviderSettings(storageProviderId);
+		const previous = storageProviderId === "cline" ? stored : undefined;
+		const update = readProviderSettingsUpdate(args);
+		const apiKey = typeof args?.api_key === "string" ? args.api_key : undefined;
+		// A pasted key must replace a browser sign-in: credential resolution
+		// prefers OAuth tokens when both are stored, so leftover tokens would
+		// silently win over the new key and the panel would keep reporting
+		// "Signed in via browser" (mirrors the CLI's saveManualProviderApiKey).
+		// The account identity goes too; the key may belong to a different
+		// account, and the follow-up fetchMe re-establishes it. Re-saving a
+		// key with no sign-in to replace leaves the stored identity alone.
+		if (
+			apiKey?.trim() &&
+			getProviderAuthHandler(providerId) &&
+			update.auth === undefined &&
+			stored?.auth?.accessToken
+		) {
+			update.auth = {
+				accessToken: "",
+				refreshToken: "",
+				apiKey: "",
+				accountId: "",
+			};
+			if (storageProviderId !== providerId) {
+				await saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					apiKey,
+					auth: update.auth,
+				});
+			}
+		}
+		const saved = await saveLocalProviderSettings(manager, {
+			...update,
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
-			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
+			apiKey,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
 		if (!saved.enabled) {
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
@@ -3025,7 +3285,6 @@ export async function handleCommand(
 				!isDeepStrictEqual(previous?.auth, current?.auth)
 			) {
 				await resetCloudSessionManager(ctx);
-				broadcastEvent(ctx, "cloud_sessions_changed", {});
 			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
@@ -3117,7 +3376,6 @@ export async function handleCommand(
 		if (storageProviderId === "cline") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}
@@ -3147,26 +3405,34 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
-	if (command === "get_desktop_settings") {
-		return readDesktopSettings();
+	if (command === "get_keybindings") {
+		return readKeybindings();
 	}
-	if (command === "set_cloud_sessions_enabled") {
-		if (typeof args?.cloud_sessions_enabled !== "boolean") {
-			throw new Error("cloud_sessions_enabled must be a boolean");
-		}
-		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		broadcastEvent(ctx, "feature_flags_changed", {
-			cloudAgents: isCloudAgentsEnabled(),
-			cloudAgentsAvailable: isCloudAgentsAvailable(),
-		});
-		return settings;
+	if (command === "set_keybindings") {
+		const saved = writeKeybindings(args?.keybindings);
+		broadcastEvent(ctx, "keybindings_changed", saved);
+		return saved;
 	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
+	if (command === "open_keybindings_file") {
+		// Create the file when missing so there is something to edit, but never
+		// rewrite an existing one: a malformed file reads as empty bindings and
+		// writing that back would wipe what the user is opening it to fix.
+		const filePath = resolveKeybindingsPath();
+		if (!existsSync(filePath)) {
+			writeKeybindings(readKeybindings());
 		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
+		openFileInEditor(filePath);
+		return { path: filePath };
+	}
+	if (command === "export_diagnostics") {
+		const sessionIds = Array.isArray(args?.sessionIds)
+			? args.sessionIds.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
+		const result = writeDiagnosticsReport(sessionIds);
+		openFileInEditor(dirname(result.path));
+		return result;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3398,12 +3664,179 @@ export async function handleCommand(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
 				: binding.workspaceRoot;
-		const branches = await listGitBranches(ctx, binding, cwd);
+		const branch = await currentGitBranch(ctx, binding, cwd);
 		if (binding.kind === "local") {
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
 		}
-		return { environmentId: binding.environmentId, branch: branches.current };
+		return { environmentId: binding.environmentId, branch };
+	}
+	// What the agent changed per turn and across the session, for the changes
+	// pane and the per-turn receipts in the transcript.
+	if (command === "get_session_changes" || command === "read_session_change") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("session changes require a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		if (binding.kind !== "local") {
+			return {
+				unavailableReason:
+					"Change tracking is not available for remote environments yet.",
+			};
+		}
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		const root = (
+			await runGitStrict(ctx, binding, cwd, [
+				"rev-parse",
+				"--show-toplevel",
+			]).catch(() => "")
+		).trim();
+		if (!root) {
+			return { unavailableReason: "This workspace is not a git repository." };
+		}
+		const git = localGit(root);
+		if (command === "read_session_change") {
+			const oid = (value: unknown) =>
+				typeof value === "string" && value ? value : undefined;
+			return await readSessionChangeContents(
+				git,
+				oid(args?.oldOid),
+				oid(args?.newOid),
+			);
+		}
+		const sessionId =
+			typeof args?.sessionId === "string" ? args.sessionId.trim() : "";
+		const checkpoints = sessionId
+			? await readSessionCheckpoints(ctx, sessionId, args)
+			: [];
+		if (checkpoints.length === 0) {
+			return {
+				root,
+				unavailableReason:
+					"No checkpoints have been recorded for this session.",
+			};
+		}
+		return await getSessionChanges(git, root, checkpoints);
+	}
+	// Source control for the workspace panel. Mutations and worktree reads
+	// share the file explorer's trusted-connection gate.
+	if (
+		command === "get_source_control_state" ||
+		command === "get_git_file_diff" ||
+		command === "get_commit_details" ||
+		command === "run_source_control_action"
+	) {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("source control requires a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		// Status, numstat, and `git show` paths are all repository-root
+		// relative, so every call after discovery runs from the root even when
+		// the workspace is a subfolder of the repository.
+		const root = (
+			await runGitStrict(ctx, binding, cwd, [
+				"rev-parse",
+				"--show-toplevel",
+			]).catch(() => "")
+		).trim();
+		const git = (gitArgs: string[]) =>
+			runGitStrict(ctx, binding, root || cwd, gitArgs);
+		if (command === "get_source_control_state") {
+			return await getSourceControlState(git, binding.environmentId, {
+				readUntracked:
+					binding.kind === "local" && root
+						? async (path) =>
+								readLocalProjectFile(root, join(root, path)).content
+						: undefined,
+			});
+		}
+		if (!root) throw new Error("Not a git repository");
+		const commit = typeof args?.commit === "string" ? args.commit.trim() : "";
+		if (command === "get_commit_details") {
+			return await getCommitDetails(git, binding.environmentId, commit);
+		}
+		if (command === "get_git_file_diff") {
+			// Git's filename as-is: leading or trailing spaces are part of it.
+			const path = String(args?.path ?? "");
+			if (!path) throw new Error("path is required");
+			const originalPath =
+				typeof args?.originalPath === "string" && args.originalPath
+					? args.originalPath
+					: undefined;
+			if (commit) {
+				return await getCommitFileDiff(
+					git,
+					binding.environmentId,
+					commit,
+					path,
+					originalPath,
+				);
+			}
+			return await getGitFileDiff(
+				git,
+				async (relative, { symlink }) => {
+					const absolute =
+						binding.kind === "local"
+							? join(root, relative)
+							: posix.join(root, relative);
+					// Git stores a symlink as its target text, so the preview compares
+					// that rather than the contents of whatever the link points at.
+					if (binding.kind === "local") {
+						const stat = lstatSync(absolute, { throwIfNoEntry: false });
+						// A deleted file has nothing on the working side.
+						if (!stat) return { content: "", truncated: false };
+						if (stat.isSymbolicLink()) {
+							return { content: readlinkSync(absolute), truncated: false };
+						}
+					} else if (symlink && ctx.remoteEnvironments) {
+						const link = await ctx.remoteEnvironments
+							.run(binding.environmentId, {
+								command: "readlink",
+								args: ["--", absolute],
+							})
+							.catch(() => null);
+						if (link) {
+							return {
+								content: link.stdout.replace(/\n$/, ""),
+								truncated: false,
+							};
+						}
+					}
+					try {
+						const file = await readProjectFile(ctx, binding, root, absolute);
+						return { content: file.content, truncated: file.truncated };
+					} catch (error) {
+						if (
+							binding.kind === "ssh" &&
+							/no such file/i.test(error instanceof Error ? error.message : "")
+						) {
+							return { content: "", truncated: false };
+						}
+						throw error;
+					}
+				},
+				binding.environmentId,
+				path,
+				args?.staged === true,
+				originalPath,
+			);
+		}
+		const action = parseSourceControlAction(args?.action);
+		await runSourceControlAction(
+			action.type === "fetch"
+				? (gitArgs) =>
+						runGitStrict(ctx, binding, root, gitArgs, { background: true })
+				: git,
+			action,
+		);
+		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
@@ -3482,7 +3915,25 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx);
+		// The composer passes the session's workspace so the slash menu lists
+		// the skills and workflows that will actually expand there.
+		return await listUserInstructionConfigs(
+			ctx,
+			undefined,
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
+		);
+	}
+	if (command === "list_plugin_commands") {
+		// Same workspace the session will execute in (handleSend), so the menu
+		// only offers commands that can actually run there.
+		const workspacePath =
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
+		return await listPluginCommands(
+			ctx,
+			workspacePath,
+			typeof args?.sessionId === "string" ? args.sessionId : undefined,
+			requestedEnvironmentId(args),
+		);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
@@ -3524,7 +3975,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

@@ -142,6 +142,22 @@ Plugins are stored in the `plugins` directory at two levels:
 
 Global plugins (`~/.cline/plugins/`) are available across all sessions. Project plugins (`.cline/plugins/` in your repo) are available only when working in that project.
 
+## Troubleshooting Plugins
+
+When a plugin fails to load, Cline tells you which plugin failed and why instead of quietly dropping its tools:
+
+- Starting a session prints a warning that names the plugin, the step that failed (import, setup, a hook, or a tool), and the error.
+- `cline config tools` lists failed plugins under "Failed plugins". With `--json`, each one is an entry with `"type": "plugin_failure"` and an `error` object holding its `phase` and `message`.
+- `cline hub plugins` shows the status of every plugin the hub loaded, its last error, and the sessions using it.
+
+After fixing a plugin, reload it without restarting the hub:
+
+```bash
+cline hub plugins --reload my-plugin
+```
+
+A plugin that keeps failing in hooks or tools is turned off for the rest of the hub's life until you reload it or change its file. One broken plugin doesn't stop other plugins or sessions.
+
 ## Writing Plugins
 
 For a guide on building plugins with the SDK, see [Writing Plugins](/sdk/guides/writing-plugins). For the plugin API reference, see [SDK Plugins](/sdk/plugins).

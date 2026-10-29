@@ -1,11 +1,15 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
+import { setPluginSandboxLauncher } from "@cline/core";
 import {
+	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
+	createClineTelemetryServiceConfig,
 	disableCurrentDirectoryExecutableSearch,
 	disposeAll,
+	ensureLoopbackProxyBypass,
 	initVcr,
 	setConnectorCliLaunchSpec,
 } from "@cline/shared";
@@ -26,8 +30,29 @@ initVcr(process.env.CLINE_VCR);
 // Before any personality below can spawn a child with the workspace as cwd.
 disableCurrentDirectoryExecutableSearch();
 
+// Before any personality probes the local hub over 127.0.0.1.
+ensureLoopbackProxyBypass();
+
+if (Bun.isStandaloneExecutable) {
+	setPluginSandboxLauncher({
+		command: process.execPath,
+		argsPrefix: ["--plugin-sandbox"],
+	});
+}
+
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--plugin-sandbox")) {
+	// Boot as the compiled host so the child mounts the same read-only resources.
+	const bootstrap = process.argv[process.argv.indexOf("--plugin-sandbox") + 1];
+	if (!bootstrap) throw new Error("Missing plugin sandbox bootstrap path");
+	await import(bootstrap);
+} else if (process.argv.includes("--telemetry-selfcheck")) {
+	// Inspect the config embedded in this executable without starting a hub,
+	// loading user settings, or initializing telemetry exporters.
+	process.stdout.write(
+		`${JSON.stringify(buildTelemetrySelfcheckReport(createClineTelemetryServiceConfig()))}\n`,
+	);
 } else if (claimHubDaemonProcess()) {
 	// Claim rather than read: the sentinel is consumed here so the processes a
 	// daemon-hosted session spawns do not inherit it and try to become daemons.
