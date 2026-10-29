@@ -9,9 +9,17 @@ import { logHubBoundaryError } from "../hub-server-logging";
 import {
 	buildHubEvent,
 	errorReply,
+	extractSessionId,
 	type HubTransportContext,
 	okReply,
 } from "./context";
+
+function pluginUiViewerId(
+	envelope: HubCommandEnvelope,
+	authority: HubConnectionAuthority | undefined,
+): string {
+	return authority?.clientId ?? (envelope.clientId?.trim() || "hub");
+}
 
 /**
  * Never fails for plugin reasons: a missing session, slot or plugin, and
@@ -41,8 +49,7 @@ export async function handlePluginUiCommand(
 		if (isGet) {
 			return okReply(envelope, { states: await service.get({ sessionId }) });
 		}
-		const viewerId =
-			authority?.clientId ?? (envelope.clientId?.trim() || "hub");
+		const viewerId = pluginUiViewerId(envelope, authority);
 		const clientType = ctx.clients.get(viewerId)?.clientType;
 		const result = await service.invoke(
 			{
@@ -106,6 +113,21 @@ export function releasePluginUiViewer(
 	ctx.sessionHost.pluginUi?.detachViewer(
 		clientId,
 		authority?.connectionId ?? readUnregisterConnectionId(payload),
+	);
+}
+
+/** A client that detaches from a session stops viewing that session's plugin UI. */
+export function releasePluginUiSessionViewer(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	authority: HubConnectionAuthority | undefined,
+): void {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) return;
+	ctx.sessionHost.pluginUi?.detachViewer(
+		pluginUiViewerId(envelope, authority),
+		authority?.connectionId,
+		sessionId,
 	);
 }
 

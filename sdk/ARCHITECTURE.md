@@ -970,13 +970,17 @@ held through that connection and for attaches from it still queued on the
 chain, which run before it, so a socket that closes mid-attach leaves no lease.
 The synthesized detach re-checks the connection when its turn on the chain
 comes, so a late unregister from an old socket cannot remove the lease a client
-re-attached on its new one. An unregister from a socket that never registered
-ends no leases. Clients restore their leases after a reconnect:
+re-attached on its new one. A `session.detach` likewise ends the lease the
+detaching connection holds in that session, and its attaches still queued
+there, since the Hub keeps the runtime resident after its last client leaves.
+It does so when the command arrives, so an attach sent after it keeps its lease. An unregister or `session.detach` from a socket that
+never registered ends no leases. Clients restore their leases after a reconnect:
 `createHubPluginUiApi` remembers the last
 attach per session, whatever its reply, and re-sends it from
 `NodeHubClient.onRegistered` unless it is still in flight (its own command
 delivers that one). `HubRuntimeHost` forgets a session's attach when it drops
-that session's subscription, and every attach when it is disposed. Session
+that session's subscription, `HubSessionClient` when it stops a session, and
+both forget every attach when they are disposed. Session
 teardown delivers a `detach` for every remaining viewer before the epoch ends,
 waiting up to 2 s for them. Synthesized detaches are system actions that skip
 the rate limit and the closing checks, so the close they belong to never

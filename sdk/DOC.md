@@ -618,7 +618,9 @@ no `sequence`: it never enters the replay log, and a session-scoped subscribe
 re-issues each slot's current state instead. A viewer's lease belongs to the
 connection that attached it, so a disconnect detaches only the leases that
 connection holds, along with its attaches still queued, and clients re-attach
-after they reconnect. A client declares its catalog with `uiSlots` on
+after they reconnect. A `session.detach` likewise ends the detaching
+connection's lease in that session, because the hub keeps the runtime resident;
+a client that still shows the slot attaches again. A client declares its catalog with `uiSlots` on
 `session.create` and `session.restore`; without the key the session has none.
 `HubRuntimeHost.pluginUi` and `HubSessionClient.pluginUi` expose the same
 never-throwing API; against an older hub that lacks the commands they return

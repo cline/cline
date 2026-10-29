@@ -510,6 +510,69 @@ describe("plugins.ui hub commands", () => {
 		);
 	});
 
+	it("ends the lease a client holds in a session it detaches from, and only there", async () => {
+		await createSession("sess-ui-detached");
+		await createSession("sess-ui-still-viewed");
+		await registerViewer("viewer-1");
+		const authority = { clientId: "viewer-1", connectionId: "conn-1" };
+		await invoke("sess-ui-detached", attach, authority);
+		await invoke("sess-ui-still-viewed", attach, authority);
+		const detach = (socket: HubConnectionAuthority | null) =>
+			command(
+				"session.detach",
+				{ clientId: "viewer-1", sessionId: "sess-ui-detached" },
+				socket,
+			);
+
+		// A socket that has not registered can name any clientId.
+		expect(await detach(null)).toMatchObject({ ok: true });
+		await invoke("sess-ui-detached", exposed, authority);
+		expect((await recordedActions()).at(-1)).toMatchObject({
+			verb: "exposed",
+			viewers: 1,
+		});
+
+		expect(await detach(authority)).toMatchObject({ ok: true });
+		await vi.waitFor(async () =>
+			expect((await recordedActions()).at(-1)).toMatchObject({
+				verb: "detach",
+				viewer: expect.objectContaining({ id: "viewer-1" }),
+				viewers: 0,
+			}),
+		);
+		await invoke("sess-ui-still-viewed", exposed, authority);
+		expect((await recordedActions()).at(-1)).toMatchObject({
+			verb: "exposed",
+			viewers: 1,
+		});
+	});
+
+	it("keeps an attach the client sent right after its detach", async () => {
+		const sessionId = "sess-ui-detach-then-attach";
+		await createSession(sessionId);
+		await registerViewer("viewer-1");
+		const authority = { clientId: "viewer-1", connectionId: "conn-1" };
+		await invoke(sessionId, attach, authority);
+
+		const detached = command(
+			"session.detach",
+			{ clientId: "viewer-1", sessionId },
+			authority,
+		);
+		const reattached = invoke(sessionId, attach, authority);
+		expect(await detached).toMatchObject({ ok: true });
+		expect(await reattached).toMatchObject({ ok: true });
+
+		await invoke(sessionId, exposed, authority);
+		expect((await recordedActions()).map((action) => action.verb)).toEqual([
+			"attach",
+			"detach",
+			"attach",
+			"exposed",
+		]);
+		expect((await recordedActions()).at(-1)?.viewers).toBe(1);
+	});
+
 	it.each([
 		["session.create", createSession],
 		["session.restore", restoreSession],

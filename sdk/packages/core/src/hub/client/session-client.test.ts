@@ -206,6 +206,45 @@ describe("HubSessionClient", () => {
 		}
 	});
 
+	it("stops re-attaching a session's plugin UI once it stops that session", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("plugins.ui.invoke", { outcome: "ok" });
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		const attach = (surface: "cli" | "desktop") => ({
+			slot: "composer.suggestions" as const,
+			action: { verb: "attach" as const, surface },
+		});
+		const invokes = () =>
+			MockWebSocket.sentCommands.filter(
+				(command) => command.command === "plugins.ui.invoke",
+			);
+		try {
+			await client.pluginUi.invoke({
+				sessionId: "session-stopped",
+				...attach("cli"),
+			});
+			await client.pluginUi.invoke({
+				sessionId: "session-viewed",
+				...attach("desktop"),
+			});
+			await client.stopRuntimeSession("session-stopped");
+
+			MockWebSocket.instances[0]?.close();
+			await client.connect();
+
+			await vi.waitFor(() => expect(invokes()).toHaveLength(3));
+			expect(invokes()[2]).toEqual({
+				command: "plugins.ui.invoke",
+				payload: attach("desktop"),
+			});
+		} finally {
+			client.close();
+		}
+	});
+
 	it("streams a session's plugin UI from its current state, fetched again after a reconnect, over the client's global subscription", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({

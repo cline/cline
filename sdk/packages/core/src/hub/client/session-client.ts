@@ -435,6 +435,7 @@ export class HubSessionClient {
 	}
 
 	async stopRuntimeSession(sessionId: string): Promise<{ applied: boolean }> {
+		this.pluginUi.forget(sessionId);
 		await this.client.connect();
 		await this.client.command("session.detach", { sessionId }, sessionId);
 		return { applied: true };

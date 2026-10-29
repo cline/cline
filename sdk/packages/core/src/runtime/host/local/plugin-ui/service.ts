@@ -186,13 +186,20 @@ export class PluginUiService implements PluginUiHostApi {
 		return result;
 	}
 
-	detachViewer(viewerId: string, connectionId?: string): void {
+	detachViewer(
+		viewerId: string,
+		connectionId?: string,
+		onlySessionId?: string,
+	): void {
 		try {
 			const leased = new Set(
 				this.store.sessionsViewedBy(viewerId, connectionId),
 			);
 			for (const [sessionId, chain] of this.chains) {
 				if (chain.closing) continue;
+				if (onlySessionId !== undefined && sessionId !== onlySessionId) {
+					continue;
+				}
 				const viewer = leased.has(sessionId)
 					? this.store.viewer(sessionId, viewerId)
 					: findQueuedAttach(chain, viewerId, connectionId)?.viewer;

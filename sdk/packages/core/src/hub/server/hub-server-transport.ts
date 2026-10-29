@@ -91,6 +91,7 @@ import {
 import {
 	handlePluginUiCommand,
 	reissuePluginUiState,
+	releasePluginUiSessionViewer,
 	releasePluginUiViewer,
 } from "./handlers/plugin-ui-handlers";
 import {
@@ -987,6 +988,12 @@ export class HubServerTransport implements NativeHubTransport {
 			case "session.attach":
 				return await handleSessionAttach(this.ctx, envelope);
 			case "session.detach":
+				// Released on arrival, so an attach sent after the detach survives it.
+				// A socket that has not registered can name any clientId, so it
+				// never ends that client's plugin UI leases.
+				if (!unregisteredSocket) {
+					releasePluginUiSessionViewer(this.ctx, envelope, authority);
+				}
 				return await handleSessionDetach(this.ctx, envelope);
 			case "session.get":
 				return await handleSessionGet(this.ctx, envelope);
