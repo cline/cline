@@ -144,7 +144,10 @@ const schemas = {
 	list: z.tuple([]),
 	listForDiscovery: z.tuple([
 		z
-			.object({ timeoutMs: z.number().positive().max(30000).optional() })
+			.object({
+				timeoutMs: z.number().positive().max(30000).optional(),
+				maxAgeMs: z.number().nonnegative().max(30000).optional(),
+			})
 			.nullish(),
 	]),
 	getCrossScopeDiscoveryRecord: z.tuple([id]),
@@ -441,7 +444,7 @@ export class HubCloudSessionService {
 	watch(): ReturnType<HubCloudSessionService["snapshot"]> {
 		// A returning viewer may have switched organization while the Hub was unreachable.
 		this.invalidateOrganization();
-		this.getController();
+		this.getController().invalidateDiscoveryCache();
 		return this.snapshot();
 	}
 	async command(

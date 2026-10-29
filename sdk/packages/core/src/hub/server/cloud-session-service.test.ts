@@ -109,6 +109,7 @@ function fixture() {
 			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
+			invalidateDiscoveryCache: vi.fn(),
 			dispose: vi.fn(async () => {}),
 		};
 		return { controller, emit: (event: CloudSessionEvent) => emit(event) };
@@ -208,6 +209,17 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("preserves discovery cache options across the cloud RPC boundary", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		const options = { timeoutMs: 2_000, maxAgeMs: 30_000 };
+		await viewer.listForDiscovery(options);
+		expect(f.controllers[0]?.controller.listForDiscovery).toHaveBeenCalledWith(
+			options,
+		);
+		await viewer.dispose();
+	});
+
 	it("requires an approved organization before starting Git publication", async () => {
 		const f = fixture();
 		await expect(
@@ -1050,9 +1062,11 @@ describe("hub cloud credentials", () => {
 	});
 
 	it.each([
-		"failed refresh",
-		"returning viewer",
-	])("discards the previous organization after a %s", async (reason) => {
+		["failed refresh", "org-one"],
+		["failed refresh", "org-two"],
+		["returning viewer", "org-one"],
+		["returning viewer", "org-two"],
+	])("refreshes discovery after a %s resolves to %s", async (reason, organizationId) => {
 		vi.spyOn(
 			ProviderSettingsManager.prototype,
 			"getProviderSettings",
@@ -1072,16 +1086,21 @@ describe("hub cloud credentials", () => {
 		const controller = service["controller"]!;
 		const getOrganization = controller["options"].getActiveOrganizationId!;
 		expect(await getOrganization()).toBe("org-one");
+		const list = vi
+			.spyOn(controller["options"].api, "list")
+			.mockResolvedValue([]);
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
 		if (reason === "failed refresh") {
 			fetch.mockRejectedValueOnce(new Error("organization request failed"));
 			await expect(command(service, "refreshOrganization", [])).rejects.toThrow(
 				"organization request failed",
 			);
 		} else service.watch();
-		fetch.mockResolvedValueOnce([
-			{ organizationId: "org-two", active: true },
-		] as never);
-		expect(await getOrganization()).toBe("org-two");
+		fetch.mockResolvedValueOnce([{ organizationId, active: true }] as never);
+		expect(await getOrganization()).toBe(organizationId);
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(list).toHaveBeenLastCalledWith(organizationId);
 		expect(service["controller"]).toBe(controller);
 	});
 
@@ -1110,8 +1129,15 @@ describe("hub cloud credentials", () => {
 		expect(await getOrganization()).toBe("org-one");
 		expect(await getOrganization()).toBe("org-one");
 		expect(fetch).toHaveBeenCalledOnce();
+		const list = vi
+			.spyOn(controller["options"].api, "list")
+			.mockResolvedValue([]);
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
 		await command(service, "refreshOrganization", []);
 		expect(await getOrganization()).toBe("org-two");
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(list).toHaveBeenLastCalledWith("org-two");
 		expect(service["controller"]).toBe(controller);
 		expect(fetch).toHaveBeenCalledTimes(2);
 	});
@@ -1169,6 +1195,7 @@ describe("hub cloud credentials", () => {
 						emit = listener;
 					},
 					dispose: async () => {},
+					invalidateDiscoveryCache: () => {},
 				}) as unknown as CloudSessionController,
 		});
 		services.push(service);
@@ -1315,6 +1342,7 @@ describe("persisted cloud account scope", () => {
 				const controller = {
 					subscribe: vi.fn(),
 					dispose: vi.fn(async () => {}),
+					invalidateDiscoveryCache: vi.fn(),
 				};
 				created.push(controller);
 				return controller as unknown as CloudSessionController;
@@ -1346,7 +1374,11 @@ describe("persisted cloud account scope", () => {
 			provider: "cline",
 			auth: { accountId: "same-account", accessToken },
 		}));
-		const controller = { subscribe: vi.fn(), dispose: vi.fn(async () => {}) };
+		const controller = {
+			subscribe: vi.fn(),
+			dispose: vi.fn(async () => {}),
+			invalidateDiscoveryCache: vi.fn(),
+		};
 		const createController = vi.fn(
 			() => controller as unknown as CloudSessionController,
 		);

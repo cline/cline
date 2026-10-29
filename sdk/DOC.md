@@ -160,6 +160,14 @@ the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
 
+`CloudSessionController.listForDiscovery({ maxAgeMs })` can reuse the last
+successful list for the specified duration. Omitting `maxAgeMs` starts or joins
+a refresh. Pending refreshes retain their existing `timeoutMs` budget behavior.
+Cached discovery still projects current live state and locally created sessions.
+Desktop uses a 30-second window for combined history lists; local discovery,
+cloud search, and session-open reads keep their existing refresh behavior.
+Organization refreshes and returning Hub viewers invalidate discovery freshness.
+
 ### Hub-owned cloud viewers
 
 `HubCloudSessionClient` from `@cline/core/cloud` uses an authenticated,
