@@ -95,7 +95,8 @@ describe("ReasoningEffortSelector with a provider-saved value", () => {
 		expect(shownEffort()).toBe("Default")
 	})
 
-	it("falls back to Default for a saved level outside the allowed list", () => {
+	it("shows a saved level even when the current list does not offer it", async () => {
+		const user = userEvent.setup()
 		render(
 			<ReasoningEffortSelector
 				allowedEfforts={["none", "low", "medium", "high"]}
@@ -105,7 +106,9 @@ describe("ReasoningEffortSelector with a provider-saved value", () => {
 			/>,
 		)
 
-		expect(shownEffort()).toBe("Default")
+		expect(shownEffort()).toBe("Xhigh")
+		await user.click(screen.getByRole("combobox"))
+		expect(await screen.findByRole("option", { name: "Default" })).toBeInTheDocument()
 	})
 
 	it("is disabled and shows no level while the saved value loads", () => {

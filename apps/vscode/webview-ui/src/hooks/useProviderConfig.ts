@@ -53,17 +53,15 @@ function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProvi
 	})
 }
 
-/** The host echoes the requested id normalized (trimmed, lowercased). */
-function isConfigFor(config: ProviderConfigResponse, providerId: ProviderId): boolean {
-	return config.providerId.trim().toLowerCase() === providerId.trim().toLowerCase()
-}
-
 function touchesReasoning(patch: ProviderConfigWritePatch): boolean {
 	return "reasoning" in patch || patch.clearReasoning === true
 }
 
 export function useProviderConfig(providerId: ProviderId) {
-	const [storedConfig, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
+	// Keyed by the id the response was requested for: the host echoes a
+	// normalized id (lowercased, aliases folded), so the response's own id
+	// cannot be compared with the hook's.
+	const [stored, setStored] = useState<{ providerId: ProviderId; config: ProviderConfigResponse } | undefined>(undefined)
 	// Writes that change the saved reasoning setting, still waiting for the
 	// host. A selector showing the pre-write value meanwhile would treat a
 	// pick of that value as no change and never save it.
@@ -71,19 +69,22 @@ export function useProviderConfig(providerId: ProviderId) {
 	// A component that stays mounted across a provider switch keeps the
 	// previous provider's response until the new read lands. Expose nothing
 	// in between, so no field is edited against another provider's state.
-	const config = storedConfig && isConfigFor(storedConfig, providerId) ? storedConfig : undefined
+	const config = stored?.providerId === providerId ? stored.config : undefined
 
 	// Reads and writes resolve asynchronously and can complete out of order
 	// (e.g. a slow initial read landing after a user-triggered write). Only
 	// the latest issued request may apply its response; anything older is
 	// stale and would roll the UI state back.
 	const requestSeqRef = useRef(0)
-	const applyConfig = useCallback((seq: number, response: ProviderConfigResponse) => {
-		if (seq !== requestSeqRef.current) {
-			return
-		}
-		setConfig(response)
-	}, [])
+	const applyConfig = useCallback(
+		(seq: number, response: ProviderConfigResponse) => {
+			if (seq !== requestSeqRef.current) {
+				return
+			}
+			setStored({ providerId, config: response })
+		},
+		[providerId],
+	)
 
 	const read = useCallback(async () => {
 		const seq = ++requestSeqRef.current

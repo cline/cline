@@ -304,12 +304,16 @@ describe("useProviderConfig", () => {
 		expect(result.current.reasoningEffort).toBe("default")
 	})
 
-	it("matches the host's normalized provider id when scoping the config", async () => {
-		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("nousresearch"))
+	it("keeps a config whose host id differs from the requested id (aliases, normalization)", async () => {
+		// The host folds "openai-compatible" to "openai" and lowercases ids;
+		// scoping must key on the id the hook asked for, or such a provider's
+		// config would never be exposed.
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("openai"))
 
-		const { result } = renderHook(() => useProviderConfig("nousResearch" as never))
+		const { result } = renderHook(() => useProviderConfig("openai-compatible" as never))
 
-		await waitFor(() => expect(result.current.config?.providerId).toBe("nousresearch"))
+		await waitFor(() => expect(result.current.config?.providerId).toBe("openai"))
+		expect(result.current.reasoningEffort).toBe("default")
 	})
 
 	it("reports the reasoning effort as unknown while a reasoning write is pending", async () => {

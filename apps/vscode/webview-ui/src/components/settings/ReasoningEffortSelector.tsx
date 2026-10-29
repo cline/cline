@@ -38,16 +38,26 @@ const ReasoningEffortSelector = ({
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	// A saved level the current list doesn't offer is still what will be
+	// sent, so list it rather than show Default for it.
 	const options: readonly ReasoningEffortSelection[] =
-		value === undefined ? allowedEfforts : [DEFAULT_REASONING_EFFORT_OPTION, ...allowedEfforts]
+		value === undefined
+			? allowedEfforts
+			: [
+					DEFAULT_REASONING_EFFORT_OPTION,
+					...allowedEfforts,
+					...(value &&
+					!allowedEfforts.includes(value as OpenaiReasoningEffort) &&
+					value !== DEFAULT_REASONING_EFFORT_OPTION
+						? [value]
+						: []),
+				]
 	const isLoading = value === null
 	const selectedEffort =
 		value === null
 			? ""
 			: value !== undefined
-				? options.includes(value)
-					? value
-					: DEFAULT_REASONING_EFFORT_OPTION
+				? value
 				: isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
 					? modeFields.reasoningEffort
 					: defaultEffort
@@ -58,6 +68,9 @@ const ReasoningEffortSelector = ({
 			<Select
 				disabled={isLoading}
 				onValueChange={(next) => {
+					// The per-mode fields stay as they are on Default: they no
+					// longer drive sessions, but the commit-message generator
+					// still reads them, and there is no "unset" to write.
 					if (isOpenaiReasoningEffort(next)) {
 						handleModeFieldChange(
 							{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
