@@ -222,7 +222,17 @@ vi.mock("react-native-reanimated", () => {
 		cancelAnimation: vi.fn(),
 		withRepeat: passthrough,
 		// A spy so tests can assert the duration/easing it was handed.
-		withTiming: vi.fn(passthrough),
+		withTiming: vi.fn(
+			<T>(
+				value: T,
+				_config?: unknown,
+				callback?: (finished: boolean) => void,
+			) => {
+				callback?.(true);
+				return value;
+			},
+		),
+		runOnJS: passthrough,
 		withSpring: passthrough,
 		// Delay is a wrapper; the inner animation's target value is what matters.
 		// A spy so tests can assert the stagger schedule it was handed.

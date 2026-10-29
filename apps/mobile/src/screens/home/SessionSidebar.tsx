@@ -25,6 +25,7 @@ import {
 } from "react-native";
 import Animated, {
 	Easing,
+	runOnJS,
 	useAnimatedStyle,
 	useReducedMotion,
 	useSharedValue,
@@ -111,6 +112,7 @@ export function SessionSidebar({
 		Math.max(280, screenWidth - SCREEN_GUTTER),
 	);
 	const translateX = useSharedValue(-drawerWidth);
+	const closing = useRef(false);
 	const [query, setQuery] = useState("");
 	const actionPresenter = useRef(presentation);
 	const [actionRequest, setActionRequest] = useState<{
@@ -170,22 +172,34 @@ export function SessionSidebar({
 	const close = () => {
 		if (presentation === "drawer") Keyboard.dismiss();
 		retireActions();
-		onClose();
+		if (presentation === "inline" || reduceMotion) {
+			onClose();
+			return;
+		}
+		closing.current = true;
+		translateX.value = withTiming(
+			-drawerWidth,
+			{ duration: 180, easing: Easing.out(Easing.cubic) },
+			(finished) => {
+				if (finished) runOnJS(onClose)();
+			},
+		);
 	};
 
 	useEffect(() => {
 		if (presentation === "inline") return;
 		if (open) Keyboard.dismiss();
-		translateX.value = open
-			? withTiming(0, {
-					duration: reduceMotion ? 0 : 220,
-					easing: Easing.out(Easing.cubic),
-				})
-			: -drawerWidth;
-	}, [drawerWidth, open, presentation, reduceMotion, translateX]);
+		else {
+			closing.current = false;
+			translateX.value = -drawerWidth;
+		}
+	}, [drawerWidth, open, presentation, translateX]);
 
 	const drawerStyle = useAnimatedStyle(() => ({
 		transform: [{ translateX: translateX.value }],
+	}));
+	const backdropStyle = useAnimatedStyle(() => ({
+		opacity: Math.max(0, Math.min(1, 1 + translateX.value / drawerWidth)),
 	}));
 
 	const body = (
@@ -358,7 +372,16 @@ export function SessionSidebar({
 					"portrait-upside-down",
 					"landscape",
 				]}
-				animationType={reduceMotion ? "none" : "fade"}
+				animationType="none"
+				onShow={() => {
+					if (!open || closing.current) return;
+					translateX.value = reduceMotion
+						? 0
+						: withTiming(0, {
+								duration: 220,
+								easing: Easing.out(Easing.cubic),
+							});
+				}}
 				onRequestClose={close}
 				presentationStyle="overFullScreen"
 				statusBarTranslucent
@@ -368,11 +391,15 @@ export function SessionSidebar({
 				visible={open || Boolean(dialog)}
 			>
 				<View style={styles.overlay}>
+					<Animated.View
+						pointerEvents="none"
+						style={[styles.backdrop, backdropStyle]}
+					/>
 					<Pressable
 						accessibilityLabel="Close sessions"
 						accessibilityRole="button"
 						onPress={close}
-						style={styles.backdrop}
+						style={StyleSheet.absoluteFill}
 					/>
 					<Animated.View
 						accessibilityViewIsModal
