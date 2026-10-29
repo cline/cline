@@ -1,5 +1,6 @@
 import {
 	buildCloudHandoffDashboardUrl,
+	type ProviderConfig,
 	RuntimeOAuthTokenManager,
 	summarizeConversation,
 } from "@cline/core";
@@ -41,7 +42,8 @@ export type CloudHandoffResult = {
 
 export async function prepareCloudHandoff(input: {
 	readSource: () => Promise<CloudHandoffSource>;
-	connection: Parameters<typeof summarizeConversation>[0]["config"];
+	connection: Parameters<typeof summarizeConversation>[0]["config"] &
+		Pick<ProviderConfig, "accountId">;
 	creationOptions: CloudCreationOptions;
 	cloud: Pick<
 		HubCloudSessionClient,
@@ -67,8 +69,18 @@ export async function prepareCloudHandoff(input: {
 	if (!source.messages.length)
 		throw new Error("Start a local conversation before using /cloud.");
 	await cloud.connect();
-	const scope = cloud.scope;
-	if (!scope) throw new Error("Cloud account is unavailable.");
+	const observedScope = cloud.scope;
+	if (!observedScope) throw new Error("Cloud account is unavailable.");
+	const isCline =
+		input.connection.providerId === "cline" ||
+		input.connection.providerId === "cline-pass";
+	const scope = {
+		...observedScope,
+		...(isCline &&
+			input.connection.accountId && {
+				expectedAccountId: input.connection.accountId,
+			}),
+	};
 	const assertAccount = () => {
 		if (
 			cloud.scope?.serviceId !== scope.serviceId ||
@@ -124,6 +136,18 @@ export async function prepareCloudHandoff(input: {
 						providerId: input.connection.providerId,
 					});
 				assertAccount();
+				if (
+					isCline &&
+					(credentials
+						? credentials.accountId !== input.connection.accountId
+						: input.connection.accountId ||
+							input.connection.apiKey
+								?.trim()
+								.toLowerCase()
+								.startsWith("workos:"))
+				) {
+					throw new Error("The cloud account changed. Run /cloud again.");
+				}
 				const summary = (
 					await summarizeConversation({
 						messages: source.messages,

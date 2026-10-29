@@ -67,6 +67,7 @@ function fixture() {
 			providerId: "anthropic",
 			modelId: "model",
 			apiKey: "original-token",
+			accountId: "account-one",
 		},
 		creationOptions: { mode: "plan" as const, autoApproveTools: false },
 		draft: { instruction: "Add focused tests", images: [] as string[] },
@@ -102,7 +103,7 @@ describe("summary cloud handoff", () => {
 		expect(await prepared.start(progress)).toEqual(result);
 		expect(helpers.summarize).toHaveBeenCalledWith(
 			expect.objectContaining({ config: input.connection }),
-	);
+		);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -170,6 +171,32 @@ describe("summary cloud handoff", () => {
 			}),
 		);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("rejects changed or removed %s credentials before Hub observes the account change", async (providerId) => {
+		for (const credentials of [
+			{ apiKey: "other-token", accountId: "account-two", refreshed: false },
+			null,
+		]) {
+			const input = fixture();
+			input.connection.providerId = providerId;
+			const prepared = await prepareCloudHandoff(input);
+			expect(input.cloud.prepareHandoffRepository).toHaveBeenLastCalledWith(
+				plan.repoUrl,
+				{
+					serviceId: "hub",
+					scopeGeneration: 1,
+					expectedAccountId: "account-one",
+				},
+			);
+			helpers.resolveCredentials.mockResolvedValueOnce(credentials);
+			await expect(prepared.start(vi.fn())).rejects.toThrow("account changed");
+			expect(helpers.summarize).not.toHaveBeenCalled();
+			expect(input.cloud.create).not.toHaveBeenCalled();
+		}
 	});
 
 	it("does not summarize or publish when credential refresh fails", async () => {
