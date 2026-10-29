@@ -1,7 +1,7 @@
 import { StringArray, type StringRequest } from "@shared/proto/cline/common"
-import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import type { Controller } from ".."
 
 /**
