@@ -10,7 +10,7 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
-import { usePromptDraft } from "./use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
 import { useSideConversation } from "./use-side-conversation";
 
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
@@ -129,7 +129,7 @@ beforeEach(async () => {
 		open: vi.fn(),
 		send: vi.fn(async () => true),
 		setDraft: vi.fn(),
-		drafts: new Map(),
+		drafts: new PromptDraftCache(),
 	};
 	await render();
 });
@@ -175,7 +175,7 @@ describe("side conversation submission", () => {
 		await act(async () => {
 			pending = current.intercept("/btw explain");
 		});
-		expect(props.drafts.get("thread")).toBe("/btw explain");
+		expect(props.drafts.get("thread")?.text).toBe("/btw explain");
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		await act(async () => {
@@ -187,7 +187,7 @@ describe("side conversation submission", () => {
 		expect(props.send).not.toHaveBeenCalled();
 		expect(requestPromptInputFocus).not.toHaveBeenCalled();
 		expect(toast).not.toHaveBeenCalled();
-		expect(props.drafts.get("thread")).toBe("/btw explain");
+		expect(props.drafts.get("thread")?.text).toBe("/btw explain");
 	});
 
 	it("clears the real parent draft and opens the side while the pane still owns creation", async () => {
@@ -195,7 +195,7 @@ describe("side conversation submission", () => {
 		await act(async () => {
 			await current.intercept("/btw explain");
 		});
-		expect(props.drafts.has("thread")).toBe(false);
+		expect(props.drafts.get("thread")?.text).toBe("");
 		expect(props.open).toHaveBeenCalledTimes(1);
 		expect(requestPromptInputFocus).not.toHaveBeenCalled();
 	});
@@ -240,7 +240,10 @@ describe("side conversation submission", () => {
 			status: "idle",
 			startedAt: "2026-10-28T00:00:00Z",
 		};
-		props.drafts.set("side-thread", "Unsent side draft");
+		props.drafts.set("side-thread", {
+			text: "Unsent side draft",
+			attachments: [],
+		});
 		await render();
 		await act(async () => {
 			await current.intercept("/btw another question");
@@ -250,7 +253,7 @@ describe("side conversation submission", () => {
 			props.existingSession,
 			expect.objectContaining({ question: "another question" }),
 		);
-		expect(props.drafts.get("side-thread")).toBe("Unsent side draft");
+		expect(props.drafts.get("side-thread")?.text).toBe("Unsent side draft");
 	});
 	it("reopening reuses the current side while preserving the parent's draft", async () => {
 		props.existingSession = {
@@ -258,14 +261,14 @@ describe("side conversation submission", () => {
 			status: "idle",
 			startedAt: "2026-10-28T00:00:00Z",
 		};
-		props.drafts.set("thread", "Keep this draft");
+		props.drafts.set("thread", { text: "Keep this draft", attachments: [] });
 		await render(true);
 		await act(async () => {
 			await current.openSide();
 		});
 		expect(props.create).not.toHaveBeenCalled();
 		expect(props.open).toHaveBeenCalledWith(props.existingSession, undefined);
-		expect(props.drafts.get("thread")).toBe("Keep this draft");
+		expect(props.drafts.get("thread")?.text).toBe("Keep this draft");
 	});
 	it("dispatches later routed questions once each through the same side controller", async () => {
 		props.hydrationSucceeded = true;
@@ -296,7 +299,7 @@ describe("side conversation submission", () => {
 			resolveCreate(result);
 			await pending;
 		});
-		expect(props.drafts.get("thread")).toBe("New parent draft");
+		expect(props.drafts.get("thread")?.text).toBe("New parent draft");
 		expect(props.open).toHaveBeenCalledTimes(1);
 	});
 
@@ -373,10 +376,15 @@ describe("side conversation submission", () => {
 	it("keeps a question as a side draft when attach fails, without sending", async () => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = false;
+		const attachment = new File(["draft"], "draft.txt");
+		props.drafts.set("thread", { text: "", attachments: [attachment] });
 		await render();
 		expect(props.send).not.toHaveBeenCalled();
 		expect(props.setDraft).toHaveBeenCalledWith("why?");
-		expect(props.drafts.get("thread")).toBe("why?");
+		expect(props.drafts.get("thread")).toEqual({
+			text: "why?",
+			attachments: [attachment],
+		});
 		expect(props.consumeSubmission).toHaveBeenCalledTimes(1);
 	});
 	it("does not show a dispatched question as a draft while the turn is pending", async () => {
@@ -394,7 +402,7 @@ describe("side conversation submission", () => {
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		await act(async () => rejectSend(new Error("Not sent")));
-		expect(props.drafts.get("thread")).toBe("why?");
+		expect(props.drafts.get("thread")?.text).toBe("why?");
 	});
 
 	it("restores rejected first sends without recreating a side", async () => {
@@ -460,10 +468,12 @@ describe("pending side submissions with the actual app reducer", () => {
 			enqueue();
 		});
 		const childId = queuedState.threads[1].id;
-		props.drafts.set(childId, "Unsent draft");
+		props.drafts.set(childId, { text: "Unsent draft", attachments: [] });
 		await renderQueued(false);
 		expect(props.send).not.toHaveBeenCalled();
-		expect(props.drafts.get(childId)).toBe("Unsent draft\n\nfirst\n\nsecond");
+		expect(props.drafts.get(childId)?.text).toBe(
+			"Unsent draft\n\nfirst\n\nsecond",
+		);
 		expect(queuedState.threads[1].pendingSideSubmissions).toEqual([]);
 		await renderQueued(true);
 		expect(props.send).not.toHaveBeenCalled();
@@ -541,7 +551,7 @@ it("inline retry submits the original question without replacing newer parent ty
 	);
 	expect(current.openingState.kind).toBe("idle");
 	expect(props.send).not.toHaveBeenCalled();
-	expect(props.drafts.get("thread")).toBe("New main draft");
+	expect(props.drafts.get("thread")?.text).toBe("New main draft");
 	expect(props.open).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
 		question: "original question",
 	});

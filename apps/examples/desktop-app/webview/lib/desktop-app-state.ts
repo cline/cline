@@ -1,3 +1,4 @@
+import type { PromptDraft } from "../hooks/use-prompt-draft";
 import {
 	createNavigationHistory,
 	type NavigationHistory,
@@ -21,6 +22,7 @@ export type DesktopThread = {
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
 	pendingSideSubmissions?: InitialSideSubmission[];
+	initialAttachments?: File[];
 };
 
 export function appendSideAnswerToMainDraft({
@@ -30,7 +32,7 @@ export function appendSideAnswerToMainDraft({
 	answer,
 }: {
 	threads: DesktopThread[];
-	drafts: Map<string, string>;
+	drafts: ReadonlyMap<string, PromptDraft>;
 	parent: SessionHistoryItem;
 	answer: string;
 }): string {
@@ -41,7 +43,7 @@ export function appendSideAnswerToMainDraft({
 				thread.historySession?.sessionId === parent.sessionId),
 	);
 	const threadId = parentThread?.id ?? `session_${sessionKey(parent)}`;
-	const existing = drafts.get(threadId) ?? "";
+	const existing = drafts.get(threadId)?.text ?? "";
 	return `${existing}${existing ? "\n\n" : ""}From side conversation:\n\n${answer.trim()}`;
 }
 
@@ -74,6 +76,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			session: SessionHistoryItem;
 			environmentId: string;
 			initialPromptDraft?: string;
+			initialAttachments?: File[];
 			initialSideSubmission?: InitialSideSubmission;
 	  }
 	| {
@@ -267,6 +270,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 													action.initialSideSubmission,
 												]
 											: thread.pendingSideSubmissions,
+										initialAttachments: action.initialAttachments,
 									}
 								: thread,
 						)
@@ -284,13 +288,18 @@ export function desktopAppReducer<SettingsSection extends string>(
 								pendingSideSubmissions: action.initialSideSubmission
 									? [action.initialSideSubmission]
 									: undefined,
+								initialAttachments: action.initialAttachments,
 							},
 						];
 			return {
 				...state,
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
-					type: "navigate",
+					type:
+						state.navigation.current.view === "chat" &&
+						state.navigation.current.activeThreadId === threadId
+							? "replace"
+							: "navigate",
 					destination: {
 						...state.navigation.current,
 						activeThreadId: threadId,
@@ -318,8 +327,13 @@ export function desktopAppReducer<SettingsSection extends string>(
 				...state,
 				threads: state.threads.map((thread) =>
 					thread.id === action.threadId &&
-					thread.initialPromptDraft !== undefined
-						? { ...thread, initialPromptDraft: undefined }
+					(thread.initialPromptDraft !== undefined ||
+						thread.initialAttachments !== undefined)
+						? {
+								...thread,
+								initialPromptDraft: undefined,
+								initialAttachments: undefined,
+							}
 						: thread,
 				),
 			};

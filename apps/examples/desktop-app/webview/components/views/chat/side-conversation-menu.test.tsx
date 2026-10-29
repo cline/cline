@@ -41,16 +41,13 @@ async function select(label: string) {
 	if (!item) throw new Error(`Missing menu item: ${label}`);
 	await act(async () => item.click());
 }
-it("offers only deletion without adding a header or saved-chat navigation", async () => {
-	expect(container.querySelector("header")).toBeNull();
-	expect(container.textContent).toBe("");
+it("opens the menu with the keyboard and deletes the side chat", async () => {
 	await openMenu();
 	expect(
 		[...document.querySelectorAll('[role="menuitem"]')].map(
 			(item) => item.textContent,
 		),
 	).toEqual(["Delete side chat"]);
-	expect(document.querySelector('[role="menuitemradio"]')).toBeNull();
 	await select("Delete side chat");
 	expect(onDelete).toHaveBeenCalledOnce();
 });

@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type { PromptDraftCache } from "./use-prompt-draft";
 import { toast } from "@/hooks/use-toast";
 import type { InitialSideSubmission } from "@/lib/desktop-app-state";
 import type { SessionHistoryItem } from "@/lib/session-history";
@@ -62,7 +63,7 @@ export function useSideConversation({
 	) => void;
 	send: (question: string) => Promise<boolean>;
 	setDraft: (value: string) => void;
-	drafts: Map<string, string>;
+	drafts: PromptDraftCache;
 }) {
 	const [openingState, setOpeningState] = useState<SideOpeningState>({
 		kind: "idle",
@@ -92,9 +93,13 @@ export function useSideConversation({
 		consumeSubmission(threadId, initialSubmission);
 		const question = initialSubmission.question;
 		const restoreQuestion = () => {
-			const existing = drafts.get(threadId) ?? "";
+			const draft = drafts.get(threadId);
+			const existing = draft?.text ?? "";
 			const restored = existing ? `${existing}\n\n${question}` : question;
-			drafts.set(threadId, restored);
+			drafts.set(threadId, {
+				text: restored,
+				attachments: draft?.attachments ?? [],
+			});
 			setDraft(restored);
 		};
 		if (!hydrationSucceeded) {
@@ -154,7 +159,8 @@ export function useSideConversation({
 				else open(session, submission);
 			};
 			const clearCommand = () => {
-				if (command && drafts.get(threadId) === command.prompt) setDraft("");
+				if (command && drafts.get(threadId)?.text === command.prompt)
+					setDraft("");
 			};
 			if (!uncertainSessionId && existingSession) {
 				clearCommand();

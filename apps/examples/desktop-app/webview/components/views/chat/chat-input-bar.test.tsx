@@ -12,7 +12,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -28,6 +28,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
 
 const {
@@ -211,6 +212,7 @@ async function renderVoiceComposer({
 	onAttachFiles = vi.fn(),
 	sessionId,
 	strictMode = false,
+	cloudHandoffAvailable = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -226,6 +228,7 @@ async function renderVoiceComposer({
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
 	strictMode?: boolean;
+	cloudHandoffAvailable?: boolean;
 } = {}) {
 	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
@@ -237,6 +240,7 @@ async function renderVoiceComposer({
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
+						cloudHandoffAvailable={cloudHandoffAvailable}
 						executionTarget={executionTarget}
 						sessionId={sessionId}
 						attachments={attachments}
@@ -282,7 +286,7 @@ function DraftComposer({
 	sendPrompt,
 	inputProps,
 }: {
-	drafts: Map<string, string>;
+	drafts: PromptDraftCache;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
 	inputProps?: Partial<Parameters<typeof ChatInputBar>[0]>;
@@ -333,7 +337,9 @@ function DraftComposer({
 
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
-		const drafts = new Map([["A", "Try again"]]);
+		const drafts = new PromptDraftCache([
+			["A", { text: "Try again", attachments: [] }],
+		]);
 		const response = deferred<boolean>();
 		await act(async () => {
 			root.render(
@@ -352,11 +358,11 @@ describe("ChatInputBar draft navigation", () => {
 		expect(container.querySelector("textarea")?.value).toBe("");
 		await act(async () => response.resolve(false));
 		expect(container.querySelector("textarea")?.value).toBe("Try again");
-		expect(drafts.get("A")).toBe("Try again");
+		expect(drafts.get("A")?.text).toBe("Try again");
 	});
 
 	it("restores typed text on return and does not restore it after sending", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftCache();
 		const showThread = async (threadId: string) => {
 			await act(async () => {
 				root.render(
@@ -402,6 +408,20 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("highlights /cloud only when handoff is available", async () => {
+		for (const enabled of [false, true, false]) {
+			await renderVoiceComposer({
+				prompt: "/cloud Continue",
+				cloudHandoffAvailable: enabled,
+			});
+			expect(
+				container
+					.querySelector("textarea")
+					?.parentElement?.querySelector("[aria-hidden] span")?.textContent,
+			).toBe(enabled ? "/cloud" : undefined);
+		}
+	});
+
 	it("retains skills and workflows when plugin discovery rejects", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
 			if (name === "list_plugin_commands") throw new Error("hub unavailable");
@@ -884,6 +904,21 @@ describe("ChatInputBar", () => {
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+		]);
+	});
+
+	it("shows the reserved cloud command only while Cloud sessions are available", () => {
+		const commands = [
+			{ name: "fork", description: "Fork" },
+			{ name: "cloud", description: "User workflow" },
+		];
+		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
+		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
+			{
+				name: "cloud",
+				description: "Continue this local session in Cline Cloud",
+			},
+			{ name: "fork", description: "Fork" },
 		]);
 	});
 
@@ -3243,6 +3278,47 @@ describe("ChatInputBar", () => {
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
 		});
 
+		it.each([
+			"empty",
+			"failed",
+		])("does not replace the active cloud model with bundled choices when its catalog is %s", async (result) => {
+			if (result === "failed")
+				loadProviderModelCatalogMock.mockRejectedValue(new Error("offline"));
+			else
+				loadProviderModelCatalogMock.mockResolvedValue({
+					providers: [],
+					enabledProviderIds: [],
+					providerNames: {},
+					providerModels: {},
+					providerModelDetails: {},
+					providerReasoningModels: {},
+				});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "selected-model",
+				provider: "cline",
+				onModelChange,
+			});
+			if (result === "failed") {
+				expect(container.textContent).toContain(
+					"Could not load cloud models. Retry",
+				);
+			} else {
+				const trigger = container.querySelector<HTMLButtonElement>(
+					'[aria-label="Model: selected-model"]',
+				);
+				expect(trigger).not.toBeNull();
+				await act(async () => trigger?.click());
+				const options = [...document.querySelectorAll('[role="option"]')];
+				expect(options).toHaveLength(1);
+				expect(options[0]?.textContent).toContain("selected-model");
+			}
+			expect(loadProviderModelsMock).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
+		});
+
 		it("keeps an active model that is absent from the gated catalog", async () => {
 			const onModelChange = vi.fn();
 			await renderComposer({
@@ -3743,9 +3819,9 @@ describe("ChatInputBar compact layout", () => {
 
 describe("ChatInputBar pane ownership", () => {
 	it("addresses focus and Stop while preserving menu and IME precedence", async () => {
-		const drafts = new Map([
-			["main", "/bt"],
-			["side", "/bt"],
+		const drafts = new PromptDraftCache([
+			["main", { text: "/bt", attachments: [] }],
+			["side", { text: "/bt", attachments: [] }],
 		]);
 		const abortMain = vi.fn();
 		const abortSide = vi.fn();
@@ -3830,7 +3906,7 @@ describe("ChatInputBar pane ownership", () => {
 			}),
 		);
 		const storageWrites = vi.spyOn(Storage.prototype, "setItem");
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftCache();
 		const mainModel = vi.fn();
 		const sideModel = vi.fn();
 		const renderPanes = (status: ChatSessionStatus, sideId = "side") =>
@@ -3887,9 +3963,9 @@ describe("ChatInputBar background controls", () => {
 				supportsStreaming: true,
 			}),
 		);
-		const drafts = new Map([
-			["main", "Main draft"],
-			["side", "Side draft"],
+		const drafts = new PromptDraftCache([
+			["main", { text: "Main draft", attachments: [] }],
+			["side", { text: "Side draft", attachments: [] }],
 		]);
 		const renderPanes = (active: boolean) =>
 			act(async () => {
@@ -3927,7 +4003,7 @@ describe("ChatInputBar background controls", () => {
 	});
 
 	it("removes an open model menu when its pane becomes hidden", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftCache();
 		const renderPane = (active: boolean) =>
 			act(async () => {
 				root.render(
