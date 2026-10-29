@@ -310,6 +310,14 @@ function ChatScreenBody({
 	}));
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const window = useWindowDimensions();
+	// On very short Android windows the status bar and full IME can leave less
+	// than one composer row below the header. Keep editing actions reachable;
+	// restore navigation/status/attention chrome as soon as the keyboard leaves.
+	const constrainedKeyboard =
+		Platform.OS === "android" &&
+		window.height < 500 &&
+		keyboardHeight > 0 &&
+		window.height - insets.top - keyboardHeight < 128;
 	// Owned here and mirrored into a small route-keyed cache so switching sessions
 	// does not throw away an unsent paragraph.
 	const [draft, setDraft] = useState(
@@ -646,128 +654,137 @@ function ChatScreenBody({
 					<View
 						style={{ height: insets.top, backgroundColor: theme.color.surface }}
 					/>
-					<ChatHeader
-						horizontalInsets={sideInsets}
-						onReviewBranch={onReviewBranch}
-						onFindInConversation={
-							transcriptMessages.length
-								? () => {
-										Keyboard.dismiss();
-										setNavigatorOpen(true);
-									}
-								: undefined
-						}
-						title={title}
-						subtitle={subtitle}
-						runStatus={view.runStatus}
-						pendingApproval={view.pendingApprovals.length > 0}
-						showStatus={transcriptLive}
-						onBack={initialSubmissionGuarded ? undefined : onBack}
-						onNewSession={initialSubmissionGuarded ? undefined : onNewChat}
-						onSwitchSession={
-							initialSubmissionGuarded ? undefined : onSwitchSession
-						}
-					/>
-
 					<View
-						style={{
-							paddingLeft: sideInsets.left,
-							paddingRight: sideInsets.right,
-						}}
+						testID="chat-context-chrome"
+						style={{ display: constrainedKeyboard ? "none" : "flex" }}
 					>
-						{reconnecting ? (
-							<Banner
-								tone="info"
-								pulse
-								leading={<RefreshCw size={14} color={theme.feedback.info.fg} />}
-								message="Reconnecting — your session is preserved."
-							/>
-						) : null}
+						<ChatHeader
+							horizontalInsets={sideInsets}
+							onReviewBranch={onReviewBranch}
+							onFindInConversation={
+								transcriptMessages.length
+									? () => {
+											Keyboard.dismiss();
+											setNavigatorOpen(true);
+										}
+									: undefined
+							}
+							title={title}
+							subtitle={subtitle}
+							runStatus={view.runStatus}
+							pendingApproval={view.pendingApprovals.length > 0}
+							showStatus={transcriptLive}
+							onBack={initialSubmissionGuarded ? undefined : onBack}
+							onNewSession={initialSubmissionGuarded ? undefined : onNewChat}
+							onSwitchSession={
+								initialSubmissionGuarded ? undefined : onSwitchSession
+							}
+						/>
 
-						{initialConsumptionError ? (
-							<Banner
-								tone="danger"
-								message="Cline couldn't safely save this send. Tap to retry."
-								accessibilityLabel="Retry saving this send"
-								onPress={() => {
-									setInitialConsumptionError(false);
-									setInitialConsumptionAttempt((attempt) => attempt + 1);
-								}}
-							/>
-						) : null}
-
-						{disconnected && status.phase !== "error" ? (
-							<Banner
-								tone="danger"
-								message="Connection lost — tap to reconnect."
-								accessibilityLabel="Connection lost. Reconnect"
-								onPress={() => void connection.reconnect()}
-							/>
-						) : null}
-
-						{stopping ? (
-							<Text accessibilityLiveRegion="polite">Stopping Cline…</Text>
-						) : null}
-						{stopError && running ? (
-							<Banner tone="danger">
-								<Text accessibilityRole="alert">{stopError}</Text>
-								<Button
-									label="Retry stop"
-									disabled={stopping}
-									onPress={() => void stopRun()}
+						<View
+							style={{
+								paddingLeft: sideInsets.left,
+								paddingRight: sideInsets.right,
+							}}
+						>
+							{reconnecting ? (
+								<Banner
+									tone="info"
+									pulse
+									leading={
+										<RefreshCw size={14} color={theme.feedback.info.fg} />
+									}
+									message="Reconnecting — your session is preserved."
 								/>
-							</Banner>
-						) : null}
-						{view.runStatus === "failed" && status.phase === "ready" ? (
-							<Banner tone="danger">
-								<Text variant="small" tone="danger" accessibilityRole="alert">
-									{userErrorMessage(
-										view.lastError === "run failed"
-											? undefined
-											: view.lastError,
-										"Cline couldn't finish this turn. Try sending again or choose another model.",
-									)}
-								</Text>
-							</Banner>
-						) : null}
+							) : null}
 
-						{approvalCount > 0 ? (
-							<Banner
-								tone="warning"
-								leading={
-									<ShieldAlert size={14} color={theme.feedback.warning.fg} />
-								}
-								message={`${approvalCount} tool approval${
-									approvalCount === 1 ? "" : "s"
-								} waiting — tap to review`}
-								trailing={
-									<ChevronRight size={16} color={theme.feedback.warning.fg} />
-								}
-								accessibilityLabel="Review pending approvals"
-								onPress={() =>
-									expandBottomSheetAfterKeyboardDismiss(approvalSheetRef)
-								}
-							/>
-						) : null}
+							{initialConsumptionError ? (
+								<Banner
+									tone="danger"
+									message="Cline couldn't safely save this send. Tap to retry."
+									accessibilityLabel="Retry saving this send"
+									onPress={() => {
+										setInitialConsumptionError(false);
+										setInitialConsumptionAttempt((attempt) => attempt + 1);
+									}}
+								/>
+							) : null}
 
-						{view.questionInterrupted ? (
-							<Banner
-								tone="warning"
-								message="The connection interrupted Cline's question. Ask Cline to repeat it when you're connected again."
-							/>
-						) : null}
-						{questionCount > 0 ? (
-							<Banner
-								tone="info"
-								leading={<CircleHelp size={14} color={theme.brand.violet} />}
-								message={`Cline has ${questionCount === 1 ? "a question" : `${questionCount} questions`} — tap to answer`}
-								trailing={<ChevronRight size={16} color={theme.brand.violet} />}
-								accessibilityLabel="Answer Cline's question"
-								onPress={() =>
-									expandBottomSheetAfterKeyboardDismiss(questionSheetRef)
-								}
-							/>
-						) : null}
+							{disconnected && status.phase !== "error" ? (
+								<Banner
+									tone="danger"
+									message="Connection lost — tap to reconnect."
+									accessibilityLabel="Connection lost. Reconnect"
+									onPress={() => void connection.reconnect()}
+								/>
+							) : null}
+
+							{stopping ? (
+								<Text accessibilityLiveRegion="polite">Stopping Cline…</Text>
+							) : null}
+							{stopError && running ? (
+								<Banner tone="danger">
+									<Text accessibilityRole="alert">{stopError}</Text>
+									<Button
+										label="Retry stop"
+										disabled={stopping}
+										onPress={() => void stopRun()}
+									/>
+								</Banner>
+							) : null}
+							{view.runStatus === "failed" && status.phase === "ready" ? (
+								<Banner tone="danger">
+									<Text variant="small" tone="danger" accessibilityRole="alert">
+										{userErrorMessage(
+											view.lastError === "run failed"
+												? undefined
+												: view.lastError,
+											"Cline couldn't finish this turn. Try sending again or choose another model.",
+										)}
+									</Text>
+								</Banner>
+							) : null}
+
+							{approvalCount > 0 ? (
+								<Banner
+									tone="warning"
+									leading={
+										<ShieldAlert size={14} color={theme.feedback.warning.fg} />
+									}
+									message={`${approvalCount} tool approval${
+										approvalCount === 1 ? "" : "s"
+									} waiting — tap to review`}
+									trailing={
+										<ChevronRight size={16} color={theme.feedback.warning.fg} />
+									}
+									accessibilityLabel="Review pending approvals"
+									onPress={() =>
+										expandBottomSheetAfterKeyboardDismiss(approvalSheetRef)
+									}
+								/>
+							) : null}
+
+							{view.questionInterrupted ? (
+								<Banner
+									tone="warning"
+									message="The connection interrupted Cline's question. Ask Cline to repeat it when you're connected again."
+								/>
+							) : null}
+							{questionCount > 0 ? (
+								<Banner
+									tone="info"
+									leading={<CircleHelp size={14} color={theme.brand.violet} />}
+									message={`Cline has ${questionCount === 1 ? "a question" : `${questionCount} questions`} — tap to answer`}
+									trailing={
+										<ChevronRight size={16} color={theme.brand.violet} />
+									}
+									accessibilityLabel="Answer Cline's question"
+									onPress={() =>
+										expandBottomSheetAfterKeyboardDismiss(questionSheetRef)
+									}
+								/>
+							) : null}
+						</View>
 					</View>
 				</View>
 
@@ -928,11 +945,7 @@ function ChatScreenBody({
 						horizontalInsets={sideInsets}
 						maxHeight={Math.max(
 							110,
-							(window.height -
-								(Platform.OS === "ios" ? keyboardHeight : 0) -
-								insets.top -
-								52) *
-								0.7,
+							(window.height - keyboardHeight - insets.top - 52) * 0.7,
 						)}
 						compact={window.height < 500}
 						supportsImages={supportsImages}

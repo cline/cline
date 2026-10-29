@@ -1100,7 +1100,13 @@ describe("HomeScreen Cline welcome", () => {
 				(node) =>
 					typeof node.type === "string" && node.type === "KeyboardAvoidingView",
 			)
-			.at(0);
+			.find(
+				(node) =>
+					node.findAll(
+						(child) =>
+							child.props.accessibilityLabel === "Message Cline from Home",
+					).length > 0,
+			);
 		expect(keyboardScroll).toBeDefined();
 		expect(
 			keyboardScroll?.findAll(

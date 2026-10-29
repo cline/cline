@@ -42,6 +42,7 @@ import {
 	TextField,
 	useTheme,
 } from "@/ui";
+import { KeyboardAvoidingContainer } from "@/ui/KeyboardAvoidingContainer";
 import { SidebarAccountSummary } from "../settings/CreditBalance";
 import { SESSION_SIDEBAR_WIDTH } from "./AdaptiveSessionLayout";
 import {
@@ -107,7 +108,9 @@ export function SessionSidebar({
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 	const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-	const short = screenHeight - insets.top - insets.bottom < 400;
+	const [contentHeight, setContentHeight] = useState<number>();
+	const short =
+		(contentHeight ?? screenHeight - insets.top - insets.bottom) < 400;
 	const reduceMotion = useReducedMotion();
 	const drawerWidth = Math.min(
 		MAX_DRAWER_WIDTH,
@@ -116,6 +119,8 @@ export function SessionSidebar({
 	const translateX = useSharedValue(-drawerWidth);
 	const closing = useRef(false);
 	const [query, setQuery] = useState("");
+	const [searchFocused, setSearchFocused] = useState(false);
+	const compactSearch = screenHeight < 500 && searchFocused;
 	const actionPresenter = useRef(presentation);
 	const [actionRequest, setActionRequest] = useState<{
 		row: SessionRow;
@@ -189,12 +194,14 @@ export function SessionSidebar({
 	};
 
 	useEffect(() => {
-		if (presentation === "inline") return;
-		if (open) Keyboard.dismiss();
-		else {
-			closing.current = false;
-			translateX.value = -drawerWidth;
-		}
+		// Dismiss the composer's keyboard once when opening navigation. Resizing
+		// an already-open drawer must retain its focused search and keyboard.
+		if (presentation === "drawer" && open) Keyboard.dismiss();
+	}, [open, presentation]);
+	useEffect(() => {
+		if (presentation === "inline" || open) return;
+		closing.current = false;
+		translateX.value = -drawerWidth;
 	}, [drawerWidth, open, presentation, translateX]);
 
 	const drawerStyle = useAnimatedStyle(() => ({
@@ -208,7 +215,11 @@ export function SessionSidebar({
 		<>
 			<View
 				testID={short ? "sidebar-short-header" : undefined}
-				style={[styles.header, short ? { minHeight: 44 } : undefined]}
+				style={[
+					styles.header,
+					short ? { minHeight: 44 } : undefined,
+					compactSearch ? { display: "none" } : undefined,
+				]}
 			>
 				<View style={styles.brand}>
 					<ClineLogo size={21} accessibilityLabel="" />
@@ -233,8 +244,15 @@ export function SessionSidebar({
 				</IconButton>
 			</View>
 
-			<View style={styles.actions}>
-				{!short ? (
+			<View
+				style={[
+					styles.actions,
+					compactSearch
+						? { flexDirection: "row", alignItems: "center", gap: 2 }
+						: undefined,
+				]}
+			>
+				{!short && !compactSearch ? (
 					<SidebarAction
 						label="New"
 						onPress={() => {
@@ -247,6 +265,12 @@ export function SessionSidebar({
 				) : null}
 				<TextField
 					key="session-search"
+					containerStyle={
+						compactSearch ? { flex: 1, minWidth: 0, minHeight: 44 } : undefined
+					}
+					onFocus={() => setSearchFocused(true)}
+					onBlur={() => setSearchFocused(false)}
+					onSubmitEditing={() => Keyboard.dismiss()}
 					accessibilityLabel="Search sessions"
 					autoCapitalize="none"
 					autoCorrect={false}
@@ -257,9 +281,23 @@ export function SessionSidebar({
 					value={query}
 					variant="search"
 				/>
+				{compactSearch ? (
+					<>
+						<Button
+							label="Show results"
+							accessibilityLabel="Show session results"
+							variant="ghost"
+							size="sm"
+							onPress={() => Keyboard.dismiss()}
+						/>
+						<IconButton accessibilityLabel="Collapse sidebar" onPress={close}>
+							<PanelLeftClose size={19} color={theme.color.textMuted} />
+						</IconButton>
+					</>
+				) : null}
 			</View>
 
-			{!short ? (
+			{!short && !compactSearch ? (
 				<View style={styles.sectionHeader}>
 					<Text variant="small" weight="500" tone="muted">
 						Sessions
@@ -353,6 +391,7 @@ export function SessionSidebar({
 						styles.footer,
 						{ borderTopColor: theme.color.border },
 						short ? { paddingTop: 0, paddingBottom: 0 } : undefined,
+						compactSearch ? { display: "none" } : undefined,
 					]}
 				>
 					{open ? (
@@ -365,7 +404,7 @@ export function SessionSidebar({
 							}}
 						/>
 					) : null}
-					{!short ? (
+					{!short && !compactSearch ? (
 						<SidebarAction
 							label="Settings"
 							onPress={() => {
@@ -379,6 +418,24 @@ export function SessionSidebar({
 				</View>
 			) : null}
 		</>
+	);
+	// The sidebar is a sibling of the main pane's avoidance boundary. Its modal
+	// is a separate native window, so neither presentation can inherit avoidance.
+	const keyboardContent = (
+		<KeyboardAvoidingContainer
+			testID="sidebar-keyboard-boundary"
+			style={{ flex: 1 }}
+		>
+			<View
+				testID="sidebar-keyboard-content"
+				style={{ flex: 1, minHeight: 0 }}
+				onLayout={({ nativeEvent: { layout } }) => {
+					if (Number.isFinite(layout.height)) setContentHeight(layout.height);
+				}}
+			>
+				{body}
+			</View>
+		</KeyboardAvoidingContainer>
 	);
 	const surfaceStyle = {
 		paddingLeft: presentation === "drawer" ? insets.left : 0,
@@ -401,7 +458,7 @@ export function SessionSidebar({
 						surfaceStyle,
 					]}
 				>
-					{body}
+					{keyboardContent}
 					{dialog}
 				</View>
 			) : null
@@ -422,7 +479,10 @@ export function SessionSidebar({
 								easing: Easing.out(Easing.cubic),
 							});
 				}}
-				onRequestClose={close}
+				onRequestClose={() => {
+					if (Keyboard.isVisible()) Keyboard.dismiss();
+					else close();
+				}}
 				presentationStyle="overFullScreen"
 				statusBarTranslucent
 				transparent
@@ -452,7 +512,7 @@ export function SessionSidebar({
 						]}
 						testID="session-sidebar"
 					>
-						{body}
+						{keyboardContent}
 					</Animated.View>
 				</View>
 				{dialog}

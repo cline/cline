@@ -205,6 +205,7 @@ function QuestionCard({
 				})}
 			</View>
 			<BottomSheetTextInput
+				disableFullscreenUI
 				keyboardAppearance={theme.mode}
 				accessibilityLabel="Custom answer"
 				placeholder="Or type your own answer…"

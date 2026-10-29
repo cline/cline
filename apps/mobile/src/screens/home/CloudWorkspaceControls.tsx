@@ -1,5 +1,6 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type GorhomBottomSheet from "@gorhom/bottom-sheet";
+import type { BottomSheetScrollViewMethods } from "@gorhom/bottom-sheet";
 import {
 	Check,
 	ChevronDown,
@@ -7,6 +8,7 @@ import {
 	GitBranch,
 	GitFork,
 	RefreshCw,
+	X,
 } from "lucide-react-native";
 import {
 	type ReactNode,
@@ -18,8 +20,10 @@ import {
 } from "react";
 import {
 	AppState,
+	Keyboard,
 	Linking,
 	Pressable,
+	useWindowDimensions,
 	View,
 	type ViewStyle,
 } from "react-native";
@@ -40,6 +44,7 @@ import {
 	BottomSheet,
 	Button,
 	expandBottomSheetAfterKeyboardDismiss,
+	IconButton,
 	Spinner,
 	Text,
 	TextField,
@@ -86,6 +91,79 @@ function sameRepositoryUrl(left: string, right: string): boolean {
 	return normalize(left) === normalize(right);
 }
 
+/** Keep the native search input mounted while short-screen chrome changes. */
+function WorkspacePickerHeader({
+	title,
+	label,
+	placeholder,
+	query,
+	onQuery,
+	onClose,
+}: {
+	title: string;
+	label: string;
+	placeholder: string;
+	query: string;
+	onQuery(value: string): void;
+	onClose(): void;
+}) {
+	const theme = useTheme();
+	const { height } = useWindowDimensions();
+	const [focused, setFocused] = useState(false);
+	return (
+		<View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+			<View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+				<View
+					style={{
+						minHeight: 44,
+						justifyContent: "center",
+						display:
+							height < 500 && (focused || query.trim().length > 0)
+								? "none"
+								: "flex",
+					}}
+				>
+					<Text variant="body" weight="500">
+						{title}
+					</Text>
+				</View>
+				<TextField
+					inBottomSheet
+					autoCorrect={false}
+					autoCapitalize="none"
+					variant="search"
+					placeholder={placeholder}
+					value={query}
+					onChangeText={onQuery}
+					accessibilityLabel={label}
+					returnKeyType="done"
+					onSubmitEditing={() => Keyboard.dismiss()}
+					onFocus={() => setFocused(true)}
+					onBlur={() => setFocused(false)}
+				/>
+			</View>
+			{height < 500 && focused ? (
+				<Button
+					label="Show results"
+					accessibilityLabel={`Show ${title === "Choose a repository" ? "repository" : "branch"} results`}
+					variant="ghost"
+					size="sm"
+					onPress={() => Keyboard.dismiss()}
+				/>
+			) : null}
+			<IconButton
+				accessibilityLabel={`Close ${title === "Choose a repository" ? "repository" : "branch"} picker`}
+				onPress={() => {
+					Keyboard.dismiss();
+					onClose();
+				}}
+			>
+				<X size={20} color={theme.color.textMuted} />
+			</IconButton>
+		</View>
+	);
+}
+
 /**
  * Desktop's new-Cloud-work context, with phone-sized selection sheets.
  *
@@ -107,6 +185,9 @@ export function useCloudWorkspaceControls({
 	const afterBranchClose = useRef<(() => void) | undefined>(undefined);
 	const handoffFrame = useRef<number | undefined>(undefined);
 	const repositorySheetRef = useRef<GorhomBottomSheet>(null);
+	const repositoryScrollRef = useRef<BottomSheetScrollViewMethods>(null);
+	const branchScrollRef = useRef<BottomSheetScrollViewMethods>(null);
+	const { height: screenHeight } = useWindowDimensions();
 	const repositorySheetRequested = useRef(false);
 	const branchSheetRef = useRef<GorhomBottomSheet>(null);
 	const repositoryRequest = useRef(0);
@@ -279,6 +360,7 @@ export function useCloudWorkspaceControls({
 			setSaveError(undefined);
 			setRepositoryMessage(message);
 			setRepositoryQuery("");
+			repositoryScrollRef.current?.scrollTo({ y: 0, animated: false });
 			expandBottomSheetAfterKeyboardDismiss(repositorySheetRef);
 			void loadRepositories();
 		};
@@ -305,6 +387,7 @@ export function useCloudWorkspaceControls({
 	const selectRepository = async (repository: CloudRepository) => {
 		if (saving || (scopeKnown && repositoryScope !== selectedOrganizationId))
 			return;
+		Keyboard.dismiss();
 		setSaving(true);
 		setSaveError(undefined);
 		try {
@@ -367,6 +450,7 @@ export function useCloudWorkspaceControls({
 		leaveContext(() => {
 			setSaveError(undefined);
 			setBranchQuery("");
+			branchScrollRef.current?.scrollTo({ y: 0, animated: false });
 			setBranchPickerOpen(true);
 			expandBottomSheetAfterKeyboardDismiss(branchSheetRef);
 		});
@@ -374,6 +458,7 @@ export function useCloudWorkspaceControls({
 
 	const selectBranch = async (repository: CloudRepository, branch: string) => {
 		if (!target || saving) return;
+		Keyboard.dismiss();
 		setSaving(true);
 		setSaveError(undefined);
 		try {
@@ -539,9 +624,26 @@ export function useCloudWorkspaceControls({
 				</BottomSheet>
 				<BottomSheet
 					ref={repositorySheetRef}
+					scrollViewRef={repositoryScrollRef}
+					fixedHeader={
+						<WorkspacePickerHeader
+							title="Choose a repository"
+							label="Search Cloud repositories"
+							placeholder="Search repositories…"
+							query={repositoryQuery}
+							onQuery={(value) => {
+								setRepositoryQuery(value);
+								repositoryScrollRef.current?.scrollTo({
+									y: 0,
+									animated: false,
+								});
+							}}
+							onClose={() => repositorySheetRef.current?.close()}
+						/>
+					}
 					index={-1}
 					enableDynamicSizing={false}
-					snapPoints={["70%"]}
+					snapPoints={[screenHeight < 500 ? "95%" : "70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
 					onChange={(index) => {
@@ -555,24 +657,12 @@ export function useCloudWorkspaceControls({
 					scrollable
 				>
 					<View style={{ gap: 12 }}>
-						<Text variant="body" weight="500">
-							Choose a repository
-						</Text>
 						{repositoryMessage ? (
 							<Text variant="small" tone="muted">
 								{repositoryMessage}
 							</Text>
 						) : null}
-						<TextField
-							inBottomSheet
-							autoCorrect={false}
-							autoCapitalize="none"
-							variant="search"
-							placeholder="Search repositories…"
-							value={repositoryQuery}
-							onChangeText={setRepositoryQuery}
-							accessibilityLabel="Search Cloud repositories"
-						/>
+
 						{savedRepositoryMissing ? (
 							<Text variant="small" tone="muted" accessibilityRole="alert">
 								{target.label} is no longer available in this account. Choose
@@ -684,9 +774,23 @@ export function useCloudWorkspaceControls({
 
 				<BottomSheet
 					ref={branchSheetRef}
+					scrollViewRef={branchScrollRef}
+					fixedHeader={
+						<WorkspacePickerHeader
+							title="Choose a branch"
+							label="Search Cloud branches"
+							placeholder="Search branches…"
+							query={branchQuery}
+							onQuery={(value) => {
+								setBranchQuery(value);
+								branchScrollRef.current?.scrollTo({ y: 0, animated: false });
+							}}
+							onClose={() => branchSheetRef.current?.close()}
+						/>
+					}
 					index={-1}
 					enableDynamicSizing={false}
-					snapPoints={["70%"]}
+					snapPoints={[screenHeight < 500 ? "95%" : "70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
 					onClose={finishBranchClose}
@@ -698,19 +802,6 @@ export function useCloudWorkspaceControls({
 					scrollable
 				>
 					<View style={{ gap: 12 }}>
-						<Text variant="body" weight="500">
-							Choose a branch
-						</Text>
-						<TextField
-							inBottomSheet
-							autoCorrect={false}
-							autoCapitalize="none"
-							variant="search"
-							placeholder="Search branches…"
-							value={branchQuery}
-							onChangeText={setBranchQuery}
-							accessibilityLabel="Search Cloud branches"
-						/>
 						{branches.phase === "loading" || branches.phase === "idle" ? (
 							<LoadingLine label="Loading branches…" />
 						) : branches.phase === "error" ? (

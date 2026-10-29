@@ -1,5 +1,6 @@
 import type { PendingApprovalInfo } from "@cline/shared";
 import * as Clipboard from "expo-clipboard";
+import * as Native from "react-native";
 import { FlatList } from "react-native";
 import * as SafeArea from "react-native-safe-area-context";
 import { act } from "react-test-renderer";
@@ -936,6 +937,66 @@ describe("ChatScreen", () => {
 		);
 	});
 
+	it("budgets Android composer height against the visible keyboard in its full-height edge-to-edge window", () => {
+		const previousOS = Native.Platform.OS;
+		Native.Platform.OS = "android";
+		const handlers = new Map<string, (event: unknown) => void>();
+		const listen = vi
+			.spyOn(Native.Keyboard, "addListener")
+			.mockImplementation((name, handler) => {
+				handlers.set(name, handler as (event: unknown) => void);
+				return {
+					remove: () => {
+						handlers.delete(name);
+					},
+				} as ReturnType<typeof Native.Keyboard.addListener>;
+			});
+		const dimensions = vi
+			.spyOn(Native, "useWindowDimensions")
+			.mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 });
+		try {
+			const app = render(<ChatScreen connection={fakeConnection()} />);
+			const originalHeight = app.root.find((node) => node.type === Composer)
+				.props.maxHeight;
+			act(() =>
+				handlers.get("keyboardDidShow")?.({ endCoordinates: { height: 300 } }),
+			);
+			expect(
+				app.root.find((node) => node.type === Composer).props.maxHeight,
+			).toBeCloseTo(originalHeight - 210);
+			act(() => handlers.get("keyboardDidHide")?.({}));
+			expect(
+				app.root.find((node) => node.type === Composer).props.maxHeight,
+			).toBe(originalHeight);
+			dimensions.mockReturnValue({
+				width: 874,
+				height: 320,
+				scale: 3,
+				fontScale: 1,
+			});
+			act(() =>
+				app.renderer.update(<ChatScreen connection={fakeConnection()} />),
+			);
+			act(() =>
+				handlers.get("keyboardDidShow")?.({ endCoordinates: { height: 220 } }),
+			);
+			const chrome = () =>
+				app.root.find(
+					(node) =>
+						typeof node.type === "string" &&
+						node.props.testID === "chat-context-chrome",
+				);
+			expect(chrome().props.style.display).toBe("none");
+			act(() => handlers.get("keyboardDidHide")?.({}));
+			expect(chrome().props.style.display).toBe("flex");
+			act(() => app.renderer.unmount());
+		} finally {
+			Native.Platform.OS = previousOS;
+			listen.mockRestore();
+			dimensions.mockRestore();
+		}
+	});
+
 	it("shows a quiet labelled state before the first message arrives", () => {
 		const { root } = render(
 			<ChatScreen
@@ -944,10 +1005,15 @@ describe("ChatScreen", () => {
 			/>,
 		);
 		expect(containsText(root, "Opening session")).toBe(true);
-		expect(
-			root.findAll((node) => node.props.accessibilityElementsHidden === true)
-				.length,
-		).toBe(0);
+		const message = root.findAll(
+			(node) =>
+				typeof node.type === "string" &&
+				node.props.children === "Opening session…",
+		)[0];
+		expect(message).toBeDefined();
+		for (let ancestor = message?.parent; ancestor; ancestor = ancestor.parent) {
+			expect(ancestor.props.accessibilityElementsHidden).not.toBe(true);
+		}
 	});
 
 	it("shows an error state with a retry that calls reconnect", async () => {

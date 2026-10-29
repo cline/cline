@@ -5,7 +5,7 @@
 
 import { Coins } from "lucide-react-native";
 import { type ReactNode, useRef, useState } from "react";
-import { Keyboard, ScrollView, View } from "react-native";
+import { Keyboard, Platform, ScrollView, View } from "react-native";
 import type { TokenUsageView } from "@/session";
 import { AutoGrowTextInput, Text, useTheme } from "@/ui";
 import {
@@ -76,6 +76,7 @@ export function Composer({
 	queued,
 }: ComposerProps) {
 	const theme = useTheme();
+	const inline = Platform.OS === "android" && compact;
 	const [focused, setFocused] = useState(false);
 	const [submissionError, setSubmissionError] = useState<string>();
 	const [selection, setSelection] = useState<TextSelection>(() => ({
@@ -161,6 +162,8 @@ export function Composer({
 			<View
 				style={{
 					flexShrink: 1,
+					flexDirection: inline ? "row" : "column",
+					alignItems: inline ? "center" : undefined,
 					borderWidth: 1,
 					borderColor: focused
 						? theme.brand.violetBorder
@@ -179,15 +182,20 @@ export function Composer({
 				<ScrollView
 					keyboardShouldPersistTaps="handled"
 					nestedScrollEnabled
-					style={{ flexGrow: 0, flexShrink: 1 }}
+					style={{
+						flexGrow: inline ? 1 : 0,
+						flexShrink: 1,
+						minWidth: 0,
+						maxHeight: inline ? 48 : undefined,
+					}}
 					contentContainerStyle={{
 						paddingHorizontal: 12,
-						paddingTop: compact ? 8 : 12,
+						paddingTop: inline ? 0 : compact ? 8 : 12,
 					}}
 				>
 					<AutoGrowTextInput
 						minHeight={44}
-						maxHeight={compact ? 60 : 140}
+						maxHeight={inline ? 44 : compact ? 60 : 140}
 						value={draft}
 						onChangeText={changeDraft}
 						selection={selection}
@@ -242,12 +250,15 @@ export function Composer({
 					testID="composer-toolbar"
 					style={{
 						flexShrink: 0,
+						width: inline ? "45%" : undefined,
+						minWidth: inline ? 260 : undefined,
+						maxWidth: inline ? 360 : undefined,
 						minHeight: 44,
 						flexDirection: "row",
 						alignItems: "center",
 						justifyContent: "space-between",
 						paddingHorizontal: 6,
-						paddingBottom: 4,
+						paddingBottom: inline ? 0 : 4,
 					}}
 				>
 					<View

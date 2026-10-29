@@ -1,6 +1,7 @@
 /** Cline provider/model control for the conversation composer. */
 
 import {
+	type BottomSheetScrollViewMethods,
 	BottomSheetTextInput,
 	type default as GorhomBottomSheet,
 } from "@gorhom/bottom-sheet";
@@ -20,7 +21,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Keyboard, Pressable, View } from "react-native";
+import { Keyboard, Pressable, useWindowDimensions, View } from "react-native";
 import type { CloudModelOption } from "@/cloud";
 import {
 	CLOUD_CATALOGS,
@@ -351,6 +352,8 @@ export function ModelSheet({
 }) {
 	const theme = useTheme();
 	const internalRef = useRef<GorhomBottomSheet>(null);
+	const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+	const { height } = useWindowDimensions();
 	const sheetRef = externalRef ?? internalRef;
 	const [loadedModels, setModels] = useState<readonly CloudModelOption[]>([]);
 	const models = loadedModels.length
@@ -366,6 +369,18 @@ export function ModelSheet({
 	const [currentDetails, setCurrentDetails] = useState(false);
 	const [saveError, setSaveError] = useState<string>();
 	const [query, setQuery] = useState("");
+	const [searchFocused, setSearchFocused] = useState(false);
+	const [resultsRequested, setResultsRequested] = useState(false);
+	const searching = canChange && (searchFocused || resultsRequested);
+	const finishSearch = () => {
+		setResultsRequested(height < 500);
+		Keyboard.dismiss();
+	};
+	const compactSearch = height < 500 && searching;
+	const updateQuery = (next: string) => {
+		setQuery(next);
+		scrollRef.current?.scrollTo({ y: 0, animated: false });
+	};
 	const [section, setSection] = useState(initialSection);
 	const openingSection = useRef(initialSection);
 	openingSection.current = initialSection;
@@ -387,6 +402,7 @@ export function ModelSheet({
 		next?.();
 	}, []);
 	const dismissForSettings = (then: () => void) => {
+		Keyboard.dismiss();
 		afterDismiss.current = then;
 		sheetRef.current?.close();
 	};
@@ -466,6 +482,7 @@ export function ModelSheet({
 			isSelected(model)
 		)
 			return;
+		Keyboard.dismiss();
 		savingChoice.current = true;
 		setSavingId(optionKey(model));
 		setSaveError(undefined);
@@ -490,7 +507,112 @@ export function ModelSheet({
 			// Loading, filtering, and provider navigation must not move the panel
 			// beneath the user's finger. Only its contents change; they can scroll.
 			enableDynamicSizing={false}
-			snapPoints={["70%"]}
+			snapPoints={[height < 500 ? "95%" : "70%"]}
+			keyboardBehavior="fillParent"
+			scrollViewRef={scrollRef}
+			fixedHeader={
+				<View
+					style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}
+				>
+					<View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+						<View
+							style={{
+								flexDirection: "row",
+								alignItems: "center",
+								gap: 8,
+								minHeight: 44,
+								display: compactSearch ? "none" : "flex",
+							}}
+						>
+							<Cpu size={16} color={theme.color.textMuted} />
+							<Text variant="body" weight="500" style={{ flex: 1 }}>
+								{cloud && section === "providers" ? "Provider" : "Model"}
+							</Text>
+						</View>
+						{canChange && (!cloud || section === "models") ? (
+							<View
+								style={{
+									flexDirection: "row",
+									alignItems: "center",
+									gap: 4,
+									backgroundColor: theme.color.canvas,
+									borderColor: theme.color.borderStrong,
+									borderWidth: 1,
+									borderRadius: theme.radius.md,
+								}}
+							>
+								<BottomSheetTextInput
+									keyboardAppearance={theme.mode}
+									disableFullscreenUI
+									returnKeyType="done"
+									onSubmitEditing={finishSearch}
+									accessibilityLabel="Search models"
+									placeholder="Search models…"
+									value={query}
+									onChangeText={updateQuery}
+									onFocus={() => setSearchFocused(true)}
+									onBlur={() => setSearchFocused(false)}
+									autoCorrect={false}
+									autoCapitalize="none"
+									placeholderTextColor={theme.color.textMuted}
+									style={{
+										flex: 1,
+										minWidth: 0,
+										minHeight: 44,
+										paddingHorizontal: 12,
+										paddingVertical: 10,
+										color: theme.color.text,
+
+										fontSize: 16,
+										fontFamily: fontFamily.sans,
+									}}
+								/>
+								{query ? (
+									<IconButton
+										accessibilityLabel="Clear model search"
+										onPress={() => {
+											setResultsRequested(false);
+											updateQuery("");
+										}}
+									>
+										<X size={18} color={theme.color.textMuted} />
+									</IconButton>
+								) : null}
+							</View>
+						) : null}
+					</View>
+					{height < 500 && searchFocused ? (
+						<Button
+							label="Show results"
+							accessibilityLabel="Show model results"
+							variant="ghost"
+							size="sm"
+							onPress={finishSearch}
+						/>
+					) : null}
+					{resultsRequested && !searchFocused ? (
+						<Button
+							label="Options"
+							accessibilityLabel="Show model settings"
+							variant="ghost"
+							size="sm"
+							onPress={() => {
+								setResultsRequested(false);
+								updateQuery("");
+							}}
+						/>
+					) : null}
+					<IconButton
+						accessibilityLabel="Close model picker"
+						onPress={() => {
+							Keyboard.dismiss();
+							sheetRef.current?.close();
+						}}
+					>
+						<X size={20} color={theme.color.textMuted} />
+					</IconButton>
+				</View>
+			}
 			scrollable
 			enablePanDownToClose
 			onClose={finishDismiss}
@@ -506,28 +628,16 @@ export function ModelSheet({
 					setSection(openingSection.current);
 					setBrowsingCatalog(undefined);
 					setQuery("");
+					setSearchFocused(false);
+					setResultsRequested(false);
 					setCurrentDetails(false);
+					scrollRef.current?.scrollTo({ y: 0, animated: false });
 					reload();
 				}
 			}}
 		>
 			<View style={{ gap: 10 }}>
-				<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-					<Cpu size={16} color={theme.color.textMuted} />
-					<Text variant="body" weight="500" style={{ flex: 1 }}>
-						{cloud && section === "providers" ? "Provider" : "Model"}
-					</Text>
-					<IconButton
-						accessibilityLabel="Close model picker"
-						onPress={() => {
-							Keyboard.dismiss();
-							sheetRef.current?.close();
-						}}
-					>
-						<X size={20} color={theme.color.textMuted} />
-					</IconButton>
-				</View>
-				{currentModel ? (
+				{currentModel && !searching ? (
 					<View style={{ gap: 5 }}>
 						<View
 							style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
@@ -566,17 +676,17 @@ export function ModelSheet({
 						) : null}
 					</View>
 				) : null}
-				{!cloud ? (
+				{!cloud && !searching ? (
 					<Text variant="small" tone="muted">
 						{modelLabel(providerId, modelId)}
 					</Text>
 				) : null}
-				{settings ? (
+				{settings && !searching ? (
 					<View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
 						{settings(dismissForSettings)}
 					</View>
 				) : null}
-				<Divider alpha={borderAlpha.strong} />
+				{!searching ? <Divider alpha={borderAlpha.strong} /> : null}
 
 				{!canChange ? (
 					<View style={{ gap: 8 }}>
@@ -656,7 +766,7 @@ export function ModelSheet({
 					</View>
 				) : (
 					<View style={{ gap: 10 }}>
-						{cloud ? (
+						{cloud && !searching ? (
 							<Pressable
 								accessibilityRole="button"
 								accessibilityLabel="Choose provider"
@@ -690,28 +800,7 @@ export function ModelSheet({
 								<ChevronRight size={16} color={theme.color.textMuted} />
 							</Pressable>
 						) : null}
-						<BottomSheetTextInput
-							keyboardAppearance={theme.mode}
-							accessibilityLabel="Search models"
-							placeholder="Search models…"
-							value={query}
-							onChangeText={setQuery}
-							autoCorrect={false}
-							autoCapitalize="none"
-							placeholderTextColor={theme.color.textMuted}
-							style={{
-								minHeight: 44,
-								paddingHorizontal: 12,
-								paddingVertical: 10,
-								color: theme.color.text,
-								backgroundColor: theme.color.canvas,
-								borderColor: theme.color.borderStrong,
-								borderWidth: 1,
-								borderRadius: theme.radius.md,
-								fontSize: 16,
-								fontFamily: fontFamily.sans,
-							}}
-						/>
+
 						<View>
 							<View accessibilityRole="radiogroup" style={{ gap: 14 }}>
 								{sections.map((section) => (

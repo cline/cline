@@ -100,6 +100,8 @@ export function TextField({
 			<Input
 				key={fontScale}
 				keyboardAppearance={theme.mode}
+				// Keep search and picker controls visible beside landscape keyboards.
+				disableFullscreenUI
 				placeholderTextColor={theme.color.textMuted}
 				onFocus={handleFocus}
 				onBlur={handleBlur}

@@ -2,6 +2,7 @@ import GorhomBottomSheet, {
 	BottomSheetBackdrop,
 	type BottomSheetBackdropProps,
 	BottomSheetScrollView,
+	type BottomSheetScrollViewMethods,
 	BottomSheetView,
 	type BottomSheetProps as GorhomBottomSheetProps,
 } from "@gorhom/bottom-sheet";
@@ -58,6 +59,9 @@ function StableSheetBackdrop(props: BottomSheetBackdropProps) {
 				accessible={active}
 				enableTouchThrough={!active}
 				pressBehavior="close"
+				onPress={() => {
+					if (active) Keyboard.dismiss();
+				}}
 			/>
 		</View>
 	);
@@ -70,6 +74,9 @@ export interface BottomSheetProps
 	withBackdrop?: boolean;
 	/** Use Gorhom's gesture-aware scroll container for content that can grow. */
 	scrollable?: boolean;
+	/** Controls kept above the scroll viewport in a fixed-height sheet. */
+	fixedHeader?: ReactNode;
+	scrollViewRef?: RefObject<BottomSheetScrollViewMethods | null>;
 }
 
 /**
@@ -81,6 +88,9 @@ export function expandBottomSheetAfterKeyboardDismiss(
 	sheetRef: RefObject<Pick<GorhomBottomSheet, "expand"> | null>,
 ): void {
 	if (!Keyboard.isVisible()) {
+		// A hardware keyboard can leave an input focused with no visible IME.
+		// Blur it so typing cannot continue into a composer behind the picker.
+		Keyboard.dismiss();
 		sheetRef.current?.expand();
 		return;
 	}
@@ -112,6 +122,8 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 			children,
 			withBackdrop = true,
 			scrollable = false,
+			fixedHeader,
+			scrollViewRef,
 			onAnimate,
 			onChange,
 			onClose,
@@ -194,46 +206,88 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
 			onClose?.();
 		}, [onClose]);
 
+		const scrollContent = (
+			<BottomSheetScrollView
+				ref={scrollViewRef}
+				style={
+					fixedHeader
+						? { flex: 1, minHeight: 0 }
+						: { maxHeight: Math.min(640, height - insets.top - 48) }
+				}
+				contentContainerStyle={{ padding: 16, paddingBottom }}
+				keyboardShouldPersistTaps="handled"
+			>
+				{children}
+			</BottomSheetScrollView>
+		);
+
 		return (
 			<ActiveSheetParentContext.Provider value={registerDescendant}>
 				<BackdropActiveContext.Provider value={backdropActive}>
-					<GorhomBottomSheet
-						ref={assignRef}
-						topInset={insets.top}
-						keyboardBlurBehavior="restore"
-						enableBlurKeyboardOnGesture
-						maxDynamicContentSize={height - insets.top - 16}
-						// Keep the content's buttons reachable by VoiceOver. Grouping the
-						// whole sheet as one adjustable element hides its descendants on iOS.
-						accessible={false}
-						backgroundStyle={{
-							// `--popover`, one step above a card: desktop floats panels on the
-							// popover surface, not the card surface.
-							backgroundColor: theme.color.popover,
-							borderTopLeftRadius: theme.radius.lg,
-							borderTopRightRadius: theme.radius.lg,
-						}}
-						handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
-						backdropComponent={withBackdrop ? StableSheetBackdrop : undefined}
-						{...rest}
-						onAnimate={handleAnimate}
-						onChange={handleChange}
-						onClose={handleClose}
+					{/* Keep dormant native sheets hidden during keyboard/fold geometry drift.
+					    Stay mounted so inputs and gesture contexts are not replaced. */}
+					<View
+						testID="sheet-visibility-boundary"
+						collapsable={false}
+						pointerEvents={backdropActive ? "box-none" : "none"}
+						accessibilityElementsHidden={!backdropActive}
+						importantForAccessibility={
+							backdropActive ? "auto" : "no-hide-descendants"
+						}
+						style={[
+							StyleSheet.absoluteFill,
+							{ opacity: backdropActive ? 1 : 0 },
+						]}
 					>
-						{scrollable ? (
-							<BottomSheetScrollView
-								style={{ maxHeight: Math.min(640, height - insets.top - 48) }}
-								contentContainerStyle={{ padding: 16, paddingBottom }}
-								keyboardShouldPersistTaps="handled"
-							>
-								{children}
-							</BottomSheetScrollView>
-						) : (
-							<BottomSheetView style={{ padding: 16, paddingBottom }}>
-								{children}
-							</BottomSheetView>
-						)}
-					</GorhomBottomSheet>
+						<GorhomBottomSheet
+							ref={assignRef}
+							topInset={insets.top}
+							keyboardBlurBehavior="restore"
+							enableBlurKeyboardOnGesture
+							maxDynamicContentSize={height - insets.top - 16}
+							// Keep the content's buttons reachable by VoiceOver. Grouping the
+							// whole sheet as one adjustable element hides its descendants on iOS.
+							accessible={false}
+							backgroundStyle={{
+								// `--popover`, one step above a card: desktop floats panels on the
+								// popover surface, not the card surface.
+								backgroundColor: theme.color.popover,
+								borderTopLeftRadius: theme.radius.lg,
+								borderTopRightRadius: theme.radius.lg,
+							}}
+							handleIndicatorStyle={{ backgroundColor: theme.color.textMuted }}
+							backdropComponent={withBackdrop ? StableSheetBackdrop : undefined}
+							{...rest}
+							onAnimate={handleAnimate}
+							onChange={handleChange}
+							onClose={handleClose}
+						>
+							{scrollable ? (
+								fixedHeader ? (
+									<View style={{ flex: 1, minHeight: 0 }}>
+										{fixedHeader ? (
+											<View
+												style={{
+													paddingHorizontal: 16,
+													paddingTop: 8,
+													paddingBottom: 8,
+												}}
+											>
+												{fixedHeader}
+											</View>
+										) : null}
+										{scrollContent}
+									</View>
+								) : (
+									scrollContent
+								)
+							) : (
+								<BottomSheetView style={{ padding: 16, paddingBottom }}>
+									{children}
+								</BottomSheetView>
+							)}
+						</GorhomBottomSheet>
+					</View>
 				</BackdropActiveContext.Provider>
 			</ActiveSheetParentContext.Provider>
 		);

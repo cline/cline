@@ -17,6 +17,7 @@ import { type ComponentProps, useState } from "react";
 import {
 	ActionSheetIOS,
 	Keyboard,
+	Platform,
 	Pressable,
 	ScrollView,
 	Text,
@@ -85,6 +86,50 @@ afterEach(() => {
 });
 
 describe("Composer", () => {
+	it("keeps the same draft input and permanent actions when Android rotates into its single-row composer", () => {
+		const previousOS = Platform.OS;
+		Platform.OS = "android";
+		try {
+			const props = {
+				running: true,
+				draft: "First line\nSecond line\nThird line",
+				onDraftChange: vi.fn(),
+				onSend: vi.fn(),
+				onAbort: vi.fn(),
+				queued: <Text>Queued follow-up</Text>,
+			};
+			const { root, renderer } = render(<Composer {...props} />);
+			const input = findInput(root);
+			act(() => renderer.update(<Composer {...props} compact />));
+			expect(findInput(root)).toBe(input);
+			expect(input.props.value).toBe(props.draft);
+			expect(input.props.maxHeight).toBe(44);
+			const toolbar = root.find(
+				(node) =>
+					typeof node.type === "string" &&
+					node.props.testID === "composer-toolbar",
+			);
+			expect(toolbar.props.style.minWidth).toBe(260);
+			expect(
+				root
+					.findAll(
+						(node) =>
+							typeof node.type === "string" && node.type === "ScrollView",
+					)
+					.every(
+						(scroll) =>
+							!scroll.findAll(
+								(node) => node.props.testID === "composer-toolbar",
+							).length,
+					),
+			).toBe(true);
+			expect(containsText(root, "Queued follow-up")).toBe(true);
+			expect(props.onSend).not.toHaveBeenCalled();
+		} finally {
+			Platform.OS = previousOS;
+		}
+	});
+
 	it("keeps actions outside the short scroll viewport while queued messages remain editable", async () => {
 		const onEdit = vi.fn();
 		const onSteer = vi.fn();

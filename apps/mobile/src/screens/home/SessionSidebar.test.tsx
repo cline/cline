@@ -323,3 +323,162 @@ it("keeps searchable history and Settings reachable on short screens without dup
 		dimensions.mockRestore();
 	}
 });
+
+describe("sidebar virtual keyboard ownership", () => {
+	const props = {
+		open: true,
+		rows: [ROW],
+		now: 0,
+		onClose: () => {},
+		onNew: () => {},
+		onOpen: () => {},
+		onOpenSettings: () => {},
+	};
+	const content = (root: ReturnType<typeof render>["root"]) =>
+		root.find(
+			(node) =>
+				typeof node.type === "string" &&
+				node.props.testID === "sidebar-keyboard-content",
+		);
+	it.each([
+		"drawer",
+		"inline",
+	] as const)("keeps search, results and Settings inside %s's own keyboard boundary", (presentation) => {
+		const { root } = render(
+			<SessionSidebar {...props} presentation={presentation} />,
+		);
+		const boundary = root.find(
+			(node) =>
+				typeof node.type === "string" &&
+				node.props.testID === "sidebar-keyboard-boundary",
+		);
+		expect(boundary.props.behavior).toBe("padding");
+		expect(findByLabel(boundary, "Search sessions")).toBeDefined();
+		expect(
+			findByLabel(boundary, "Open Fix mobile navigation on Cline Cloud"),
+		).toBeDefined();
+		expect(findByLabel(boundary, "Settings")).toBeDefined();
+		// The modal backdrop must cover the whole screen instead of shrinking with IME.
+		expect(findByLabel(boundary, "Close sessions")).toBeUndefined();
+	});
+	it("uses available IME-reduced height without remounting or clearing Search", () => {
+		const { root } = render(<SessionSidebar {...props} />);
+		const input = findByLabel(root, "Search sessions");
+		if (!input) throw new Error("Sidebar Search did not mount");
+		act(() => input.props.onChangeText("navigation"));
+		act(() =>
+			content(root).props.onLayout({
+				nativeEvent: { layout: { height: 240 } },
+			}),
+		);
+		expect(
+			root.find(
+				(node) =>
+					typeof node.type === "string" &&
+					node.props.testID === "sidebar-short-header",
+			),
+		).toBeDefined();
+		expect(findByLabel(root, "Search sessions")).toBe(input);
+		expect(input.props.value).toBe("navigation");
+		expect(
+			findByLabel(root, "Open Fix mobile navigation on Cline Cloud"),
+		).toBeDefined();
+		act(() =>
+			content(root).props.onLayout({
+				nativeEvent: { layout: { height: 800 } },
+			}),
+		);
+		expect(containsText(root, "Sessions")).toBe(true);
+		expect(findByLabel(root, "Search sessions")).toBe(input);
+		expect(input.props.value).toBe("navigation");
+	});
+	it("retains the open drawer's keyboard and query when rotation changes its width", () => {
+		let width = 402;
+		const dimensions = vi
+			.spyOn(Native, "useWindowDimensions")
+			.mockImplementation(() => ({
+				width,
+				height: width === 402 ? 874 : 402,
+				scale: 3,
+				fontScale: 1,
+			}));
+		const dismiss = vi.spyOn(Keyboard, "dismiss");
+		try {
+			const { root, renderer } = render(<SessionSidebar {...props} />);
+			const search = findByLabel(root, "Search sessions");
+			if (!search) throw new Error("Search missing");
+			act(() => search.props.onChangeText("navigation"));
+			dismiss.mockClear();
+			width = 874;
+			act(() => renderer.update(<SessionSidebar {...props} />));
+			expect(dismiss).not.toHaveBeenCalled();
+			expect(findByLabel(root, "Search sessions")).toBe(search);
+			expect(search.props.value).toBe("navigation");
+		} finally {
+			dimensions.mockRestore();
+			dismiss.mockRestore();
+		}
+	});
+
+	it("prioritizes Search and explicit results/close actions over account chrome while typing in landscape", () => {
+		const dimensions = vi
+			.spyOn(Native, "useWindowDimensions")
+			.mockReturnValue({ width: 923, height: 411, scale: 2.625, fontScale: 1 });
+		const dismiss = vi.spyOn(Keyboard, "dismiss");
+		const close = vi.fn();
+		try {
+			const { root } = render(<SessionSidebar {...props} onClose={close} />);
+			const search = findByLabel(root, "Search sessions");
+			if (!search) throw new Error("Search missing");
+			act(() => {
+				search.props.onFocus();
+				search.props.onChangeText("navigation");
+			});
+			dismiss.mockClear();
+			expect(findByLabel(root, "Collapse sidebar")).toBeDefined();
+			act(() => findByLabel(root, "Show session results")?.props.onPress());
+			expect(dismiss).toHaveBeenCalledOnce();
+			expect(close).not.toHaveBeenCalled();
+			act(() => search.props.onBlur());
+			expect(findByLabel(root, "Search sessions")).toBe(search);
+			expect(search.props.value).toBe("navigation");
+			expect(findByLabel(root, "Show session results")).toBeUndefined();
+		} finally {
+			dimensions.mockRestore();
+			dismiss.mockRestore();
+		}
+	});
+
+	it("dismisses the keyboard before closing the drawer on Android Back", () => {
+		const visible = vi.spyOn(Keyboard, "isVisible").mockReturnValue(true);
+		const dismiss = vi.spyOn(Keyboard, "dismiss");
+		try {
+			const close = vi.fn();
+			const { root } = render(<SessionSidebar {...props} onClose={close} />);
+			const modal = findAllByType(root, "Modal")[0];
+			if (!modal) throw new Error("Sidebar Modal did not mount");
+			dismiss.mockClear();
+			vi.mocked(withTiming).mockClear();
+			act(() => modal.props.onRequestClose());
+			expect(dismiss).toHaveBeenCalledOnce();
+			expect(close).not.toHaveBeenCalled();
+			expect(withTiming).not.toHaveBeenCalled();
+			visible.mockReturnValue(false);
+			let finish: Parameters<typeof withTiming>[2];
+			vi.mocked(withTiming).mockImplementationOnce(
+				(target, _config, callback) => {
+					finish = callback;
+					return target;
+				},
+			);
+			act(() => modal.props.onRequestClose());
+			expect(withTiming).toHaveBeenCalledOnce();
+			expect(close).not.toHaveBeenCalled();
+			act(() => finish?.(true));
+			expect(close).toHaveBeenCalledOnce();
+		} finally {
+			visible.mockRestore();
+			dismiss.mockRestore();
+		}
+	});
+});

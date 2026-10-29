@@ -1,5 +1,6 @@
+import * as Native from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "../../ui/__testing__/render";
 import { containsText, findByLabel } from "../__testing__/harness";
 import {
@@ -9,6 +10,8 @@ import {
 	ModelPill,
 	ModelSheet,
 } from "./ModelControl";
+
+afterEach(() => vi.restoreAllMocks());
 
 async function openModelSheet(root: ReactTestInstance) {
 	const sheet = root
@@ -116,6 +119,122 @@ describe("buildModelSections", () => {
 		assertStable();
 		expect(findByLabel(root, "Provider: ClinePass")).toBeDefined();
 	});
+	it("keeps Close and Search outside scrolling results and resets only on a new opening", async () => {
+		const onChange = vi.fn(async () => {});
+		const { root } = render(
+			<ModelControl
+				cloud
+				canChange
+				cachedModels={models}
+				loadModels={async () => models}
+				onChange={onChange}
+			/>,
+		);
+		const scroll = root.findAll(
+			(node) => node.type === "BottomSheetScrollView",
+		)[0]!;
+		const scrollTo = vi.fn();
+		root.findAll(
+			(node) => node.props.scrollViewRef,
+		)[0]!.props.scrollViewRef.current = { scrollTo };
+		await openModelSheet(root);
+		expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+		expect(findByLabel(scroll, "Search models")).toBeUndefined();
+		expect(findByLabel(scroll, "Close model picker")).toBeUndefined();
+		const search = findByLabel(root, "Search models")!;
+		expect(search.props.autoFocus).not.toBe(true);
+		expect(search.props.disableFullscreenUI).toBe(true);
+		act(() => search.props.onChangeText("no matching model"));
+		expect(containsText(root, "No models match")).toBe(true);
+		act(() => findByLabel(root, "Clear model search")?.props.onPress());
+		expect(findByLabel(root, "Search models")).toBe(search);
+		expect(search.props.value).toBe("");
+		act(() => search.props.onChangeText("fast"));
+		await openModelSheet(root);
+		expect(scrollTo).toHaveBeenCalledTimes(4);
+		expect(search.props.value).toBe("fast");
+		act(() =>
+			root
+				.findAll((node) => node.type === "BottomSheet")
+				.at(-1)!
+				.props.onChange(-1),
+		);
+		await openModelSheet(root);
+		expect(scrollTo).toHaveBeenCalledTimes(5);
+		expect(search.props.value).toBe("");
+		expect(onChange).not.toHaveBeenCalled();
+	});
+	it("preserves focused search and query through rotation while allowing more landscape space", async () => {
+		let height = 874;
+		vi.spyOn(Native, "useWindowDimensions").mockImplementation(() => ({
+			width: height === 874 ? 402 : 874,
+			height,
+			scale: 3,
+			fontScale: 1,
+		}));
+		const props = {
+			cloud: true,
+			canChange: true,
+			cachedModels: models,
+			loadModels: vi.fn(async () => models),
+			onChange: vi.fn(async () => {}),
+		};
+		const { root, renderer } = render(<ModelControl {...props} />);
+		await openModelSheet(root);
+		const search = findByLabel(root, "Search models")!;
+		act(() => {
+			search.props.onChangeText("fast");
+			search.props.onFocus();
+		});
+		height = 402;
+		act(() => renderer.update(<ModelControl {...props} />));
+		expect(findByLabel(root, "Search models")).toBe(search);
+		expect(search.props.value).toBe("fast");
+		expect(
+			root.findAll((node) => node.type === "BottomSheet").at(-1)!.props
+				.snapPoints,
+		).toEqual(["95%"]);
+		expect(props.loadModels).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets short-screen search reveal matching results without changing the model and return to options", async () => {
+		vi.spyOn(Native, "useWindowDimensions").mockReturnValue({
+			width: 685,
+			height: 320,
+			scale: 2.625,
+			fontScale: 1,
+		});
+		const dismiss = vi.spyOn(Native.Keyboard, "dismiss");
+		const change = vi.fn(async () => {});
+		const { root } = render(
+			<ModelControl
+				canChange
+				providerId="cline"
+				modelId="cline/default"
+				cachedModels={models}
+				loadModels={async () => models}
+				onChange={change}
+			/>,
+		);
+		await openModelSheet(root);
+		const search = findByLabel(root, "Search models");
+		if (!search) throw new Error("Search missing");
+		act(() => {
+			search.props.onFocus();
+			search.props.onChangeText("fast");
+		});
+		act(() => findByLabel(root, "Show model results")?.props.onPress());
+		expect(dismiss).toHaveBeenCalledOnce();
+		act(() => search.props.onBlur());
+		expect(search.props.value).toBe("fast");
+		expect(findByLabel(root, "Use model Cline fast")).toBeDefined();
+		expect(change).not.toHaveBeenCalled();
+		act(() => findByLabel(root, "Show model settings")?.props.onPress());
+		expect(findByLabel(root, "Search models")).toBe(search);
+		expect(search.props.value).toBe("");
+		expect(findByLabel(root, "Current model: Cline default")).toBeDefined();
+	});
+
 	it("opens the tapped section even when native animation retained the previous callback", async () => {
 		const props = {
 			cloud: true,

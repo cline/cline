@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AppState, Linking } from "react-native";
+import * as Native from "react-native";
+import { AppState, Keyboard, Linking } from "react-native";
 import { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -724,4 +725,44 @@ it("finishes branch recovery once on an interrupted opening's onClose-only compl
 	});
 	expect(mocks.listRepositories).toHaveBeenCalledTimes(loaded + 1);
 	expect(save).not.toHaveBeenCalled();
+});
+
+it("pins searches and Close outside results and preserves search input through rotation", () => {
+	let height = 874;
+	const dimensions = vi
+		.spyOn(Native, "useWindowDimensions")
+		.mockImplementation(() => ({
+			width: height === 874 ? 402 : 874,
+			height,
+			scale: 3,
+			fontScale: 1,
+		}));
+	const dismiss = vi.spyOn(Keyboard, "dismiss");
+	try {
+		const app = mount(target);
+		for (const kind of ["repository", "branch"] as const) {
+			const label =
+				kind === "repository"
+					? "Search Cloud repositories"
+					: "Search Cloud branches";
+			const input = byLabel(app.root, label)!;
+			expect(input).toBeDefined();
+			for (let ancestor = input.parent; ancestor; ancestor = ancestor.parent)
+				expect(ancestor.type).not.toBe("BottomSheetScrollView");
+			act(() => {
+				input.props.onFocus();
+				input.props.onChangeText("feature");
+			});
+			height = 402;
+			act(() => input.props.onChangeText("feature2"));
+			expect(byLabel(app.root, label)).toBe(input);
+			expect(input.props.value).toBe("feature2");
+			act(() => byLabel(app.root, `Close ${kind} picker`)!.props.onPress());
+		}
+		expect(dismiss).toHaveBeenCalledTimes(2);
+		expect(app.save).not.toHaveBeenCalled();
+	} finally {
+		dimensions.mockRestore();
+		dismiss.mockRestore();
+	}
 });

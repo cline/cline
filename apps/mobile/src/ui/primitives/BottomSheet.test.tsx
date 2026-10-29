@@ -48,6 +48,28 @@ vi.mock("@gorhom/bottom-sheet", async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe("sheet backdrop lifecycle", () => {
+	it("dismisses the owned keyboard on visible backdrop taps without letting a hidden sheet dismiss another input", () => {
+		const dismiss = vi.spyOn(Native.Keyboard, "dismiss");
+		const result = render(
+			<BottomSheet index={-1}>
+				<Native.Text>Picker</Native.Text>
+			</BottomSheet>,
+		);
+		const backdrop = () =>
+			findAllByType(result.root, "BottomSheetBackdrop").at(-1)!;
+		act(() => backdrop().props.onPress());
+		expect(dismiss).not.toHaveBeenCalled();
+		act(() =>
+			findAllByType(result.root, "BottomSheet").at(-1)!.props.onChange(0),
+		);
+		act(() => backdrop().props.onPress());
+		expect(dismiss).toHaveBeenCalledOnce();
+		act(() =>
+			findAllByType(result.root, "BottomSheet").at(-1)!.props.onChange(-1),
+		);
+		act(() => backdrop().props.onPress());
+		expect(dismiss).toHaveBeenCalledOnce();
+	});
 	it("keeps closed sheets noninteractive and invisible across fold/index drift", () => {
 		let width = 555;
 		vi.spyOn(Native, "useWindowDimensions").mockImplementation(() => ({
@@ -80,6 +102,12 @@ describe("sheet backdrop lifecycle", () => {
 				"no-hide-descendants",
 			);
 			expect(boundary.props.collapsable).toBe(false);
+			const visibility = result.root.find(
+				(node) => node.props.testID === "sheet-visibility-boundary",
+			);
+			expect(visibility.props.pointerEvents).toBe("none");
+			expect(visibility.props.accessibilityElementsHidden).toBe(true);
+			expect(Native.StyleSheet.flatten(visibility.props.style).opacity).toBe(0);
 			expect(findAllByType(result.root, "BottomSheetBackdrop").at(-1)!).toBe(
 				original,
 			);
@@ -105,11 +133,18 @@ describe("sheet backdrop lifecycle", () => {
 			act(() => sheet().props.onAnimate(-1, 0, 876, 200));
 			expect(boundary().props.pointerEvents).toBe("box-none");
 			expect(original.props.opacity).toBe(0.5);
+			const visibility = result.root.find(
+				(node) => node.props.testID === "sheet-visibility-boundary",
+			);
+			expect(visibility.props.pointerEvents).toBe("box-none");
+			expect(Native.StyleSheet.flatten(visibility.props.style).opacity).toBe(1);
 			expect(original.props.pressBehavior).toBe("close");
 			act(() => sheet().props.onChange(0, 200, 0));
 			act(() => sheet().props.onAnimate(0, -1, 200, 876));
 			expect(boundary().props.pointerEvents).toBe("box-none");
+			expect(Native.StyleSheet.flatten(visibility.props.style).opacity).toBe(1);
 			act(() => sheet().props.onChange(-1, 876, 0));
+			expect(Native.StyleSheet.flatten(visibility.props.style).opacity).toBe(0);
 			expect(boundary().props.pointerEvents).toBe("none");
 			expect(original.props.opacity).toBe(0);
 			expect(sheet().props.backdropComponent).toBe(component);

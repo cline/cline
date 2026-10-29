@@ -157,6 +157,7 @@ function QueuedPrompt({
 			{editing ? (
 				<View style={{ gap: 8 }}>
 					<TextInput
+						disableFullscreenUI
 						keyboardAppearance={theme.mode}
 						accessibilityLabel="Edit queued message"
 						multiline
