@@ -7,7 +7,7 @@ import type { PendingApprovalInfo } from "@cline/shared";
 import type GorhomBottomSheet from "@gorhom/bottom-sheet";
 import { Clock3, ShieldAlert } from "lucide-react-native";
 import { type RefObject, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Keyboard, TextInput, View } from "react-native";
 import {
 	BottomSheet,
 	Button,
@@ -92,6 +92,9 @@ function ApprovalCard({
 	const theme = useTheme();
 	const [showReason, setShowReason] = useState(false);
 	const responding = useRef(false);
+	const reasonInput = useRef<
+		ReturnType<typeof TextInput.State.currentlyFocusedInput> | undefined
+	>(undefined);
 	const [reason, setReason] = useState("");
 	const [pending, setPending] = useState<"approve" | "deny" | undefined>();
 	const [error, setError] = useState<string>();
@@ -103,6 +106,13 @@ function ApprovalCard({
 	) => {
 		if (responding.current) return;
 		responding.current = true;
+		// Retire only this card's editor at the action, before any asynchronous work.
+		// A late response must never blur a different field the user has since opened.
+		const ownedInput = reasonInput.current;
+		if (ownedInput && TextInput.State.currentlyFocusedInput() === ownedInput) {
+			ownedInput.blur();
+			Keyboard.dismiss();
+		}
 		setPending(nextPending);
 		setError(undefined);
 		try {
@@ -177,6 +187,9 @@ function ApprovalCard({
 					value={reason}
 					onChangeText={setReason}
 					accessibilityLabel="Denial reason"
+					onFocus={() => {
+						reasonInput.current = TextInput.State.currentlyFocusedInput();
+					}}
 				/>
 			) : null}
 			{error ? (
