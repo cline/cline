@@ -2215,12 +2215,15 @@ export async function handleCommand(
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
+		const request = (args?.request ?? args) as ChatSessionCommandRequest;
+		if (
+			request.action === "handoff" &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("Git preparation requires a trusted desktop connection");
+		}
 		const { handleChatSessionCommand } = await import("./chat-session");
-		return await handleChatSessionCommand(
-			ctx,
-			(args?.request as ChatSessionCommandRequest | undefined) ??
-				(args as ChatSessionCommandRequest),
-		);
+		return await handleChatSessionCommand(ctx, request);
 	}
 	if (command === "proceed_while_running") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -2960,6 +2963,7 @@ export async function handleCommand(
 			accountService,
 		);
 		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
 			if (isCloudAgentsEnabled()) {
 				try {
 					await getCloudSessionManager(ctx).refreshOrganization();
@@ -2970,10 +2974,6 @@ export async function handleCommand(
 					);
 				}
 			}
-			await resetCloudSessionManager(ctx);
-			// The sidebar must re-scope immediately (personal ⇄ org), not on
-			// the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
@@ -3074,14 +3074,9 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const includeCloudModels =
-			providerId === "cline" &&
-			args?.includeCloudModels === true &&
-			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -3290,7 +3285,6 @@ export async function handleCommand(
 				!isDeepStrictEqual(previous?.auth, current?.auth)
 			) {
 				await resetCloudSessionManager(ctx);
-				broadcastEvent(ctx, "cloud_sessions_changed", {});
 			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
@@ -3382,7 +3376,6 @@ export async function handleCommand(
 		if (storageProviderId === "cline") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}
