@@ -109,6 +109,91 @@ describe("runtime host resolution", () => {
 		expect(backend).not.toBeInstanceOf(FileSessionService);
 	});
 
+	it.each([
+		{
+			mode: "auto",
+			clientType: "cli",
+			endpoint: undefined,
+			url: "ws://127.0.0.1/hub",
+			capture: true,
+		},
+		{
+			mode: "hub",
+			clientType: "cli",
+			endpoint: undefined,
+			url: "ws://127.0.0.1/hub",
+			capture: true,
+		},
+		{
+			mode: "auto",
+			clientType: "cli",
+			endpoint: "ws://127.0.0.1/hub",
+			url: "ws://127.0.0.1/hub",
+			capture: false,
+		},
+		{
+			mode: "hub",
+			clientType: "cli",
+			endpoint: "wss://example.test/hub",
+			url: "wss://example.test/hub",
+			capture: false,
+		},
+		{
+			mode: "auto",
+			clientType: "desktop",
+			endpoint: undefined,
+			url: "ws://127.0.0.1/hub",
+			capture: false,
+		},
+		{
+			mode: "auto",
+			clientType: "cli",
+			endpoint: undefined,
+			url: "wss://example.test/hub",
+			capture: false,
+		},
+		{
+			mode: "remote",
+			clientType: "cli",
+			endpoint: "wss://example.test/hub",
+			url: "wss://example.test/hub",
+			capture: false,
+		},
+	])("captures shell environment only for opted-in discovered local CLI routes (%#)", async ({
+		mode,
+		clientType,
+		endpoint,
+		url,
+		capture,
+	}) => {
+		const { createRuntimeHost } = await import("./host");
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(url);
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(url);
+		const captureShellEnvironment = vi.fn(() => ({
+			SYNTHETIC_CANARY: "value",
+		}));
+		const host = await createRuntimeHost({
+			backendMode: mode as "auto" | "hub" | "remote",
+			distinctId: "test-machine",
+			hub: { clientType, endpoint, captureShellEnvironment },
+			remote: { endpoint: url },
+		});
+		// The fixture client returns no reply: capture happens before that failure.
+		await host
+			.startSession({
+				config: {
+					cwd: "/tmp",
+					providerId: "test",
+					modelId: "test",
+					systemPrompt: "test",
+					enableTools: true,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			})
+			.catch(() => {});
+		expect(captureShellEnvironment).toHaveBeenCalledTimes(capture ? 1 : 0);
+	});
 	it("prefers a compatible local hub when backendMode is auto", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { HubRuntimeHost } = await import(
@@ -195,6 +280,25 @@ describe("runtime host resolution", () => {
 				severity: "warn",
 			}),
 		);
+	});
+
+	it("falls back to local runtime without capturing when a discovered hub URL is malformed", async () => {
+		const { createRuntimeHost } = await import("./host");
+		const { LocalRuntimeHost } = await import("./local-runtime-host");
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue("not a url");
+		hubConnectMock.mockRejectedValue(new Error("connect failed"));
+		const captureShellEnvironment = vi.fn(() => ({
+			SYNTHETIC_CANARY: "value",
+		}));
+
+		const host = await createRuntimeHost({
+			backendMode: "auto",
+			logger,
+			hub: { clientType: "cli", captureShellEnvironment },
+		});
+
+		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(captureShellEnvironment).not.toHaveBeenCalled();
 	});
 
 	it("uses a hub runtime host when backendMode is hub", async () => {

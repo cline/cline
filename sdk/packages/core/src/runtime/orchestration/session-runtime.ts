@@ -82,6 +82,7 @@ export interface RuntimeBuilderInput {
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
 	runCommandExecutionController?: RunCommandExecutionController;
+	shellEnvironment?: import("../../services/shell-environment").ShellEnvironment;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;

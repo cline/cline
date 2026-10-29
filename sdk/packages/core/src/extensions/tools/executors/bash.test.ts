@@ -146,7 +146,10 @@ describe("createShellExecutor", () => {
 		expect(chunks.at(-1)?.chunk).toContain("0123456789");
 	});
 
-	it("releases a detachable command while it continues in the background", async () => {
+	it.each([
+		false,
+		true,
+	])("releases a detachable command with replacement environment %s while it continues in the background", async (replaceEnvironment) => {
 		const controller = new RunCommandExecutionController();
 		let commandStarted = false;
 		let detachReady = false;
@@ -161,6 +164,33 @@ describe("createShellExecutor", () => {
 		const shell = createShellExecutor({
 			timeoutMs: 2_000,
 			executionController: controller,
+			...(replaceEnvironment
+				? {
+						env: {
+							// Windows children need these system variables to start.
+							...Object.fromEntries(
+								process.platform === "win32"
+									? [
+											"SystemRoot",
+											"SYSTEMROOT",
+											"windir",
+											"PATH",
+											"Path",
+											"PATHEXT",
+											"COMSPEC",
+											"TEMP",
+											"TMP",
+										].flatMap((key) => {
+											const value = process.env[key];
+											return value === undefined ? [] : [[key, value]];
+										})
+									: [],
+							),
+							CLINE_DETACH_CANARY: "owned-session",
+						},
+						inheritEnv: false,
+					}
+				: {}),
 			detachedLogRetentionMs: 250,
 			processStartTokenProbe: (pid) => ({
 				status: "found",
@@ -172,7 +202,7 @@ describe("createShellExecutor", () => {
 				command: process.execPath,
 				args: [
 					"-e",
-					"process.stdout.write('started:' + process.pid + '\\n'); setTimeout(() => process.stdout.write('finished\\n'), 300)",
+					"process.stdout.write('started:' + process.pid + ':' + (process.env.CLINE_DETACH_CANARY ?? 'legacy') + '\\n'); setTimeout(() => process.stdout.write('finished\\n'), 300)",
 				],
 			},
 			process.cwd(),
@@ -209,6 +239,7 @@ describe("createShellExecutor", () => {
 		const result = await execution;
 		expect(result).toContain("Command is still running");
 		expect(result).toContain("started");
+		if (replaceEnvironment) expect(result).toContain("owned-session");
 		expect(result).toMatch(/cline-command-.*output\.log/);
 		const logPath = result.match(/Output will continue in (.+)]/)?.[1];
 		if (!logPath) throw new Error("Expected detached command log path");

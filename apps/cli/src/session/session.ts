@@ -54,6 +54,7 @@ export async function createCliCore(options?: {
 						cwd,
 						workspaceRoot,
 						clientType: "cli",
+						captureShellEnvironment: () => process.env,
 						displayName: "Cline CLI",
 					},
 				}

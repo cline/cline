@@ -134,6 +134,24 @@ export async function resolveSessionBackend(
 	return await backendInitPromise;
 }
 
+/**
+ * Only the CLI opts in, after local discovery reached a loopback Hub. The client
+ * authenticates to the Hub with the 0600 discovery token; the Hub does not
+ * authenticate itself to the client.
+ */
+function localCliShellEnvironment(options: ClineCoreOptions, url: string) {
+	if (options.hub?.endpoint?.trim() || options.hub?.clientType !== "cli")
+		return undefined;
+	if (!URL.canParse(url)) return undefined;
+	const endpoint = new URL(url);
+	if (
+		!["ws:", "wss:"].includes(endpoint.protocol) ||
+		!["127.0.0.1", "[::1]"].includes(endpoint.hostname)
+	)
+		return undefined;
+	return options.hub.captureShellEnvironment;
+}
+
 export async function createRuntimeHost(
 	options: ClineCoreOptions,
 ): Promise<RuntimeHost> {
@@ -201,6 +219,7 @@ export async function createRuntimeHost(
 				displayName: options.hub?.displayName,
 				capabilities: options.capabilities,
 				telemetry: options.telemetry,
+				captureShellEnvironment: localCliShellEnvironment(options, hubUrl),
 			},
 			{
 				workspaceRoot: options.hub?.workspaceRoot,
@@ -227,6 +246,7 @@ export async function createRuntimeHost(
 					displayName: options.hub?.displayName,
 					capabilities: options.capabilities,
 					telemetry: options.telemetry,
+					captureShellEnvironment: localCliShellEnvironment(options, hubUrl),
 				},
 				{
 					workspaceRoot: options.hub?.workspaceRoot,

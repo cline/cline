@@ -139,6 +139,8 @@ export type LocalRuntimeBootstrapConfig = Pick<
 };
 
 export interface LocalRuntimeStartOptions {
+	/** Ephemeral replacement for built-in shell children only; never persisted. */
+	shellEnvironment?: import("../../services/shell-environment").ShellEnvironment;
 	hooks?: LocalRuntimeBootstrapConfig["hooks"];
 	logger?: LocalRuntimeBootstrapConfig["logger"];
 	telemetry?: LocalRuntimeBootstrapConfig["telemetry"];

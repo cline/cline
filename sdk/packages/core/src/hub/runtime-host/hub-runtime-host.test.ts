@@ -313,6 +313,53 @@ describe("HubRuntimeHost", () => {
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 	});
 
+	it("captures a fresh ephemeral shell environment when restoring a session", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "restored-env",
+					status: "running",
+					createdAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+				checkpoint: {},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const environment = { RESTORE_CANARY: "fresh-restore" };
+		const capture = vi.fn(() => environment);
+		const host = new HubRuntimeHost({
+			url: "ws://127.0.0.1:25463/hub",
+			captureShellEnvironment: capture,
+		});
+		try {
+			await host.restoreSession({
+				sessionId: "source-session",
+				checkpointRunCount: 1,
+				start: { config: { ...createConfig(), sessionId: "restored-env" } },
+			});
+			expect(capture).toHaveBeenCalledTimes(1);
+			const call = commandMock.mock.calls.find(
+				([command]) => command === "session.restore",
+			);
+			if (!call) throw new Error("Expected restore command");
+			const payload = call[1];
+			expect(payload.runtimeOptions.shellEnvironment).toEqual(environment);
+			expect(JSON.stringify(payload.sessionConfig)).not.toContain(
+				"fresh-restore",
+			);
+			environment.RESTORE_CANARY = "later-change";
+			expect(payload.runtimeOptions.shellEnvironment.RESTORE_CANARY).toBe(
+				"fresh-restore",
+			);
+		} finally {
+			await host.dispose();
+		}
+	});
+
 	it("cleans a restored session when its host workspace is missing", async () => {
 		const unsubscribe = vi.fn();
 		subscribeMock.mockReturnValue(unsubscribe);

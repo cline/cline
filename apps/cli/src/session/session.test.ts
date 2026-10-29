@@ -94,6 +94,7 @@ describe("createCliCore", () => {
 			expect.objectContaining({
 				hub: expect.objectContaining({
 					clientType: "cli",
+					captureShellEnvironment: expect.any(Function),
 					displayName: "Cline CLI",
 				}),
 			}),
@@ -107,6 +108,7 @@ describe("createCliCore", () => {
 			expect.objectContaining({
 				hub: expect.objectContaining({
 					clientType: "cli",
+					captureShellEnvironment: expect.any(Function),
 					displayName: "Cline CLI",
 				}),
 			}),
@@ -174,6 +176,7 @@ describe("createCliCore", () => {
 				backendMode: "hub",
 				hub: expect.objectContaining({
 					clientType: "cli",
+					captureShellEnvironment: expect.any(Function),
 					displayName: "Cline CLI",
 				}),
 			}),
@@ -213,6 +216,7 @@ describe("createCliCore", () => {
 				}),
 				hub: expect.objectContaining({
 					clientType: "cli",
+					captureShellEnvironment: expect.any(Function),
 					displayName: "Cline CLI",
 				}),
 			}),

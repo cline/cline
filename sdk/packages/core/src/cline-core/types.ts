@@ -30,6 +30,11 @@ export type { RuntimeHostMode } from "../runtime/host/runtime-host";
 export type { ClineCoreSettingsApi } from "../settings";
 
 export interface HubOptions {
+	/**
+	 * Explicit SDK opt-in; the default SDK never captures `process.env`. Honored
+	 * only for `clientType: "cli"` on a discovered loopback Hub (ephemeral).
+	 */
+	captureShellEnvironment?: () => Readonly<Record<string, string | undefined>>;
 	endpoint?: string;
 	authToken?: string;
 	strategy?: "prefer-hub" | "require-hub";
