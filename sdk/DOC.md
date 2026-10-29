@@ -126,6 +126,14 @@ signed policy. Importing or constructing the tool does not upload anything, read
 credentials, or add it to default local tools. Registration controls availability;
 the service remains responsible for upload authorization and limits.
 
+`fetchArtifact({ request, cloudSessionId, artifactId, signal? })` from
+`@cline/core/cloud` authorizes each retrieval and downloads the file with a fresh
+signed URL. It returns a successful streaming `Response` without buffering the
+file or caching the URL. A storage HTTP 403 triggers one new authorization attempt;
+other failures throw. The caller consumes or cancels the response body and applies
+any read size limit. The optional signal also cancels the download while the caller
+reads it. This helper does not register an agent tool or attach files to messages.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.

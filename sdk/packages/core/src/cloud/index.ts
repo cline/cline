@@ -8,6 +8,7 @@ export {
 	previewHandoffGit,
 } from "../services/cloud-handoff/git-preparation";
 export * from "./api";
+export { fetchArtifact } from "./artifacts/fetch";
 export { createPublishArtifactsTool } from "./artifacts/publish";
 export * from "./controller";
 export * from "./hub-client";
