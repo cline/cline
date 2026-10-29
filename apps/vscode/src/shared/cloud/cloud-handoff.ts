@@ -12,7 +12,7 @@ export type CloudHandoffView = { id: string; sourceTaskId: string } & (
 	  }
 	| { phase: "launching"; sessionId?: string }
 	| { phase: "complete"; sessionId: string; delivery: "sent" | "unsent" | "unconfirmed" }
-	| { phase: "failed"; message: string }
+	| { phase: "failed"; message: string; recovery?: "connect_github" }
 )
 
 export function parseCloudCommand(text: string): string | undefined {

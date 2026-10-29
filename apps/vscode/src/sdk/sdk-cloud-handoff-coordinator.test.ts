@@ -180,17 +180,35 @@ describe("cloud conversation handoff", () => {
 		[
 			new Error(new CloudSessionError("github_not_connected", "Connect GitHub before handing off.").message),
 			"Connect GitHub before handing off.",
+			"connect_github",
 		],
-		[new Error("CLOUD_SESSION_ERROR:not-json"), "CLOUD_SESSION_ERROR:not-json"],
-		[new Error('CLOUD_SESSION_ERROR:{"message":42}'), 'CLOUD_SESSION_ERROR:{"message":42}'],
-		[new Error("Network unavailable"), "Network unavailable"],
-		[new Error(""), "Unable to prepare cloud handoff."],
-	])("shows a readable preparation error for %s", async (error, message) => {
+		[new Error("CLOUD_SESSION_ERROR:not-json"), "CLOUD_SESSION_ERROR:not-json", undefined],
+		[new Error('CLOUD_SESSION_ERROR:{"message":42}'), 'CLOUD_SESSION_ERROR:{"message":42}', undefined],
+		[new Error("Network unavailable"), "Network unavailable", undefined],
+		[new Error(new CloudSessionError("request_failed", "Request unavailable.").message), "Request unavailable.", undefined],
+		[new Error(""), "Unable to prepare cloud handoff.", undefined],
+	])("shows a readable preparation error for %s", async (error, message, recovery) => {
 		const { coordinator, cloud } = setup()
 		cloud.prepareHandoffRepository.mockRejectedValue(error)
 		await coordinator.prepare(input)
-		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message })
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message, recovery })
 		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it("keeps GitHub recovery and the ambiguity warning when publication fails", async () => {
+		const { coordinator, cloud, id } = setup()
+		cloud.create.mockRejectedValue(
+			new Error(new CloudSessionError("github_not_connected", "Grant repository access.").message),
+		)
+		await coordinator.prepare(input)
+		await coordinator.confirm(id())
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			phase: "failed",
+			recovery: "connect_github",
+			message:
+				"Grant repository access. The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.",
+		})
+		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
 
 	it("publishes only after confirmation and sends the captured summary, instruction and images once", async () => {

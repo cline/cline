@@ -1,5 +1,5 @@
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -165,6 +165,15 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 							</Button>
 						)}
 					</div>
+					{view.phase === "failed" && view.recovery === "connect_github" && (
+						<div className="flex mt-2">
+							<VSCodeButton
+								appearance="secondary"
+								onClick={() => void run(() => CloudServiceClient.connectGitHub(EmptyRequest.create()))}>
+								Connect GitHub
+							</VSCodeButton>
+						</div>
+					)}
 					{sessionId && (
 						<div className="flex flex-wrap gap-2 mt-2">
 							<VSCodeButton

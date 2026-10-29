@@ -6,18 +6,25 @@ import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { z } from "zod"
 import { getProviderSettingsManager } from "./provider-migration"
 
-const cloudErrorDetail = z.object({ message: z.string().trim().min(1) })
+const cloudErrorDetail = z.object({ message: z.string().trim().min(1), code: z.string().optional() })
 
-function handoffErrorMessage(error: unknown, fallback: string): string {
+function handoffError(
+	error: unknown,
+	fallback: string,
+): Pick<Extract<CloudHandoffView, { phase: "failed" }>, "message" | "recovery"> {
 	const message = error instanceof Error ? error.message.trim() : ""
 	const prefix = "CLOUD_SESSION_ERROR:"
 	if (message.startsWith(prefix)) {
 		try {
 			const parsed = cloudErrorDetail.safeParse(JSON.parse(message.slice(prefix.length)))
-			if (parsed.success) return parsed.data.message
+			if (parsed.success) {
+				if (parsed.data.code === "github_not_connected")
+					return { message: parsed.data.message, recovery: "connect_github" }
+				return { message: parsed.data.message }
+			}
 		} catch {}
 	}
-	return message || fallback
+	return { message: message || fallback }
 }
 
 export interface CapturedHandoffSource {
@@ -62,7 +69,7 @@ type Attempt = { id: string; sourceTaskId: string; accountKey: string } & (
 			| { delivery: "unsent"; unsent: UnsentContinuation }
 			| { delivery: "sent" | "unconfirmed" }
 	  ))
-	| { phase: "failed"; message: string }
+	| Omit<Extract<CloudHandoffView, { phase: "failed" }>, "id" | "sourceTaskId">
 )
 
 export class SdkCloudHandoffCoordinator {
@@ -94,7 +101,7 @@ export class SdkCloudHandoffCoordinator {
 			case "complete":
 				return { ...base, phase, sessionId: attempt.sessionId, delivery: attempt.delivery }
 			case "failed":
-				return { ...base, phase, message: attempt.message }
+				return { ...base, phase, message: attempt.message, recovery: attempt.recovery }
 		}
 	}
 
@@ -201,7 +208,7 @@ export class SdkCloudHandoffCoordinator {
 				this.attempts.set(input.sourceTaskId, {
 					...base,
 					phase: "failed",
-					message: handoffErrorMessage(error, "Unable to prepare cloud handoff."),
+					...handoffError(error, "Unable to prepare cloud handoff."),
 				})
 			}
 		} finally {
@@ -255,6 +262,7 @@ export class SdkCloudHandoffCoordinator {
 			})
 		} catch (error) {
 			if (this.attempts.get(attempt.sourceTaskId) !== launching) return
+			const failure = handoffError(error, "Cloud handoff failed.")
 			this.attempts.set(
 				attempt.sourceTaskId,
 				launching.sessionId
@@ -267,7 +275,8 @@ export class SdkCloudHandoffCoordinator {
 					: {
 							...base,
 							phase: "failed",
-							message: `${handoffErrorMessage(error, "Cloud handoff failed.")} The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.`,
+							...failure,
+							message: `${failure.message} The snapshot may have been published or a cloud task created. Check Cline Cloud before starting another handoff.`,
 						},
 			)
 		} finally {
