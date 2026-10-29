@@ -247,9 +247,7 @@ function getNextCronTimeByMinuteScan(
 ): number {
 	const cron = parseCron(pattern);
 	const currentMinute = new Date(after);
-	const seconds = timezone
-		? currentMinute.getUTCSeconds()
-		: currentMinute.getSeconds();
+	const seconds = currentMinute.getSeconds();
 	let nextMs =
 		after - seconds * 1000 - currentMinute.getMilliseconds() + 60_000;
 

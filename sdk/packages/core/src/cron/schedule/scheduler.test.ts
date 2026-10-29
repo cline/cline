@@ -198,12 +198,15 @@ describe("hub scheduler cron helpers", () => {
 		).toBe("2010-03-04T15:30:00.000Z");
 	});
 
-	it("preserves local minute boundaries with a historical seconds offset", () => {
+	it.each([
+		undefined,
+		"Africa/Monrovia",
+	])("preserves host minute boundaries with a historical seconds offset in %s", (timezone) => {
 		expect(
 			getNextCronTimeWithHostTimezone(
 				"0 0 1 1 *",
 				"1970-01-01T00:44:00.000Z",
-				undefined,
+				timezone,
 				"Africa/Monrovia",
 			),
 		).toBe("1970-01-01T00:44:30.000Z");
