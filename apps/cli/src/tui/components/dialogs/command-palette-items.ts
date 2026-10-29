@@ -1,3 +1,5 @@
+import type { CloudHandoffStatus } from "../../hooks/use-cloud-handoff";
+
 export type CommandPaletteAction =
 	| "settings"
 	| "change-model"
@@ -13,7 +15,13 @@ export type CommandPaletteAction =
 	| "clear"
 	| "history"
 	| "help"
-	| "quit";
+	| "quit"
+	| "cloud-open"
+	| "cloud-browser"
+	| "cloud-restore"
+	| "cloud-retry"
+	| "cloud-dismiss"
+	| "cloud-connect-github";
 
 export interface CommandPaletteResult {
 	kind: "action";
@@ -181,17 +189,81 @@ function scoreItem(item: CommandPaletteItem, query: string): number {
 
 export function buildCommandPaletteItems(input: {
 	canForkSession: boolean;
+	handoff?: CloudHandoffStatus;
+	cloudSessionUrl?: string;
 }): CommandPaletteItem[] {
-	return ACTION_ITEMS.filter(
-		(item) => !item.requiresFork || input.canForkSession,
-	).map((item) => ({
-		id: `action:${item.action}`,
-		label: item.label,
-		description: item.description,
-		shortcut: item.shortcut,
-		keywords: item.keywords,
-		result: { kind: "action" as const, action: item.action },
-	}));
+	const cloudItems: CommandPaletteItem[] = [];
+	const addCloudAction = (
+		action: CommandPaletteAction,
+		label: string,
+		description: string,
+	) => {
+		cloudItems.push({
+			id: `action:${action}`,
+			label,
+			description,
+			shortcut: "",
+			keywords: ["cloud", "handoff"],
+			result: { kind: "action", action },
+		});
+	};
+	const handoff = input.handoff;
+	if (handoff?.kind === "complete") {
+		addCloudAction(
+			"cloud-open",
+			"Open cloud task in TUI",
+			"Continue in the existing cloud task",
+		);
+		if (handoff.result.retrySend)
+			addCloudAction(
+				"cloud-retry",
+				"Retry cloud continuation",
+				"Send the saved continuation to the same cloud task",
+			);
+	}
+	if (
+		input.cloudSessionUrl ||
+		handoff?.kind === "complete" ||
+		(handoff?.kind === "progress" && handoff.progress.dashboardUrl)
+	) {
+		addCloudAction(
+			"cloud-browser",
+			"Open cloud task in browser",
+			"View the existing cloud task on the website",
+		);
+	}
+	if (handoff?.kind === "failed") {
+		addCloudAction(
+			"cloud-restore",
+			"Restore cloud handoff draft",
+			"Restore the saved instruction and images",
+		);
+		if (handoff.connectUrl)
+			addCloudAction(
+				"cloud-connect-github",
+				"Connect GitHub",
+				"Set up GitHub access for Cline Cloud",
+			);
+	}
+	if (handoff && handoff.kind !== "progress")
+		addCloudAction(
+			"cloud-dismiss",
+			"Dismiss cloud handoff",
+			"Hide the handoff notice",
+		);
+	return [
+		...cloudItems,
+		...ACTION_ITEMS.filter(
+			(item) => !item.requiresFork || input.canForkSession,
+		).map((item) => ({
+			id: `action:${item.action}`,
+			label: item.label,
+			description: item.description,
+			shortcut: item.shortcut,
+			keywords: item.keywords,
+			result: { kind: "action" as const, action: item.action },
+		})),
+	];
 }
 
 export function filterCommandPaletteItems(

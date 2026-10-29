@@ -20,6 +20,8 @@ import {
 	shouldSuppressClineCliMigrationNoticeForActiveProvider,
 } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
+import type { CloudHandoffDraft } from "../runtime/interactive/cloud-handoff";
+import open from "../utils/open";
 import {
 	isSameRepoStatus,
 	type RepoStatus,
@@ -888,67 +890,6 @@ function App(props: TuiProps) {
 		}
 	}, [props.startupTarget]);
 
-	const runCommandPaletteResult = useCallback(
-		async (result: CommandPaletteResult) => {
-			if (result.action === "change-provider") {
-				await openModelSelector({ startWithProviderChange: true });
-				return;
-			}
-			if (result.action === "change-model") {
-				await openTargetModelSelector();
-				return;
-			}
-
-			await Promise.resolve(handleSlashCommand(result.action));
-		},
-		[handleSlashCommand, openModelSelector, openTargetModelSelector],
-	);
-
-	const commandPaletteOpenRef = useRef(false);
-	const globalPaletteItems = useMemo(
-		() => buildCommandPaletteItems({ canForkSession }),
-		[canForkSession],
-	);
-	const openCommandPalette = useCallback(async () => {
-		if (commandPaletteOpenRef.current) return;
-		commandPaletteOpenRef.current = true;
-		const dialogWidth = Math.min(
-			64,
-			Math.max(48, Math.floor(termWidth * 0.58)),
-			Math.max(42, termWidth - 8),
-		);
-		try {
-			const result = await dialog.choice<CommandPaletteResult>({
-				style: { width: dialogWidth, maxHeight: termHeight - 2 },
-				content: (ctx: ChoiceContext<CommandPaletteResult>) => (
-					<CommandPaletteContent
-						{...ctx}
-						canForkSession={canForkSession}
-						contentWidth={dialogWidth - 2}
-					/>
-				),
-			});
-			if (result) {
-				await runCommandPaletteResult(result);
-				return;
-			}
-			refocusTextareaRef.current();
-		} finally {
-			commandPaletteOpenRef.current = false;
-		}
-	}, [canForkSession, dialog, runCommandPaletteResult, termHeight, termWidth]);
-
-	const runCommandPaletteShortcut = useCallback(
-		(key: KeyEvent) => {
-			const shortcut = findCommandPaletteShortcut(globalPaletteItems, key);
-			if (!shortcut) return false;
-			key.preventDefault();
-			void runCommandPaletteResult(shortcut.result);
-			return true;
-		},
-		[globalPaletteItems, runCommandPaletteResult],
-	);
-
 	const agentHandlers = useAgentEventHandlers({
 		appendEntry: session.appendEntry,
 		updateLastEntry: session.updateLastEntry,
@@ -998,6 +939,174 @@ function App(props: TuiProps) {
 	});
 	const runtimeInteraction = runtimeBridge.interaction;
 	const isRuntimeInteractionOpen = runtimeInteraction !== null;
+	const openCloudHandoff = useCallback(async () => {
+		const status = handoff.status;
+		if (
+			status?.kind !== "complete" ||
+			props.activeSession?.getId() !== handoff.sourceId
+		)
+			return;
+		if (session.isRunning || queuedPrompts.length > 0) {
+			showToast(
+				"Wait for the local run and queued prompts before opening the cloud task.",
+			);
+			return;
+		}
+		if (promptInput.getCurrentInputText().trim()) {
+			showToast(
+				"Send or clear the current draft before opening the cloud task.",
+			);
+			return;
+		}
+		try {
+			await withLoadingDialog(dialog, "Opening cloud task…", () =>
+				cloud.openExisting(status.result.sessionId),
+			);
+		} catch (error) {
+			showToast(
+				error instanceof Error ? error.message : String(error),
+				"error",
+			);
+		} finally {
+			promptInput.refocusTextarea();
+		}
+	}, [
+		cloud,
+		dialog,
+		handoff.sourceId,
+		handoff.status,
+		promptInput,
+		props.activeSession,
+		queuedPrompts.length,
+		session.isRunning,
+		showToast,
+	]);
+	const restoreCloudDraft = useCallback(
+		(draft: CloudHandoffDraft) => {
+			if (props.activeSession?.getId() !== handoff.sourceId) return;
+			if (!promptInput.restoreCloudDraft(draft))
+				showToast(
+					"The input already has a draft. Clear or send it before restoring this one.",
+				);
+		},
+		[handoff.sourceId, promptInput, props.activeSession, showToast],
+	);
+	const runCommandPaletteResult = useCallback(
+		async (result: CommandPaletteResult) => {
+			const status = handoff.status;
+			switch (result.action) {
+				case "cloud-open":
+					await openCloudHandoff();
+					return;
+				case "cloud-browser": {
+					const url =
+						cloud.statusBar?.dashboardUrl ??
+						(status?.kind === "complete"
+							? status.result.dashboardUrl
+							: status?.kind === "progress"
+								? status.progress.dashboardUrl
+								: undefined);
+					if (url)
+						await open(url, { wait: false }).catch(() =>
+							showToast("Unable to open the browser.", "error"),
+						);
+					return;
+				}
+				case "cloud-connect-github":
+					if (status?.kind === "failed" && status.connectUrl)
+						await open(status.connectUrl, { wait: false }).catch(() =>
+							showToast("Unable to open the browser.", "error"),
+						);
+					return;
+				case "cloud-restore":
+					if (status?.kind === "failed") restoreCloudDraft(status.draft);
+					return;
+				case "cloud-retry":
+					await handoff.retry();
+					return;
+				case "cloud-dismiss":
+					handoff.dismiss();
+					return;
+			}
+			if (result.action === "change-provider") {
+				await openModelSelector({ startWithProviderChange: true });
+				return;
+			}
+			if (result.action === "change-model") {
+				await openTargetModelSelector();
+				return;
+			}
+
+			await Promise.resolve(handleSlashCommand(result.action));
+		},
+		[
+			cloud.statusBar?.dashboardUrl,
+			handoff,
+			handleSlashCommand,
+			openCloudHandoff,
+			openModelSelector,
+			openTargetModelSelector,
+			restoreCloudDraft,
+			showToast,
+		],
+	);
+
+	const commandPaletteOpenRef = useRef(false);
+	const globalPaletteItems = useMemo(
+		() =>
+			buildCommandPaletteItems({
+				canForkSession,
+				handoff: handoff.status,
+				cloudSessionUrl: cloud.statusBar?.dashboardUrl,
+			}),
+		[canForkSession, cloud.statusBar?.dashboardUrl, handoff.status],
+	);
+	const openCommandPalette = useCallback(async () => {
+		if (commandPaletteOpenRef.current) return;
+		commandPaletteOpenRef.current = true;
+		const dialogWidth = Math.min(
+			64,
+			Math.max(48, Math.floor(termWidth * 0.58)),
+			Math.max(42, termWidth - 8),
+		);
+		try {
+			const result = await dialog.choice<CommandPaletteResult>({
+				style: { width: dialogWidth, maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<CommandPaletteResult>) => (
+					<CommandPaletteContent
+						{...ctx}
+						items={globalPaletteItems}
+						contentWidth={dialogWidth - 2}
+					/>
+				),
+			});
+			if (result) {
+				await runCommandPaletteResult(result);
+				return;
+			}
+			refocusTextareaRef.current();
+		} finally {
+			commandPaletteOpenRef.current = false;
+		}
+	}, [
+		globalPaletteItems,
+		dialog,
+		runCommandPaletteResult,
+		termHeight,
+		termWidth,
+	]);
+
+	const runCommandPaletteShortcut = useCallback(
+		(key: KeyEvent) => {
+			const shortcut = findCommandPaletteShortcut(globalPaletteItems, key);
+			if (!shortcut) return false;
+			key.preventDefault();
+			void runCommandPaletteResult(shortcut.result);
+			return true;
+		},
+		[globalPaletteItems, runCommandPaletteResult],
+	);
+
 	const saveQueuedPromptEdit = useCallback(
 		async (promptId: string, text: string) => {
 			if (!promptId) return;
@@ -1100,7 +1209,12 @@ function App(props: TuiProps) {
 		onExit: exitCline,
 		onToggleMode: toggleMode,
 		isCloudTarget: cloud.active,
-		onToggleCloudTarget: cloud.toggleTarget,
+		onToggleCloudTarget:
+			handoff.status?.kind === "complete"
+				? () => {
+						void openCloudHandoff();
+					}
+				: cloud.toggleTarget,
 		onChangeCloudRepo:
 			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,
 		onClearConversation: clearConversation,
@@ -1198,42 +1312,10 @@ function App(props: TuiProps) {
 				<CloudHandoffStatusBar
 					status={handoff.status}
 					disabled={isDialogOpen || isRuntimeInteractionOpen}
-					onOpen={async (sessionId) => {
-						if (props.activeSession?.getId() !== handoff.sourceId) return;
-						if (session.isRunning || queuedPrompts.length > 0) {
-							showToast(
-								"Wait for the local run and queued prompts before opening the cloud task.",
-							);
-							return;
-						}
-						if (promptInput.getCurrentInputText().trim()) {
-							showToast(
-								"Send or clear the current draft before opening the cloud task.",
-							);
-							return;
-						}
-						try {
-							await withLoadingDialog(dialog, "Opening cloud task…", () =>
-								cloud.openExisting(sessionId),
-							);
-						} catch (error) {
-							showToast(
-								error instanceof Error ? error.message : String(error),
-								"error",
-							);
-						} finally {
-							promptInput.refocusTextarea();
-						}
-					}}
+					onOpen={openCloudHandoff}
 					onDismiss={handoff.dismiss}
 					onRetry={handoff.retry}
-					onRestore={(draft) => {
-						if (props.activeSession?.getId() !== handoff.sourceId) return;
-						if (!promptInput.restoreCloudDraft(draft))
-							showToast(
-								"The input already has a draft. Clear or send it before restoring this one.",
-							);
-					}}
+					onRestore={restoreCloudDraft}
 				/>
 			)}
 			<Toast toast={toast} />

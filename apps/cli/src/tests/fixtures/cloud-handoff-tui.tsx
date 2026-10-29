@@ -1,8 +1,8 @@
+import { mock } from "bun:test";
 import { existsSync, writeFileSync } from "node:fs";
 import { CoreSessionService, SqliteSessionStore } from "@cline/core";
 import type { CloudSessionSnapshot } from "@cline/core/cloud";
 import { CloudSessionError } from "@cline/core/cloud";
-import { renderOpenTui } from "../../tui";
 import type { TuiProps } from "../../tui/types";
 import type { Config } from "../../utils/types";
 import type { FixtureState } from "./cloud-handoff-state";
@@ -19,6 +19,12 @@ const record = <K extends keyof FixtureState>(
 	state[key] = value;
 	writeFileSync(statePath, JSON.stringify(state));
 };
+
+mock.module("../../utils/open", () => ({
+	default: async (target: string | URL) => {
+		record("openedUrls", [...(state.openedUrls ?? []), String(target)]);
+	},
+}));
 
 const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
 async function waitForRelease() {
@@ -321,6 +327,17 @@ const props = {
 					target.taskId,
 				]);
 				const dashboardUrl = `https://app.cline.bot/tasks/${target.taskId}`;
+				if (scenario === "warning") {
+					return {
+						sessionId: cloudSessionId,
+						dashboardUrl,
+						warning: "Synthetic cloud send warning",
+						retrySend: async () => {
+							record("retryTargets", [...(state.retryTargets ?? []), target]);
+							return { sessionId: cloudSessionId, dashboardUrl };
+						},
+					};
+				}
 				onProgress({
 					message: "Preparing the cloud workspace.",
 					dashboardUrl,
@@ -331,5 +348,6 @@ const props = {
 	},
 } satisfies TuiProps;
 
+const { renderOpenTui } = await import("../../tui");
 const tui = await renderOpenTui(props);
 process.on("SIGINT", () => tui.destroy());

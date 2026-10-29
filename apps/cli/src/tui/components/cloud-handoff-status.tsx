@@ -1,14 +1,11 @@
-import { useKeyboard } from "@opentui/react";
 import type { CloudHandoffDraft } from "../../runtime/interactive/cloud-handoff";
 import open from "../../utils/open";
 import type { CloudHandoffStatus } from "../hooks/use-cloud-handoff";
 
-const modifierLabel = process.platform === "darwin" ? "Option" : "Alt";
-
 export function CloudHandoffStatusBar(props: {
 	status: CloudHandoffStatus;
 	disabled: boolean;
-	onOpen: (sessionId: string) => Promise<void>;
+	onOpen: () => Promise<void>;
 	onDismiss: () => void;
 	onRetry: () => Promise<void>;
 	onRestore: (draft: CloudHandoffDraft) => void;
@@ -25,81 +22,65 @@ export function CloudHandoffStatusBar(props: {
 			? status.progress.message
 			: status.kind === "failed"
 				? status.message
-				: (status.result.warning ??
-					"Cloud task ready. You can keep working locally.");
+				: status.result.warning;
 	const openLink = () => {
 		if (!props.disabled && url) void open(url, { wait: false }).catch(() => {});
 	};
 	const openInTui = () => {
-		if (!props.disabled && status.kind === "complete")
-			void props.onOpen(status.result.sessionId);
+		if (!props.disabled && status.kind === "complete") void props.onOpen();
 	};
-	useKeyboard((key) => {
-		if (props.disabled || !key.meta || key.ctrl || key.shift) return;
-		if (key.name === "o" && status.kind === "complete") {
-			key.preventDefault();
-			openInTui();
-		} else if (key.name === "o" && status.kind === "failed" && url) {
-			key.preventDefault();
-			openLink();
-		} else if (key.name === "e" && status.kind === "failed") {
-			key.preventDefault();
-			props.onRestore(status.draft);
-		} else if (
-			key.name === "e" &&
-			status.kind === "complete" &&
-			status.result.retrySend
-		) {
-			key.preventDefault();
-			void props.onRetry();
-		} else if (key.name === "d" && status.kind !== "progress") {
-			key.preventDefault();
-			props.onDismiss();
-		}
-	});
 	return (
 		<box flexDirection="column" paddingX={1} flexShrink={0}>
-			<text fg={status.kind === "failed" ? "red" : "cyan"}>
-				Cloud handoff: {message}
-			</text>
-			{status.kind === "complete" && (
-				<box onMouseDown={openInTui}>
-					<text>Open in TUI ({modifierLabel}+O)</text>
-				</box>
+			{message && (
+				<text fg={status.kind === "failed" ? "red" : "cyan"}>
+					Cloud handoff: {message}
+				</text>
 			)}
-			{url && (
-				<box onMouseDown={openLink}>
-					<text>
+			<box flexDirection="row" flexWrap="wrap" gap={2}>
+				{status.kind === "complete" && (
+					<>
+						{!message && <text fg="cyan">Cloud ready</text>}
+						<text onMouseDown={openInTui}>Open in TUI (Ctrl+O)</text>
+					</>
+				)}
+				{url && (
+					<text onMouseDown={openLink}>
 						<a href={url}>
-							{status.kind === "failed"
-								? `Connect GitHub (${modifierLabel}+O)`
-								: "Open in browser"}
-							: {url}
+							{status.kind === "failed" ? "Connect GitHub" : "Browser"}
 						</a>
 					</text>
-				</box>
-			)}
-			{status.kind !== "progress" && (
-				<box flexDirection="row" gap={2}>
-					{status.kind === "failed" && (
-						<box onMouseDown={() => props.onRestore(status.draft)}>
-							<text>Restore /cloud draft ({modifierLabel}+E)</text>
-						</box>
-					)}
-					{status.kind === "complete" && status.result.retrySend && (
-						<box
+				)}
+				{status.kind !== "progress" && (
+					<>
+						{status.kind === "failed" && (
+							<text
+								onMouseDown={() => {
+									if (!props.disabled) props.onRestore(status.draft);
+								}}
+							>
+								Restore draft
+							</text>
+						)}
+						{status.kind === "complete" && status.result.retrySend && (
+							<text
+								onMouseDown={() => {
+									if (!props.disabled) void props.onRetry();
+								}}
+							>
+								Retry prompt
+							</text>
+						)}
+						<text
+							fg="gray"
 							onMouseDown={() => {
-								void props.onRetry();
+								if (!props.disabled) props.onDismiss();
 							}}
 						>
-							<text>Retry saved prompt ({modifierLabel}+E)</text>
-						</box>
-					)}
-					<box onMouseDown={props.onDismiss}>
-						<text fg="gray">Dismiss ({modifierLabel}+D)</text>
-					</box>
-				</box>
-			)}
+							Dismiss
+						</text>
+					</>
+				)}
+			</box>
 		</box>
 	);
 }

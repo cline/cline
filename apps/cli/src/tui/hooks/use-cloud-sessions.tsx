@@ -567,9 +567,14 @@ export function useCloudSessions(input: {
 		setTarget("local");
 	}, [reset]);
 
+	const canToggleTarget =
+		!sessionId &&
+		sessionStatus === undefined &&
+		(target === "cloud" || !input.hasLocalConversation);
 	const statusBar: StatusBarCloud | undefined = client
 		? {
 				target,
+				canToggleTarget,
 				repoFullName: attachedSession
 					? attachedSession.repoFullName
 					: selection?.repo.fullName,
@@ -594,7 +599,7 @@ export function useCloudSessions(input: {
 		hasRepository: !!selection || !!attachedSession,
 		/** True from the first cloud submit, including while the sandbox is created. */
 		hasSession: !!sessionId || sessionStatus !== undefined,
-		toggleTarget: client ? toggleTarget : undefined,
+		toggleTarget: client && canToggleTarget ? toggleTarget : undefined,
 		pickRepository,
 		pickModel,
 		submit,

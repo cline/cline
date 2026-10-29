@@ -128,6 +128,7 @@ export function resolveModelMaxInputTokens(config: {
 
 export interface StatusBarCloud {
 	target: "local" | "cloud";
+	canToggleTarget: boolean;
 	repoFullName?: string;
 	branch?: string;
 	/** Cloud sessions run on a Cline cloud model, not the local selection. */
@@ -244,7 +245,8 @@ export function StatusBar(props: StatusBarProps) {
 		? ` | ${gitDiffStats.files} file${gitDiffStats.files !== 1 ? "s" : ""} +${gitDiffStats.additions} -${gitDiffStats.deletions}`
 		: "";
 	const pathPart = workspaceName + (gitBranch ? ` (${gitBranch})` : "");
-	const pathMax = Math.max(5, avail - gitSuffix.length);
+	const localPrefix = cloud && !cloud.canToggleTarget ? "● Local · " : "";
+	const pathMax = Math.max(5, avail - gitSuffix.length - localPrefix.length);
 	const truncatedPath =
 		pathPart.length > pathMax
 			? `${pathPart.slice(0, pathMax - 3)}...`
@@ -291,6 +293,7 @@ export function StatusBar(props: StatusBarProps) {
 				</text>
 			) : (
 				<text fg={defaultFg}>
+					<span fg={actAccent}>{localPrefix}</span>
 					{truncatedPath}
 					{hasGitDiff && (
 						<span fg="gray">
@@ -304,29 +307,35 @@ export function StatusBar(props: StatusBarProps) {
 				</text>
 			)}
 
-			{cloud &&
-				(cloud.sessionStatus ? (
-					<text fg={actAccent}>{cloud.sessionStatus}</text>
-				) : (
-					<text fg="gray">
-						<span fg={cloud.target === "local" ? actAccent : "gray"}>
-							{cloud.target === "local" ? "●" : "○"} Local
-						</span>{" "}
-						<span fg={cloud.target === "cloud" ? actAccent : "gray"}>
-							{cloud.target === "cloud" ? "●" : "○"} Cloud
-						</span>{" "}
-						(Ctrl+O)
-					</text>
-				))}
-			{isCloud && cloud.dashboardUrl && (
-				<text
-					onMouseDown={() => {
-						if (cloud.dashboardUrl)
-							void open(cloud.dashboardUrl, { wait: false }).catch(() => {});
-					}}
-				>
-					<a href={cloud.dashboardUrl}>Open in browser</a>
+			{cloud?.canToggleTarget && (
+				<text fg="gray">
+					<span fg={cloud.target === "local" ? actAccent : "gray"}>
+						{cloud.target === "local" ? "●" : "○"} Local
+					</span>{" "}
+					<span fg={cloud.target === "cloud" ? actAccent : "gray"}>
+						{cloud.target === "cloud" ? "●" : "○"} Cloud
+					</span>{" "}
+					(Ctrl+O)
 				</text>
+			)}
+			{isCloud && (cloud.sessionStatus || cloud.dashboardUrl) && (
+				<box flexDirection="row" flexWrap="wrap" gap={2}>
+					{cloud.sessionStatus && (
+						<text fg={actAccent}>{cloud.sessionStatus}</text>
+					)}
+					{cloud.dashboardUrl && (
+						<text
+							onMouseDown={() => {
+								if (cloud.dashboardUrl)
+									void open(cloud.dashboardUrl, { wait: false }).catch(
+										() => {},
+									);
+							}}
+						>
+							<a href={cloud.dashboardUrl}>Browser</a>
+						</text>
+					)}
+				</box>
 			)}
 
 			{!isCloud &&

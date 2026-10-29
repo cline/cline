@@ -16,6 +16,7 @@ export const fixtureStateSchema = z.object({
 	activeSessionId: z.string().optional(),
 	resumeCalls: z.array(z.string()).optional(),
 	attachedSessions: z.array(z.string()).optional(),
+	openedUrls: z.array(z.string()).optional(),
 	cloudSends: z
 		.array(
 			z.object({
@@ -32,6 +33,7 @@ export type FixtureScenario =
 	| "github-disconnected"
 	| "success"
 	| "failure"
+	| "warning"
 	| "held-success"
 	| "held-failure"
 	| "retry"
