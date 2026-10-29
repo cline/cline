@@ -545,6 +545,11 @@ export class SessionConnectionController {
 		this.connection = undefined;
 		this.recoveryState = undefined;
 		this.recoveryDescriptor = undefined;
+		this.preserveRecoveryView = false;
+		this.view = INITIAL_VIEW;
+		this.reasoningChoice = undefined;
+		this.reasoningInitialized = false;
+		this.taskBranch = undefined;
 		this.setStatus({ phase: "closed" });
 	};
 

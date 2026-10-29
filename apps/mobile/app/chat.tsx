@@ -42,6 +42,7 @@ import { useSessionHistory } from "@/screens/home/useSessionHistory";
 import type { ApprovalPolicy, RunStatus } from "@/session";
 import { RemoteSessionExpiredError } from "@/session/cloud-resolver";
 import type { ReasoningChoice } from "@/session/reasoning";
+import { useCloudAuth } from "@/state/cloud-auth";
 import { cloudStartStore, useCloudStarts } from "@/state/cloud-starts";
 import { useEndpoints } from "@/state/endpoints";
 import { useExecutionTargets } from "@/state/execution-targets";
@@ -72,6 +73,7 @@ export default function ChatRoute() {
 		launchMessageId?: string;
 	}>();
 	const { endpoints, hydrated, store } = useEndpoints();
+	const { account } = useCloudAuth();
 	useCloudStarts();
 	const endpointKey = params.endpointKey ?? "";
 	const routeKey = `${endpointKey}:${params.newSession === "1" ? "new" : "latest"}:${params.launchMessageId ?? "open"}`;
@@ -98,6 +100,10 @@ export default function ChatRoute() {
 	}
 	if (descriptor?.mode === "local" && !COMPUTER_CONNECTIONS_ENABLED) {
 		return <Redirect href="/" />;
+	}
+	if (descriptor?.mode === "cloud") {
+		if (account.phase === "loading") return <ResolvingEndpoint />;
+		if (account.phase === "signed-out") return <Redirect href="/" />;
 	}
 
 	if (!descriptor) {

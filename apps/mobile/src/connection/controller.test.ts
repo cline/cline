@@ -21,7 +21,7 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import type { SessionHandle } from "../session";
 import { asHubSessionId, asRemoteSessionId } from "../session/ids";
-import { SessionConnectionController } from "./controller";
+import { initialSnapshot, SessionConnectionController } from "./controller";
 import type { ConnectionDescriptor } from "./endpoints";
 
 type CommandHandler = (
@@ -130,6 +130,46 @@ const DESCRIPTOR: ConnectionDescriptor = {
 	mode: "local",
 	url: "ws://127.0.0.1:1/hub",
 };
+
+it("retires private controller snapshots, failed inputs and task metadata on disposal", async () => {
+	const client = new FakeHubClient();
+	client.handlers.set("session.messages", () => ({
+		messages: [
+			{ role: "user", content: "Private persisted conversation" },
+			{ role: "assistant", content: "Private assistant response" },
+		],
+	}));
+	const controller = new SessionConnectionController(
+		{ mode: "cloud", url: "https://workspace.test" },
+		{ createHandle: async () => handleFor(client) },
+	);
+	await controller.start();
+	controller.setReasoningChoice("high");
+	await controller.sendInput("Private failed prompt", {
+		userImages: ["data:image/png;base64,cHJpdmF0ZQ=="],
+	});
+	expect(JSON.stringify(controller.getSnapshot().view)).toContain(
+		"Private persisted conversation",
+	);
+	expect(JSON.stringify(controller.getSnapshot().view)).toContain(
+		"Private failed prompt",
+	);
+	expect(JSON.stringify(controller.getSnapshot().view)).toContain(
+		"cHJpdmF0ZQ==",
+	);
+	expect(controller.getSnapshot().taskBranch).toBeDefined();
+	const changed = vi.fn();
+	controller.subscribe(changed);
+	controller.dispose();
+	expect(controller.getSnapshot()).toEqual({
+		...initialSnapshot(),
+		status: { phase: "closed" },
+	});
+	expect(changed).toHaveBeenCalledOnce();
+	expect(client.closed).toBe(true);
+	controller.dispose();
+	expect(changed).toHaveBeenCalledOnce();
+});
 
 // The inner Hub ID is a conversation identity, not the prescribed git branch.
 // Desktop-created workspaces may have a distinct task ID, or no task ID at all.

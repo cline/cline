@@ -2,10 +2,15 @@ import { useEffect } from "react";
 import * as Native from "react-native";
 import { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CloudSessionGateway } from "@/cloud";
+import {
+	ClineAuthStore,
+	CloudSessionGateway,
+	createInMemoryAuthStorage,
+} from "@/cloud";
 import type { ConnectionDescriptor } from "@/connection";
 import { descriptorKey, SavedEndpointsStore } from "@/connection";
 import { initialSnapshot } from "@/connection/controller";
+import { CloudAuthProvider } from "@/state/cloud-auth";
 import { cloudStartStore } from "@/state/cloud-starts";
 import { EndpointsProvider } from "@/state/endpoints";
 import { ExecutionTargetStore } from "@/state/execution-target-store";
@@ -27,7 +32,11 @@ const state = vi.hoisted(() => ({
 	dismissTo: vi.fn(),
 	focused: true,
 }));
+vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
 vi.mock("expo-router", () => ({
+	Redirect: ({ href }: { href: string }) => (
+		<Native.View testID="auth-redirect" accessibilityLabel={href} />
+	),
 	useFocusEffect: (callback: () => void | (() => void)) =>
 		useEffect(callback, [callback]),
 	useLocalSearchParams: () => ({ endpointKey: state.key }),
@@ -63,7 +72,24 @@ vi.mock("@/cloud", async (original) => ({
 	},
 }));
 
+let routeAuthStore: ClineAuthStore;
+function SignedInChatRoute() {
+	return (
+		<CloudAuthProvider store={routeAuthStore}>
+			<ChatRoute />
+		</CloudAuthProvider>
+	);
+}
+
 beforeEach(() => {
+	routeAuthStore = new ClineAuthStore({
+		storage: createInMemoryAuthStorage({
+			access: "fixture",
+			refresh: "fixture-refresh",
+			expires: Date.now() + 86400000,
+			accountId: "fixture-person",
+		}),
+	});
 	act(() => cloudStartStore.clear());
 	vi.clearAllMocks();
 	state.focused = true;
@@ -94,7 +120,7 @@ describe("Cloud receipt opened from session history", () => {
 			state.key = descriptorKey(a);
 			const element = () => (
 				<EndpointsProvider store={endpoints}>
-					<ChatRoute />
+					<SignedInChatRoute />
 				</EndpointsProvider>
 			);
 			const screen = render(element());
@@ -160,7 +186,7 @@ describe("Cloud receipt opened from session history", () => {
 			await endpoints.save(descriptor);
 			const element = () => (
 				<EndpointsProvider store={endpoints}>
-					<ChatRoute />
+					<SignedInChatRoute />
 				</EndpointsProvider>
 			);
 			const screen = render(element());
@@ -272,9 +298,10 @@ describe("Cloud receipt opened from session history", () => {
 		cloudStartStore.bindDescriptor(id, descriptor);
 		const screen = render(
 			<EndpointsProvider store={endpoints}>
-				<ChatRoute />
+				<SignedInChatRoute />
 			</EndpointsProvider>,
 		);
+		await act(async () => {});
 		expect(
 			screen.root.findAll((node) => node.type === CloudProvisioningScreen),
 		).toHaveLength(1);
@@ -318,7 +345,7 @@ it("saves a chat's accepted model as its account default, but preserves it when 
 	const screen = render(
 		<ExecutionTargetsProvider store={targets}>
 			<EndpointsProvider store={endpoints}>
-				<ChatRoute />
+				<SignedInChatRoute />
 			</EndpointsProvider>
 		</ExecutionTargetsProvider>,
 	);
@@ -371,7 +398,7 @@ it.each([
 	try {
 		const element = () => (
 			<EndpointsProvider store={endpoints}>
-				<ChatRoute />
+				<SignedInChatRoute />
 			</EndpointsProvider>
 		);
 		const screen = render(element());
@@ -400,4 +427,116 @@ it.each([
 	} finally {
 		stop.mockRestore();
 	}
+});
+
+describe("Cloud route identity privacy", () => {
+	it.each([
+		"automatic token resolution",
+		"explicit Sign out",
+	])("unmounts private connected chat and sidebar after %s", async (mode) => {
+		const store = new ClineAuthStore({
+			storage: createInMemoryAuthStorage({
+				access: "expired",
+				refresh: "expired-refresh",
+				expires: 0,
+				accountId: "old-person",
+			}),
+			resolveCredentials: async () => null,
+		});
+		const descriptor: ConnectionDescriptor = {
+			mode: "cloud",
+			url: "https://core.example/private",
+			remoteSessionId: "private",
+		};
+		const endpoints = new SavedEndpointsStore();
+		await endpoints.save(descriptor);
+		state.key = descriptorKey(descriptor);
+		const screen = render(
+			<EndpointsProvider store={endpoints}>
+				<CloudAuthProvider store={store}>
+					<ChatRoute />
+				</CloudAuthProvider>
+			</EndpointsProvider>,
+		);
+		await act(async () => {});
+		expect(state.mountChat).toHaveBeenCalledOnce();
+		expect(
+			screen.root.findAll((node) => node.type === SessionSidebar),
+		).toHaveLength(1);
+		await act(async () => {
+			if (mode === "automatic token resolution")
+				expect(await store.getValidAccessToken()).toBeNull();
+			else await store.signOut();
+		});
+		expect(
+			screen.root.findAll((node) => node.type === SessionSidebar),
+		).toHaveLength(0);
+		expect(state.unmountChat).toHaveBeenCalledOnce();
+		expect(
+			screen.root.findAll((node) => node.props.testID === "auth-redirect")
+				.length,
+		).toBeGreaterThan(0);
+		expect(state.replace).not.toHaveBeenCalled();
+	});
+	it("does not mount a private cloud view while credential storage is unresolved or after it resolves signed out", async () => {
+		let release!: (value: null) => void;
+		const storage = createInMemoryAuthStorage();
+		vi.spyOn(storage, "load").mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		const store = new ClineAuthStore({ storage });
+		const descriptor: ConnectionDescriptor = {
+			mode: "cloud",
+			url: "https://core.example/private-archive",
+			remoteSessionId: "private-archive",
+		};
+		const endpoints = new SavedEndpointsStore();
+		await endpoints.save(descriptor);
+		state.key = descriptorKey(descriptor);
+		const screen = render(
+			<EndpointsProvider store={endpoints}>
+				<CloudAuthProvider store={store}>
+					<ChatRoute />
+				</CloudAuthProvider>
+			</EndpointsProvider>,
+		);
+		expect(state.connection).not.toHaveBeenCalled();
+		expect(state.mountChat).not.toHaveBeenCalled();
+		expect(
+			screen.root.findAll((node) => node.type === SessionSidebar),
+		).toHaveLength(0);
+		await act(async () => release(null));
+		expect(state.connection).not.toHaveBeenCalled();
+		expect(state.mountChat).not.toHaveBeenCalled();
+		expect(
+			screen.root.findAll((node) => node.props.testID === "auth-redirect")
+				.length,
+		).toBeGreaterThan(0);
+	});
+});
+
+it("preserves enabled computer chat when Cloud credentials are signed out", async () => {
+	const store = new ClineAuthStore({ storage: createInMemoryAuthStorage() });
+	const endpoints = new SavedEndpointsStore();
+	const descriptor: ConnectionDescriptor = {
+		mode: "local",
+		url: "ws://127.0.0.1:1/hub",
+	};
+	await endpoints.save(descriptor);
+	state.key = descriptorKey(descriptor);
+	const screen = render(
+		<EndpointsProvider store={endpoints}>
+			<CloudAuthProvider store={store}>
+				<ChatRoute />
+			</CloudAuthProvider>
+		</EndpointsProvider>,
+	);
+	await act(async () => {});
+	expect(state.mountChat).toHaveBeenCalledOnce();
+	expect(
+		screen.root.findAll((node) => node.props.testID === "auth-redirect"),
+	).toHaveLength(0);
 });
