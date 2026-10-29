@@ -1,6 +1,7 @@
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 import { describe, expect, it } from "vitest";
 import { parseToolDiff } from "./diff";
+import { toolSearchText } from "./tool-search";
 import { diffCounts, toolLabel } from "./tools";
 
 const PATCH = `*** Begin Patch
@@ -136,7 +137,57 @@ describe("mobile tool presentation", () => {
 			toolLabel("run_commands", "completed", { command: "bun test" }),
 		).toBe("Ran command bun test");
 		expect(toolLabel("run_commands", "failed", { command: "bun test" })).toBe(
-			"Failed: Ran command bun test",
+			"Failed: command bun test",
 		);
 	});
+});
+
+describe("truthful approval tool labels", () => {
+	it.each([
+		["pending", "Waiting for approval: command git status"],
+		["denied", "Denied: command git status"],
+		["expired", "Approval expired: command git status"],
+		["cancelled", "Approval cancelled: command git status"],
+	] as const)("uses confirmed %s status without claiming execution", (status, label) => {
+		expect(
+			toolLabel(
+				"bash",
+				status === "pending" ? "running" : "failed",
+				{ command: "git status" },
+				status,
+			),
+		).toBe(label);
+	});
+	it("uses a neutral file action for a failed edit", () => {
+		expect(
+			toolLabel("editor", "failed", {
+				path: "src/App.tsx",
+				old_text: "a",
+				new_text: "b",
+			}),
+		).toBe("Failed: file change src/App.tsx");
+	});
+	it("preserves every command in an approval summary", () => {
+		expect(
+			toolLabel(
+				"run_commands",
+				"running",
+				{ commands: ["git status", "git diff"] },
+				"pending",
+			),
+		).toBe("Waiting for approval: command git status; git diff");
+	});
+});
+
+it("conversation Find indexes the visible approval label", () => {
+	expect(
+		toolSearchText({
+			kind: "tool",
+			toolCallId: "approval-search",
+			name: "bash",
+			state: "failed",
+			input: { command: "git status" },
+			approvalStatus: "denied",
+		}),
+	).toContain("Denied: command git status");
 });

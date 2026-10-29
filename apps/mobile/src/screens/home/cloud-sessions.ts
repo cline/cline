@@ -235,9 +235,10 @@ export function useCloudSessions({
 						getAccessToken: () => cloudAuthStore.getValidAccessToken(),
 					}).listAccounts();
 					if (!current()) return;
+					const selectedAccount = accounts.find((account) => account.active);
 					selectedScope = {
-						organizationId: accounts.find((account) => account.active)
-							?.organizationId,
+						organizationId: selectedAccount?.organizationId,
+						accountName: selectedAccount?.name,
 					};
 					discoveredScopeKey = accountScopeKey(selectedScope);
 					cacheScopeKey.current = discoveredScopeKey;

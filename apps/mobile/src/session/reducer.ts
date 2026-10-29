@@ -50,19 +50,19 @@
 
 import {
 	type GeneratedMedia,
+	HUB_APPROVAL_TIMEOUT_REASON,
 	type HubEventEnvelope,
 	type PendingApprovalInfo,
 	stripModeNotices,
 	validateImageMedia,
 } from "@cline/shared";
 import { isInternalTranscriptMessage } from "./message-visibility";
-import { utf8ToBase64 } from "./utf8-base64";
 import {
 	type HydratedContentBlock,
 	type HydratedMessage,
+	mergeSessionModel,
 	type PendingPromptView,
 	parseHubEvent,
-	mergeSessionModel,
 	readSessionModel,
 	type SessionEvent,
 	type SessionModelView,
@@ -70,6 +70,7 @@ import {
 	type TokenUsagePayload,
 	toPendingPromptView,
 } from "./schemas";
+import { utf8ToBase64 } from "./utf8-base64";
 
 // --- view model --------------------------------------------------------------
 
@@ -87,6 +88,9 @@ export type ConnectionStatus =
 
 export type ToolActivityState = "running" | "completed" | "failed";
 
+/** Display evidence from approval events, never guessed from a tool error. */
+export type ToolApprovalStatus = "pending" | "denied" | "expired" | "cancelled";
+
 export type MessageBlock =
 	| { kind: "text"; text: string }
 	| { kind: "media"; media: GeneratedMedia }
@@ -102,6 +106,7 @@ export type MessageBlock =
 			toolCallId: string;
 			name: string;
 			state: ToolActivityState;
+			approvalStatus?: ToolApprovalStatus;
 			input?: unknown;
 			output?: unknown;
 			error?: string;
@@ -338,6 +343,8 @@ export interface SessionState {
 	buffer: HubEventEnvelope[];
 	seenEventIds: SeenEvents;
 	pendingApprovals: PendingApprovalInfo[];
+	/** Confirmed decisions survive rehydration of this session, not a new attach. */
+	approvalOutcomes: Record<string, Exclude<ToolApprovalStatus, "pending">>;
 	pendingQuestions: SessionQuestionView[];
 	questionInterrupted?: true;
 	pendingPrompts: PendingPromptView[];
@@ -407,6 +414,7 @@ export function createSessionState(): SessionState {
 		buffer: [],
 		seenEventIds: { sealed: [], head: [] },
 		pendingApprovals: [],
+		approvalOutcomes: {},
 		pendingQuestions: [],
 		pendingPrompts: [],
 		approvalRecoveryGeneration: 0,
@@ -1261,17 +1269,39 @@ function applySessionEvent(
 				}),
 			};
 		}
-		case "approval.resolved":
+		case "approval.resolved": {
+			const { approvalId, approved, expired, cancelled, reason } =
+				event.payload;
+			const requested = state.pendingApprovals.find(
+				(approval) => approval.approvalId === approvalId,
+			);
+			// Only the pending request proves which call this decision concerns.
+			// A missed request is unknown; error text cannot reconstruct consent.
+			const outcomes = requested
+				? { ...state.approvalOutcomes }
+				: state.approvalOutcomes;
+			if (requested) {
+				if (approved) delete outcomes[requested.toolCallId];
+				else
+					outcomes[requested.toolCallId] =
+						expired || reason === HUB_APPROVAL_TIMEOUT_REASON
+							? "expired"
+							: cancelled
+								? "cancelled"
+								: "denied";
+			}
 			return {
 				...state,
+				approvalOutcomes: outcomes,
 				pendingApprovals: state.pendingApprovals.filter(
-					(entry) => entry.approvalId !== event.payload.approvalId,
+					(entry) => entry.approvalId !== approvalId,
 				),
 				approvalRecovery: recordRecoveryEvent(state.approvalRecovery, {
 					kind: "resolved",
-					approvalId: event.payload.approvalId,
+					approvalId,
 				}),
 			};
+		}
 		// The record rides the event; a model change made from ANY client (the
 		// terminal, another phone, this one) lands here so every view converges.
 		// `readSessionModel` returns undefined when the record names nothing, and
@@ -2150,9 +2180,28 @@ export function selectViewModel(state: SessionState): SessionViewModel {
 		!state.pendingApprovals.length &&
 		!state.pendingQuestions.length &&
 		!state.lastError;
+	const approvalStatuses = new Map<string, ToolApprovalStatus>();
+	for (const [toolCallId, outcome] of Object.entries(state.approvalOutcomes))
+		approvalStatuses.set(toolCallId, outcome);
+	for (const approval of state.pendingApprovals)
+		approvalStatuses.set(approval.toolCallId, "pending");
 	const messages = [...state.hydrated, ...state.live]
 		.filter((message) => message.blocks.length > 0)
-		.map(toMessageView);
+		.map((message) => {
+			const view = toMessageView(message);
+			// Use the existing tool index rather than cloning/scanning every text and
+			// media block on each streaming delta in an otherwise unchanged history.
+			let blocks: MessageBlock[] | undefined;
+			for (const [toolCallId, approvalStatus] of approvalStatuses) {
+				const index = message.toolIndex[toolCallId];
+				if (index === undefined) continue;
+				const block = view.blocks[index];
+				if (block?.kind !== "tool") continue;
+				blocks ??= [...view.blocks];
+				blocks[index] = { ...block, approvalStatus };
+			}
+			return blocks ? { ...view, blocks } : view;
+		});
 	return {
 		connectionStatus: state.connectionStatus,
 		...(awaitingOutput ? { awaitingOutput: true } : {}),

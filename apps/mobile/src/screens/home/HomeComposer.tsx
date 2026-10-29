@@ -111,7 +111,7 @@ export function HomeComposer({
 		supportsImages,
 	});
 	const canSend =
-		(draft.trim().length > 0 || attachments.images.length > 0) &&
+		draft.trim().length > 0 &&
 		(target !== undefined || onChooseTarget !== undefined) &&
 		!busy &&
 		!voice.active &&
@@ -206,6 +206,14 @@ export function HomeComposer({
 						attachments.remove(id);
 					}}
 				/>
+				{!draft.trim() &&
+				attachments.images.length > 0 &&
+				!imageCapabilityError &&
+				!attachments.error ? (
+					<Text variant="caption" tone="muted" accessibilityLiveRegion="polite">
+						{ATTACHMENT_MESSAGE_REQUIRED}
+					</Text>
+				) : null}
 			</EditingContainer>
 
 			<View

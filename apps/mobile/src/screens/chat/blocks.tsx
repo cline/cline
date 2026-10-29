@@ -328,7 +328,12 @@ function ToolActivityCard({
 			: undefined;
 	const outputMedia = extractToolOutputMedia(block.output);
 	const preview = toolPreview(block.input, redactToolOutputMedia(block.output));
-	const label = toolLabel(block.name, block.state, block.input);
+	const label = toolLabel(
+		block.name,
+		block.state,
+		block.input,
+		block.approvalStatus,
+	);
 	const files = parseToolDiff(block.name, block.input, block.output);
 	const hasFileDiff = files.length > 0;
 	const choiceKey = `tool:${blockKey}:${block.toolCallId ?? "anonymous"}`;
@@ -361,7 +366,11 @@ function ToolActivityCard({
 
 	// Accent means alive now. Finished work recedes so a long transcript scans.
 	const triggerColor =
-		block.state === "failed" ? theme.color.danger : theme.color.textMuted;
+		block.approvalStatus === "pending"
+			? theme.feedback.warning.fg
+			: block.state === "failed" && !block.approvalStatus
+				? theme.color.danger
+				: theme.color.textMuted;
 
 	return (
 		<Disclosure
@@ -369,7 +378,7 @@ function ToolActivityCard({
 			labelColor={triggerColor}
 			accessibilityLabel={`Tool ${label}`}
 			leading={
-				block.state === "running" ? (
+				block.state === "running" && !block.approvalStatus ? (
 					<Spinner size={14} color={theme.color.textMuted} />
 				) : (
 					<Icon size={16} color={triggerColor} />
@@ -407,7 +416,11 @@ function ToolActivityCard({
 				</View>
 			) : null}
 			{block.error ? (
-				<Text variant="small" tone="danger" style={{ marginTop: 4 }}>
+				<Text
+					variant="small"
+					tone={block.approvalStatus ? "muted" : "danger"}
+					style={{ marginTop: 4 }}
+				>
 					{userErrorMessage(block.error, "This tool could not finish.")}
 				</Text>
 			) : null}

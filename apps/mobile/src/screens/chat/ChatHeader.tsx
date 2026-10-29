@@ -44,6 +44,8 @@ export interface ChatHeaderProps {
 	subtitle?: string;
 	runStatus: RunStatus | RemoteSessionStatus;
 	showStatus?: boolean;
+	/** A parked tool is waiting for consent, rather than executing. */
+	pendingApproval?: boolean;
 	onBack?: () => void;
 	onSwitchSession?: () => void;
 	onNewSession?: () => void;
@@ -57,6 +59,7 @@ export function ChatHeader({
 	subtitle,
 	runStatus,
 	showStatus = true,
+	pendingApproval = false,
 	onBack,
 	onSwitchSession,
 	onNewSession,
@@ -101,7 +104,13 @@ export function ChatHeader({
 					{title}
 				</Text>
 				<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-					{showStatus ? <SessionStatusChip status={runStatus} plain /> : null}
+					{showStatus ? (
+						<SessionStatusChip
+							status={pendingApproval ? "idle" : runStatus}
+							label={pendingApproval ? "Waiting for approval" : undefined}
+							plain
+						/>
+					) : null}
 					{subtitle ? (
 						<Text
 							variant="caption"

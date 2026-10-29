@@ -321,6 +321,36 @@ describe("account selection revision ownership", () => {
 		);
 		return { ...screen, current: () => current };
 	}
+	it("updates display metadata only through an accepted scope publication", () => {
+		const screen = mountScope();
+		act(() =>
+			screen
+				.current()
+				.selectScope({ organizationId: "org-1", accountName: "Old name" }),
+		);
+		const refresh = screen.current().beginRefresh();
+		act(() => refresh({ organizationId: "org-1", accountName: "New name" }));
+		expect(screen.current().scope).toEqual({
+			organizationId: "org-1",
+			accountName: "New name",
+		});
+		expect(
+			screen
+				.current()
+				.isScopeCurrent({ organizationId: "org-1", accountName: "Old name" }),
+		).toBe(true);
+		const stale = screen.current().beginRefresh();
+		act(() =>
+			screen
+				.current()
+				.selectScope({ organizationId: "org-2", accountName: "Selected team" }),
+		);
+		act(() => stale({ organizationId: "org-1", accountName: "Retired team" }));
+		expect(screen.current().scope).toEqual({
+			organizationId: "org-2",
+			accountName: "Selected team",
+		});
+	});
 	it("clears a failed-selection notice only after a fresh accepted account discovery", () => {
 		const screen = mountScope();
 		act(() => screen.current().selectScope({}));

@@ -1143,8 +1143,8 @@ describe("ChatScreen", () => {
 		expect(containsText(root, "Fix the flaky test")).toBe(true);
 		expect(containsText(root, "MacBook Pro")).toBe(true);
 		expect(containsText(root, "ws://")).toBe(false);
-		// The status chip is still present alongside it.
-		expect(containsText(root, "Running")).toBe(true);
+		// The header reflects the pending approval rather than claiming execution.
+		expect(containsText(root, "Waiting for approval")).toBe(true);
 	});
 
 	it("does not duplicate back-to-sessions or auto-approve in the header", () => {
@@ -1547,7 +1547,7 @@ it("never overwrites a Home draft the user edited while connecting", async () =>
 it("removes stale run status while reconnecting and shows the new authoritative status once live", () => {
 	const view = richView();
 	const screen = render(<ChatScreen connection={fakeConnection({ view })} />);
-	expect(containsText(screen.root, "Running")).toBe(true);
+	expect(containsText(screen.root, "Waiting for approval")).toBe(true);
 	for (const connectionStatus of ["reconnecting", "closed", "error"] as const) {
 		act(() =>
 			screen.renderer.update(
@@ -1556,13 +1556,13 @@ it("removes stale run status while reconnecting and shows the new authoritative 
 				/>,
 			),
 		);
-		expect(containsText(screen.root, "Running")).toBe(false);
+		expect(containsText(screen.root, "Waiting for approval")).toBe(false);
 	}
 	act(() =>
 		screen.renderer.update(
 			<ChatScreen
 				connection={fakeConnection({
-					view: { ...view, runStatus: "completed" },
+					view: { ...view, runStatus: "completed", pendingApprovals: [] },
 				})}
 			/>,
 		),
@@ -1721,4 +1721,72 @@ it("settles the saved model's unknown thinking capability when Chat's catalog ch
 	);
 	expect(containsText(screen.root, "Thinking unavailable")).toBe(true);
 	expect(onReasoningChange).not.toHaveBeenCalled();
+});
+
+describe("approval UX", () => {
+	it("shows waiting rather than running while a tool needs consent", () => {
+		const connection = fakeConnection({
+			view: {
+				...emptyView(),
+				connectionStatus: "live",
+				runStatus: "running",
+				pendingApprovals: [approval],
+			},
+		});
+		const { root } = render(
+			<ChatScreen connection={connection} connectionKind="cloud" />,
+		);
+		expect(containsText(root, "Waiting for approval")).toBe(true);
+		expect(
+			root.find((node) => node.type === ChatHeader).props.pendingApproval,
+		).toBe(true);
+	});
+	it("keeps the exact action visible and hides envelope metadata until requested", () => {
+		const connection = fakeConnection({
+			view: {
+				...emptyView(),
+				pendingApprovals: [
+					{
+						...approval,
+						inputJson: JSON.stringify({
+							command: "git diff -- src/Example.tsx",
+							cwd: "/workspace/project",
+						}),
+					},
+				],
+			},
+		});
+		const { root } = render(
+			<ChatScreen connection={connection} connectionKind="cloud" />,
+		);
+		expect(containsText(root, "git diff -- src/Example.tsx")).toBe(true);
+		expect(containsText(root, "/workspace/project")).toBe(true);
+		expect(containsText(root, "Request ap1")).toBe(false);
+		act(() =>
+			findByLabel(root, "Approval request details, expand")!.props.onPress(),
+		);
+		expect(containsText(root, "Request ap1")).toBe(true);
+	});
+	it("keeps unrecognized command options visible before approval", () => {
+		const connection = fakeConnection({
+			view: {
+				...emptyView(),
+				pendingApprovals: [
+					{
+						...approval,
+						inputJson: JSON.stringify({
+							command: "run",
+							privileged: true,
+							target: "/workspace/private",
+						}),
+					},
+				],
+			},
+		});
+		const { root } = render(
+			<ChatScreen connection={connection} connectionKind="cloud" />,
+		);
+		expect(containsText(root, "privileged")).toBe(true);
+		expect(containsText(root, "/workspace/private")).toBe(true);
+	});
 });

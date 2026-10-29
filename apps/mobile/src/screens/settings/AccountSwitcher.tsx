@@ -1,5 +1,5 @@
-import { Check } from "lucide-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react-native";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import type { ClineAuthStore } from "@/cloud";
 import {
@@ -12,12 +12,22 @@ import { useCloudAccountScope, useCloudAuth } from "@/state/cloud-auth";
 import { Button, Text, useTheme } from "@/ui";
 
 /** Account switching belongs in Account settings, just as it does on desktop. */
-export function AccountSwitcher() {
+export function AccountSwitcher({ children }: { children?: ReactNode }) {
 	const { store } = useCloudAuth();
-	return <AccountSwitcherBody key={store.identityVersion} store={store} />;
+	return (
+		<AccountSwitcherBody key={store.identityVersion} store={store}>
+			{children}
+		</AccountSwitcherBody>
+	);
 }
 
-function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
+function AccountSwitcherBody({
+	store,
+	children,
+}: {
+	store: ClineAuthStore;
+	children?: ReactNode;
+}) {
 	const theme = useTheme();
 	const identityVersion = store.identityVersion;
 	const {
@@ -36,6 +46,7 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 		[store],
 	);
 	const [accounts, setAccounts] = useState<CloudAccount[]>([]);
+	const [expanded, setExpanded] = useState(false);
 	const visibleAccounts = accounts.map((account) => ({
 		...account,
 		active:
@@ -66,9 +77,10 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 			.then((next) => {
 				if (active) {
 					setAccounts(next);
+					const selectedAccount = next.find((account) => account.active);
 					publishScope({
-						organizationId: next.find((account) => account.active)
-							?.organizationId,
+						organizationId: selectedAccount?.organizationId,
+						accountName: selectedAccount?.name,
 					});
 				}
 			})
@@ -101,7 +113,13 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 			await gateway.switchAccount(account.organizationId);
 			// The server preference change survives leaving Settings. Publish it to
 			// Home too; the selection lease still rejects sign-out/newer selections.
-			if (!publishSelection({ organizationId: account.organizationId })) return;
+			if (
+				!publishSelection({
+					organizationId: account.organizationId,
+					accountName: account.name,
+				})
+			)
+				return;
 			if (mounted.current)
 				setAccounts((current) =>
 					current.map((row) => ({
@@ -130,16 +148,50 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 				</Text>
 			) : null}
 			{!loading && accounts.length > 0 ? (
-				<Text
-					variant="small"
+				<Pressable
+					accessibilityRole={accounts.length > 1 ? "button" : "text"}
 					accessibilityLabel={`Current account: ${visibleAccounts.find((account) => account.active)?.name ?? "Unavailable"}`}
+					accessibilityHint={
+						accounts.length > 1 ? "Show or hide account choices" : undefined
+					}
+					accessibilityState={accounts.length > 1 ? { expanded } : undefined}
+					onPress={
+						accounts.length > 1
+							? () => setExpanded((value) => !value)
+							: undefined
+					}
+					style={{
+						minHeight: 44,
+						flexDirection: "row",
+						alignItems: "center",
+						gap: 8,
+					}}
 				>
-					Current account:{" "}
-					{visibleAccounts.find((account) => account.active)?.name ??
-						"Unavailable"}
-				</Text>
+					<View style={{ flex: 1, gap: 2 }}>
+						<Text variant="caption" tone="muted">
+							Current account
+						</Text>
+						<Text variant="small" weight="500" numberOfLines={2}>
+							{visibleAccounts.find((account) => account.active)?.name ??
+								"Unavailable"}
+						</Text>
+					</View>
+					{selectionPending ? (
+						<Text variant="caption" tone="muted">
+							Changing…
+						</Text>
+					) : null}
+					{accounts.length > 1 ? (
+						expanded ? (
+							<ChevronUp size={16} color={theme.color.textMuted} />
+						) : (
+							<ChevronDown size={16} color={theme.color.textMuted} />
+						)
+					) : null}
+				</Pressable>
 			) : null}
-			{accounts.length > 1 ? (
+			{children}
+			{expanded && accounts.length > 1 ? (
 				<>
 					<Text variant="small" weight="500">
 						Accounts

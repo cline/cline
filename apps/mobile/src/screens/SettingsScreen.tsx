@@ -355,8 +355,9 @@ function AccountCard({
 			</View>
 			{account.phase === "signed-in" ? (
 				<>
-					<AccountSwitcher />
-					<CreditBalance />
+					<AccountSwitcher>
+						<CreditBalance />
+					</AccountSwitcher>
 					<Button
 						label="Account and usage"
 						variant="outline"

@@ -24,7 +24,7 @@ export function toolSearchText(
 				.join("\n")
 		: toolPreview(block.input, redactToolOutputMedia(block.output));
 	return [
-		toolLabel(block.name, block.state, block.input),
+		toolLabel(block.name, block.state, block.input, block.approvalStatus),
 		preview,
 		block.error
 			? userErrorMessage(block.error, "This tool could not finish.")

@@ -660,6 +660,7 @@ function ChatScreenBody({
 						title={title}
 						subtitle={subtitle}
 						runStatus={view.runStatus}
+						pendingApproval={view.pendingApprovals.length > 0}
 						showStatus={transcriptLive}
 						onBack={initialSubmissionGuarded ? undefined : onBack}
 						onNewSession={initialSubmissionGuarded ? undefined : onNewChat}

@@ -453,7 +453,10 @@ it("retains Home draft and explains a failed account change after leaving Settin
 			"Account could not be changed. Your previous account is still selected.",
 		),
 	).toBe(true);
-	expect(screen.getAccountScope().scope).toEqual({ organizationId: undefined });
+	expect(screen.getAccountScope().scope).toEqual({
+		organizationId: undefined,
+		accountName: "Personal",
+	});
 	expect(cloudStartStore.getSnapshot()).toHaveLength(0);
 });
 

@@ -99,7 +99,8 @@ export function Composer({
 	const draftRef = useRef(draft);
 	draftRef.current = draft;
 	const trimmed = draft.trim();
-	const hasDraft = trimmed.length > 0 || attachments.images.length > 0;
+	const hasDraft = trimmed.length > 0;
+	const needsCaption = !trimmed && attachments.images.length > 0;
 	const imageCapabilityError = getImageCapabilityError({
 		hasImages: attachments.images.length > 0,
 		checkingImageSupport,
@@ -211,6 +212,15 @@ export function Composer({
 							attachments.remove(id);
 						}}
 					/>
+					{needsCaption && !imageCapabilityError && !attachments.error ? (
+						<Text
+							variant="caption"
+							tone="muted"
+							accessibilityLiveRegion="polite"
+						>
+							{ATTACHMENT_MESSAGE_REQUIRED}
+						</Text>
+					) : null}
 					{queued}
 					{usageTotal ? (
 						<View

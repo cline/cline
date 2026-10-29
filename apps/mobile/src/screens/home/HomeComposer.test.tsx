@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { ActionSheetIOS, Keyboard } from "react-native";
 import { act } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -183,7 +183,7 @@ describe("HomeComposer", () => {
 			],
 		});
 		const onSend = vi.fn();
-		const { root } = render(
+		const { root, renderer } = render(
 			<HomeComposer
 				draft=""
 				target={{
@@ -210,9 +210,38 @@ describe("HomeComposer", () => {
 		const send = root.find(
 			(node) => node.props.accessibilityLabel === "Send to MacBook Pro",
 		);
-		expect(send.props.accessibilityState?.disabled ?? send.props.disabled).toBe(
-			false,
+		expect(send.props.disabled).toBe(true);
+		expect(
+			containsText(
+				root,
+				"Add a message describing what you want Cline to do with the attached images.",
+			),
+		).toBe(true);
+		const originalProps = root.find((node) => node.type === HomeComposer)
+			.props as ComponentProps<typeof HomeComposer>;
+		act(() =>
+			renderer.update(
+				<HomeComposer {...originalProps} draft="Describe this photo" />,
+			),
 		);
+		expect(
+			root.find(
+				(node) => node.props.accessibilityLabel === "Send to MacBook Pro",
+			).props.disabled,
+		).toBe(false);
+		expect(
+			containsText(
+				root,
+				"Add a message describing what you want Cline to do with the attached images.",
+			),
+		).toBe(false);
+		act(() => renderer.update(<HomeComposer {...originalProps} draft="   " />));
+		expect(
+			root.find(
+				(node) => node.props.accessibilityLabel === "Send to MacBook Pro",
+			).props.disabled,
+		).toBe(true);
+
 		act(() => send.props.onPress());
 		expect(onSend).not.toHaveBeenCalled();
 		expect(

@@ -13,7 +13,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import {
 	ActionSheetIOS,
 	Keyboard,
@@ -445,12 +445,39 @@ describe("Composer", () => {
 			],
 		});
 		const onSend = vi.fn(async () => {});
-		const { root } = renderComposer({ onSend });
+		const { root, renderer } = renderComposer({ onSend });
 		await pickImages(root);
 		const send = root.find((node) => node.props.accessibilityLabel === "Send");
-		expect(send.props.accessibilityState?.disabled ?? send.props.disabled).toBe(
-			false,
+		expect(send.props.disabled).toBe(true);
+		expect(
+			containsText(
+				root,
+				"Add a message describing what you want Cline to do with the attached images.",
+			),
+		).toBe(true);
+		const originalProps = root.find((node) => node.type === Composer)
+			.props as ComponentProps<typeof Composer>;
+		act(() =>
+			renderer.update(
+				<Composer {...originalProps} draft="Describe this photo" />,
+			),
 		);
+		expect(
+			root.find((node) => node.props.accessibilityLabel === "Send").props
+				.disabled,
+		).toBe(false);
+		expect(
+			containsText(
+				root,
+				"Add a message describing what you want Cline to do with the attached images.",
+			),
+		).toBe(false);
+		act(() => renderer.update(<Composer {...originalProps} draft="   " />));
+		expect(
+			root.find((node) => node.props.accessibilityLabel === "Send").props
+				.disabled,
+		).toBe(true);
+
 		await act(async () => send.props.onPress());
 		expect(onSend).not.toHaveBeenCalled();
 		expect(

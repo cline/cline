@@ -225,7 +225,12 @@ it("waits for initial active-account discovery rather than assuming unknown scop
 			})),
 		),
 	);
-	expect(screen.account.scope).toEqual({ organizationId: "org-a" });
+	expect(screen.account.scope).toEqual({
+		organizationId: "org-a",
+		accountName: membership.find(
+			(account) => account.organizationId === "org-a",
+		)?.name,
+	});
 	expect(api.list.mock.calls.map(([scope]) => scope)).toEqual(["org-a"]);
 	expect(screen.history.state).toMatchObject({
 		phase: "ready",
@@ -253,7 +258,7 @@ it("cannot let a late initial account response override a newer selected scope o
 		sessions: [orgRow],
 	});
 	await act(async () => finishAccounts(membership));
-	expect(screen.account.scope).toEqual({ organizationId: "org-a" });
+	expect(screen.account.scope).toMatchObject({ organizationId: "org-a" });
 	expect(screen.history.state).toMatchObject({
 		phase: "ready",
 		sessions: [orgRow],

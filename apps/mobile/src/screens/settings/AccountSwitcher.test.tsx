@@ -24,7 +24,7 @@ beforeEach(() => {
 	]);
 	mocks.switchAccount.mockResolvedValue(undefined);
 });
-async function mount(store?: ClineAuthStore) {
+async function mount(store?: ClineAuthStore, collapsed = false) {
 	let scope!: ReturnType<typeof useCloudAccountScope>;
 	function Observe() {
 		scope = useCloudAccountScope();
@@ -49,21 +49,52 @@ async function mount(store?: ClineAuthStore) {
 					node.props.accessibilityLabel === label,
 			)
 			.at(-1);
+	const expandChoices = () => {
+		const button = result.root
+			.findAll(
+				(node) =>
+					typeof node.type === "string" &&
+					node.props.accessibilityRole === "button" &&
+					node.props.accessibilityLabel?.startsWith("Current account:"),
+			)
+			.at(-1);
+		if (button?.props.accessibilityState?.expanded === false)
+			act(() => button.props.onPress());
+	};
+	if (!collapsed) expandChoices();
 	return {
 		...result,
 		row,
+		expandChoices,
 		getScope: () => scope,
 		hide: () => {
 			visible = false;
 			result.renderer.update(<Harness />);
 		},
-		show: () => {
+		show: async () => {
 			visible = true;
 			result.renderer.update(<Harness />);
+			await act(async () => {});
+			expandChoices();
 		},
 	};
 }
 describe("Account settings switcher", () => {
+	it("keeps choices collapsed until the user expands the current account", async () => {
+		const screen = await mount(undefined, true);
+		expect(screen.row("Team")).toBeUndefined();
+		expect(screen.row("Personal")).toBeUndefined();
+		expect(
+			screen.row("Current account: Team")?.props.accessibilityState.expanded,
+		).toBe(false);
+		screen.expandChoices();
+		expect(screen.row("Team")).toBeDefined();
+		expect(screen.row("Personal")).toBeDefined();
+		act(() => screen.row("Current account: Team")?.props.onPress());
+		expect(screen.row("Team")).toBeUndefined();
+		expect(mocks.switchAccount).not.toHaveBeenCalled();
+	});
+
 	it("ignores account discovery from an identity replaced before its response arrives", async () => {
 		const credentials = {
 			access: "a",
@@ -97,6 +128,7 @@ describe("Account settings switcher", () => {
 				{ name: "Retired Org A", organizationId: "retired-a", active: false },
 			]),
 		);
+		screen.expandChoices();
 		expect(screen.row("Current Org B")).toBeDefined();
 		expect(screen.row("Retired Org A")).toBeUndefined();
 	});
@@ -140,6 +172,7 @@ describe("Account settings switcher", () => {
 				{ name: "Private Org B", organizationId: "private-b", active: false },
 			]),
 		);
+		screen.expandChoices();
 		expect(screen.row("Private Org B")).toBeDefined();
 		expect(screen.row("Private Org A")).toBeUndefined();
 	});
@@ -150,6 +183,7 @@ describe("Account settings switcher", () => {
 		act(() => screen.row("Personal")?.props.onPress());
 		act(() => screen.hide());
 		await act(async () => screen.show());
+		screen.expandChoices();
 		act(() => screen.row("Personal")?.props.onPress());
 		expect(mocks.switchAccount).toHaveBeenCalledOnce();
 		expect(screen.row("Personal")?.props.accessibilityState.disabled).toBe(
@@ -157,7 +191,10 @@ describe("Account settings switcher", () => {
 		);
 		expect(screen.row("Team")?.props.accessibilityState.disabled).toBe(true);
 		await act(async () => pending.resolve());
-		expect(screen.getScope().scope).toEqual({ organizationId: undefined });
+		expect(screen.getScope().scope).toEqual({
+			organizationId: undefined,
+			accountName: "Personal",
+		});
 		expect(screen.row("Personal")?.props.accessibilityState.checked).toBe(true);
 		expect(screen.row("Personal")?.props.accessibilityState.disabled).toBe(
 			false,
@@ -197,12 +234,21 @@ describe("Account settings switcher", () => {
 		await act(async () => row("Personal")?.props.onPress());
 		expect(mocks.switchAccount).toHaveBeenLastCalledWith(undefined);
 		expect(row("Personal")?.props.accessibilityState.checked).toBe(true);
-		expect(getScope().scope).toEqual({ organizationId: undefined });
+		expect(getScope().scope).toEqual({
+			organizationId: undefined,
+			accountName: "Personal",
+		});
 		act(() => completeOldRefresh({ organizationId: "org-1" }));
-		expect(getScope().scope).toEqual({ organizationId: undefined });
+		expect(getScope().scope).toEqual({
+			organizationId: undefined,
+			accountName: "Personal",
+		});
 		await act(async () => row("Team")?.props.onPress());
 		expect(mocks.switchAccount).toHaveBeenLastCalledWith("org-1");
-		expect(getScope().scope).toEqual({ organizationId: "org-1" });
+		expect(getScope().scope).toEqual({
+			organizationId: "org-1",
+			accountName: "Team",
+		});
 	});
 	it("retains the active account and shows a readable failure", async () => {
 		mocks.switchAccount.mockRejectedValue(
@@ -222,6 +268,7 @@ describe("Account settings switcher", () => {
 		mocks.listAccounts.mockRejectedValueOnce(new Error("Try again."));
 		const { row } = await mount();
 		await act(async () => row("Retry accounts")?.props.onPress());
+		act(() => row("Current account: Team")?.props.onPress());
 		expect(row("Team")).toBeDefined();
 	});
 });
@@ -262,7 +309,10 @@ it("finishes the selected account switch when Settings is left before the respon
 	await act(async () => pending.resolve());
 	// The successful preference change belongs to the signed-in account, not
 	// the Settings route. Home must use the same account as the server.
-	expect(screen.getScope().scope).toEqual({ organizationId: undefined });
+	expect(screen.getScope().scope).toEqual({
+		organizationId: undefined,
+		accountName: "Personal",
+	});
 	screen.unmount();
 });
 
@@ -275,7 +325,10 @@ it("publishes an owned failure after Settings unmounts so Home can explain the r
 	act(() => screen.hide());
 	await act(async () => pending.reject(new Error("Network unavailable")));
 	expect(screen.getScope().selectionPending).toBe(false);
-	expect(screen.getScope().scope).toEqual({ organizationId: "org-1" });
+	expect(screen.getScope().scope).toEqual({
+		organizationId: "org-1",
+		accountName: "Team",
+	});
 	expect(screen.getScope().selectionError).toBe(
 		"Account could not be changed. Your previous account is still selected.",
 	);

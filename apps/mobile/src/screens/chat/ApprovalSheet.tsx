@@ -12,6 +12,7 @@ import {
 	BottomSheet,
 	Button,
 	borderAlpha,
+	Disclosure,
 	Divider,
 	expandBottomSheetAfterKeyboardDismiss,
 	Text,
@@ -90,6 +91,7 @@ function ApprovalCard({
 }) {
 	const theme = useTheme();
 	const [showReason, setShowReason] = useState(false);
+	const responding = useRef(false);
 	const [reason, setReason] = useState("");
 	const [pending, setPending] = useState<"approve" | "deny" | undefined>();
 	const [error, setError] = useState<string>();
@@ -99,6 +101,8 @@ function ApprovalCard({
 		nextPending: "approve" | "deny",
 		nextReason?: string,
 	) => {
+		if (responding.current) return;
+		responding.current = true;
 		setPending(nextPending);
 		setError(undefined);
 		try {
@@ -108,6 +112,7 @@ function ApprovalCard({
 				"Could not send your response. Check the connection and try again.",
 			);
 		} finally {
+			responding.current = false;
 			setPending(undefined);
 		}
 	};
@@ -131,7 +136,7 @@ function ApprovalCard({
 				}}
 			>
 				<Text variant="body" weight="500">
-					{approval.toolName}
+					{approvalTitle(approval.toolName)}
 				</Text>
 				<View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
 					<Clock3 size={12} color={theme.color.textMuted} />
@@ -140,9 +145,6 @@ function ApprovalCard({
 					</Text>
 				</View>
 			</View>
-			<Text variant="caption" tone="muted">
-				Request {approval.approvalId} · Iteration {approval.iteration}
-			</Text>
 			<View
 				style={{
 					borderWidth: 1,
@@ -153,9 +155,21 @@ function ApprovalCard({
 				}}
 			>
 				<Text variant="mono" tone="muted" style={{ lineHeight: 18 }}>
-					{formatInput(approval.inputJson)}
+					{approvalAction(approval.inputJson)}
 				</Text>
 			</View>
+			<Disclosure
+				label="Request details"
+				accessibilityLabel="Approval request details"
+				indent={0}
+			>
+				<Text variant="caption" tone="muted">
+					{`Request ${approval.approvalId} · Iteration ${approval.iteration}`}
+				</Text>
+				<Text variant="mono" selectable>
+					{formatInput(approval.inputJson)}
+				</Text>
+			</Disclosure>
 			{showReason ? (
 				<TextField
 					inBottomSheet
@@ -196,6 +210,33 @@ function ApprovalCard({
 			</View>
 		</View>
 	);
+}
+
+/** Keep every security-relevant field visible. Only unwrap known command shapes. */
+function approvalAction(inputJson: string): string {
+	try {
+		const input = JSON.parse(inputJson);
+		if (
+			input &&
+			typeof input === "object" &&
+			!Array.isArray(input) &&
+			typeof input.command === "string" &&
+			Object.keys(input).every((key) => key === "command" || key === "cwd") &&
+			(input.cwd === undefined || typeof input.cwd === "string")
+		) {
+			return typeof input.cwd === "string"
+				? `Working directory: ${input.cwd}\n\n${input.command}`
+				: input.command;
+		}
+	} catch {
+		/* Raw input remains visible. */
+	}
+	return formatInput(inputJson);
+}
+function approvalTitle(toolName: string): string {
+	return /^(bash|shell|run_command|execute_command)$/.test(toolName)
+		? "Run command"
+		: `Review ${toolName}`;
 }
 
 function formatInput(inputJson: string): string {

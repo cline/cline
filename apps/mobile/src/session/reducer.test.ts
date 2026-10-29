@@ -187,6 +187,7 @@ describe("view model golden shapes per fixture", () => {
 				state: "failed",
 				input: { command: "rm -rf /" },
 				error: "Tool bash was denied: too dangerous",
+				approvalStatus: "denied",
 			},
 		]);
 		expect(view.pendingApprovals).toEqual([]);
@@ -1887,5 +1888,227 @@ describe("actual SDK progress and partial iteration recovery", () => {
 			state: "completed",
 			output: "final result",
 		});
+	});
+});
+
+describe("approval display evidence", () => {
+	let nextId = 0;
+	function event(name: string, payload: unknown): HubEventEnvelope {
+		return {
+			version: "v1",
+			event: name,
+			eventId: `approval-display-${++nextId}`,
+			sessionId: "ses_1",
+			payload,
+		} as HubEventEnvelope;
+	}
+	const approval = {
+		approvalId: "ap_display",
+		sessionId: "ses_1",
+		agentId: "ag_1",
+		conversationId: "cv_1",
+		iteration: 1,
+		toolCallId: "tc_display",
+		toolName: "bash",
+		inputJson: '{"command":"git status"}',
+		policy: {},
+		createdAt: 1,
+	};
+	const started = () =>
+		event("tool.started", {
+			toolCallId: approval.toolCallId,
+			toolName: "bash",
+			input: { command: "git status" },
+		});
+	const requested = () => event("approval.requested", approval);
+	const resolved = (extra: Record<string, unknown>) =>
+		event("approval.resolved", {
+			approvalId: approval.approvalId,
+			approved: false,
+			...extra,
+		});
+	const failed = () =>
+		event("tool.finished", {
+			toolCallId: approval.toolCallId,
+			toolName: "bash",
+			error: "Tool bash was denied: unavailable",
+		});
+	const tool = (state: SessionState) =>
+		selectViewModel(state)
+			.messages.flatMap((message) => message.blocks)
+			.find(
+				(block) =>
+					block.kind === "tool" && block.toolCallId === approval.toolCallId,
+			);
+
+	it.each([
+		true,
+		false,
+	])("shows pending approval with request-before-start=%s", (requestFirst) => {
+		const state = applyEvents(
+			liveState(),
+			requestFirst ? [requested(), started()] : [started(), requested()],
+		);
+		expect(tool(state)).toMatchObject({
+			state: "running",
+			approvalStatus: "pending",
+		});
+	});
+	it("retains confirmed denial when a later tool failure arrives", () => {
+		const state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved({ approved: false }),
+			failed(),
+		]);
+		expect(tool(state)).toMatchObject({
+			state: "failed",
+			approvalStatus: "denied",
+		});
+		expect(selectViewModel(state).pendingApprovals).toEqual([]);
+	});
+	it("does not mistake an approved tool's error text for a denial", () => {
+		const state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved({ approved: true }),
+			failed(),
+		]);
+		expect(tool(state)).toMatchObject({ state: "failed" });
+		expect(tool(state)).not.toHaveProperty("approvalStatus");
+	});
+	it.each([
+		[{ expired: true }, "expired"],
+		[{ reason: "approval_timeout" }, "expired"],
+		[{ cancelled: true, reason: "run aborted" }, "cancelled"],
+	] as const)("distinguishes confirmed resolution %j", (payload, status) => {
+		const state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved(payload),
+			failed(),
+		]);
+		expect(tool(state)).toMatchObject({ approvalStatus: status });
+	});
+	it("does not assign an unmatched resolution to another call", () => {
+		const state = applyEvents(liveState(), [
+			resolved({ approved: false }),
+			started(),
+			failed(),
+		]);
+		expect(tool(state)).not.toHaveProperty("approvalStatus");
+	});
+	it("does not reinterpret a resolved decision without a matching pending request", () => {
+		const state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved({ approved: true }),
+			resolved({ approved: false }),
+			failed(),
+		]);
+		expect(tool(state)).not.toHaveProperty("approvalStatus");
+	});
+	it("allows a reused approval ID without transferring the previous call's denial", () => {
+		let state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved({ approved: false }),
+			failed(),
+		]);
+		state = applyEvents(state, [
+			event("approval.requested", { ...approval, toolCallId: "tc_next" }),
+			event("tool.started", {
+				toolCallId: "tc_next",
+				toolName: "bash",
+				input: { command: "git diff" },
+			}),
+			resolved({ approved: true }),
+		]);
+		const tools = selectViewModel(state)
+			.messages.flatMap((message) => message.blocks)
+			.filter((block) => block.kind === "tool");
+		expect(
+			tools.find((block) => block.toolCallId === "tc_next"),
+		).not.toHaveProperty("approvalStatus");
+		expect(tool(state)).toMatchObject({ approvalStatus: "denied" });
+	});
+	const history: import("./schemas").HydratedMessage[] = [
+		{
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: approval.toolCallId,
+					name: "bash",
+					input: { command: "git status" },
+				},
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: approval.toolCallId,
+					content: "Tool bash was denied: unavailable",
+					is_error: true,
+				},
+			],
+		},
+	];
+	it("preserves observed denial through rehydration but never guesses it on fresh history", () => {
+		let state = applyEvents(liveState(), [
+			started(),
+			requested(),
+			resolved({ approved: false }),
+			failed(),
+		]);
+		state = reduceSession(reduceSession(state, { type: "hydrate_started" }), {
+			type: "hydrated",
+			messages: history,
+		});
+		expect(tool(state)).toMatchObject({ approvalStatus: "denied" });
+		const fresh = reduceSession(
+			reduceSession(createSessionState(), { type: "hydrate_started" }),
+			{ type: "hydrated", messages: history },
+		);
+		expect(tool(fresh)).toMatchObject({ state: "failed" });
+		expect(tool(fresh)).not.toHaveProperty("approvalStatus");
+	});
+	it("retains buffered approval decisions when persisted history covers the tool activity", () => {
+		let state = reduceSession(liveState(), { type: "hydrate_started" });
+		state = applyEvents(state, [
+			started(),
+			requested(),
+			resolved({ approved: false }),
+			failed(),
+		]);
+		state = reduceSession(state, { type: "hydrated", messages: history });
+		expect(tool(state)).toMatchObject({ approvalStatus: "denied" });
+		expect(selectViewModel(state).pendingApprovals).toEqual([]);
+	});
+	it("a disconnect clearing pending approvals is not a confirmed denial", () => {
+		let state = applyEvents(liveState(), [started(), requested()]);
+		state = reduceSession(state, {
+			type: "transport_dropped",
+			detail: "offline",
+			clearApprovals: true,
+		});
+		expect(tool(state)).not.toHaveProperty("approvalStatus");
+	});
+	it("projects recovered pending approval and does not invent a decision from its later absence", () => {
+		let state = applyEvents(liveState(), [started()]);
+		state = reduceSession(state, {
+			type: "approvals_recovered",
+			approvals: [approval] as never,
+			now: 1,
+		});
+		expect(tool(state)).toMatchObject({ approvalStatus: "pending" });
+		state = reduceSession(state, {
+			type: "approvals_recovered",
+			approvals: [],
+			now: 2,
+		});
+		expect(tool(state)).not.toHaveProperty("approvalStatus");
 	});
 });

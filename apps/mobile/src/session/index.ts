@@ -26,6 +26,7 @@ export {
 	DEFAULT_APPROVAL_POLICY,
 	shouldAutoApprove,
 } from "./approval-policy";
+export type { SessionCheckpoint } from "./checkpoints";
 export {
 	ExactSessionNotFoundError,
 	FakeRemoteSessionGateway,
@@ -66,6 +67,7 @@ export {
 	selectViewModel,
 	type TokenUsageView,
 	type ToolActivityState,
+	type ToolApprovalStatus,
 } from "./reducer";
 export {
 	ASK_QUESTION_CAPABILITY,
@@ -95,5 +97,3 @@ export {
 	type SessionConnectionOptions,
 	type SessionInputAttachments,
 } from "./session-connection";
-
-export type { SessionCheckpoint } from "./checkpoints";

@@ -129,7 +129,7 @@ describe("conversation navigation", () => {
 				onLatest={vi.fn()}
 			/>,
 		);
-		expect(containsText(root, "1 prompts")).toBe(true);
+		expect(containsText(root, "1 prompt")).toBe(true);
 		act(() =>
 			findByLabel(root, "Search conversation")?.props.onChangeText("180"),
 		);

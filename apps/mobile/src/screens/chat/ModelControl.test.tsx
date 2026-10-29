@@ -242,8 +242,17 @@ describe("ModelControl", () => {
 			/>,
 		);
 		const row = findByLabel(root, "Use model Claude Sonnet 5.5");
-		expect(row?.props.accessibilityHint).toBe(`Model ID: ${id}`);
+		expect(containsText(root, `Model ID: ${id}`)).toBe(false);
+		expect(containsText(root, "Private deployment")).toBe(false);
+		act(() =>
+			findByLabel(
+				root,
+				"Show model details: Claude Sonnet 5.5",
+			)?.props.onPress(),
+		);
 		expect(containsText(root, `Model ID: ${id}`)).toBe(true);
+		expect(containsText(root, "Private deployment")).toBe(true);
+		expect(onChange).not.toHaveBeenCalled();
 		act(() =>
 			findByLabel(root, "Search models")?.props.onChangeText(
 				"vertex-global-r1",
@@ -512,4 +521,242 @@ it("does not repeat a normal settings handoff when onChange is followed by onClo
 	expect(next).toHaveBeenCalledOnce();
 	act(() => sheet?.props.onChange(-1));
 	expect(fresh).toHaveBeenCalledOnce();
+});
+
+describe("phone model picker", () => {
+	it("keeps the configured model and its details when refresh returns a partial catalog", async () => {
+		const current = {
+			id: "anthropic/sonnet-kept",
+			name: "My Sonnet",
+			tags: [],
+			description: "Current private deployment",
+		};
+		const onChange = vi.fn(async () => {});
+		const { root } = render(
+			<ModelControl
+				cloud
+				providerId="cline"
+				modelId={current.id}
+				canChange
+				cachedModels={[current]}
+				loadModels={async () => [models[1]]}
+				onChange={onChange}
+			/>,
+		);
+		await openModelSheet(root);
+		expect(findByLabel(root, "Current model: My Sonnet")).toBeDefined();
+		expect(
+			findByLabel(root, "Use model My Sonnet")?.props.accessibilityState
+				.checked,
+		).toBe(true);
+		expect(containsText(root, current.description)).toBe(false);
+		act(() => findByLabel(root, "Show current model details")?.props.onPress());
+		expect(containsText(root, `Model ID: ${current.id}`)).toBe(true);
+		expect(containsText(root, current.description)).toBe(true);
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ canChange: false, busy: false },
+		{ canChange: true, busy: true },
+	])("keeps an unknown provider's current model visible during locked or busy states: %s", async ({
+		canChange,
+		busy,
+	}) => {
+		const onChange = vi.fn(async () => {});
+		const { root } = render(
+			<ModelControl
+				providerId="private-provider"
+				modelId="private/model-42"
+				canChange={canChange}
+				busy={busy}
+				loadModels={async () => models}
+				onChange={onChange}
+			/>,
+		);
+		await openModelSheet(root);
+		expect(findByLabel(root, "Current model: Model 42")).toBeDefined();
+		expect(findByLabel(root, "Close model picker")).toBeDefined();
+		act(() => findByLabel(root, "Show current model details")?.props.onPress());
+		expect(containsText(root, "Model ID: private/model-42")).toBe(true);
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("groups Cloud offers only within the browsed catalog and preserves the current summary while searching", async () => {
+		const catalog = [
+			{
+				id: "current",
+				name: "Current coding model",
+				tags: [],
+				catalogId: "cline" as const,
+			},
+			{
+				id: "rec",
+				name: "Recommended coding",
+				tier: "recommended" as const,
+				tags: ["BEST"],
+				catalogId: "cline" as const,
+				supportsImages: true,
+				supportsReasoning: true,
+			},
+			{
+				id: "free",
+				name: "Free coding",
+				tier: "free" as const,
+				tags: [],
+				catalogId: "cline" as const,
+			},
+			{
+				id: "pass",
+				name: "Other offer",
+				tier: "subscribed" as const,
+				tags: [],
+				catalogId: "cline-pass" as const,
+			},
+		];
+		const { root } = render(
+			<ModelControl
+				cloud
+				providerId="cline"
+				modelId="current"
+				canChange
+				loadModels={async () => catalog}
+				onChange={async () => {}}
+			/>,
+		);
+		await openModelSheet(root);
+		expect(containsText(root, "Recommended")).toBe(true);
+		expect(containsText(root, "Free")).toBe(true);
+		expect(containsText(root, "Images · Thinking")).toBe(true);
+		expect(findByLabel(root, "Use model Other offer")).toBeUndefined();
+		act(() =>
+			findByLabel(root, "Search models")?.props.onChangeText("does-not-exist"),
+		);
+		expect(
+			findByLabel(root, "Current model: Current coding model"),
+		).toBeDefined();
+		expect(findByLabel(root, "Use model Current coding model")).toBeUndefined();
+		expect(containsText(root, "No models match your search.")).toBe(true);
+	});
+
+	it("admits only one model update from two taps before React commits", async () => {
+		let finish!: () => void;
+		const onChange = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const { root } = render(
+			<ModelControl
+				providerId="cline"
+				modelId="cline/default"
+				canChange
+				cachedModels={models}
+				loadModels={async () => models}
+				onChange={onChange}
+			/>,
+		);
+		const press = findByLabel(root, "Use model Cline fast")?.props.onPress;
+		act(() => {
+			press();
+			press();
+		});
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(
+			findByLabel(root, "Use model Cline fast")?.props.accessibilityState
+				.disabled,
+		).toBe(true);
+		await act(async () => finish());
+	});
+
+	it("rejects a captured choice after the session becomes busy", () => {
+		const onChange = vi.fn(async () => {});
+		const props = {
+			providerId: "cline",
+			modelId: "cline/default",
+			canChange: true,
+			cachedModels: models,
+			loadModels: async () => models,
+			onChange,
+		};
+		const { root, renderer } = render(<ModelControl {...props} />);
+		const stalePress = findByLabel(root, "Use model Cline fast")?.props.onPress;
+		act(() => renderer.update(<ModelControl {...props} busy />));
+		act(() => stalePress());
+		expect(onChange).not.toHaveBeenCalled();
+	});
+});
+
+it("keeps an absent current model in its known Cloud offer after a partial refresh", async () => {
+	const current = {
+		id: "managed/custom",
+		name: "Managed model",
+		catalogId: "cline-cloud" as const,
+		tags: [],
+	};
+	const onChange = vi.fn(async () => {});
+	const { root } = render(
+		<ModelControl
+			cloud
+			providerId="cline"
+			modelId={current.id}
+			cachedModels={[current]}
+			canChange
+			loadModels={async () => [
+				{
+					id: "paid/other",
+					name: "Paid other",
+					catalogId: "cline" as const,
+					tags: [],
+				},
+			]}
+			onChange={onChange}
+		/>,
+	);
+	await openModelSheet(root);
+	expect(
+		findByLabel(root, "Choose provider")?.props.accessibilityValue,
+	).toEqual({ text: "ClineFree" });
+	expect(
+		findByLabel(root, "Use model Managed model")?.props.accessibilityState
+			.checked,
+	).toBe(true);
+	expect(findByLabel(root, "Use model Paid other")).toBeUndefined();
+	act(() => findByLabel(root, "Choose provider")?.props.onPress());
+	expect(
+		findByLabel(root, "Provider: ClineFree")?.props.accessibilityState,
+	).toEqual({ checked: true, disabled: false });
+	expect(onChange).not.toHaveBeenCalled();
+});
+
+it("keeps a failed model choice explicit and permits one deliberate retry", async () => {
+	const onChange = vi
+		.fn()
+		.mockRejectedValueOnce(new Error("Model service unavailable"))
+		.mockResolvedValueOnce(undefined);
+	const { root } = render(
+		<ModelControl
+			providerId="cline"
+			modelId="cline/default"
+			cachedModels={models}
+			canChange
+			loadModels={async () => models}
+			onChange={onChange}
+		/>,
+	);
+	await act(async () =>
+		findByLabel(root, "Use model Cline fast")?.props.onPress(),
+	);
+	expect(containsText(root, "Model service unavailable")).toBe(true);
+	expect(
+		findByLabel(root, "Use model Cline fast")?.props.accessibilityState
+			.disabled,
+	).toBe(false);
+	expect(onChange).toHaveBeenCalledTimes(1);
+	await act(async () =>
+		findByLabel(root, "Use model Cline fast")?.props.onPress(),
+	);
+	expect(onChange).toHaveBeenCalledTimes(2);
+	expect(containsText(root, "Model service unavailable")).toBe(false);
 });

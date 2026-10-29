@@ -27,6 +27,7 @@ import {
 	Users,
 	Wrench,
 } from "lucide-react-native";
+import type { ToolApprovalStatus } from "@/session/reducer";
 import { isEditTool, normalizeEditorInput, parseToolDiff } from "./diff";
 
 interface IconRule {
@@ -142,6 +143,7 @@ export function toolLabel(
 	name: string,
 	state: "running" | "completed" | "failed",
 	input: unknown,
+	approvalStatus?: ToolApprovalStatus,
 ): string {
 	let summaryInput = input;
 	if (isEditTool(name) && !name.toLowerCase().includes("patch")) {
@@ -162,7 +164,54 @@ export function toolLabel(
 		inProgress: state === "running",
 		isError: state === "failed",
 	});
-	return state === "failed" ? "Failed: " + summary.label : summary.label;
+	if (approvalStatus || state === "failed") {
+		// A pending/denied/failed tool must not claim it already ran or edited files.
+		const action = neutralToolAction(summary);
+		const status =
+			approvalStatus === "pending"
+				? "Waiting for approval"
+				: approvalStatus === "denied"
+					? "Denied"
+					: approvalStatus === "expired"
+						? "Approval expired"
+						: approvalStatus === "cancelled"
+							? "Approval cancelled"
+							: "Failed";
+		return `${status}: ${action}`;
+	}
+	return summary.label;
+}
+
+function neutralToolAction(
+	summary: ReturnType<typeof buildToolSummary>,
+): string {
+	const details = summary.items.flatMap((item) => {
+		switch (item.type) {
+			case "command":
+				return [item.command];
+			case "file":
+				return [item.displayPath];
+			case "query":
+				return [item.query];
+			case "url":
+				return [item.url];
+			default:
+				return [];
+		}
+	});
+	const noun =
+		summary.kind === "command"
+			? "command"
+			: summary.kind === "edit"
+				? "file change"
+				: summary.kind === "read"
+					? "file read"
+					: summary.kind === "search"
+						? "search"
+						: summary.kind === "web"
+							? "web request"
+							: `tool ${summary.toolName}`;
+	return `${noun}${details.length ? ` ${details.join("; ")}` : ""}`;
 }
 
 /** The command/output body shown when a tool card is expanded. */

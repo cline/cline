@@ -65,6 +65,8 @@ function retirePrivateInput(
 
 export interface CloudAccountScope {
 	organizationId?: string;
+	/** Display metadata from the same accepted discovery/selection, never routing authority. */
+	accountName?: string;
 }
 interface CloudAccountSelection {
 	(scope: CloudAccountScope): boolean;
@@ -204,7 +206,9 @@ export function CloudAuthProvider({
 				scopeAuthority.current = next;
 				setSelection({ pending: false });
 				setScope((current) =>
-					current && current.organizationId === next.organizationId
+					current &&
+					current.organizationId === next.organizationId &&
+					current.accountName === next.accountName
 						? current
 						: next,
 				);

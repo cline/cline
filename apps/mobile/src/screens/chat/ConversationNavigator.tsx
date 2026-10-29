@@ -150,8 +150,8 @@ export function ConversationNavigator({
 							/>
 							<Text variant="caption" tone="muted">
 								{query.trim()
-									? `${entries.length} matching messages`
-									: `${entries.length} prompts`}
+									? `${entries.length} matching ${entries.length === 1 ? "message" : "messages"}`
+									: `${entries.length} ${entries.length === 1 ? "prompt" : "prompts"}`}
 							</Text>
 						</View>
 					}

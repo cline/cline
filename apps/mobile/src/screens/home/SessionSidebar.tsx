@@ -41,6 +41,7 @@ import {
 	TextField,
 	useTheme,
 } from "@/ui";
+import { SidebarAccountSummary } from "../settings/CreditBalance";
 import { SESSION_SIDEBAR_WIDTH } from "./AdaptiveSessionLayout";
 import {
 	type SessionActionAnchor,
@@ -313,6 +314,15 @@ export function SessionSidebar({
 
 			{onOpenSettings ? (
 				<View style={[styles.footer, { borderTopColor: theme.color.border }]}>
+					{open ? (
+						<SidebarAccountSummary
+							onPress={() => {
+								Keyboard.dismiss();
+								retireActions();
+								onOpenSettings();
+							}}
+						/>
+					) : null}
 					<SidebarAction
 						label="Settings"
 						onPress={() => {
