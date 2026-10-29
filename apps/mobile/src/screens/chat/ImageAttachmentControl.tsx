@@ -3,10 +3,10 @@ import {
 	validateImageMedia,
 } from "@cline/shared";
 import * as ImagePicker from "expo-image-picker";
-import { Paperclip, X } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Keyboard, Pressable, ScrollView, View } from "react-native";
-import { IconButton, Text, useTheme } from "@/ui";
+import { Text, useTheme } from "@/ui";
 
 const MAX_IMAGES = 4;
 let attachmentSequence = 0;
@@ -193,26 +193,6 @@ function parseUserImage(
 		mediaType: validated.mediaType,
 		base64: validated.base64,
 	};
-}
-
-export function ImageAttachmentButton({
-	onPress,
-	disabled = false,
-}: {
-	onPress(): void;
-	disabled?: boolean;
-}) {
-	const theme = useTheme();
-	return (
-		<IconButton
-			accessibilityLabel="Attach images"
-			disabled={disabled}
-			onPress={onPress}
-			padding={0}
-		>
-			<Paperclip size={16} color={theme.color.textMuted} />
-		</IconButton>
-	);
 }
 
 export function ImageAttachmentStrip({

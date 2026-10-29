@@ -461,7 +461,7 @@ or render a handful. Disable all motion under reduced-motion (desktop does).
 - **react-native-svg** — Cline logo, aurora radial blobs, any custom vector.
 - **lucide-react-native** — every icon in §7 (same names).
 - **expo-linear-gradient** — welcome send-button gradient, hero word gradient (with mask), aurora linear bands.
-- **@react-native-masked-view/masked-view** — gradient hero text, aurora vertical edge masks, streaming-title shimmer.
+- **@react-native-masked-view/masked-view** — native masks used by Expo Router.
 - **expo-blur** — composer backdrop blur (`backdrop-blur-md/sm`), popover/sheet frosting. Fallback: solid `surfaceRaised@95%` if blur is too costly.
 - **react-native-reanimated** — disclosure chevron rotate, tool/approval spinners, shimmer sweep, aurora drift, hero char-in. Gate all on reduced-motion.
 - **@gorhom/bottom-sheet** — approval sheet, model picker, session overview, any menu.
@@ -482,14 +482,14 @@ or render a handful. Disable all motion under reduced-motion (desktop does).
 
 ### Component inventory (build wave should produce)
 **Theme/primitives:** `ThemeProvider` (dark), `Text` (variant: hero/title/body/caption/mono), `Button` (variant: primary/secondary/outline/ghost/destructive; size sm/default/icon), `Card`/`Surface`, `Chip`/`Badge`, `StatusDot`, `Divider`, `IconButton`, `Spinner`, `TextField`, `SegmentedControl`, `AutoGrowTextarea`, `BottomSheet`.
-**Brand:** `ClineLogo`, `AuroraBackground`, `HeroHeading`.
+**Brand:** `ClineLogo`, `AgentWelcomeHero`, `StartupScreen`.
 **Setup:** `PairComputerState`, `CommandLine`.
-**Home:** `HomeScreen`, unified `SessionRowView` list; `IntroScreen` +
-`AuroraBackground` only before the first session/computer is available.
+**Home:** `HomeScreen`, unified `SessionRowView` list; `IntroScreen` uses
+`AgentWelcomeHero` above the composer or setup content.
 
 **Destinations:** `DestinationScreen`, `CloudAccountCard`, `CurrentSessionCard`,
 `SessionRowView`, `SessionStatusChip`, conditional `TextField`.
 **Chat:** `ChatScreen`, `ChatHeader` (title + status dot + diff pill + new/parent), `MessageList`, `UserMessageBubble`, `AssistantMessage`, `MarkdownRenderer`, `ReasoningBlock` (collapsible left-rail), `ToolActivityCard` (icon + label + `+N/-N` + state), `ToolCodeBlock`, `DiffView` + `DiffFileSection` + `DiffHunk`, `ScrollToBottomButton`.
-**Composer:** `Composer`, `SendButton`, `AbortButton`, `AutoApproveControl`, `UsageSummary`; model/context/attachment controls join only with working capabilities.
+**Composer:** `Composer`, `SendButton`, `AbortButton`, `AutoApprovePill`, `AutoApproveSheet`, `UsageSummary`; model/context/attachment controls join only with working capabilities.
 **Approval:** `ApprovalPanel` (amber frame), `ApprovalCard`, `ApprovalBottomSheet`, `AskQuestionPanel` (blue frame).
 ```

@@ -20,9 +20,7 @@ export interface CommandLineProps {
  * with `.1em .35em` padding; this is that treatment sized up to a block so a
  * thumb can long-press it.
  *
- * `selectable` is doing real work here: there is no clipboard dependency in this
- * app, so long-press → Copy is the only way to get the command onto the
- * clipboard. It is also why this is a `Text` and not an image or an icon row.
+ * Selectable text lets the user copy the command by long-pressing it.
  */
 export function CommandLine({
 	children,

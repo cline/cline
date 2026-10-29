@@ -388,10 +388,6 @@ vi.mock("expo-linear-gradient", () => ({
 	LinearGradient: host("LinearGradient"),
 }));
 
-vi.mock("@react-native-masked-view/masked-view", () => ({
-	default: host("MaskedView"),
-}));
-
 vi.mock("expo-blur", () => ({ BlurView: host("BlurView") }));
 
 vi.mock("expo-font", () => ({
