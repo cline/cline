@@ -23,7 +23,6 @@ describe("next-turn suggestions", () => {
 	it("reads this empty thread's full suggestion set at the first prompt", () => {
 		const state = readNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 		});
 
@@ -42,7 +41,6 @@ describe("next-turn suggestions", () => {
 	it("cycles forward and backward through only the current set", () => {
 		const first = readNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 		});
 		if (!first) throw new Error("Expected suggestions");
@@ -69,7 +67,6 @@ describe("next-turn suggestions", () => {
 	it("resets a new event to its first suggestion", () => {
 		const previous = readNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 		});
 		if (!previous) throw new Error("Expected suggestions");
@@ -77,7 +74,6 @@ describe("next-turn suggestions", () => {
 
 		const replacement = readNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload: {
 				...payload,
 				runId: "run-2",
@@ -97,18 +93,10 @@ describe("next-turn suggestions", () => {
 		});
 	});
 
-	it("ignores a non-empty draft and a different trusted session", () => {
-		expect(
-			readNextTurnSuggestions({
-				sessionId: "session-1",
-				draft: "keep this",
-				payload,
-			}),
-		).toBeNull();
+	it("ignores an event for a different trusted session", () => {
 		expect(
 			readNextTurnSuggestions({
 				sessionId: "session-2",
-				draft: "",
 				payload,
 			}),
 		).toBeNull();
@@ -118,21 +106,18 @@ describe("next-turn suggestions", () => {
 		expect(
 			readNextTurnSuggestions({
 				sessionId: "session-1",
-				draft: "",
 				payload: { ...payload, suggestions: [] },
 			}),
 		).toBeNull();
 		expect(
 			readNextTurnSuggestions({
 				sessionId: "session-1",
-				draft: "",
 				payload: null,
 			}),
 		).toBeNull();
 		expect(
 			readNextTurnSuggestions({
 				sessionId: "session-1",
-				draft: "",
 				payload: { ...payload, runId: "" },
 			}),
 		).toBeNull();
@@ -141,15 +126,12 @@ describe("next-turn suggestions", () => {
 	it("hides stored suggestions while a run is in flight", () => {
 		const accepted = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 			memory: EMPTY_NEXT_TURN_THREAD,
 		});
 		if (!accepted) throw new Error("Expected suggestions");
 
-		expect(
-			visibleNextTurnSuggestions(accepted.state, true),
-		).toBeUndefined();
+		expect(visibleNextTurnSuggestions(accepted.state, true)).toBeUndefined();
 		expect(visibleNextTurnSuggestions(accepted.state, false)).toEqual(
 			accepted.state,
 		);
@@ -158,7 +140,6 @@ describe("next-turn suggestions", () => {
 	it("ignores a late event once a newer run has started", () => {
 		const rules = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 			memory: EMPTY_NEXT_TURN_THREAD,
 		});
@@ -168,7 +149,6 @@ describe("next-turn suggestions", () => {
 		expect(
 			acceptNextTurnSuggestions({
 				sessionId: "session-1",
-				draft: "",
 				payload: {
 					...payload,
 					suggestions: [{ prompt: "Look at the specific failure in a.ts." }],
@@ -182,14 +162,12 @@ describe("next-turn suggestions", () => {
 	it("ignores an event whose run id is older than the latest accepted one", () => {
 		const first = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 			memory: EMPTY_NEXT_TURN_THREAD,
 		});
 		if (!first) throw new Error("Expected suggestions");
 		const second = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload: {
 				...payload,
 				runId: "run-2",
@@ -202,7 +180,6 @@ describe("next-turn suggestions", () => {
 		expect(
 			acceptNextTurnSuggestions({
 				sessionId: "session-1",
-				draft: "",
 				payload: {
 					...payload,
 					suggestions: [{ prompt: "Look at the specific failure in a.ts." }],
@@ -219,7 +196,6 @@ describe("next-turn suggestions", () => {
 	it("replaces the idle run's ghost with a later event and starts at the first prompt", () => {
 		const rules = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload,
 			memory: EMPTY_NEXT_TURN_THREAD,
 		});
@@ -228,7 +204,6 @@ describe("next-turn suggestions", () => {
 
 		const model = acceptNextTurnSuggestions({
 			sessionId: "session-1",
-			draft: "",
 			payload: {
 				...payload,
 				source: "model",

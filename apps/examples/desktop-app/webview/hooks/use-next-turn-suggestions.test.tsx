@@ -24,17 +24,10 @@ type Hook = ReturnType<typeof useNextTurnSuggestions>;
 let root: Root;
 let container: HTMLDivElement;
 let current: Hook;
-const promptInputRef = { current: "" };
-const setPromptInput = vi.fn((value: string) => {
-	promptInputRef.current = value;
-});
+const setPromptInput = vi.fn();
 
 function Harness(props: Props) {
-	current = useNextTurnSuggestions({
-		...props,
-		promptInputRef,
-		setPromptInput,
-	});
+	current = useNextTurnSuggestions({ ...props, setPromptInput });
 	return null;
 }
 
@@ -62,7 +55,6 @@ beforeEach(() => {
 	).IS_REACT_ACT_ENVIRONMENT = true;
 	container = document.createElement("div");
 	root = createRoot(container);
-	promptInputRef.current = "";
 	setPromptInput.mockClear();
 });
 
@@ -99,20 +91,34 @@ describe("useNextTurnSuggestions", () => {
 		expect(current.suggestion).toBe("Fresh prompt.");
 	});
 
-	it("never revives an earlier run whose event arrived while the user typed", () => {
+	it("never revives an earlier run once a newer run has started", () => {
 		render(idle);
-		promptInputRef.current = "typing";
 		emit("run-a", ["Rules for A."]);
-		promptInputRef.current = "";
 		render({ ...idle, turnEpoch: 1, status: "running" });
 		emit("run-a", ["Late model for A."]);
-		promptInputRef.current = "typing again";
 		emit("run-b", ["Rules for B."]);
 		render({ ...idle, turnEpoch: 1, status: "completed" });
+		emit("run-a", ["Later model for A."]);
 
-		promptInputRef.current = "";
-		render({ ...idle, turnEpoch: 1, status: "idle" });
-		expect(current.suggestion).toBeUndefined();
+		expect(current.suggestion).toBe("Rules for B.");
+	});
+
+	it("shows a rules set that arrived mid-run once the run finishes", () => {
+		render({ ...idle, turnEpoch: 1, status: "running" });
+		emit("run-1", ["Rules for run 1."]);
+		render({ ...idle, turnEpoch: 1, status: "completed" });
+
+		expect(current.suggestion).toBe("Rules for run 1.");
+	});
+
+	it("lets the planner set for the same run replace the rules at its first prompt", () => {
+		render({ ...idle, turnEpoch: 1, status: "running" });
+		emit("run-1", ["Rules for run 1."]);
+		render({ ...idle, turnEpoch: 1, status: "completed" });
+		act(() => current.navigate("next"));
+		emit("run-1", ["Planner for run 1.", "Planner second."]);
+
+		expect(current.suggestion).toBe("Planner for run 1.");
 	});
 
 	it("drops the stored set on a new turn and on a session change", () => {

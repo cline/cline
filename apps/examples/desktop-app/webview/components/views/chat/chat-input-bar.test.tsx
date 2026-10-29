@@ -412,64 +412,61 @@ describe("ChatInputBar draft navigation", () => {
 describe("ChatInputBar next-turn suggestions", () => {
 	const suggestion = "Run the checks for the files the last turn changed.";
 
-	it.each(["Tab", "ArrowRight"])(
-		"accepts the visible suggestion with %s",
-		async (key) => {
-			const onAcceptNextTurnSuggestion = vi.fn();
-			const onNavigateNextTurnSuggestion = vi.fn();
-			const onPromptInputChange = vi.fn();
-			await renderVoiceComposer({
-				nextTurnSuggestion: suggestion,
-				onAcceptNextTurnSuggestion,
-				onNavigateNextTurnSuggestion,
-				onPromptInputChange,
-			});
-			const textarea = container.querySelector("textarea");
+	it.each([
+		"Tab",
+		"ArrowRight",
+	])("accepts the visible suggestion with %s", async (key) => {
+		const onAcceptNextTurnSuggestion = vi.fn();
+		const onNavigateNextTurnSuggestion = vi.fn();
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({
+			nextTurnSuggestion: suggestion,
+			onAcceptNextTurnSuggestion,
+			onNavigateNextTurnSuggestion,
+			onPromptInputChange,
+		});
+		const textarea = container.querySelector("textarea");
 
-			expect(textarea?.value).toBe("");
-			expect(textarea?.placeholder).toBe(suggestion);
-			await act(async () => {
-				textarea?.dispatchEvent(
-					new KeyboardEvent("keydown", { key, bubbles: true }),
-				);
-			});
+		expect(textarea?.value).toBe("");
+		expect(textarea?.placeholder).toBe(suggestion);
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key, bubbles: true }),
+			);
+		});
 
-			expect(textarea?.value).toBe(suggestion);
-			expect(onPromptInputChange).toHaveBeenCalledWith(suggestion);
-			expect(onAcceptNextTurnSuggestion).toHaveBeenCalledOnce();
-			expect(onNavigateNextTurnSuggestion).not.toHaveBeenCalled();
-		},
-	);
+		expect(textarea?.value).toBe(suggestion);
+		expect(onPromptInputChange).toHaveBeenCalledWith(suggestion);
+		expect(onAcceptNextTurnSuggestion).toHaveBeenCalledOnce();
+		expect(onNavigateNextTurnSuggestion).not.toHaveBeenCalled();
+	});
 
 	it.each([
 		["ArrowDown", "next"],
 		["ArrowUp", "previous"],
-	] as const)(
-		"navigates the current suggestion set with %s without writing the draft",
-		async (key, direction) => {
-			const onAcceptNextTurnSuggestion = vi.fn();
-			const onNavigateNextTurnSuggestion = vi.fn();
-			const onPromptInputChange = vi.fn();
-			await renderVoiceComposer({
-				nextTurnSuggestion: suggestion,
-				onAcceptNextTurnSuggestion,
-				onNavigateNextTurnSuggestion,
-				onPromptInputChange,
-			});
-			const textarea = container.querySelector("textarea");
+	] as const)("navigates the current suggestion set with %s without writing the draft", async (key, direction) => {
+		const onAcceptNextTurnSuggestion = vi.fn();
+		const onNavigateNextTurnSuggestion = vi.fn();
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({
+			nextTurnSuggestion: suggestion,
+			onAcceptNextTurnSuggestion,
+			onNavigateNextTurnSuggestion,
+			onPromptInputChange,
+		});
+		const textarea = container.querySelector("textarea");
 
-			await act(async () => {
-				textarea?.dispatchEvent(
-					new KeyboardEvent("keydown", { key, bubbles: true }),
-				);
-			});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key, bubbles: true }),
+			);
+		});
 
-			expect(textarea?.value).toBe("");
-			expect(onPromptInputChange).not.toHaveBeenCalled();
-			expect(onAcceptNextTurnSuggestion).not.toHaveBeenCalled();
-			expect(onNavigateNextTurnSuggestion).toHaveBeenCalledWith(direction);
-		},
-	);
+		expect(textarea?.value).toBe("");
+		expect(onPromptInputChange).not.toHaveBeenCalled();
+		expect(onAcceptNextTurnSuggestion).not.toHaveBeenCalled();
+		expect(onNavigateNextTurnSuggestion).toHaveBeenCalledWith(direction);
+	});
 
 	it("does not accept a suggestion from Shift+Tab", async () => {
 		const onAcceptNextTurnSuggestion = vi.fn();
@@ -529,6 +526,23 @@ describe("ChatInputBar next-turn suggestions", () => {
 
 		expect(textarea?.value).toBe("Keep this draft");
 		expect(onNavigateNextTurnSuggestion).not.toHaveBeenCalled();
+	});
+
+	it("hides the suggestion while the field has text and shows it again once cleared", async () => {
+		await renderVoiceComposer({
+			prompt: "Keep this draft",
+			promptVersion: 1,
+			nextTurnSuggestion: suggestion,
+		});
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.placeholder).not.toBe(suggestion);
+
+		await renderVoiceComposer({
+			prompt: "",
+			promptVersion: 2,
+			nextTurnSuggestion: suggestion,
+		});
+		expect(textarea?.placeholder).toBe(suggestion);
 	});
 });
 
