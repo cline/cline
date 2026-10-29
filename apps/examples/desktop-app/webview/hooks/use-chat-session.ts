@@ -3990,7 +3990,9 @@ export function useChatSession(environmentId: string) {
 			const nextStatus = mapCloudRuntimeStatus(attached.status);
 			if (
 				nextStatus &&
-				canRefreshHistory() &&
+				(nextStatus === "running"
+					? !abortedRef.current
+					: canRefreshHistory()) &&
 				turnEpochRef.current === epoch &&
 				authoritativeStatusRevisionRef.current === statusRevision
 			) {

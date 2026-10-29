@@ -1760,7 +1760,10 @@ describe("useChatSession", () => {
 		]);
 	});
 
-	it("preserves an active cloud turn and its failure during explicit reselection", async () => {
+	it.each([
+		"running",
+		"idle",
+	] as const)("preserves streamed text and newer errors when reselecting a %s cloud view", async (initialStatus) => {
 		const sessionId = "session-reselection-race";
 		const attachment = deferred<{ status: string }>();
 		const attachRequested = deferred<void>();
@@ -1775,7 +1778,7 @@ describe("useChatSession", () => {
 							attachRequested.resolve();
 							return attachment.promise;
 						}
-						return { sessionId, status: "running", ...cloudSessionConfig };
+						return { sessionId, status: initialStatus, ...cloudSessionConfig };
 					}
 				}
 				return [];
@@ -1785,24 +1788,25 @@ describe("useChatSession", () => {
 			current.hydrateSession({
 				sessionId,
 				origin: "cloud",
-				status: "running",
+				status: initialStatus,
 				...cloudSessionConfig,
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
 		vi.useFakeTimers();
 		try {
-			await act(async () => {
-				handlerFor("chat_event")({
-					sessionId,
-					stream: "chat_text",
-					chunk: "Still working",
-					ts: 1,
-					index: 1,
+			const streamChunk = async () =>
+				act(async () => {
+					handlerFor("chat_event")({
+						sessionId,
+						stream: "chat_text",
+						chunk: "Still working",
+						ts: 1,
+						index: 1,
+					});
+					await vi.advanceTimersByTimeAsync(200);
 				});
-				await vi.advanceTimersByTimeAsync(200);
-			});
-			const assistantId = current.activeAssistantMessageId;
+			if (initialStatus === "running") await streamChunk();
 			invokeMock.mockClear();
 			refreshing = true;
 			let refresh!: Promise<void>;
@@ -1810,18 +1814,26 @@ describe("useChatSession", () => {
 				refresh = current.refreshSelectedCloudSession();
 				await attachRequested.promise;
 			});
-			expect(invokeMock).not.toHaveBeenCalledWith(
-				"read_session_messages",
-				expect.anything(),
-			);
-			expect(current.activeAssistantMessageId).toBe(assistantId);
+			if (initialStatus === "running") {
+				expect(invokeMock).not.toHaveBeenCalledWith(
+					"read_session_messages",
+					expect.anything(),
+				);
+			} else {
+				expect(current.status).toBe("idle");
+				await streamChunk();
+			}
+			const assistantId = current.activeAssistantMessageId;
+			expect(assistantId).toBeTruthy();
 			expect(current.messages.at(-1)?.content).toBe("Still working");
 			await act(async () => {
 				handlerFor("cloud_session_sync_failed")({
 					sessionId,
 					message: "New connection failure",
 				});
-				attachment.resolve({ status: "completed" });
+				attachment.resolve({
+					status: initialStatus === "idle" ? "running" : "completed",
+				});
 				await refresh;
 			});
 			expect(current.error).toBe("New connection failure");
