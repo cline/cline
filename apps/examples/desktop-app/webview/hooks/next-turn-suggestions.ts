@@ -1,10 +1,4 @@
-import {
-	type RefObject,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
 
 export type NextTurnSuggestionState = {
@@ -65,16 +59,15 @@ export function markNewerNextTurnRun(
  * that just finished. An event for an older accepted id is ignored. After a
  * newer run starts, a late event for the previous id is ignored too.
  * A later event for the current id replaces the prompts and resets the index.
- * A non-empty draft hides the prompts but still records the run id, so a late
- * event from an earlier run cannot pass for a new one.
+ * The set is kept while the composer has text; the composer hides it until the
+ * box is empty again.
  */
 export function acceptNextTurnSuggestions(input: {
 	sessionId: string | null | undefined;
-	draft: string;
 	payload: unknown;
 	memory: NextTurnThreadMemory;
 }): {
-	state: NextTurnSuggestionState | undefined;
+	state: NextTurnSuggestionState;
 	memory: NextTurnThreadMemory;
 } | null {
 	if (!input.sessionId) return null;
@@ -95,7 +88,7 @@ export function acceptNextTurnSuggestions(input: {
 	}
 
 	return {
-		state: input.draft.trim() === "" ? { prompts, index: 0 } : undefined,
+		state: { prompts, index: 0 },
 		memory: {
 			acceptedRunIds:
 				runId === latestRunId ? acceptedRunIds : [...acceptedRunIds, runId],
@@ -106,7 +99,6 @@ export function acceptNextTurnSuggestions(input: {
 
 export function readNextTurnSuggestions(input: {
 	sessionId: string | null | undefined;
-	draft: string;
 	payload: unknown;
 }): NextTurnSuggestionState | null {
 	return (
@@ -152,10 +144,9 @@ export function useNextTurnSuggestions(input: {
 	sessionId: string | null | undefined;
 	status: string;
 	turnEpoch: number;
-	promptInputRef: RefObject<string>;
 	setPromptInput: (value: string) => void;
 }) {
-	const { sessionId, turnEpoch, promptInputRef, setPromptInput } = input;
+	const { sessionId, turnEpoch, setPromptInput } = input;
 	const runInFlight = nextTurnRunInFlight(input.status);
 	const [suggestions, setSuggestions] = useState<NextTurnSuggestionState>();
 	const memoryRef = useRef(EMPTY_NEXT_TURN_THREAD);
@@ -179,15 +170,14 @@ export function useNextTurnSuggestions(input: {
 		return desktopClient.subscribe("next_turn_suggestions", (payload) => {
 			const accepted = acceptNextTurnSuggestions({
 				sessionId,
-				draft: promptInputRef.current,
 				payload,
 				memory: memoryRef.current,
 			});
 			if (!accepted) return;
 			memoryRef.current = accepted.memory;
-			if (accepted.state) setSuggestions(accepted.state);
+			setSuggestions(accepted.state);
 		});
-	}, [promptInputRef, sessionId]);
+	}, [sessionId]);
 
 	const suggestion = currentNextTurnPrompt(
 		visibleNextTurnSuggestions(suggestions, runInFlight),

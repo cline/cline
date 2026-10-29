@@ -1609,7 +1609,6 @@ function ChatThreadPane({
 		clearPromptForSend,
 		clearDraftForHandoff,
 		promptDraft,
-		promptInputRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
@@ -1617,7 +1616,6 @@ function ChatThreadPane({
 		sessionId,
 		status,
 		turnEpoch,
-		promptInputRef,
 		setPromptInput,
 	});
 	const [workInSelection, setWorkInSelection] =
