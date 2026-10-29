@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	open: vi.fn(),
 	user: { id: "one" },
+	accountReady: true,
 }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
@@ -19,7 +20,7 @@ vi.mock("@/lib/desktop-client", () => ({
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
 		user: mocks.user,
-		accountReady: true,
+		accountReady: mocks.accountReady,
 		activeOrganization: null,
 	}),
 }));
@@ -39,6 +40,7 @@ let root: Root;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	mocks.user = { id: "one" };
+	mocks.accountReady = true;
 	mocks.invoke.mockReset().mockResolvedValue({
 		url: "https://storage.example/file?signed=1",
 		expiresAt: "2030-01-01T00:00:00Z",
@@ -63,7 +65,14 @@ async function click() {
 }
 
 it("downloads a persisted publication and keeps per-file errors visible", async () => {
+	mocks.accountReady = false;
 	await render();
+	expect(container.querySelector("button")?.disabled).toBe(true);
+	await click();
+	expect(mocks.invoke).not.toHaveBeenCalled();
+	mocks.accountReady = true;
+	await render();
+	expect(container.querySelector("button")?.disabled).toBe(false);
 	expect(container.textContent).toContain("Local file does not exist");
 	expect(container.querySelectorAll("button")).toHaveLength(1);
 	expect(mocks.invoke).not.toHaveBeenCalled();
