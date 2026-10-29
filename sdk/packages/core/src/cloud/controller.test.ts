@@ -570,6 +570,88 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 
 	it.each([
+		"failed",
+		"expired",
+		"suspended",
+	])("archive recovery reports refreshed %s state after transport failure", async (status) => {
+		const f = resumableFixture();
+		try {
+			f.setStatus("running");
+			await f.controller.attach(record.id);
+			await f.controller.readMessages(record.id);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status },
+			]);
+			const messages = [{ role: "assistant", content: "Archived answer" }];
+			f.api.history.mockResolvedValue(messages);
+			f.command.mockRejectedValue(
+				Object.assign(new Error("socket closed"), {
+					name: "HubTransportError",
+					code: "hub_connection_closed",
+				}),
+			);
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				kind: "refreshed",
+				messages,
+				status,
+			});
+			expect(f.controller.getSnapshot(record.id)).toMatchObject({
+				status,
+				busy: false,
+			});
+			expect(
+				f.events.filter((event) => event.type === "snapshot").at(-1),
+			).toMatchObject({
+				snapshot: { status, busy: false },
+			});
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("explicit waiters recover a failed passive acquisition (retry fails: %s)", async (retryFails) => {
+		const f = resumableFixture();
+		const error = Object.assign(new Error("socket closed"), {
+			name: "HubTransportError",
+			code: "hub_connection_closed",
+		});
+		let reject!: (error: Error) => void;
+		f.command.mockImplementationOnce(
+			() =>
+				new Promise((_, fail) => {
+					reject = fail;
+				}),
+		);
+		if (retryFails) f.command.mockRejectedValue(error);
+		try {
+			const passive = f.controller
+				.readMessagesIfAwake(record.id)
+				.catch((error) => error);
+			await vi.waitFor(() => expect(f.command).toHaveBeenCalledOnce());
+			const explicit = [
+				f.controller.attach(record.id),
+				f.controller.attach(record.id),
+			];
+			const outcomes = Promise.allSettled(explicit);
+			await Promise.resolve();
+			reject(error);
+			expect(await passive).toBe(error);
+			for (const outcome of await outcomes) {
+				expect(outcome.status).toBe(retryFails ? "rejected" : "fulfilled");
+			}
+			expect(f.dispose).toHaveBeenCalledOnce();
+			expect(f.api.status).toHaveBeenCalledTimes(2);
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
 		"passive",
 		"explicit",
 	])("preserves explicit resume when %s acquisition starts first", async (first) => {
