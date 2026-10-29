@@ -78,12 +78,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[apiConfiguration?.lmStudioBaseUrl, config?.baseUrl],
 	)
 
-	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
-		apiKeyLength: config?.apiKeyLength,
-		providerName: "LM Studio",
-		write,
-	})
-
 	const handleBaseUrlChange = useCallback(
 		(value: string) => {
 			void write({ baseUrl: value }).catch((error) => console.error("Failed to update LM Studio base URL:", error))
@@ -106,16 +100,22 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				return
 			}
 			setPendingSelectedModelId(trimmedModelId)
-			void commitModelSelection(trimmedModelId)
+			const model = lmStudioModels.find((candidate) => candidate.id === trimmedModelId)
+			void commitModelSelection({
+				modelId: trimmedModelId,
+				modelInfo: toLmStudioModelInfo(model, trimmedModelId),
+			}).catch((error) => {
+				console.error("Failed to update LM Studio model selection:", error)
+				setPendingSelectedModelId(undefined)
+			})
 		},
-		[commitModelSelection],
+		[commitModelSelection, lmStudioModels, toLmStudioModelInfo],
 	)
 
-	// We do a first fetch on mount, and again whenever the dropdown is focused
-	// (see onFocusCapture below). That way, if the user starts LM Studio later,
-	// the models list can be refreshed without changing the base URL.
-	// We intentionally don't re-fetch automatically when the base URL changes,
-	// because the user may still be typing. The next focus will trigger a refresh.
+	// Fetch LM Studio models on mount, whenever the endpoint changes, and when
+	// the model control gains focus (no interval polling — the endpoint is
+	// user-configurable, see ENG-2344), so a server started after mount is
+	// still discovered.
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
 			value: endpoint,
@@ -130,6 +130,16 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
 	}, [endpoint])
+
+	// Re-fetch once the key is saved, so the list isn't stale from the old key.
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "LM Studio",
+		write: async (patch) => {
+			await write(patch)
+			void requestLmStudioModels()
+		},
+	})
 
 	useEffect(() => {
 		requestLmStudioModels()
@@ -161,11 +171,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	return (
 		<div className="flex flex-col gap-2">
 			<ApiKeyField
+				helpText="Only needed if LM Studio's server has 'Require Authentication' enabled. Stored locally."
 				initialValue={savedApiKeyMask}
 				onChange={handleApiKeyChange}
-				providerName="LM Studio"
 				placeholder="Enter LM Studio API Key..."
-				helpText="Only needed if LM Studio's server has 'Require Authentication' enabled. Stored locally."
+				providerName="LM Studio"
 			/>
 
 			<BaseUrlField
