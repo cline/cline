@@ -147,10 +147,29 @@ export async function handleProviderCommand(
 				const storageProviderId =
 					getProviderAuthHandler(input.providerId)?.storageProviderId ??
 					input.providerId;
-				const previous =
-					storageProviderId === "cline"
-						? manager.getProviderSettings("cline")
-						: undefined;
+				const stored = manager.getProviderSettings(storageProviderId);
+				const previous = storageProviderId === "cline" ? stored : undefined;
+				// A pasted key replaces browser sign-in, including shared Cline Pass auth.
+				if (
+					input.apiKey?.trim() &&
+					getProviderAuthHandler(input.providerId) &&
+					input.auth === undefined &&
+					stored?.auth?.accessToken
+				) {
+					input.auth = {
+						accessToken: "",
+						refreshToken: "",
+						apiKey: "",
+						accountId: "",
+					};
+					if (storageProviderId !== input.providerId) {
+						await saveLocalProviderSettings(manager, {
+							providerId: storageProviderId,
+							apiKey: input.apiKey,
+							auth: input.auth,
+						});
+					}
+				}
 				const saved = await saveLocalProviderSettings(manager, input);
 				if (!saved.enabled) {
 					if (storageProviderId !== saved.providerId) {

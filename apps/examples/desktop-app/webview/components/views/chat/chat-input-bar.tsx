@@ -62,7 +62,10 @@ import {
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
+import { isLocalRuntime } from "@/lib/local-models";
 import {
+	MODEL_SELECTION_CHANGED_EVENT,
+	type ModelSelectionChangedDetail,
 	readModelSelectionStorageFromWindow,
 	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -81,7 +84,8 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-import { PullRequestBar } from "./pull-request-bar";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
+import { LocalModelIndicator } from "./local-model-indicator";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -127,6 +131,21 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+const CLOUD_HANDOFF_SLASH_COMMAND: SlashCommand = {
+	name: "cloud",
+	description: "Continue this local session in Cline Cloud",
+};
+
+export function withCloudHandoffSlashCommand(
+	commands: SlashCommand[],
+	enabled: boolean,
+): SlashCommand[] {
+	if (!enabled) return commands;
+	return [
+		CLOUD_HANDOFF_SLASH_COMMAND,
+		...commands.filter((command) => command.name !== "cloud"),
+	];
+}
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -303,6 +322,7 @@ type ChatInputBarProps = {
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
+	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
 	provider: string;
@@ -340,6 +360,8 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
+	/** Opens Settings → Local Models from the local model chip. */
+	onOpenLocalModels?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -349,11 +371,16 @@ type ChatInputBarProps = {
 	};
 };
 
+// Below this composer width the full settings row no longer fits, so the
+// provider/model pickers collapse into a menu.
+const COMPACT_COMPOSER_WIDTH = 512;
+
 function ChatInputBarImpl({
 	sessionId,
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
+	cloudHandoffAvailable = false,
 	status,
 	hasRunningAgents = false,
 	provider,
@@ -385,8 +412,24 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenModelSettings,
+	onOpenLocalModels,
 	summary,
 }: ChatInputBarProps) {
+	// The composer compacts by its own width rather than the window's: beside
+	// the workspace panel it can be narrow in a wide window, and a container
+	// query would turn the settings row into the containing block for the
+	// compact menu's full-screen click-away layer.
+	const composerRef = useRef<HTMLDivElement | null>(null);
+	const [compact, setCompact] = useState(false);
+	useEffect(() => {
+		const element = composerRef.current;
+		if (!element || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) setCompact(entry.contentRect.width < COMPACT_COMPOSER_WIDTH);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, []);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -438,6 +481,7 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
+	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
@@ -696,11 +740,15 @@ function ChatInputBarImpl({
 	const [instructionError, setInstructionError] = useState<string>();
 	const slashLoading = pluginLoading || instructionLoading;
 	const slashError = pluginError ?? instructionError;
+	const visibleSlashCommands = useMemo(
+		() => withCloudHandoffSlashCommand(slashCommands, cloudHandoffAvailable),
+		[cloudHandoffAvailable, slashCommands],
+	);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
 	useEffect(() => {
-		setKnownSlashCommands(slashCommands.map((command) => command.name));
-	}, [slashCommands]);
+		setKnownSlashCommands(visibleSlashCommands.map((command) => command.name));
+	}, [visibleSlashCommands]);
 	const composerHighlights = useMemo(
 		() =>
 			executionTarget === "local"
@@ -1140,9 +1188,9 @@ function ChatInputBarImpl({
 		if (!slashOpen) return [];
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return slashCommands.slice(0, 10);
+			return visibleSlashCommands.slice(0, 10);
 		}
-		return slashCommands
+		return visibleSlashCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -1152,7 +1200,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands]);
+	}, [slashOpen, activeSlash?.query, visibleSlashCommands]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
@@ -1190,9 +1238,13 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<AgentComposer variant={variant}>
+		<AgentComposer
+			className="group/composer"
+			data-compact={compact || undefined}
+			ref={composerRef}
+			variant={variant}
+		>
 			{/* Input area */}
-			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
@@ -1565,7 +1617,7 @@ function ChatInputBarImpl({
 
 			{/* Composer settings */}
 			<AgentComposerSettings>
-				<AgentComposerSettingsGroup>
+				<AgentComposerSettingsGroup className="group-data-[compact]/composer:flex-none">
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1627,7 +1679,7 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0">
+					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
 							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
@@ -1644,7 +1696,6 @@ function ChatInputBarImpl({
 								executionTarget === "cloud" ? undefined : onOpenModelSettings
 							}
 							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
 						/>
 					</div>
@@ -1655,7 +1706,7 @@ function ChatInputBarImpl({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								cloudSettingsLocked
@@ -1666,7 +1717,7 @@ function ChatInputBarImpl({
 							}
 						>
 							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
+							<span className="group-data-[compact]/composer:sr-only">
 								<SelectValue>{effortLabel}</SelectValue>
 							</span>
 						</SelectTrigger>
@@ -1678,11 +1729,22 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
+					{/* The chip controls this computer's runtime, which SSH sessions don't use. */}
+					{executionTarget !== "cloud" &&
+					environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					isLocalRuntime(localRuntime) ? (
+						<LocalModelIndicator
+							isBusy={isBusy}
+							model={model}
+							onOpenLocalModels={onOpenLocalModels}
+							runtime={localRuntime}
+						/>
+					) : null}
 				</AgentComposerSettingsGroup>
 
 				{/* Reserve room for the model and thinking controls so a long
 				    branch name can't squeeze the model name out entirely. */}
-				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] max-[560px]:max-w-none">
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] group-data-[compact]/composer:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -1739,7 +1801,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
 	includeCloudModels = false,
-	persistSelection = true,
 	provider,
 	model,
 	isBusy,
@@ -1753,7 +1814,6 @@ const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
-	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1787,6 +1847,14 @@ const ModelSelector = memo(function ModelSelector({
 			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
+	// Remounted per execution target, so this reads the local provider as of entering Cloud.
+	const [localClinePass] = useState(
+		() =>
+			includeCloudModels &&
+			normalizeProviderId(
+				readModelSelectionStorageFromWindow().lastProvider,
+			) === "cline-pass",
+	);
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const normalizedProvider = includeCloudModels
 		? (Object.keys(providerModels).find((id) =>
@@ -1970,12 +2038,25 @@ const ModelSelector = memo(function ModelSelector({
 		) {
 			return rememberedModel;
 		}
+		if (includeCloudModels) {
+			const fallback =
+				(localClinePass
+					? visibleProviderModels["cline-pass"]?.[0]
+					: undefined) ??
+				(Object.values(visibleProviderModels).some((ids) =>
+					ids.includes(CLINE_DEFAULT_MODEL_ID),
+				)
+					? CLINE_DEFAULT_MODEL_ID
+					: undefined);
+			if (fallback) return fallback;
+		}
 		return (
 			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
 			modelsForProvider[0] ??
 			""
 		);
 	}, [
+		localClinePass,
 		includeCloudModels,
 		autoCorrectModel,
 		lastSelection.lastModelByProvider,
@@ -1985,6 +2066,7 @@ const ModelSelector = memo(function ModelSelector({
 		pickerModelIds,
 		rememberedLastProvider,
 		resolvedProvider,
+		visibleProviderModels,
 	]);
 	// The picker can intentionally hide catalog models (the ClinePass offer
 	// is exactly its subscribed/free tiers), but the active model must stay
@@ -2108,10 +2190,20 @@ const ModelSelector = memo(function ModelSelector({
 	// prop change here would also capture passive changes — most notably
 	// opening an existing session, whose config drives these props — silently
 	// replacing the user's chosen default with whatever model that session
-	// happened to use.
+	// happened to use. It also skips automatic Cloud fallbacks, so the Cloud
+	// default keeps following the local model and ClinePass subscription.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
-			if (!persistSelection) {
+			if (includeCloudModels) {
+				if (!modelId) return;
+				try {
+					writeModelSelectionStorageToWindow(
+						{ lastProvider: "cline", lastModelByProvider: { cline: modelId } },
+						"cloud",
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 				return;
 			}
 			const normalizedId = normalizeProviderId(providerId);
@@ -2136,17 +2228,45 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[persistSelection],
+		[includeCloudModels],
 	);
 
 	useEffect(() => {
-		if (!persistSelection) return;
+		if (includeCloudModels) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection, persistSelection]);
+	}, [includeCloudModels, lastSelection]);
+
+	// A selection made mid-turn waits for the turn to end.
+	const [pendingSelection, setPendingSelection] =
+		useState<ModelSelectionChangedDetail | null>(null);
+	useEffect(() => {
+		if (includeCloudModels) return;
+		const handleSelectionChanged = (event: Event) => {
+			setPendingSelection(
+				(event as CustomEvent<ModelSelectionChangedDetail>).detail,
+			);
+			setLastSelection(readModelSelectionStorageFromWindow());
+		};
+		window.addEventListener(
+			MODEL_SELECTION_CHANGED_EVENT,
+			handleSelectionChanged,
+		);
+		return () =>
+			window.removeEventListener(
+				MODEL_SELECTION_CHANGED_EVENT,
+				handleSelectionChanged,
+			);
+	}, [includeCloudModels]);
+	useEffect(() => {
+		if (isBusy || !pendingSelection) return;
+		setPendingSelection(null);
+		onProviderChange(pendingSelection.providerId);
+		onModelChange(pendingSelection.modelId);
+	}, [isBusy, pendingSelection, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
@@ -2327,12 +2447,12 @@ const ModelSelector = memo(function ModelSelector({
 		);
 	}
 	return (
-		<div className="relative min-w-0 text-sm">
+		<div className="relative min-w-0 text-sm group-data-[compact]/composer:shrink-0">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 group-data-[compact]/composer:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
@@ -2345,11 +2465,11 @@ const ModelSelector = memo(function ModelSelector({
 				<>
 					<button
 						aria-label="Close model selector"
-						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						className="fixed inset-0 z-40 hidden cursor-default opacity-0 group-data-[compact]/composer:block"
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none group-data-[compact]/composer:block">
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
 								Provider
@@ -2371,7 +2491,7 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
+			<div className="flex min-w-0 items-center gap-0.5 group-data-[compact]/composer:hidden">
 				{/* Wide enough for the longest built-in provider names ("Cline
 				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
 				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>

@@ -64,6 +64,10 @@ function cloneRecommendedModels(
 			...model,
 			tags: [...model.tags],
 		})),
+		clineCloud: data.clineCloud?.map((model) => ({
+			...model,
+			tags: [...model.tags],
+		})),
 	};
 }
 
@@ -101,11 +105,14 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	const clinePass = clinePassRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
+	const clineCloud = (Array.isArray(data.clineCloud) ? data.clineCloud : [])
+		.map(normalizeModel)
+		.filter((model): model is ClineRecommendedModel => model !== null);
 	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 		return null;
 	}
 
-	return { recommended, free, clinePass };
+	return { recommended, free, clinePass, clineCloud };
 }
 
 function getConfiguredApiBaseUrl(
@@ -243,6 +250,7 @@ function resolveCatalogDisplayNames(
 		recommended: withNames(data.recommended, [catalog?.openrouter]),
 		free: withNames(data.free, [catalog?.cline, catalog?.openrouter]),
 		clinePass: withNames(data.clinePass, [catalog?.["cline-pass"]]),
+		clineCloud: data.clineCloud && withNames(data.clineCloud, [catalog?.cline]),
 	};
 }
 

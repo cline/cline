@@ -601,6 +601,8 @@ export interface ClineRecommendedModelsData {
 	recommended: ClineRecommendedModel[];
 	free: ClineRecommendedModel[];
 	clinePass: ClineRecommendedModel[];
+	/** Free models offered only to cloud sessions (ClineFree). */
+	clineCloud?: ClineRecommendedModel[];
 }
 
 export interface HubProviderSaveResult {
@@ -699,6 +701,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.search"
 	| "session.create"
+	| "session.resume"
 	| "session.attach"
 	| "session.detach"
 	| "session.get"
@@ -986,6 +989,7 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
 	kind: "tool";
 	name: string;
 	description: string;

@@ -171,7 +171,7 @@ describe("desktop settings commands", () => {
 		expect(ctx.liveSessions.has("cloud")).toBe(true);
 	});
 
-	it("routes model discovery through the local hub and applies the desktop cloud gate", async () => {
+	it("routes local model discovery through the local hub without cloud-only models", async () => {
 		const { ctx } = createContext();
 		const command = vi.fn().mockResolvedValue({
 			ok: true,
@@ -188,7 +188,7 @@ describe("desktop settings commands", () => {
 		});
 		expect(command).toHaveBeenLastCalledWith(
 			"providers.models.list",
-			{ providerId: "cline", includeCloudModels: false },
+			{ providerId: "cline" },
 			undefined,
 			{ retryAfterDispatch: false },
 		);
@@ -199,7 +199,7 @@ describe("desktop settings commands", () => {
 		});
 		expect(command).toHaveBeenLastCalledWith(
 			"providers.models.list",
-			{ providerId: "cline", includeCloudModels: true },
+			{ providerId: "cline" },
 			undefined,
 			{ retryAfterDispatch: false },
 		);

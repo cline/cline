@@ -194,6 +194,46 @@ describe("hub provider management", () => {
 		expect(hasActiveHubSessions(sessions.payload)).toBe(false);
 	});
 
+	it.each([
+		"cline",
+		"cline-pass",
+	])("replaces shared OAuth credentials when pasting a %s key", async (providerId) => {
+		const manager = new ProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "cline",
+			auth: {
+				accessToken: "token",
+				refreshToken: "refresh",
+				accountId: "account",
+			},
+		});
+		await api.saveSettings({ providerId, apiKey: "manual-key" });
+		expect(
+			new ProviderSettingsManager().getProviderSettings("cline"),
+		).toMatchObject({ apiKey: "manual-key" });
+		expect(
+			new ProviderSettingsManager().getProviderSettings("cline")?.auth
+				?.accessToken,
+		).toBeUndefined();
+		expect(
+			new ProviderSettingsManager().getProviderSettings("cline")?.auth
+				?.accountId,
+		).toBeUndefined();
+	});
+
+	it("preserves key-only account identity when saving a key again", async () => {
+		new ProviderSettingsManager().saveProviderSettings({
+			provider: "cline",
+			apiKey: "manual-key",
+			auth: { accountId: "account" },
+		});
+		await api.saveSettings({ providerId: "cline", apiKey: "manual-key" });
+		expect(
+			new ProviderSettingsManager().getProviderSettings("cline")?.auth
+				?.accountId,
+		).toBe("account");
+	});
+
 	it("creates a provider, discovers its models, and persists overrides across calls", async () => {
 		await api.add({
 			providerId: "hub-custom",

@@ -717,6 +717,17 @@ describe("HubRuntimeHost", () => {
 			config: createConfig(),
 			source: SessionSource.CLI,
 			capabilities: appCapabilities,
+			localRuntime: {
+				extraTools: [
+					{
+						name: "custom_tool",
+						description: "Custom tool",
+						inputSchema: { type: "object" },
+						successContext: "Keep going.",
+						execute: async () => "done",
+					},
+				],
+			},
 		});
 		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
 		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
@@ -726,6 +737,11 @@ describe("HubRuntimeHost", () => {
 						kind: "toolExecutor",
 						executor: "askQuestion",
 						capabilityName: "tool_executor.askQuestion",
+					},
+					{
+						kind: "tool",
+						name: "custom_tool",
+						successContext: "Keep going.",
 					},
 				],
 			},

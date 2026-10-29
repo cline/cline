@@ -137,9 +137,11 @@ Design rules:
 - `core` is the app-facing orchestration layer over `agents`.
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Desktop uses `HubCloudSessionClient` over its existing shared Hub connection. `HubCloudSessionService` in the daemon owns its account-scoped controller, refresh-aware credentials, organization lookup, provisioning, sandbox connections, queues, approvals, and transcript reconciliation. Desktop projects the snapshots into its UI; feature gating and host persistence remain in the app. Direct controller hosts (including handoff flows) can still supply authentication. Importing this subpath does not initialize a local agent.
-- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
-- Cloud RPC validates an explicit operation allowlist and binds requests to the viewer’s observed hub instance and account-scope generation before dispatch. Handoff and prompt dispatch lifecycle callbacks stay with direct controller hosts and are excluded from the serializable RPC arguments. Viewer disconnects do not stop cloud work or close daemon-owned sandbox connections. Account changes retire the old controller and invalidate viewer caches; daemon shutdown disposes it. Cloud events carry a hub-instance id, account-scope generation, and revision; reconnecting subscriptions receive a complete snapshot set, including an empty set, and remove sessions and approvals absent from it. Scope checks run at command/auth boundaries and periodically, avoiding provider-settings reads per streamed event. Token refresh updates credential-based scope identity without retiring the same account’s controller. Discovery caches, pending listing requests, and newly created fallback rows are scoped to their organization; switching the sidebar preserves other organizations’ task state without displaying their rows. The discovery deadline covers organization resolution and listing together; an unresolved organization yields no cloud rows at the deadline. After an organization switch, desktop attempts a cloud-enabled organization refresh without making switch success or viewer cleanup depend on it. Fresh requests invalidate the old cache before fetching; a returning viewer also invalidates it to cover switches made while the Hub was unreachable. Cloud events are excluded from the durable local event log so old-account transcripts cannot be replayed after a scope change. Dispatched cloud mutations are never automatically resent after a lost reply.
-- The cloud controller resumes suspended sessions and restores saved tasks.
+- `artifacts/publish` owns the opt-in publication tool, file preparation, and batch/result contract. Hosts inject a publisher; `artifacts/cloud` owns cloud upload policies, storage transfers, and signed-URL retrieval. Default local tool catalogs do not include publication.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preparation, preflight, fingerprints, and transcript verification. Hosts retain source capture coordination, persistence, feature gating, and draft recovery.
+- Cloud RPC validates an explicit operation allowlist and binds requests to the viewer’s observed hub instance and account-scope generation before dispatch. A host can also supply its signed-in account id; the Hub checks it against persisted account identity before running the operation. Handoff and prompt dispatch lifecycle callbacks stay with direct controller hosts and are excluded from the serializable RPC arguments. Viewer disconnects do not stop cloud work or close daemon-owned sandbox connections. Account changes retire the old controller and invalidate viewer caches; daemon shutdown disposes it. Cloud events carry a hub-instance id, account-scope generation, and revision; reconnecting subscriptions receive a complete snapshot set, including an empty set, and remove sessions and approvals absent from it. Scope checks run at command/auth boundaries and periodically, avoiding provider-settings reads per streamed event. Token refresh updates credential-based scope identity without retiring the same account’s controller. When the auth server rejects the stored Cline credentials outright, the controller’s token source stops refreshing and reports no token until the stored credentials change (sign-in, sign-out, or rotation) or the controller is replaced; transient refresh failures are still retried on every request. Discovery caches, pending listing requests, and newly created fallback rows are scoped to their organization; switching the sidebar preserves other organizations’ task state without displaying their rows. The discovery deadline covers organization resolution and listing together; an unresolved organization yields no cloud rows at the deadline. After an organization switch, desktop attempts a cloud-enabled organization refresh without making switch success or viewer cleanup depend on it. Fresh requests invalidate the old cache before fetching; a returning viewer also invalidates it to cover switches made while the Hub was unreachable. Cloud events are excluded from the durable local event log so old-account transcripts cannot be replayed after a scope change. Dispatched cloud mutations are never automatically resent after a lost reply.
+- The cloud controller resumes suspended sessions and restores saved tasks. The Hub's [`session.resume`](./DOC.md#starting-a-runtime-from-saved-hub-history) reuses the `session.create` startup path.
+- Hosts capture and confirm Git snapshots. For `create` with `localGit` and `initialMessage`, the Hub owns publication, verification, creation, and initial send through viewer disconnects. Requests stay pinned to the prepared account; overlapping calls with the same `requestId` share that work.
 - The hub retains pending first-task creation options with its controller across desktop viewer disconnects and reconnects. The controller consumes that intent when an inner task exists or is created. Account changes dispose the old scope and its intent.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -210,6 +212,19 @@ turn's final idle update) report the snapshot's real status. Hosts that gate
 workspace-wide operations on busy sessions (for example the desktop's
 checkpoint-restore gate) depend on this: a defaulted `running` with no owning
 turn leaves such gates blocked with nothing to clear them.
+
+Starting a session that already has a run in flight joins it rather than
+replacing it: `LocalRuntimeHost.startSession` returns the live session, and a
+start that also carries a prompt is rejected so the caller queues it instead.
+The running agent keeps the client-owned capabilities (hooks, tool executors,
+the mistake-limit prompt) it was built with and never hands them to a client
+that joined later, since a same-named hook or tool may follow different rules.
+If the owning client unregisters or detaches, its pending requests are
+cancelled. Later requests to a detached client fail immediately; requests to a
+disconnected client wait a few seconds for it to reconnect under the same id
+(riding out a brief socket drop) and then fail instead of waiting forever, so
+the run ends with an error telling the user to reopen the task
+(`task.capability_owner_gone` records each case).
 
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
@@ -605,6 +620,7 @@ Extensibility is split deliberately:
 
 - extensions register runtime contributions
 - hooks intercept lifecycle stages
+- tools can declare `successContext` for model-only instructions after successful execution. The generic agent runtime appends this context after tool results and after-tool hooks with `displayRole: "system"`. Core’s `ask_question` uses this contract to keep answers verbatim while reminding both direct agents and sessions to continue; no tool-name policy lives in the generic runtime. Client-registered custom tools retain `successContext` through the hub contribution manifest, parser, and execution proxy.
 
 Design implication:
 
@@ -1187,6 +1203,7 @@ The following packages are published to npm:
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
 - `@cline/core` — the main SDK with session management, hub, and configuration
+- `@cline/ui` — shared web theme and reusable agent UI React components
 
 ### Internal Apps
 

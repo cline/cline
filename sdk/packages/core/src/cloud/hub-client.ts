@@ -1,10 +1,11 @@
 import type { HubEventEnvelope, HubReplyEnvelope } from "@cline/shared";
 import type { NodeHubClient } from "../hub/client";
-import type { CloudSessionRecord } from "./api";
+import { CloudSessionError, type CloudSessionRecord } from "./api";
 import type {
 	CloudHubArgs,
 	CloudHubOperation,
 	CloudHubResult,
+	CloudHubScope,
 } from "./hub-protocol";
 import { immutableCopy } from "./state";
 import type {
@@ -57,6 +58,11 @@ export class HubCloudSessionClient {
 	}
 	async connect(): Promise<void> {
 		await this.ready();
+	}
+	get scope(): CloudHubScope | undefined {
+		return this.serviceId
+			? { serviceId: this.serviceId, scopeGeneration: this.scopeGeneration }
+			: undefined;
 	}
 	private recover(payload: Record<string, unknown> | undefined): void {
 		if (this.disposed || !this.acceptVersion(payload)) return;
@@ -133,14 +139,10 @@ export class HubCloudSessionClient {
 	protected async call<K extends CloudHubOperation>(
 		operation: K,
 		args: CloudHubArgs<K>,
+		expectedScope?: CloudHubScope,
 	): Promise<CloudHubResult<K>> {
 		// Capture an established viewer's scope before yielding to connection recovery.
-		const preparedScope = this.serviceId
-			? {
-					serviceId: this.serviceId,
-					scopeGeneration: this.scopeGeneration,
-				}
-			: undefined;
+		const preparedScope = expectedScope ? { ...expectedScope } : this.scope;
 		const client = await this.ready();
 		if (this.disposed) throw new Error("Cloud viewer is disposed");
 		const scope = preparedScope ?? {
@@ -151,11 +153,8 @@ export class HubCloudSessionClient {
 			scope.serviceId === this.serviceId &&
 			scope.scopeGeneration === this.scopeGeneration;
 		let dispatched = false;
-		const reply = await client.command(
-			"cloud.command",
-			{ operation, args, scope },
-			undefined,
-			{
+		const reply = await client
+			.command("cloud.command", { operation, args, scope }, undefined, {
 				timeoutMs: ["create", "send", "attach"].includes(operation)
 					? null
 					: undefined,
@@ -171,8 +170,29 @@ export class HubCloudSessionClient {
 				onDispatch: () => {
 					dispatched = true;
 				},
-			},
-		);
+			})
+			.catch((error: unknown) => {
+				// Cloud and Hub entrypoints bundle separate error constructors.
+				const rejected =
+					error instanceof Error &&
+					error.name === "HubCommandError" &&
+					"code" in error &&
+					error.code !== "hub_command_timeout";
+				if (
+					operation === "create" &&
+					typeof args[0] === "object" &&
+					args[0] !== null &&
+					"initialMessage" in args[0] &&
+					args[0].initialMessage !== undefined &&
+					dispatched &&
+					!rejected
+				)
+					throw new CloudSessionError(
+						"request_failed",
+						"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
+					);
+				throw error;
+			});
 		this.checkReply(reply);
 		if (
 			!isCurrentScope() ||
@@ -184,14 +204,23 @@ export class HubCloudSessionClient {
 		if (this.disposed) throw new Error("Cloud viewer is disposed");
 		return reply.payload?.result as CloudHubResult<K>;
 	}
-	create(...args: CloudHubArgs<"create">): Promise<CloudHubResult<"create">> {
-		return this.call("create", args);
+	create(
+		input: CloudHubArgs<"create">[0],
+		scope?: CloudHubScope,
+	): Promise<CloudHubResult<"create">> {
+		return this.call("create", [input], scope);
 	}
 	attach(...args: CloudHubArgs<"attach">): Promise<CloudHubResult<"attach">> {
 		return this.call("attach", args);
 	}
 	send(...args: CloudHubArgs<"send">): Promise<CloudHubResult<"send">> {
 		return this.call("send", args);
+	}
+	prepareHandoffRepository(
+		repoUrl: string,
+		scope?: CloudHubScope,
+	): Promise<CloudHubResult<"prepareHandoffRepository">> {
+		return this.call("prepareHandoffRepository", [repoUrl], scope);
 	}
 	refreshOrganization(): Promise<void> {
 		return this.call("refreshOrganization", []);
@@ -227,10 +256,8 @@ export class HubCloudSessionClient {
 	delete(...args: CloudHubArgs<"delete">): Promise<CloudHubResult<"delete">> {
 		return this.call("delete", args);
 	}
-	listModels(
-		...args: CloudHubArgs<"listModels">
-	): Promise<CloudHubResult<"listModels">> {
-		return this.call("listModels", args);
+	listModels(scope?: CloudHubScope): Promise<CloudHubResult<"listModels">> {
+		return this.call("listModels", [], scope);
 	}
 	listRepositories(
 		...args: CloudHubArgs<"listRepositories">

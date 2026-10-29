@@ -476,6 +476,10 @@ export type ClineAccountActionRequest =
 	| {
 			action: "clineAccount";
 			operation: "fetchFeaturebaseToken";
+	  }
+	| {
+			action: "clineAccount";
+			operation: "fetchCurrentUserPlan";
 	  };
 
 export type ProviderActionRequest =

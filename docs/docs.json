@@ -109,7 +109,8 @@
 								"group": "Cline Desktop",
 								"pages": [
 									"usage/cline-desktop",
-									"usage/cline-desktop-ssh"
+									"usage/cline-desktop-ssh",
+									"usage/cline-desktop-local-models"
 								]
 							},
 							"usage/cloud-agents",

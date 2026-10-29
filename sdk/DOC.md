@@ -92,6 +92,14 @@ host presentation.
 
 `createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
 
+## Starting a runtime from saved Hub history
+
+`session.resume` starts a runtime for a saved `sessionConfig.sessionId`. It accepts the execution configuration used by `session.create`, but reads conversation history on the Hub instead of requiring `initialMessages`. It prefers the live conversation when available and otherwise reads persisted history. Startup, replies, and session events use the existing `session.create` path.
+
+A missing ID returns `invalid_resume`, a missing session returns `session_not_found`, and empty history returns `session_messages_not_found`. These errors do not start a runtime. `session.create` remains unchanged, including empty context when `initialMessages` is omitted.
+
+Only `unsupported_command` permits falling back to `session.messages` followed by `session.create` with explicit history.
+
 ## Cloud sessions (experimental)
 
 `summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
@@ -109,6 +117,32 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+`createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
+`publish_artifacts` tool. It validates batches and local file paths, assigns missing
+IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
+receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+signal, and returns one result per file in input order. Storage-specific policy
+and persistence belong to the publisher; constructing the tool does not register
+it in default local tools. Hosts control tool approval and which local paths may
+be published; the tool itself does not restrict paths to a workspace.
+
+For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
+from `@cline/core/cloud`. The host provides authenticated transport and the owning
+session ID. The publisher uploads directly with one signed policy per batch,
+refreshes expired policies, and retries transient failures with the same IDs.
+The service remains responsible for upload authorization and limits.
+
+`createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
+returns `fetchArtifact({ artifactId, signal? })`, which downloads a streaming
+`Response`. Each fetcher caches up to 128 signed URLs, refreshing 30 seconds before
+expiry or once after a storage HTTP 403. Missing files and file bytes are not cached.
+Reuse one fetcher per authenticated account/session; discard it on sign-out or
+account changes. Cache hits do not recheck session permissions until URL renewal.
+Wait for a successful publication result before fetching a new artifact. The caller
+consumes or cancels the response body and applies any read size limit. The optional
+signal cancels the download, including while reading its body. This helper does not
+register an agent tool or attach files to messages.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
@@ -121,6 +155,23 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
+`create({ ...input, initialMessage: { text, images } })` creates the task and sends
+the first message, returning the session attachment and `initialSend`. Without
+`initialMessage`, creation does not send; `initialPrompt` is metadata only.
+Retry a failed initial send on the created target only when `dispatched` is `false`.
+The Hub continues after viewer disconnects. A lost reply raises `request_failed`;
+check cloud tasks before retrying.
+Hub clients can publish an approved snapshot before creation with `localGit`.
+Pass the `organizationId` returned by `prepareHandoffRepository`, or `null` for Personal.
+Omit the preview-only `sourceBranch`, `files`, and `commits` fields from the plan.
+This requires token-authenticated workspace access.
+Attachments must be image data URLs within the shared media-size limits.
+New checkpoint commits are unsigned and skip commit hooks, including pre-commit secret scans.
+Pre-push hooks run in the live source checkout and can modify it.
+Git supplies the captured commit SHA to those hooks on stdin.
+The sensitive-path checks inspect filenames, not file contents.
+Publication creates no local branch or tracking configuration.
+Remote branches remain if verification or cloud creation fails.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
@@ -179,6 +230,10 @@ Dispatched actions are not automatically resent after an uncertain reply.
 Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
 features and cannot cross this RPC boundary. Hub-backed creation defaults to
 `"resumable"` sandboxes.
+
+Hosts with a separate signed-in account can include `expectedAccountId` in the
+scope passed to `prepareHandoffRepository`, `listModels`, and `create`. The Hub
+rejects a mismatch with its persisted account before running the operation.
 
 Discovery caches, pending listing requests, and newly created fallback rows are
 scoped to their organization; switching the sidebar preserves other organizations’
@@ -300,6 +355,9 @@ only manages SSH and forwards the authenticated hub connection.
 Clients whose own process cannot host the Hub daemon can call
 `setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
 start are launched through the Cline CLI.
+The launcher also accepts `args` and child-only `env` overrides. For an Electron
+executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon markers
+take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
@@ -510,6 +568,12 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+## Tool success context
+
+`AgentTool` and `createTool` accept optional `successContext` text. The agent runtime appends it after the iteration’s tool results, once after-tool hooks have run, without changing the tool output. It reaches the model as a user-role context message with `displayRole: "system"`, hidden from client transcripts. Errors, skipped calls, and hooks that stop execution do not add it. It is retained as conversation history and remains subject to context compaction.
+
+`createAskQuestionTool` and the question tool from `createDefaultTools` use this field to remind the model to continue after an answer, in both direct `Agent` and `ClineCore` sessions.
 
 ## Symlinked instruction files
 

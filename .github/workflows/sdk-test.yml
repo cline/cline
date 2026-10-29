@@ -112,6 +112,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
               run: bun -F @cline/code test:settings-ui
 
+            - name: Run Desktop Chat UI Tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
+              run: bun -F @cline/code test:chat-ui
+
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10
@@ -124,3 +128,7 @@ jobs:
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun sdk/scripts/check-publish.ts
+
+            - name: Smoke test packed UI package
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
+              run: bun sdk/packages/ui/scripts/smoke-package.ts

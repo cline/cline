@@ -6,6 +6,7 @@ mod linux_tray;
 mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
+mod terminal;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -1412,9 +1413,9 @@ fn setup_application_menu(
     app.set_menu(menu)?;
     set_macos_menu_key_equivalent("View", "Zoom In", "+")?;
     app.on_menu_event(|app, event| {
-        if event.id().as_ref() == CHECK_FOR_UPDATES_MENU_ID {
-            handle_check_for_updates_menu(app);
-        } else if let Some(action) = application_menu_action(event.id().as_ref()) {
+        // Both menu handlers are global listeners, so the tray handler receives
+        // application menu events too and handles Check for Updates once.
+        if let Some(action) = application_menu_action(event.id().as_ref()) {
             queue_desktop_action(app, action);
         }
     });
@@ -1616,6 +1617,7 @@ fn main() {
         .manage(desktop_backend)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
+        .manage(terminal::TerminalState::default())
         .setup(move |app| {
             app.manage(AppContext {
                 launch_cwd: launch_cwd.clone(),
@@ -1713,7 +1715,13 @@ fn main() {
             set_tray_status,
             relaunch_app,
             quit_app,
-            set_quit_shortcut_native
+            set_quit_shortcut_native,
+            terminal::terminal_spawn,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_kill,
+            terminal::terminal_kill_all,
+            terminal::terminal_windows_build
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1724,6 +1732,7 @@ fn main() {
                 ..
             } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+                app_handle.state::<terminal::TerminalState>().kill_all();
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()

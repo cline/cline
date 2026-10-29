@@ -145,6 +145,71 @@ describe("desktopAppReducer", () => {
 		).toBeUndefined();
 	});
 
+	it("hands attachment-only recovery to the target thread exactly once", () => {
+		const attachment = new File(["png-bytes"], "screenshot.png", {
+			type: "image/png",
+		});
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("handoff-target"),
+			environmentId: "local",
+			initialAttachments: [attachment],
+		});
+		const threadId = `session_${sessionKey({ sessionId: "handoff-target", environmentId: "local" })}`;
+
+		const thread = state.threads.find((item) => item.id === threadId);
+		expect(thread?.initialPromptDraft).toBeUndefined();
+		expect(thread?.initialAttachments).toEqual([attachment]);
+
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+
+		const consumed = state.threads.find((item) => item.id === threadId);
+		expect(consumed?.initialPromptDraft).toBeUndefined();
+		expect(consumed?.initialAttachments).toBeUndefined();
+	});
+
+	it.each([
+		"chat",
+		"settings",
+		"sessions",
+	] as const)("passes recovery to the cloud composer when reopening from %s", (view) => {
+		const open = {
+			type: "open-session" as const,
+			session: { ...createSession("cloud-target"), origin: "cloud" as const },
+			environmentId: "local",
+			initialPromptDraft: "Saved follow-up",
+			initialAttachments: [new File(["image"], "test.png")],
+		};
+		let state = desktopAppReducer(
+			createDesktopAppState("welcome", settingsSection, "local"),
+			open,
+		);
+		const threadId = state.navigation.current.activeThreadId;
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view },
+		});
+		const reopened = desktopAppReducer(state, open);
+		expect(reopened.navigation.current.view).toBe("chat");
+		expect(reopened.navigation.back).toHaveLength(
+			state.navigation.back.length + (view === "chat" ? 0 : 1),
+		);
+		expect(
+			reopened.threads.find((thread) => thread.id === threadId),
+		).toMatchObject({
+			initialPromptDraft: open.initialPromptDraft,
+			initialAttachments: open.initialAttachments,
+		});
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
