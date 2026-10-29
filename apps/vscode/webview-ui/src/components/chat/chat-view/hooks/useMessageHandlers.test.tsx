@@ -180,7 +180,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
 		const completedHandoff = mockHandoff
 		mockTaskId = "ses_example"
-		mockHandoff = undefined
+		mockHandoff = completedHandoff
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])

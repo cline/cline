@@ -2,7 +2,7 @@ import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -27,19 +27,41 @@ function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): str
 	}
 }
 
-export function CloudHandoff({ error: preparationError }: { error?: string }) {
-	const { cloudHandoff: view } = useExtensionState()
+export function CloudHandoff({ error: preparationError, hasDraft = false }: { error?: string; hasDraft?: boolean }) {
+	const { cloudHandoff: view, currentCloudTask } = useExtensionState()
+	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
+	const insideCloud = !!sessionId && currentCloudTask?.sessionId === sessionId
+	return (
+		<CloudHandoffNotice
+			hasDraft={hasDraft}
+			insideCloud={insideCloud}
+			key={JSON.stringify([view?.id, view?.phase, sessionId, insideCloud])}
+			preparationError={preparationError}
+			view={view}
+		/>
+	)
+}
+
+function CloudHandoffNotice({
+	view,
+	preparationError,
+	insideCloud,
+	hasDraft,
+}: {
+	view?: CloudHandoffView
+	preparationError?: string
+	insideCloud: boolean
+	hasDraft: boolean
+}) {
 	const [error, setError] = useState<string>()
+	const [nativeOpenFailed, setNativeOpenFailed] = useState(false)
 	const [confirming, setConfirming] = useState(false)
-	useEffect(() => {
-		setError(undefined)
-		setConfirming(false)
-	}, [view?.id, view?.phase])
-	const run = async (operation: () => Promise<unknown>) => {
+	const run = async (operation: () => Promise<unknown>, { nativeOpen = false }: { nativeOpen?: boolean } = {}) => {
 		setError(undefined)
 		try {
 			await operation()
 		} catch (err) {
+			if (nativeOpen) setNativeOpenFailed(true)
 			setError(err instanceof Error ? err.message : "Cloud handoff failed.")
 		}
 	}
@@ -57,6 +79,28 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 				<div role="alert">{errorText}</div>
 			</section>
 		) : null
+
+	if (insideCloud) {
+		return (
+			<section aria-label="Cloud handoff" className="m-2 text-sm">
+				<VSCodeButton
+					onClick={() => {
+						if (hasDraft) {
+							setError("Send or clear your draft before returning to the local conversation.")
+							return
+						}
+						void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: view.sourceTaskId })))
+					}}>
+					Back to local
+				</VSCodeButton>
+				{error && (
+					<div className="text-error mt-2 whitespace-pre-wrap break-words" role="alert">
+						{error}
+					</div>
+				)}
+			</section>
+		)
+	}
 
 	return (
 		<>
@@ -179,18 +223,17 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 							<VSCodeButton
 								disabled={view.phase === "launching"}
 								onClick={() =>
-									void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: sessionId })))
-								}>
-								Open in Cline
-							</VSCodeButton>
-							<VSCodeButton
-								appearance="secondary"
-								onClick={() =>
-									void run(() =>
-										CloudServiceClient.openCloudSessionDashboard(StringRequest.create({ value: sessionId })),
+									void run(
+										() =>
+											nativeOpenFailed
+												? CloudServiceClient.openCloudSessionDashboard(
+														StringRequest.create({ value: sessionId }),
+													)
+												: TaskServiceClient.showTaskWithId(StringRequest.create({ value: sessionId })),
+										{ nativeOpen: !nativeOpenFailed },
 									)
 								}>
-								Open in browser
+								{nativeOpenFailed ? "Open in browser" : "Open cloud task"}
 							</VSCodeButton>
 							{view.phase === "complete" && view.delivery === "unsent" && (
 								<VSCodeButton

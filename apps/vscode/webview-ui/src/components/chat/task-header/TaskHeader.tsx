@@ -75,6 +75,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		workspaceRoots,
 		platform,
 		currentCloudTask,
+		cloudHandoff,
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
@@ -198,7 +199,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 						<div className="inline-flex flex-wrap gap-y-1 items-center justify-end select-none ml-auto min-w-0">
 							{currentCloudTask ? (
-								<CloudTaskBadge cloudTask={currentCloudTask} />
+								<CloudTaskBadge
+									cloudTask={currentCloudTask}
+									dashboardLink={
+										!(
+											cloudHandoff?.phase === "complete" &&
+											cloudHandoff.sessionId === currentCloudTask.sessionId
+										)
+									}
+								/>
 							) : (
 								<TaskWorkingDirectoryBadge
 									platform={platform}

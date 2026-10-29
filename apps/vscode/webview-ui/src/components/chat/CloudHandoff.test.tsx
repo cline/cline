@@ -1,5 +1,5 @@
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CloudHandoff } from "./CloudHandoff"
@@ -11,9 +11,10 @@ const clients = vi.hoisted(() => ({
 	discardHandoff: vi.fn(),
 }))
 let view: CloudHandoffView
+let currentCloudTask: { sessionId: string } | undefined
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ cloudHandoff: view }),
+	useExtensionState: () => ({ cloudHandoff: view, currentCloudTask }),
 }))
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: { showTaskWithId: clients.showTaskWithId },
@@ -28,6 +29,7 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 describe("cloud handoff navigation", () => {
 	beforeEach(() => {
 		vi.resetAllMocks()
+		currentCloudTask = undefined
 		clients.showTaskWithId.mockResolvedValue({})
 		clients.openCloudSessionDashboard.mockResolvedValue({})
 		view = {
@@ -42,22 +44,20 @@ describe("cloud handoff navigation", () => {
 	it.each(["sent", "unsent", "unconfirmed"] as const)("opens a %s task in Cline through History", (delivery) => {
 		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery }
 		render(<CloudHandoff />)
-		fireEvent.click(screen.getByRole("button", { name: "Open in Cline" }))
+		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
 		expect(clients.showTaskWithId).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "ses-cloud-task" }))
 		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
+		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
 	})
 
-	it("keeps browser navigation available while sending without allowing an in-panel switch", () => {
+	it("disables navigation while sending without offering a browser shortcut", () => {
 		view = { id: "handoff", sourceTaskId: "local-task", phase: "launching", sessionId: "ses-cloud-task" }
 		render(<CloudHandoff />)
-		const openInCline = screen.getByRole("button", { name: "Open in Cline" })
-		expect(openInCline).toBeDisabled()
-		fireEvent.click(openInCline)
+		const open = screen.getByRole("button", { name: "Open cloud task" })
+		expect(open).toBeDisabled()
+		fireEvent.click(open)
 		expect(clients.showTaskWithId).not.toHaveBeenCalled()
-		fireEvent.click(screen.getByRole("button", { name: "Open in browser" }))
-		expect(clients.openCloudSessionDashboard).toHaveBeenCalledExactlyOnceWith(
-			expect.objectContaining({ value: "ses-cloud-task" }),
-		)
+		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
 	})
 
 	it("keeps recovery available until the continuation has been sent", () => {
@@ -76,9 +76,93 @@ describe("cloud handoff navigation", () => {
 	it("shows a failed in-panel open without silently launching a browser", async () => {
 		clients.showTaskWithId.mockRejectedValue(new Error("Cloud session is unavailable."))
 		render(<CloudHandoff />)
-		fireEvent.click(screen.getByRole("button", { name: "Open in Cline" }))
+		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
 		expect(await screen.findByRole("alert")).toHaveTextContent("Cloud session is unavailable.")
 		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
-		expect(screen.getByRole("button", { name: "Open in browser" })).toBeEnabled()
+		expect(screen.queryByRole("button", { name: "Open cloud task" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Open in browser" }))
+		expect(clients.openCloudSessionDashboard).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ value: "ses-cloud-task" }),
+		)
+	})
+	it("does not offer browser navigation for continuation recovery errors", async () => {
+		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery: "unsent" }
+		clients.retryHandoffMessage.mockRejectedValue(new Error("Retry failed"))
+		render(<CloudHandoff />)
+		fireEvent.click(screen.getByRole("button", { name: "Retry continuation" }))
+		expect(await screen.findByRole("alert")).toHaveTextContent("Retry failed")
+		expect(screen.getByRole("button", { name: "Open cloud task" })).toBeEnabled()
+		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
+		expect(clients.showTaskWithId).not.toHaveBeenCalled()
+	})
+
+	it.each(["attempt", "session"])("ignores a late native failure after the %s changes", async (change) => {
+		let rejectOpen: (reason: Error) => void = () => {}
+		clients.showTaskWithId.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectOpen = reject
+			}),
+		)
+		const { rerender } = render(<CloudHandoff />)
+		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
+		view = {
+			...view,
+			phase: "complete",
+			sessionId: change === "session" ? "ses-next" : "ses-cloud-task",
+			id: change === "attempt" ? "next" : "handoff",
+			delivery: "sent",
+		}
+		rerender(<CloudHandoff />)
+		await act(async () => rejectOpen(new Error("Old open failed")))
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
+		expect(clients.showTaskWithId).toHaveBeenLastCalledWith(expect.objectContaining({ value: view.sessionId }))
+	})
+
+	it("restores the native action for a new handoff after a failure", async () => {
+		clients.showTaskWithId.mockRejectedValue(new Error("Open failed"))
+		const { rerender } = render(<CloudHandoff />)
+		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
+		await screen.findByRole("button", { name: "Open in browser" })
+		view = { ...view, id: "next" }
+		rerender(<CloudHandoff />)
+		expect(screen.getByRole("button", { name: "Open cloud task" })).toBeEnabled()
+		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+	})
+	it.each(["sent", "unsent", "unconfirmed"] as const)("shows only return navigation inside a %s handoff task", (delivery) => {
+		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery }
+		currentCloudTask = { sessionId: "ses-cloud-task" }
+		render(<CloudHandoff />)
+		expect(screen.getAllByRole("button")).toHaveLength(1)
+		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
+		expect(clients.showTaskWithId).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "local-task" }))
+		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
+		expect(clients.retryHandoffMessage).not.toHaveBeenCalled()
+	})
+
+	it("keeps failed return navigation in the cloud without offering a browser", async () => {
+		currentCloudTask = { sessionId: "ses-cloud-task" }
+		clients.showTaskWithId.mockRejectedValue(new Error("Local task unavailable"))
+		render(<CloudHandoff />)
+		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
+		expect(await screen.findByRole("alert")).toHaveTextContent("Local task unavailable")
+		expect(screen.getAllByRole("button")).toHaveLength(1)
+		expect(screen.getByRole("button", { name: "Back to local" })).toBeEnabled()
+		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
+	})
+	it("requires the cloud draft to be sent or cleared before returning", () => {
+		currentCloudTask = { sessionId: "ses-cloud-task" }
+		const { rerender } = render(<CloudHandoff hasDraft />)
+		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Send or clear your draft before returning to the local conversation.",
+		)
+		expect(clients.showTaskWithId).not.toHaveBeenCalled()
+		rerender(<CloudHandoff hasDraft={false} />)
+		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
+		expect(clients.showTaskWithId).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "local-task" }))
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 	})
 })

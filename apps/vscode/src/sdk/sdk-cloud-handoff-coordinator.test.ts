@@ -87,6 +87,20 @@ function setup() {
 }
 
 describe("cloud conversation handoff", () => {
+	it("finds a completed handoff from its cloud destination without changing source ownership", async () => {
+		const { coordinator, id, switchAccount } = setup()
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor("ses_example")).toBeUndefined()
+		await coordinator.confirm(id())
+		const sourceView = coordinator.viewFor(input.sourceTaskId)
+		expect(coordinator.viewFor("ses_example")).toEqual(sourceView)
+		expect(sourceView).toMatchObject({ phase: "complete", sourceTaskId: input.sourceTaskId, sessionId: "ses_example" })
+		expect(coordinator.viewFor("unrelated-task")).toBeUndefined()
+		expect(coordinator.viewFor(undefined)).toBeUndefined()
+		switchAccount()
+		expect(coordinator.viewFor("ses_example")).toBeUndefined()
+	})
+
 	it("resolves fresh summary credentials after Hub preparation without changing the captured model", async () => {
 		const { coordinator, cloud, summarize } = setup()
 		cloud.listModels.mockImplementationOnce(async () => {

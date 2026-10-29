@@ -86,8 +86,11 @@ export class SdkCloudHandoffCoordinator {
 		},
 	) {}
 
-	viewFor(sourceTaskId: string | undefined): CloudHandoffView | undefined {
-		const attempt = sourceTaskId ? this.attempts.get(sourceTaskId) : undefined
+	viewFor(taskId: string | undefined): CloudHandoffView | undefined {
+		if (!taskId) return undefined
+		const attempt =
+			this.attempts.get(taskId) ??
+			[...this.attempts.values()].find((entry) => entry.phase === "complete" && entry.sessionId === taskId)
 		if (!attempt || attempt.accountKey !== this.options.getAccount()?.key) return undefined
 		const { id, phase } = attempt
 		const base = { id, sourceTaskId: attempt.sourceTaskId }
