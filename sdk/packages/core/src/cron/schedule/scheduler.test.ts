@@ -28,7 +28,7 @@ function getNextCronTimeWithHostTimezone(
 		process.stdout.write(new Date(getNextCronTime(pattern, Date.parse(after), timezone)).toISOString());
 	`;
 	return execFileSync(
-		"node",
+		process.execPath,
 		[
 			"--no-warnings",
 			"--input-type=module",
@@ -174,5 +174,38 @@ describe("hub scheduler cron helpers", () => {
 		expect(() =>
 			getNextCronTime("0 0 31 2 *", Date.parse("2026-01-01T00:00:00.000Z")),
 		).toThrow("No cron occurrence found within 4 years");
+	});
+
+	it("keeps the local four-year horizon across offset changes", () => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"0 0 29 2 *",
+				"2012-02-28T20:00:00.000Z",
+				undefined,
+				"Europe/Moscow",
+			),
+		).toBe("2016-02-28T21:00:00.000Z");
+	});
+
+	it("checks a repeated calendar day before skipping to the next day", () => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"30 23 4 3 *",
+				"2010-03-04T14:00:00.000Z",
+				undefined,
+				"Antarctica/Casey",
+			),
+		).toBe("2010-03-04T15:30:00.000Z");
+	});
+
+	it("preserves local minute boundaries with a historical seconds offset", () => {
+		expect(
+			getNextCronTimeWithHostTimezone(
+				"0 0 1 1 *",
+				"1970-01-01T00:44:00.000Z",
+				undefined,
+				"Africa/Monrovia",
+			),
+		).toBe("1970-01-01T00:44:30.000Z");
 	});
 });

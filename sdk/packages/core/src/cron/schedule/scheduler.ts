@@ -246,10 +246,15 @@ function getNextCronTimeByMinuteScan(
 	timezone?: string,
 ): number {
 	const cron = parseCron(pattern);
-	let nextMs = Math.floor(after / 60_000) * 60_000 + 60_000;
+	const currentMinute = new Date(after);
+	const seconds = timezone
+		? currentMinute.getUTCSeconds()
+		: currentMinute.getSeconds();
+	let nextMs =
+		after - seconds * 1000 - currentMinute.getMilliseconds() + 60_000;
 
 	const limit = new Date(after);
-	limit.setUTCFullYear(limit.getUTCFullYear() + 4);
+	limit.setFullYear(limit.getFullYear() + 4);
 	const limitMs = limit.getTime();
 
 	while (nextMs <= limitMs) {
