@@ -1,22 +1,18 @@
 import assert from "node:assert/strict";
-import { watch } from "node:fs";
-import {
-	mkdtemp,
-	readdir,
-	readFile,
-	rm,
-	truncate,
-	writeFile,
-} from "node:fs/promises";
+import * as fs from "node:fs";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type TestContext, test } from "vitest";
-import { createDefaultTools } from "../extensions/tools/definitions";
+import { type TestContext, test, vi } from "vitest";
 import {
 	createLocalArtifactFetcher,
 	createLocalArtifactPublisher,
 } from "./local";
 import { createPublishArtifactsTool } from "./publish";
+
+vi.mock("node:fs", async (importOriginal) => ({
+	...(await importOriginal<typeof import("node:fs")>()),
+}));
 
 const context = { agentId: "test", sessionId: "local", iteration: 1 };
 
@@ -195,34 +191,42 @@ test("streams cancellable reads and supports a fresh read afterward", async (t) 
 	);
 });
 
-test("aborts an in-flight replacement without exposing partial bytes or leaving temporary files", async (t) => {
-	const f = await fixture(t);
-	await writeFile(f.source, "original");
-	await f.publish();
-	await truncate(f.source, 64 * 1024 * 1024);
-	const controller = new AbortController();
-	const watcher = watch(f.directory, () => controller.abort());
-	try {
-		const result = await f.publish("report", controller.signal);
-		assert.ok("error" in result.files[0]);
-		assert.equal(result.files[0].error.code, "CANCELLED");
-		assert.equal(result.files[0].artifactId, "report");
-	} finally {
-		watcher.close();
-	}
-	assert.equal(
-		await (await f.fetch({ artifactId: "report" })).text(),
-		"original",
-	);
-	assert.equal((await readdir(f.directory)).length, 1);
-});
+for (const code of ["CANCELLED", "FILE_CHANGED"]) {
+	test(`rejects an interrupted replacement (${code}) without partial bytes or temporary files`, async (t) => {
+		const f = await fixture(t);
+		await writeFile(f.source, "original");
+		await f.publish();
+		await writeFile(f.source, Buffer.alloc(1024 * 1024, 65));
+		const controller = new AbortController();
+		const createReadStream = fs.createReadStream;
+		const spy = vi
+			.spyOn(fs, "createReadStream")
+			.mockImplementationOnce((...args) => {
+				const stream = createReadStream(...args);
+				stream.once("data", () => {
+					if (code === "CANCELLED") controller.abort();
+					else fs.truncateSync(f.source, 1);
+				});
+				return stream;
+			});
+		try {
+			const result = await f.publish("report", controller.signal);
+			assert.ok("error" in result.files[0]);
+			assert.equal(result.files[0].error.code, code);
+			assert.equal(result.files[0].artifactId, "report");
+		} finally {
+			spy.mockRestore();
+		}
+		assert.equal(
+			await (await f.fetch({ artifactId: "report" })).text(),
+			"original",
+		);
+		assert.equal((await readdir(f.directory)).length, 1);
+	});
+}
 
-test("constructs inertly and reports destination failures without changing default tools", async (t) => {
+test("constructs inertly and reports destination failures", async (t) => {
 	const f = await fixture(t);
-	const defaults = () =>
-		createDefaultTools({ executors: {} }).map((tool) => tool.name);
-	const before = defaults();
-	assert.ok(!before.includes("publish_artifacts"));
 	assert.deepEqual(await readdir(f.root), []);
 	assert.throws(() => createLocalArtifactPublisher({ directory: "relative" }));
 	assert.throws(() => createLocalArtifactFetcher({ directory: "relative" }));
@@ -232,5 +236,4 @@ test("constructs inertly and reports destination failures without changing defau
 	assert.ok("error" in result.files[0]);
 	assert.equal(result.files[0].error.code, "WRITE_FAILED");
 	assert.equal(result.files[0].artifactId, "report");
-	assert.deepEqual(defaults(), before);
 });

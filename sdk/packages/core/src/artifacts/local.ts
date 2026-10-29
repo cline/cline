@@ -1,8 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createWriteStream, openAsBlob } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, open, rename, rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ArtifactFetcher } from "./fetch";
 import {
@@ -40,14 +39,17 @@ export function createLocalArtifactPublisher({
 				await checkUnchanged(file);
 				await mkdir(directory, { recursive: true, mode: 0o700 });
 				await pipeline(
-					(await openAsBlob(file.path)).stream(),
+					createReadStream(file.path),
 					createWriteStream(temporary, {
 						flags: "wx",
 						mode: 0o600,
 						flush: true,
 					}),
 					{ signal },
-				);
+				).catch(async (error) => {
+					await checkUnchanged(file);
+					throw error;
+				});
 				await checkUnchanged(file);
 				signal?.throwIfAborted();
 				await rename(temporary, target);
@@ -87,11 +89,17 @@ export function createLocalArtifactFetcher({
 			const info = await handle.stat();
 			signal?.throwIfAborted();
 			const stream = handle.createReadStream({ signal });
+			const chunks = stream[Symbol.asyncIterator]();
 			return new Response(
-				Readable.toWeb(stream, {
-					strategy: new ByteLengthQueuingStrategy({
-						highWaterMark: stream.readableHighWaterMark,
-					}),
+				new ReadableStream({
+					async pull(controller) {
+						const chunk = await chunks.next();
+						if (chunk.done) controller.close();
+						else controller.enqueue(chunk.value);
+					},
+					async cancel() {
+						await chunks.return?.();
+					},
 				}),
 				{
 					headers: {
