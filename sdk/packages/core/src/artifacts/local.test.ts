@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +13,9 @@ import { createPublishArtifactsTool } from "./publish";
 
 vi.mock("node:fs", async (importOriginal) => ({
 	...(await importOriginal<typeof import("node:fs")>()),
+}));
+vi.mock("node:fs/promises", async (importOriginal) => ({
+	...(await importOriginal<typeof import("node:fs/promises")>()),
 }));
 
 const context = { agentId: "test", sessionId: "local", iteration: 1 };
@@ -189,6 +193,36 @@ test("streams cancellable reads and supports a fresh read afterward", async (t) 
 		Buffer.from(await (await f.fetch({ artifactId: "report" })).arrayBuffer()),
 		bytes,
 	);
+});
+
+test("cancels a pending read and closes its file handle", async (t) => {
+	const f = await fixture(t);
+	await writeFile(f.source, "data");
+	await f.publish();
+	const handle = await fsPromises.open(
+		join(f.directory, (await readdir(f.directory))[0]),
+		"r",
+	);
+	const stream = handle.createReadStream();
+	const stalled = vi.spyOn(stream, "read").mockReturnValue(null);
+	const open = vi.spyOn(fsPromises, "open").mockResolvedValueOnce(handle);
+	const createStream = vi
+		.spyOn(handle, "createReadStream")
+		.mockReturnValueOnce(stream);
+	t.onTestFinished(async () => {
+		stream.destroy();
+		await handle.close();
+		stalled.mockRestore();
+		open.mockRestore();
+		createStream.mockRestore();
+	});
+	const response = await f.fetch({ artifactId: "report" });
+	assert.ok(response.body);
+	const reader = response.body.getReader();
+	const pending = reader.read();
+	await reader.cancel();
+	assert.equal((await pending).done, true);
+	assert.equal(stream.closed, true);
 });
 
 for (const code of ["CANCELLED", "FILE_CHANGED"]) {

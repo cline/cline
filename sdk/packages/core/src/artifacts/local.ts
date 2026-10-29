@@ -98,6 +98,7 @@ export function createLocalArtifactFetcher({
 						else controller.enqueue(chunk.value);
 					},
 					async cancel() {
+						stream.destroy();
 						await chunks.return?.();
 					},
 				}),
