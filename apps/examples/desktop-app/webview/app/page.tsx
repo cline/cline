@@ -2525,6 +2525,7 @@ function ChatThreadPane({
 							action: "handoff",
 							operation: "discard",
 							sessionId: sourceSessionId,
+							config: { environmentId },
 							gitPreparationId: gitPreparation.id,
 						},
 					});
@@ -2555,6 +2556,7 @@ function ChatThreadPane({
 							action: "handoff",
 							operation: "launch",
 							sessionId: sourceSessionId,
+							config: { environmentId },
 							handoffAttemptId,
 							gitPreparationId: gitPreparation.id,
 							nextCommand: nextCommand || undefined,
@@ -2598,6 +2600,7 @@ function ChatThreadPane({
 			clearDraftForHandoff,
 			confirmHandoffGit,
 			config,
+			environmentId,
 			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,
