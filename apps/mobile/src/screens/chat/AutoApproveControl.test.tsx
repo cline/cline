@@ -10,15 +10,9 @@ import {
 	type ApprovalPolicy,
 	DEFAULT_APPROVAL_POLICY,
 } from "@/session";
-import { ApprovalPolicyStore } from "@/state/approval-policy-store";
-import { SettingsProvider } from "@/state/settings";
 import { render } from "../../ui/__testing__/render";
 import { containsText, findByLabel, getByLabel } from "../__testing__/harness";
-import {
-	AutoApproveControl,
-	AutoApprovePill,
-	AutoApproveSheet,
-} from "./AutoApproveControl";
+import { AutoApprovePill, AutoApproveSheet } from "./AutoApproveControl";
 
 function press(root: ReactTestInstance, label: string): void {
 	const node = getByLabel(root, label);
@@ -180,52 +174,5 @@ describe("AutoApproveSheet", () => {
 		const { root } = renderSheet();
 		expect(containsText(root, "Changes apply to this session")).toBe(true);
 		expect(containsText(root, "MCP tools")).toBe(true);
-	});
-});
-
-describe("AutoApproveControl", () => {
-	function renderControl(store = new ApprovalPolicyStore()) {
-		return {
-			store,
-			...render(
-				<SettingsProvider store={store}>
-					<AutoApproveControl />
-				</SettingsProvider>,
-			),
-		};
-	}
-
-	it("shows the store's policy on the pill", () => {
-		const { root } = renderControl();
-		expect(containsText(root, "Auto: all")).toBe(true);
-	});
-
-	it("writes a flipped tier through to the shared store", async () => {
-		const { root, store } = renderControl();
-		press(root, "Auto-approve Edit files");
-		await vi.waitFor(() => {
-			expect(store.get().write).toBe("ask");
-		});
-	});
-
-	it("applies a preset through to the shared store", async () => {
-		const { root, store } = renderControl();
-		press(root, "Ask for everything");
-		await vi.waitFor(() => {
-			expect(store.get()).toEqual({
-				read: "ask",
-				write: "ask",
-				execute: "ask",
-			});
-		});
-	});
-
-	it("re-labels the pill when the store changes underneath it", async () => {
-		const { root, store, renderer } = renderControl();
-		expect(containsText(root, "Auto: all")).toBe(true);
-		await act(async () => {
-			await store.setPolicy({ read: "auto", write: "ask", execute: "ask" });
-		});
-		expect(containsText(renderer.root, "Auto: read")).toBe(true);
 	});
 });

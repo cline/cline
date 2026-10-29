@@ -1,6 +1,6 @@
 /**
  * Render tests for the state/feedback primitives added for the Chat screen:
- * `Banner`, `IconBadge`, `StateView`, `Disclosure`, `Skeleton`, `CodeBlock`, and
+ * `Banner`, `IconBadge`, `StateView`, `Disclosure`, `CodeBlock`, and
  * `Chip`'s pressable form. Same shape as `primitives.test.tsx` — mount in Node
  * and assert on flattened token colors plus the accessibility contract.
  */
@@ -18,7 +18,6 @@ import {
 	CodeBlock,
 	Disclosure,
 	IconBadge,
-	Skeleton,
 	StateView,
 	Text,
 } from ".";
@@ -198,18 +197,6 @@ describe("Disclosure", () => {
 			root.find((node) => node.props.accessibilityRole === "button").props
 				.accessibilityState,
 		).toEqual({ expanded: true });
-	});
-});
-
-describe("Skeleton", () => {
-	it("fills with the muted surface and stays out of the a11y tree", () => {
-		const { root } = render(<Skeleton width="60%" height={14} />);
-		expect(hasStyle(root, "backgroundColor", color.surfaceMuted)).toBe(true);
-		expect(hasStyle(root, "height", 14)).toBe(true);
-		const block = root.findAll(
-			(node) => node.props.accessibilityElementsHidden === true,
-		);
-		expect(block.length).toBeGreaterThan(0);
 	});
 });
 

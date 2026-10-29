@@ -31,7 +31,6 @@ export {
 } from "./IconBadge";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { ScreenHeader, type ScreenHeaderProps } from "./ScreenHeader";
-export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { Spinner, type SpinnerProps } from "./Spinner";
 export { StateView, type StateViewProps } from "./StateView";
 export {
