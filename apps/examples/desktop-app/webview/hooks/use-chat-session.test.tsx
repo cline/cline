@@ -1919,6 +1919,7 @@ describe("useChatSession", () => {
 
 	it.each([
 		"passive",
+		"passive-event",
 		"selection",
 	])("locks an attached cloud session when %s recovery reports expired", async (source) => {
 		const sessionId = "session-expired-poll";
@@ -1927,8 +1928,16 @@ describe("useChatSession", () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "read_session_messages") return [];
-				if (command === "read_cloud_session_if_awake")
+				if (command === "read_cloud_session_if_awake") {
+					if (source === "passive-event")
+						handlerFor("cloud_session_rehydrated")({
+							sessionId,
+							messages: [],
+							status: "expired",
+							transcriptKnown: true,
+						});
 					return { kind: "refreshed", messages: [], status: "expired" };
+				}
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
 					if (request?.action === "attach")

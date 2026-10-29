@@ -2405,6 +2405,10 @@ export function useChatSession(environmentId: string) {
 				if (!Array.isArray(record.messages)) return;
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
+				if (nextStatus === "expired") {
+					setIsCloudSessionExpired(true);
+					setPromptsInQueue([]);
+				}
 				// A locally submitted turn owns status and live routing until its RPC
 				// settles. A reconnect snapshot may describe the preceding turn.
 				const previousUserIds =
@@ -2491,6 +2495,7 @@ export function useChatSession(environmentId: string) {
 		applyCloudSnapshotMessages,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
+		setPromptsInQueue,
 		subscribeToEnvironment,
 	]);
 
