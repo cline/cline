@@ -1,7 +1,9 @@
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { XIcon } from "lucide-react"
 import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CloudServiceClient } from "@/services/grpc-client"
@@ -42,13 +44,18 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 		}
 	}
 	const dismiss = () => view && run(() => CloudServiceClient.discardHandoff(StringRequest.create({ value: view.id })))
+	const dismissLabel = view?.phase === "preparing" ? "Cancel handoff" : "Dismiss handoff"
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	const errorText = error ?? preparationError
 	if (!view)
 		return errorText ? (
-			<div className="px-3 py-2 text-error" role="alert">
-				{errorText}
-			</div>
+			<section
+				aria-label="Cloud handoff error"
+				className="mx-3 my-2 max-h-[min(25vh,10rem)] overflow-y-auto text-error whitespace-pre-wrap break-words focus-visible:ring-1 focus-visible:ring-ring"
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: Long errors need keyboard scrolling.
+				tabIndex={0}>
+				<div role="alert">{errorText}</div>
+			</section>
 		) : null
 
 	return (
@@ -109,7 +116,7 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 							run locally and may change your files.
 						</p>
 						{errorText && (
-							<div className="text-error" role="alert">
+							<div className="text-error whitespace-pre-wrap break-words" role="alert">
 								{errorText}
 							</div>
 						)}
@@ -132,15 +139,34 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 				</Dialog>
 			)}
 			{view.phase !== "ready" && (
-				<section aria-label="Cloud handoff" className="m-2 p-3 border border-input-border rounded text-sm">
-					<div role="status">{handoffStatus(view)}</div>
-					{errorText && (
-						<div className="text-error mt-2" role="alert">
-							{errorText}
+				<section
+					aria-label="Cloud handoff"
+					className="m-2 p-3 max-h-[min(35vh,14rem)] overflow-y-auto border border-input-border rounded text-sm focus-visible:ring-1 focus-visible:ring-ring"
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: Long notices need keyboard scrolling.
+					tabIndex={0}>
+					<div className="flex items-start gap-2">
+						<div className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+							<div role={view.phase === "failed" ? "alert" : "status"}>{handoffStatus(view)}</div>
+							{errorText && (
+								<div className="text-error mt-2" role="alert">
+									{errorText}
+								</div>
+							)}
 						</div>
-					)}
-					<div className="flex gap-2 mt-2">
-						{sessionId && (
+						{view.phase !== "launching" && (
+							<Button
+								aria-label={dismissLabel}
+								className="size-5 shrink-0"
+								onClick={() => void dismiss()}
+								size="icon"
+								title={dismissLabel}
+								variant="icon">
+								<XIcon />
+							</Button>
+						)}
+					</div>
+					{sessionId && (
+						<div className="flex flex-wrap gap-2 mt-2">
 							<VSCodeButton
 								appearance="secondary"
 								onClick={() =>
@@ -150,23 +176,18 @@ export function CloudHandoff({ error: preparationError }: { error?: string }) {
 								}>
 								Open cloud task
 							</VSCodeButton>
-						)}
-						{view.phase === "complete" && view.delivery === "unsent" && (
-							<VSCodeButton
-								onClick={() =>
-									void run(() =>
-										CloudServiceClient.retryHandoffMessage(StringRequest.create({ value: view.id })),
-									)
-								}>
-								Retry continuation
-							</VSCodeButton>
-						)}
-						{view.phase !== "launching" && (
-							<VSCodeButton appearance="secondary" onClick={() => void dismiss()}>
-								{view.phase === "preparing" ? "Cancel" : "Dismiss"}
-							</VSCodeButton>
-						)}
-					</div>
+							{view.phase === "complete" && view.delivery === "unsent" && (
+								<VSCodeButton
+									onClick={() =>
+										void run(() =>
+											CloudServiceClient.retryHandoffMessage(StringRequest.create({ value: view.id })),
+										)
+									}>
+									Retry continuation
+								</VSCodeButton>
+							)}
+						</div>
+					)}
 				</section>
 			)}
 		</>

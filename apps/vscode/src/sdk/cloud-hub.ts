@@ -27,7 +27,7 @@ export class VscodeCloudHub {
 			env: { ELECTRON_RUN_AS_NODE: "1" },
 		})
 		const url = await ensureCompatibleLocalHubUrl({ strategy: "require-hub", cwd: this.cwd, workspaceRoot: this.cwd })
-		if (!url) throw new Error("Unable to start or connect to the Cline Hub. Please reload the extension and try again.")
+		if (!url) throw new Error("Couldn't connect to Cline Hub. Reload VS Code and retry.")
 		const client = new NodeHubClient({
 			url,
 			clientType: "vscode-cloud-handoff",
