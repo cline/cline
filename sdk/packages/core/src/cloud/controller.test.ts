@@ -533,6 +533,7 @@ describe("CloudSessionController neutral host contract", () => {
 		["explicit", "known-expired"],
 		["passive", "known-expired"],
 		["passive", "probe-expired"],
+		["passive", "probe-failed"],
 	] as const)("%s history reads retain archive recovery for %s", async (mode, failure) => {
 		const f = resumableFixture();
 		const messages = [{ role: "assistant", content: "Archived final answer" }];
@@ -541,13 +542,19 @@ describe("CloudSessionController neutral host contract", () => {
 			f.api.list.mockResolvedValue([
 				{ ...record, expiredAt: "2020-01-01T00:00:00Z" },
 			]);
-		if (failure === "probe-expired")
-			f.api.status.mockResolvedValue({ status: "expired" });
-		f.command.mockRejectedValue(
-			new CloudSessionError("session_expired", "Sandbox expired"),
-		);
+		const status = failure === "probe-failed" ? "failed" : "expired";
+		if (failure.startsWith("probe-"))
+			f.api.status.mockResolvedValue({ status });
 		try {
 			if (failure === "known-expired") await f.controller.list();
+			if (failure === "live") {
+				f.setStatus("running");
+				await f.controller.attach(record.id);
+				await f.controller.readMessages(record.id);
+			}
+			f.command.mockRejectedValue(
+				new CloudSessionError("session_expired", "Sandbox expired"),
+			);
 			const result =
 				mode === "explicit"
 					? await f.controller.readMessages(record.id)
@@ -562,8 +569,53 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(f.api.history).toHaveBeenCalledOnce();
 			expect(f.api.resume).not.toHaveBeenCalled();
 			if (mode === "passive")
-				expect(result).toMatchObject({ kind: "refreshed", status: "expired" });
+				expect(result).toMatchObject({ kind: "refreshed", status });
+			expect(f.controller.getSnapshot(record.id)).toMatchObject({
+				status,
+				busy: false,
+			});
+			expect(
+				f.events.filter((event) => event.type === "snapshot").at(-1),
+			).toMatchObject({ snapshot: { status, busy: false } });
 			if (failure !== "live") expect(f.commands).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("archive recovery preserves a resume completed while history was loading", async () => {
+		const f = resumableFixture();
+		const messages = [{ role: "assistant", content: "Archived answer" }];
+		let release!: (messages: unknown[]) => void;
+		f.api.history.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		f.api.status.mockResolvedValueOnce({ status: "failed" });
+		try {
+			const passive = f.controller.readMessagesIfAwake(record.id);
+			await vi.waitFor(() => expect(f.api.history).toHaveBeenCalledOnce());
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+			await f.controller.list();
+			f.api.status.mockResolvedValue({ status: "suspended" });
+			await f.controller.attach(record.id);
+			expect(f.api.resume).toHaveBeenCalledOnce();
+			f.emit("session.updated", { session: { status: "running" } });
+			expect(f.controller.getSnapshot(record.id)?.status).toBe("running");
+			release(messages);
+			expect(await passive).toEqual({
+				kind: "refreshed",
+				messages,
+				status: "running",
+			});
+			expect(f.controller.getSnapshot(record.id)?.status).toBe("running");
+			expect(
+				f.events.filter((event) => event.type === "snapshot").at(-1),
+			).toMatchObject({ snapshot: { status: "running" } });
 		} finally {
 			await f.controller.dispose();
 		}

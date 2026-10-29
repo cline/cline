@@ -2119,7 +2119,6 @@ export class CloudSessionController {
 		outerSessionId: string,
 	): Promise<CloudPassiveReadResult> {
 		this.assertSessionActive(outerSessionId);
-		// Explicit attachment owns any in-flight provisioning or resume.
 		if (
 			this.connectionPromises.has(outerSessionId) ||
 			this.pendingInitialTasks.has(outerSessionId)
@@ -2177,17 +2176,19 @@ export class CloudSessionController {
 			const refreshed =
 				(await this.refreshKnownSession(outerSessionId)) ?? known;
 			if (refreshed) {
+				if (error instanceof CloudSessionError) {
+					if (error.code === "session_expired") refreshed.status = "expired";
+					else if (error.code === "session_failed") refreshed.status = "failed";
+				}
 				const archived = await this.loadArchivedMessages(refreshed).catch(
 					() => null,
 				);
 				if (archived !== null) {
-					let status =
-						this.sessions.get(outerSessionId)?.status ?? refreshed.status;
-					if (error instanceof CloudSessionError) {
-						if (error.code === "session_expired") status = "expired";
-						else if (error.code === "session_failed") status = "failed";
-					}
-					return { messages: archived, status };
+					return {
+						messages: archived,
+						status:
+							this.sessions.get(outerSessionId)?.status ?? refreshed.status,
+					};
 				}
 			}
 			throw error;
