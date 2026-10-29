@@ -1,7 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
-import { createContributionRegistry } from "./contribution-registry";
+import {
+	createContributionRegistry,
+	normalizePluginManifest,
+} from "./contribution-registry";
 
 describe("ContributionRegistry automation event contributions", () => {
+	it("preserves the root-only manifest flag during normalization", () => {
+		expect(
+			normalizePluginManifest({
+				capabilities: ["hooks"],
+				rootOnly: true,
+			}),
+		).toEqual({
+			capabilities: ["hooks"],
+			rootOnly: true,
+		});
+	});
+
 	it("accepts skills-only plugins without setup contributions", async () => {
 		const registry = createContributionRegistry({
 			extensions: [
