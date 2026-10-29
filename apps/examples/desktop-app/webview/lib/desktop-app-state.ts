@@ -16,6 +16,7 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	openRevision?: number;
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -190,6 +191,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 							index === existingIdx
 								? {
 										...thread,
+										openRevision: (thread.openRevision ?? 0) + 1,
 										environmentId: action.environmentId,
 										hasStarted: true,
 										historySession: {
@@ -204,6 +206,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 							...state.threads,
 							{
 								id: threadId,
+								openRevision: 1,
 								environmentId: action.environmentId,
 								hasStarted: true,
 								historySession: {

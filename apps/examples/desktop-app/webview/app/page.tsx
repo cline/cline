@@ -1135,6 +1135,7 @@ function App() {
 													: null
 											}
 											historySession={activeThread.historySession}
+											openRevision={activeThread.openRevision ?? 0}
 											liveHistorySession={
 												activeHistorySessionId
 													? sessionHistory.sessionById.get(
@@ -1285,6 +1286,7 @@ function ChatThreadPane({
 	environmentProfiles,
 	environmentProfilesLoading,
 	historySession,
+	openRevision,
 	liveHistorySession,
 	initialPromptDraft,
 	knownWorkspacePaths,
@@ -1312,6 +1314,7 @@ function ChatThreadPane({
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
+	openRevision: number;
 	liveHistorySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
@@ -1385,6 +1388,7 @@ function ChatThreadPane({
 		reset,
 		abort,
 		hydrateSession,
+		refreshSelectedCloudSession,
 	} = useChatSession(environmentId);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
@@ -1532,6 +1536,7 @@ function ChatThreadPane({
 		() => workspacesLoadedOnce,
 	);
 	const hydratedSessionRef = useRef<string | null>(null);
+	const consumedOpenRevisionRef = useRef(0);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
@@ -2051,8 +2056,18 @@ function ChatThreadPane({
 	}, [historySession, manualTitle, reset, threadId, setPendingAttachments]);
 
 	useEffect(() => {
+		const explicitlyOpened = consumedOpenRevisionRef.current !== openRevision;
+		consumedOpenRevisionRef.current = openRevision;
 		if (!historySession) {
 			return;
+		}
+		if (
+			explicitlyOpened &&
+			historySession.origin === "cloud" &&
+			historySession.sessionId === sessionId &&
+			!isHydratingSession
+		) {
+			void refreshSelectedCloudSession();
 		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
 			return;
@@ -2076,6 +2091,9 @@ function ChatThreadPane({
 	}, [
 		historySession,
 		hydrateSession,
+		openRevision,
+		refreshSelectedCloudSession,
+		isHydratingSession,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
 		sessionId,

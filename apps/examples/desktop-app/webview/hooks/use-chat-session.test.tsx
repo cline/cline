@@ -1671,7 +1671,7 @@ describe("useChatSession", () => {
 	it.each([
 		"suspended",
 		"Unknown cloud operation: readMessagesIfAwake",
-	])("stops background reads without losing history or blocking reopen: %s", async (outcome) => {
+	])("stops background reads and supports non-destructive explicit refresh: %s", async (outcome) => {
 		const sessionId = "session-suspended-poll";
 		const initialMessages = [
 			{
@@ -1750,12 +1750,86 @@ describe("useChatSession", () => {
 			vi.useRealTimers();
 		}
 
-		await act(async () => hydrate());
+		await act(async () => current.refreshSelectedCloudSession());
+		expect(current.promptsInQueue).toEqual(queued);
+		expect(current.status).toBe("running");
 		expect(readCount).toBe(2);
 		expect(current.messages.map((message) => message.id)).toEqual([
 			"suspended-user",
 			"reopened-assistant",
 		]);
+	});
+
+	it("preserves an active cloud turn and its failure during explicit reselection", async () => {
+		const sessionId = "session-reselection-race";
+		const attachment = deferred<{ status: string }>();
+		const attachRequested = deferred<void>();
+		let refreshing = false;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						if (refreshing) {
+							attachRequested.resolve();
+							return attachment.promise;
+						}
+						return { sessionId, status: "running", ...cloudSessionConfig };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "running",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_text",
+					chunk: "Still working",
+					ts: 1,
+					index: 1,
+				});
+				await vi.advanceTimersByTimeAsync(200);
+			});
+			const assistantId = current.activeAssistantMessageId;
+			invokeMock.mockClear();
+			refreshing = true;
+			let refresh!: Promise<void>;
+			await act(async () => {
+				refresh = current.refreshSelectedCloudSession();
+				await attachRequested.promise;
+			});
+			expect(invokeMock).not.toHaveBeenCalledWith(
+				"read_session_messages",
+				expect.anything(),
+			);
+			expect(current.activeAssistantMessageId).toBe(assistantId);
+			expect(current.messages.at(-1)?.content).toBe("Still working");
+			await act(async () => {
+				handlerFor("cloud_session_sync_failed")({
+					sessionId,
+					message: "New connection failure",
+				});
+				attachment.resolve({ status: "completed" });
+				await refresh;
+			});
+			expect(current.error).toBe("New connection failure");
+			expect(current.activeAssistantMessageId).toBe(assistantId);
+			expect(current.status).toBe("running");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("ignores a passive cloud result after the selected session changes", async () => {
@@ -1831,8 +1905,12 @@ describe("useChatSession", () => {
 		}
 	});
 
-	it("locks an attached cloud session when passive recovery reports expired", async () => {
+	it.each([
+		"passive",
+		"selection",
+	])("locks an attached cloud session when %s recovery reports expired", async (source) => {
 		const sessionId = "session-expired-poll";
+		let expired = false;
 		const queued = [{ id: "queued", prompt: "next", steer: false }];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1844,7 +1922,7 @@ describe("useChatSession", () => {
 					if (request?.action === "attach")
 						return {
 							sessionId,
-							status: "running",
+							status: expired ? "expired" : "running",
 							...cloudSessionConfig,
 						};
 				}
@@ -1866,7 +1944,11 @@ describe("useChatSession", () => {
 				handlerFor("prompts_in_queue_state")({ sessionId, items: queued });
 			});
 			expect(current.promptsInQueue).toEqual(queued);
-			await act(async () => vi.advanceTimersByTimeAsync(3_100));
+			expired = true;
+			await act(async () => {
+				if (source === "selection") await current.refreshSelectedCloudSession();
+				else await vi.advanceTimersByTimeAsync(3_100);
+			});
 		} finally {
 			vi.useRealTimers();
 		}
@@ -3101,7 +3183,12 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("running");
 	});
 
-	it("keeps the reconciled live tail when the duplicate history RPC resolves", async () => {
+	it.each([
+		"hydrate",
+		"selection",
+		"selection with newer snapshot",
+	])("keeps the reconciled live tail when the %s history RPC resolves", async (source) => {
+		let initialSelection = source !== "hydrate";
 		let resolveHistory!: (messages: Array<Record<string, unknown>>) => void;
 		let historyRequested!: () => void;
 		const requested = new Promise<void>((resolve) => {
@@ -3115,6 +3202,7 @@ describe("useChatSession", () => {
 				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 			}
 			if (command === "read_session_messages") {
+				if (initialSelection) return [];
 				historyRequested();
 				return await history;
 			}
@@ -3129,9 +3217,8 @@ describe("useChatSession", () => {
 			return [];
 		});
 
-		let hydration!: Promise<void>;
-		await act(async () => {
-			hydration = current.hydrateSession({
+		const hydrate = () =>
+			current.hydrateSession({
 				sessionId: "ses-cloud",
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
@@ -3139,6 +3226,16 @@ describe("useChatSession", () => {
 				...cloudSessionConfig,
 				startedAt: "2026-08-06T00:00:00.000Z",
 			});
+		if (initialSelection) {
+			await act(async () => hydrate());
+			initialSelection = false;
+		}
+		let hydration!: Promise<void>;
+		await act(async () => {
+			hydration =
+				source !== "hydrate"
+					? current.refreshSelectedCloudSession()
+					: hydrate();
 			await requested;
 		});
 
@@ -3157,25 +3254,39 @@ describe("useChatSession", () => {
 		await act(async () => {
 			rehydratedHandler?.({
 				sessionId: "ses-cloud",
-				status: "running",
+				status:
+					source === "selection with newer snapshot" ? "completed" : "running",
 				transcriptKnown: true,
-				messages: snapshot,
+				messages:
+					source === "selection with newer snapshot"
+						? snapshot.map((message) => ({
+								...message,
+								content: "Newer answer",
+							}))
+						: snapshot,
 			});
-			chatEventHandler?.({
-				sessionId: "ses-cloud",
-				stream: "chat_tool_call_start",
-				chunk: JSON.stringify({
-					toolCallId: "tail-tool",
-					toolName: "read_files",
-					input: { paths: ["README.md"] },
-				}),
-				ts: 2,
-				index: 1,
-			});
+			if (source !== "selection with newer snapshot")
+				chatEventHandler?.({
+					sessionId: "ses-cloud",
+					stream: "chat_tool_call_start",
+					chunk: JSON.stringify({
+						toolCallId: "tail-tool",
+						toolName: "read_files",
+						input: { paths: ["README.md"] },
+					}),
+					ts: 2,
+					index: 1,
+				});
 			resolveHistory(snapshot);
 			await hydration;
 		});
 
+		if (source === "selection with newer snapshot") {
+			expect(current.messages.map((message) => message.content)).toEqual([
+				"Newer answer",
+			]);
+			return;
+		}
 		expect(current.messages.map((message) => message.role)).toEqual([
 			"assistant",
 			"tool",

@@ -3934,6 +3934,81 @@ export function useChatSession(environmentId: string) {
 		setPromptsInQueue,
 	]);
 
+	const cloudSelectionRequestRef = useRef(0);
+	const refreshSelectedCloudSession = useCallback(async () => {
+		const selectedId = activeSessionIdRef.current;
+		if (!selectedId || config.executionTarget !== "cloud") return;
+		const requestId = ++cloudSelectionRequestRef.current;
+		const hydrationId = hydrationRequestIdRef.current;
+		const epoch = turnEpochRef.current;
+		setError(null);
+		const isCurrent = () =>
+			cloudSelectionRequestRef.current === requestId &&
+			activeSessionIdRef.current === selectedId &&
+			hydrationRequestIdRef.current === hydrationId;
+		const canRefreshHistory = () =>
+			!activeAssistantMessageIdRef.current &&
+			turnEpochRef.current === turnSettledEpochRef.current &&
+			activePromptSubmissionsRef.current === 0 &&
+			outstandingOptimisticUserIdsRef.current.size === 0 &&
+			Date.now() - lastLiveChunkAtRef.current >= STALE_STREAM_QUIET_MS;
+		try {
+			// Reselecting a live pane must not replay older text over its stream.
+			if (canRefreshHistory()) {
+				const lastChunkAt = lastLiveChunkAtRef.current;
+				const historyRevision = authoritativeStatusRevisionRef.current;
+				const messages = await desktopClient.invoke<ChatMessage[]>(
+					"read_session_messages",
+					{ environmentId, sessionId: selectedId, maxMessages: MAX_MESSAGES },
+				);
+				if (!isCurrent()) return;
+				if (
+					canRefreshHistory() &&
+					turnEpochRef.current === epoch &&
+					lastLiveChunkAtRef.current === lastChunkAt &&
+					authoritativeStatusRevisionRef.current === historyRevision
+				) {
+					applyCloudSnapshotMessages({
+						sessionId: selectedId,
+						messages,
+						preserveUnmatchedLive: true,
+						preserveLiveRouting: true,
+					});
+				}
+			}
+			const statusRevision = authoritativeStatusRevisionRef.current;
+			const attached = await postSession({
+				action: "attach",
+				sessionId: selectedId,
+				config: { executionTarget: "cloud" },
+			});
+			if (!isCurrent()) return;
+			if (attached.status === "expired") {
+				setIsCloudSessionExpired(true);
+				setPromptsInQueue([]);
+			}
+			const nextStatus = mapCloudRuntimeStatus(attached.status);
+			if (
+				nextStatus &&
+				canRefreshHistory() &&
+				turnEpochRef.current === epoch &&
+				authoritativeStatusRevisionRef.current === statusRevision
+			) {
+				authoritativeStatusRevisionRef.current += 1;
+				setStatus(nextStatus);
+			}
+		} catch (error) {
+			if (isCurrent() && turnEpochRef.current === epoch)
+				setError((current) => current ?? errorMessage(error));
+		}
+	}, [
+		config.executionTarget,
+		environmentId,
+		applyCloudSnapshotMessages,
+		postSession,
+		setPromptsInQueue,
+	]);
+
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
 			if (
@@ -4362,6 +4437,7 @@ export function useChatSession(environmentId: string) {
 		setWorkspacePath,
 		start,
 		hydrateSession,
+		refreshSelectedCloudSession,
 		sendPrompt,
 		steerPromptInQueue,
 		updatePromptInQueue,

@@ -47,12 +47,15 @@ describe("desktopAppReducer", () => {
 			);
 			expect(state.threads).toHaveLength(2);
 		}
+		expect(state.threads[0].openRevision).toBe(2);
+		expect(state.threads[1].openRevision).toBe(1);
 		state = desktopAppReducer(state, {
 			type: "update-session-metadata",
 			sessionId: "same-id",
 			environmentId: "local",
 			metadata: { title: "Local title" },
 		});
+		expect(state.threads[0].openRevision).toBe(2);
 		expect(state.threads[0].historySession?.metadata?.title).toBe(
 			"Local title",
 		);
