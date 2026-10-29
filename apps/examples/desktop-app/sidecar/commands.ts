@@ -2256,7 +2256,7 @@ export async function handleCommand(
 		const { sessionId, artifactId } = z
 			.object({
 				sessionId: z.string().trim().min(1),
-				artifactId: z.string().trim().min(1),
+				artifactId: z.string().min(1),
 			})
 			.parse(args);
 		return getCloudSessionManager(ctx).getArtifactDownloadUrl(

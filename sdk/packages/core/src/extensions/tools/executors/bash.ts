@@ -732,11 +732,7 @@ function spawnAndCollect(
 
 		const child = spawn(config.executable, config.args, {
 			cwd: config.cwd,
-			env: {
-				...process.env,
-				...config.env,
-				CLINE_SESSION_ID: context.sessionId ?? "",
-			},
+			env: { ...process.env, ...config.env },
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
 			// Prevent a console window from flashing on Windows when the

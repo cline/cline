@@ -167,10 +167,10 @@ describe("hub-owned cloud sessions", () => {
 		const viewer = f.viewer();
 		await viewer.connect();
 		await expect(
-			viewer.getArtifactDownloadUrl("ses-one", "frame"),
+			viewer.getArtifactDownloadUrl("ses-one", " frame "),
 		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
 		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
-		expect(resolver).toHaveBeenCalledWith("ses-one", "frame");
+		expect(resolver).toHaveBeenCalledWith("ses-one", " frame ");
 		const pending = deferred<{ url: string; expiresAt: string }>();
 		resolver.mockReturnValueOnce(pending.promise);
 		const result = viewer.getArtifactDownloadUrl("ses-one", "frame");

@@ -288,6 +288,27 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
+	it("preserves the artifact ID when resolving a cloud download", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const download = {
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const resolve = vi
+			.spyOn(manager, "getArtifactDownloadUrl")
+			.mockResolvedValue(download);
+		await expect(
+			handleCommand(ctx, "get_cloud_artifact_url", {
+				sessionId: "ses-one",
+				artifactId: " frame ",
+			}),
+		).resolves.toEqual(download);
+		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
+	});
+
 	it("returns indexed search results without listing every session", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
