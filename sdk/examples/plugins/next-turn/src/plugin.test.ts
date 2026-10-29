@@ -261,7 +261,10 @@ const GIT_STATUS = [
 ].join("\n");
 
 const dirs: string[] = [];
-afterEach(() => {
+const disposers: Array<() => void | Promise<void>> = [];
+afterEach(async () => {
+	for (const dispose of disposers.splice(0)) await dispose();
+	await settle();
 	for (const dir of dirs.splice(0))
 		rmSync(dir, { recursive: true, force: true });
 });
@@ -305,6 +308,7 @@ function harness(
 			timeoutMs: options.timeoutMs,
 		},
 	});
+	let dispose: () => void | Promise<void> = () => {};
 	plugin.setup?.(
 		{} as never,
 		{
@@ -312,8 +316,12 @@ function harness(
 			workspaceInfo: { rootPath: dir },
 			emitEvent: (_name: string, payload: unknown) =>
 				events.push(payload as NextTurnSuggestionsEvent),
+			onDispose: (fn: () => void | Promise<void>) => {
+				dispose = fn;
+			},
 		} as never,
 	);
+	disposers.push(() => dispose());
 	const finish = (
 		runId: string,
 		status: "completed" | "aborted" | "failed" = "completed",
@@ -349,7 +357,15 @@ function harness(
 			return [];
 		}
 	};
-	return { plugin, events, pending, finish, ledger, dir };
+	return {
+		plugin,
+		events,
+		pending,
+		finish,
+		ledger,
+		dir,
+		dispose: () => dispose(),
+	};
 }
 
 async function until(done: () => boolean, label = "condition"): Promise<void> {
@@ -526,10 +542,12 @@ test("the allowance is shared through the ledger file across plugin instances", 
 	first.pending[0]?.answer(MODEL_ANSWER);
 	await until(() => first.ledger().length === 1);
 	const dir = first.dir;
+	let secondCalls = 0;
 	const second = createNextTurnPlugin({
 		planner: {
-			complete: () => {
-				throw new Error("the allowance should have stopped this call");
+			complete: async () => {
+				secondCalls += 1;
+				return null;
 			},
 			allowance: new Allowance(
 				fileLedgerStore(join(dir, "data", "planner.jsonl")),
@@ -564,6 +582,7 @@ test("the allowance is shared through the ledger file across plugin instances", 
 		),
 	} as never);
 	await settle();
+	expect(secondCalls).toBe(0);
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
 });
 
@@ -604,7 +623,7 @@ test("after a failed turn the first suggestion deals with the failure even when 
 });
 
 test("subagent runs are not planned and ending the session aborts the call", async () => {
-	const { plugin, pending, finish } = harness();
+	const { plugin, pending, finish, dispose } = harness();
 	await plugin.hooks?.afterRun?.({
 		snapshot: { parentAgentId: "parent" },
 		result: run("completed"),
@@ -613,12 +632,8 @@ test("subagent runs are not planned and ending the session aborts the call", asy
 	expect(pending).toHaveLength(0);
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
-	let cleanup: (() => void | Promise<void>) | undefined;
-	plugin.setup?.(
-		{} as never,
-		{ onDispose: (fn: () => void) => (cleanup = fn) } as never,
-	);
-	await cleanup?.();
+	expect(pending[0]?.request.signal.aborted).toBe(false);
+	await dispose();
 	expect(pending[0]?.request.signal.aborted).toBe(true);
 });
 

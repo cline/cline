@@ -14,6 +14,11 @@ function fakeCore(options: {
 	classify?: (error: unknown) => string;
 }) {
 	const attempts: Bounds[] = [];
+	const calls: Array<{
+		providerId: string;
+		modelId?: string;
+		args: unknown[];
+	}> = [];
 	const failures = [...(options.failures ?? [])];
 	const core = {
 		CORE_BUILD_VERSION: "0.0.0-test",
@@ -33,7 +38,11 @@ function fakeCore(options: {
 			classifyProviderError: options.classify ?? (() => "unknown"),
 			isRetryableProviderError: () => false,
 			createHandlerAsync: async (
-				config: Bounds & { abortSignal: AbortSignal },
+				config: Bounds & {
+					abortSignal: AbortSignal;
+					providerId: string;
+					modelId?: string;
+				},
 			) => {
 				attempts.push({
 					thinking: config.thinking,
@@ -43,7 +52,12 @@ function fakeCore(options: {
 				const failure = failures.shift();
 				return {
 					setAbortSignal: () => {},
-					async *createMessage() {
+					async *createMessage(...args: unknown[]) {
+						calls.push({
+							providerId: config.providerId,
+							modelId: config.modelId,
+							args,
+						});
 						if (failure) throw failure;
 						yield { type: "text", text: '{"suggestions":[]}' };
 						yield {
@@ -57,7 +71,7 @@ function fakeCore(options: {
 			},
 		},
 	};
-	return { core: core as never, attempts };
+	return { core: core as never, attempts, calls };
 }
 
 const request = (): CompleteRequest => ({
@@ -70,7 +84,7 @@ const request = (): CompleteRequest => ({
 const STORED = { anthropic: { providerId: "anthropic", apiKey: "k" } };
 
 test("the call is tool-less with reasoning off, on the chat's provider and model, and reports usage", async () => {
-	const { core, attempts } = fakeCore({ stored: STORED });
+	const { core, attempts, calls } = fakeCore({ stored: STORED });
 	const answer = await clineCompleter(async () => core)(request());
 	expect(answer).toEqual({
 		text: '{"suggestions":[]}',
@@ -78,6 +92,13 @@ test("the call is tool-less with reasoning off, on the chat's provider and model
 	});
 	expect(attempts).toEqual([
 		{ thinking: false, maxOutputTokens: 400, reasoningEffort: undefined },
+	]);
+	expect(calls).toEqual([
+		{
+			providerId: "anthropic",
+			modelId: "claude-x",
+			args: ["s", [{ role: "user", content: "u" }]],
+		},
 	]);
 });
 
