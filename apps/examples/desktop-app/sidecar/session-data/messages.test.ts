@@ -37,6 +37,53 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
+	it.each([
+		2, 1,
+	])("preserves publication results with a history window of %i", (limit) => {
+		const input = { files: [{ path: "/tmp/report.txt" }] };
+		const result = JSON.stringify({
+			files: [{ path: "/tmp/report.txt", artifactId: "report" }],
+		});
+		const saved = [
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "call", name: "publish_artifacts", input },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call",
+						name: "publish_artifacts",
+						content: result,
+					},
+				],
+			},
+		];
+		expect(
+			readSessionMessagesSync(
+				{ liveSessions: new Map() },
+				"ses-stopped",
+				limit,
+				saved,
+			),
+		).toEqual([
+			expect.objectContaining({
+				sessionId: "ses-stopped",
+				meta: expect.objectContaining({ toolName: "publish_artifacts" }),
+				content: JSON.stringify({
+					toolName: "publish_artifacts",
+					input: limit === 2 ? input : null,
+					result,
+					isError: false,
+				}),
+			}),
+		]);
+	});
+
 	it("restores persisted errors with the error display role", async () => {
 		const sessionId = "persisted-error";
 		const messages = JSON.parse(

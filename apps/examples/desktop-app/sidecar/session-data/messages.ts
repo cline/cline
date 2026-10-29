@@ -656,14 +656,18 @@ export function readSessionMessagesSync(
 					}
 					pendingToolMessages.delete(toolUseId);
 				} else {
+					const toolName =
+						typeof record.name === "string" && record.name.trim()
+							? record.name
+							: "tool_result";
 					out.push({
 						id: `${messageIdBase}_tool_result_${blockIdx}`,
 						sessionId,
 						role: "tool",
-						content: buildToolPayloadJson("tool_result", null, result, isError),
+						content: buildToolPayloadJson(toolName, null, result, isError),
 						createdAt: nextPartCreatedAt(),
 						meta: {
-							toolName: "tool_result",
+							toolName,
 							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
