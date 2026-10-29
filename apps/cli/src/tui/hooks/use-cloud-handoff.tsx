@@ -156,6 +156,7 @@ export function useCloudHandoff(input: {
 			attempt.setStatus({
 				kind: "complete",
 				result: {
+					sessionId: status.result.sessionId,
 					dashboardUrl: status.result.dashboardUrl,
 					warning: handoffError(error).message,
 				},

@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { CoreSessionService, SqliteSessionStore } from "@cline/core";
+import type { CloudSessionSnapshot } from "@cline/core/cloud";
 import { CloudSessionError } from "@cline/core/cloud";
 import { renderOpenTui } from "../../tui";
 import type { TuiProps } from "../../tui/types";
@@ -36,6 +37,7 @@ async function waitForRelease() {
 
 const cwd = process.cwd();
 const providerId = process.env.CLOUD_HANDOFF_FIXTURE_PROVIDER ?? "cline";
+const cloudSessionId = "synthetic-cloud-session-1";
 let activeSessionId = "synthetic-session-a";
 const sessionListeners = new Set<() => void>();
 const setActiveSession = (sessionId: string) => {
@@ -162,6 +164,22 @@ const props = {
 	setAskQuestion: () => {},
 	setModeChangeNotifier: () => {},
 	cloudSessions: {
+		scope: { serviceId: "synthetic-cloud-service", scopeGeneration: 1 },
+		attach: async (sessionId: string) => {
+			if (scenario === "attach-failure")
+				throw new Error("Synthetic attach failure");
+			record("attachedSessions", [
+				...(state.attachedSessions ?? []),
+				sessionId,
+			]);
+			return {
+				sessionId,
+				status: "running",
+				model: "synthetic-cloud-model",
+				repoUrl: "https://github.com/example/synthetic-project",
+				branch: "main",
+			};
+		},
 		listRepositories: async () => ({
 			connected: true,
 			connectUrl: "",
@@ -180,12 +198,59 @@ const props = {
 		create: async () => {
 			throw new Error("Not used by handoff fixture");
 		},
-		send: async () => {
-			throw new Error("Not used by handoff fixture");
+		send: async (sessionId: string, prompt: string, _delivery, modelId) => {
+			record("cloudSends", [
+				...(state.cloudSends ?? []),
+				{ sessionId, modelId: modelId ?? "", prompt },
+			]);
+			return { sessionId, ok: true as const };
 		},
 		abort: async () => ({ sessionId: "synthetic", ok: true as const }),
 		subscribe: () => () => {},
-		getSnapshot: () => undefined,
+		getSnapshot: (sessionId: string): CloudSessionSnapshot | undefined =>
+			sessionId === cloudSessionId
+				? {
+						sessionId,
+						config: { modelId: "synthetic-cloud-model" },
+						messages: [
+							{
+								role: "assistant",
+								content: "Synthetic attached cloud transcript",
+							},
+						],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: 0,
+						status: "running",
+						approvals:
+							scenario === "approval"
+								? [
+										{
+											requestId: "synthetic-request",
+											sessionId,
+											approvalId: "synthetic-approval",
+											createdAt: "2026-01-01T00:00:00.000Z",
+											toolCallId: "synthetic-tool-call",
+											toolName: "write_to_file",
+										},
+									]
+								: [],
+						connectionState: "connected",
+						transcriptKnown: true,
+						record: {
+							id: sessionId,
+							status: "running",
+							sandboxUrl: "https://synthetic.example.test",
+							repoContext: {
+								repoUrl: "https://github.com/example/synthetic-project",
+								branch: "main",
+							},
+							metadata: { modelId: "synthetic-cloud-model" },
+							createdAt: "2026-01-01T00:00:00.000Z",
+							updatedAt: "2026-01-01T00:00:00.000Z",
+						},
+					}
+				: undefined,
 	},
 	activeSession: {
 		getId: () => activeSessionId,
@@ -232,10 +297,12 @@ const props = {
 				onProgress({ message: "Publishing the approved Git snapshot." });
 				if (scenario === "retry") {
 					return {
+						sessionId: cloudSessionId,
 						dashboardUrl: `https://app.cline.bot/tasks/${target.taskId}`,
 						retrySend: async () => {
 							record("retryTargets", [...(state.retryTargets ?? []), target]);
 							return {
+								sessionId: cloudSessionId,
 								dashboardUrl: `https://app.cline.bot/tasks/${target.taskId}`,
 							};
 						},
@@ -258,7 +325,7 @@ const props = {
 					message: "Preparing the cloud workspace.",
 					dashboardUrl,
 				});
-				return { dashboardUrl };
+				return { sessionId: cloudSessionId, dashboardUrl };
 			},
 		};
 	},

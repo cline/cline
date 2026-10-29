@@ -35,6 +35,7 @@ export type CloudHandoffProgress = {
 };
 
 export type CloudHandoffResult = {
+	sessionId: string;
 	dashboardUrl: string;
 	warning?: string;
 	retrySend?: () => Promise<CloudHandoffResult>;
@@ -221,6 +222,7 @@ export async function prepareCloudHandoff(input: {
 						const dashboardUrl = dashboard(sessionId);
 						if (send.dispatched)
 							return {
+								sessionId: result.sessionId,
 								dashboardUrl,
 								warning:
 									"Delivery is unconfirmed. Check the cloud task before resending.",
@@ -238,6 +240,7 @@ export async function prepareCloudHandoff(input: {
 								assertAccount();
 
 								return {
+									sessionId: result.sessionId,
 									dashboardUrl,
 									...(sent.recoveredAfterDisconnect
 										? {
@@ -248,6 +251,7 @@ export async function prepareCloudHandoff(input: {
 								};
 							} catch {
 								return {
+									sessionId: result.sessionId,
 									dashboardUrl,
 									warning:
 										"Delivery is unconfirmed. Check the cloud task before resending.",
@@ -255,12 +259,14 @@ export async function prepareCloudHandoff(input: {
 							}
 						};
 						return {
+							sessionId: result.sessionId,
 							dashboardUrl,
 							warning: `The cloud task was created, but the prompt was not sent. ${send.detail ?? send.message}`,
 							retrySend,
 						};
 					}
 					return {
+						sessionId,
 						dashboardUrl: dashboard(sessionId),
 						...(send.recoveredAfterDisconnect
 							? {
@@ -273,6 +279,7 @@ export async function prepareCloudHandoff(input: {
 					assertAccount();
 					if (!sessionId) throw error;
 					return {
+						sessionId,
 						dashboardUrl: dashboard(sessionId),
 						warning:
 							"Delivery is unconfirmed. Check the cloud task before resending.",

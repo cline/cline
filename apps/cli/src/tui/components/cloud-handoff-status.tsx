@@ -8,6 +8,7 @@ const modifierLabel = process.platform === "darwin" ? "Option" : "Alt";
 export function CloudHandoffStatusBar(props: {
 	status: CloudHandoffStatus;
 	disabled: boolean;
+	onOpen: (sessionId: string) => Promise<void>;
 	onDismiss: () => void;
 	onRetry: () => Promise<void>;
 	onRestore: (draft: CloudHandoffDraft) => void;
@@ -27,11 +28,18 @@ export function CloudHandoffStatusBar(props: {
 				: (status.result.warning ??
 					"Cloud task ready. You can keep working locally.");
 	const openLink = () => {
-		if (url) void open(url, { wait: false }).catch(() => {});
+		if (!props.disabled && url) void open(url, { wait: false }).catch(() => {});
+	};
+	const openInTui = () => {
+		if (!props.disabled && status.kind === "complete")
+			void props.onOpen(status.result.sessionId);
 	};
 	useKeyboard((key) => {
 		if (props.disabled || !key.meta || key.ctrl || key.shift) return;
-		if (key.name === "o" && url) {
+		if (key.name === "o" && status.kind === "complete") {
+			key.preventDefault();
+			openInTui();
+		} else if (key.name === "o" && status.kind === "failed" && url) {
 			key.preventDefault();
 			openLink();
 		} else if (key.name === "e" && status.kind === "failed") {
@@ -54,12 +62,19 @@ export function CloudHandoffStatusBar(props: {
 			<text fg={status.kind === "failed" ? "red" : "cyan"}>
 				Cloud handoff: {message}
 			</text>
+			{status.kind === "complete" && (
+				<box onMouseDown={openInTui}>
+					<text>Open in TUI ({modifierLabel}+O)</text>
+				</box>
+			)}
 			{url && (
 				<box onMouseDown={openLink}>
 					<text>
 						<a href={url}>
-							{status.kind === "failed" ? "Connect GitHub" : "Open cloud task"}{" "}
-							({modifierLabel}+O): {url}
+							{status.kind === "failed"
+								? `Connect GitHub (${modifierLabel}+O)`
+								: "Open in browser"}
+							: {url}
 						</a>
 					</text>
 				</box>

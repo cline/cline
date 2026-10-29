@@ -51,6 +51,7 @@ import {
 	HubUpdateRequiredContent,
 } from "./components/dialogs/hub-update-required";
 import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
+import { withLoadingDialog } from "./components/dialogs/loading-dialog";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -355,8 +356,23 @@ function App(props: TuiProps) {
 		showError: (message) => showToast(message, "error"),
 	});
 	async function handleAccountChange() {
+		const sourceId = props.activeSession?.getId();
+		const wasCloudActive = cloud.active;
 		handoff.reset();
+		cloud.reset();
+		if (wasCloudActive) {
+			session.clearEntries();
+			session.setHasSubmitted(false);
+			session.setIsRunning(false);
+		}
 		await props.onAccountChange();
+		if (wasCloudActive && sourceId) {
+			const result = await resumeSession(sourceId);
+			const entries = hydrateSessionMessages(result.messages);
+			session.replaceEntries(entries);
+			session.setHasSubmitted(entries.length > 0);
+			session.setIsRunning(false);
+		}
 	}
 	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
 	const propsOnResumeSession = props.onResumeSession;
@@ -403,6 +419,10 @@ function App(props: TuiProps) {
 	}, [props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
+		if (cloudActive) {
+			showToast("Return to a local conversation to restore a checkpoint.");
+			return;
+		}
 		if (checkpointRestoreInFlightRef.current) {
 			showToast("Checkpoint restore already in progress", "info");
 			return;
@@ -503,7 +523,7 @@ function App(props: TuiProps) {
 			checkpointRestoreInFlightRef.current = false;
 			refocusTextareaRef.current();
 		}
-	}, [dialog, props, session, showToast, termHeight]);
+	}, [cloudActive, dialog, props, session, showToast, termHeight]);
 
 	const exitCline = useCallback(() => {
 		session.requestExit();
@@ -1178,6 +1198,33 @@ function App(props: TuiProps) {
 				<CloudHandoffStatusBar
 					status={handoff.status}
 					disabled={isDialogOpen || isRuntimeInteractionOpen}
+					onOpen={async (sessionId) => {
+						if (props.activeSession?.getId() !== handoff.sourceId) return;
+						if (session.isRunning || queuedPrompts.length > 0) {
+							showToast(
+								"Wait for the local run and queued prompts before opening the cloud task.",
+							);
+							return;
+						}
+						if (promptInput.getCurrentInputText().trim()) {
+							showToast(
+								"Send or clear the current draft before opening the cloud task.",
+							);
+							return;
+						}
+						try {
+							await withLoadingDialog(dialog, "Opening cloud task…", () =>
+								cloud.openExisting(sessionId),
+							);
+						} catch (error) {
+							showToast(
+								error instanceof Error ? error.message : String(error),
+								"error",
+							);
+						} finally {
+							promptInput.refocusTextarea();
+						}
+					}}
 					onDismiss={handoff.dismiss}
 					onRetry={handoff.retry}
 					onRestore={(draft) => {

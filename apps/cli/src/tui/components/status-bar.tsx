@@ -1,5 +1,6 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
+import open from "../../utils/open";
 import {
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
@@ -133,6 +134,7 @@ export interface StatusBarCloud {
 	modelName?: string;
 	/** Set once this chat's cloud session starts, which locks the target. */
 	sessionStatus?: string;
+	dashboardUrl?: string;
 }
 
 function truncateEnd(text: string, max: number): string {
@@ -316,6 +318,16 @@ export function StatusBar(props: StatusBarProps) {
 						(Ctrl+O)
 					</text>
 				))}
+			{isCloud && cloud.dashboardUrl && (
+				<text
+					onMouseDown={() => {
+						if (cloud.dashboardUrl)
+							void open(cloud.dashboardUrl, { wait: false }).catch(() => {});
+					}}
+				>
+					<a href={cloud.dashboardUrl}>Open in browser</a>
+				</text>
+			)}
 
 			{!isCloud &&
 				(autoApproveAll ? (

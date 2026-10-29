@@ -1,10 +1,17 @@
-import { readCloudModelIdGlobally, setCloudModelIdGlobally } from "@cline/core";
+import {
+	buildCloudHandoffDashboardUrl,
+	readCloudModelIdGlobally,
+	setCloudModelIdGlobally,
+} from "@cline/core";
 import type {
 	CloudModel,
 	CloudRepositoryOption,
 	CloudSessionSnapshot,
 } from "@cline/core/cloud";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	getClineEnvironmentConfig,
+} from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -32,8 +39,13 @@ import type { ChatEntry, CloudSessionsClient, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 
 export function describeCloudSessionStatus(
-	snapshot: Pick<CloudSessionSnapshot, "status" | "busy" | "record">,
+	snapshot: Pick<
+		CloudSessionSnapshot,
+		"status" | "busy" | "record" | "approvals"
+	>,
 ): string {
+	if (snapshot.approvals.length > 0)
+		return "Approval needed. Open in browser to respond.";
 	if (snapshot.status === "provisioning") {
 		const phase = snapshot.record?.metadata.provisioningPhase;
 		if (phase === "cloning_repo") return "Cloning repository in Cline Cloud…";
@@ -93,6 +105,11 @@ export function useCloudSessions(input: {
 	);
 	const [sessionId, setSessionId] = useState<string>();
 	const [sessionStatus, setSessionStatus] = useState<string>();
+	const [attachedSession, setAttachedSession] = useState<{
+		modelId: string;
+		repoFullName?: string;
+		branch?: string;
+	}>();
 	const sessionIdRef = useRef<string | undefined>(undefined);
 	const creatingRef = useRef<Promise<string | undefined> | undefined>(
 		undefined,
@@ -144,7 +161,7 @@ export function useCloudSessions(input: {
 	}, [explicitModelId, loadModels, localModelId, localProviderId]);
 
 	useEffect(() => {
-		if (!client || target !== "cloud" || !selection) return;
+		if (!client || target !== "cloud" || !selection || attachedSession) return;
 		let cancelled = false;
 		resolveModel().then(
 			(next) => {
@@ -155,7 +172,7 @@ export function useCloudSessions(input: {
 		return () => {
 			cancelled = true;
 		};
-	}, [client, resolveModel, selection, target]);
+	}, [attachedSession, client, resolveModel, selection, target]);
 
 	/** Walks the user through sign-in and GitHub access; undefined means stay local. */
 	const loadRepositories = useCallback(async (): Promise<
@@ -272,7 +289,7 @@ export function useCloudSessions(input: {
 					<CloudModelPickerContent
 						{...ctx}
 						models={models}
-						currentModelId={model?.id}
+						currentModelId={model?.id ?? attachedSession?.modelId}
 					/>
 				),
 			});
@@ -280,13 +297,24 @@ export function useCloudSessions(input: {
 				setCloudModelIdGlobally(picked.id);
 				setExplicitModelId(picked.id);
 				setModel(picked);
+				setAttachedSession((current) =>
+					current ? { ...current, modelId: picked.id } : current,
+				);
 			}
 		} catch (error) {
 			showToast(`Cline Cloud: ${errorMessage(error)}`, "error");
 		} finally {
 			refocusTextarea();
 		}
-	}, [client, dialog, model, refocusTextarea, showToast, termHeight]);
+	}, [
+		attachedSession?.modelId,
+		client,
+		dialog,
+		model,
+		refocusTextarea,
+		showToast,
+		termHeight,
+	]);
 
 	const toggleTarget = useCallback(() => {
 		if (sessionIdRef.current || sessionStatus) {
@@ -332,7 +360,61 @@ export function useCloudSessions(input: {
 		stoppedBeforeSendRef.current = false;
 		setSessionId(undefined);
 		setSessionStatus(undefined);
+		setAttachedSession(undefined);
 	}, []);
+
+	const openExisting = useCallback(
+		async (id: string): Promise<void> => {
+			if (!client) throw new Error("Cline Cloud is not available");
+			const generation = generationRef.current;
+			const scope = client.scope;
+			if (!scope) throw new Error("Cloud account is unavailable.");
+			const attached = await client.attach(id);
+			if (
+				generation !== generationRef.current ||
+				client.scope?.serviceId !== scope.serviceId ||
+				client.scope?.scopeGeneration !== scope.scopeGeneration
+			) {
+				throw new Error(
+					"The cloud account or conversation changed while opening the task.",
+				);
+			}
+			const snapshot = client.getSnapshot(id);
+			const modelId =
+				snapshot?.record?.metadata.modelId ??
+				(typeof attached.model === "string" ? attached.model : undefined);
+			if (!modelId?.trim())
+				throw new Error("The cloud task did not provide a model.");
+			const repoUrl =
+				snapshot?.record?.repoContext.repoUrl ??
+				(typeof attached.repoUrl === "string" ? attached.repoUrl : undefined);
+			const branch =
+				snapshot?.record?.repoContext.branch ??
+				(typeof attached.branch === "string" ? attached.branch : undefined);
+			reset();
+			abortRequestedRef.current = false;
+			sendInFlightRef.current = false;
+			sessionIdRef.current = id;
+			setSessionId(id);
+			setTarget("cloud");
+			setModel(undefined);
+			setAttachedSession({
+				modelId,
+				repoFullName: repoUrl
+					? (parseGitHubRepoFullName(repoUrl) ?? undefined)
+					: undefined,
+				branch,
+			});
+			setSessionStatus(
+				describeCloudSessionStatus(
+					snapshot ?? { status: attached.status, busy: false, approvals: [] },
+				),
+			);
+			replaceEntries(hydrateSessionMessages([...(snapshot?.messages ?? [])]));
+			setIsRunning(snapshot?.busy ?? false);
+		},
+		[client, replaceEntries, reset, setIsRunning],
+	);
 
 	useEffect(() => {
 		if (!client || !sessionId) return;
@@ -356,7 +438,7 @@ export function useCloudSessions(input: {
 
 	const submit = useCallback<TuiProps["onSubmit"]>(
 		async (prompt, _mode, delivery, attachments) => {
-			if (!client || !selection) {
+			if (!client || (!selection && !sessionIdRef.current)) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
 			const generation = generationRef.current;
@@ -385,10 +467,10 @@ export function useCloudSessions(input: {
 				return aborted;
 			};
 			try {
-				const modelId = (await resolveModel()).id;
+				const modelId = attachedSession?.modelId ?? (await resolveModel()).id;
 				if (!current()) return aborted;
 				// Follow-ups sent while the sandbox starts wait for the same session.
-				if (!sessionIdRef.current) {
+				if (!sessionIdRef.current && selection) {
 					creatingRef.current ??= (async () => {
 						setSessionStatus("Starting sandbox in Cline Cloud…");
 						try {
@@ -461,7 +543,7 @@ export function useCloudSessions(input: {
 				if (!delivery) sendInFlightRef.current = false;
 			}
 		},
-		[client, resolveModel, selection],
+		[attachedSession, client, resolveModel, selection],
 	);
 
 	const abort = useCallback(() => {
@@ -488,10 +570,20 @@ export function useCloudSessions(input: {
 	const statusBar: StatusBarCloud | undefined = client
 		? {
 				target,
-				repoFullName: selection?.repo.fullName,
-				branch: selection?.branch,
-				modelName: model ? cloudModelStatusName(model) : undefined,
+				repoFullName: attachedSession
+					? attachedSession.repoFullName
+					: selection?.repo.fullName,
+				branch: attachedSession ? attachedSession.branch : selection?.branch,
+				modelName: model
+					? cloudModelStatusName(model)
+					: attachedSession?.modelId,
 				sessionStatus,
+				dashboardUrl: sessionId
+					? buildCloudHandoffDashboardUrl(
+							getClineEnvironmentConfig().appBaseUrl,
+							sessionId,
+						)
+					: undefined,
 			}
 		: undefined;
 
@@ -499,7 +591,7 @@ export function useCloudSessions(input: {
 		statusBar,
 		/** Prompts go to Cline Cloud rather than the local agent. */
 		active: !!client && target === "cloud",
-		hasRepository: !!selection,
+		hasRepository: !!selection || !!attachedSession,
 		/** True from the first cloud submit, including while the sandbox is created. */
 		hasSession: !!sessionId || sessionStatus !== undefined,
 		toggleTarget: client ? toggleTarget : undefined,
@@ -509,5 +601,6 @@ export function useCloudSessions(input: {
 		abort,
 		reset,
 		detach,
+		openExisting,
 	};
 }

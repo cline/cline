@@ -137,6 +137,8 @@ export interface PendingPromptMutationResult {
 
 export type CloudSessionsClient = Pick<
 	HubCloudSessionClient,
+	| "attach"
+	| "scope"
 	| "listRepositories"
 	| "listBranches"
 	| "listModels"

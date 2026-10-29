@@ -131,6 +131,7 @@ describe("summary cloud handoff", () => {
 			{ serviceId: "hub", scopeGeneration: 1 },
 		);
 		expect(result.dashboardUrl).toContain("ses-example");
+		expect(result.sessionId).toBe("ses-example");
 		expect(input.readSource).toHaveBeenCalledTimes(2);
 	});
 
@@ -303,11 +304,12 @@ describe("summary cloud handoff", () => {
 		const prepared = await prepareCloudHandoff(input);
 		const result = await prepared.start(vi.fn());
 		expect(result.warning).toContain(dispatched ? "unconfirmed" : "not sent");
+		expect(result.sessionId).toBe("ses-example");
 		expect(Boolean(result.retrySend)).toBe(!dispatched);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
 		if (!dispatched) {
 			expect(result.retrySend).toBeDefined();
-			await result.retrySend?.();
+			expect((await result.retrySend?.())?.sessionId).toBe("ses-example");
 			expect(input.cloud.send).toHaveBeenCalledWith(
 				"ses-example",
 				expect.stringContaining(
@@ -344,6 +346,7 @@ describe("summary cloud handoff", () => {
 				recoveredAfterDisconnect: true,
 			});
 		const retried = await initial.retrySend?.();
+		expect(retried?.sessionId).toBe("ses-example");
 		expect(retried?.warning).toContain("before resending");
 		expect(retried?.retrySend).toBeUndefined();
 		expect(input.cloud.send).toHaveBeenCalledOnce();

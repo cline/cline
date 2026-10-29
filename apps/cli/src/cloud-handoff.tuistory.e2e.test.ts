@@ -258,10 +258,140 @@ describe("cloud handoff TUI", () => {
 			{ timeout },
 		);
 		await session.waitForText(
-			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
+			`Open in browser: https://app.cline.bot/tasks/synthetic-task-1`,
 			{ timeout },
 		);
 		expect(readState(statePath).started).toBe(true);
+	});
+
+	it("opens the completed handoff in TUI and sends follow-ups to that session", async () => {
+		const { session, statePath } = await launch();
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud continue the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(`Open in TUI (${modifierLabel}+O)`, { timeout });
+		await session.press(["alt", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+		await session.text({
+			waitFor: () =>
+				readState(statePath).attachedSessions?.includes(
+					"synthetic-cloud-session-1",
+				) === true,
+			timeout,
+		});
+
+		const followUp = "continue the synthetic cloud task";
+		await session.type(followUp);
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 1,
+			timeout,
+		});
+		expect(readState(statePath).cloudSends).toEqual([
+			{
+				sessionId: "synthetic-cloud-session-1",
+				modelId: "synthetic-cloud-model",
+				prompt: followUp,
+			},
+		]);
+		expect(readState(statePath).localPrompts).toBeUndefined();
+	});
+
+	it("keeps approval requests in cloud and offers the browser action", async () => {
+		const { session, statePath } = await launch({ scenario: "approval" });
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud continue the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(`Open in TUI (${modifierLabel}+O)`, { timeout });
+		await session.press(["alt", "o"]);
+		await session.waitForText("Approval needed. Open in browser to respond.", {
+			timeout,
+		});
+		await session.waitForText("Open in browser", { timeout });
+		expect(readState(statePath).attachedSessions).toEqual([
+			"synthetic-cloud-session-1",
+		]);
+	});
+
+	it("returns to local history with the cloud handoff still available", async () => {
+		const { session } = await launch();
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud continue the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(`Open in TUI (${modifierLabel}+O)`, { timeout });
+		await session.press(["alt", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+
+		await session.type("/history");
+		await session.press("enter");
+		await session.waitForText("Synthetic history session A", { timeout });
+		await session.press("enter");
+		await session.waitForText("Synthetic history conversation", { timeout });
+		const localScreen = await session.text();
+		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
+		expect(localScreen).toContain("Cloud handoff:");
+		expect(localScreen).toContain(
+			"Open in browser: https://app.cline.bot/tasks/synthetic-task-1",
+		);
+	});
+
+	it("keeps the local draft and handoff when opening a task is blocked or fails", async () => {
+		const { session, statePath } = await launch({ scenario: "attach-failure" });
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud continue the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(`Open in TUI (${modifierLabel}+O)`, { timeout });
+
+		const draft = "keep this local draft";
+		await session.type(draft);
+		await session.press(["alt", "o"]);
+		await session.waitForText("Send or clear the current draft", { timeout });
+		expect(await session.text()).toContain(draft);
+		expect(readState(statePath).attachedSessions).toBeUndefined();
+
+		await session.writeRaw("\u0015");
+		await session.press(["alt", "o"]);
+		await session.waitForText("Synthetic attach failure", { timeout });
+		expect(await session.text()).toContain("Cloud handoff:");
+		expect(readState(statePath).attachedSessions).toBeUndefined();
+		expect(readState(statePath).localPrompts).toBeUndefined();
+	});
+
+	it.each([
+		60, 120,
+	])("keeps TUI and browser actions visible at %i columns", async (cols) => {
+		const { session } = await launch();
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("/cloud open this synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(`Open in TUI (${modifierLabel}+O)`, { timeout });
+		if (cols < 120) session.resize({ cols, rows: 40 });
+		const screen = await session.text();
+		expect(screen).toContain(`Open in TUI (${modifierLabel}+O)`);
+		expect(screen).toContain("Open in browser");
+		expect(screen).toContain("Cloud task ready.");
+		if (cols === 120)
+			expect(screen.replace(/\s+/g, " ")).toContain(
+				"Open in browser: https://app.cline.bot/tasks/synthetic-task-1",
+			);
+		await session.press(["alt", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 	});
 
 	it("shows a failed handoff and restores the captured draft", async () => {
@@ -405,7 +535,7 @@ describe("cloud handoff TUI", () => {
 			},
 		);
 		await session.waitForText(
-			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
+			"Open in browser: https://app.cline.bot/tasks/synthetic-task-1",
 			{ timeout },
 		);
 		expect(
@@ -451,7 +581,7 @@ describe("cloud handoff TUI", () => {
 		const afterCancel = await session.text();
 		expect(afterCancel).toContain(`Retry saved prompt (${modifierLabel}+E)`);
 		expect(afterCancel).toContain(
-			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-1`,
+			"Open in browser: https://app.cline.bot/tasks/synthetic-task-1",
 		);
 		expect(readState(statePath).retryTargets).toBeUndefined();
 
@@ -473,7 +603,7 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
 		await session.waitForText(
-			`Open cloud task (${modifierLabel}+O): https://app.cline.bot/tasks/synthetic-task-4`,
+			"Open in browser: https://app.cline.bot/tasks/synthetic-task-4",
 			{ timeout },
 		);
 		expect(readState(statePath).preparations).toHaveLength(4);

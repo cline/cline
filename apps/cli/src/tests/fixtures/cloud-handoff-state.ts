@@ -15,6 +15,16 @@ export const fixtureStateSchema = z.object({
 	localPrompts: z.array(z.string()).optional(),
 	activeSessionId: z.string().optional(),
 	resumeCalls: z.array(z.string()).optional(),
+	attachedSessions: z.array(z.string()).optional(),
+	cloudSends: z
+		.array(
+			z.object({
+				sessionId: z.string(),
+				modelId: z.string(),
+				prompt: z.string(),
+			}),
+		)
+		.optional(),
 });
 
 export type FixtureState = z.infer<typeof fixtureStateSchema>;
@@ -24,4 +34,6 @@ export type FixtureScenario =
 	| "failure"
 	| "held-success"
 	| "held-failure"
-	| "retry";
+	| "retry"
+	| "attach-failure"
+	| "approval";
