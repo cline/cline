@@ -19,9 +19,9 @@ describe("McpToolRow hint badge", () => {
 		expect(screen.getByTestId("tool-hint-badge")).toHaveTextContent("read-only")
 	})
 
-	it("labels a tool the server declares as modifying", () => {
+	it("shows no badge for a tool the server declares as modifying", () => {
 		render(<McpToolRow serverName="jetbrains" tool={{ name: "rename_refactoring", annotations: { readOnlyHint: false } }} />)
-		expect(screen.getByTestId("tool-hint-badge")).toHaveTextContent("modifies")
+		expect(screen.queryByTestId("tool-hint-badge")).toBeNull()
 	})
 
 	it("shows no badge when the server declares nothing", () => {

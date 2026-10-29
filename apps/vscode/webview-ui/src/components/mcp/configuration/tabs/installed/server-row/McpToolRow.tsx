@@ -21,21 +21,18 @@ export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
  * hint is shown: an undeclared tool gets no badge, since absence of a hint is
  * not a statement about the tool.
  */
+// Only a declared read-only tool gets a badge: readOnlyHint false is the spec
+// default, so marking it would suggest undeclared tools are safe.
 const ToolHintBadge = ({ tool }: { tool: McpTool }) => {
-	const readOnlyHint = tool.annotations?.readOnlyHint
-	if (readOnlyHint === undefined) {
+	if (tool.annotations?.readOnlyHint !== true) {
 		return null
 	}
 	return (
 		<span
 			className="text-description border border-description/40 rounded-sm px-1.5 py-px text-[10px] uppercase tracking-wide shrink-0"
 			data-testid="tool-hint-badge"
-			title={
-				readOnlyHint
-					? "The server declares this tool read-only (readOnlyHint). A hint from the server, not a guarantee."
-					: "The server declares this tool may modify its environment (readOnlyHint: false)."
-			}>
-			{readOnlyHint ? "read-only" : "modifies"}
+			title="The server declares this tool read-only (readOnlyHint). A hint from the server, not a guarantee.">
+			read-only
 		</span>
 	)
 }
