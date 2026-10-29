@@ -23,10 +23,15 @@ export type ActiveSession = {
 	pendingPrompt?: string;
 	runtime: BuiltRuntime;
 	agent: SessionRuntime;
+	applyClientSetup: (
+		input: import("../runtime/host/runtime-host").StartSessionInput,
+	) => void;
 	started: boolean;
 	/** Includes asynchronous prompt preparation and turn finalization. */
 	turnInFlight: boolean;
 	aborting: boolean;
+	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
+	lastTurnEndedAt?: number;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
@@ -36,7 +41,12 @@ export type ActiveSession = {
 	teamRunWaiters: Array<() => void>;
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
+	/** Set by the queue drain on the one input it replays; consumed by runTurn. */
+	replayingQueuedPrompt?: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
+	pluginCommandError?: string;
+	pluginCommandTail?: Promise<unknown>;
+	pluginCommandsClosing?: boolean;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;

@@ -341,6 +341,7 @@ export class PendingPromptsController {
 		session.drainingPendingPrompts = true;
 		let continueDrain = true;
 		try {
+			session.replayingQueuedPrompt = true;
 			const result = await this.deps.send({
 				sessionId,
 				prompt: next.prompt,

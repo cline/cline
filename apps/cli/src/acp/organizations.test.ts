@@ -28,6 +28,7 @@ describe("buildOrganizationConfigOption", () => {
 			activeOrganizationId: "org-2",
 		});
 		expect(option.id).toBe("organization");
+		expect(option.category).toBe("_account");
 		if (option.type !== "select") {
 			throw new Error(`expected a select option, got ${option.type}`);
 		}

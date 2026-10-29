@@ -96,15 +96,14 @@ interface GitCommit {
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
-const SwitchContainer = styled.div<{ disabled: boolean }>`
+const SwitchContainer = styled.div`
 	display: flex;
 	align-items: center;
 	background-color: transparent;
 	border: 1px solid var(--vscode-input-border);
 	border-radius: 12px;
 	overflow: hidden;
-	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	cursor: pointer;
 	transform: scale(1);
 	transform-origin: right center;
 	margin-left: 0;
@@ -233,7 +232,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		} = useExtensionState()
 		// Cloud sessions are Act-only (like the desktop app and the cloud dashboard).
 		// While a cloud task is shown, or a new task is about to run in the cloud,
-		// the toggle is pinned to Act and disabled; the stored mode is untouched.
+		// the mode is pinned to Act and the toggle is hidden; the stored mode is untouched.
 		const cloudActOnly =
 			!!currentCloudTask || (clineMessages.length === 0 && !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
 		const mode = cloudActOnly ? "act" : selectedMode
@@ -741,7 +740,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const newCursorPosition = e.target.selectionStart
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
-				let showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+				// The context menu searches the local workspace, which a cloud sandbox cannot see.
+				let showMenu = !cloudActOnly && shouldShowContextMenu(newValue, newCursorPosition)
 				const showSlashCommandsMenu = shouldShowSlashCommandsMenu(newValue, newCursorPosition)
 
 				// we do not allow both menus to be shown at the same time
@@ -833,7 +833,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setFileSearchResults([])
 				}
 			},
-			[setInputValue, setFileSearchResults, selectedType],
+			[setInputValue, setFileSearchResults, selectedType, cloudActOnly],
 		)
 
 		useEffect(() => {
@@ -1159,7 +1159,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// A cloud task runs on a Cline model in the sandbox, whatever the
 			// local provider is; the extension reports which one.
 			if (cloudActOnly) {
-				return `cline:${cloudModelId || unknownModel}`
+				const cloudModel = cloudModelId || unknownModel
+				return cloudModel.startsWith("cline-pass/")
+					? `cline-pass:${cloudModel.replace(/^cline-pass\//, "")}`
+					: `cline:${cloudModel}`
 			}
 			if (!apiConfiguration) {
 				return unknownModel
@@ -1579,7 +1582,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+							{cloudActOnly
+								? "Type / for slash commands & workflows, hold shift to drag in images"
+								: "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images"}
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
@@ -1643,21 +1648,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
-							<Tooltip>
-								<TooltipContent>Add Context</TooltipContent>
-								<TooltipTrigger>
-									<VSCodeButton
-										appearance="icon"
-										aria-label="Add Context"
-										className="p-0 m-0 flex items-center"
-										data-testid="context-button"
-										onClick={handleContextButtonClick}>
-										<ButtonContainer>
-											<AtSignIcon size={12} />
-										</ButtonContainer>
-									</VSCodeButton>
-								</TooltipTrigger>
-							</Tooltip>
+							{!cloudActOnly && (
+								<Tooltip>
+									<TooltipContent>Add Context</TooltipContent>
+									<TooltipTrigger>
+										<VSCodeButton
+											appearance="icon"
+											aria-label="Add Context"
+											className="p-0 m-0 flex items-center"
+											data-testid="context-button"
+											onClick={handleContextButtonClick}>
+											<ButtonContainer>
+												<AtSignIcon size={12} />
+											</ButtonContainer>
+										</VSCodeButton>
+									</TooltipTrigger>
+								</Tooltip>
+							)}
 
 							<Tooltip>
 								<TooltipContent>Add Files & Images</TooltipContent>
@@ -1680,9 +1687,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</TooltipTrigger>
 							</Tooltip>
 
-							<ServersToggleModal />
-
-							<ClineRulesToggleModal />
+							{/* MCP servers and rules/workflows/hooks/skills configure this machine, not the cloud sandbox. */}
+							{!cloudActOnly && (
+								<>
+									<ServersToggleModal />
+									<ClineRulesToggleModal />
+								</>
+							)}
 
 							<ModelContainer>
 								<ModelButtonWrapper>
@@ -1698,47 +1709,38 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</ModelContainer>
 						</ButtonGroup>
 					</div>
-					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
-					<Tooltip>
-						<TooltipContent
-							className="text-xs px-2 flex flex-col gap-1"
-							hidden={shownTooltipMode === null}
-							side="top">
-							{cloudActOnly ? (
-								"Cloud sessions only support Act mode for now."
-							) : (
-								<>
-									{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-									<p className="text-description/80 text-xs mb-0">
-										Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
-									</p>
-								</>
-							)}
-						</TooltipContent>
-						<TooltipTrigger>
-							<SwitchContainer
-								aria-disabled={cloudActOnly}
-								data-testid="mode-switch"
-								disabled={cloudActOnly}
-								onClick={onModeToggle}>
-								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
-									<div
-										aria-checked={mode === m.toLowerCase()}
-										className={cn(
-											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
-										)}
-										key={m}
-										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
-										{m}
-									</div>
-								))}
-							</SwitchContainer>
-						</TooltipTrigger>
-					</Tooltip>
+					{!cloudActOnly && (
+						<Tooltip>
+							<TooltipContent
+								className="text-xs px-2 flex flex-col gap-1"
+								hidden={shownTooltipMode === null}
+								side="top">
+								{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+								<p className="text-description/80 text-xs mb-0">
+									Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+								</p>
+							</TooltipContent>
+							<TooltipTrigger>
+								<SwitchContainer data-testid="mode-switch" onClick={onModeToggle}>
+									<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
+									{["Plan", "Act"].map((m) => (
+										<div
+											aria-checked={mode === m.toLowerCase()}
+											className={cn(
+												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
+												mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+											)}
+											key={m}
+											onMouseLeave={() => setShownTooltipMode(null)}
+											onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+											role="switch">
+											{m}
+										</div>
+									))}
+								</SwitchContainer>
+							</TooltipTrigger>
+						</Tooltip>
+					)}
 				</div>
 			</div>
 		)

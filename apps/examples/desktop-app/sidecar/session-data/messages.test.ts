@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { writeSessionManifest } from "../paths";
 import { readSessionMessages } from "./messages";
 
 describe("readSessionMessages", () => {
@@ -26,6 +30,49 @@ describe("readSessionMessages", () => {
 				role: "error",
 				content: "Provider unavailable",
 			}),
+		]);
+	});
+	it("hides runtime-injected model-only messages", async () => {
+		const sessionId = `hook-context-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{ role: "user", content: "Ask me tabs or spaces" },
+						{
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: '<hook_context source="ToolSuccess" tool_name="ask__question">\nThe user has answered the question.\n</hook_context>',
+								},
+							],
+							metadata: { displayRole: "system", userRunSpan: 0 },
+						},
+						{
+							role: "user",
+							content:
+								"Previous turn ended unexpectedly. Continue from where you left off.",
+							metadata: { displayRole: "system", userRunSpan: 0 },
+						},
+						{ role: "assistant", content: "Spaces" },
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "user",
+				content: "Ask me tabs or spaces",
+			}),
+			expect.objectContaining({ role: "assistant", content: "Spaces" }),
 		]);
 	});
 	it("continues past malformed persisted entries", async () => {
@@ -316,6 +363,94 @@ describe("readSessionMessages", () => {
 				],
 			}),
 		]);
+	});
+
+	it("records file blocks of a user message relative to the mention base", async () => {
+		const sessionId = `file-projection-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "session-data-"));
+		const previousDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			writeSessionManifest(sessionId, {
+				session_id: sessionId,
+				workspace_root: "/repo",
+				cwd: "/repo/.worktrees/feature",
+			});
+			const liveSessions = new Map([
+				[
+					sessionId,
+					{
+						messages: [
+							{
+								id: "user-files",
+								role: "user",
+								content: [
+									{ type: "text", text: "Review @src/app.ts" },
+									{
+										type: "file",
+										path: "/repo/src/app.ts",
+										content: "export {}",
+									},
+									{
+										type: "file",
+										path: "/elsewhere/notes.md",
+										content: "notes",
+									},
+								],
+							},
+						],
+					},
+				],
+			]);
+
+			await expect(
+				readSessionMessages(
+					{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+					sessionId,
+				),
+			).resolves.toEqual([
+				expect.objectContaining({
+					content: "Review @src/app.ts",
+					meta: expect.objectContaining({
+						attachedFiles: ["src/app.ts", "/elsewhere/notes.md"],
+					}),
+				}),
+			]);
+		} finally {
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousDataDir;
+			}
+			rmSync(dataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves remote attached files against the remote mention base", async () => {
+		const [message] = await readSessionMessages(
+			{ liveSessions: new Map() } as Parameters<typeof readSessionMessages>[0],
+			"remote-file-projection",
+			800,
+			[
+				{
+					id: "remote-user",
+					role: "user",
+					content: [
+						{ type: "text", text: "Review @src/app.ts" },
+						{
+							type: "file",
+							path: "/home/dev/repo/src/app.ts",
+							content: "export {}",
+						},
+					],
+				},
+			],
+			"/home/dev/repo",
+		);
+		expect(message).toMatchObject({
+			content: "Review @src/app.ts",
+			meta: { attachedFiles: ["src/app.ts"] },
+		});
 	});
 
 	it("preserves absolute user run counts when older messages are omitted", async () => {

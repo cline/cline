@@ -22,6 +22,7 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
 - `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+- `@cline/ui`: shared web theme and reusable agent UI React components; depends only on `@cline/shared`
 
 ### Dependency Direction
 
@@ -37,7 +38,7 @@ Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
-- `@cline/core/cloud` owns remote cloud-session transport and state; hosts own authentication, feature gating, persistence, and UI projection.
+- `@cline/core/cloud` owns remote cloud-session transport and state. The shared hub owns desktop cloud controllers, credentials, organization lookup, and connections; desktop owns feature gating, persistence, and UI projection.
 
 ## Change Routing
 

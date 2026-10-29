@@ -21,7 +21,19 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
-import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
+import type {
+	McpAppResourceReadRequest,
+	McpAppsRuntime,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
+import { defaultMcpToolNameTransform } from "../../extensions/mcp/name-transform";
+import {
+	formatSessionPluginIssue,
+	isPluginCommand,
+} from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -33,6 +45,12 @@ import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import {
+	executePluginCommand,
+	listPluginCommands,
+	type PluginCommandsApi,
+} from "../../services/plugin-command-api";
+import { PluginCommandManager } from "../../services/plugin-commands";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -50,8 +68,10 @@ import {
 	captureConversationTurnEvent,
 	captureModeSwitch,
 	captureTaskCompleted,
+	captureToolUsage,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
+import { classifyBumpText } from "../../services/telemetry/stall-signals";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
@@ -102,7 +122,10 @@ import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
-import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
+import {
+	createBuiltinToolsList,
+	DefaultRuntimeBuilder,
+} from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
 	type RuntimeOAuthResolution,
@@ -276,6 +299,8 @@ function isSessionDirectedPluginEvent(name: string): boolean {
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
+	private readonly pluginCommandManager: PluginCommandManager;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
@@ -333,6 +358,64 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
+		this.pluginCommandManager = new PluginCommandManager({
+			logger: options.logger,
+			telemetry: options.telemetry,
+		});
+		this.pluginCommands = {
+			list: async (target) => {
+				if (!target.sessionId) return this.pluginCommandManager.list(target);
+				const session = this.sessions.get(target.sessionId);
+				if (!session) return this.pluginCommandManager.list(target);
+				if (
+					resolve(target.workspacePath) !==
+					resolve(resolveWorkspacePath(session.config))
+				)
+					throw new Error(
+						"Plugin command workspace does not match the session",
+					);
+				return this.withSessionPluginCommands(session, () => ({
+					workspacePath: resolveWorkspacePath(session.config),
+					sessionId: target.sessionId,
+					status: session.pluginCommandError
+						? ("error" as const)
+						: ("ready" as const),
+					error: session.pluginCommandError,
+					commands: listPluginCommands(
+						session.agent
+							.getExtensionRegistry()
+							.commands.filter(isPluginCommand),
+					),
+				}));
+			},
+			run: async (input) => {
+				if (!input.sessionId) return this.pluginCommandManager.run(input);
+				const session = this.sessions.get(input.sessionId);
+				if (!session) return this.pluginCommandManager.run(input);
+				if (
+					resolve(input.workspacePath) !==
+					resolve(resolveWorkspacePath(session.config))
+				)
+					throw new Error(
+						"Plugin command workspace does not match the session",
+					);
+				return this.withSessionPluginCommands(session, () =>
+					executePluginCommand(
+						session.agent
+							.getExtensionRegistry()
+							.commands.filter(isPluginCommand),
+						input.prompt,
+						{
+							telemetry: session.config.telemetry ?? this.defaultTelemetry,
+							sessionId: session.sessionId,
+							modelId: session.config.modelId,
+							provider: session.config.providerId,
+							agentIdentity: this.getSessionAgentTelemetryIdentity(session),
+						},
+					),
+				);
+			},
+		};
 		// A caller-owned telemetry service may already be identified to an
 		// authenticated account (the long-lived Hub daemon is one example).
 		// Only replace that identity when the caller explicitly supplied the
@@ -431,7 +514,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const sessionId = requestedSessionId || createSessionId();
 		const pendingStart = this.sessionStarts.get(sessionId);
 		if (pendingStart) {
-			return { ...(await pendingStart), reusedActiveSession: true };
+			const result = await pendingStart;
+			this.applySessionClientSetup(sessionId, input);
+			return { ...result, reusedActiveSession: true };
 		}
 		const start = this.startOrReuseSession(
 			input,
@@ -446,12 +531,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	private applySessionClientSetup(
+		sessionId: string,
+		input: StartSessionInput,
+	): void {
+		this.getSessionOrThrow(sessionId).applyClientSetup(input);
+	}
+
 	private async startOrReuseSession(
 		input: StartSessionInput,
 		sessionId: string,
 		wasSessionIdRequested: boolean,
 	): Promise<StartSessionResult> {
 		const active = this.sessions.get(sessionId);
+		if (active && (!active.agent.canStartRun() || active.turnInFlight)) {
+			if (input.prompt?.trim()) throw new SessionRunInProgressError();
+			this.applySessionClientSetup(sessionId, input);
+			return await this.liveSessionStartResult(active);
+		}
 		if (active && input.resumeExistingSession) {
 			await this.ensureSessionPersisted(active);
 			const artifacts = active.artifacts;
@@ -494,6 +591,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			wasSessionIdRequested,
 			existingResumeManifest,
 		);
+	}
+
+	private async liveSessionStartResult(
+		session: ActiveSession,
+	): Promise<StartSessionResult> {
+		const artifacts = session.artifacts;
+		if (!artifacts) {
+			throw new Error(
+				`Session ${session.sessionId} is running but was never persisted`,
+			);
+		}
+		const manifest =
+			(await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				session.sessionId,
+			)) ?? artifacts.manifest;
+		return {
+			sessionId: session.sessionId,
+			manifest,
+			manifestPath: artifacts.manifestPath,
+			messagesPath: artifacts.messagesPath,
+		};
 	}
 
 	private async startResolvedSession(
@@ -595,8 +714,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultCapabilities,
 			input.capabilities,
 		);
-		const sessionToolExecutors =
-			capabilities?.toolExecutors ?? this.toolExecutors;
+		const sessionToolExecutors = {
+			...(capabilities?.toolExecutors ?? this.toolExecutors),
+		};
 		const inputLocalConfig = input.localRuntime as
 			| Partial<CoreSessionConfig>
 			| undefined;
@@ -639,9 +759,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
 			}),
 		);
+		// Keep client callbacks separate from the conversation and shared bootstrap hooks.
+		// Forwarders stay registered in lead/delegated runtimes while clients reattach.
+		let clientHooks = input.localRuntime?.hooks;
+		const clientHookDispatch: NonNullable<AgentConfig["hooks"]> = {
+			beforeRun: (ctx) => clientHooks?.beforeRun?.(ctx),
+			afterRun: (ctx) => clientHooks?.afterRun?.(ctx),
+			beforeModel: (ctx) => clientHooks?.beforeModel?.(ctx),
+			afterModel: (ctx) => clientHooks?.afterModel?.(ctx),
+			beforeTool: (ctx) => clientHooks?.beforeTool?.(ctx),
+			afterTool: (ctx) => clientHooks?.afterTool?.(ctx),
+			onEvent: (ctx) => clientHooks?.onEvent?.(ctx),
+		};
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
+			clientHooks: clientHookDispatch,
 			sessionId,
 			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
@@ -799,6 +932,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => activeSessionRef?.compactionState,
+			prepareApiMessages: (messages) => {
+				const agent = activeSessionRef?.agent;
+				if (!agent) {
+					throw new Error(
+						"Compaction prepareTurn ran before the session runtime was created",
+					);
+				}
+				return agent.prepareProviderMessagesForApi(messages);
+			},
 			saveState: async (state, sourceMessages) => {
 				const activeSession = activeSessionRef;
 				if (!activeSession) return;
@@ -1007,6 +1149,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			pendingPrompt: manifest.prompt,
 			runtime,
 			agent,
+			applyClientSetup: (input) => {
+				if (
+					configWithProvider.enableTools !== false &&
+					input.capabilities?.toolExecutors
+				) {
+					Object.assign(sessionToolExecutors, input.capabilities.toolExecutors);
+					agent.replaceTools(
+						createBuiltinToolsList(
+							configWithProvider.cwd,
+							configWithProvider.providerId,
+							configWithProvider.mode ?? "act",
+							configWithProvider.modelId,
+							configWithProvider.toolRoutingRules,
+							bootstrap.toolPolicies,
+							undefined,
+							sessionToolExecutors,
+							configWithProvider.telemetry,
+							this.runCommandExecutionController,
+						),
+					);
+				}
+				if (input.localRuntime?.hooks) clientHooks = input.localRuntime.hooks;
+			},
 			started: false,
 			turnInFlight: Boolean(startInput.prompt?.trim()),
 			status:
@@ -1022,6 +1187,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			pendingPrompts: [],
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
+			pluginCommandError: bootstrap.pluginCommandError,
 			submitAndExitObserved: false,
 			taskCompletedEmitted: false,
 			lastInteractiveTurnFinishReason: undefined,
@@ -1190,6 +1356,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		const replayingQueuedPrompt = session.replayingQueuedPrompt === true;
+		session.replayingQueuedPrompt = false;
 		const canStartRun = !session.turnInFlight && session.agent.canStartRun();
 		if (
 			!canStartRun &&
@@ -1211,6 +1379,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 				userImageCount: input.userImages?.length ?? 0,
 				userFileCount: input.userFiles?.length ?? 0,
 				delivery: delivery ?? "immediate",
+				// A prompt sent into a busy run, or right after one ended, is how
+				// users react to a stall; agent.run-finished carries the run's side.
+				// A queued prompt replayed by the drain was labelled when the user
+				// sent it, so its replay carries no stall fields.
+				...(replayingQueuedPrompt
+					? {}
+					: {
+							agentBusy: !canStartRun,
+							bumpKind: classifyBumpText(input.prompt),
+							...(session.lastTurnEndedAt === undefined
+								? {}
+								: { msSinceTurnEnd: Date.now() - session.lastTurnEndedAt }),
+						}),
 			},
 		});
 		if (delivery === "queue" || delivery === "steer") {
@@ -1309,6 +1490,60 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		return this.getSessionOrThrow(sessionId).runtime.mcpApps?.resolveTool(
+			toolName,
+		);
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		return this.requireMcpApps(sessionId).readResource(request);
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const mcpApps = this.requireMcpApps(sessionId);
+		const config = this.getSessionOrThrow(sessionId).config;
+		let success = false;
+		try {
+			const result = await mcpApps.callTool(request);
+			success = true;
+			return result;
+		} finally {
+			captureToolUsage(config.telemetry ?? this.defaultTelemetry, {
+				ulid: sessionId,
+				tool: defaultMcpToolNameTransform({
+					serverName: request.serverName,
+					toolName: request.toolName,
+				}),
+				success,
+				modelId: config.modelId,
+				provider: config.providerId,
+			});
+		}
+	}
+
+	private requireMcpApps(sessionId: string): McpAppsRuntime {
+		const session = this.getSessionOrThrow(sessionId);
+		const mcpApps = session.runtime.mcpApps;
+		if (!mcpApps) {
+			throw new Error(
+				session.config.mcpApps
+					? `Session "${sessionId}" has no MCP servers available to MCP Apps.`
+					: `MCP Apps is not enabled for session "${sessionId}".`,
+			);
+		}
+		return mcpApps;
+	}
+
 	async proceedWhileRunning(
 		sessionId: string,
 		toolCallId?: string,
@@ -1352,6 +1587,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
+		await this.pluginCommandManager.dispose();
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
@@ -1911,6 +2147,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 			return result;
 		} finally {
+			session.lastTurnEndedAt = Date.now();
 			await this.refreshActiveSessionGitMetadata(session);
 		}
 	}
@@ -2443,6 +2680,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// not observe an explicit `submit_and_exit` tool call, routed through
 		// the shared teardown choke point so it can neither double-fire nor
 		// be skipped by teardown routing.
+		session.pluginCommandsClosing = true;
 		this.emitTaskCompletedOnTeardown(session, input.status);
 		notifyTeamRunWaiters(session);
 
@@ -2493,6 +2731,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		try {
+			await session.pluginCommandTail;
 			await session.agent.shutdown(input.shutdownReason);
 		} catch (error) {
 			recordCleanupError("agent_shutdown", error);
@@ -2530,6 +2769,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// this branch. The completion emission must happen here as well —
 		// this is the branch that silently dropped `task.completed` when
 		// truthful status reporting re-routed interactive stops onto it.
+		session.pluginCommandsClosing = true;
 		this.emitTaskCompletedOnTeardown(session);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
@@ -2570,6 +2810,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.agent.abort(new Error(reason));
 		}
 		try {
+			await session.pluginCommandTail;
 			await session.agent.shutdown(reason);
 		} catch (error) {
 			recordCleanupError("agent_shutdown", error);
@@ -2676,6 +2917,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Utility methods ─────────────────────────────────────────────────
+
+	private withSessionPluginCommands<T>(
+		session: ActiveSession,
+		operation: () => T | Promise<T>,
+	): Promise<T> {
+		if (session.pluginCommandsClosing)
+			return Promise.reject(
+				new Error("Session plugin commands are shutting down"),
+			);
+		const execution = (session.pluginCommandTail ?? Promise.resolve()).then(
+			async () => {
+				await session.agent.initializeExtensions();
+				return operation();
+			},
+		);
+		session.pluginCommandTail = execution.catch(() => {});
+		return execution;
+	}
 
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);

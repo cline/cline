@@ -19,6 +19,7 @@ import {
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
+import { APICallError } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
@@ -96,22 +97,28 @@ function createFetchMock() {
 	};
 }
 
-vi.mock("ai", () => ({
-	jsonSchema: (schema: unknown, options: unknown) => ({
-		jsonSchema: schema,
-		...(options && typeof options === "object" ? options : {}),
-	}),
-	generateImage: (input: unknown) => generateImageSpy(input),
-	streamText: (input: unknown) => streamTextSpy(input),
-	// `wrapLanguageModel` is used by the openai-compatible and mistral
-	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
-	// is exercised by its own unit tests; here we just need an identity
-	// pass-through so the vendor factories' downstream `model:` callbacks
-	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV4` interface, so we
-	// can't call the real `wrapLanguageModel` either way.)
-	wrapLanguageModel: ({ model }: { model: unknown }) => model,
-}));
+vi.mock("ai", async (importOriginal) => {
+	const { APICallError, RetryError } =
+		await importOriginal<typeof import("ai")>();
+	return {
+		APICallError,
+		RetryError,
+		jsonSchema: (schema: unknown, options: unknown) => ({
+			jsonSchema: schema,
+			...(options && typeof options === "object" ? options : {}),
+		}),
+		generateImage: (input: unknown) => generateImageSpy(input),
+		streamText: (input: unknown) => streamTextSpy(input),
+		// `wrapLanguageModel` is used by the openai-compatible and mistral
+		// vendors to attach `splitToolImagesMiddleware`. The middleware itself
+		// is exercised by its own unit tests; here we just need an identity
+		// pass-through so the vendor factories' downstream `model:` callbacks
+		// keep returning the spy-produced mock objects unchanged. (The mock
+		// objects don't satisfy the real `LanguageModelV4` interface, so we
+		// can't call the real `wrapLanguageModel` either way.)
+		wrapLanguageModel: ({ model }: { model: unknown }) => model,
+	};
+});
 
 vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
@@ -716,6 +723,8 @@ describe("sdk-gateway", () => {
 				tags: true,
 				conversationId: true,
 				runId: true,
+				agentId: true,
+				modelRequestId: true,
 				iteration: true,
 				providerId: true,
 				modelId: true,
@@ -1401,6 +1410,44 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("includes the response x-request-id in stream error messages", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "error",
+					error: new APICallError({
+						message: "Unauthorized",
+						url: "https://api.cline.bot/api/v1/chat/completions",
+						requestBodyValues: {},
+						statusCode: 401,
+						responseHeaders: { "X-Request-ID": "req_abc123" },
+						responseBody: JSON.stringify({
+							error: { message: "Unauthorized: re-authenticate" },
+						}),
+					}),
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			requestId: "req_abc123",
+			error: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+		});
+	});
+
 	it("preserves valid mixed text when a generated image is rejected", async () => {
 		const oversized = "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4);
 		streamTextSpy.mockReturnValue({
@@ -1602,6 +1649,7 @@ describe("sdk-gateway", () => {
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
 				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2436,6 +2484,7 @@ describe("sdk-gateway", () => {
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -2655,6 +2704,154 @@ describe("sdk-gateway", () => {
 			error: "Invalid API key",
 			errorClass: "unknown",
 			errorRetryable: false,
+			errorReported: false,
+		});
+	});
+
+	it("reports a thrown socket reader error at the provider boundary", async () => {
+		const error = Object.assign(
+			new Error("The socket connection was closed unexpectedly"),
+			{
+				code: "ConnectionClosed",
+			},
+		);
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "reasoning-delta", text: "partial reasoning" };
+				throw error;
+			})(),
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				metadata: {
+					runId: "run-test",
+					agentId: "agent-test",
+					sessionId: "session-test",
+					conversationId: "conversation-test",
+					modelRequestId: "request-test",
+					iteration: 3,
+				},
+			}),
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ error, severity: "error" }),
+		);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "llms",
+				operation: "provider.stream",
+				severity: "error",
+				runId: "run-test",
+				agentId: "agent-test",
+				sessionId: "session-test",
+				conversationId: "conversation-test",
+				modelRequestId: "request-test",
+				iteration: 3,
+				errorPhase: "stream_read",
+				error_code: "ConnectionClosed",
+				error_message: error.message,
+			}),
+		});
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: error.message,
+			errorReported: true,
+		});
+		expect(
+			capture.mock.calls.filter(([call]) => call.event === "sdk.error"),
+		).toHaveLength(1);
+	});
+
+	it.each([
+		"AbortError",
+		"TimeoutError",
+	])("classifies %s cancellation independently of provider failure", async (name) => {
+		const controller = new AbortController();
+		const reason = new DOMException("request aborted", name);
+		controller.abort(reason);
+		streamTextSpy.mockImplementation(
+			(input: { onAbort?: (event: { reason: unknown }) => Promise<void> }) => {
+				return {
+					fullStream: (async function* () {
+						await input.onAbort?.({ reason });
+						yield { type: "abort", reason };
+					})(),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				signal: controller.signal,
+			}),
+		);
+		const errors = capture.mock.calls.filter(
+			([call]) => call.event === "sdk.error",
+		);
+		if (name === "TimeoutError") {
+			expect(errors).toHaveLength(1);
+			expect(errors[0]?.[0].properties).toMatchObject({
+				error_type: "TimeoutError",
+				errorPhase: "timeout",
+				severity: "error",
+			});
+		} else {
+			expect(errors).toHaveLength(0);
+			expect(logger.error).not.toHaveBeenCalled();
+		}
+	});
+
+	it("uses three SDK stream retries without allowing another whole-turn retry", async () => {
+		const error = {
+			message: "upstream timeout",
+			code: "504",
+			isRetryable: true,
+		};
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error });
+				return { fullStream: makeStreamParts([{ type: "error", error }]) };
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+			maxRetries: 3,
+			streamRetries: 3,
+		});
+		expect(events.at(-1)).toMatchObject({
+			reason: "error",
+			errorRetryable: false,
 		});
 	});
 
@@ -2802,6 +2999,47 @@ describe("sdk-gateway", () => {
 		expect(sdkErrors).toHaveLength(5);
 	});
 
+	it("rate-limits stream failures that differ only by request ID", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = new APICallError({
+				message: "Unauthorized",
+				url: "https://api.cline.bot/api/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 401,
+				responseHeaders: { "x-request-id": `req_${"abcdefghijklmnopqrst"[i]}` },
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+		expect(sdkErrors[0]?.[0]).toMatchObject({
+			properties: { error_message: "Unauthorized", requestId: "req_a" },
+		});
+	});
+
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
 		streamTextSpy.mockImplementation(() => {
 			throw new Error("No output generated. Check the stream for errors.", {
@@ -2871,6 +3109,7 @@ describe("sdk-gateway", () => {
 				error: "Invalid API key",
 				errorClass: "unknown",
 				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2912,6 +3151,7 @@ describe("sdk-gateway", () => {
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -2949,6 +3189,7 @@ describe("sdk-gateway", () => {
 			error: "Instructions are required",
 			errorClass: "unknown",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -7191,6 +7432,102 @@ describe("sdk-gateway", () => {
 		const headers = new Headers(init?.headers);
 		expect(headers.get("x-session-id")).toBe("session-header");
 		expect(headers.get("x-existing")).toBe("kept");
+	});
+
+	describe("aimlapi.com attribution", () => {
+		const ATTRIBUTION = [
+			"x-aimlapi-source",
+			"x-aimlapi-partner-id",
+			"x-aimlapi-integration-repo",
+			"x-aimlapi-integration-version",
+			"http-referer",
+			"x-title",
+		];
+
+		/** The fetch the aimlapi provider hands its vendor SDK, built around a
+		 *  fetch the HOST supplied, so the wrap is proven to survive one. */
+		async function aimlapiWireFetch(providerId = "aimlapi") {
+			const { fetchMock, fetch: hostFetch } = createFetchMock();
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+			});
+			const gateway = createGateway({
+				providerConfigs: [{ providerId, apiKey: "test-key", fetch: hostFetch }],
+			});
+			await collect(
+				await gateway.stream({
+					providerId,
+					modelId: "anthropic/claude-sonnet-5",
+					messages: baseMessages,
+				}),
+			);
+			const config = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as {
+				fetch?: typeof fetch;
+			};
+			return {
+				fetchMock,
+				send: async (url: string) => {
+					await config.fetch?.(url, {
+						method: "POST",
+						headers: { "x-existing": "kept" },
+						body: "{}",
+					});
+					const init = fetchMock.mock.calls.at(-1)?.[1] as
+						| RequestInit
+						| undefined;
+					return new Headers(init?.headers);
+				},
+			};
+		}
+
+		it("is added for api.aimlapi.com, through a host-supplied fetch", async () => {
+			const { fetchMock, send } = await aimlapiWireFetch();
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+
+			expect(fetchMock).toHaveBeenCalledOnce();
+			expect(headers.get("x-aimlapi-source")).toBe("agent/cline");
+			expect(headers.get("x-aimlapi-partner-id")).toBe(
+				"part_HSyUEqWOLXYAn56CBHNOMBlj",
+			);
+			expect(headers.get("x-aimlapi-partner-id")).toMatch(
+				/^part_[A-Za-z0-9]{1,64}$/,
+			);
+			expect(headers.get("x-aimlapi-integration-repo")).toBe("cline/cline");
+			expect(headers.get("http-referer")).toBe("https://cline.bot");
+			expect(headers.get("x-title")).toBe("Cline");
+			expect(headers.get("x-existing")).toBe("kept");
+		});
+
+		it("is NOT sent when the provider is pointed anywhere else", async () => {
+			const { send } = await aimlapiWireFetch();
+			for (const url of [
+				// look-alikes a suffix or substring test would attribute
+				"https://api.aimlapi.com.example.net/v1/chat/completions",
+				"https://notapi.aimlapi.com/v1/chat/completions",
+				// userinfo: the real host is evil.example
+				"https://api.aimlapi.com@evil.example/v1/chat/completions",
+				// the apex and a sibling are not the inference gateway
+				"https://aimlapi.com/v1/chat/completions",
+				"https://staging.api.aimlapi.com/v1/chat/completions",
+				// a plain baseUrl override: proxy, staging, local
+				"https://proxy.example.test/v1/chat/completions",
+				"http://localhost:8080/v1/chat/completions",
+			]) {
+				const headers = await send(url);
+				for (const name of ATTRIBUTION) {
+					expect(headers.has(name), `${name} leaked to ${url}`).toBe(false);
+				}
+				expect(headers.get("x-existing")).toBe("kept");
+			}
+		});
+
+		it("leaves every other provider's fetch untouched", async () => {
+			const { send } = await aimlapiWireFetch("openai-compatible");
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+			for (const name of ATTRIBUTION) {
+				expect(headers.has(name)).toBe(false);
+			}
+		});
 	});
 
 	it("preserves explicit configured header sticky session values", async () => {

@@ -8,6 +8,7 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { readPersistedMessagesFile } from "../../runtime/host/runtime-host-support";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
@@ -17,6 +18,10 @@ import {
 	requestToolApproval,
 } from "./handlers/approval-handlers";
 import {
+	CAPABILITY_OWNER_RECONNECT_GRACE_MS,
+	requestCapability,
+} from "./handlers/capability-handlers";
+import {
 	ensureSessionParticipant,
 	ensureSessionState,
 	type HubTransportContext,
@@ -24,6 +29,14 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 
 describe("HubServerTransport boundaries", () => {
+	const resumeConfig = {
+		sessionId: "session-1",
+		providerId: "openai",
+		modelId: "gpt-4.1",
+		mode: "plan",
+		systemPrompt: "Keep the supplied instructions",
+	};
+
 	function createTransport(options: Record<string, unknown> = {}) {
 		const { sessionHost: sessionHostOverride, ...transportOptions } = options;
 		return new HubServerTransport({
@@ -59,6 +72,244 @@ describe("HubServerTransport boundaries", () => {
 	function getContext(transport: HubServerTransport): HubTransportContext {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
+
+	it.each([
+		false,
+		true,
+	])("resumes history with the supplied configuration (live reader: %s)", async (hasLiveReader) => {
+		const mode = "plan";
+		const savedMessages = [{ role: "user", content: "saved conversation" }];
+		const messages = hasLiveReader
+			? [
+					...savedMessages,
+					{ role: "assistant", content: "newer in-memory reply" },
+				]
+			: savedMessages;
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(savedMessages);
+		const readLiveSessionMessages = vi.fn().mockResolvedValue(messages);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				...(hasLiveReader ? { readLiveSessionMessages } : {}),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				clientId: "resume-client",
+				payload: {
+					sessionConfig: { ...resumeConfig, mode, reasoningEffort: "high" },
+				},
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.session).toMatchObject({
+				sessionId: "session-1",
+				createdByClientId: "resume-client",
+			});
+			if (hasLiveReader) {
+				expect(readLiveSessionMessages).toHaveBeenCalledWith("session-1");
+				expect(readSessionMessages).not.toHaveBeenCalled();
+			} else {
+				expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+			}
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: messages,
+					config: expect.objectContaining({
+						...resumeConfig,
+						mode,
+						reasoningEffort: "high",
+					}),
+				}),
+			);
+			expect(reply.payload).not.toHaveProperty("messages");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ label: "new ID", exists: false, initialMessages: undefined, saved: [] },
+		{
+			label: "existing ID without history",
+			exists: true,
+			initialMessages: undefined,
+			saved: [{ role: "user", content: "saved" }],
+		},
+		{
+			label: "explicit empty history",
+			exists: true,
+			initialMessages: [],
+			saved: [{ role: "user", content: "saved" }],
+		},
+		{
+			label: "explicit replacement history",
+			exists: true,
+			initialMessages: [{ role: "user", content: "replacement" }],
+			saved: [{ role: "user", content: "saved" }],
+		},
+	])("preserves create with $label", async ({
+		exists,
+		initialMessages,
+		saved,
+	}) => {
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(saved);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId: "session-1" } : undefined),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				payload: { sessionConfig: { sessionId: "session-1" }, initialMessages },
+			});
+			expect(reply.ok).toBe(true);
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages,
+				}),
+			);
+			expect(readSessionMessages).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ sessionId: undefined, exists: false, code: "invalid_resume" },
+		{ sessionId: "missing", exists: false, code: "session_not_found" },
+		{ sessionId: "empty", exists: true, code: "session_messages_not_found" },
+	])("rejects resume with $code without creating a runtime", async ({
+		sessionId,
+		exists,
+		code,
+	}) => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi
+					.fn()
+					.mockResolvedValue(exists ? { sessionId } : undefined),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: { sessionId } },
+			});
+			expect(reply).toMatchObject({ ok: false, error: { code } });
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("rejects corrupt persisted history before starting a runtime", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "hub-saved-history-"));
+		const messagesPath = join(dir, "messages.json");
+		await writeFile(messagesPath, "{invalid");
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: () => readPersistedMessagesFile(messagesPath),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: resumeConfig },
+			});
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_messages_not_found" },
+			});
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("does not start a runtime when reading saved history fails", async () => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: vi
+					.fn()
+					.mockRejectedValue(new Error("history unavailable")),
+			},
+		});
+		try {
+			await expect(
+				transport.handleCommand({
+					version: "v1",
+					command: "session.resume",
+					payload: { sessionConfig: resumeConfig },
+				}),
+			).rejects.toThrow("history unavailable");
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("recovers an empty cloud snapshot set from a fresh daemon", async () => {
+		const transport = createTransport({ eventLog: false, runQueue: false });
+		const listener = vi.fn();
+		try {
+			const unsubscribe = transport.subscribe("viewer", listener);
+			await Promise.resolve();
+			expect(listener).toHaveBeenCalledWith(
+				expect.objectContaining({
+					event: "cloud.event",
+					payload: expect.objectContaining({
+						serviceId: expect.any(String),
+						scopeGeneration: 0,
+						snapshots: [],
+					}),
+				}),
+			);
+			unsubscribe();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("requires connection registration before cloud access even when another client id is known", async () => {
+		const transport = createTransport({ eventLog: false, runQueue: false });
+		try {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "registered",
+				payload: { clientType: "test" },
+			});
+			const reply = await transport.handleCommand(
+				{ version: "v1", command: "cloud.watch", clientId: "registered" },
+				null,
+			);
+			expect(reply.ok).toBe(false);
+			expect(reply.error?.code).toBe("client_not_registered");
+		} finally {
+			await transport.stop();
+		}
+	});
 
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
@@ -983,7 +1234,10 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("publishes capability-backed tools on the hub session stream", async () => {
+	it.each([
+		undefined,
+		"123-saved-session",
+	] as const)("preserves capability-backed tools when starting session %s", async (savedSessionId) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1033,21 +1287,31 @@ describe("HubServerTransport boundaries", () => {
 				deleteSession: vi.fn(),
 				updateSession: vi.fn(),
 				dispatchHookEvent: vi.fn(),
-				readSessionMessages: vi.fn(),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([{ role: "user", content: "saved" }]),
 			} as never,
 		});
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("client-1", (event) => events.push(event));
 
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register",
+			command: "client.register",
+			clientId: "client-1",
+		});
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command: "session.create",
+			command: savedSessionId ? "session.resume" : "session.create",
 			clientId: "client-1",
 			payload: {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
+					sessionId: savedSessionId,
+					mode: "act",
 					providerId: "cline",
 					modelId: "test-model",
 					cwd: "/tmp/project",
@@ -1171,6 +1435,12 @@ describe("HubServerTransport boundaries", () => {
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("owner-client", (event) => events.push(event));
 
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register",
+			command: "client.register",
+			clientId: "owner-client",
+		});
 		await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
@@ -1733,6 +2003,181 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
+	it("holds capability requests for a disconnected owner through a short reconnect", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const register = () =>
+				transport.handleCommand({
+					version: "v1",
+					requestId: "req-register",
+					command: "client.register",
+					clientId: "owner-client",
+					payload: { clientId: "owner-client", clientType: "desktop" },
+				});
+			const unregister = () =>
+				transport.handleCommand({
+					version: "v1",
+					requestId: "req-unregister",
+					command: "client.unregister",
+					clientId: "owner-client",
+				});
+			const requested: string[] = [];
+			const resubscribe = async () => {
+				await register();
+				const unsubscribe = transport.subscribe(
+					"owner-client",
+					(event) => {
+						if (event.event === "capability.requested") {
+							requested.push(String(event.payload?.capabilityName));
+						}
+					},
+					{ sessionId: "session-1" },
+				);
+				await vi.advanceTimersByTimeAsync(0);
+				return unsubscribe;
+			};
+			await register();
+			await unregister();
+
+			// A brief socket drop: the request waits, and reaches the same
+			// client once it registers and subscribes again.
+			const answered = requestCapability(
+				ctx,
+				"session-1",
+				"hook.afterTool",
+				{},
+				"owner-client",
+			);
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(requested).toEqual([]);
+			const unsubscribe = await resubscribe();
+			expect(requested).toEqual(["hook.afterTool"]);
+			const [requestId] = [...ctx.pendingCapabilityRequests.keys()];
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond",
+				command: "capability.respond",
+				clientId: "owner-client",
+				payload: { requestId, ok: true, payload: { done: true } },
+			});
+			await expect(answered).resolves.toEqual({ done: true });
+			unsubscribe();
+			await unregister();
+
+			// Stop while waiting for the owner cancels the request; it is not
+			// delivered when the owner comes back.
+			const stopped = requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			);
+			const stoppedFails = expect(stopped).rejects.toThrow("user stop");
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "req-abort",
+				command: "run.abort",
+				sessionId: "session-1",
+				payload: { reason: "user stop" },
+			});
+			await stoppedFails;
+			(await resubscribe())();
+			expect(requested).toEqual(["hook.afterTool"]);
+			await unregister();
+
+			// The owner never comes back: the request fails once the grace
+			// period passes instead of waiting forever.
+			const abandoned = requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			);
+			const abandonedFails = expect(abandoned).rejects.toThrow(
+				/disconnected before it could respond/,
+			);
+			await vi.advanceTimersByTimeAsync(CAPABILITY_OWNER_RECONNECT_GRACE_MS);
+			await abandonedFails;
+			expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("fails capability requests to an owner that left the task but stays connected", async () => {
+		const capture = vi.fn();
+		const transport = createTransport({ telemetry: { capture } as never });
+		const ctx = getContext(transport);
+		for (const clientId of ["owner-client", "joined-client"]) {
+			await transport.handleCommand({
+				version: "v1",
+				requestId: `req-register-${clientId}`,
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "desktop" },
+			});
+			ensureSessionParticipant(ctx, "session-1", clientId, "observer");
+		}
+		const detach = () =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-detach",
+				command: "session.detach",
+				clientId: "owner-client",
+				sessionId: "session-1",
+			});
+
+		// A request already waiting is cancelled when the owner leaves.
+		const pending = requestCapability(
+			ctx,
+			"session-1",
+			"hook.beforeTool",
+			{},
+			"owner-client",
+		);
+		const cancelled = expect(pending).rejects.toThrow(
+			/disconnected before it could respond/,
+		);
+		await detach();
+		await cancelled;
+
+		// Later requests fail at once and are not handed to the client that
+		// joined: it may enforce a different hook under the same name.
+		await expect(
+			requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			),
+		).rejects.toThrow(/disconnected before it could respond/);
+		expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		expect(
+			capture.mock.calls.map(([e]) => [e.event, e.properties.reason]),
+		).toEqual([
+			["task.capability_owner_gone", "cancelled_while_waiting"],
+			["task.capability_owner_gone", "detached"],
+		]);
+
+		// Attaching again makes it the owner again.
+		ensureSessionParticipant(ctx, "session-1", "owner-client", "observer");
+		void requestCapability(
+			ctx,
+			"session-1",
+			"hook.beforeTool",
+			{},
+			"owner-client",
+		);
+		expect(
+			[...ctx.pendingCapabilityRequests.values()].map((r) => r.targetClientId),
+		).toEqual(["owner-client"]);
+	});
+
 	it("cancels pending capability requests when a run is aborted", async () => {
 		const abort = vi.fn().mockResolvedValue(undefined);
 		const transport = createTransport({
@@ -1962,7 +2407,7 @@ describe("HubServerTransport boundaries", () => {
 		const transport = createTransport();
 		const published: string[] = [];
 		transport.subscribe("test", (event) => {
-			published.push(event.event);
+			if (event.event.startsWith("iteration.")) published.push(event.event);
 		});
 		const ctx = getContext(transport);
 
@@ -2189,7 +2634,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("test", (event) => {
-			events.push(event);
+			if (event.event === "usage.updated") events.push(event);
 		});
 		const ctx = getContext(transport);
 
@@ -2256,7 +2701,9 @@ describe("HubServerTransport boundaries", () => {
 	it("projects notices with teammate provenance intact", async () => {
 		const transport = createTransport();
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("test", (event) => events.push(event));
+		transport.subscribe("test", (event) => {
+			if (event.event === "session.notice") events.push(event);
+		});
 		const ctx = getContext(transport);
 
 		await projectSessionEvent(ctx, {

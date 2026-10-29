@@ -621,6 +621,8 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
+	| "cloud.command"
+	| "cloud.watch"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -633,6 +635,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.search"
 	| "session.create"
+	| "session.resume"
 	| "session.attach"
 	| "session.detach"
 	| "session.get"
@@ -641,6 +644,9 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.mcp_apps.resolve_tool"
+	| "session.mcp_apps.read_resource"
+	| "session.mcp_apps.call_tool"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
@@ -691,6 +697,8 @@ export type HubCommandName =
 	| "task.run"
 	| "task.automation.get"
 	| "task.automation.set"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -716,6 +724,7 @@ export function getDefaultHubCommandTimeoutMs(
 	switch (command) {
 		case "run.start":
 		case "session.send_input":
+		case "plugins.commands.run":
 			return null;
 		default:
 			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
@@ -754,6 +763,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"
@@ -913,6 +923,7 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
 	kind: "tool";
 	name: string;
 	description: string;
