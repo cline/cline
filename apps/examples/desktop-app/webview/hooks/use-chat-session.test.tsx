@@ -1546,10 +1546,10 @@ describe("useChatSession", () => {
 				}
 				if (
 					command === "read_session_messages" ||
-					command === "read_cloud_session_if_awake"
+					command === "read_cloud_session_without_resuming"
 				) {
 					expect(args?.environmentId).toBe(environmentId);
-					if (command === "read_cloud_session_if_awake" && failAuth) {
+					if (command === "read_cloud_session_without_resuming" && failAuth) {
 						failAuth = false;
 						throw new Error(
 							'CLOUD_SESSION_ERROR:{"code":"authentication_required","message":"Sign in"}',
@@ -1578,7 +1578,7 @@ describe("useChatSession", () => {
 										createdAt: 2,
 									},
 								];
-					if (command === "read_cloud_session_if_awake") {
+					if (command === "read_cloud_session_without_resuming") {
 						recordReads += 1;
 						return {
 							kind: "refreshed",
@@ -1670,7 +1670,7 @@ describe("useChatSession", () => {
 
 	it.each([
 		"suspended",
-		"Unknown cloud operation: readMessagesIfAwake",
+		"Unknown cloud operation: readMessagesWithoutResuming",
 	])("stops background reads and supports non-destructive explicit refresh: %s", async (outcome) => {
 		const sessionId = "session-suspended-poll";
 		const initialMessages = [
@@ -1709,7 +1709,7 @@ describe("useChatSession", () => {
 					readCount += 1;
 					return readCount === 1 ? initialMessages : reopenedMessages;
 				}
-				if (command === "read_cloud_session_if_awake") {
+				if (command === "read_cloud_session_without_resuming") {
 					passiveCount += 1;
 					if (outcome !== "suspended") throw new Error(outcome);
 					return { kind: "suspended" };
@@ -1873,7 +1873,7 @@ describe("useChatSession", () => {
 					}
 					return history("new-user", newSessionId);
 				}
-				if (command === "read_cloud_session_if_awake") {
+				if (command === "read_cloud_session_without_resuming") {
 					return pendingRefresh.promise;
 				}
 				if (command === "chat_session_command") {
@@ -1928,7 +1928,7 @@ describe("useChatSession", () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "read_session_messages") return [];
-				if (command === "read_cloud_session_if_awake") {
+				if (command === "read_cloud_session_without_resuming") {
 					if (source === "passive-event")
 						handlerFor("cloud_session_rehydrated")({
 							sessionId,
@@ -2977,7 +2977,7 @@ describe("useChatSession", () => {
 				if (command === "get_process_context")
 					return { cwd: "/workspace", workspaceRoot: "/workspace" };
 				if (command === "read_session_messages") return [];
-				if (command === "read_cloud_session_if_awake") {
+				if (command === "read_cloud_session_without_resuming") {
 					discoveryReads += 1;
 					if (discoveryReads === 1) return { kind: "deferred" };
 					if (outcome === "suspended") return { kind: "suspended" };

@@ -2251,12 +2251,12 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
-	if (command === "read_cloud_session_if_awake") {
+	if (command === "read_cloud_session_without_resuming") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);
 		if (!cloud.isCloudSession(sessionId))
 			throw new Error("Cloud session required");
-		const result = await cloud.readMessagesIfAwake(sessionId);
+		const result = await cloud.readMessagesWithoutResuming(sessionId);
 		if (result.kind !== "refreshed") return result;
 		const maxMessages =
 			typeof args?.maxMessages === "number" ? args.maxMessages : 800;
