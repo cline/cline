@@ -301,12 +301,29 @@ describe("Code sidecar runtime capabilities", () => {
 			.spyOn(manager, "getArtifactDownloadUrl")
 			.mockResolvedValue(download);
 		await expect(
-			handleCommand(ctx, "get_cloud_artifact_url", {
+			handleCommand(ctx, "resolve_artifact", {
 				sessionId: "ses-one",
 				artifactId: " frame ",
 			}),
 		).resolves.toEqual(download);
 		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
+	});
+
+	it("does not send local artifact references to cloud storage", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const resolve = vi.spyOn(manager, "getArtifactDownloadUrl");
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "local-one",
+				artifactId: "frame",
+			}),
+		).rejects.toThrow(
+			"Artifact access is not available for local sessions yet.",
+		);
+		expect(resolve).not.toHaveBeenCalled();
 	});
 
 	it("returns indexed search results without listing every session", async () => {

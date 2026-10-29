@@ -1,11 +1,8 @@
 "use client";
 
-import type { CloudArtifactDownload } from "@cline/core/cloud";
-import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { useAccount } from "@/contexts/account-context";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { useArtifactResource } from "@/hooks/use-artifact-resource";
 import { normalizeDisplayValue } from "./tool-summaries";
 
 const PublicationSchema = z.object({
@@ -38,7 +35,6 @@ export function PublishedArtifacts({
 	files: z.infer<typeof PublicationSchema>["files"];
 	sessionId: string;
 }) {
-	const { user } = useAccount();
 	return (
 		<ul className="space-y-2 py-1 text-sm">
 			{files.map((file, index) => (
@@ -51,14 +47,11 @@ export function PublishedArtifacts({
 					</span>
 					{file.error ? (
 						<span className="text-destructive">{file.error.message}</span>
-					) : user && "artifactId" in file ? (
+					) : (
 						<DownloadArtifact
-							key={`${user.id}:${sessionId}:${file.artifactId}`}
 							sessionId={sessionId}
 							artifactId={file.artifactId}
 						/>
-					) : (
-						<span className="text-muted-foreground">Sign in to download.</span>
 					)}
 				</li>
 			))}
@@ -73,30 +66,12 @@ function DownloadArtifact({
 	sessionId: string;
 	artifactId: string;
 }) {
-	const [busy, setBusy] = useState(false);
-	const [failed, setFailed] = useState(false);
-	const mounted = useRef(false);
-	useEffect(() => {
-		mounted.current = true;
-		return () => {
-			mounted.current = false;
-		};
-	}, []);
-	async function download() {
-		setBusy(true);
-		setFailed(false);
-		try {
-			const result = await desktopClient.invoke<CloudArtifactDownload>(
-				"get_cloud_artifact_url",
-				{ sessionId, artifactId },
-			);
-			if (mounted.current) await openExternalUrl(result.url);
-		} catch {
-			if (mounted.current) setFailed(true);
-		} finally {
-			if (mounted.current) setBusy(false);
-		}
-	}
+	const { state, open } = useArtifactResource({
+		sessionId,
+		reference: { type: "artifact", artifactId },
+	});
+	const busy = state.status === "loading";
+	const failed = state.status === "error";
 	return (
 		<>
 			<Button
@@ -104,7 +79,7 @@ function DownloadArtifact({
 				size="sm"
 				variant="outline"
 				disabled={busy}
-				onClick={() => void download()}
+				onClick={() => void open()}
 			>
 				{busy ? "Preparing…" : failed ? "Retry download" : "Download"}
 			</Button>

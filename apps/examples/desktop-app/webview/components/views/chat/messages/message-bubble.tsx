@@ -30,7 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
-import { CloudArtifactImage } from "./cloud-artifact-image";
+import { ArtifactImage } from "./artifact-image";
 import { isSystemSteeringMessage } from "./group-messages";
 import { MessageImageCarousel } from "./image-carousel";
 import { ReasoningBlock } from "./reasoning-block";
@@ -106,7 +106,7 @@ function MessageMedia({
 	return (
 		<div className="flex max-w-2xl flex-col gap-2">
 			{media.map((item) => (
-				<CloudArtifactImage
+				<ArtifactImage
 					sessionId={sessionId}
 					classNames={{
 						image:

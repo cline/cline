@@ -17,7 +17,11 @@ vi.mock("@/lib/desktop-client", () => ({
 	openExternalUrl: mocks.open,
 }));
 vi.mock("@/contexts/account-context", () => ({
-	useAccount: () => ({ user: mocks.user }),
+	useAccount: () => ({
+		user: mocks.user,
+		accountReady: true,
+		activeOrganization: null,
+	}),
 }));
 const files = parsePublishedArtifacts(
 	JSON.stringify({
@@ -64,10 +68,10 @@ it("downloads a persisted publication and keeps per-file errors visible", async 
 	expect(container.querySelectorAll("button")).toHaveLength(1);
 	expect(mocks.invoke).not.toHaveBeenCalled();
 	await click();
-	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith(
-		"get_cloud_artifact_url",
-		{ sessionId: "ses-one", artifactId: " report/雪 " },
-	);
+	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: " report/雪 ",
+	});
 	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(
 		"https://storage.example/file?signed=1",
 	);

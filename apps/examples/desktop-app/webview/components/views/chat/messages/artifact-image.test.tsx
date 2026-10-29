@@ -4,7 +4,7 @@ import type { GeneratedMedia } from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { CloudArtifactImage } from "./cloud-artifact-image";
+import { ArtifactImage } from "./artifact-image";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -14,7 +14,11 @@ vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 }));
 vi.mock("@/contexts/account-context", () => ({
-	useAccount: () => ({ user: mocks.user }),
+	useAccount: () => ({
+		user: mocks.user,
+		accountReady: true,
+		activeOrganization: null,
+	}),
 }));
 
 const media: GeneratedMedia = {
@@ -58,7 +62,7 @@ afterEach(async () => {
 });
 async function render(sessionId = "ses-one") {
 	await act(async () =>
-		root.render(<CloudArtifactImage media={media} sessionId={sessionId} />),
+		root.render(<ArtifactImage media={media} sessionId={sessionId} />),
 	);
 }
 
@@ -66,7 +70,7 @@ it("loads visible artifacts directly, preserves the reference, and resolves agai
 	await render();
 	expect(mocks.invoke).not.toHaveBeenCalled();
 	await act(async () => reveal());
-	expect(mocks.invoke).toHaveBeenCalledWith("get_cloud_artifact_url", {
+	expect(mocks.invoke).toHaveBeenCalledWith("resolve_artifact", {
 		sessionId: "ses-one",
 		artifactId: "frame-one",
 	});
@@ -92,10 +96,15 @@ it("loads a signed URL when the client clock is ahead of its expiry", async () =
 it("refreshes a failed image URL once and offers an explicit retry after another failure", async () => {
 	await render();
 	await act(async () => reveal());
-	await act(async () =>
-		container.querySelector("img")?.dispatchEvent(new Event("error")),
-	);
+	const originalImage = container.querySelector("img");
+	await act(async () => {
+		originalImage?.dispatchEvent(new Event("error"));
+		originalImage?.dispatchEvent(new Event("error"));
+	});
 	expect(mocks.invoke).toHaveBeenCalledTimes(2);
+	expect(container.querySelector("img")).not.toBe(originalImage);
+	await act(async () => originalImage?.dispatchEvent(new Event("error")));
+	expect(container.querySelector("img")).not.toBeNull();
 	await act(async () =>
 		container.querySelector("img")?.dispatchEvent(new Event("error")),
 	);
@@ -104,6 +113,10 @@ it("refreshes a failed image URL once and offers an explicit retry after another
 	await act(async () => container.querySelector("button")?.click());
 	expect(mocks.invoke).toHaveBeenCalledTimes(3);
 	expect(container.querySelector("img")?.src).toBe(download.url);
+	await act(async () =>
+		container.querySelector("img")?.dispatchEvent(new Event("error")),
+	);
+	expect(mocks.invoke).toHaveBeenCalledTimes(4);
 });
 
 it("discards late URLs when the account or session changes", async () => {
@@ -115,12 +128,17 @@ it("discards late URLs when the account or session changes", async () => {
 	);
 	await render();
 	await act(async () => reveal());
+	mocks.invoke.mockResolvedValue({
+		...download,
+		url: "https://storage.example/new-account",
+	});
 	mocks.user = { id: "account-two" };
 	await render("ses-two");
 	await act(async () => resolve(download));
-	expect(container.querySelector("img")).toBeNull();
-	await act(async () => reveal());
-	expect(mocks.invoke).toHaveBeenLastCalledWith("get_cloud_artifact_url", {
+	expect(container.querySelector("img")?.src).toBe(
+		"https://storage.example/new-account",
+	);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
 		sessionId: "ses-two",
 		artifactId: "frame-one",
 	});
