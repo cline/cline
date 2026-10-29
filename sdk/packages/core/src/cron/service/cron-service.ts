@@ -4,6 +4,7 @@ import type {
 	ITelemetryService,
 } from "@cline/shared";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
+import type { RuntimeActivity } from "../../runtime/host/runtime-host";
 import {
 	CronEventIngress,
 	type CronEventIngressResult,
@@ -100,6 +101,10 @@ export class CronService {
 				}
 			},
 		});
+	}
+
+	public getActivity(): RuntimeActivity | undefined {
+		return this.runner.getActivity();
 	}
 
 	public async start(): Promise<void> {

@@ -19,7 +19,6 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
-import type { HubTransportContext } from "./handlers/context";
 import { HubServerTransport } from "./hub-server-transport";
 
 function createStartedTransportOptions() {
@@ -128,9 +127,26 @@ async function waitFor(
 }
 
 describe("Hub app-server upgrades", () => {
-	it("omits activity for hosts without current execution observations", async () => {
+	it.each([
+		"session",
+		"scheduler",
+	])("omits activity when the %s runtime cannot observe execution", async (missing) => {
 		const { options } = createStartedTransportOptions();
-		const transport = new HubServerTransport(options as never);
+		const transport = new HubServerTransport({
+			...options,
+			runtimeHandlers: {
+				...options.runtimeHandlers,
+				...(missing === "session"
+					? { getActivity: () => ({ busy: false, lastActivityAt: 1_000 }) }
+					: {}),
+			},
+			sessionHost: {
+				...options.sessionHost,
+				...(missing === "scheduler"
+					? { getActivity: () => ({ busy: false, lastActivityAt: 1_000 }) }
+					: {}),
+			},
+		} as never);
 		try {
 			const status = await transport.handleCommand({
 				version: "v1",
@@ -146,8 +162,13 @@ describe("Hub app-server upgrades", () => {
 		const { options } = createStartedTransportOptions();
 		const lastActivityAt = 1_000;
 		const activity = { busy: true, lastActivityAt };
+		const scheduledActivity = { busy: false, lastActivityAt: 500 };
 		const transport = new HubServerTransport({
 			...options,
+			runtimeHandlers: {
+				...options.runtimeHandlers,
+				getActivity: () => scheduledActivity,
+			},
 			sessionHost: { ...options.sessionHost, getActivity: () => activity },
 		} as never);
 		try {
@@ -157,13 +178,24 @@ describe("Hub app-server upgrades", () => {
 			});
 			expect(status.payload).toMatchObject({ idle: true, activity });
 			activity.busy = false;
+			scheduledActivity.busy = true;
+			scheduledActivity.lastActivityAt = 2_000;
+			expect(
+				(
+					await transport.handleCommand({
+						version: "v1",
+						command: "hub.status",
+					})
+				).payload?.activity,
+			).toEqual(scheduledActivity);
+			scheduledActivity.busy = false;
 			const drained = await transport.handleCommand({
 				version: "v1",
 				command: "hub.drain",
 			});
 			expect(drained.payload?.activity).toEqual({
 				busy: false,
-				lastActivityAt,
+				lastActivityAt: 2_000,
 			});
 		} finally {
 			await transport.stop();

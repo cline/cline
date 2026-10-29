@@ -1308,7 +1308,19 @@ export class HubServerTransport implements NativeHubTransport {
 		for (const count of this.activeRpcTurnCountBySession.values()) {
 			activeRpcTurns += count;
 		}
-		const activity = this.sessionHost.getActivity?.();
+		const observations = [
+			this.sessionHost.getActivity?.(),
+			this.schedules.getActivity(),
+			...(this.cronService ? [this.cronService.getActivity()] : []),
+		];
+		const activity = observations.every((value) => value !== undefined)
+			? {
+					busy: observations.some((value) => value.busy),
+					lastActivityAt: Math.max(
+						...observations.map((value) => value.lastActivityAt),
+					),
+				}
+			: undefined;
 		return {
 			...(activity ? { activity } : {}),
 			hubId: this.hubId,

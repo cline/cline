@@ -9,6 +9,7 @@ import { buildClineSystemPrompt } from "@cline/shared";
 import { nowIso } from "@cline/shared/db";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
 import { DefaultToolNames } from "../../extensions/tools/constants";
+import type { RuntimeActivity } from "../../runtime/host/runtime-host";
 import { mergeRulesForSystemPrompt } from "../../runtime/safety/rules";
 import { captureScheduleRun } from "../../services/telemetry/core-events";
 import { buildWorkspaceMetadata } from "../../services/workspace/workspace-manifest";
@@ -206,6 +207,7 @@ export class CronRunner {
 		{ claimToken: string; sessionId?: string; controller: AbortController }
 	>();
 
+	private lastSettledAt = 0;
 	private readonly executions = new Set<Promise<void>>();
 
 	constructor(options: CronRunnerOptions) {
@@ -216,6 +218,18 @@ export class CronRunner {
 			5_000,
 			(options.claimLeaseSeconds ?? DEFAULT_CLAIM_LEASE_SECONDS) * 1000,
 		);
+	}
+
+	public getActivity(): RuntimeActivity | undefined {
+		const activity = this.options.runtimeHandlers.getActivity?.();
+		if (!activity) return undefined;
+		return {
+			busy:
+				activity.busy ||
+				this.executions.size > 0 ||
+				this.store.hasPendingDueRuns(),
+			lastActivityAt: Math.max(activity.lastActivityAt, this.lastSettledAt),
+		};
 	}
 
 	public async start(): Promise<void> {
@@ -282,7 +296,10 @@ export class CronRunner {
 					});
 				});
 				this.executions.add(execution);
-				void execution.then(() => this.executions.delete(execution));
+				void execution.then(() => {
+					this.executions.delete(execution);
+					this.lastSettledAt = Date.now();
+				});
 				return execution;
 			});
 		} catch (err) {
