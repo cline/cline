@@ -478,7 +478,7 @@ describe("CloudSessionController neutral host contract", () => {
 			f.api.status.mockRejectedValue(new TypeError("fetch failed"));
 		else f.api.status.mockResolvedValue({ status });
 		try {
-			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual(
+			expect(await f.controller.readMessagesWithoutResuming(record.id)).toEqual(
 				status === "failed" || status === "expired"
 					? { kind: "status", status }
 					: { kind: status === "suspended" ? "suspended" : "deferred" },
@@ -516,11 +516,13 @@ describe("CloudSessionController neutral host contract", () => {
 			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
 				"suspended",
 			);
-			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
-				kind: "refreshed",
-				messages,
-				status: "completed",
-			});
+			expect(await f.controller.readMessagesWithoutResuming(record.id)).toEqual(
+				{
+					kind: "refreshed",
+					messages,
+					status: "completed",
+				},
+			);
 			expect(f.api.resume).not.toHaveBeenCalled();
 		} finally {
 			await f.controller.dispose();
@@ -561,7 +563,7 @@ describe("CloudSessionController neutral host contract", () => {
 			const result =
 				mode === "explicit"
 					? await f.controller.readMessages(record.id)
-					: await f.controller.readMessagesIfAwake(record.id);
+					: await f.controller.readMessagesWithoutResuming(record.id);
 			expect(
 				Array.isArray(result)
 					? result
@@ -613,7 +615,7 @@ describe("CloudSessionController neutral host contract", () => {
 		);
 		f.api.status.mockResolvedValueOnce({ status: "failed" });
 		try {
-			const passive = f.controller.readMessagesIfAwake(record.id);
+			const passive = f.controller.readMessagesWithoutResuming(record.id);
 			await vi.waitFor(() => expect(f.api.history).toHaveBeenCalledOnce());
 			f.api.list.mockResolvedValue([
 				{ ...record, sandboxType: "resumable", status: "suspended" },
@@ -660,11 +662,13 @@ describe("CloudSessionController neutral host contract", () => {
 					code: "hub_connection_closed",
 				}),
 			);
-			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
-				kind: "refreshed",
-				messages,
-				status,
-			});
+			expect(await f.controller.readMessagesWithoutResuming(record.id)).toEqual(
+				{
+					kind: "refreshed",
+					messages,
+					status,
+				},
+			);
 			expect(f.controller.getSnapshot(record.id)).toMatchObject({
 				status,
 				busy: false,
@@ -699,7 +703,7 @@ describe("CloudSessionController neutral host contract", () => {
 		if (retryFails) f.command.mockRejectedValue(error);
 		try {
 			const passive = f.controller
-				.readMessagesIfAwake(record.id)
+				.readMessagesWithoutResuming(record.id)
 				.catch((error) => error);
 			await vi.waitFor(() => expect(f.command).toHaveBeenCalledOnce());
 			const explicit = [
@@ -735,7 +739,7 @@ describe("CloudSessionController neutral host contract", () => {
 		);
 		try {
 			if (first === "passive") {
-				const passive = f.controller.readMessagesIfAwake(record.id);
+				const passive = f.controller.readMessagesWithoutResuming(record.id);
 				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
 				const explicit = [
 					f.controller.attach(record.id),
@@ -747,7 +751,9 @@ describe("CloudSessionController neutral host contract", () => {
 			} else {
 				const explicit = f.controller.attach(record.id);
 				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
-				expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				expect(
+					await f.controller.readMessagesWithoutResuming(record.id),
+				).toEqual({
 					kind: "deferred",
 				});
 				release({ status: "suspended" });
@@ -769,15 +775,17 @@ describe("CloudSessionController neutral host contract", () => {
 			}),
 		);
 		try {
-			await expect(f.controller.readMessagesIfAwake(record.id)).rejects.toThrow(
-				"socket closed",
-			);
+			await expect(
+				f.controller.readMessagesWithoutResuming(record.id),
+			).rejects.toThrow("socket closed");
 			expect(f.dispose).toHaveBeenCalledOnce();
 			expect(f.api.resume).not.toHaveBeenCalled();
 			f.api.status.mockResolvedValue({ status: "suspended" });
-			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
-				kind: "suspended",
-			});
+			expect(await f.controller.readMessagesWithoutResuming(record.id)).toEqual(
+				{
+					kind: "suspended",
+				},
+			);
 			expect(f.api.resume).not.toHaveBeenCalled();
 		} finally {
 			await f.controller.dispose();

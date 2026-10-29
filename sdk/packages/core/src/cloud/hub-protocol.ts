@@ -11,7 +11,7 @@ export const CLOUD_HUB_OPERATIONS = [
 	"updatePendingPrompt",
 	"removePendingPrompt",
 	"readMessages",
-	"readMessagesIfAwake",
+	"readMessagesWithoutResuming",
 	"updateTitle",
 	"delete",
 	"list",

@@ -2115,7 +2115,7 @@ export class CloudSessionController {
 		return (await this.readHistory(outerSessionId)).messages;
 	}
 
-	async readMessagesIfAwake(
+	async readMessagesWithoutResuming(
 		outerSessionId: string,
 	): Promise<CloudPassiveReadResult> {
 		this.assertSessionActive(outerSessionId);
