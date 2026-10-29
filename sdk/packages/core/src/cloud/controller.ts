@@ -20,6 +20,10 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import {
+	CLOUD_COMPUTER_USE_PROMPT,
+	cloudModelSupportsImages,
+} from "./computer-use-prompt";
 import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
@@ -96,6 +100,7 @@ export const CLOUD_SESSION_SYSTEM_PROMPT =
 /** The prompt a new cloud task starts with: GitHub access plus its work-branch rules. */
 export function buildCloudSessionSystemPrompt(
 	record: Pick<CloudSessionRecord, "id" | "sandboxType" | "metadata">,
+	options: { computerUse?: boolean } = {},
 ): string {
 	const branch = `cline/${(record.metadata.taskId?.trim() || record.id).slice(-8).toLowerCase()}`;
 	const resumable =
@@ -111,7 +116,8 @@ export function buildCloudSessionSystemPrompt(
 				`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
 				"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
 				`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-		"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
+		"Do not force-push or amend commits that are already pushed unless the user explicitly asks." +
+		(options.computerUse ? `\n\n${CLOUD_COMPUTER_USE_PROMPT}` : "")
 	);
 }
 
@@ -257,6 +263,8 @@ export type CloudSessionControllerOptions = {
 	lateCreateDisposition?: "preserve" | "delete";
 	/** Host-owned first-task policy survives controller replacement; established tasks never qualify. */
 	pendingInitialTasks?: Map<string, CloudCreationOptions>;
+	/** Rollout gate for the computer-use prompt section; omitted means off. */
+	isComputerUseEnabled?: () => Promise<boolean>;
 
 	api: Pick<
 		CloudSessionApi,
@@ -2916,6 +2924,18 @@ export class CloudSessionController {
 		return true;
 	}
 
+	private async resolveComputerUse(modelId: string): Promise<boolean> {
+		if (!cloudModelSupportsImages(modelId)) return false;
+		try {
+			return (await this.options.isComputerUseEnabled?.()) === true;
+		} catch (error) {
+			this.options.logger?.debug("Cloud computer-use gate failed", {
+				error,
+			});
+			return false;
+		}
+	}
+
 	private async createInnerSessionOnce(
 		connection: CloudConnection,
 		handoffSeed?: CloudHandoffSeed,
@@ -2939,7 +2959,10 @@ export class CloudSessionController {
 			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
 			throw error;
 		}
-		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote);
+		const computerUse = await this.resolveComputerUse(modelId);
+		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote, {
+			computerUse,
+		});
 		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
 		const reasoningEffort =
 			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
@@ -2964,7 +2987,8 @@ export class CloudSessionController {
 							"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
 							(cwd === CLOUD_WORKSPACE_ROOT
 								? ""
-								: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
+								: `\n\nContinue from the original repository subdirectory at ${cwd}.`) +
+							(computerUse ? `\n\n${CLOUD_COMPUTER_USE_PROMPT}` : "")
 						: systemPrompt,
 					mode,
 					enableTools: true,
