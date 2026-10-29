@@ -39,6 +39,27 @@ export interface EditorExecutorOptions {
 	maxDiffLines?: number;
 }
 
+const pendingEdits = new Map<string, Promise<void>>();
+
+function serializeFileEdit(
+	filePath: string,
+	edit: () => Promise<string>,
+): Promise<string> {
+	const key = process.platform === "win32" ? filePath.toLowerCase() : filePath;
+	const result = (pendingEdits.get(key) ?? Promise.resolve()).then(edit);
+	const completion = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	pendingEdits.set(key, completion);
+	void completion.then(() => {
+		if (pendingEdits.get(key) === completion) {
+			pendingEdits.delete(key);
+		}
+	});
+	return result;
+}
+
 function resolveFilePath(
 	cwd: string,
 	inputPath: string,
@@ -234,35 +255,37 @@ export function createEditorExecutor(
 	): Promise<string> => {
 		const filePath = resolveFilePath(cwd, input.path, restrictToCwd);
 
-		if (input.insert_line != null) {
-			return insertInFile(
+		return serializeFileEdit(filePath, async () => {
+			if (input.insert_line != null) {
+				return insertInFile(
+					filePath,
+					input.insert_line, // One-based index
+					input.new_text,
+					encoding,
+				);
+			}
+
+			if (!(await fileExists(filePath))) {
+				return createFile(filePath, input.new_text, encoding);
+			}
+			if (input.old_text == null) {
+				// Models that fill optional params with null hit this repeatedly and
+				// tend to re-send the identical call; spell out the recovery so the
+				// next call differs.
+				throw new Error(
+					`${filePath} already exists, but \`old_text\` was ${
+						input.old_text === null ? "null" : "omitted"
+					}. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
+				);
+			}
+
+			return replaceInFile(
 				filePath,
-				input.insert_line, // One-based index
+				input.old_text,
 				input.new_text,
 				encoding,
+				maxDiffLines,
 			);
-		}
-
-		if (!(await fileExists(filePath))) {
-			return createFile(filePath, input.new_text, encoding);
-		}
-		if (input.old_text == null) {
-			// Models that fill optional params with null hit this repeatedly and
-			// tend to re-send the identical call; spell out the recovery so the
-			// next call differs.
-			throw new Error(
-				`${filePath} already exists, but \`old_text\` was ${
-					input.old_text === null ? "null" : "omitted"
-				}. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
-			);
-		}
-
-		return replaceInFile(
-			filePath,
-			input.old_text,
-			input.new_text,
-			encoding,
-			maxDiffLines,
-		);
+		});
 	};
 }

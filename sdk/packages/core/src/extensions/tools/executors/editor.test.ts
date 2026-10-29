@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -7,7 +7,11 @@ import { createEditorExecutor } from "./editor";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
 	const original = await importOriginal<typeof import("node:fs/promises")>();
-	return { ...original, access: vi.fn(original.access), readFile: vi.fn(original.readFile) };
+	return {
+		...original,
+		access: vi.fn(original.access),
+		readFile: vi.fn(original.readFile),
+	};
 });
 
 const context = {
@@ -42,16 +46,218 @@ describe("createEditorExecutor", () => {
 			});
 			try {
 				const results = await Promise.all([
-					editor({ path: filePath, old_text: "alpha: old", new_text: "alpha: new" }, dir, context),
-					editor({ path: "./example.txt", old_text: "beta: old", new_text: "beta: new" }, dir, context),
+					editor(
+						{ path: filePath, old_text: "alpha: old", new_text: "alpha: new" },
+						dir,
+						context,
+					),
+					editor(
+						{
+							path: "./example.txt",
+							old_text: "beta: old",
+							new_text: "beta: new",
+						},
+						dir,
+						context,
+					),
 				]);
-				expect(results.every((result) => result.startsWith(`Edited ${filePath}`))).toBe(true);
+				expect(
+					results.every((result) => result.startsWith(`Edited ${filePath}`)),
+				).toBe(true);
 			} finally {
 				read.mockRestore();
 				access.mockRestore();
 			}
-			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("alpha: new\nbeta: new\n");
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"alpha: new\nbeta: new\n",
+			);
 		});
+	});
+
+	it("serializes edits from different executor instances to the same file", async () => {
+		await withTempFile("alpha: old\nbeta: old\n", async (filePath, dir) => {
+			const firstEditor = createEditorExecutor();
+			const secondEditor = createEditorExecutor();
+			const alternatePath =
+				process.platform === "win32" ? filePath.toUpperCase() : "./example.txt";
+			const access = vi.mocked(fs.access).mockResolvedValue(undefined);
+			const read = vi.mocked(fs.readFile).mockImplementation(async () => {
+				const snapshot = readFileSync(filePath, "utf-8");
+				await Promise.resolve();
+				return snapshot;
+			});
+			try {
+				await Promise.all([
+					firstEditor(
+						{ path: filePath, old_text: "alpha: old", new_text: "alpha: new" },
+						dir,
+						context,
+					),
+					secondEditor(
+						{
+							path: alternatePath,
+							old_text: "beta: old",
+							new_text: "beta: new",
+						},
+						dir,
+						context,
+					),
+				]);
+			} finally {
+				read.mockRestore();
+				access.mockRestore();
+			}
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"alpha: new\nbeta: new\n",
+			);
+		});
+	});
+
+	it("does not block edits to different files", async () => {
+		await withTempFile("first: old", async (filePath, dir) => {
+			const secondPath = path.join(dir, "second.txt");
+			await fs.writeFile(secondPath, "second: old", "utf-8");
+			const editor = createEditorExecutor();
+			let startFirstRead!: () => void;
+			let releaseFirstRead!: () => void;
+			const firstReadStarted = new Promise<void>((resolve) => {
+				startFirstRead = resolve;
+			});
+			const firstReadReleased = new Promise<void>((resolve) => {
+				releaseFirstRead = resolve;
+			});
+			const read = vi.mocked(fs.readFile).mockImplementation(async (file) => {
+				const snapshot = readFileSync(String(file), "utf-8");
+				if (String(file) === filePath) {
+					startFirstRead();
+					await firstReadReleased;
+				}
+				return snapshot;
+			});
+			const first = editor(
+				{ path: filePath, old_text: "first: old", new_text: "first: new" },
+				dir,
+				context,
+			);
+			await firstReadStarted;
+			const second = editor(
+				{ path: secondPath, old_text: "second: old", new_text: "second: new" },
+				dir,
+				context,
+			);
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await expect(
+					Promise.race([
+						second,
+						new Promise<string>((_, reject) => {
+							timer = setTimeout(
+								() => reject(new Error("Second file was blocked")),
+								2000,
+							);
+						}),
+					]),
+				).resolves.toContain(`Edited ${secondPath}`);
+			} finally {
+				if (timer) clearTimeout(timer);
+				releaseFirstRead();
+				await Promise.allSettled([first, second]);
+				read.mockRestore();
+			}
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("first: new");
+			await expect(fs.readFile(secondPath, "utf-8")).resolves.toBe(
+				"second: new",
+			);
+		});
+	});
+
+	it("continues queued edits after a failed edit", async () => {
+		await withTempFile("alpha: old\nbeta: old", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			const failed = editor(
+				{ path: filePath, old_text: "missing", new_text: "ignored" },
+				dir,
+				context,
+			);
+			const next = editor(
+				{ path: filePath, old_text: "alpha: old", new_text: "alpha: new" },
+				dir,
+				context,
+			);
+			await Promise.all([
+				expect(failed).rejects.toThrow(
+					"No replacement performed: text not found",
+				),
+				expect(next).resolves.toContain(`Edited ${filePath}`),
+			]);
+			await editor(
+				{ path: filePath, old_text: "beta: old", new_text: "beta: new" },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"alpha: new\nbeta: new",
+			);
+		});
+	});
+
+	it("preserves concurrent insertions and replacements", async () => {
+		await withTempFile("one\ntwo", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+			const access = vi.mocked(fs.access).mockResolvedValue(undefined);
+			const read = vi.mocked(fs.readFile).mockImplementation(async () => {
+				const snapshot = readFileSync(filePath, "utf-8");
+				await Promise.resolve();
+				return snapshot;
+			});
+			try {
+				await Promise.all([
+					editor(
+						{ path: filePath, insert_line: 2, new_text: "inserted" },
+						dir,
+						context,
+					),
+					editor(
+						{ path: filePath, old_text: "two", new_text: "TWO" },
+						dir,
+						context,
+					),
+				]);
+			} finally {
+				read.mockRestore();
+				access.mockRestore();
+			}
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\ninserted\nTWO",
+			);
+		});
+	});
+
+	it("checks existence after an earlier queued creation", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
+		const filePath = path.join(dir, "new.txt");
+		const access = vi.mocked(fs.access).mockImplementation(async (file) => {
+			const exists = existsSync(String(file));
+			await Promise.resolve();
+			if (!exists) throw new Error("File does not exist");
+		});
+		try {
+			const editor = createEditorExecutor();
+			const [created, edited] = await Promise.all([
+				editor({ path: filePath, new_text: "created" }, dir, context),
+				editor(
+					{ path: filePath, old_text: "created", new_text: "edited" },
+					dir,
+					context,
+				),
+			]);
+			expect(created).toBe(`File created successfully at: ${filePath}`);
+			expect(edited).toContain(`Edited ${filePath}`);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("edited");
+		} finally {
+			access.mockRestore();
+			await fs.rm(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("creates a missing file when edit is used", async () => {
