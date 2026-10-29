@@ -199,6 +199,25 @@ describe("summary cloud handoff", () => {
 		}
 	});
 
+	it("rejects OAuth credentials when neither capture nor resolution identifies the account", async () => {
+		const input = fixture();
+		const prepared = await prepareCloudHandoff({
+			...input,
+			connection: {
+				...input.connection,
+				providerId: "cline",
+				accountId: undefined,
+			},
+		});
+		helpers.resolveCredentials.mockResolvedValueOnce({
+			apiKey: "other-token",
+			refreshed: false,
+		});
+		await expect(prepared.start(vi.fn())).rejects.toThrow("account changed");
+		expect(helpers.summarize).not.toHaveBeenCalled();
+		expect(input.cloud.create).not.toHaveBeenCalled();
+	});
+
 	it("does not summarize or publish when credential refresh fails", async () => {
 		const input = fixture();
 		const prepared = await prepareCloudHandoff(input);

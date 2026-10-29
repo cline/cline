@@ -139,7 +139,8 @@ export async function prepareCloudHandoff(input: {
 				if (
 					isCline &&
 					(credentials
-						? credentials.accountId !== input.connection.accountId
+						? !input.connection.accountId ||
+							credentials.accountId !== input.connection.accountId
 						: input.connection.accountId ||
 							input.connection.apiKey
 								?.trim()
