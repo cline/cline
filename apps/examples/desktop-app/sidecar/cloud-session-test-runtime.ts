@@ -2,7 +2,7 @@ import {
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 } from "@cline/core/cloud";
-import { HubCloudSessionService } from "@cline/core/hub";
+import { HubCloudSessionService, HubCommandError } from "@cline/core/hub";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach } from "vitest";
 import { CloudSessionManager } from "./cloud-sessions";
@@ -70,18 +70,34 @@ export async function createCloudSessionTestRuntime(
 					listeners.delete(listener);
 				};
 			},
-			command: async (command, payload) => ({
-				version: "v1",
-				ok: true,
-				payload:
+			command: async (command, payload, _sessionId, options) => {
+				await options?.beforeDispatch?.();
+				options?.onDispatch?.("test-request");
+				const serialized = payload
+					? JSON.parse(JSON.stringify(payload))
+					: undefined;
+				const result =
 					command === "cloud.watch"
 						? service.watch()
-						: await service.command(
-								String(payload?.operation),
-								payload?.args,
-								payload?.scope,
-							),
-			}),
+						: await service
+								.command(
+									String(serialized?.operation),
+									serialized?.args,
+									serialized?.scope,
+								)
+								.catch((error: unknown) => {
+									throw new HubCommandError(
+										command,
+										undefined,
+										error instanceof Error ? error.message : String(error),
+									);
+								});
+				return {
+					version: "v1",
+					ok: true,
+					payload: JSON.parse(JSON.stringify(result)),
+				};
+			},
 		}));
 		ctx.cloudSessionManager = projection;
 		await projection.connect();

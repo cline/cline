@@ -1426,4 +1426,23 @@ describe("setHubDaemonLauncher", () => {
 			process.execPath,
 		);
 	});
+
+	it("applies child-only runtime settings while preserving daemon markers", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		const env = { ELECTRON_RUN_AS_NODE: "1", CLINE_RUN_AS_HUB_DAEMON: "0" };
+		setHubDaemonLauncher({
+			command: "/editor",
+			args: ["/extension/hub.js"],
+			env,
+		});
+		env.ELECTRON_RUN_AS_NODE = "0";
+		const command = __test__.resolveLaunchCommand("/work");
+		expect(command.args.slice(0, 2)).toEqual(["/extension/hub.js", "--cwd"]);
+		expect(command.env.ELECTRON_RUN_AS_NODE).toBe("1");
+		expect(command.env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+		setHubDaemonLauncher(undefined);
+		expect(
+			__test__.resolveLaunchCommand("/work").env.ELECTRON_RUN_AS_NODE,
+		).toBe(process.env.ELECTRON_RUN_AS_NODE);
+	});
 });

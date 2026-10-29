@@ -4,6 +4,7 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { HubCommandError } from "../hub/client/index";
 import { toHubSessionRecord } from "../hub/server/hub-session-records";
 import {
 	CloudSessionError,
@@ -82,6 +83,12 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 			},
 		) => {
 			opts?.beforeDispatch?.();
+			if (name === "session.resume")
+				throw new HubCommandError(
+					name,
+					"unsupported_command",
+					"Resume unsupported",
+				);
 			opts?.onDispatch?.(`request-${commands.length}`);
 			commands.push({ command: name, payload, sessionId });
 			let result: Record<string, unknown> = {};
@@ -588,30 +595,35 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it.each([
-		{
-			savedApproval: true,
-			code: "command_failed",
-			savedThinking: { thinking: true, reasoningEffort: "medium" },
-			cold: true,
-		},
-		{
-			savedApproval: false,
-			savedThinking: { thinking: false, reasoningEffort: null },
-		},
-		{
-			savedApproval: false,
-			savedThinking: { thinking: null, reasoningEffort: null },
-		},
-		{
-			savedApproval: undefined,
-			savedThinking: undefined,
-		},
-	])("restores history and saved preferences with legacy host fallback: %j", async ({
+	it.each(
+		[
+			{
+				savedApproval: true,
+				code: "command_failed",
+				savedThinking: { thinking: true, reasoningEffort: "medium" },
+				cold: true,
+			},
+			{
+				savedApproval: false,
+				savedThinking: { thinking: false, reasoningEffort: null },
+			},
+			{
+				savedApproval: false,
+				savedThinking: { thinking: null, reasoningEffort: null },
+			},
+			{
+				savedApproval: undefined,
+				savedThinking: undefined,
+			},
+		].flatMap((options) =>
+			[false, true].map((supportsResume) => ({ ...options, supportsResume })),
+		),
+	)("restores history and saved preferences: %j", async ({
 		savedApproval,
 		code = "session_not_found",
 		savedThinking,
 		cold = false,
+		supportsResume,
 	}) => {
 		const f = resumableFixture();
 		if (!cold)
@@ -655,13 +667,35 @@ describe("CloudSessionController neutral host contract", () => {
 			if (args[0] === "session.get") {
 				return { version: "v1", ok: true, payload: { session: saved } };
 			}
+			if (args[0] === "session.resume" && supportsResume)
+				return { version: "v1", ok: true, payload: { session: saved } };
 			return original(...args);
 		});
 		await f.controller.attach(record.id);
-		const restored = f.commands.find((c) => c.command === "session.create")
-			?.payload as { sessionConfig: Record<string, unknown> };
+		const restored = f.command.mock.calls.find(
+			([command]) =>
+				command === (supportsResume ? "session.resume" : "session.create"),
+		)?.[1] as {
+			sessionConfig: Record<string, unknown>;
+			initialMessages?: unknown;
+		};
+		expect(restored.initialMessages).toEqual(
+			supportsResume ? undefined : messages,
+		);
+		if (supportsResume) {
+			const calls = f.command.mock.calls;
+			const resumeIndex = calls.findIndex(
+				([name]) => name === "session.resume",
+			);
+			expect(restored).not.toHaveProperty("initialMessages");
+			expect(calls.some(([name]) => name === "session.create")).toBe(false);
+			expect(
+				calls
+					.slice(0, resumeIndex)
+					.some(([name]) => name === "session.messages"),
+			).toBe(false);
+		}
 		expect(restored).toMatchObject({
-			initialMessages: messages,
 			sessionConfig: {
 				sessionId: "inner",
 				modelId: "model",
@@ -686,7 +720,40 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when the runtime reports a concurrent restore conflict", async () => {
+	it.each([
+		"hub_command_timeout",
+		"forbidden",
+		"command_failed",
+		"session_messages_not_found",
+	])("does not replay history after resume fails with %s", async (code) => {
+		const f = resumableFixture();
+		const original = f.command.getMockImplementation()!;
+		const failure = new HubCommandError(
+			"session.resume",
+			code,
+			"Resume failed",
+		);
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection")
+				throw Object.assign(new Error("Missing runtime"), {
+					code: "session_not_found",
+				});
+			if (args[0] === "session.resume") throw failure;
+			return original(...args);
+		});
+		await expect(f.controller.attach(record.id)).rejects.toBe(failure);
+		expect(
+			f.command.mock.calls.some(
+				([name]) => name === "session.messages" || name === "session.create",
+			),
+		).toBe(false);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"session.create",
+		"session.resume",
+	])("attaches after a concurrent restore conflict from %s", async (command) => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -697,7 +764,7 @@ describe("CloudSessionController neutral host contract", () => {
 					code: "session_not_found",
 				});
 			}
-			if (args[0] === "session.create") {
+			if (args[0] === command) {
 				throw Object.assign(new Error("Already restored"), {
 					code: "session_already_exists",
 				});
