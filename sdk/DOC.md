@@ -117,6 +117,15 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+`createPublishArtifactsTool({ request, cloudSessionId })` from `@cline/core/cloud`
+creates the opt-in `publish_artifacts` tool. The host supplies an authenticated
+request function and the owning cloud session ID, then registers the tool through
+an extension. It accepts `files: [{ path, artifactId? }]` with absolute local paths
+and returns per-file IDs or errors. Files upload directly using the session's
+signed policy. Importing or constructing the tool does not upload anything, read
+credentials, or add it to default local tools. Registration controls availability;
+the service remains responsible for upload authorization and limits.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
