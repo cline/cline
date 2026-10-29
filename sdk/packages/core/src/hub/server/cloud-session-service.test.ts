@@ -107,7 +107,7 @@ function fixture() {
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
-			readMessagesIfAwake: vi.fn(
+			readMessagesWithoutResuming: vi.fn(
 				async (_id: string): Promise<CloudPassiveReadResult> => ({
 					kind: "deferred",
 				}),
@@ -225,11 +225,13 @@ describe("hub-owned cloud sessions", () => {
 			messages: [{ role: "assistant", content: "Done" }],
 			status: "completed",
 		};
-		controller.readMessagesIfAwake.mockResolvedValueOnce(outcome);
-		await expect(viewer.readMessagesIfAwake("ses-one")).resolves.toEqual(
-			outcome,
+		controller.readMessagesWithoutResuming.mockResolvedValueOnce(outcome);
+		await expect(
+			viewer.readMessagesWithoutResuming("ses-one"),
+		).resolves.toEqual(outcome);
+		expect(controller.readMessagesWithoutResuming).toHaveBeenLastCalledWith(
+			"ses-one",
 		);
-		expect(controller.readMessagesIfAwake).toHaveBeenLastCalledWith("ses-one");
 		expect(controller.attach).not.toHaveBeenCalled();
 	});
 
