@@ -1,9 +1,10 @@
 import * as Clipboard from "expo-clipboard";
+import { Check, Copy } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, type StyleProp, View, type ViewStyle } from "react-native";
 import { withAlpha } from "@/theme/brand";
 import { useTheme } from "../theme";
-import { Button } from "./Button";
+import { IconButton } from "./IconButton";
 import { Text } from "./Text";
 
 export interface CodeBlockProps {
@@ -26,8 +27,7 @@ export interface CodeBlockProps {
  * desktop's `ToolActivityCode` (DESIGN_SPEC §4): `xs` mono at line-height
  * 1.625, 8px padding, `radius.sm`, hairline border at 70% and a `canvas@60%`
  * fill, capped in height and scrollable. Long lines scroll on a nested
- * horizontal `ScrollView` (the RN substitute for desktop's hidden-bar
- * horizontal overflow) unless `wrap` is set.
+ * horizontal `ScrollView` unless `wrap` is set.
  */
 export function CodeBlock({
 	children,
@@ -42,12 +42,15 @@ export function CodeBlock({
 	const vertical = useRef<ScrollView>(null);
 	const horizontal = useRef<ScrollView>(null);
 	const content = useRef({ width: 0, height: 0 });
+	const viewport = useRef({ width: 0, height: 0 });
 	const revealedSequence = useRef<number | undefined>(undefined);
 	const revealMatch = useCallback(() => {
 		if (
 			!revealText?.query ||
 			revealedSequence.current === revealText.sequence ||
 			content.current.height <= 0 ||
+			viewport.current.height <= 0 ||
+			viewport.current.width <= 0 ||
 			(!wrap && content.current.width <= 0)
 		)
 			return;
@@ -60,14 +63,35 @@ export function CodeBlock({
 		const before = children.slice(0, offset).split("\n");
 		const line = before.length - 1;
 		const column = before.at(-1)?.length ?? 0;
+		const lineHeight = content.current.height / Math.max(1, lines.length);
+		const characterWidth =
+			content.current.width /
+			lines.reduce((max, value) => Math.max(max, value.length), 1);
 		vertical.current?.scrollTo({
-			y: (line * content.current.height) / Math.max(1, lines.length),
+			y:
+				(line + 1) * lineHeight <= viewport.current.height
+					? 0
+					: Math.max(
+							0,
+							Math.min(
+								line * lineHeight,
+								content.current.height - viewport.current.height,
+							),
+						),
 			animated: false,
 		});
 		horizontal.current?.scrollTo({
 			x:
-				(column * content.current.width) /
-				lines.reduce((max, value) => Math.max(max, value.length), 1),
+				(column + revealText.query.length) * characterWidth <=
+				viewport.current.width
+					? 0
+					: Math.max(
+							0,
+							Math.min(
+								column * characterWidth - 16,
+								content.current.width - viewport.current.width,
+							),
+						),
 			animated: false,
 		});
 	}, [children, revealText, wrap]);
@@ -101,30 +125,48 @@ export function CodeBlock({
 			]}
 		>
 			{copyLabel ? (
-				<View style={{ alignItems: "flex-end", marginBottom: 4 }}>
-					<Button
-						label={copyLabel}
+				<View
+					style={{
+						flexDirection: "row",
+						justifyContent: "flex-end",
+						alignItems: "center",
+						gap: 4,
+					}}
+				>
+					{copyState !== "idle" ? (
+						<Text
+							variant="caption"
+							tone={copyState === "failed" ? "danger" : "muted"}
+							accessibilityLiveRegion="polite"
+						>
+							{copyState === "copied" ? "Copied" : "Couldn't copy. Try again."}
+						</Text>
+					) : null}
+					<IconButton
 						accessibilityLabel={copyLabel}
-						variant="ghost"
-						size="sm"
 						onPress={() => {
 							void Clipboard.setStringAsync(children)
 								.then(() => setCopyState("copied"))
 								.catch(() => setCopyState("failed"));
 						}}
-					/>
-					{copyState !== "idle" ? (
-						<Text
-							variant="caption"
-							tone={copyState === "failed" ? "danger" : "muted"}
-						>
-							{copyState === "copied" ? "Copied" : "Couldn't copy. Try again."}
-						</Text>
-					) : null}
+					>
+						{copyState === "copied" ? (
+							<Check size={16} color={theme.color.textMuted} />
+						) : (
+							<Copy size={16} color={theme.color.textMuted} />
+						)}
+					</IconButton>
 				</View>
 			) : null}
 			<ScrollView
 				ref={vertical}
+				style={{ flexGrow: 0, flexShrink: 1 }}
+				contentInsetAdjustmentBehavior="never"
+				automaticallyAdjustContentInsets={false}
+				onLayout={({ nativeEvent: { layout } }) => {
+					viewport.current = { width: layout.width, height: layout.height };
+					revealMatch();
+				}}
 				onContentSizeChange={(_width, height) => {
 					content.current.height = height;
 					revealMatch();
@@ -136,7 +178,10 @@ export function CodeBlock({
 					<ScrollView
 						ref={horizontal}
 						horizontal
-						showsHorizontalScrollIndicator={false}
+						style={{ flexGrow: 0 }}
+						contentInsetAdjustmentBehavior="never"
+						automaticallyAdjustContentInsets={false}
+						showsHorizontalScrollIndicator
 						onContentSizeChange={(width) => {
 							content.current.width = width;
 							revealMatch();

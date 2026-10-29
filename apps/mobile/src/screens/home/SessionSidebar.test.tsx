@@ -1,4 +1,5 @@
 import { Keyboard } from "react-native";
+import { withTiming } from "react-native-reanimated";
 import { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { ConnectionDescriptor } from "@/connection";
@@ -149,7 +150,8 @@ describe("SessionSidebar", () => {
 		).toBe(true);
 		expect(findByLabel(root, "Cline Cloud is online")).toBeUndefined();
 	});
-	it("is a full-height leading drawer rather than a bottom sheet", () => {
+	it("opens a full-height leading drawer after native presentation", () => {
+		vi.mocked(withTiming).mockClear();
 		const { root } = render(
 			<SessionSidebar
 				now={1_700_000_000_000}
@@ -160,7 +162,12 @@ describe("SessionSidebar", () => {
 				rows={[ROW]}
 			/>,
 		);
-		expect(findAllByType(root, "Modal").at(0)?.props.visible).toBe(true);
+		const modal = findAllByType(root, "Modal").at(0);
+		expect(modal?.props.visible).toBe(true);
+		expect(modal?.props.animationType).toBe("none");
+		expect(withTiming).not.toHaveBeenCalled();
+		act(() => modal?.props.onShow());
+		expect(withTiming).toHaveBeenCalledOnce();
 		expect(
 			root.findAll(
 				(node) =>
@@ -169,6 +176,37 @@ describe("SessionSidebar", () => {
 			),
 		).toHaveLength(1);
 		expect(findAllByType(root, "BottomSheet")).toHaveLength(0);
+	});
+	it.each([
+		false,
+		true,
+	])("dismisses only after an uninterrupted exit (finished=%s)", (finished) => {
+		const onClose = vi.fn();
+		let complete: Parameters<typeof withTiming>[2];
+		const { root } = render(
+			<SessionSidebar
+				open
+				rows={[]}
+				now={0}
+				onClose={onClose}
+				onNew={() => {}}
+				onOpen={() => {}}
+			/>,
+		);
+		vi.mocked(withTiming).mockImplementationOnce(
+			(target, _config, callback) => {
+				complete = callback;
+				return target;
+			},
+		);
+		act(() => findByLabel(root, "Collapse sidebar")?.props.onPress());
+		expect(onClose).not.toHaveBeenCalled();
+		expect(complete).toBeDefined();
+		const animationCount = vi.mocked(withTiming).mock.calls.length;
+		act(() => findAllByType(root, "Modal").at(0)?.props.onShow());
+		expect(withTiming).toHaveBeenCalledTimes(animationCount);
+		act(() => complete?.(finished));
+		expect(onClose).toHaveBeenCalledTimes(finished ? 1 : 0);
 	});
 
 	it("exposes desktop's New, session, close, and Settings actions", () => {

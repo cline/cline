@@ -1,9 +1,10 @@
+import { RefreshCw } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 import { CloudAccountGateway } from "@/cloud/rest/CloudAccountGateway";
 import { cloudEnv } from "@/config/env";
 import { useCloudAccountScope, useCloudAuth } from "@/state/cloud-auth";
-import { Button, Text, useTheme } from "@/ui";
+import { IconButton, Text, useTheme } from "@/ui";
 
 /** The selected billing account's balance; never fall back to Personal on failure. */
 export function CreditBalance({ compact = false }: { compact?: boolean }) {
@@ -24,6 +25,7 @@ function CreditBalanceBody({
 	store: ReturnType<typeof useCloudAuth>["store"];
 	compact: boolean;
 }) {
+	const theme = useTheme();
 	const { scope, selectionPending } = useCloudAccountScope();
 	const identityVersion = store.identityVersion;
 	const key = scope ? (scope.organizationId ?? "personal") : undefined;
@@ -73,54 +75,54 @@ function CreditBalanceBody({
 			: { loading: true };
 	const dollars = current.dollars;
 	return (
-		<View
-			style={
-				compact
-					? {
-							flexDirection: "row",
-							flexWrap: "wrap",
-							justifyContent: "space-between",
-							alignItems: "center",
-							gap: 6,
-						}
-					: { gap: 6 }
-			}
-		>
-			<Text
-				variant={compact ? "caption" : "small"}
-				tone={compact ? "muted" : undefined}
-				weight="500"
+		<View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+			<View
+				style={
+					compact
+						? {
+								flex: 1,
+								minWidth: 0,
+								flexDirection: "row",
+								flexWrap: "wrap",
+								justifyContent: "space-between",
+								alignItems: "center",
+								gap: 6,
+							}
+						: { flex: 1, gap: 4 }
+				}
 			>
-				{scope?.organizationId
-					? "Organization credit balance"
-					: "Credit balance"}
-			</Text>
-			{current.loading ? (
-				<Text variant="caption" tone="muted">
-					Loading credit balance…
+				<Text variant="caption" tone="muted" weight="500">
+					{scope?.organizationId
+						? "Organization credit balance"
+						: "Credit balance"}
 				</Text>
-			) : current.error || dollars === undefined ? (
-				<Text variant="caption" tone="muted">
-					Credit balance unavailable. Try again.
-				</Text>
-			) : (
-				<Text
-					variant={compact ? "small" : "title"}
-					accessibilityLabel={`Credit balance: ${dollars.toFixed(2)} US dollars`}
-				>
-					{dollars < 0 ? "−" : ""}${Math.abs(dollars).toFixed(2)}
-				</Text>
-			)}
+				{current.loading ? (
+					<Text variant="caption" tone="muted">
+						Loading credit balance…
+					</Text>
+				) : current.error || dollars === undefined ? (
+					<Text variant="caption" tone="muted">
+						Credit balance unavailable. Try again.
+					</Text>
+				) : (
+					<Text
+						variant={compact ? "small" : "title"}
+						accessibilityLabel={`Credit balance: ${dollars.toFixed(2)} US dollars`}
+					>
+						{dollars < 0 ? "−" : ""}${Math.abs(dollars).toFixed(2)}
+					</Text>
+				)}
+			</View>
 			{!compact || current.error ? (
-				<Button
-					label={
+				<IconButton
+					accessibilityLabel={
 						current.error ? "Retry credit balance" : "Refresh credit balance"
 					}
-					variant="ghost"
 					disabled={current.loading || !scope || selectionPending}
-					style={{ alignSelf: "flex-start" }}
 					onPress={() => refresh((value) => value + 1)}
-				/>
+				>
+					<RefreshCw size={16} color={theme.color.textMuted} />
+				</IconButton>
 			) : null}
 		</View>
 	);

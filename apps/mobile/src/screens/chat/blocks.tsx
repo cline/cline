@@ -385,24 +385,20 @@ function ToolActivityCard({
 				)
 			}
 			trailing={counts ? <DiffCounts counts={counts} /> : null}
-			variant="inset"
-			indent={32}
+			variant="rail"
 			showIndicator={false}
 			expanded={expanded}
 			onToggle={(next) => {
 				setUserToggled(true);
 				setManualExpanded(next);
+				setOutputReveal(undefined);
 			}}
 			style={{ marginVertical: 4 }}
 		>
 			{files.length > 0 ? (
 				<ToolDiffView files={files} state={block.state} />
 			) : preview ? (
-				<CodeBlock
-					muted={block.state === "completed"}
-					copyLabel="Copy tool output"
-					revealText={outputReveal}
-				>
+				<CodeBlock copyLabel="Copy tool output" revealText={outputReveal}>
 					{preview}
 				</CodeBlock>
 			) : null}
