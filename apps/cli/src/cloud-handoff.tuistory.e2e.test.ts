@@ -177,7 +177,7 @@ describe("cloud handoff TUI", () => {
 		await session.type("/cloud continue the synthetic task");
 		await session.press("enter");
 		await session.waitForText(
-			`Connect GitHub (${modifierLabel}+G): https://app.cline.bot/settings/integrations`,
+			`Connect GitHub (${modifierLabel}+O): https://app.cline.bot/settings/integrations`,
 			{ timeout },
 		);
 		expect(await session.text()).toContain(

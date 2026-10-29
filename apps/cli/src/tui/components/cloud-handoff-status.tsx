@@ -18,7 +18,7 @@ export function CloudHandoffStatusBar(props: {
 			? status.result.dashboardUrl
 			: status.kind === "progress"
 				? status.progress.dashboardUrl
-				: undefined;
+				: status.connectUrl;
 	const message =
 		status.kind === "progress"
 			? status.progress.message
@@ -26,21 +26,14 @@ export function CloudHandoffStatusBar(props: {
 				? status.message
 				: (status.result.warning ??
 					"Cloud task ready. You can keep working locally.");
-	const connectUrl = status.kind === "failed" ? status.connectUrl : undefined;
-	const connectGitHub = () => {
-		if (connectUrl) void open(connectUrl, { wait: false }).catch(() => {});
-	};
-	const openCloud = () => {
+	const openLink = () => {
 		if (url) void open(url, { wait: false }).catch(() => {});
 	};
 	useKeyboard((key) => {
 		if (props.disabled || !key.meta || key.ctrl || key.shift) return;
 		if (key.name === "o" && url) {
 			key.preventDefault();
-			openCloud();
-		} else if (key.name === "g" && connectUrl) {
-			key.preventDefault();
-			connectGitHub();
+			openLink();
 		} else if (key.name === "e" && status.kind === "failed") {
 			key.preventDefault();
 			props.onRestore(status.draft);
@@ -62,19 +55,11 @@ export function CloudHandoffStatusBar(props: {
 				Cloud handoff: {message}
 			</text>
 			{url && (
-				<box onMouseDown={openCloud}>
+				<box onMouseDown={openLink}>
 					<text>
 						<a href={url}>
-							Open cloud task ({modifierLabel}+O): {url}
-						</a>
-					</text>
-				</box>
-			)}
-			{connectUrl && (
-				<box onMouseDown={connectGitHub}>
-					<text>
-						<a href={connectUrl}>
-							Connect GitHub ({modifierLabel}+G): {connectUrl}
+							{status.kind === "failed" ? "Connect GitHub" : "Open cloud task"}{" "}
+							({modifierLabel}+O): {url}
 						</a>
 					</text>
 				</box>
