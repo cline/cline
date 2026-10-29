@@ -1,15 +1,15 @@
 "use client";
 
-import {
-	type ArtifactReference,
-	SUPPORTED_IMAGE_MEDIA_TYPES,
-} from "@cline/shared/browser";
+import { SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared/browser";
 import {
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "@cline/ui";
 import { useEffect, useRef, useState } from "react";
-import { useArtifactResource } from "@/hooks/use-artifact-resource";
+import {
+	type ArtifactReference,
+	useArtifactResource,
+} from "@/hooks/use-artifact-resource";
 
 type Props = GeneratedMediaContentProps & { sessionId: string | null };
 

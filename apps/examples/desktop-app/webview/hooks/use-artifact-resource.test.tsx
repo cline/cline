@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 
-import type { ArtifactResolver, ArtifactResource } from "@cline/shared/browser";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { useArtifactResource } from "./use-artifact-resource";
+import {
+	type ArtifactResolver,
+	type ArtifactResource,
+	useArtifactResource,
+} from "./use-artifact-resource";
 
 type AccountScope = {
 	user: { id: string } | null;

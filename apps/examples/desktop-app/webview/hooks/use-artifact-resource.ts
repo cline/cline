@@ -1,13 +1,18 @@
 "use client";
 
-import type {
-	ArtifactReference,
-	ArtifactResolver,
-	ArtifactResource,
-} from "@cline/shared/browser";
+import type { GeneratedMediaSource } from "@cline/shared/browser";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+
+export type ArtifactReference = Extract<
+	GeneratedMediaSource,
+	{ type: "artifact" }
+>;
+export type ArtifactResource = { url: string; expiresAt?: string };
+export type ArtifactResolver = (
+	reference: ArtifactReference,
+) => Promise<ArtifactResource>;
 
 const EXPIRY_MARGIN_MS = 30_000;
 
