@@ -90,7 +90,7 @@ describe("cloud conversation handoff", () => {
 	it("resolves fresh summary credentials after Hub preparation without changing the captured model", async () => {
 		const { coordinator, cloud, summarize } = setup()
 		cloud.listModels.mockImplementationOnce(async () => {
-			resolveCredentials.mockResolvedValue({ apiKey: "refreshed-token", refreshed: true })
+			resolveCredentials.mockResolvedValue({ apiKey: "refreshed-token", accountId: "test-user", refreshed: true })
 			return [{ id: "test-model", name: "Test model", catalogId: "cline" }]
 		})
 		await coordinator.prepare(input)
@@ -111,6 +111,46 @@ describe("cloud conversation handoff", () => {
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message: "Sign in again" })
 		expect(summarize).not.toHaveBeenCalled()
 		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("rejects %s credentials from another account while the window account is unchanged", async (providerId) => {
+		const { coordinator, source, cloud, summarize } = setup()
+		source.config.providerId = providerId
+		resolveCredentials.mockResolvedValue({ apiKey: "other-account-token", accountId: "other-user", refreshed: false })
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			phase: "failed",
+			message: expect.stringContaining("account"),
+		})
+		expect(summarize).not.toHaveBeenCalled()
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it("does not reuse captured OAuth credentials after sign-out during refresh", async () => {
+		const { coordinator, source, cloud, summarize } = setup()
+		source.config.apiKey = "workos:captured-token"
+		resolveCredentials.mockResolvedValue(null)
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			phase: "failed",
+			message: expect.stringContaining("account"),
+		})
+		expect(summarize).not.toHaveBeenCalled()
+		expect(cloud.create).not.toHaveBeenCalled()
+	})
+
+	it("allows another provider's OAuth identity without comparing it to the cloud account", async () => {
+		const { coordinator, source, summarize } = setup()
+		source.config.providerId = "openai-codex"
+		resolveCredentials.mockResolvedValue({ apiKey: "provider-token", accountId: "provider-user", refreshed: false })
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)?.phase).toBe("ready")
+		expect(summarize).toHaveBeenCalledWith(
+			expect.objectContaining({ config: expect.objectContaining({ apiKey: "provider-token" }) }),
+		)
 	})
 
 	it("stops preparation when the window account changes during credential refresh", async () => {

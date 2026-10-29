@@ -139,6 +139,13 @@ export class SdkCloudHandoffCoordinator {
 				providerSettingsManager: getProviderSettingsManager(),
 			}).resolveProviderApiKey({ providerId: source.config.providerId })
 			this.assertCurrent(attempt)
+			if (
+				(source.config.providerId === "cline" || source.config.providerId === "cline-pass") &&
+				(credentials
+					? credentials.accountId !== account.accountId
+					: source.config.apiKey?.trim().toLowerCase().startsWith("workos:"))
+			)
+				throw new Error("The cloud account does not match the signed-in account. Run /cloud again.")
 			const summary = (
 				await (this.options.summarize ?? summarizeConversation)({
 					messages: source.messages,
