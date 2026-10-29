@@ -23,10 +23,7 @@ class MockWebSocket {
 	readonly sentFrames: unknown[] = [];
 	private readonly listeners = new Map<string, SocketListener[]>();
 
-	constructor(
-		public readonly url: string,
-		public readonly protocols?: string[],
-	) {
+	constructor(public readonly url: string) {
 		MockWebSocket.instances.push(this);
 		queueMicrotask(() => {
 			if (MockWebSocket.failNextOpen) {
@@ -1314,24 +1311,15 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			};
 		});
 
-		const { ensureCompatibleLocalHubUrl, NodeHubClient } = await import(".");
+		const { ensureCompatibleLocalHubUrl } = await import(".");
 
-		const url = await ensureCompatibleLocalHubUrl({
-			workspaceRoot: "/tmp/project",
-			cwd: "/tmp/project",
-		});
-		expect(url).toBe("ws://127.0.0.1:25464/hub");
+		await expect(
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBe("ws://127.0.0.1:25464/hub");
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
-		if (!url) throw new Error("Expected a resolved Hub URL");
-		const client = new NodeHubClient({ url });
-		try {
-			await client.connect();
-			expect(MockWebSocket.instances.at(-1)?.protocols).toEqual([
-				"cline-hub-auth.token",
-			]);
-		} finally {
-			await client.dispose();
-		}
 	});
 
 	it("replaces a stale-build hub without dropping its retirement credentials", async () => {

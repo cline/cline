@@ -35,7 +35,7 @@ export interface PrepareCloudHandoffInput {
 
 type HandoffCloud = Pick<
 	HubCloudSessionClient,
-	"connect" | "scope" | "prepareHandoffRepository" | "listModels" | "create" | "sendWithOutcome" | "subscribe"
+	"connect" | "scope" | "prepareHandoffRepository" | "listModels" | "create" | "send" | "subscribe"
 >
 
 interface PreparedHandoff {
@@ -282,27 +282,14 @@ export class SdkCloudHandoffCoordinator {
 			this.assertCurrent(launching)
 			if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
 				throw new Error("Cloud account changed")
-			let delivery: "sent" | "unsent" | "unconfirmed" = "unconfirmed"
+			let delivery: "sent" | "unconfirmed" = "unconfirmed"
 			try {
-				const result = await cloud.sendWithOutcome(
-					attempt.sessionId,
-					initialMessage.text,
-					"queue",
-					modelId,
-					initialMessage.images,
-				)
-				delivery =
-					"dispatched" in result
-						? result.dispatched
-							? "unconfirmed"
-							: "unsent"
-						: result.recoveredAfterDisconnect
-							? "unconfirmed"
-							: "sent"
+				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
+				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
 			} catch {
 				// A send error does not prove the message stayed unsent.
 			}
-			settled = delivery === "unsent" ? attempt : { ...base, phase: "complete", delivery }
+			settled = { ...base, phase: "complete", delivery }
 		} finally {
 			if (this.attempts.get(attempt.sourceTaskId) === launching) {
 				this.attempts.set(attempt.sourceTaskId, settled)

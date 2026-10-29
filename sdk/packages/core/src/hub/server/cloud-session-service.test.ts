@@ -103,12 +103,6 @@ function fixture() {
 					ok: true,
 				}),
 			),
-			sendWithOutcome: vi
-				.fn<CloudSessionController["sendWithOutcome"]>()
-				.mockResolvedValue({
-					sessionId: "ses-one",
-					ok: true,
-				}),
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
@@ -363,7 +357,6 @@ describe("hub-owned cloud sessions", () => {
 
 	it.each([
 		"send",
-		"sendWithOutcome",
 		"create",
 		"create-only",
 	] as const)("keeps a lost %s reply unknown without replaying the request", async (operation) => {
@@ -375,9 +368,8 @@ describe("hub-owned cloud sessions", () => {
 			await original(...args);
 			throw new Error("Reply lost");
 		};
-		const sending = operation === "send" || operation === "sendWithOutcome";
-		const failure = await (sending
-			? viewer[operation]("ses-one", "Once")
+		const failure = await (operation === "send"
+			? viewer.send("ses-one", "Once")
 			: viewer.create({
 					modelId: "model",
 					repoUrl: "repo",
@@ -395,7 +387,7 @@ describe("hub-owned cloud sessions", () => {
 			});
 		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
 		expect(
-			f.controllers[0]?.controller[sending ? operation : "create"],
+			f.controllers[0]?.controller[operation === "send" ? "send" : "create"],
 		).toHaveBeenCalledOnce();
 	});
 
@@ -522,22 +514,17 @@ describe("hub-owned cloud sessions", () => {
 		expect(await result).toBeInstanceOf(Error);
 		expect(f.service.activeCommands).toBe(0);
 	});
-	it.each([
-		"send",
-		"sendWithOutcome",
-	] as const)("retires old account state and ignores late %s replies", async (operation) => {
+	it("retires old account state and ignores late events and replies", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.attach("ses-one");
 		const old = f.controllers[0]!;
-		const pending = deferred<{ sessionId: string; ok: true }>();
-		old.controller[operation].mockReturnValue(pending.promise);
-		const result = viewer[operation]("ses-one", "Continue").catch(
-			(error: unknown) => error,
-		);
-		await vi.waitFor(() =>
-			expect(old.controller[operation]).toHaveBeenCalledOnce(),
-		);
+		const pending = deferred<{ sessionId: string; ok: boolean }>();
+		old.controller.send.mockReturnValue(pending.promise);
+		const result = viewer
+			.send("ses-one", "Continue")
+			.catch((error: unknown) => error);
+		await vi.waitFor(() => expect(old.controller.send).toHaveBeenCalledOnce());
 		f.changeScope("account-two");
 		await command(f.service, "listForDiscovery", []);
 		expect(viewer.getSnapshot("ses-one")).toBeUndefined();
@@ -590,10 +577,7 @@ describe("hub-owned cloud sessions", () => {
 			sandboxType: "resumable",
 		});
 	});
-	it.each([
-		"send",
-		"sendWithOutcome",
-	] as const)("does not resend dispatched %s during transport recovery", async (operation) => {
+	it("does not resend a dispatched action when transport recovery retries", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.connect();
@@ -603,38 +587,8 @@ describe("hub-owned cloud sessions", () => {
 			options?.beforeDispatch?.();
 			throw new Error("This must not be reached");
 		};
-		await expect(viewer[operation]("ses-one", "Once")).rejects.toThrow(
+		await expect(viewer.send("ses-one", "Once")).rejects.toThrow(
 			"outcome is unknown",
-		);
-	});
-	it.each([
-		false,
-		true,
-	])("preserves send outcome across Hub serialization (dispatched: %s)", async (dispatched) => {
-		const f = fixture();
-		const viewer = f.viewer();
-		await viewer.connect();
-		const failure = {
-			dispatched,
-			message: "Synthetic send failure",
-			detail: "Connection interrupted",
-		};
-		f.controllers[0]!.controller.sendWithOutcome.mockResolvedValue(failure);
-		expect(
-			await viewer.sendWithOutcome(
-				"ses-one",
-				"Saved prompt",
-				"queue",
-				"model",
-				["image"],
-			),
-		).toEqual(failure);
-		expect(f.controllers[0]!.controller.sendWithOutcome).toHaveBeenCalledWith(
-			"ses-one",
-			"Saved prompt",
-			"queue",
-			"model",
-			["image"],
 		);
 	});
 	it("ignores a hydration reply older than a live snapshot", async () => {
@@ -1035,12 +989,6 @@ describe("cloud RPC over a shared hub socket", () => {
 			await expect(next.send("ses-one", "New work")).rejects.toThrow(
 				/draining/,
 			);
-			await expect(
-				next.sendWithOutcome("ses-one", "Retry work"),
-			).rejects.toThrow(/draining/);
-			expect(
-				f.controllers[0]?.controller.sendWithOutcome,
-			).not.toHaveBeenCalled();
 			await expect(
 				next.create({
 					modelId: "model",

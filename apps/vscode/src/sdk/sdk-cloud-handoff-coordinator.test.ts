@@ -44,7 +44,7 @@ function setup() {
 			status: "running",
 			initialSend: { sessionId: "ses_example", ok: true },
 		})),
-		sendWithOutcome: vi.fn<HubCloudSessionClient["sendWithOutcome"]>(async () => ({ sessionId: "ses_example", ok: true })),
+		send: vi.fn<HubCloudSessionClient["send"]>(async () => ({ sessionId: "ses_example", ok: true })),
 		subscribe: vi.fn<HubCloudSessionClient["subscribe"]>(() => () => {}),
 	}
 	const capture = vi.fn(async () => source)
@@ -207,12 +207,7 @@ describe("cloud conversation handoff", () => {
 		})
 		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
-	it.each([
-		"sent",
-		"unsent",
-		"dispatched",
-		"unknown",
-	])("retries only the unsent continuation in the existing task (%s)", async (outcome) => {
+	it.each(["sent", "recovered", "error"])("retries only the unsent continuation in the existing task (%s)", async (outcome) => {
 		const { coordinator, cloud, id } = setup()
 		cloud.create.mockResolvedValue({
 			sessionId: "ses_example",
@@ -221,13 +216,13 @@ describe("cloud conversation handoff", () => {
 		})
 		await coordinator.prepare(input)
 		await coordinator.confirm(id())
-		if (outcome === "unknown") cloud.sendWithOutcome.mockRejectedValueOnce(new Error("connection closed"))
-		else if (outcome !== "sent")
-			cloud.sendWithOutcome.mockResolvedValueOnce({ dispatched: outcome === "dispatched", message: "Connection failed" })
+		if (outcome === "error") cloud.send.mockRejectedValueOnce(new Error("connection closed"))
+		else if (outcome === "recovered")
+			cloud.send.mockResolvedValueOnce({ sessionId: "ses_example", ok: true, recoveredAfterDisconnect: true })
 		await Promise.all([coordinator.retryMessage(id()), coordinator.retryMessage(id())])
 		expect(cloud.create).toHaveBeenCalledTimes(1)
-		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(1)
-		expect(cloud.sendWithOutcome).toHaveBeenCalledWith(
+		expect(cloud.send).toHaveBeenCalledTimes(1)
+		expect(cloud.send).toHaveBeenCalledWith(
 			"ses_example",
 			"Widget implemented; tests remain.\n\nNext instruction from the user:\nFinish the tests",
 			"queue",
@@ -236,14 +231,10 @@ describe("cloud conversation handoff", () => {
 		)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
 			phase: "complete",
-			delivery: outcome === "sent" ? "sent" : outcome === "unsent" ? "unsent" : "unconfirmed",
+			delivery: outcome === "sent" ? "sent" : "unconfirmed",
 		})
 		await coordinator.retryMessage(id())
-		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(outcome === "unsent" ? 2 : 1)
-		if (outcome === "unsent") {
-			expect(cloud.sendWithOutcome.mock.calls[1]).toEqual(cloud.sendWithOutcome.mock.calls[0])
-			expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ delivery: "sent" })
-		}
+		expect(cloud.send).toHaveBeenCalledTimes(1)
 		expect(cloud.create).toHaveBeenCalledTimes(1)
 	})
 
@@ -258,10 +249,10 @@ describe("cloud conversation handoff", () => {
 		await coordinator.confirm(id())
 		changed.mockRejectedValueOnce(new Error("Webview unavailable"))
 		await expect(coordinator.retryMessage(id())).rejects.toThrow("Webview unavailable")
-		expect(cloud.sendWithOutcome).not.toHaveBeenCalled()
+		expect(cloud.send).not.toHaveBeenCalled()
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "unsent" })
 		await coordinator.retryMessage(id())
-		expect(cloud.sendWithOutcome).toHaveBeenCalledTimes(1)
+		expect(cloud.send).toHaveBeenCalledTimes(1)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "sent" })
 	})
 
@@ -276,6 +267,6 @@ describe("cloud conversation handoff", () => {
 		await coordinator.confirm(id())
 		cloud.scope = { ...cloud.scope, scopeGeneration: cloud.scope.scopeGeneration + 1 }
 		await expect(coordinator.retryMessage(id())).rejects.toThrow("account changed")
-		expect(cloud.sendWithOutcome).not.toHaveBeenCalled()
+		expect(cloud.send).not.toHaveBeenCalled()
 	})
 })

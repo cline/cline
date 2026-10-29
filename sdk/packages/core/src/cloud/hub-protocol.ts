@@ -6,7 +6,6 @@ export const CLOUD_HUB_OPERATIONS = [
 	"create",
 	"attach",
 	"send",
-	"sendWithOutcome",
 	"abort",
 	"pendingPrompts",
 	"updatePendingPrompt",
