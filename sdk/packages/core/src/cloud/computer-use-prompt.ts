@@ -57,15 +57,8 @@ xdotool mousemove 640 228 click 1 && sleep 0.5 && import -window root /tmp/cu-sh
 
 ### Show the user what you verified
 
-The user can't see this sandbox. When you've verified something, publish the few screenshots that prove it so they appear in the user's chat:
-
-\`\`\`bash
-cat > /tmp/cu-shots/publish.json <<'JSON'
-[{"path": "/tmp/cu-shots/01-palette.png"}, {"path": "/tmp/cu-shots/03-filtered.png"}]
-JSON
-publish-artifacts --files /tmp/cu-shots/publish.json --attach
-\`\`\`
+The user can't see this sandbox, and its files disappear when it stops. When you've verified something, publish the few screenshots that prove it with the \`publish_artifacts\` tool, which uploads them to this session so the user can open them. Pass absolute paths, for example \`{"files": [{"path": "/tmp/cu-shots/01-palette.png"}, {"path": "/tmp/cu-shots/03-filtered.png"}]}\`.
 
 - Publish frames for the reader, not a log of every input: usually 1 to 8 per thing you verified, in the order that tells the story (at most 20 per call).
-- The command prints JSON with an \`artifactId\` or an \`error\` for each file. If it fails or isn't installed, say so in your answer and carry on.
+- The tool reports an \`artifactId\` or an \`error\` for each file. To retry a failed file, pass the same \`artifactId\` back. If publishing fails or the tool isn't available, say so in your answer and carry on.
 - In your answer, say what each published screenshot shows, in order, and call out anything you couldn't fix.`;
