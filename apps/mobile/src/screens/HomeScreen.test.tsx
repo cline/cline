@@ -1271,6 +1271,9 @@ describe("HomeScreen Cline welcome", () => {
 
 	it("explicitly resumes an unknown create with its retained submission", async () => {
 		hoisted.getValidAccessToken.mockResolvedValue("jwt");
+		hoisted.listAccounts.mockResolvedValue([
+			{ name: "Team", active: true, organizationId: "org-1" },
+		]);
 		hoisted.listRemoteSessions.mockResolvedValue([
 			cloudSession({
 				id: asRemoteSessionId("remote-unknown"),
@@ -1480,21 +1483,30 @@ describe("HomeScreen degradation", () => {
 		);
 	});
 
-	it("loads an organization scope retained only by a saved Cloud session", async () => {
+	it("keeps saved organization sessions out of Personal Recents without querying their scope", async () => {
 		hoisted.getValidAccessToken.mockResolvedValue("jwt");
-		await mount({
+		hoisted.listRemoteSessions.mockResolvedValue([
+			cloudSession({ title: "Personal recent work" }),
+		]);
+		const { root } = await mount({
 			endpoints: [
 				{
 					mode: "cloud",
 					url: "https://pod-organization.cline.bot/hub",
 					remoteSessionId: "organization-session",
 					organizationId: "org-session-only",
+					sessionTitle: "Saved organization work",
 				},
 			],
 		});
 
-		expect(hoisted.gatewayScopes).toContain(undefined);
-		expect(hoisted.gatewayScopes).toContain("org-session-only");
+		expect(containsText(root, "Personal recent work")).toBe(true);
+		expect(containsText(root, "Saved organization work")).toBe(false);
+		expect(hoisted.gatewayScopes).toEqual([undefined]);
+		expect(hoisted.listRemoteSessions).toHaveBeenCalledWith(undefined);
+		expect(hoisted.listRemoteSessions).not.toHaveBeenCalledWith(
+			"org-session-only",
+		);
 	});
 
 	it("keeps a configured Cloud composer usable when only history refresh fails", async () => {
@@ -1642,7 +1654,7 @@ describe("HomeScreen degradation", () => {
 		expect(findByLabel(root, "Cloud repository: cline/old")).toBeUndefined();
 	});
 
-	it("queries repositories for the active organization while preserving scoped session history", async () => {
+	it("queries repositories and Recents only for the active organization", async () => {
 		hoisted.listAccounts.mockResolvedValue([
 			{ name: "Team", active: true, organizationId: "org-7" },
 		]);
@@ -1662,8 +1674,9 @@ describe("HomeScreen degradation", () => {
 			findByLabel(root, "Cloud repository: cline/org-repo")?.props.onPress();
 		});
 		expect(hoisted.listRepositories).toHaveBeenCalledWith("org-7");
-		expect(hoisted.gatewayScopes).toContain(undefined);
-		expect(hoisted.gatewayScopes).toContain("org-7");
+		expect(hoisted.gatewayScopes).toEqual(["org-7"]);
+		expect(hoisted.listRemoteSessions).toHaveBeenCalledWith("org-7");
+		expect(hoisted.listRemoteSessions).not.toHaveBeenCalledWith(undefined);
 	});
 });
 

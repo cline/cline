@@ -5,8 +5,8 @@ import {
 	useUnreadCloudSessions,
 } from "@/connection/use-cloud-session-statuses";
 import type { RunStatus } from "@/session";
+import { useCloudAccountScope } from "@/state/cloud-auth";
 import { useEndpoints } from "@/state/endpoints";
-import { useExecutionTargets } from "@/state/execution-targets";
 import { useLastOpened } from "@/state/last-opened";
 import {
 	getCloudSessions,
@@ -28,22 +28,9 @@ export function useSessionHistory({
 	activeStatus?: RunStatus;
 }) {
 	const { endpoints } = useEndpoints();
-	const { cloudTargets } = useExecutionTargets();
+	const { scope } = useCloudAccountScope();
 	const { lastOpened } = useLastOpened();
-	const organizationIds = useMemo(
-		() => [
-			...new Set(
-				[
-					...cloudTargets,
-					...endpoints.filter((endpoint) => endpoint.mode === "cloud"),
-				].flatMap((source) =>
-					source.organizationId ? [source.organizationId] : [],
-				),
-			),
-		],
-		[cloudTargets, endpoints],
-	);
-	const cloud = useCloudSessions({ ...cloudOptions, organizationIds });
+	const cloud = useCloudSessions(cloudOptions);
 	const local = useLocalSessions(endpoints);
 	const cloudStatuses = useCloudSessionStatuses();
 	const unreadCloudSessions = useUnreadCloudSessions();
@@ -52,7 +39,13 @@ export function useSessionHistory({
 			buildSessionRows({
 				endpoints,
 				localSessions: local.sessions,
-				cloudSessions: getCloudSessions(cloud.state),
+				// A scope change renders before its replacement request completes.
+				// Never paint cached rows from another account in that interval.
+				cloudSessions: scope
+					? (getCloudSessions(cloud.state) ?? []).filter(
+							(session) => session.organizationId === scope.organizationId,
+						)
+					: [],
 				cloudApiBaseUrl: cloudEnv.apiBaseUrl,
 				cloudStatuses,
 				unreadCloudSessions,
@@ -64,6 +57,7 @@ export function useSessionHistory({
 			endpoints,
 			local.sessions,
 			cloud.state,
+			scope,
 			cloudStatuses,
 			unreadCloudSessions,
 			lastOpened,

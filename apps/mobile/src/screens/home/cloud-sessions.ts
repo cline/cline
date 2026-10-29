@@ -1,5 +1,5 @@
 /**
- * Cloud sign-in and cross-account session discovery. Retired device-code flows
+ * Cloud sign-in and selected-account session discovery. Retired device-code flows
  * must neither persist credentials nor overwrite a newer attempt's state.
  */
 
@@ -18,9 +18,17 @@ import { cloudEnv } from "@/config/env";
 import { cloudLaunches } from "@/connection/cloud-launches";
 import { errorDetail } from "@/error-message";
 import type { RemoteSession } from "@/session";
-import { useCloudAccountScope } from "@/state/cloud-auth";
+import {
+	type CloudAccountScope,
+	useCloudAccountScope,
+} from "@/state/cloud-auth";
 
-const NO_ORGANIZATION_IDS: readonly string[] = [];
+const UNKNOWN_SCOPE_KEY = "unknown";
+function accountScopeKey(scope: CloudAccountScope | undefined): string {
+	return scope === undefined
+		? UNKNOWN_SCOPE_KEY
+		: JSON.stringify([scope.organizationId ?? null]);
+}
 
 export type CloudSessionsState =
 	/** No usable credentials on this device. */
@@ -115,8 +123,6 @@ export interface UseCloudSessionsOptions {
 	openVerificationUrl(url: string): boolean;
 	/** Skip the initial load — used by a signed-out-only surface in tests. */
 	autoLoad?: boolean;
-	/** Organization scopes already configured on this device. */
-	organizationIds?: readonly string[];
 	/** Refresh visible history quietly; never poll while the app is backgrounded. */
 	refreshIntervalMs?: number;
 }
@@ -142,17 +148,29 @@ function logCloudFailure(scope: "load" | "sign-in", error: unknown): void {
 export function useCloudSessions({
 	openVerificationUrl,
 	autoLoad = true,
-	organizationIds = NO_ORGANIZATION_IDS,
 	refreshIntervalMs,
 }: UseCloudSessionsOptions): UseCloudSessions {
-	const { beginRefresh } = useCloudAccountScope();
+	const { scope, beginRefresh } = useCloudAccountScope();
+	const scopeKey = accountScopeKey(scope);
+	const scopeRef = useRef(scope);
+	const selectedScopeKey = useRef(scopeKey);
+	scopeRef.current = scope;
+	selectedScopeKey.current = scopeKey;
+	const cacheScopeKey = useRef(scopeKey);
+	const loadedScopeKey = useRef<string | undefined>(undefined);
 	// Boots as "loading", not "signed-out": the first token check has not run
 	// yet, and claiming signed-out for that window flashes sign-in UI (and the
 	// onboarding gate) at users who are in fact signed in.
-	const [state, setState] = useState<CloudSessionsState>({
-		phase: "loading",
-		sessions: [],
+	const [snapshot, setSnapshot] = useState<{
+		scopeKey: string;
+		state: CloudSessionsState;
+	}>({
+		scopeKey,
+		state: { phase: "loading", sessions: [] },
 	});
+	const setState = useCallback((state: CloudSessionsState) => {
+		setSnapshot({ scopeKey: cacheScopeKey.current, state });
+	}, []);
 	const lastSessions = useRef<RemoteSession[]>([]);
 	const lastAuthenticated = useRef(false);
 	const loading = useRef(false);
@@ -185,7 +203,12 @@ export function useCloudSessions({
 		async (generation: number) => {
 			if (!isCurrentFlow(generation)) return;
 			const identityVersion = cloudAuthStore.identityVersion;
-			const current = () => isCurrentFlow(generation, identityVersion);
+			const startedScopeKey = selectedScopeKey.current;
+			let discoveredScopeKey: string | undefined;
+			const current = () =>
+				isCurrentFlow(generation, identityVersion) &&
+				(selectedScopeKey.current === startedScopeKey ||
+					selectedScopeKey.current === discoveredScopeKey);
 			loading.current = true;
 			const publishScope = beginRefresh();
 			setState({
@@ -205,63 +228,39 @@ export function useCloudSessions({
 					return;
 				}
 				lastAuthenticated.current = true;
-				const accounts = await new CloudAccountGateway({
-					apiBaseUrl: cloudEnv.apiBaseUrl,
-					getAccessToken: () => cloudAuthStore.getValidAccessToken(),
-				}).listAccounts();
+				let selectedScope = scopeRef.current;
+				if (selectedScope === undefined) {
+					const accounts = await new CloudAccountGateway({
+						apiBaseUrl: cloudEnv.apiBaseUrl,
+						getAccessToken: () => cloudAuthStore.getValidAccessToken(),
+					}).listAccounts();
+					if (!current()) return;
+					selectedScope = {
+						organizationId: accounts.find((account) => account.active)
+							?.organizationId,
+					};
+					discoveredScopeKey = accountScopeKey(selectedScope);
+					cacheScopeKey.current = discoveredScopeKey;
+					// Our initial publication is the same request, not a second scope load.
+					loadedScopeKey.current = discoveredScopeKey;
+					publishScope(selectedScope);
+				}
 				if (!current()) return;
-				publishScope({
-					organizationId: accounts.find((account) => account.active)
-						?.organizationId,
-				});
 				setState({
 					phase: "loading",
 					authenticated: true,
 					sessions: lastSessions.current,
 				});
-				const scopes = [
-					// Session history remains cross-account; only new-work defaults are scoped.
-					undefined,
-					...new Set([
-						...organizationIds,
-						...accounts.flatMap((account) =>
-							account.organizationId ? [account.organizationId] : [],
-						),
-					]),
-				] as const;
-				const results = await Promise.allSettled(
-					scopes.map((organizationId) =>
-						new CloudSessionGateway({
-							apiBaseUrl: cloudEnv.apiBaseUrl,
-							getAccessToken: () => cloudAuthStore.getValidAccessToken(),
-							...(organizationId ? { organizationId } : {}),
-						}).listRemoteSessions({ refreshProvisioning: true }),
-					),
+				const receivedSessions = await new CloudSessionGateway({
+					apiBaseUrl: cloudEnv.apiBaseUrl,
+					getAccessToken: () => cloudAuthStore.getValidAccessToken(),
+					...(selectedScope.organizationId
+						? { organizationId: selectedScope.organizationId }
+						: {}),
+				}).listRemoteSessions({ refreshProvisioning: true });
+				const sessions = receivedSessions.filter(
+					(session) => session.organizationId === selectedScope.organizationId,
 				);
-				const personal = results[0];
-				if (!personal || personal.status === "rejected") {
-					throw (
-						personal?.reason ?? new Error("Personal Cloud session load failed.")
-					);
-				}
-				for (const result of results.slice(1)) {
-					if (result.status === "rejected") {
-						logCloudFailure("load", result.reason);
-					}
-				}
-				const scopedSessions = results.flatMap((result) =>
-					result.status === "fulfilled" ? [result.value] : [],
-				);
-				const sessions = [
-					...new Map(
-						scopedSessions
-							.flat()
-							.map((session) => [
-								`${session.organizationId ?? "personal"}:${session.id}`,
-								session,
-							]),
-					).values(),
-				];
 				if (!current()) {
 					return;
 				}
@@ -288,7 +287,7 @@ export function useCloudSessions({
 				if (current()) loading.current = false;
 			}
 		},
-		[isCurrentFlow, organizationIds, beginRefresh],
+		[isCurrentFlow, beginRefresh, setState],
 	);
 
 	const refresh = useCallback(() => {
@@ -318,7 +317,7 @@ export function useCloudSessions({
 					});
 				}
 			}),
-		[],
+		[setState],
 	);
 
 	const signIn = useCallback(() => {
@@ -370,17 +369,20 @@ export function useCloudSessions({
 				setState({ phase: "error", ...describeCloudError(error) });
 			}
 		})();
-	}, [isCurrentFlow, load, openVerificationUrl, startFlow]);
+	}, [isCurrentFlow, load, openVerificationUrl, startFlow, setState]);
 
 	// One load on mount: a returning signed-in user lands on their sessions, and a
 	// signed-out one lands on the sign-in copy without a round trip.
-	const loadedScopeKey = useRef<string | undefined>(undefined);
-	const scopeKey = organizationIds.join("\u0000");
 	useEffect(() => {
 		if (!autoLoad || loadedScopeKey.current === scopeKey) {
 			return;
 		}
 		loadedScopeKey.current = scopeKey;
+		if (cacheScopeKey.current !== scopeKey) {
+			lastSessions.current = [];
+			cacheScopeKey.current = scopeKey;
+			loading.current = false;
+		}
 		void load(startFlow());
 	}, [autoLoad, load, scopeKey, startFlow]);
 	useEffect(() => {
@@ -404,5 +406,15 @@ export function useCloudSessions({
 		};
 	}, [autoLoad, refreshIntervalMs]);
 
+	// Scope changes render before effects start their next REST load. Never expose
+	// the previous account's rows in that intermediate render.
+	const state: CloudSessionsState =
+		!("sessions" in snapshot.state) || snapshot.scopeKey === scopeKey
+			? snapshot.state
+			: {
+					phase: "loading",
+					sessions: [],
+					authenticated: lastAuthenticated.current,
+				};
 	return { state, signIn, refresh };
 }

@@ -153,9 +153,8 @@ describe("HomeScreen cloud sign-in", () => {
 			{ name: "Team", active: true, organizationId: "org-new" },
 		]);
 		await mountHome();
-		expect(hoisted.listScopes).toContain(undefined);
-		expect(hoisted.listScopes).toContain("org-new");
-		expect(hoisted.listRemoteSessions).toHaveBeenCalledTimes(2);
+		expect(hoisted.listScopes).toEqual(["org-new"]);
+		expect(hoisted.listRemoteSessions).toHaveBeenCalledTimes(1);
 	});
 	it("opens an https verification URL", async () => {
 		hoisted.startClineDeviceAuth.mockResolvedValue(AUTHORIZATION);
