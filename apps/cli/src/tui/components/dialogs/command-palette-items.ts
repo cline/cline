@@ -16,11 +16,12 @@ export type CommandPaletteAction =
 	| "history"
 	| "help"
 	| "quit"
+	| "cloud-local"
 	| "cloud-open"
 	| "cloud-browser"
 	| "cloud-restore"
 	| "cloud-retry"
-	| "cloud-dismiss"
+	| "cloud-hide"
 	| "cloud-connect-github";
 
 export interface CommandPaletteResult {
@@ -191,6 +192,8 @@ export function buildCommandPaletteItems(input: {
 	canForkSession: boolean;
 	handoff?: CloudHandoffStatus;
 	cloudSessionUrl?: string;
+	canHideHandoff?: boolean;
+	canReturnToLocal?: boolean;
 }): CommandPaletteItem[] {
 	const cloudItems: CommandPaletteItem[] = [];
 	const addCloudAction = (
@@ -208,6 +211,12 @@ export function buildCommandPaletteItems(input: {
 		});
 	};
 	const handoff = input.handoff;
+	if (input.canReturnToLocal)
+		addCloudAction(
+			"cloud-local",
+			"Return to local conversation",
+			"Leave the cloud task running and return to its local conversation",
+		);
 	if (handoff?.kind === "complete") {
 		addCloudAction(
 			"cloud-open",
@@ -245,10 +254,10 @@ export function buildCommandPaletteItems(input: {
 				"Set up GitHub access for Cline Cloud",
 			);
 	}
-	if (handoff && handoff.kind !== "progress")
+	if (input.canHideHandoff)
 		addCloudAction(
-			"cloud-dismiss",
-			"Dismiss cloud handoff",
+			"cloud-hide",
+			"Hide cloud handoff notice",
 			"Hide the handoff notice",
 		);
 	return [

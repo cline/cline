@@ -131,6 +131,18 @@ function App(props: TuiProps) {
 	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
+	const invalidatePendingSubmissionsRef = useRef(() => {});
+	const localHandoffViewRef = useRef<
+		| (Pick<
+				ReturnType<typeof useSession>,
+				| "entries"
+				| "hasSubmitted"
+				| "uiMode"
+				| "lastTotalTokens"
+				| "lastTotalCost"
+		  > & { sourceId: string; targetSessionId: string; appView: AppView })
+		| undefined
+	>(undefined);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
@@ -358,6 +370,8 @@ function App(props: TuiProps) {
 		showError: (message) => showToast(message, "error"),
 	});
 	async function handleAccountChange() {
+		invalidatePendingSubmissionsRef.current();
+		localHandoffViewRef.current = undefined;
 		const sourceId = props.activeSession?.getId();
 		const wasCloudActive = cloud.active;
 		handoff.reset();
@@ -381,6 +395,8 @@ function App(props: TuiProps) {
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
 			const result = await propsOnResumeSession(sessionId);
+			invalidatePendingSubmissionsRef.current();
+			localHandoffViewRef.current = undefined;
 			// A resumed chat is local, so it must not keep sending to Cloud.
 			detachCloudSession();
 			return result;
@@ -397,6 +413,8 @@ function App(props: TuiProps) {
 	);
 
 	const clearConversation = useCallback(async () => {
+		invalidatePendingSubmissionsRef.current();
+		localHandoffViewRef.current = undefined;
 		const shouldRestartSession = session.hasSubmitted;
 		resetCloudSession();
 		session.clearEntries();
@@ -918,6 +936,8 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	invalidatePendingSubmissionsRef.current =
+		promptInput.invalidatePendingSubmissions;
 	const focusPromptTextarea = promptInput.focusTextarea;
 	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;
@@ -943,6 +963,7 @@ function App(props: TuiProps) {
 		const status = handoff.status;
 		if (
 			status?.kind !== "complete" ||
+			localHandoffViewRef.current !== undefined ||
 			props.activeSession?.getId() !== handoff.sourceId
 		)
 			return;
@@ -958,11 +979,24 @@ function App(props: TuiProps) {
 			);
 			return;
 		}
+		const localView = {
+			sourceId: handoff.sourceId,
+			targetSessionId: status.result.sessionId,
+			appView,
+			entries: session.entries,
+			hasSubmitted: session.hasSubmitted,
+			uiMode: session.uiMode,
+			lastTotalTokens: session.lastTotalTokens,
+			lastTotalCost: session.lastTotalCost,
+		};
+		localHandoffViewRef.current = localView;
 		try {
 			await withLoadingDialog(dialog, "Opening cloud task…", () =>
 				cloud.openExisting(status.result.sessionId),
 			);
 		} catch (error) {
+			if (localHandoffViewRef.current === localView)
+				localHandoffViewRef.current = undefined;
 			showToast(
 				error instanceof Error ? error.message : String(error),
 				"error",
@@ -971,6 +1005,7 @@ function App(props: TuiProps) {
 			promptInput.refocusTextarea();
 		}
 	}, [
+		appView,
 		cloud,
 		dialog,
 		handoff.sourceId,
@@ -978,7 +1013,59 @@ function App(props: TuiProps) {
 		promptInput,
 		props.activeSession,
 		queuedPrompts.length,
-		session.isRunning,
+		session,
+		showToast,
+	]);
+	const localHandoffView = localHandoffViewRef.current;
+	const canReturnToLocal =
+		cloud.active &&
+		!!localHandoffView &&
+		localHandoffView.sourceId === handoff.sourceId &&
+		localHandoffView.targetSessionId === handoff.targetSessionId &&
+		(cloud.sessionId === localHandoffView.targetSessionId || !cloud.hasSession);
+	const returnToLocal = useCallback(() => {
+		const localView = localHandoffViewRef.current;
+		if (
+			!canReturnToLocal ||
+			!localView ||
+			props.activeSession?.getId() !== localView.sourceId ||
+			isDialogOpen ||
+			isRuntimeInteractionOpen
+		)
+			return;
+		if (promptInput.getCurrentInputText().trim()) {
+			showToast(
+				"Send or clear the current draft before returning to the local conversation.",
+			);
+			return;
+		}
+		if (cloud.hasUnacceptedPrompts()) {
+			showToast(
+				"Wait for cloud to accept your message before returning locally.",
+			);
+			return;
+		}
+		promptInput.invalidatePendingSubmissions();
+		cloud.detach();
+		localHandoffViewRef.current = undefined;
+		session.closeInlineStream();
+		session.replaceEntries(localView.entries);
+		session.setHasSubmitted(localView.hasSubmitted);
+		session.setUiMode(localView.uiMode);
+		session.setLastTotalTokens(localView.lastTotalTokens);
+		session.setLastTotalCost(localView.lastTotalCost);
+		session.setIsRunning(false);
+		session.setIsStreaming(false);
+		setAppView(localView.appView);
+		promptInput.refocusTextarea();
+	}, [
+		canReturnToLocal,
+		cloud,
+		isDialogOpen,
+		isRuntimeInteractionOpen,
+		promptInput,
+		props.activeSession,
+		session,
 		showToast,
 	]);
 	const restoreCloudDraft = useCallback(
@@ -995,6 +1082,9 @@ function App(props: TuiProps) {
 		async (result: CommandPaletteResult) => {
 			const status = handoff.status;
 			switch (result.action) {
+				case "cloud-local":
+					returnToLocal();
+					return;
 				case "cloud-open":
 					await openCloudHandoff();
 					return;
@@ -1024,8 +1114,8 @@ function App(props: TuiProps) {
 				case "cloud-retry":
 					await handoff.retry();
 					return;
-				case "cloud-dismiss":
-					handoff.dismiss();
+				case "cloud-hide":
+					handoff.hide();
 					return;
 			}
 			if (result.action === "change-provider") {
@@ -1047,6 +1137,7 @@ function App(props: TuiProps) {
 			openModelSelector,
 			openTargetModelSelector,
 			restoreCloudDraft,
+			returnToLocal,
 			showToast,
 		],
 	);
@@ -1058,8 +1149,16 @@ function App(props: TuiProps) {
 				canForkSession,
 				handoff: handoff.status,
 				cloudSessionUrl: cloud.statusBar?.dashboardUrl,
+				canHideHandoff: handoff.canHide,
+				canReturnToLocal,
 			}),
-		[canForkSession, cloud.statusBar?.dashboardUrl, handoff.status],
+		[
+			canForkSession,
+			cloud.statusBar?.dashboardUrl,
+			handoff.status,
+			handoff.canHide,
+			canReturnToLocal,
+		],
 	);
 	const openCommandPalette = useCallback(async () => {
 		if (commandPaletteOpenRef.current) return;
@@ -1209,8 +1308,9 @@ function App(props: TuiProps) {
 		onExit: exitCline,
 		onToggleMode: toggleMode,
 		isCloudTarget: cloud.active,
-		onToggleCloudTarget:
-			handoff.status?.kind === "complete"
+		onToggleCloudTarget: canReturnToLocal
+			? returnToLocal
+			: handoff.status?.kind === "complete"
 				? () => {
 						void openCloudHandoff();
 					}
@@ -1246,6 +1346,7 @@ function App(props: TuiProps) {
 		onInputFocusRequest: focusPromptInput,
 		repoStatus,
 		cloud: cloud.statusBar,
+		onReturnToLocal: canReturnToLocal ? returnToLocal : undefined,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
 		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
@@ -1308,12 +1409,13 @@ function App(props: TuiProps) {
 	return wrapWithBridge(
 		<box flexDirection="column" width="100%" height="100%">
 			{content}
-			{handoff.status && (
+			{handoff.notice && (
 				<CloudHandoffStatusBar
-					status={handoff.status}
+					status={handoff.notice}
 					disabled={isDialogOpen || isRuntimeInteractionOpen}
 					onOpen={openCloudHandoff}
-					onDismiss={handoff.dismiss}
+					canHide={handoff.canHide}
+					onHide={handoff.hide}
 					onRetry={handoff.retry}
 					onRestore={restoreCloudDraft}
 				/>

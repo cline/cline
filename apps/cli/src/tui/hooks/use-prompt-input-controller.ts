@@ -72,6 +72,10 @@ export function usePromptInputController(input: {
 	const pastedImagesRef = useRef<PastedImage[]>([]);
 	const pastedTextSnippetsRef = useRef<PastedTextSnippet[]>([]);
 	const localCommandInFlightRef = useRef(false);
+	const submissionGenerationRef = useRef(0);
+	const invalidatePendingSubmissions = useCallback(() => {
+		submissionGenerationRef.current += 1;
+	}, []);
 	inputValueRef.current = inputValue;
 
 	const inputHistory = useInputHistory(textareaRef);
@@ -374,6 +378,9 @@ export function usePromptInputController(input: {
 				},
 			);
 
+			const generation = submissionGenerationRef.current;
+			const isCurrentSubmission = () =>
+				generation === submissionGenerationRef.current;
 			session.setHasSubmitted(true);
 			setAppView("chat");
 			if (!delivery) {
@@ -396,6 +403,7 @@ export function usePromptInputController(input: {
 			const startedAt = performance.now();
 			let commandOutputAppended = false;
 			const appendCommandOutput = (text: string) => {
+				if (!isCurrentSubmission()) return;
 				commandOutputAppended = true;
 				session.appendEntry({
 					kind: "status",
@@ -412,6 +420,7 @@ export function usePromptInputController(input: {
 						: undefined,
 					appendCommandOutput,
 				);
+				if (!isCurrentSubmission()) return;
 				if (result.commandOutput && !commandOutputAppended) {
 					session.appendEntry({
 						kind: "status",
@@ -440,14 +449,14 @@ export function usePromptInputController(input: {
 					});
 				}
 			} catch (error) {
-				if (!turnErrorReportedRef.current) {
+				if (isCurrentSubmission() && !turnErrorReportedRef.current) {
 					session.appendEntry({
 						kind: "error",
 						text: formatCliErrorMessage(error, { modelId }),
 					});
 				}
 			} finally {
-				if (!delivery) {
+				if (!delivery && isCurrentSubmission()) {
 					session.closeInlineStream();
 					session.setIsRunning(false);
 					session.setIsStreaming(false);
@@ -545,6 +554,7 @@ export function usePromptInputController(input: {
 	}, []);
 
 	return {
+		invalidatePendingSubmissions,
 		inputKey,
 		inputValue,
 		inputValueRef,

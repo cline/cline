@@ -48,6 +48,11 @@ function launch({
 	tempDirs.push(stateDir);
 	const statePath = path.join(stateDir, "state.json");
 	const releasePath = path.join(stateDir, "release");
+	const localReleasePath = path.join(stateDir, "release-local");
+	const removePath = path.join(stateDir, "remove-cloud-session");
+	const acceptFirstPath = path.join(stateDir, "accept-first");
+	const acceptSecondPath = path.join(stateDir, "accept-second");
+	const lateSnapshotPath = path.join(stateDir, "late-snapshot");
 	const sessionPromise = launchTerminal({
 		command: bunExec,
 		args: [fixture],
@@ -72,6 +77,11 @@ function launch({
 			CLOUD_HANDOFF_FIXTURE_PROVIDER: provider,
 			CLOUD_HANDOFF_FIXTURE_SCENARIO: scenario,
 			CLOUD_HANDOFF_FIXTURE_RELEASE: releasePath,
+			CLOUD_HANDOFF_FIXTURE_LOCAL_RELEASE: localReleasePath,
+			CLOUD_HANDOFF_FIXTURE_REMOVE: removePath,
+			CLOUD_HANDOFF_FIXTURE_ACCEPT_FIRST: acceptFirstPath,
+			CLOUD_HANDOFF_FIXTURE_ACCEPT_SECOND: acceptSecondPath,
+			CLOUD_HANDOFF_FIXTURE_LATE_SNAPSHOT: lateSnapshotPath,
 		},
 		cols: 120,
 		rows: 40,
@@ -84,6 +94,11 @@ function launch({
 			statePath,
 			stateDir,
 			release: () => writeFileSync(releasePath, ""),
+			releaseLocal: () => writeFileSync(localReleasePath, ""),
+			acceptCloudSend: (index: 1 | 2) =>
+				writeFileSync(index === 1 ? acceptFirstPath : acceptSecondPath, ""),
+			emitLateCloudSnapshot: () => writeFileSync(lateSnapshotPath, ""),
+			removeCloudSession: () => writeFileSync(removePath, ""),
 		};
 	});
 }
@@ -267,10 +282,10 @@ describe("cloud handoff TUI", () => {
 		expect(duringProvisioning).toContain(
 			"Publishing the approved Git snapshot.",
 		);
-		expect(duringProvisioning).not.toContain("Cloud ready");
+		expect(duringProvisioning).not.toContain("Cloud task started");
 		expect(readState(statePath).localPrompts).toContain(localPrompt);
 		release();
-		await session.waitForText("Cloud ready", { timeout });
+		await session.waitForText("Cloud task started", { timeout });
 		await session.waitForText("Browser", { timeout });
 		expect(await session.text()).not.toContain("https://app.cline.bot/tasks/");
 		expect(readState(statePath).started).toBe(true);
@@ -299,14 +314,22 @@ describe("cloud handoff TUI", () => {
 		]);
 	});
 
-	it("opens the completed handoff in TUI and sends follow-ups to that session", async () => {
+	it("restores the local conversation and reattaches to the same running cloud task", async () => {
 		const { session, statePath } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
+		const sourcePrompt = "original local conversation to restore";
+		await session.type(sourcePrompt);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
+			timeout,
+		});
 		await session.type("/cloud continue the synthetic task");
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Open in TUI (Ctrl+O)", { timeout });
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -324,6 +347,14 @@ describe("cloud handoff TUI", () => {
 				) === true,
 			timeout,
 		});
+		const cloudDraft = "retain draft while staying in cloud";
+		await session.type(cloudDraft);
+		await session.press(["ctrl", "o"]);
+		const blockedReturn = await session.text();
+		expect(blockedReturn).toContain(cloudDraft);
+		expect(blockedReturn).toContain("Synthetic attached cloud transcript");
+		expect(blockedReturn).toContain("Send or clear the current draft");
+		await session.writeRaw("\u0015");
 
 		const followUp = "continue the synthetic cloud task";
 		await session.type(followUp);
@@ -339,7 +370,187 @@ describe("cloud handoff TUI", () => {
 				prompt: followUp,
 			},
 		]);
-		expect(readState(statePath).localPrompts).toBeUndefined();
+		expect(readState(statePath).localPrompts).toEqual([sourcePrompt]);
+
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Cloud task started", { timeout });
+		expect(await session.text()).toContain(sourcePrompt);
+		expect(await session.text()).not.toContain(
+			"Synthetic attached cloud transcript",
+		);
+		await session.type("local follow-up while cloud keeps running");
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(
+					"local follow-up while cloud keeps running",
+				) === true,
+			timeout,
+		});
+		expect(readState(statePath).localPrompts).toEqual([
+			sourcePrompt,
+			"local follow-up while cloud keeps running",
+		]);
+		expect(readState(statePath).abortedSessions).toBeUndefined();
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+		expect(readState(statePath).attachedSessions).toEqual([
+			"synthetic-cloud-session-1",
+			"synthetic-cloud-session-1",
+		]);
+		expect(readState(statePath).abortedSessions).toBeUndefined();
+	});
+
+	it("waits for both cloud prompts to be accepted and fences late results during local work", async () => {
+		const {
+			session,
+			statePath,
+			release,
+			releaseLocal,
+			acceptCloudSend,
+			emitLateCloudSnapshot,
+		} = await launch({ scenario: "held-cloud-send" });
+		await session.waitForText("Ask anything...", { timeout });
+		const sourcePrompt = "seed source before held cloud send";
+		await session.type(sourcePrompt);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
+			timeout,
+		});
+		await session.type("/cloud start the synthetic handoff");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+
+		await session.type("held synthetic cloud follow-up");
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 1,
+			timeout,
+		});
+		await session.press(["ctrl", "o"]);
+		const blockedReturn = await session.text();
+		expect(blockedReturn).toContain("Wait for cloud to accept your");
+		expect(blockedReturn).toContain("Synthetic attached cloud transcript");
+
+		const queuedPrompt = "queue another synthetic cloud prompt";
+		await session.type(queuedPrompt);
+		await session.press("enter");
+		acceptCloudSend(1);
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 2,
+			timeout,
+		});
+		await session.press(["ctrl", "o"]);
+		const blockedQueuedReturn = await session.text();
+		expect(blockedQueuedReturn).toContain("Wait for cloud to accept your");
+		expect(blockedQueuedReturn).toContain(
+			"Synthetic attached cloud transcript",
+		);
+		acceptCloudSend(2);
+		await session.text({
+			waitFor: () => readState(statePath).acceptedCloudSends?.length === 2,
+			timeout,
+		});
+		expect(readState(statePath).acceptedCloudSends).toEqual([
+			{ prompt: "held synthetic cloud follow-up" },
+			{ prompt: queuedPrompt, delivery: "queue" },
+		]);
+
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Cloud task started", { timeout });
+		expect(await session.text()).toContain(sourcePrompt);
+
+		const localFollowUp = "local work while cloud send is pending";
+		await session.type(localFollowUp);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(localFollowUp) === true,
+			timeout,
+		});
+		await session.text({
+			waitFor: () => readState(statePath).runningChanges?.at(-1) === true,
+			timeout,
+		});
+		emitLateCloudSnapshot();
+		await session.text({
+			waitFor: () => readState(statePath).lateSnapshotsEmitted === 2,
+			timeout,
+		});
+		release();
+		await session.text({
+			waitFor: () => readState(statePath).settledCloudSends?.length === 2,
+			timeout,
+		});
+		const localScreen = await session.text();
+		expect(localScreen).toContain(localFollowUp);
+		expect(localScreen).not.toContain("Synthetic late cloud send failure");
+		expect(localScreen).not.toContain("Late synthetic cloud snapshot");
+		expect(localScreen).toContain("● Local");
+		expect(readState(statePath).runningChanges?.at(-1)).toBe(true);
+		expect(readState(statePath).abortedSessions).toBeUndefined();
+		releaseLocal();
+		await session.text({
+			waitFor: () => readState(statePath).localSettled === true,
+			timeout,
+		});
+		await session.text({
+			waitFor: () => readState(statePath).runningChanges?.at(-1) === false,
+			timeout,
+		});
+	});
+
+	it("keeps the paired local return action when the attached cloud task is removed", async () => {
+		const { session, statePath, removeCloudSession } = await launch({
+			scenario: "removed-cloud-session",
+		});
+		await session.waitForText("Ask anything...", { timeout });
+		const sourcePrompt = "original conversation paired with removed cloud task";
+		await session.type(sourcePrompt);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
+			timeout,
+		});
+		await session.type("/cloud create the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+
+		removeCloudSession();
+		await session.text({
+			waitFor: () =>
+				readState(statePath).removedSessions?.includes(
+					"synthetic-cloud-session-1",
+				) === true,
+			timeout,
+		});
+		await session.waitForText("Local (Ctrl+O)", { timeout });
+		expect(readState(statePath).removedSessions).toEqual([
+			"synthetic-cloud-session-1",
+		]);
+		await session.press(["ctrl", "o"]);
+		await session.waitForText(sourcePrompt, { timeout });
+		expect(await session.text()).toContain(sourcePrompt);
+		expect(await session.text()).not.toContain(
+			"Synthetic attached cloud transcript",
+		);
 	});
 
 	it("keeps approval requests in cloud and offers the browser action", async () => {
@@ -349,7 +560,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Open in TUI (Ctrl+O)", { timeout });
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Approval needed. Open in browser to respond.", {
 			timeout,
@@ -371,7 +582,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Open in TUI (Ctrl+O)", { timeout });
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -385,12 +596,12 @@ describe("cloud handoff TUI", () => {
 		const localScreen = await session.text();
 		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
 		expect(localScreen).toContain("● Local");
-		expect(localScreen).toContain("Cloud ready");
+		expect(localScreen).toContain("Cloud task started");
 		expect(localScreen).toContain("Browser");
 		expect(localScreen).not.toContain("https://app.cline.bot/tasks/");
 		expect(localScreen.match(/Ctrl\+O/g)).toHaveLength(1);
-		await runPaletteAction(session, "Dismiss cloud handoff");
-		expect(await session.text()).not.toContain("Cloud ready");
+		await runPaletteAction(session, "Hide cloud handoff notice");
+		expect(await session.text()).not.toContain("Cloud task started");
 	});
 
 	it("keeps the local draft and handoff when opening a task is blocked or fails", async () => {
@@ -400,7 +611,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Open in TUI (Ctrl+O)", { timeout });
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
 
 		const draft = "keep this local draft";
 		await session.type(draft);
@@ -412,7 +623,7 @@ describe("cloud handoff TUI", () => {
 		await session.writeRaw("\u0015");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attach failure", { timeout });
-		expect(await session.text()).toContain("Cloud ready");
+		expect(await session.text()).toContain("Cloud task started");
 		expect(readState(statePath).attachedSessions).toBeUndefined();
 		expect(readState(statePath).localPrompts).toBeUndefined();
 	});
@@ -435,22 +646,22 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Open in TUI (Ctrl+O)", { timeout });
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
 		if (cols < 120) session.resize({ cols, rows: 40 });
 		const screen = await session.text();
-		expect(screen).toContain("Open in TUI (Ctrl+O)");
+		expect(screen).toContain("Open cloud (Ctrl+O)");
 		expect(screen).toContain("Browser");
-		expect(screen).toContain("Cloud ready");
+		expect(screen).toContain("Cloud task started");
 		expect(screen).not.toContain("https://app.cline.bot/tasks/");
 		const footerRow = screen
 			.split("\n")
-			.find((line) => line.includes("Cloud ready"));
-		expect(footerRow).toContain("Open in TUI (Ctrl+O)");
+			.find((line) => line.includes("Cloud task started"));
+		expect(footerRow).toContain("Open cloud (Ctrl+O)");
 		expect(footerRow).toContain("Browser");
-		expect(footerRow).toContain("Dismiss");
+		expect(footerRow).toContain("Hide");
 		await session.press(["alt", "d"]);
 		await session.waitIdle({ timeout: 2_000 });
-		expect(await session.text()).toContain("Cloud ready");
+		expect(await session.text()).toContain("Cloud task started");
 		await session.click("Browser");
 		await session.text({
 			waitFor: () =>
@@ -459,8 +670,22 @@ describe("cloud handoff TUI", () => {
 				) === true,
 			timeout,
 		});
-		await session.click("Dismiss");
-		expect(await session.text()).not.toContain("Cloud ready");
+		await session.click("Hide");
+		expect(await session.text()).not.toContain("Cloud task started");
+		const openedUrlCount = readState(statePath).openedUrls?.length ?? 0;
+		await runPaletteAction(session, "Open cloud task in browser");
+		await session.text({
+			waitFor: () =>
+				(readState(statePath).openedUrls?.length ?? 0) > openedUrlCount,
+			timeout,
+		});
+		expect(readState(statePath).openedUrls?.at(-1)).toBe(
+			"https://app.cline.bot/tasks/synthetic-task-1",
+		);
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 	});
 
 	it("shows a failed handoff and restores the captured draft", async () => {
@@ -476,6 +701,8 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Synthetic publish failure", { timeout });
 		const failedScreen = await session.text();
 		expect(failedScreen).not.toContain("CLOUD_SESSION_ERROR:");
+		expect(failedScreen).toContain("Restore draft");
+		expect(failedScreen).not.toContain("Hide");
 		// Kitty keyboard protocol encodes Ctrl+Alt+D without dropping a modifier.
 		session.writeRaw("\u001b[100;7u");
 		const afterScroll = await session.text();
@@ -593,14 +820,14 @@ describe("cloud handoff TUI", () => {
 				true,
 			timeout,
 		});
-		expect(await session.text()).not.toContain("Cloud ready");
+		expect(await session.text()).not.toContain("Cloud task started");
 		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
 
 		await session.type("/history");
 		await session.press("enter");
 		await session.waitForText("Synthetic history session A", { timeout });
 		await session.press("enter");
-		await session.waitForText("Cloud ready", { timeout });
+		await session.waitForText("Cloud task started", { timeout });
 		await session.waitForText("Browser", { timeout });
 		expect(await session.text()).not.toContain("https://app.cline.bot/tasks/");
 		expect(
@@ -622,7 +849,9 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Cloud ready", { timeout });
+		await session.waitForText("Cloud task started", { timeout });
+		expect(await session.text()).toContain("Retry prompt");
+		expect(await session.text()).not.toContain("Hide");
 
 		const rejectedDraft = "/cloud rejected replacement draft";
 		await session.type(rejectedDraft);
@@ -661,7 +890,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Cloud ready", { timeout });
+		await session.waitForText("Cloud task started", { timeout });
 		await runPaletteAction(session, "Open cloud task in browser");
 		await session.text({
 			waitFor: () =>

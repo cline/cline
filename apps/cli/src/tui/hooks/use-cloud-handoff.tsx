@@ -40,10 +40,18 @@ export function useCloudHandoff(input: {
 		activeSession.subscribe,
 		activeSession.getId,
 	);
-	const [statuses, setStatuses] = useState<Record<string, CloudHandoffStatus>>(
-		{},
-	);
-	const status = input.cloudActive ? undefined : statuses[sourceId];
+	const [statuses, setStatuses] = useState<
+		Record<string, CloudHandoffStatus & { hidden?: true }>
+	>({});
+	const sourceStatus = statuses[sourceId];
+	const status = input.cloudActive ? undefined : sourceStatus;
+	const canHide =
+		!!status &&
+		!status.hidden &&
+		((status.kind === "complete" && !status.result.retrySend) ||
+			(status.kind === "failed" &&
+				!status.draft.instruction.trim() &&
+				status.draft.images.length === 0));
 	const inFlight = useRef<symbol | undefined>(undefined);
 	const begin = (sourceId: string) => {
 		const attempt = Symbol();
@@ -169,10 +177,21 @@ export function useCloudHandoff(input: {
 		run,
 		sourceId,
 		status,
+		notice: status?.hidden ? undefined : status,
+		targetSessionId:
+			sourceStatus?.kind === "complete"
+				? sourceStatus.result.sessionId
+				: undefined,
+		canHide,
 		retry,
-		dismiss: () => {
-			if (activeSession.getId() !== sourceId) return;
-			setStatuses(({ [sourceId]: _dismissed, ...remaining }) => remaining);
+		hide: () => {
+			if (activeSession.getId() !== sourceId || !canHide) return;
+			setStatuses((current) => {
+				const entry = current[sourceId];
+				return entry === status
+					? { ...current, [sourceId]: { ...entry, hidden: true } }
+					: current;
+			});
 		},
 		reset: () => {
 			inFlight.current = undefined;

@@ -6,7 +6,8 @@ export function CloudHandoffStatusBar(props: {
 	status: CloudHandoffStatus;
 	disabled: boolean;
 	onOpen: () => Promise<void>;
-	onDismiss: () => void;
+	canHide: boolean;
+	onHide: () => void;
 	onRetry: () => Promise<void>;
 	onRestore: (draft: CloudHandoffDraft) => void;
 }) {
@@ -39,8 +40,8 @@ export function CloudHandoffStatusBar(props: {
 			<box flexDirection="row" flexWrap="wrap" gap={2}>
 				{status.kind === "complete" && (
 					<>
-						{!message && <text fg="cyan">Cloud ready</text>}
-						<text onMouseDown={openInTui}>Open in TUI (Ctrl+O)</text>
+						{!message && <text fg="cyan">Cloud task started</text>}
+						<text onMouseDown={openInTui}>Open cloud (Ctrl+O)</text>
 					</>
 				)}
 				{url && (
@@ -70,14 +71,16 @@ export function CloudHandoffStatusBar(props: {
 								Retry prompt
 							</text>
 						)}
-						<text
-							fg="gray"
-							onMouseDown={() => {
-								if (!props.disabled) props.onDismiss();
-							}}
-						>
-							Dismiss
-						</text>
+						{props.canHide && (
+							<text
+								fg="gray"
+								onMouseDown={() => {
+									if (!props.disabled) props.onHide();
+								}}
+							>
+								Hide
+							</text>
+						)}
 					</>
 				)}
 			</box>

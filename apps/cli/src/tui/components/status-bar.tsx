@@ -158,6 +158,7 @@ export interface StatusBarProps {
 		deletions: number;
 	} | null;
 	onToggleMode?: () => void;
+	onReturnToLocal?: () => void;
 	variant?: "home" | "chat";
 	/** Omitted when cloud sessions are unavailable. */
 	cloud?: StatusBarCloud;
@@ -174,6 +175,7 @@ export function StatusBar(props: StatusBarProps) {
 		gitBranch,
 		gitDiffStats,
 		onToggleMode,
+		onReturnToLocal,
 		cloud,
 	} = props;
 	const isCloud = cloud?.target === "cloud";
@@ -307,7 +309,7 @@ export function StatusBar(props: StatusBarProps) {
 				</text>
 			)}
 
-			{cloud?.canToggleTarget && (
+			{cloud?.canToggleTarget && !onReturnToLocal && (
 				<text fg="gray">
 					<span fg={cloud.target === "local" ? actAccent : "gray"}>
 						{cloud.target === "local" ? "●" : "○"} Local
@@ -318,25 +320,29 @@ export function StatusBar(props: StatusBarProps) {
 					(Ctrl+O)
 				</text>
 			)}
-			{isCloud && (cloud.sessionStatus || cloud.dashboardUrl) && (
-				<box flexDirection="row" flexWrap="wrap" gap={2}>
-					{cloud.sessionStatus && (
-						<text fg={actAccent}>{cloud.sessionStatus}</text>
-					)}
-					{cloud.dashboardUrl && (
-						<text
-							onMouseDown={() => {
-								if (cloud.dashboardUrl)
-									void open(cloud.dashboardUrl, { wait: false }).catch(
-										() => {},
-									);
-							}}
-						>
-							<a href={cloud.dashboardUrl}>Browser</a>
-						</text>
-					)}
-				</box>
-			)}
+			{isCloud &&
+				(cloud.sessionStatus || cloud.dashboardUrl || onReturnToLocal) && (
+					<box flexDirection="row" flexWrap="wrap" gap={2}>
+						{cloud.sessionStatus && (
+							<text fg={actAccent}>{cloud.sessionStatus}</text>
+						)}
+						{onReturnToLocal && (
+							<text onMouseDown={onReturnToLocal}>Local (Ctrl+O)</text>
+						)}
+						{cloud.dashboardUrl && (
+							<text
+								onMouseDown={() => {
+									if (cloud.dashboardUrl)
+										void open(cloud.dashboardUrl, { wait: false }).catch(
+											() => {},
+										);
+								}}
+							>
+								<a href={cloud.dashboardUrl}>Browser</a>
+							</text>
+						)}
+					</box>
+				)}
 
 			{!isCloud &&
 				(autoApproveAll ? (

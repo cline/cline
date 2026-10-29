@@ -119,6 +119,7 @@ export function useCloudSessions(input: {
 	// Concurrent sends can both try to start the sandbox's task, so each prompt
 	// is dispatched only after the previous one is accepted (as in the desktop app).
 	const dispatchRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingAcceptanceRef = useRef(new Set<symbol>());
 	// While this chat's own prompt is in flight, the prompt controller owns the
 	// running flag; otherwise snapshots do, so queued turns stay abortable.
 	const sendInFlightRef = useRef(false);
@@ -354,6 +355,8 @@ export function useCloudSessions(input: {
 	/** Detaches this chat from its cloud session; the remote task keeps its state. */
 	const reset = useCallback(() => {
 		generationRef.current += 1;
+		pendingAcceptanceRef.current.clear();
+		sendInFlightRef.current = false;
 		creatingRef.current = undefined;
 		sessionIdRef.current = undefined;
 		dispatchRef.current = Promise.resolve();
@@ -419,7 +422,8 @@ export function useCloudSessions(input: {
 	useEffect(() => {
 		if (!client || !sessionId) return;
 		const unsubscribe = client.subscribe((event) => {
-			if (event.sessionId !== sessionId) return;
+			if (event.sessionId !== sessionId || sessionIdRef.current !== sessionId)
+				return;
 			if (event.type === "snapshot") applySnapshot(event.snapshot);
 			if (event.type === "sync_failed") {
 				showToast(`Cline Cloud: ${event.message}`, "error");
@@ -443,6 +447,8 @@ export function useCloudSessions(input: {
 			}
 			const generation = generationRef.current;
 			const current = () => generation === generationRef.current;
+			const pendingAcceptance = Symbol();
+			pendingAcceptanceRef.current.add(pendingAcceptance);
 			if (!delivery) {
 				abortRequestedRef.current = false;
 				stoppedBeforeSendRef.current = false;
@@ -506,10 +512,17 @@ export function useCloudSessions(input: {
 				let unsubscribe = () => {};
 				try {
 					await previous;
+					if (!current()) return aborted;
 					if (abortRequestedRef.current) return stopped();
 					unsubscribe = client.subscribe((event) => {
-						if (event.sessionId === id && event.type === "prompt_accepted") {
+						if (
+							event.sessionId === id &&
+							event.type === "prompt_accepted" &&
+							event.prompt === prompt &&
+							event.delivery === delivery
+						) {
 							promptAccepted = true;
+							pendingAcceptanceRef.current.delete(pendingAcceptance);
 							markAccepted();
 						}
 					});
@@ -530,6 +543,7 @@ export function useCloudSessions(input: {
 					markAccepted();
 				}
 			} catch (error) {
+				if (!current()) return aborted;
 				if (!abortRequestedRef.current) {
 					if (!sessionIdRef.current) setSessionStatus(undefined);
 					throw error;
@@ -540,7 +554,8 @@ export function useCloudSessions(input: {
 				}
 				return stopped();
 			} finally {
-				if (!delivery) sendInFlightRef.current = false;
+				pendingAcceptanceRef.current.delete(pendingAcceptance);
+				if (!delivery && current()) sendInFlightRef.current = false;
 			}
 		},
 		[attachedSession, client, resolveModel, selection],
@@ -594,6 +609,8 @@ export function useCloudSessions(input: {
 
 	return {
 		statusBar,
+		sessionId,
+		hasUnacceptedPrompts: () => pendingAcceptanceRef.current.size > 0,
 		/** Prompts go to Cline Cloud rather than the local agent. */
 		active: !!client && target === "cloud",
 		hasRepository: !!selection || !!attachedSession,

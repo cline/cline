@@ -1,7 +1,10 @@
 import { mock } from "bun:test";
 import { existsSync, writeFileSync } from "node:fs";
 import { CoreSessionService, SqliteSessionStore } from "@cline/core";
-import type { CloudSessionSnapshot } from "@cline/core/cloud";
+import type {
+	CloudSessionEvent,
+	CloudSessionSnapshot,
+} from "@cline/core/cloud";
 import { CloudSessionError } from "@cline/core/cloud";
 import type { TuiProps } from "../../tui/types";
 import type { Config } from "../../utils/types";
@@ -27,16 +30,13 @@ mock.module("../../utils/open", () => ({
 }));
 
 const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
-async function waitForRelease() {
-	const releasePath = process.env.CLOUD_HANDOFF_FIXTURE_RELEASE;
-	if (!releasePath)
-		throw new Error("CLOUD_HANDOFF_FIXTURE_RELEASE is required");
+async function waitForRelease(signalName = "CLOUD_HANDOFF_FIXTURE_RELEASE") {
+	const releasePath = process.env[signalName];
+	if (!releasePath) throw new Error(`${signalName} is required`);
 	const deadline = Date.now() + 20_000;
 	while (!existsSync(releasePath)) {
 		if (Date.now() >= deadline)
-			throw new Error(
-				"Timed out waiting for the test to release the cloud handoff",
-			);
+			throw new Error(`Timed out waiting for fixture signal ${signalName}`);
 		await new Promise((resolve) => setTimeout(resolve, 20));
 	}
 }
@@ -46,11 +46,21 @@ const providerId = process.env.CLOUD_HANDOFF_FIXTURE_PROVIDER ?? "cline";
 const cloudSessionId = "synthetic-cloud-session-1";
 let activeSessionId = "synthetic-session-a";
 const sessionListeners = new Set<() => void>();
+const cloudListeners = new Set<(event: CloudSessionEvent) => void>();
 const setActiveSession = (sessionId: string) => {
 	activeSessionId = sessionId;
 	record("activeSessionId", sessionId);
 	for (const listener of sessionListeners) listener();
 };
+
+if (scenario === "removed-cloud-session") {
+	void (async () => {
+		await waitForRelease("CLOUD_HANDOFF_FIXTURE_REMOVE");
+		record("removedSessions", [cloudSessionId]);
+		for (const listener of cloudListeners)
+			listener({ type: "removed", sessionId: cloudSessionId });
+	})();
+}
 
 // Seed only this fixture's isolated history database so /history exercises the
 // real picker without reading or changing the user's history.
@@ -129,6 +139,13 @@ const props = {
 	subscribeToEvents: () => () => {},
 	onSubmit: async (prompt: string) => {
 		record("localPrompts", [...(state.localPrompts ?? []), prompt]);
+		if (
+			scenario === "held-cloud-send" &&
+			prompt.includes("local work while cloud send is pending")
+		) {
+			await waitForRelease("CLOUD_HANDOFF_FIXTURE_LOCAL_RELEASE");
+			record("localSettled", true);
+		}
 		return {
 			usage: { inputTokens: 0, outputTokens: 0 },
 			iterations: 1,
@@ -137,7 +154,9 @@ const props = {
 	onUpdatePendingPrompt: async () => ({ sessionId: "synthetic", prompts: [] }),
 	onAbort: () => false,
 	onExit: () => {},
-	onRunningChange: () => {},
+	onRunningChange: (running: boolean) => {
+		record("runningChanges", [...(state.runningChanges ?? []), running]);
+	},
 	onTurnErrorReported: () => {},
 	onAutoApproveChange: () => {},
 	onCompactionModeChange: noop,
@@ -204,15 +223,51 @@ const props = {
 		create: async () => {
 			throw new Error("Not used by handoff fixture");
 		},
-		send: async (sessionId: string, prompt: string, _delivery, modelId) => {
+		send: async (sessionId: string, prompt: string, delivery, modelId) => {
 			record("cloudSends", [
 				...(state.cloudSends ?? []),
-				{ sessionId, modelId: modelId ?? "", prompt },
+				{ sessionId, modelId: modelId ?? "", prompt, delivery },
 			]);
+			if (scenario === "held-cloud-send") {
+				await waitForRelease(
+					delivery === "queue"
+						? "CLOUD_HANDOFF_FIXTURE_ACCEPT_SECOND"
+						: "CLOUD_HANDOFF_FIXTURE_ACCEPT_FIRST",
+				);
+				record("acceptedCloudSends", [
+					...(state.acceptedCloudSends ?? []),
+					{ prompt, delivery },
+				]);
+				for (const listener of cloudListeners)
+					listener({
+						type: "prompt_accepted",
+						sessionId,
+						prompt,
+						delivery,
+					});
+				await waitForRelease("CLOUD_HANDOFF_FIXTURE_LATE_SNAPSHOT");
+				record("lateSnapshotsEmitted", (state.lateSnapshotsEmitted ?? 0) + 1);
+				const snapshot = props.cloudSessions.getSnapshot(sessionId);
+				if (!snapshot) throw new Error("Expected the synthetic cloud snapshot");
+				for (const listener of cloudListeners)
+					listener({ type: "snapshot", sessionId, snapshot, replace: true });
+				await waitForRelease();
+				record("settledCloudSends", [
+					...(state.settledCloudSends ?? []),
+					prompt,
+				]);
+				throw new Error("Synthetic late cloud send failure");
+			}
 			return { sessionId, ok: true as const };
 		},
-		abort: async () => ({ sessionId: "synthetic", ok: true as const }),
-		subscribe: () => () => {},
+		abort: async (sessionId: string) => {
+			record("abortedSessions", [...(state.abortedSessions ?? []), sessionId]);
+			return { sessionId, ok: true as const };
+		},
+		subscribe: (listener) => {
+			cloudListeners.add(listener);
+			return () => cloudListeners.delete(listener);
+		},
 		getSnapshot: (sessionId: string): CloudSessionSnapshot | undefined =>
 			sessionId === cloudSessionId
 				? {
@@ -221,11 +276,17 @@ const props = {
 						messages: [
 							{
 								role: "assistant",
-								content: "Synthetic attached cloud transcript",
+								content:
+									scenario === "held-cloud-send" &&
+									(state.lateSnapshotsEmitted ?? 0) > 0
+										? "Late synthetic cloud snapshot"
+										: "Synthetic attached cloud transcript",
 							},
 						],
 						promptsInQueue: [],
-						busy: false,
+						busy:
+							scenario === "held-cloud-send" &&
+							(state.cloudSends?.length ?? 0) > 0,
 						startedAt: 0,
 						status: "running",
 						approvals:
