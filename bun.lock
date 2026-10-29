@@ -362,7 +362,7 @@
     },
     "apps/mobile": {
       "name": "@cline/mobile",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "@cline/core": "workspace:*",
         "@cline/hub-client": "workspace:*",

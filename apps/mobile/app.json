@@ -2,7 +2,7 @@
 	"expo": {
 		"name": "Cline",
 		"slug": "cline-code",
-		"version": "0.0.2",
+		"version": "0.0.3",
 		"scheme": "clinecode",
 		"icon": "./assets/icon.png",
 		"orientation": "default",
@@ -12,7 +12,7 @@
 		"ios": {
 			"bundleIdentifier": "bot.cline.app",
 			"supportsTablet": true,
-			"buildNumber": "6"
+			"buildNumber": "7"
 		},
 		"android": {
 			"package": "bot.cline.app",

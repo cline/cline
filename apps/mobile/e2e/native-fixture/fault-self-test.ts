@@ -323,6 +323,15 @@ try {
 		"PASS thrown runtime failure remains failed in terminal/status/reopen and subsequent turn recovers",
 	);
 	const completed = [0, 0];
+	const waitForCompletion = async (index: number) => {
+		const deadline = Date.now() + 5000;
+		while (completed[index] === 0 && Date.now() < deadline)
+			await Bun.sleep(15);
+		assert(
+			completed[index] > 0,
+			`Session ${index} did not complete; completion counts: ${completed.join(",")}`,
+		);
+	};
 	const activeStatuses: string[] = [];
 	let mobileState = reduceSession(createSessionState(), {
 		type: "hydrated",
@@ -434,13 +443,13 @@ try {
 		"PASS production pending controller admission/edit/remove/steer while held",
 	);
 	await control("release", undefined, 1, a);
-	await Bun.sleep(100);
+	await waitForCompletion(0);
 	assert(
 		completed[0] >= 1 && completed[1] === 0,
 		"Releasing A must not release B",
 	);
 	await control("release", undefined, 1, b);
-	await Bun.sleep(100);
+	await waitForCompletion(1);
 	assert(completed[1] === 1, "Scoped release must finish B");
 	await Promise.all([runA, runB]);
 	await Bun.sleep(50);
