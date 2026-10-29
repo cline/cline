@@ -4,7 +4,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { type TestContext, test } from "vitest";
-import { createPublishArtifactsTool } from "./publish";
+import { createPublishArtifactsTool } from "../../artifacts/publish";
+import { createArtifactPublisher } from "./publish";
 
 type Scenario =
 	| "success"
@@ -122,8 +123,10 @@ async function fixture(
 	origin = `http://127.0.0.1:${address.port}`;
 
 	const tool = createPublishArtifactsTool({
-		request: (path, init) => fetch(`${origin}${path}`, init),
-		cloudSessionId: "session_demo",
+		publish: createArtifactPublisher({
+			request: (path, init) => fetch(`${origin}${path}`, init),
+			cloudSessionId: "session_demo",
+		}),
 	});
 	const context = (signal?: AbortSignal) => ({
 		agentId: "test-agent",
@@ -302,28 +305,6 @@ test("aborting during signing stops uploads", async (t) => {
 	assert.equal(f.counts().uploads, 0);
 });
 
-test("rejects invalid batches without network requests", async (t) => {
-	const f = await fixture(t);
-	const tool = f.tool;
-	await assert.rejects(
-		async () => tool.execute({ files: [] }, f.context()),
-		/1 and 20 files/,
-	);
-	await assert.rejects(
-		async () => tool.execute({ files: "invalid" }, f.context()),
-		/1 and 20 files/,
-	);
-	await assert.rejects(
-		async () =>
-			tool.execute(
-				{ files: Array(21).fill({ path: f.filePath }) },
-				f.context(),
-			),
-		/1 and 20 files/,
-	);
-	assert.equal(f.counts().signs, 0);
-});
-
 test("rejects malformed upload policies before sending files", async (t) => {
 	const f = await fixture(t);
 	const policy = {
@@ -344,9 +325,11 @@ test("rejects malformed upload policies before sending files", async (t) => {
 		{ fields: { policy: 123 } },
 	]) {
 		const tool = createPublishArtifactsTool({
-			cloudSessionId: "session_demo",
-			request: async () =>
-				Response.json({ success: true, data: { ...policy, ...invalid } }),
+			publish: createArtifactPublisher({
+				cloudSessionId: "session_demo",
+				request: async () =>
+					Response.json({ success: true, data: { ...policy, ...invalid } }),
+			}),
 		});
 		const result = await tool.execute(
 			{ files: [{ path: f.filePath, artifactId: "given" }] },
@@ -356,4 +339,16 @@ test("rejects malformed upload policies before sending files", async (t) => {
 		assert.ok("error" in result.files[0]);
 		assert.equal(result.files[0].error.code, "INVALID_RESPONSE");
 	}
+});
+
+test("cloud rejects empty files without uploading", async (t) => {
+	const f = await fixture(t);
+	await writeFile(f.filePath, "");
+	const result = await f.tool.execute(
+		{ files: [{ path: f.filePath }] },
+		f.context(),
+	);
+	assert.ok("error" in result.files[0]);
+	assert.equal(result.files[0].error.code, "EMPTY_FILE");
+	assert.equal(f.counts().uploads, 0);
 });

@@ -117,14 +117,19 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
-`createPublishArtifactsTool({ request, cloudSessionId })` from `@cline/core/cloud`
-creates the opt-in `publish_artifacts` tool. The host supplies an authenticated
-request function and the owning cloud session ID, then registers the tool through
-an extension. It accepts `files: [{ path, artifactId? }]` with absolute local paths
-and returns per-file IDs or errors. Files upload directly using the session's
-signed policy. Importing or constructing the tool does not upload anything, read
-credentials, or add it to default local tools. Registration controls availability;
-the service remains responsible for upload authorization and limits.
+`createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
+`publish_artifacts` tool. It validates batches and local file paths, assigns missing
+IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
+receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+signal, and returns one result per file in input order. Storage-specific policy
+and persistence belong to the publisher; constructing the tool does not register
+it in default local tools.
+
+For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
+from `@cline/core/cloud`. The host provides authenticated transport and the owning
+session ID. The publisher uploads directly with one signed policy per batch,
+refreshes expired policies, and retries transient failures with the same IDs.
+The service remains responsible for upload authorization and limits.
 
 `createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
 returns `fetchArtifact({ artifactId, signal? })`, which downloads a streaming
