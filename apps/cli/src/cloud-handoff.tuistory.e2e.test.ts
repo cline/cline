@@ -10,9 +10,9 @@ import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	fixtureStateSchema,
-	type FixtureState,
 	type FixtureScenario,
+	type FixtureState,
+	fixtureStateSchema,
 } from "./tests/fixtures/cloud-handoff-state";
 
 const cliRoot = path.resolve(__dirname, "..");
