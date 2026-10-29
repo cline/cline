@@ -1,5 +1,6 @@
 import {
 	existsSync,
+	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
@@ -27,14 +28,34 @@ const fixtureStateSchema = z.object({
 	preparedDraft: z
 		.object({ instruction: z.string(), images: z.array(z.string()) })
 		.optional(),
+	preparedDrafts: z
+		.array(z.object({ instruction: z.string(), images: z.array(z.string()) }))
+		.optional(),
+	preparedSessionIds: z.array(z.string()).optional(),
+	completedTaskIds: z.array(z.string()).optional(),
+	retryTargets: z
+		.array(
+			z.object({
+				taskId: z.string(),
+				instruction: z.string(),
+				images: z.array(z.string()),
+			}),
+		)
+		.optional(),
 	started: z.boolean().optional(),
 	localPrompts: z.array(z.string()).optional(),
+	activeSessionId: z.string().optional(),
+	resumeCalls: z.array(z.string()).optional(),
 });
 type FixtureState = z.infer<typeof fixtureStateSchema>;
 
 type FixtureProvider = "cline" | "cline-pass" | "anthropic" | "openrouter";
 
-function launch(fail = false, provider: FixtureProvider = "cline") {
+function launch(
+	fail = false,
+	provider: FixtureProvider = "cline",
+	extraEnv: Record<string, string | undefined> = {},
+) {
 	const stateDir = mkdtempSync(path.join(os.tmpdir(), "cloud-handoff-tui-"));
 	tempDirs.push(stateDir);
 	const statePath = path.join(stateDir, "state.json");
@@ -61,6 +82,7 @@ function launch(fail = false, provider: FixtureProvider = "cline") {
 			CLOUD_HANDOFF_FIXTURE_STATE: statePath,
 			CLOUD_HANDOFF_FIXTURE_PROVIDER: provider,
 			CLOUD_HANDOFF_FIXTURE_FAIL: fail ? "1" : undefined,
+			...extraEnv,
 		},
 		cols: 120,
 		rows: 40,
@@ -76,6 +98,21 @@ function readState(statePath: string): FixtureState {
 	if (!existsSync(statePath)) return {};
 	const json: unknown = JSON.parse(readFileSync(statePath, "utf8"));
 	return fixtureStateSchema.parse(json);
+}
+
+async function saveEvidence(
+	label: string,
+	session: Session,
+	statePath: string,
+) {
+	const directory = process.env.CLOUD_HANDOFF_E2E_EVIDENCE_DIR;
+	if (!directory) return;
+	mkdirSync(directory, { recursive: true });
+	writeFileSync(path.join(directory, `${label}.txt`), await session.text());
+	writeFileSync(
+		path.join(directory, `${label}.json`),
+		JSON.stringify(readState(statePath), null, 2),
+	);
 }
 
 function createSyntheticImage(stateDir: string) {
@@ -238,5 +275,172 @@ describe("cloud handoff TUI", () => {
 		const screen = await session.text();
 		expect(screen).toContain(newerDraft);
 		expect(screen).not.toContain("/cloud earlier synthetic draft");
+	});
+
+	it("restores a failed handoff only after /history resumes its source session", async () => {
+		const { session, statePath, stateDir } = await launch(true);
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("Seed the synthetic local conversation");
+		await session.press("enter");
+		const instruction = "resume the original synthetic task";
+		const image = createSyntheticImage(stateDir);
+		await session.type(`/cloud ${instruction} `);
+		await pasteSyntheticImage(session, image.imagePath);
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Synthetic publish failure", { timeout });
+
+		await session.type("/clear");
+		await session.press("enter");
+		await session.waitForText("What can I do for you?", { timeout });
+		expect(await session.text()).not.toContain("Synthetic publish failure");
+		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
+		await saveEvidence("recovery-session-b", session, statePath);
+
+		await session.type("/history");
+		await session.press("enter");
+		await session.waitForText("Synthetic history session A", { timeout });
+		await session.press("enter");
+		await session.waitForText("Synthetic publish failure", { timeout });
+		expect(readState(statePath).resumeCalls).toContain("synthetic-session-a");
+		expect(readState(statePath).activeSessionId).toBe("synthetic-session-a");
+		await saveEvidence("recovery-session-a", session, statePath);
+		await session.press(["alt", "e"]);
+		expect(await session.text()).toContain(`/cloud ${instruction}`);
+		expect(await session.text()).toContain("[Image 1]");
+		expect(readState(statePath).preparedSessionIds).toEqual([
+			"synthetic-session-a",
+		]);
+		expect(readState(statePath).preparedDrafts).toEqual([
+			{ instruction, images: [image.dataUrl] },
+		]);
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		expect(readState(statePath).preparedSessionIds).toEqual([
+			"synthetic-session-a",
+			"synthetic-session-a",
+		]);
+		expect(readState(statePath).preparedDrafts).toEqual([
+			{ instruction, images: [image.dataUrl] },
+			{ instruction, images: [image.dataUrl] },
+		]);
+		await session.press("escape");
+	});
+
+	it("keeps delayed completion on the session that started it", async () => {
+		const { session, statePath } = await launch(false, "cline", {
+			CLOUD_HANDOFF_FIXTURE_DELAY_MS: "5000",
+		});
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("Seed the synthetic local conversation");
+		await session.press("enter");
+		await session.type("/cloud delayed source result");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Publishing the approved Git snapshot.", {
+			timeout,
+		});
+		await session.type("/clear");
+		await session.press("enter");
+		await session.waitForText("What can I do for you?", { timeout });
+		expect(readState(statePath).completedTaskIds).toBeUndefined();
+		await session.text({
+			waitFor: () =>
+				readState(statePath).completedTaskIds?.includes("synthetic-task-1") ===
+				true,
+			timeout,
+		});
+		expect(await session.text()).not.toContain("Cloud task ready.");
+		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
+		await saveEvidence("late-completion-session-b", session, statePath);
+
+		await session.type("/history");
+		await session.press("enter");
+		await session.waitForText("Synthetic history session A", { timeout });
+		await session.press("enter");
+		await session.waitForText(
+			"Cloud task ready. You can keep working locally.",
+			{
+				timeout,
+			},
+		);
+		await saveEvidence("late-completion-session-a", session, statePath);
+		await session.waitForText(
+			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
+			{ timeout },
+		);
+		expect(readState(statePath).preparedSessionIds).toEqual([
+			"synthetic-session-a",
+		]);
+	});
+
+	it("retains the original retry target across a rejected prep and canceled confirmation", async () => {
+		const { session, statePath, stateDir } = await launch(false, "cline", {
+			CLOUD_HANDOFF_FIXTURE_WITH_RETRY: "1",
+			CLOUD_HANDOFF_FIXTURE_REJECT_SECOND: "1",
+		});
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("Seed the synthetic local conversation");
+		await session.press("enter");
+		const instruction = "send the original synthetic summary";
+		const image = createSyntheticImage(stateDir);
+		await session.type(`/cloud ${instruction} `);
+		await pasteSyntheticImage(session, image.imagePath);
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(
+			"Cloud task ready. You can keep working locally.",
+			{
+				timeout,
+			},
+		);
+
+		const rejectedDraft = "/cloud rejected replacement draft";
+		await session.type(rejectedDraft);
+		await session.press("enter");
+		await session.waitForText("Synthetic second preparation rejected", {
+			timeout,
+		});
+		const rejectedScreen = await session.text();
+		expect(rejectedScreen).toContain(rejectedDraft);
+		expect(rejectedScreen).toContain("Retry saved prompt (Alt+E)");
+		await session.writeRaw("\u0015");
+		await session.type("/cloud canceled replacement plan");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("escape");
+		const afterCancel = await session.text();
+		expect(afterCancel).toContain("Retry saved prompt (Alt+E)");
+		expect(afterCancel).toContain(
+			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
+		);
+		expect(readState(statePath).retryTargets).toBeUndefined();
+
+		await session.press(["alt", "e"]);
+		await session.text({
+			waitFor: () => readState(statePath).retryTargets?.length === 1,
+			timeout,
+		});
+		expect(readState(statePath).retryTargets).toEqual([
+			{
+				taskId: "synthetic-task-1",
+				instruction,
+				images: [image.dataUrl],
+			},
+		]);
+		await saveEvidence("retry-original-target", session, statePath);
+		await session.writeRaw("\u0015");
+		await session.type("/cloud approved replacement plan");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText(
+			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-4",
+			{ timeout },
+		);
+		expect(readState(statePath).preparedDrafts).toHaveLength(4);
 	});
 });

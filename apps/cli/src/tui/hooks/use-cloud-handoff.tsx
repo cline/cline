@@ -1,7 +1,7 @@
 import { CloudSessionError } from "@cline/core/cloud";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import type {
 	CloudHandoffDraft,
@@ -17,84 +17,125 @@ export type CloudHandoffStatus =
 	| { kind: "complete"; result: CloudHandoffResult }
 	| { kind: "failed"; message: string; draft: CloudHandoffDraft };
 
+const noSession = {
+	getId: () => "",
+	subscribe: () => () => {},
+};
+
 export function useCloudHandoff(input: {
 	prepare: TuiProps["onPrepareCloudHandoff"];
+	activeSession: TuiProps["activeSession"];
 	cloudActive: boolean;
 	isLocalBusy: boolean;
 	dialog: DialogActions;
 	termHeight: number;
+	showError: (message: string) => void;
 }) {
-	const [status, setStatus] = useState<CloudHandoffStatus>();
-	const inFlight = useRef(false);
-	const run = useCallback(
-		async (draft: CloudHandoffDraft): Promise<boolean> => {
-			if (inFlight.current) return false;
-			inFlight.current = true;
-			let started = false;
-			try {
-				const prepare = input.prepare;
-				if (!prepare)
-					throw new Error("Enable CLINE_CLOUD_SESSIONS=1 to use /cloud.");
-				if (input.cloudActive)
-					throw new Error("Use /cloud from a local conversation.");
-				if (input.isLocalBusy)
-					throw new Error(
-						"Wait for the current run and queued prompts before using /cloud.",
-					);
-				const prepared = await withLoadingDialog(
-					input.dialog,
-					"Capturing the local conversation and Git snapshot…",
-					() => prepare(draft),
-				);
-				const confirmed = await input.dialog.choice<boolean>({
-					style: { maxHeight: input.termHeight - 2 },
-					content: (ctx: ChoiceContext<boolean>) => (
-						<CloudHandoffConfirmContent {...ctx} plan={prepared.git} />
-					),
-				});
-				if (!confirmed) return false;
-				started = true;
-				setStatus({
-					kind: "progress",
-					progress: { message: "Preparing cloud handoff…" },
-				});
-				void prepared
-					.start((progress) => setStatus({ kind: "progress", progress }))
-					.then(
-						(result) => setStatus({ kind: "complete", result }),
-						(error) =>
-							setStatus({
-								kind: "failed",
-								message: handoffErrorMessage(error),
-								draft,
-							}),
-					)
-					.finally(() => {
-						inFlight.current = false;
-					});
-				return true;
-			} catch (error) {
-				setStatus({
-					kind: "failed",
-					message: handoffErrorMessage(error),
-					draft,
-				});
-				return false;
-			} finally {
-				if (!started) inFlight.current = false;
-			}
-		},
-		[input],
+	const activeSession = input.activeSession ?? noSession;
+	const sourceId = useSyncExternalStore(
+		activeSession.subscribe,
+		activeSession.getId,
 	);
+	const [statuses, setStatuses] = useState<Record<string, CloudHandoffStatus>>(
+		{},
+	);
+	const status = input.cloudActive ? undefined : statuses[sourceId];
+	const inFlight = useRef<symbol | undefined>(undefined);
+	const begin = (sourceId: string) => {
+		const attempt = Symbol();
+		inFlight.current = attempt;
+		return {
+			isCurrent: () => inFlight.current === attempt,
+			setStatus: (next: CloudHandoffStatus) => {
+				if (inFlight.current === attempt)
+					setStatuses((current) => ({ ...current, [sourceId]: next }));
+			},
+			finish: () => {
+				if (inFlight.current === attempt) inFlight.current = undefined;
+			},
+		};
+	};
+	const run = async (draft: CloudHandoffDraft): Promise<boolean> => {
+		if (inFlight.current) {
+			input.showError("Wait for the current cloud handoff to finish.");
+			return false;
+		}
+		const sourceId = activeSession.getId();
+		if (!sourceId) {
+			input.showError("Start a local conversation before using /cloud.");
+			return false;
+		}
+		const attempt = begin(sourceId);
+		let started = false;
+		try {
+			const prepare = input.prepare;
+			if (!prepare)
+				throw new Error("Enable CLINE_CLOUD_SESSIONS=1 to use /cloud.");
+			if (input.cloudActive)
+				throw new Error("Use /cloud from a local conversation.");
+			if (input.isLocalBusy)
+				throw new Error(
+					"Wait for the current run and queued prompts before using /cloud.",
+				);
+			const prepared = await withLoadingDialog(
+				input.dialog,
+				"Capturing the local conversation and Git snapshot…",
+				() => prepare(draft),
+			);
+			if (!attempt.isCurrent() || activeSession.getId() !== sourceId)
+				return false;
+			const confirmed = await input.dialog.choice<boolean>({
+				style: { maxHeight: input.termHeight - 2 },
+				content: (ctx: ChoiceContext<boolean>) => (
+					<CloudHandoffConfirmContent {...ctx} plan={prepared.git} />
+				),
+			});
+			if (
+				!confirmed ||
+				!attempt.isCurrent() ||
+				activeSession.getId() !== sourceId
+			)
+				return false;
+			started = true;
+			attempt.setStatus({
+				kind: "progress",
+				progress: { message: "Preparing cloud handoff…" },
+			});
+			void prepared
+				.start((progress) => attempt.setStatus({ kind: "progress", progress }))
+				.then(
+					(result) => attempt.setStatus({ kind: "complete", result }),
+					(error) =>
+						attempt.setStatus({
+							kind: "failed",
+							message: handoffErrorMessage(error),
+							draft,
+						}),
+				)
+				.finally(attempt.finish);
+			return true;
+		} catch (error) {
+			if (attempt.isCurrent()) {
+				const message = handoffErrorMessage(error);
+				if (statuses[sourceId]?.kind === "complete") {
+					if (activeSession.getId() === sourceId) input.showError(message);
+				} else attempt.setStatus({ kind: "failed", message, draft });
+			}
+			return false;
+		} finally {
+			if (!started) attempt.finish();
+		}
+	};
 	const retry = async () => {
 		if (
 			inFlight.current ||
+			activeSession.getId() !== sourceId ||
 			status?.kind !== "complete" ||
 			!status.result.retrySend
 		)
 			return;
-		inFlight.current = true;
-		setStatus({
+		const attempt = begin(sourceId);
+		attempt.setStatus({
 			kind: "progress",
 			progress: {
 				message: "Sending the saved summary and images to the cloud task…",
@@ -103,9 +144,9 @@ export function useCloudHandoff(input: {
 		});
 		try {
 			const result = await status.result.retrySend();
-			setStatus({ kind: "complete", result });
+			attempt.setStatus({ kind: "complete", result });
 		} catch (error) {
-			setStatus({
+			attempt.setStatus({
 				kind: "complete",
 				result: {
 					dashboardUrl: status.result.dashboardUrl,
@@ -113,10 +154,23 @@ export function useCloudHandoff(input: {
 				},
 			});
 		} finally {
-			inFlight.current = false;
+			attempt.finish();
 		}
 	};
-	return { run, status, retry, dismiss: () => setStatus(undefined) };
+	return {
+		run,
+		sourceId,
+		status,
+		retry,
+		dismiss: () => {
+			if (activeSession.getId() !== sourceId) return;
+			setStatuses(({ [sourceId]: _dismissed, ...remaining }) => remaining);
+		},
+		reset: () => {
+			inFlight.current = undefined;
+			setStatuses({});
+		},
+	};
 }
 
 function handoffErrorMessage(error: unknown): string {

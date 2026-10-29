@@ -235,10 +235,8 @@ export async function runInteractive(
 			instructions: "",
 		}));
 	};
-	// Session commands come from the active session's plugins, so a session
-	// change can change the catalog.
 	const activeSessionListeners = new Set<() => void>();
-	const subscribeAdditionalSlashCommands = (listener: () => void) => {
+	const subscribeActiveSession = (listener: () => void) => {
 		activeSessionListeners.add(listener);
 		return () => {
 			activeSessionListeners.delete(listener);
@@ -530,6 +528,10 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
+		activeSession: {
+			getId: sessionRuntime.getActiveSessionId,
+			subscribe: subscribeActiveSession,
+		},
 		cloudSessions: cloudSessions?.client,
 		onPrepareCloudHandoff: cloudSessions
 			? async (draft) => {
@@ -563,7 +565,7 @@ export async function runInteractive(
 		initialRepoStatus,
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
-		subscribeAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands: subscribeActiveSession,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({
 				config,

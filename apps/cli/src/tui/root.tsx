@@ -321,7 +321,7 @@ function App(props: TuiProps) {
 		termHeight,
 		loadAccount: props.loadClineAccount,
 		switchAccount: props.switchClineAccount,
-		onAccountChange: props.onAccountChange,
+		onAccountChange: handleAccountChange,
 		openModelSelector,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
@@ -339,7 +339,7 @@ function App(props: TuiProps) {
 			if (session.uiMode === "plan") toggleMode();
 		},
 		loadClineAccount: props.loadClineAccount,
-		onAccountChange: props.onAccountChange,
+		onAccountChange: handleAccountChange,
 		replaceEntries: session.replaceEntries,
 		setIsRunning: session.setIsRunning,
 		showToast,
@@ -347,11 +347,17 @@ function App(props: TuiProps) {
 	});
 	const handoff = useCloudHandoff({
 		prepare: props.onPrepareCloudHandoff,
+		activeSession: props.activeSession,
 		cloudActive: cloud.active,
 		isLocalBusy: session.isRunning || queuedPrompts.length > 0,
 		dialog,
 		termHeight,
+		showError: (message) => showToast(message, "error"),
 	});
+	async function handleAccountChange() {
+		handoff.reset();
+		await props.onAccountChange();
+	}
 	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
 	const propsOnResumeSession = props.onResumeSession;
 	const resumeSession = useCallback(
@@ -1175,6 +1181,7 @@ function App(props: TuiProps) {
 					onDismiss={handoff.dismiss}
 					onRetry={handoff.retry}
 					onRestore={(draft) => {
+						if (props.activeSession?.getId() !== handoff.sourceId) return;
 						if (!promptInput.restoreCloudDraft(draft))
 							showToast(
 								"The input already has a draft. Clear or send it before restoring this one.",

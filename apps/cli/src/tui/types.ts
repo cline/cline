@@ -267,6 +267,10 @@ export interface TuiProps {
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
 	/** Omitted when cloud sessions are unavailable. */
 	cloudSessions?: CloudSessionsClient;
+	activeSession?: {
+		getId: () => string;
+		subscribe: (listener: () => void) => () => void;
+	};
 	onPrepareCloudHandoff?: (
 		draft: CloudHandoffDraft,
 	) => Promise<PreparedCloudHandoff>;
