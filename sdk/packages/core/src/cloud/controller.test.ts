@@ -531,6 +531,7 @@ describe("CloudSessionController neutral host contract", () => {
 		["explicit", "live"],
 		["passive", "live"],
 		["explicit", "known-expired"],
+		["explicit", "known-failed"],
 		["passive", "known-expired"],
 		["passive", "probe-expired"],
 		["passive", "probe-failed"],
@@ -542,11 +543,13 @@ describe("CloudSessionController neutral host contract", () => {
 			f.api.list.mockResolvedValue([
 				{ ...record, expiredAt: "2020-01-01T00:00:00Z" },
 			]);
-		const status = failure === "probe-failed" ? "failed" : "expired";
+		if (failure === "known-failed")
+			f.api.list.mockResolvedValue([{ ...record, status: "failed" }]);
+		const status = failure.endsWith("failed") ? "failed" : "expired";
 		if (failure.startsWith("probe-"))
 			f.api.status.mockResolvedValue({ status });
 		try {
-			if (failure === "known-expired") await f.controller.list();
+			if (failure.startsWith("known-")) await f.controller.list();
 			if (failure === "live") {
 				f.setStatus("running");
 				await f.controller.attach(record.id);
@@ -577,6 +580,21 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(
 				f.events.filter((event) => event.type === "snapshot").at(-1),
 			).toMatchObject({ snapshot: { status, busy: false } });
+			if (failure === "probe-failed") {
+				await expect(f.controller.readMessages(record.id)).resolves.toEqual(
+					messages,
+				);
+				f.api.history.mockResolvedValueOnce(null);
+				await expect(f.controller.readMessages(record.id)).resolves.toEqual([]);
+				const historyError = new Error("Archive unavailable");
+				f.api.history.mockRejectedValueOnce(historyError);
+				await expect(f.controller.readMessages(record.id)).rejects.toBe(
+					historyError,
+				);
+				expect(f.api.history).toHaveBeenCalledTimes(4);
+				expect(f.api.status).toHaveBeenCalledOnce();
+				expect(f.api.resume).not.toHaveBeenCalled();
+			}
 			if (failure !== "live") expect(f.commands).toEqual([]);
 		} finally {
 			await f.controller.dispose();

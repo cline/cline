@@ -2109,9 +2109,9 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (known?.status === "provisioning" || known?.status === "failed") {
-			return [];
-		}
+		if (known?.status === "provisioning") return [];
+		if (known?.status === "failed")
+			return (await this.loadArchivedMessages(known)) ?? [];
 		return (await this.readHistory(outerSessionId)).messages;
 	}
 
