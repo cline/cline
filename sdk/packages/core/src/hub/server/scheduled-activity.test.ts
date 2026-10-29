@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentModel, HubCommandEnvelope } from "@cline/shared";
@@ -115,6 +115,5 @@ it("reports a scheduled turn from the daemon's separate runtime host", async () 
 		await hub.stop();
 		network.mockRestore();
 		setClineDir(previousClineDir);
-		rmSync(root, { recursive: true, force: true });
 	}
 });
