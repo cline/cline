@@ -2321,6 +2321,16 @@ export class CloudSessionController {
 		}
 		const live =
 			this.sessions.get(record.id) ?? recordToCloudSessionState(record);
+		const current = this.knownSessions.get(record.id) ?? record;
+		const expired = isExpiredRecord(current) || current.status === "expired";
+		if (
+			expired ||
+			current.status === "failed" ||
+			current.status === "suspended"
+		) {
+			live.status = expired ? "expired" : current.status;
+			live.busy = false;
+		}
 		live.messages = structuredClone(messages) as MessageWithMetadata[];
 		this.sessions.set(record.id, live);
 		this.authoritativeMessages.set(record.id, structuredClone(live.messages));
@@ -2409,10 +2419,14 @@ export class CloudSessionController {
 			? await pending.catch((error: unknown) => {
 					// A passive check must not prevent an explicit caller from resuming.
 					if (
-						error instanceof PassiveConnectionDeferred &&
-						options.resume !== false
-					)
+						options.resume !== false &&
+						(error instanceof PassiveConnectionDeferred ||
+							(isHubReconnectableTransportError(error) &&
+								!this.connections.has(outerSessionId)))
+					) {
+						assertCurrent();
 						return this.ensureConnection(outerSessionId, options);
+					}
 					throw error;
 				})
 			: this.connections.get(outerSessionId);
