@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, StrictMode } from "react";
+import { Activity, act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -491,5 +491,138 @@ describe("usePromptDraft", () => {
 
 		expect(taken).toEqual([attached]);
 		expect(current.pendingAttachments).toEqual([]);
+	});
+
+	describe("for a send that finishes after its pane closed", () => {
+		const files = () =>
+			["sent", "removed", "kept"].map(
+				(name) => new File([name], `${name}.png`, { type: "image/png" }),
+			);
+		const leaveForSessions = () =>
+			navigate({
+				type: "navigate",
+				destination: { ...appState.navigation.current, view: "sessions" },
+			});
+
+		it("takes its files out of the saved draft", async () => {
+			await navigate();
+			const [sent, , kept] = files();
+			act(() => current.setPendingAttachments([sent, kept]));
+			const take = current.takePendingAttachments;
+			await leaveForSessions();
+
+			let taken: File[] = [];
+			act(() => {
+				taken = take([sent]);
+			});
+
+			expect(taken).toEqual([sent]);
+			expect(drafts.get("new-session")?.attachments).toEqual([kept]);
+			await navigate({ type: "back" });
+			expect(current.pendingAttachments).toEqual([kept]);
+		});
+
+		it("updates the reopened pane's files, leaving its box and its own pending send alone", async () => {
+			await navigate();
+			const [sent, removed, kept] = files();
+			act(() => current.setPendingAttachments([sent, removed, kept]));
+			const take = current.takePendingAttachments;
+			await leaveForSessions();
+			await navigate({ type: "back" });
+			act(() =>
+				current.setPendingAttachments((attached) =>
+					attached.filter((file) => file !== removed),
+				),
+			);
+			let send!: ReturnType<typeof pendingSend>;
+			act(() => {
+				send = pendingSend();
+			});
+			const { version } = current.promptDraft;
+
+			let taken: File[] = [];
+			act(() => {
+				taken = take([sent, removed]);
+			});
+
+			expect(taken).toEqual([sent]);
+			expect(current.pendingAttachments).toEqual([kept]);
+			expect(current.promptDraft.version).toBe(version);
+			await act(async () => {
+				send.resolve(false);
+				await send.finished;
+			});
+			expect(current.promptDraft.value).toBe("Submitted prompt");
+		});
+
+		it("takes them out of a pane that Activity hid, which keeps them out when shown again", async () => {
+			const show = (mode: "visible" | "hidden") =>
+				act(async () => {
+					root.render(
+						<StrictMode>
+							<Activity mode={mode}>
+								<DraftPane threadId="new-session" />
+							</Activity>
+						</StrictMode>,
+					);
+				});
+			await show("visible");
+			const [sent, , kept] = files();
+			act(() => current.setPendingAttachments([sent, kept]));
+			const take = current.takePendingAttachments;
+			await show("hidden");
+
+			let taken: File[] = [];
+			act(() => {
+				taken = take([sent]);
+			});
+			await show("visible");
+
+			expect(taken).toEqual([sent]);
+			expect(current.pendingAttachments).toEqual([kept]);
+			expect(drafts.get("new-session")?.attachments).toEqual([kept]);
+		});
+
+		it("can put the files of a failed send back beside those added since", async () => {
+			await navigate();
+			const [sent, added] = files();
+			act(() => current.handlePromptInputChange("Typed meanwhile"));
+			act(() => current.setPendingAttachments([sent]));
+			const { takePendingAttachments: take, updateSavedAttachments: update } =
+				current;
+			await leaveForSessions();
+			let taken: File[] = [];
+			act(() => {
+				taken = take([sent]);
+			});
+			await navigate({ type: "back" });
+			act(() =>
+				current.setPendingAttachments((attached) => [...attached, added]),
+			);
+			const { version } = current.promptDraft;
+
+			act(() => update((attached) => [...attached, ...taken]));
+
+			expect(current.pendingAttachments).toEqual([added, sent]);
+			expect(current.promptDraft.version).toBe(version);
+			expect(current.draftRef.current.text).toBe("Typed meanwhile");
+		});
+
+		it("leaves a draft that was discarded meanwhile discarded", async () => {
+			await navigate();
+			const [sent] = files();
+			act(() => current.setPendingAttachments([sent]));
+			const take = current.takePendingAttachments;
+			await leaveForSessions();
+			drafts.delete("new-session");
+
+			let taken: File[] = [];
+			act(() => {
+				taken = take([sent]);
+			});
+
+			expect(taken).toEqual([sent]);
+			expect(drafts.has("new-session")).toBe(false);
+		});
 	});
 });

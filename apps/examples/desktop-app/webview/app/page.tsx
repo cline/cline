@@ -1615,6 +1615,7 @@ function ChatThreadPane({
 		holdPromptForSend,
 		clearDraftForHandoff,
 		takePendingAttachments,
+		updateSavedAttachments,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -2340,7 +2341,7 @@ function ChatThreadPane({
 						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
 				});
 			}
-			setPendingAttachments((current) => {
+			updateSavedAttachments((current) => {
 				const existing = new Set(
 					current.map(
 						(file) => `${file.name}:${file.size}:${file.lastModified}`,
@@ -2362,7 +2363,7 @@ function ChatThreadPane({
 				return next;
 			});
 		},
-		[isCloudSession, setPendingAttachments],
+		[isCloudSession, updateSavedAttachments],
 	);
 
 	const handleRestoreHandoffDraft = useCallback(
@@ -2644,10 +2645,11 @@ function ChatThreadPane({
 			});
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
-			// without retyping, but only if this pane still owns the unchanged draft.
-			if (!promptTaken && restorePrompt(trimmed)) {
-				handleAttachFiles(toSend);
-			}
+			// without retyping, but only into a box this pane still holds unchanged.
+			// Its files go back to the draft either way, even once the pane closed.
+			if (promptTaken) return;
+			restorePrompt(trimmed);
+			handleAttachFiles(toSend);
 		},
 		[
 			config.repoUrl,

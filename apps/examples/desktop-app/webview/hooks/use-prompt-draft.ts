@@ -53,17 +53,30 @@ export function usePromptDraft(drafts: PromptDraftCache, threadId: string) {
 	const mountedRef = useRef(true);
 	const revisionRef = useRef(0);
 	useLayoutEffect(() => {
-		drafts.set(threadId, draftRef.current);
-		mountedRef.current = true;
-		const unsubscribe = drafts.subscribe((restoredThreadId, restored) => {
-			if (restoredThreadId !== threadId) return;
-			draftRef.current = restored;
+		const adopt = (draft: PromptDraft) => {
+			const textChanged = draft.text !== draftRef.current.text;
+			draftRef.current = draft;
+			setAttachments(draft.attachments);
+			// A draft that only changed its files leaves the box, and the
+			// recovery of a send pending from it, as they are.
+			if (!textChanged) return;
 			revisionRef.current += 1;
-			setAttachments(restored.attachments);
 			setPromptDraft((prev) => ({
 				version: prev.version + 1,
-				value: restored.text,
+				value: draft.text,
 			}));
+		};
+		// A pane shown again after <Activity> hid it takes up what a send or a
+		// handoff changed in its saved draft meanwhile.
+		const saved = drafts.get(threadId);
+		if (saved && saved !== draftRef.current) {
+			adopt(saved);
+		} else {
+			drafts.set(threadId, draftRef.current);
+		}
+		mountedRef.current = true;
+		const unsubscribe = drafts.subscribe((restoredThreadId, restored) => {
+			if (restoredThreadId === threadId) adopt(restored);
 		});
 		return () => {
 			unsubscribe();
@@ -144,18 +157,36 @@ export function usePromptDraft(drafts: PromptDraftCache, threadId: string) {
 		setPromptInput("");
 		return restorePromptIfUntouched();
 	}, [restorePromptIfUntouched, setPromptInput]);
+	/**
+	 * Edits the files of the thread's saved draft, which an open pane shows. A
+	 * send can finish after its pane closed, so this works then too.
+	 */
+	const updateSavedAttachments = useCallback(
+		(update: (current: File[]) => File[]) => {
+			if (mountedRef.current) {
+				setPendingAttachments(update);
+				return;
+			}
+			const saved = drafts.get(threadId);
+			if (!saved) return;
+			drafts.restore(threadId, saved, {
+				...saved,
+				attachments: update(saved.attachments),
+			});
+		},
+		[drafts, setPendingAttachments, threadId],
+	);
 	/** Detaches and returns those of `wanted` still attached; files added since stay. */
 	const takePendingAttachments = useCallback(
 		(wanted: readonly File[]): File[] => {
-			const taken = draftRef.current.attachments.filter((file) =>
-				wanted.includes(file),
-			);
-			setPendingAttachments((current) =>
+			const attached = (drafts.get(threadId) ?? draftRef.current).attachments;
+			const taken = attached.filter((file) => wanted.includes(file));
+			updateSavedAttachments((current) =>
 				current.filter((file) => !taken.includes(file)),
 			);
 			return taken;
 		},
-		[setPendingAttachments],
+		[drafts, threadId, updateSavedAttachments],
 	);
 	const clearDraftForHandoff = useCallback(
 		(text: string) => {
@@ -179,5 +210,6 @@ export function usePromptDraft(drafts: PromptDraftCache, threadId: string) {
 		holdPromptForSend,
 		clearDraftForHandoff,
 		takePendingAttachments,
+		updateSavedAttachments,
 	};
 }
