@@ -142,6 +142,11 @@ consumes or cancels the response body and applies any read size limit. The optio
 signal cancels the download, including while reading its body. This helper does not
 register an agent tool or attach files to messages.
 
+`@cline/shared` exports `ArtifactReference`, `ArtifactResource`, and
+`ArtifactResolver` for host-selected access. References retain the existing artifact
+ID; resolved URLs and optional expiry belong to transient client state, not history.
+The host binds the resolver to a session and selects its storage backend.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.

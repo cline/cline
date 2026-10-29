@@ -3,14 +3,14 @@ import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
+import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import {
 	ArtifactPublicationError,
 	type ArtifactPublicationFile,
 	type ArtifactPublicationResult,
 	type ArtifactPublisher,
 	publicationFailure,
-} from "../../artifacts/publish";
-import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
+} from "../publish";
 
 const UploadPolicySchema = z.object({
 	url: z.string(),
