@@ -2624,7 +2624,9 @@ export function useChatSession(environmentId: string) {
 				const nextStatus = refresh.status?.trim();
 				if (nextStatus) {
 					const mappedStatus = isCloudSession
-						? mapCloudRuntimeStatus(nextStatus)
+						? nextStatus === "suspended"
+							? "idle"
+							: mapCloudRuntimeStatus(nextStatus)
 						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
 					if (!mappedStatus) return;
 					// Sandbox readiness must not replace runtime activity or stop
@@ -3989,6 +3991,9 @@ export function useChatSession(environmentId: string) {
 			if (attached.status === "expired") {
 				setIsCloudSessionExpired(true);
 				setPromptsInQueue([]);
+				setError(
+					"This cloud session has expired. Start a new cloud session to continue.",
+				);
 			}
 			const nextStatus = mapCloudRuntimeStatus(attached.status);
 			if (

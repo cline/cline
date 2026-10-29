@@ -1973,6 +1973,15 @@ describe("useChatSession", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+		if (source === "selection") {
+			expect(current.error).toBe(
+				"This cloud session has expired. Start a new cloud session to continue.",
+			);
+			await act(async () => current.refreshSelectedCloudSession());
+			expect(current.error).toBe(
+				"This cloud session has expired. Start a new cloud session to continue.",
+			);
+		}
 		expect(current.isCloudSessionExpired).toBe(true);
 		expect(current.status).toBe("completed");
 		expect(current.promptsInQueue).toEqual([]);
@@ -2949,9 +2958,11 @@ describe("useChatSession", () => {
 		["retry", "ready", "idle"],
 		["retry-idle", "idle", "idle"],
 		["snapshot", "ready", "running"],
+		["snapshot-suspended", "suspended", "running"],
 		["failed", "failed", "failed"],
 		["expired", "expired", "completed"],
 		["suspended", "suspended", "idle"],
+		["archived-suspended", "suspended", "idle"],
 	] as const)("recovers an attached provisioning cloud session: %s", async (outcome, readyStatus, expectedStatus) => {
 		let discoveryReads = 0;
 		let readyReads = 0;
@@ -2989,7 +3000,7 @@ describe("useChatSession", () => {
 						readyReads === 1
 					)
 						throw new Error("History temporarily unavailable");
-					if (outcome === "snapshot" && readyReads === 1)
+					if (outcome.startsWith("snapshot") && readyReads === 1)
 						handlerFor("cloud_session_rehydrated")({
 							sessionId: "cloud-transition",
 							status: "running",
@@ -3068,6 +3079,10 @@ describe("useChatSession", () => {
 				expect(current.messages).toContainEqual(
 					expect.objectContaining({ role: "assistant", content: "Ready" }),
 				);
+			}
+			if (outcome === "archived-suspended") {
+				await act(async () => vi.advanceTimersByTimeAsync(15_000));
+				expect(discoveryReads).toBe(2);
 			}
 		} finally {
 			vi.useRealTimers();
