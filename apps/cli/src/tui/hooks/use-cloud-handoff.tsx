@@ -56,6 +56,10 @@ export function useCloudHandoff(input: {
 		};
 	};
 	const run = async (draft: CloudHandoffDraft): Promise<boolean> => {
+		if (input.cloudActive) {
+			input.showError("Use /cloud from a local conversation.");
+			return false;
+		}
 		if (inFlight.current) {
 			input.showError("Wait for the current cloud handoff to finish.");
 			return false;
@@ -71,8 +75,6 @@ export function useCloudHandoff(input: {
 			const prepare = input.prepare;
 			if (!prepare)
 				throw new Error("Enable CLINE_CLOUD_SESSIONS=1 to use /cloud.");
-			if (input.cloudActive)
-				throw new Error("Use /cloud from a local conversation.");
 			if (input.isLocalBusy)
 				throw new Error(
 					"Wait for the current run and queued prompts before using /cloud.",

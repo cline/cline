@@ -88,9 +88,22 @@ const noop = async () => undefined;
 const props = {
 	config,
 	startupTarget: "chat",
-	loadClineAccount: async () => {
-		throw new Error("Synthetic fixture has no cloud account");
-	},
+	loadClineAccount: async () => ({
+		user: {
+			id: "synthetic-user",
+			email: "synthetic@example.com",
+			displayName: "Synthetic User",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+		},
+		balance: { balance: 0, userId: "synthetic-user" },
+		organizationBalance: null,
+		organizations: [],
+		activeOrganization: null,
+		displayedBalance: 0,
+	}),
 	switchClineAccount: noop,
 	loadConfigData: async () => ({
 		workflows: [],
@@ -148,9 +161,17 @@ const props = {
 	setModeChangeNotifier: () => {},
 	cloudSessions: {
 		listRepositories: async () => ({
-			connected: false,
+			connected: true,
 			connectUrl: "",
-			repositories: [],
+			repositories: [
+				{
+					id: 1,
+					name: "synthetic-project",
+					fullName: "example/synthetic-project",
+					url: "https://github.com/example/synthetic-project",
+					defaultBranch: "main",
+				},
+			],
 		}),
 		listBranches: async () => ({ available: false, branches: [] }),
 		listModels: async () => [],

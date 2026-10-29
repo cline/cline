@@ -156,6 +156,50 @@ describe("cloud handoff TUI", () => {
 		expect(screen.includes("/cloud")).toBe(visible);
 	});
 
+	it("rejects /cloud in Cloud mode without consuming the draft", async () => {
+		const { session, statePath, stateDir } = await launch();
+		await session.waitForText("Ask anything...", { timeout });
+		const instruction = "continue the synthetic parser task";
+		const image = createSyntheticImage(stateDir);
+		await session.type(`/cloud ${instruction} `);
+		await pasteSyntheticImage(session, image.imagePath);
+		await session.press(["ctrl", "o"]);
+		await session.text({
+			waitFor: (screen) => screen.includes("example/synthetic-project"),
+			timeout,
+		});
+		await session.press("escape");
+		await session.text({
+			waitFor: (screen) =>
+				screen.includes("☁ Choose a repository") &&
+				!screen.includes("example/synthetic-project"),
+			timeout,
+		});
+		// The repository picker can leave focus on its overlay after dismissal.
+		await session.clickAt(20, 36);
+		await session.press("enter");
+		await session.waitForText("Use /cloud from a local conversation.", {
+			timeout,
+		});
+		await saveEvidence("cloud-mode-rejection", session, statePath);
+		expect(await session.text()).toContain("[Image 1]");
+		expect(readState(statePath).preparedDraft).toBeUndefined();
+		expect(readState(statePath).started).toBeUndefined();
+
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("● Local", { timeout });
+		const localScreen = await session.text();
+		expect(localScreen).not.toContain("Cloud handoff:");
+		expect(localScreen).not.toContain("Restore /cloud draft");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		expect(readState(statePath).preparedDraft).toEqual({
+			instruction,
+			images: [image.dataUrl],
+		});
+		await session.press("escape");
+	});
+
 	it("cancels without losing the instruction", async () => {
 		const { session, statePath, stateDir } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
