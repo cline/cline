@@ -32,7 +32,12 @@ export class ArtifactPublicationError extends Error {
 }
 
 export async function checkUnchanged(file: ArtifactPublicationFile) {
-	const current = await stat(file.path);
+	const current = await stat(file.path).catch(() => {
+		throw new ArtifactPublicationError(
+			"FILE_READ_FAILED",
+			"Could not read the local file",
+		);
+	});
 	if (current.size !== file.size || current.mtimeMs !== file.modifiedAt)
 		throw new ArtifactPublicationError(
 			"FILE_CHANGED",

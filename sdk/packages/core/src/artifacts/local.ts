@@ -46,10 +46,7 @@ export function createLocalArtifactPublisher({
 						flush: true,
 					}),
 					{ signal },
-				).catch(async (error) => {
-					await checkUnchanged(file);
-					throw error;
-				});
+				);
 				await checkUnchanged(file);
 				signal?.throwIfAborted();
 				await rename(temporary, target);

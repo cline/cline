@@ -142,18 +142,25 @@ test("rejects changed sources and cancelled writes without replacing stored byte
 	await writeFile(f.source, "original");
 	await f.publish();
 	const publish = createLocalArtifactPublisher({ directory: f.directory });
-	const tool = createPublishArtifactsTool({
-		publish: async (files, options) => {
-			await writeFile(f.source, "changed after selection");
-			return publish(files, options);
-		},
-	});
-	const result = await tool.execute(
-		{ files: [{ path: f.source, artifactId: "report" }] },
-		context,
-	);
-	assert.ok("error" in result.files[0]);
-	assert.equal(result.files[0].error.code, "FILE_CHANGED");
+	for (const removeSource of [false, true]) {
+		await writeFile(f.source, "original");
+		const tool = createPublishArtifactsTool({
+			publish: async (files, options) => {
+				if (removeSource) await rm(f.source);
+				else await writeFile(f.source, "changed after selection");
+				return publish(files, options);
+			},
+		});
+		const result = await tool.execute(
+			{ files: [{ path: f.source, artifactId: "report" }] },
+			context,
+		);
+		assert.ok("error" in result.files[0]);
+		assert.equal(
+			result.files[0].error.code,
+			removeSource ? "FILE_READ_FAILED" : "FILE_CHANGED",
+		);
+	}
 	const controller = new AbortController();
 	controller.abort();
 	const cancelled = await f.publish("report", controller.signal);
