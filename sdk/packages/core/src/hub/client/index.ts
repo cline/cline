@@ -1420,7 +1420,7 @@ export async function ensureCompatibleLocalHubUrl(
 		const ensured = await ensureDetachedHubServer(
 			options.workspaceRoot ?? process.cwd(),
 		);
-		return rememberRecoverableLocalHubUrl(ensured.url, ensured.authToken);
+		return ensured.url;
 	} catch (error) {
 		options.onStartupError?.(error);
 		return undefined;

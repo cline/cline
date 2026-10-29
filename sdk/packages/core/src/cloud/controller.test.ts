@@ -984,55 +984,6 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
-	it.each([
-		false,
-		true,
-	])("reports send failure certainty (dispatched: %s)", async (dispatched) => {
-		const f = await attached();
-		const original = f.command.getMockImplementation()!;
-		f.command.mockImplementation(async (...args) => {
-			if (args[0] !== (dispatched ? "session.send_input" : "session.attach"))
-				return original(...args);
-			if (dispatched) {
-				args[3]?.beforeDispatch?.();
-				args[3]?.onDispatch?.("input-request");
-			}
-			throw new CloudSessionError("request_failed", "Synthetic send failure");
-		});
-		try {
-			expect(
-				await f.controller.sendWithOutcome(record.id, "Saved prompt", "queue"),
-			).toMatchObject({
-				dispatched,
-				detail: "Synthetic send failure",
-			});
-			if (!dispatched) {
-				expect(
-					f.command.mock.calls.some(([name]) => name === "session.send_input"),
-				).toBe(false);
-				f.command.mockImplementation(original);
-				expect(
-					await f.controller.sendWithOutcome(
-						record.id,
-						"Saved prompt",
-						"queue",
-						"model",
-						["image"],
-					),
-				).toMatchObject({ ok: true, queued: true });
-				expect(
-					f.commands.find((entry) => entry.command === "session.send_input")
-						?.payload,
-				).toEqual({
-					prompt: "Saved prompt",
-					delivery: "queue",
-					attachments: { userImages: ["image"] },
-				});
-			}
-		} finally {
-			await f.controller.dispose();
-		}
-	});
 	it("confirms only the exact dispatched request and client before completion", async () => {
 		const f = await attached();
 		const original = f.command.getMockImplementation()!;

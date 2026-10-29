@@ -115,18 +115,16 @@ const createInput = creationOptions
 				message: "Cloud workspace must match the approved Git preparation",
 			});
 	});
-const sendArgs = z.tuple([
-	id,
-	z.string(),
-	z.enum(["queue", "steer"]).nullish(),
-	optionalString,
-	z.array(z.string()).nullish(),
-]);
 const schemas = {
 	create: z.tuple([createInput]),
 	attach: z.tuple([id, creationOptions.nullish()]),
-	send: sendArgs,
-	sendWithOutcome: sendArgs,
+	send: z.tuple([
+		id,
+		z.string(),
+		z.enum(["queue", "steer"]).nullish(),
+		optionalString,
+		z.array(z.string()).nullish(),
+	]),
 	abort: z.tuple([id]),
 	pendingPrompts: z.tuple([id]),
 	updatePendingPrompt: z.tuple([

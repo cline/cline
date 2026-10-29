@@ -878,7 +878,7 @@ export class HubServerTransport implements NativeHubTransport {
 			if (
 				this.draining &&
 				envelope.command === "cloud.command" &&
-				["create", "attach", "send", "sendWithOutcome"].includes(
+				["create", "attach", "send"].includes(
 					String(envelope.payload?.operation),
 				)
 			)
