@@ -1,16 +1,18 @@
 import type { ToolResultContent } from "@cline/shared";
 
 /**
- * Preserve the runtime tool-output serialization used by canonical session
- * persistence. This intentionally remains internal to Core because the
- * historical codec accepts a wider runtime value set than the public
- * `ToolResultContent` type describes.
+ * Preserve structured tool output across canonical session persistence and
+ * display projections. JSON serialization belongs to the storage/wire boundary;
+ * turning objects into text here loses native image and presentation metadata.
  */
 export function toPersistedToolResultContent(
 	output: unknown,
 ): ToolResultContent["content"] {
 	if (typeof output === "string") {
 		return output;
+	}
+	if (output && typeof output === "object" && !Array.isArray(output)) {
+		return output as Record<string, unknown>;
 	}
 	if (Array.isArray(output)) {
 		// Structured local and provider tool outputs are persisted as arrays even

@@ -379,3 +379,9 @@ requires Tailwind v4 and the two font packages shown above.
 and usage-detail body through a render callback. The host keeps its existing
 button/popover behavior and passes its formatted cost separately from the latest
 request's context tokens. See [context usage](./ADOPTION.md#context-usage).
+
+### UX verification reports
+
+`AgentUxVerification` renders the shared `UxVerificationReport` contract from `@cline/shared/browser` as an evidence carousel. It supports passed/failed/blocked checks, titles, observations, thumbnails, keyboard navigation and optional slideshow. Pass `state="running"` while Core's `ux_verifier` tool executes, then `state="completed"` with its output. Invalid output or `state="error"` displays a failure state rather than a success count.
+
+Inline screenshots use the existing safe Blob renderer. Hosts can supply `renderScreenshot(check, className)` to resolve authenticated asset references, and `onExpandScreenshot(check)` to open their focus-managed image viewer. The component owns no transport or upload client. Its styles ship in `@cline/ui/components.css`; see the **Agent/UX verification** Storybook stories.

@@ -1322,3 +1322,9 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### UX verifier and evidence presentation
+
+The `ux_verifier` default tool belongs to Core and delegates through the same spawn executor as `spawn_agent`. Shared schemas own its checklist/report contract; Core validates complete checklist coverage and reads bounded screenshot files. No additional agent runtime or browser automation implementation is introduced. A host must provide browser/computer tools to the delegated agent; without them, checks are blocked.
+
+The reusable `@cline/ui` evidence carousel owns presentation, native inline image materialization, and navigation. Hosts own remote-image authorization and expanded-image dialogs. Desktop chat recognizes the tool as a deliverable, splits it from routine tool groups, and preserves it outside collapsed work summaries. Native JSON tool records survive persistence and model message preparation without encoding image bytes into text; text-only projections and media budgets retain separate responsibilities.

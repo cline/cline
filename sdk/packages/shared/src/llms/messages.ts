@@ -77,8 +77,11 @@ export interface ToolResultContent {
 	tool_use_id: string;
 	/** Name of the tool that generated this result */
 	name: string;
-	/** Result content (can be text or error) */
-	content: string | Array<TextContent | ImageContent | FileContent>;
+	/** Native text, structured JSON, or content blocks returned by the tool. */
+	content:
+		| string
+		| Record<string, unknown>
+		| Array<TextContent | ImageContent | FileContent>;
 	/** Whether this result represents an error */
 	is_error?: boolean;
 }

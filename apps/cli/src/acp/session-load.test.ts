@@ -7,6 +7,34 @@ import {
 } from "./session-load";
 
 describe("translateHistoricalMessage", () => {
+	it("replays structured tool output without embedding image bytes in text", () => {
+		const updates = translateHistoricalMessage({
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					name: "ux_verifier",
+					tool_use_id: "verify-1",
+					content: {
+						title: "UX evidence",
+						screenshot: {
+							type: "image",
+							mediaType: "image/png",
+							data: "private-image-bytes",
+						},
+					},
+				},
+			],
+		});
+		expect(updates).toEqual([
+			{
+				sessionUpdate: "tool_call_update",
+				toolCallId: "verify-1",
+				status: "completed",
+				rawOutput: '{"title":"UX evidence","screenshot":"[image:image/png]"}',
+			},
+		]);
+	});
 	it("maps string content to a message chunk for the right role", () => {
 		expect(translateHistoricalMessage({ role: "user", content: "hi" })).toEqual(
 			[

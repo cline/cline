@@ -1,6 +1,6 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { parseToolPayload } from "./tool-summaries";
+import { isUxVerificationMessage, parseToolPayload } from "./tool-summaries";
 
 export type ChatRenderItem =
 	| {
@@ -138,7 +138,8 @@ export type CollapseWorkOptions = {
  * with attachments is a deliverable and acts as a span boundary instead.
  */
 function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
-	if (item.type === "tools") return true;
+	if (item.type === "tools")
+		return !item.messages.some(isUxVerificationMessage);
 	if (item.type !== "message") return false;
 	if (isSystemSteeringMessage(item.message)) return true;
 	return (
@@ -393,7 +394,11 @@ export function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 		flushPendingReasoning();
 		const previous = items.at(-1);
 		if (message.role === "tool") {
-			if (previous?.type === "tools") {
+			if (
+				previous?.type === "tools" &&
+				!isUxVerificationMessage(message) &&
+				!previous.messages.some(isUxVerificationMessage)
+			) {
 				previous.messages.push(message);
 			} else {
 				items.push({ type: "tools", messages: [message] });

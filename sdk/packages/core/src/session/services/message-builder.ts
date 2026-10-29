@@ -1,3 +1,4 @@
+import { stringifyToolResultData } from "@cline/shared";
 /**
  * API-safe message builder for provider payloads.
  *
@@ -488,6 +489,7 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return attributeText(content);
 		}
+		if (!Array.isArray(content)) return attributeText(stringifyToolResultData(content));
 		// Image siblings are rewritten positionally, so count them positionally too.
 		const outdatedKeySet = new Set(outdatedKeys);
 		let outdatedImageCount = 0;
@@ -807,6 +809,7 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return this.tryParseReadLocators(content);
 		}
+		if (!Array.isArray(content)) return this.extractLocatorsFromParsedReadResult(content);
 		const locators: ReadLocator[] = [];
 		for (const entry of content) {
 			if (entry.type === "text") {
@@ -959,6 +962,7 @@ export class MessageBuilder {
 			);
 		}
 
+		if (!Array.isArray(content)) return this.replaceOutdatedReadEntry(content, outdatedKeys) as Record<string, unknown>;
 		// Image entries are paired with text result markers, so rewrite them positionally.
 		let pendingImageReplacements = 0;
 		for (const entry of content) {
@@ -1103,6 +1107,7 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return this.truncateMiddle(content);
 		}
+		if (!Array.isArray(content)) return this.truncateNestedStrings(content) as Record<string, unknown>;
 		return content.map((entry) => {
 			if (this.recoveryNotices.has(entry)) return entry;
 			if (entry.type === "file") {
@@ -1216,9 +1221,10 @@ export class MessageBuilder {
 						Array.isArray(block.content) &&
 						Array.isArray(cloned.content)
 					) {
+						const clonedContent = cloned.content;
 						block.content.forEach((entry, index) => {
 							if (this.recoveryNotices.has(entry))
-								this.recoveryNotices.add(cloned.content[index] as object);
+								this.recoveryNotices.add(clonedContent[index] as object);
 						});
 					}
 					return cloned;
@@ -1276,6 +1282,8 @@ export class MessageBuilder {
 				} else if (block.type === "tool_result") {
 					if (typeof block.content === "string") {
 						total += utf8ByteLength(block.content);
+					} else if (!Array.isArray(block.content)) {
+						total += countNestedStringBytes(block.content);
 					} else {
 						for (const entry of block.content) {
 							if (entry.type === "text") {
@@ -1344,6 +1352,10 @@ export class MessageBuilder {
 							block.content = value;
 						},
 					});
+					continue;
+				}
+				if (!Array.isArray(block.content)) {
+					collectNestedStringCandidates(block.content, resultCandidates);
 					continue;
 				}
 				for (const entry of block.content) {
@@ -1434,13 +1446,14 @@ export class MessageBuilder {
 			return block;
 		}
 
+		if (!Array.isArray(block.content)) return { ...block, content: this.applyMediaBudgetToToolResultEntry(block.content, budget, state) as Record<string, unknown> };
 		let changed = false;
 		const content = block.content.map((entry) => {
 			const out = this.applyMediaBudgetToToolResultEntry(entry, budget, state);
 			if (out !== entry) {
 				changed = true;
 			}
-			return out as (typeof block.content)[number];
+			return out as Exclude<ToolResultContent["content"], string | Record<string, unknown>>[number];
 		});
 
 		return changed
@@ -1649,6 +1662,7 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	if (block.type !== "tool_result" || typeof block.content === "string") {
 		return { ...block };
 	}
+	if (!Array.isArray(block.content)) return { ...block, content: deepCloneJsonLike(block.content) as Record<string, unknown> };
 	return {
 		...block,
 		// Structured entries can nest the payload strings arbitrarily deep, so

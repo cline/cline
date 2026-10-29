@@ -107,7 +107,7 @@ describe("synchronous model-only recovery", () => {
 		const text =
 			typeof content === "string"
 				? content
-				: content
+				: !Array.isArray(content) ? JSON.stringify(content) : content
 						.filter((entry) => entry.type === "text")
 						.map((entry) => entry.text)
 						.join("");

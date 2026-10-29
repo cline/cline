@@ -1,0 +1,146 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { AgentUxVerification } from "../components/agent-ux-verification.js";
+import type { UxVerificationReport } from "@cline/shared/browser";
+
+const report: UxVerificationReport = {
+	kind: "ux_verification",
+	version: 1,
+	title: "Verify composer",
+	subtitle: "Chrome · local browser",
+	checks: [
+		{
+			id: "composer",
+			title: "Composer is visible",
+			subtitle: "The send button remains reachable",
+			status: "passed",
+			screenshot: { type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+		},
+		{
+			id: "login",
+			title: "Login requires user action",
+			subtitle: "Sign-in prevented this check",
+			status: "blocked",
+		},
+	],
+};
+let root: Root;
+let container: HTMLDivElement;
+const revoke = vi.fn();
+beforeEach(() => {
+	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	window.matchMedia = vi
+		.fn()
+		.mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			addEventListener() {},
+			removeEventListener() {},
+		}));
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
+	Object.defineProperties(URL, {
+		createObjectURL: {
+			configurable: true,
+			value: vi.fn(() => "blob:ux-evidence"),
+		},
+		revokeObjectURL: { configurable: true, value: revoke },
+	});
+	container = document.createElement("div");
+	document.body.append(container);
+	root = createRoot(container);
+});
+afterEach(async () => {
+	await act(async () => root.unmount());
+	container.remove();
+	vi.clearAllMocks();
+	vi.unstubAllGlobals();
+});
+it("renders evidence and derived counts, with host-owned expansion", async () => {
+	const expand = vi.fn();
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={report}
+				state="completed"
+				onExpandScreenshot={expand}
+			/>,
+		),
+	);
+	expect(container.textContent).toContain("1/2 checks passed");
+	expect(container.querySelector("img")?.src).toBe("blob:ux-evidence");
+	await act(async () =>
+		(
+			container.querySelector(
+				'[aria-label="Expand screenshot"]',
+			) as HTMLButtonElement
+		).click(),
+	);
+	expect(expand).toHaveBeenCalledWith(report.checks[0]);
+	expect(
+		container
+			.querySelector('[aria-label="Previous screenshot"]')
+			?.hasAttribute("disabled"),
+	).toBe(true);
+});
+it("shows honest pending and invalid states", async () => {
+	for (const state of ["running", "completed", "error"] as const) {
+		await act(async () =>
+			root.render(<AgentUxVerification output={null} state={state} />),
+		);
+		expect(container.textContent).not.toContain("checks passed");
+		expect(container.textContent).toContain(
+			state === "running" ? "Verifying UX" : "could not be completed",
+		);
+	}
+});
+it("does not bind remote screenshot URLs without a host renderer", async () => {
+	const remote = {
+		...report,
+		checks: [
+			{
+				...report.checks[0],
+				screenshot: {
+					type: "image",
+					mediaType: "image/png",
+					url: "https://example.com/private.png",
+				},
+			},
+		],
+	};
+	await act(async () =>
+		root.render(<AgentUxVerification output={remote} state="completed" />),
+	);
+	expect(container.querySelector("img")).toBeNull();
+	expect(container.textContent).toContain("host image resolver");
+});
+it("requires screenshot evidence for a passed check", async () => {
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={{
+					...report,
+					checks: [{ ...report.checks[0], screenshot: undefined }],
+				}}
+				state="completed"
+			/>,
+		),
+	);
+	expect(container.textContent).toContain("could not be completed");
+});

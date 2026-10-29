@@ -1,3 +1,4 @@
+import { UX_VERIFIER_TOOL_NAME } from "@cline/shared/browser";
 import {
 	buildToolSummary,
 	type ToolSummary,
@@ -136,4 +137,12 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		inProgress,
 	});
 	return { message, payload, toolName, inProgress, summary };
+}
+
+export function isUxVerificationMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "tool" &&
+		(message.meta?.toolName || parseToolPayload(message.content)?.toolName) ===
+			UX_VERIFIER_TOOL_NAME
+	);
 }

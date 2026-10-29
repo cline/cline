@@ -1,3 +1,4 @@
+import { stringifyToolResultData } from "@cline/shared";
 import type { ModelInfo, ToolResultContent } from "@cline/llms";
 import {
 	CHARS_PER_TOKEN,
@@ -113,6 +114,7 @@ export function flattenToolResultContent(
 	if (typeof truncated === "string") {
 		return truncated;
 	}
+	if (!Array.isArray(truncated)) return stringifyToolResultData(truncated);
 	return truncated
 		.map((block) => {
 			switch (block.type) {
@@ -135,6 +137,7 @@ export function truncateToolResultContentForCompaction(
 	if (typeof content === "string") {
 		return truncateText(content, TOOL_RESULT_CHAR_LIMIT);
 	}
+	if (!Array.isArray(content)) return truncateText(stringifyToolResultData(content), TOOL_RESULT_CHAR_LIMIT);
 	return content.map((block) => {
 		switch (block.type) {
 			case "text":
@@ -548,7 +551,7 @@ function extractDiffLineRange(
 	let text =
 		typeof content === "string"
 			? content
-			: content
+			: !Array.isArray(content) ? stringifyToolResultData(content) : content
 					.map((block) =>
 						block.type === "text"
 							? block.text

@@ -1203,3 +1203,5 @@ export type {
 	SessionRef,
 } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
+
+export { createUxVerifierTool, UX_VERIFIER_INSTRUCTIONS } from "./extensions/tools/team/ux-verifier-tool";

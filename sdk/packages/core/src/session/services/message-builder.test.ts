@@ -758,8 +758,8 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			? result[1].content[0]
 			: undefined;
 		expect(block?.type).toBe("tool_result");
-		if (block?.type !== "tool_result" || typeof block.content === "string") {
-			throw new Error("expected structured tool_result");
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected structured tool_result array");
 		}
 		const operation = block.content[0] as unknown;
 		expect(operation).toBeTruthy();

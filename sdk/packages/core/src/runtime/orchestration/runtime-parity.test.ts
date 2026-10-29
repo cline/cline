@@ -103,11 +103,12 @@ describe("runtime tool parity", () => {
 			enableAgentTeams: false,
 		};
 		const createSpawnTool = makeSpawnTool;
-		const expected = normalizeParityToolNames(
-			legacyBuildRuntimeEnvironment(config, createSpawnTool).map(
+		const expected = normalizeParityToolNames([
+			...legacyBuildRuntimeEnvironment(config, createSpawnTool).map(
 				(tool) => tool.name,
 			),
-		);
+			"ux_verifier",
+		]);
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config,
 			createSpawnTool,
@@ -129,11 +130,12 @@ describe("runtime tool parity", () => {
 			enableAgentTeams: false,
 		};
 		const createSpawnTool = makeSpawnTool;
-		const expected = normalizeParityToolNames(
-			legacyBuildRuntimeEnvironment(config, createSpawnTool).map(
+		const expected = normalizeParityToolNames([
+			...legacyBuildRuntimeEnvironment(config, createSpawnTool).map(
 				(tool) => tool.name,
 			),
-		);
+			"ux_verifier",
+		]);
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config,
 			createSpawnTool,

@@ -651,3 +651,13 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+### UX verification
+
+With subagent delegation enabled, `ux_verifier` accepts `{ title, task, url, checklist: [{ id, title, steps, expected }] }`. It uses the existing spawn executor and inherited tools, approvals, provider configuration and cancellation. Every unique checklist ID receives a passed, failed or blocked result. Passed and failed checks require captured PNG/JPEG/WebP evidence; missing tools or access produce blocked results. Evidence is limited to 10 MiB per image and 24 MiB per report. The worker saves screenshots before temporary computer-tool files expire, then returns paths for Core to read into native image content.
+
+`@cline/shared/browser` exports `UxVerifierInputSchema`, `UxVerificationReportSchema`, their types, and `UX_VERIFIER_TOOL_NAME`. Core exports `createUxVerifierTool(delegate)` for custom hosts. The default runtime registers it alongside `spawn_agent` and applies normal tool policies.
+
+`@cline/ui` exports `AgentUxVerification` and its props. Pass `output` and `state` (`running`, `completed`, `error`). It validates the report and renders a screenshot carousel, observations, derived status counts, thumbnails, keyboard navigation and optional slideshow. Inline evidence uses the existing validated, browser-owned Blob media renderer. Hosts supply `renderScreenshot` for trusted remote or authenticated asset references and `onExpandScreenshot` for their own image viewer; the shared component does not bind remote URLs automatically. Import `@cline/ui/components.css` for styling.
+
+Desktop chat renders verifier results through this component, keeps them outside collapsed work, and reuses the attachment viewer for expansion. Structured tool results remain JSON records through persistence and message preparation; compaction and text budgets replace nested image bytes with image markers while media budgeting handles the images separately.
