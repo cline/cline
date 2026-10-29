@@ -1680,6 +1680,57 @@ describe("HomeScreen degradation", () => {
 	});
 });
 
+it.each([
+	undefined,
+	"org-selected",
+])("keeps repository selection in Home's known account despite a conflicting remote preference (%s)", async (organizationId) => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockResolvedValue([
+		{ name: "Selected", active: true, organizationId },
+	]);
+	const { root, executionTargetStore } = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/cline/old",
+				label: "cline/old",
+				modelId: "cline/model",
+				...(organizationId ? { organizationId } : {}),
+			},
+		],
+	});
+	hoisted.listAccounts.mockResolvedValue([
+		{
+			name: "Other device preference",
+			active: true,
+			organizationId: "org-foreign",
+		},
+	]);
+	hoisted.listRepositories.mockResolvedValue([
+		{
+			id: 17,
+			name: "new",
+			fullName: "cline/new",
+			repoUrl: "https://github.com/cline/new",
+			private: true,
+			defaultBranch: "main",
+		},
+	]);
+	hoisted.listRepositories.mockClear();
+	await act(async () =>
+		findByLabel(root, "Cloud repository: cline/old")?.props.onPress(),
+	);
+	expect(hoisted.listRepositories).toHaveBeenLastCalledWith(organizationId);
+	await act(async () => findByLabel(root, "cline/new")?.props.onPress());
+	expect(findByLabel(root, "Cloud repository: cline/new")).toBeDefined();
+	expect(
+		executionTargetStore
+			.get()
+			.cloudTargets.find(
+				(target) => target.repoUrl === "https://github.com/cline/new",
+			)?.organizationId,
+	).toBe(organizationId);
+});
+
 it("restores the repository and model on a fresh Home opened through the Cloud shortcut", async () => {
 	hoisted.getValidAccessToken.mockResolvedValue("jwt");
 	let saved: string | null = null;

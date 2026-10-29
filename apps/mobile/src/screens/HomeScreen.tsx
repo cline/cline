@@ -346,7 +346,7 @@ function HomeScreenBody({
 		!target || (target.mode === "cloud" && !cloudAuthenticated);
 	const cloudWorkspace = useCloudWorkspaceControls({
 		setup: needsCloudSetup && cloudCanStart,
-		setupScope: accountScope?.organizationId,
+		setupScope: accountScope,
 		target: target?.mode === "cloud" ? target.cloud : undefined,
 		onChooseLocation: () => {
 			expandBottomSheetAfterKeyboardDismiss(targetSheetRef);

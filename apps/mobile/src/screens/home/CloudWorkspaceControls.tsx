@@ -34,6 +34,7 @@ import { CloudGitHubGateway } from "@/cloud/rest/CloudGitHubGateway";
 import { cloudEnv } from "@/config/env";
 import { COMPUTER_CONNECTIONS_ENABLED } from "@/config/features";
 import { userErrorMessage } from "@/error-message";
+import type { CloudAccountScope } from "@/state/cloud-auth";
 import type { CloudExecutionTarget } from "@/state/execution-target-store";
 import {
 	BottomSheet,
@@ -61,7 +62,7 @@ type RepositoriesState =
 export interface CloudWorkspaceControlsProps {
 	target?: CloudExecutionTarget;
 	setup?: boolean;
-	setupScope?: string;
+	setupScope?: CloudAccountScope;
 	onChooseLocation(): void;
 	onSaveTarget(
 		input: Omit<CloudExecutionTarget, "id" | "mode">,
@@ -106,6 +107,7 @@ export function useCloudWorkspaceControls({
 	const afterBranchClose = useRef<(() => void) | undefined>(undefined);
 	const handoffFrame = useRef<number | undefined>(undefined);
 	const repositorySheetRef = useRef<GorhomBottomSheet>(null);
+	const repositorySheetRequested = useRef(false);
 	const branchSheetRef = useRef<GorhomBottomSheet>(null);
 	const repositoryRequest = useRef(0);
 	const [repositories, setRepositories] = useState<RepositoriesState>({
@@ -120,6 +122,8 @@ export function useCloudWorkspaceControls({
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string>();
 	const [repositoryScope, setRepositoryScope] = useState<string>();
+	const scopeKnown = setupScope !== undefined;
+	const selectedOrganizationId = setupScope?.organizationId;
 	useEffect(
 		() => () => {
 			if (handoffFrame.current !== undefined)
@@ -178,11 +182,14 @@ export function useCloudWorkspaceControls({
 			setCheckingRepositories(true);
 			if (!keepContent) setRepositories({ phase: "loading" });
 			try {
-				const availableAccounts = await accountGateway.listAccounts();
+				const availableAccounts = scopeKnown
+					? undefined
+					: await accountGateway.listAccounts();
 				if (request !== repositoryRequest.current) return undefined;
-				const scope = availableAccounts.find(
-					(account) => account.active,
-				)?.organizationId;
+				const scope = scopeKnown
+					? selectedOrganizationId
+					: availableAccounts?.find((account) => account.active)
+							?.organizationId;
 				setRepositoryScope(scope);
 				const next = await gateway.listRepositories(scope);
 				if (request !== repositoryRequest.current) return undefined;
@@ -205,19 +212,31 @@ export function useCloudWorkspaceControls({
 					setCheckingRepositories(false);
 			}
 		},
-		[accountGateway, gateway],
+		[accountGateway, gateway, scopeKnown, selectedOrganizationId],
 	);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: A new repository invalidates its discovery state, even within the same account.
 	useEffect(() => {
 		setRepositories({ phase: "idle" });
-		setRepositoryScope(target?.organizationId);
+		setRepositoryScope(
+			scopeKnown ? selectedOrganizationId : target?.organizationId,
+		);
 		return () => {
 			++repositoryRequest.current;
 		};
-	}, [target?.organizationId, target?.repoUrl]);
+	}, [
+		target?.organizationId,
+		target?.repoUrl,
+		scopeKnown,
+		selectedOrganizationId,
+	]);
+	useEffect(() => {
+		if (!setup && repositorySheetRequested.current) void loadRepositories();
+		return () => {
+			++repositoryRequest.current;
+		};
+	}, [setup, loadRepositories]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Account changes invalidate repository discovery even without a selected target.
 	useEffect(() => {
 		if (!setup) return;
 		setSaveError(undefined);
@@ -233,7 +252,7 @@ export function useCloudWorkspaceControls({
 			++repositoryRequest.current;
 			subscription.remove();
 		};
-	}, [setup, setupScope, loadRepositories]);
+	}, [setup, loadRepositories]);
 	useEffect(() => {
 		if (setup || !repositoryPickerOpen) return;
 		let previousState = AppState.currentState;
@@ -256,6 +275,7 @@ export function useCloudWorkspaceControls({
 	};
 	const openRepositories = (message?: string) => {
 		const show = () => {
+			repositorySheetRequested.current = true;
 			setSaveError(undefined);
 			setRepositoryMessage(message);
 			setRepositoryQuery("");
@@ -283,7 +303,8 @@ export function useCloudWorkspaceControls({
 	};
 
 	const selectRepository = async (repository: CloudRepository) => {
-		if (saving) return;
+		if (saving || (scopeKnown && repositoryScope !== selectedOrganizationId))
+			return;
 		setSaving(true);
 		setSaveError(undefined);
 		try {
@@ -523,7 +544,14 @@ export function useCloudWorkspaceControls({
 					snapPoints={["70%"]}
 					keyboardBehavior="fillParent"
 					enablePanDownToClose
-					onChange={(index) => setRepositoryPickerOpen(index >= 0)}
+					onChange={(index) => {
+						repositorySheetRequested.current = index >= 0;
+						setRepositoryPickerOpen(index >= 0);
+					}}
+					onClose={() => {
+						repositorySheetRequested.current = false;
+						setRepositoryPickerOpen(false);
+					}}
 					scrollable
 				>
 					<View style={{ gap: 12 }}>

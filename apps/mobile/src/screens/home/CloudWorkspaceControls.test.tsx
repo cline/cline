@@ -7,6 +7,7 @@ vi.mock("@/config/features", () => ({ COMPUTER_CONNECTIONS_ENABLED: true }));
 
 import { type CloudRepository, CloudSetupApiError } from "@/cloud";
 import type { CloudAccount } from "@/cloud/rest/CloudAccountGateway";
+import type { CloudAccountScope } from "@/state/cloud-auth";
 import type { CloudExecutionTarget } from "@/state/execution-target-store";
 import { cleanup, render } from "../../ui/__testing__/render";
 import { containsText } from "../__testing__/harness";
@@ -76,16 +77,22 @@ function deferred<T>() {
 function mount(
 	initial?: CloudExecutionTarget,
 	setup = false,
-	initialScope?: string,
+	initialScope?: string | CloudAccountScope,
 ) {
 	const save = vi.fn(async (_input: unknown) => {});
 	const chooseLocation = vi.fn();
 	let openRepositories!: (message?: string) => void;
 	let setTarget!: (next: CloudExecutionTarget) => void;
-	let setSetupScope!: (next: string | undefined) => void;
+	let setSetupScope!: (next: CloudAccountScope | undefined) => void;
 	function Harness() {
 		const [current, setCurrent] = useState(initial);
-		const [setupScope, updateSetupScope] = useState(initialScope);
+		const [setupScope, updateSetupScope] = useState<
+			CloudAccountScope | undefined
+		>(
+			typeof initialScope === "string"
+				? { organizationId: initialScope }
+				: initialScope,
+		);
 		setTarget = setCurrent;
 		setSetupScope = updateSetupScope;
 		const view = useCloudWorkspaceControls({
@@ -111,7 +118,8 @@ function mount(
 		chooseLocation,
 		openRepositories: (message?: string) => openRepositories(message),
 		setTarget: (next: CloudExecutionTarget) => setTarget(next),
-		setSetupScope: (next: string | undefined) => setSetupScope(next),
+		setSetupScope: (next: string | CloudAccountScope | undefined) =>
+			setSetupScope(typeof next === "string" ? { organizationId: next } : next),
 	};
 }
 beforeEach(() => {
@@ -421,6 +429,62 @@ describe("Cloud workspace setup", () => {
 });
 
 describe("Cloud workspace account scope", () => {
+	it.each([
+		{ before: {} as CloudAccountScope, after: { organizationId: "org-2" } },
+		{ before: { organizationId: "org-1" }, after: {} as CloudAccountScope },
+	])("retires an open picker's prior selected-scope response without another tap ($before → $after)", async ({
+		before,
+		after,
+	}) => {
+		const old = deferred<CloudRepository[]>();
+		mocks.listRepositories
+			.mockReturnValueOnce(old.promise)
+			.mockResolvedValueOnce([
+				{ ...repository, id: 2, fullName: "current/repo" },
+			]);
+		const { root, setSetupScope, openRepositories, save } = mount(
+			undefined,
+			false,
+			before,
+		);
+		await act(async () => openRepositories());
+		expect(mocks.listRepositories).toHaveBeenLastCalledWith(
+			before.organizationId,
+		);
+		await act(async () => setSetupScope(after));
+		expect(mocks.listRepositories).toHaveBeenLastCalledWith(
+			after.organizationId,
+		);
+		await act(async () =>
+			old.resolve([{ ...repository, fullName: "retired/repo" }]),
+		);
+		expect(byLabel(root, "retired/repo")).toBeUndefined();
+		expect(byLabel(root, "current/repo")).toBeDefined();
+		await act(async () => byLabel(root, "current/repo")?.props.onPress());
+		expect(save.mock.calls[0]?.[0]).toMatchObject({
+			repoUrl: repository.repoUrl,
+		});
+		expect(
+			(save.mock.calls[0]?.[0] as { organizationId?: string }).organizationId,
+		).toBe(after.organizationId);
+	});
+	it("rejects late unknown-scope discovery after a selected Personal scope becomes known", async () => {
+		const old = deferred<CloudAccount[]>();
+		mocks.listAccounts.mockReturnValueOnce(old.promise);
+		mocks.listRepositories.mockResolvedValue([
+			{ ...repository, fullName: "personal/repo" },
+		]);
+		const { root, setSetupScope, openRepositories } = mount();
+		await act(async () => openRepositories());
+		await act(async () => setSetupScope({}));
+		await act(async () =>
+			old.resolve([
+				{ name: "Foreign", active: true, organizationId: "org-foreign" },
+			]),
+		);
+		expect(mocks.listRepositories.mock.calls).toEqual([[undefined]]);
+		expect(byLabel(root, "personal/repo")).toBeDefined();
+	});
 	it("renders repositories beyond the first 30", async () => {
 		mocks.listRepositories.mockResolvedValue(
 			Array.from({ length: 31 }, (_, index) => ({
