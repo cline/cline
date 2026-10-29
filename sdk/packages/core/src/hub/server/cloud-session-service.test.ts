@@ -13,6 +13,7 @@ import {
 } from "../../cloud/hub-client";
 import type { CloudModel } from "../../cloud/models";
 import type {
+	CloudPassiveReadResult,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
 } from "../../cloud/types";
@@ -106,6 +107,11 @@ function fixture() {
 			prepareHandoffRepository: vi.fn(async (_repoUrl: string) => ({
 				organizationId: "org-one",
 			})),
+			readMessagesIfAwake: vi.fn(
+				async (_id: string): Promise<CloudPassiveReadResult> => ({
+					kind: "deferred",
+				}),
+			),
 			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
@@ -208,6 +214,25 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("routes passive reads through the cloud command boundary", async () => {
+		const f = fixture();
+		f.service.watch();
+		const controller = f.controllers[0]?.controller;
+		if (!controller) throw new Error("Missing cloud controller");
+		const viewer = f.viewer();
+		const outcome: CloudPassiveReadResult = {
+			kind: "refreshed",
+			messages: [{ role: "assistant", content: "Done" }],
+			status: "completed",
+		};
+		controller.readMessagesIfAwake.mockResolvedValueOnce(outcome);
+		await expect(viewer.readMessagesIfAwake("ses-one")).resolves.toEqual(
+			outcome,
+		);
+		expect(controller.readMessagesIfAwake).toHaveBeenLastCalledWith("ses-one");
+		expect(controller.attach).not.toHaveBeenCalled();
+	});
+
 	it("requires an approved organization before starting Git publication", async () => {
 		const f = fixture();
 		await expect(

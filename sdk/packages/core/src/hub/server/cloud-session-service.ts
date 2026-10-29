@@ -139,6 +139,7 @@ const schemas = {
 	]),
 	removePendingPrompt: z.tuple([id, id]),
 	readMessages: z.tuple([id]),
+	readMessagesIfAwake: z.tuple([id]),
 	updateTitle: z.tuple([id, z.string()]),
 	delete: z.tuple([id]),
 	list: z.tuple([]),

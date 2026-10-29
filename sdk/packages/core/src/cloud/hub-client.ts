@@ -248,6 +248,11 @@ export class HubCloudSessionClient {
 	): Promise<CloudHubResult<"readMessages">> {
 		return this.call("readMessages", args);
 	}
+	readMessagesIfAwake(
+		...args: CloudHubArgs<"readMessagesIfAwake">
+	): Promise<CloudHubResult<"readMessagesIfAwake">> {
+		return this.call("readMessagesIfAwake", args);
+	}
 	updateTitle(
 		...args: CloudHubArgs<"updateTitle">
 	): Promise<CloudHubResult<"updateTitle">> {

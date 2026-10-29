@@ -151,6 +151,11 @@ completion even when they missed the run-start event and earlier content deltas.
 
 `create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
 The controller resumes suspended sessions when opened and restores their saved tasks.
+For background recovery, `readMessagesIfAwake` reconnects only without resuming a
+sandbox. It returns refreshed messages and runtime status, confirmed suspension,
+a terminal status without messages, or a deferred result while readiness is unknown
+or another attachment is pending. Explicit `attach`, `readMessages`, and `send`
+retain their resume behavior.
 
 Hosts replacing controllers during credential refresh can share the
 `pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.

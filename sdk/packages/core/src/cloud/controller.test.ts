@@ -59,7 +59,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		})),
 		delete: vi.fn(async () => {}),
 		updateTitle: vi.fn(async () => structuredClone(record)),
-		history: vi.fn(async () => null),
+		history: vi.fn(async (): Promise<unknown[] | null> => null),
 		waitUntilReady: vi.fn(
 			async (_sessionId: string, _signal: AbortSignal) => {},
 		),
@@ -464,6 +464,172 @@ describe("CloudSessionController neutral host contract", () => {
 		f.emit("session.updated", { session: { status: "running" } });
 		expect(f.controller.getSnapshot(record.id)?.status).toBe("running");
 		await f.controller.dispose();
+	});
+
+	it.each([
+		"suspended",
+		"provisioning",
+		"unavailable",
+		"failed",
+		"expired",
+	])("passive reads leave %s sandboxes alone", async (status) => {
+		const f = resumableFixture("suspended");
+		if (status === "unavailable")
+			f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+		else f.api.status.mockResolvedValue({ status });
+		try {
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual(
+				status === "failed" || status === "expired"
+					? { kind: "status", status }
+					: { kind: status === "suspended" ? "suspended" : "deferred" },
+			);
+			expect(f.api.resume).not.toHaveBeenCalled();
+			expect(f.api.waitUntilReady).not.toHaveBeenCalled();
+			expect(f.api.history).toHaveBeenCalledTimes(
+				status === "failed" || status === "expired" ? 1 : 0,
+			);
+			expect(f.commands).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("passive reads recover an awake sandbox despite suspended discovery", async () => {
+		const f = resumableFixture();
+		try {
+			await f.controller.attach(record.id);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"suspended",
+			);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "ready" },
+			]);
+			f.api.status.mockResolvedValue({ status: "ready" });
+			f.setStatus("completed");
+			const messages: MessageWithMetadata[] = [
+				{ role: "assistant", content: "Recovered final answer", ts: 1 },
+			];
+			f.setMessages(messages);
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"suspended",
+			);
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				kind: "refreshed",
+				messages,
+				status: "completed",
+			});
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		["explicit", "live"],
+		["passive", "live"],
+		["explicit", "known-expired"],
+		["passive", "known-expired"],
+		["passive", "probe-expired"],
+	] as const)("%s history reads retain archive recovery for %s", async (mode, failure) => {
+		const f = resumableFixture();
+		const messages = [{ role: "assistant", content: "Archived final answer" }];
+		f.api.history.mockResolvedValue(messages);
+		if (failure === "known-expired")
+			f.api.list.mockResolvedValue([
+				{ ...record, expiredAt: "2020-01-01T00:00:00Z" },
+			]);
+		if (failure === "probe-expired")
+			f.api.status.mockResolvedValue({ status: "expired" });
+		f.command.mockRejectedValue(
+			new CloudSessionError("session_expired", "Sandbox expired"),
+		);
+		try {
+			if (failure === "known-expired") await f.controller.list();
+			const result =
+				mode === "explicit"
+					? await f.controller.readMessages(record.id)
+					: await f.controller.readMessagesIfAwake(record.id);
+			expect(
+				Array.isArray(result)
+					? result
+					: result.kind === "refreshed"
+						? result.messages
+						: null,
+			).toEqual(messages);
+			expect(f.api.history).toHaveBeenCalledOnce();
+			expect(f.api.resume).not.toHaveBeenCalled();
+			if (mode === "passive")
+				expect(result).toMatchObject({ kind: "refreshed", status: "expired" });
+			if (failure !== "live") expect(f.commands).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		"passive",
+		"explicit",
+	])("preserves explicit resume when %s acquisition starts first", async (first) => {
+		const f = resumableFixture("suspended");
+		let release!: (status: { status: string }) => void;
+		f.api.status.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		try {
+			if (first === "passive") {
+				const passive = f.controller.readMessagesIfAwake(record.id);
+				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+				const explicit = [
+					f.controller.attach(record.id),
+					f.controller.attach(record.id),
+				];
+				release({ status: "suspended" });
+				expect(await passive).toEqual({ kind: "suspended" });
+				await Promise.all(explicit);
+			} else {
+				const explicit = f.controller.attach(record.id);
+				await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+				expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+					kind: "deferred",
+				});
+				release({ status: "suspended" });
+				await explicit;
+			}
+			expect(f.api.resume).toHaveBeenCalledOnce();
+			expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("does not retain a passive connection's retry loop when an awake sandbox disappears", async () => {
+		const f = resumableFixture();
+		f.command.mockRejectedValue(
+			Object.assign(new Error("socket closed"), {
+				name: "HubTransportError",
+				code: "hub_connection_closed",
+			}),
+		);
+		try {
+			await expect(f.controller.readMessagesIfAwake(record.id)).rejects.toThrow(
+				"socket closed",
+			);
+			expect(f.dispose).toHaveBeenCalledOnce();
+			expect(f.api.resume).not.toHaveBeenCalled();
+			f.api.status.mockResolvedValue({ status: "suspended" });
+			expect(await f.controller.readMessagesIfAwake(record.id)).toEqual({
+				kind: "suspended",
+			});
+			expect(f.api.resume).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
 	});
 
 	it.each([

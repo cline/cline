@@ -44,6 +44,7 @@ import type {
 	CloudApproval,
 	CloudCreationOptions,
 	CloudHandoffSeed,
+	CloudPassiveReadResult,
 	CloudQueuedPrompt,
 	CloudSendLifecycle,
 	CloudSessionAttachment,
@@ -52,6 +53,12 @@ import type {
 	CloudSessionState,
 	JsonRecord,
 } from "./types";
+
+class PassiveConnectionDeferred extends Error {
+	constructor(readonly kind: "suspended" | "deferred") {
+		super(kind);
+	}
+}
 
 type CloudSendFailure = {
 	dispatched: boolean;
@@ -2105,19 +2112,67 @@ export class CloudSessionController {
 		if (known?.status === "provisioning" || known?.status === "failed") {
 			return [];
 		}
+		return (await this.readHistory(outerSessionId)).messages;
+	}
+
+	async readMessagesIfAwake(
+		outerSessionId: string,
+	): Promise<CloudPassiveReadResult> {
+		this.assertSessionActive(outerSessionId);
+		// Explicit attachment owns any in-flight provisioning or resume.
+		if (
+			this.connectionPromises.has(outerSessionId) ||
+			this.pendingInitialTasks.has(outerSessionId)
+		)
+			return { kind: "deferred" };
+		try {
+			return {
+				kind: "refreshed",
+				...(await this.readHistory(outerSessionId, { resume: false })),
+			};
+		} catch (error) {
+			if (error instanceof PassiveConnectionDeferred)
+				return { kind: error.kind };
+			if (error instanceof CloudSessionError) {
+				if (error.code === "session_failed")
+					return { kind: "status", status: "failed" };
+				if (error.code === "session_expired")
+					return { kind: "status", status: "expired" };
+			}
+			throw error;
+		}
+	}
+
+	private async readHistory(
+		outerSessionId: string,
+		options: { resume?: false } = {},
+	): Promise<{ messages: unknown[]; status: string }> {
+		const known = this.knownSessions.get(outerSessionId);
 		if (known && isExpiredRecord(known)) {
 			// An expired session with no snapshot legitimately has no transcript.
-			return (await this.loadArchivedMessages(known)) ?? [];
+			return {
+				messages: (await this.loadArchivedMessages(known)) ?? [],
+				status: "expired",
+			};
 		}
 		try {
-			const connection = await this.ensureConnection(outerSessionId);
+			const connection = await this.ensureConnection(outerSessionId, options);
 			if (!connection.innerSessionId) {
-				return [];
+				if (options.resume === false)
+					throw new PassiveConnectionDeferred("deferred");
+				return { messages: [], status: connection.remote.status };
 			}
-			return (
-				await this.rehydrateAfterTransportDrop(outerSessionId, connection)
-			).messages;
+			const { messages } = await this.rehydrateAfterTransportDrop(
+				outerSessionId,
+				connection,
+			);
+			return {
+				messages,
+				status:
+					this.sessions.get(outerSessionId)?.status ?? connection.remote.status,
+			};
 		} catch (error) {
+			if (error instanceof PassiveConnectionDeferred) throw error;
 			// Fall back only to a real archive; [] on 404 would mask live failures.
 			const refreshed =
 				(await this.refreshKnownSession(outerSessionId)) ?? known;
@@ -2126,7 +2181,13 @@ export class CloudSessionController {
 					() => null,
 				);
 				if (archived !== null) {
-					return archived;
+					let status =
+						this.sessions.get(outerSessionId)?.status ?? refreshed.status;
+					if (error instanceof CloudSessionError) {
+						if (error.code === "session_expired") status = "expired";
+						else if (error.code === "session_failed") status = "failed";
+					}
+					return { messages: archived, status };
 				}
 			}
 			throw error;
@@ -2328,7 +2389,11 @@ export class CloudSessionController {
 
 	private async ensureConnection(
 		outerSessionId: string,
-		options: { createInner?: boolean; handoffSeed?: CloudHandoffSeed } = {},
+		options: {
+			createInner?: boolean;
+			handoffSeed?: CloudHandoffSeed;
+			resume?: false;
+		} = {},
 	): Promise<CloudConnection> {
 		const generation = this.sessionGenerations.get(outerSessionId) ?? 0;
 		const assertCurrent = () => {
@@ -2341,7 +2406,15 @@ export class CloudSessionController {
 		// initial root resolution finishes. Callers must await that resolution.
 		const pending = this.connectionPromises.get(outerSessionId);
 		const existing = pending
-			? await pending
+			? await pending.catch((error: unknown) => {
+					// A passive check must not prevent an explicit caller from resuming.
+					if (
+						error instanceof PassiveConnectionDeferred &&
+						options.resume !== false
+					)
+						return this.ensureConnection(outerSessionId, options);
+					throw error;
+				})
 			: this.connections.get(outerSessionId);
 		if (existing?.remote.status === "suspended") {
 			await this.disposeConnection(outerSessionId);
@@ -2380,10 +2453,11 @@ export class CloudSessionController {
 			let remote = await this.ensureKnownSession(outerSessionId);
 			assertCurrent();
 			if (
-				!this.pendingInitialTasks.has(outerSessionId) &&
-				(remote.sandboxType === "resumable" ||
-					remote.metadata.sandboxType === "resumable" ||
-					remote.status === "suspended")
+				options.resume === false ||
+				(!this.pendingInitialTasks.has(outerSessionId) &&
+					(remote.sandboxType === "resumable" ||
+						remote.metadata.sandboxType === "resumable" ||
+						remote.status === "suspended"))
 			) {
 				const status = await this.options.api
 					.status(outerSessionId)
@@ -2398,12 +2472,16 @@ export class CloudSessionController {
 								: error instanceof TypeError ||
 									(error instanceof Error && error.name === "TimeoutError");
 						if (!transient) throw error;
+						if (options.resume === false)
+							throw new PassiveConnectionDeferred("deferred");
 						assertCurrent();
 						return await this.refreshKnownSession(outerSessionId).catch(
 							() => undefined,
 						);
 					});
 				assertCurrent();
+				if (options.resume === false && !status?.status)
+					throw new PassiveConnectionDeferred("deferred");
 				if (status?.status) remote.status = status.status;
 				const live = this.sessions.get(outerSessionId);
 				if (
@@ -2415,6 +2493,14 @@ export class CloudSessionController {
 					live.endedAt = undefined;
 				}
 			}
+			// Enforce this at acquisition, not a preflight that can race suspension.
+			if (options.resume === false && remote.status === "suspended")
+				throw new PassiveConnectionDeferred("suspended");
+			if (
+				options.resume === false &&
+				!["ready", "active", "failed", "expired"].includes(remote.status)
+			)
+				throw new PassiveConnectionDeferred("deferred");
 			if (remote.status === "suspended") {
 				const controller = new AbortController();
 				const releaseController = this.trackProvisioningController(
@@ -2518,7 +2604,10 @@ export class CloudSessionController {
 				);
 			}
 			// Surface expiry before the proxy turns it into an upgrade failure.
-			if (isExpiredRecord(remote)) {
+			if (
+				isExpiredRecord(remote) ||
+				(options.resume === false && remote.status === "expired")
+			) {
 				throw new CloudSessionError(
 					"session_expired",
 					"This cloud session has expired; its sandbox is gone. Start a new cloud session to continue.",
@@ -2630,6 +2719,7 @@ export class CloudSessionController {
 				return connection;
 			} catch (error) {
 				if (
+					options.resume !== false &&
 					isHubReconnectableTransportError(error) &&
 					!this.disposed &&
 					!connection.disposed &&
