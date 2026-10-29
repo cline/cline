@@ -279,7 +279,7 @@ describe("SettingsScreen", () => {
 		);
 		expect(containsText(root, "Ada Example")).toBe(true);
 		expect(containsText(root, "dev@example.com")).toBe(true);
-		expect(containsText(root, "Current account: ")).toBe(true);
+		expect(containsText(root, "Personal")).toBe(true);
 		await act(async () =>
 			pressableFor(root, "Account and usage").props.onPress(),
 		);

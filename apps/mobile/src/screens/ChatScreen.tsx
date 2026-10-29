@@ -1187,12 +1187,7 @@ export function MessageRow({
 		);
 	if (message.parentWorkId)
 		return (
-			<View style={{ paddingLeft: 24 }}>
-				<AssistantMessage
-					message={message}
-					toolSearchReveal={toolSearchReveal}
-				/>
-			</View>
+			<AssistantMessage message={message} toolSearchReveal={toolSearchReveal} />
 		);
 	const body =
 		message.role === "user" ? (

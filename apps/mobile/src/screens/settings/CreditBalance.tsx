@@ -1,12 +1,14 @@
+import { RefreshCw } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { AppState, View } from "react-native";
 import { CloudAccountGateway } from "@/cloud/rest/CloudAccountGateway";
 import { cloudEnv } from "@/config/env";
 import { useCloudAccountScope, useCloudAuth } from "@/state/cloud-auth";
-import { Button, Text } from "@/ui";
+import { IconButton, Text, useTheme } from "@/ui";
 
 /** The selected billing account's balance; never fall back to Personal on failure. */
 export function CreditBalance() {
+	const theme = useTheme();
 	const { store } = useCloudAuth();
 	const { scope } = useCloudAccountScope();
 	const key = scope ? (scope.organizationId ?? "personal") : undefined;
@@ -51,38 +53,40 @@ export function CreditBalance() {
 	const current: typeof result =
 		result.key === key && scope ? result : { loading: true };
 	return (
-		<View style={{ gap: 6 }}>
-			<Text variant="small" weight="500">
-				{scope?.organizationId
-					? "Organization credit balance"
-					: "Credit balance"}
-			</Text>
-			{current.loading ? (
+		<View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+			<View style={{ flex: 1, gap: 4 }}>
 				<Text variant="caption" tone="muted">
-					Loading credit balance…
+					{scope?.organizationId
+						? "Organization credit balance"
+						: "Credit balance"}
 				</Text>
-			) : current.error ? (
-				<Text variant="caption" tone="muted">
-					Credit balance unavailable. Try again.
-				</Text>
-			) : (
-				<Text
-					variant="title"
-					accessibilityLabel={`Credit balance: ${current.dollars!.toFixed(2)} US dollars`}
-				>
-					{current.dollars! < 0 ? "−" : ""}$
-					{Math.abs(current.dollars!).toFixed(2)}
-				</Text>
-			)}
-			<Button
-				label={
+				{current.loading ? (
+					<Text variant="caption" tone="muted">
+						Loading credit balance…
+					</Text>
+				) : current.error ? (
+					<Text variant="caption" tone="muted">
+						Credit balance unavailable. Try again.
+					</Text>
+				) : (
+					<Text
+						variant="title"
+						accessibilityLabel={`Credit balance: ${current.dollars!.toFixed(2)} US dollars`}
+					>
+						{current.dollars! < 0 ? "−" : ""}$
+						{Math.abs(current.dollars!).toFixed(2)}
+					</Text>
+				)}
+			</View>
+			<IconButton
+				accessibilityLabel={
 					current.error ? "Retry credit balance" : "Refresh credit balance"
 				}
-				variant="ghost"
 				disabled={current.loading || !scope}
-				style={{ alignSelf: "flex-start" }}
 				onPress={() => refresh((value) => value + 1)}
-			/>
+			>
+				<RefreshCw size={16} color={theme.color.textMuted} />
+			</IconButton>
 		</View>
 	);
 }

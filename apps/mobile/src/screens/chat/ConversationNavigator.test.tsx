@@ -241,6 +241,11 @@ describe("conversation navigation", () => {
 		)[0]!;
 		const scrollTo = vi.fn();
 		horizontal.props.ref.current = { scrollTo };
+		act(() =>
+			vertical.props.onLayout({
+				nativeEvent: { layout: { width: 300, height: 200 } },
+			}),
+		);
 		act(() => vertical.props.onContentSizeChange(45000, 40));
 		act(() => horizontal.props.onContentSizeChange(45000, 40));
 		expect(scrollTo).toHaveBeenCalledWith(
@@ -290,20 +295,64 @@ describe("conversation navigation", () => {
 		const { root } = render(
 			<CodeBlock revealText={{ query: "180", sequence: 1 }}>{text}</CodeBlock>,
 		);
-		const vertical = root.findAll(
+		const vertical = root.find(
 			(node) => node.type === ScrollView && !node.props.horizontal,
-		)[0]!;
-		const horizontal = root.findAll(
+		);
+		const horizontal = root.find(
 			(node) => node.type === ScrollView && node.props.horizontal,
-		)[0]!;
+		);
 		const scrollTo = vi.fn();
 		vertical.props.ref.current = { scrollTo };
+		act(() =>
+			vertical.props.onLayout({
+				nativeEvent: { layout: { width: 300, height: 200 } },
+			}),
+		);
 		act(() => horizontal.props.onContentSizeChange(200, 3600));
 		act(() => vertical.props.onContentSizeChange(200, 3600));
-		expect(scrollTo).toHaveBeenCalledWith({ y: 3580, animated: false });
+		expect(scrollTo).toHaveBeenCalledWith({ y: 3400, animated: false });
 		expect(root.find((node) => node.type === CodeBlock).props.children).toBe(
 			text,
 		);
+	});
+	it.each([
+		{
+			name: "keeps a fitting result at the start",
+			text: "prefix needle",
+			width: 180,
+			x: 0,
+		},
+		{
+			name: "reveals an offscreen result without overscrolling",
+			text: `${"x".repeat(194)}needle`,
+			width: 1600,
+			x: 1300,
+		},
+	])("$name", ({ text, width, x }) => {
+		const { root } = render(
+			<CodeBlock revealText={{ query: "needle", sequence: 1 }}>
+				{text}
+			</CodeBlock>,
+		);
+		const vertical = root.find(
+			(node) => node.type === ScrollView && !node.props.horizontal,
+		);
+		const horizontal = root.find(
+			(node) => node.type === ScrollView && node.props.horizontal,
+		);
+		const scrollY = vi.fn();
+		const scrollX = vi.fn();
+		vertical.props.ref.current = { scrollTo: scrollY };
+		horizontal.props.ref.current = { scrollTo: scrollX };
+		act(() =>
+			vertical.props.onLayout({
+				nativeEvent: { layout: { width: 300, height: 100 } },
+			}),
+		);
+		act(() => horizontal.props.onContentSizeChange(width, 20));
+		act(() => vertical.props.onContentSizeChange(width, 20));
+		expect(scrollX).toHaveBeenCalledWith({ x, animated: false });
+		expect(scrollY).toHaveBeenCalledWith({ y: 0, animated: false });
 	});
 	it("indexes clean user prompts by default and finds text deep in assistant answers", () => {
 		expect(

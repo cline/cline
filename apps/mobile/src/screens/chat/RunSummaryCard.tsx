@@ -39,10 +39,11 @@ export function RunSummaryCard({
 			: outcome === "aborted"
 				? CircleSlash
 				: CircleX;
-	const tint = failed ? theme.color.danger : theme.feedback.success.fg;
+	const tint = failed ? theme.color.danger : theme.color.textMuted;
 	const duration = formatRunDuration(lastRun.startedAt, lastRun.endedAt);
 	const files = summary.files.slice(0, FILES_SHOWN);
 	const moreFiles = summary.files.length - files.length;
+	const hasDetails = failed || summary.failedCount > 0 || files.length > 0;
 	const headline = [
 		OUTCOME_COPY[outcome],
 		duration,
@@ -62,18 +63,22 @@ export function RunSummaryCard({
 			}`}
 			style={{
 				marginTop: 8,
-				borderWidth: 1,
-				borderColor: withAlpha(tint, 0.35),
+				borderWidth: hasDetails ? 1 : 0,
+				borderColor: failed ? withAlpha(tint, 0.35) : theme.color.border,
 				borderRadius: theme.radius.md,
-				backgroundColor: withAlpha(tint, 0.07),
-				paddingHorizontal: 12,
-				paddingVertical: 10,
+				backgroundColor: failed ? withAlpha(tint, 0.07) : "transparent",
+				paddingHorizontal: hasDetails ? 12 : 0,
+				paddingVertical: hasDetails ? 10 : 6,
 				gap: 6,
 			}}
 		>
 			<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
 				<Icon size={15} color={tint} />
-				<Text variant="small" weight="600" style={{ flex: 1 }}>
+				<Text
+					variant="small"
+					tone={failed ? "danger" : "muted"}
+					style={{ flex: 1 }}
+				>
 					{headline}
 				</Text>
 				{summary.additions > 0 || summary.deletions > 0 ? (

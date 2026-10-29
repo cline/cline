@@ -131,20 +131,18 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 			) : null}
 			{!loading && accounts.length > 0 ? (
 				<Text
-					variant="small"
+					variant="caption"
+					tone="muted"
 					accessibilityLabel={`Current account: ${visibleAccounts.find((account) => account.active)?.name ?? "Unavailable"}`}
 				>
-					Current account:{" "}
-					{visibleAccounts.find((account) => account.active)?.name ??
-						"Unavailable"}
+					{accounts.length > 1
+						? "Switch account"
+						: (visibleAccounts.find((account) => account.active)?.name ??
+							"Unavailable")}
 				</Text>
 			) : null}
-			{accounts.length > 1 ? (
-				<>
-					<Text variant="small" weight="500">
-						Accounts
-					</Text>
-					{visibleAccounts.map((account) => (
+			{accounts.length > 1
+				? visibleAccounts.map((account) => (
 						<Pressable
 							key={account.organizationId ?? "personal"}
 							accessibilityRole="radio"
@@ -175,9 +173,8 @@ function AccountSwitcherBody({ store }: { store: ClineAuthStore }) {
 								<Check size={15} color={theme.brand.violet} />
 							) : null}
 						</Pressable>
-					))}
-				</>
-			) : null}
+					))
+				: null}
 			{error ? (
 				<>
 					<Text variant="small" tone="danger" accessibilityRole="alert">
