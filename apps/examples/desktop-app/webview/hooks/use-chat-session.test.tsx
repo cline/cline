@@ -20,7 +20,7 @@ import {
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
-import { usePromptDraft } from "./use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -512,7 +512,7 @@ describe("useChatSession", () => {
 	});
 
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftCache();
 		let draft!: ReturnType<typeof usePromptDraft>;
 		function DraftHarness({ threadId }: { threadId: string }) {
 			current = useChatSession("local");
