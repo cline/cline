@@ -125,7 +125,7 @@ describe("Account settings switcher", () => {
 it.each([
 	"sign-out",
 	"newer selection",
-	"unmount",
+	"unmount then sign-out",
 ])("does not publish a pending account switch after %s", async (retirement) => {
 	const pending = Promise.withResolvers<void>();
 	mocks.switchAccount.mockReturnValue(pending.promise);
@@ -135,15 +135,29 @@ it.each([
 		if (retirement === "sign-out") screen.getScope().selectScope(undefined);
 		else if (retirement === "newer selection")
 			screen.getScope().selectScope({ organizationId: "new-scope" });
-		else screen.hide();
+		else {
+			screen.hide();
+			screen.getScope().selectScope(undefined);
+		}
 	});
 	await act(async () => pending.resolve());
 	expect(screen.getScope().scope).toEqual(
-		retirement === "sign-out"
-			? undefined
-			: retirement === "newer selection"
-				? { organizationId: "new-scope" }
-				: { organizationId: "org-1" },
+		retirement === "newer selection"
+			? { organizationId: "new-scope" }
+			: undefined,
 	);
+	screen.unmount();
+});
+
+it("finishes the selected account switch when Settings is left before the response", async () => {
+	const pending = Promise.withResolvers<void>();
+	mocks.switchAccount.mockReturnValue(pending.promise);
+	const screen = await mount();
+	act(() => screen.row("Personal")?.props.onPress());
+	act(() => screen.hide());
+	await act(async () => pending.resolve());
+	// The successful preference change belongs to the signed-in account, not
+	// the Settings route. Home must use the same account as the server.
+	expect(screen.getScope().scope).toEqual({ organizationId: undefined });
 	screen.unmount();
 });

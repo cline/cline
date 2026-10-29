@@ -1711,6 +1711,39 @@ it("restores the repository and model on a fresh Home opened through the Cloud s
 	expect(hoisted.createRemoteSession).not.toHaveBeenCalled();
 });
 
+it("keeps saved targets and new-task submission unavailable when the active account cannot be discovered", async () => {
+	hoisted.getValidAccessToken.mockResolvedValue("jwt");
+	hoisted.listAccounts.mockRejectedValue(
+		new Error("Account discovery offline"),
+	);
+	const { root } = await mount({
+		cloudTargets: [
+			{
+				repoUrl: "https://github.com/team/repo",
+				label: "team/repo",
+				modelId: "remembered/model",
+			},
+		],
+	});
+	const composer = root.find((node) => node.type === HomeComposer);
+	expect(composer.props.busy).toBe(true);
+	expect(composer.props.target).toBeUndefined();
+	expect(composer.props.onChooseTarget).toBeUndefined();
+	expect(hoisted.listRepositories).not.toHaveBeenCalled();
+	expect(hoisted.createRemoteSession).not.toHaveBeenCalled();
+	act(() => composer.props.onDraftChange("Keep my private draft"));
+	expect(findByLabel(root, "Retry")).toBeDefined();
+	hoisted.listAccounts.mockResolvedValue([{ name: "Personal", active: true }]);
+	await act(async () => findByLabel(root, "Retry")?.props.onPress());
+	const recovered = root.find((node) => node.type === HomeComposer);
+	expect(recovered.props.busy).toBe(false);
+	expect(recovered.props.target.cloud.repoUrl).toBe(
+		"https://github.com/team/repo",
+	);
+	expect(recovered.props.draft).toBe("Keep my private draft");
+	expect(hoisted.createRemoteSession).not.toHaveBeenCalled();
+});
+
 it("settles missing-default thinking capability after the actual gateway catalog loads, without guessing support", async () => {
 	hoisted.getValidAccessToken.mockResolvedValue("jwt");
 	let releaseCatalog!: (response: Response) => void;

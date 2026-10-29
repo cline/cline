@@ -564,6 +564,7 @@ function ChatSessionSidebar({
 	onClose(): void;
 }) {
 	const router = useRouter();
+	const navigation = useNavigation();
 	const { save } = useEndpoints();
 	const { touch } = useLastOpened();
 	const {
@@ -577,7 +578,7 @@ function ChatSessionSidebar({
 		activeStatus,
 	});
 	const sessionActions = useCloudSessionActions(cloud.refresh, (key) => {
-		if (key === activeKey) {
+		if (navigation.isFocused() && key === activeKey) {
 			onClose();
 			router.dismissTo("/");
 		}

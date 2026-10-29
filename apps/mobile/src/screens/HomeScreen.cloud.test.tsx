@@ -12,6 +12,7 @@ import { act, type ReactTestInstance } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CloudAccount } from "@/cloud/rest/CloudAccountGateway";
 import { cloudEnv } from "@/config/env";
+import { CloudAuthProvider } from "@/state/cloud-auth";
 import { ExecutionTargetStore } from "@/state/execution-target-store";
 import { ExecutionTargetsProvider } from "@/state/execution-targets";
 import { findAllByType, render } from "../ui/__testing__/render";
@@ -90,7 +91,11 @@ function openUrlMock() {
 }
 
 async function mountHome() {
-	const result = render(<HomeScreen onOpenSession={() => {}} />);
+	const result = render(
+		<CloudAuthProvider>
+			<HomeScreen onOpenSession={() => {}} />
+		</CloudAuthProvider>,
+	);
 	await act(async () => {});
 	if (
 		result.root.findAll(
@@ -125,9 +130,11 @@ describe("HomeScreen cloud sign-in", () => {
 		hoisted.getValidAccessToken.mockResolvedValueOnce(null);
 		hoisted.listAccounts.mockReturnValue(accounts.promise);
 		const { root, unmount } = render(
-			<ExecutionTargetsProvider store={targets}>
-				<HomeScreen onOpenSession={() => {}} />
-			</ExecutionTargetsProvider>,
+			<CloudAuthProvider>
+				<ExecutionTargetsProvider store={targets}>
+					<HomeScreen onOpenSession={() => {}} />
+				</ExecutionTargetsProvider>
+			</CloudAuthProvider>,
 		);
 		await act(async () => {});
 		await act(async () => press(root, "Sign in to Cline"));

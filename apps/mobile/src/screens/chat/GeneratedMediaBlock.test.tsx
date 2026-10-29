@@ -1,5 +1,5 @@
 import type { GeneratedMedia } from "@cline/shared";
-import { useAudioPlayer } from "expo-audio";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { File } from "expo-file-system";
 import { useVideoPlayer } from "expo-video";
 import { AppState } from "react-native";
@@ -281,5 +281,187 @@ describe("generated audio and video", () => {
 			root.findAll((node) => node.props.accessibilityLabel === "Retry video")
 				.length,
 		).toBeGreaterThan(0);
+	});
+});
+
+describe("native playback loading recovery", () => {
+	const audioImplementation = vi
+		.mocked(useAudioPlayerStatus)
+		.getMockImplementation();
+	const videoImplementation = vi.mocked(useVideoPlayer).getMockImplementation();
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => {
+		vi.mocked(useAudioPlayerStatus).mockImplementation(audioImplementation!);
+		vi.mocked(useVideoPlayer).mockImplementation(videoImplementation!);
+		vi.useRealTimers();
+	});
+	function mountAudio() {
+		let status = {
+			isLoaded: false,
+			playing: false,
+			currentTime: 0,
+			duration: 0,
+			didJustFinish: false,
+			error: null,
+			playbackState: "unknown",
+		};
+		vi.mocked(useAudioPlayerStatus).mockImplementation(
+			() => status as ReturnType<typeof useAudioPlayerStatus>,
+		);
+		const media: GeneratedMedia = {
+			id: "guard-audio",
+			modality: "audio",
+			mediaType: "audio/mpeg",
+			source: { type: "url", url: "https://example.com/slow.mp3" },
+		};
+		const mounted = render(<GeneratedMediaBlock media={media} />);
+		const press = (label: string) =>
+			act(() =>
+				mounted.root
+					.findAll(
+						(n) =>
+							typeof n.type === "string" &&
+							n.props.accessibilityLabel === label,
+					)
+					.at(0)!
+					.props.onPress(),
+			);
+		const has = (label: string) =>
+			mounted.root.findAll(
+				(n) =>
+					typeof n.type === "string" && n.props.accessibilityLabel === label,
+			).length > 0;
+		const update = (next: Partial<typeof status>) => {
+			status = { ...status, ...next };
+			act(() => mounted.renderer.update(<GeneratedMediaBlock media={media} />));
+		};
+		press("Load audio");
+		return { ...mounted, press, has, update };
+	}
+	it("turns a missing native audio terminal event into retry, latches failure against late ready, and resets only on explicit retry", () => {
+		const m = mountAudio();
+		act(() => {
+			vi.advanceTimersByTime(14999);
+		});
+		expect(m.has("Retry audio")).toBe(false);
+		act(() => {
+			vi.advanceTimersByTime(1);
+		});
+		expect(m.has("Retry audio")).toBe(true);
+		m.update({ isLoaded: true });
+		expect(m.has("Retry audio")).toBe(true);
+		m.update({ isLoaded: false });
+		m.press("Retry audio");
+		expect(m.has("Retry audio")).toBe(false);
+		act(() => {
+			vi.advanceTimersByTime(14999);
+		});
+		expect(m.has("Retry audio")).toBe(false);
+		act(() => {
+			vi.advanceTimersByTime(1);
+		});
+		expect(m.has("Retry audio")).toBe(true);
+		expect(
+			vi.mocked(useAudioPlayer).mock.results.at(-1)!.value.play,
+		).not.toHaveBeenCalled();
+		m.unmount();
+	});
+	it("accepts a valid slow audio load before the deadline and cancels the guard after readiness", () => {
+		const m = mountAudio();
+		act(() => {
+			vi.advanceTimersByTime(14000);
+		});
+		m.update({ isLoaded: true, duration: 5 });
+		act(() => {
+			vi.advanceTimersByTime(60000);
+		});
+		expect(m.has("Retry audio")).toBe(false);
+		expect(m.has("Play audio")).toBe(true);
+		expect(
+			vi.mocked(useAudioPlayer).mock.results.at(-1)!.value.play,
+		).not.toHaveBeenCalled();
+		m.unmount();
+	});
+	it("uses an already-failed native audio snapshot even when its one-shot error event was missed", () => {
+		const m = mountAudio();
+		m.update({ playbackState: "failed" });
+		expect(m.has("Retry audio")).toBe(true);
+		m.update({ playbackState: "readyToPlay", isLoaded: true });
+		expect(m.has("Retry audio")).toBe(true);
+		m.unmount();
+	});
+	it("clears the pending audio deadline when the user closes the playback surface", () => {
+		const m = mountAudio();
+		expect(vi.getTimerCount()).toBeGreaterThan(0);
+		m.press("Close audio");
+		expect(vi.getTimerCount()).toBe(0);
+		act(() => {
+			vi.advanceTimersByTime(60000);
+		});
+		expect(m.has("Load audio")).toBe(true);
+		expect(m.has("Retry audio")).toBe(false);
+		m.unmount();
+	});
+	it("bounds video loading without a terminal event and rejects late ready until explicit retry", () => {
+		let listener: ((event: { status: string }) => void) | undefined;
+		const player = {
+			status: "loading",
+			play: vi.fn(),
+			pause: vi.fn(),
+			addListener: vi.fn((_event: string, next: typeof listener) => {
+				listener = next;
+				return { remove: vi.fn() };
+			}),
+		};
+		vi.mocked(useVideoPlayer).mockReturnValue(
+			player as unknown as ReturnType<typeof useVideoPlayer>,
+		);
+		const m = render(
+			<GeneratedMediaBlock
+				media={{
+					id: "guard-video",
+					modality: "video",
+					mediaType: "video/mp4",
+					source: { type: "url", url: "https://example.com/slow.mp4" },
+				}}
+			/>,
+		);
+		const press = (label: string) =>
+			act(() =>
+				m.root
+					.findAll(
+						(n) =>
+							typeof n.type === "string" &&
+							n.props.accessibilityLabel === label,
+					)
+					.at(0)!
+					.props.onPress(),
+			);
+		const has = (label: string) =>
+			m.root.findAll(
+				(n) =>
+					typeof n.type === "string" && n.props.accessibilityLabel === label,
+			).length > 0;
+		press("Load video");
+		act(() => {
+			vi.advanceTimersByTime(15000);
+		});
+		expect(has("Retry video")).toBe(true);
+		act(() => listener?.({ status: "readyToPlay" }));
+		expect(has("Retry video")).toBe(true);
+		press("Retry video");
+		expect(has("Retry video")).toBe(false);
+		act(() => {
+			vi.advanceTimersByTime(5000);
+		});
+		act(() => listener?.({ status: "readyToPlay" }));
+		act(() => {
+			vi.advanceTimersByTime(60000);
+		});
+		expect(has("Retry video")).toBe(false);
+		expect(player.play).not.toHaveBeenCalled();
+		press("Close video");
+		expect(vi.getTimerCount()).toBe(0);
+		m.unmount();
 	});
 });

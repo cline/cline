@@ -52,17 +52,35 @@ async function mount() {
 	const refresh = vi.fn();
 	const deleted = vi.fn();
 	let actions!: ReturnType<typeof useCloudSessionActions>;
-	function Harness() {
-		actions = useCloudSessionActions(refresh, deleted);
+	function Harness({
+		onRefresh = refresh,
+		onClosed = deleted,
+	}: {
+		onRefresh?: () => void;
+		onClosed?: (key: string) => void;
+	}) {
+		actions = useCloudSessionActions(onRefresh, onClosed);
 		return null;
 	}
-	render(
+	const screen = render(
 		<EndpointsProvider store={store}>
 			<Harness />
 		</EndpointsProvider>,
 	);
 	await act(async () => {});
-	return { actions, store, refresh, deleted };
+	return {
+		...screen,
+		actions,
+		store,
+		refresh,
+		deleted,
+		changeCallbacks: (onRefresh: () => void, onClosed: (key: string) => void) =>
+			screen.renderer.update(
+				<EndpointsProvider store={store}>
+					<Harness onRefresh={onRefresh} onClosed={onClosed} />
+				</EndpointsProvider>,
+			),
+	};
 }
 describe("Cloud session actions", () => {
 	it("stops a workspace without deleting saved history and closes its retained connection only on success", async () => {
@@ -116,4 +134,76 @@ describe("Cloud session actions", () => {
 		expect(store.get(row.key)).toBeUndefined();
 		expect(deleted).toHaveBeenCalledWith(row.key);
 	});
+});
+
+it.each([
+	"stop",
+	"delete",
+])("uses the current UI callbacks after delayed %s while finalizing the original row", async (kind) => {
+	let finish!: () => void;
+	const pending = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	(kind === "stop"
+		? mocks.suspendRemoteSession
+		: mocks.deleteRemoteSession
+	).mockReturnValueOnce(pending);
+	const screen = await mount();
+	const latestRefresh = vi.fn(),
+		latestClosed = vi.fn();
+	let action!: Promise<void>;
+	act(() => {
+		action =
+			kind === "stop"
+				? screen.actions.onStopWorkspace(row)
+				: screen.actions.onDeleteSession(row);
+	});
+	act(() => screen.changeCallbacks(latestRefresh, latestClosed));
+	await act(async () => {
+		finish();
+		await action;
+	});
+	expect(screen.refresh).not.toHaveBeenCalled();
+	expect(screen.deleted).not.toHaveBeenCalled();
+	expect(latestRefresh).toHaveBeenCalledOnce();
+	expect(latestClosed).toHaveBeenCalledExactlyOnceWith(row.key);
+	if (kind === "delete") expect(screen.store.get(row.key)).toBeUndefined();
+	else expect(screen.store.get(row.key)).toBeDefined();
+});
+
+it.each([
+	"stop",
+	"delete",
+])("finishes delayed %s cleanup after unmount without publishing UI callbacks", async (kind) => {
+	let finish!: () => void;
+	const pending = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	(kind === "stop"
+		? mocks.suspendRemoteSession
+		: mocks.deleteRemoteSession
+	).mockReturnValueOnce(pending);
+	const screen = await mount();
+	const removeLaunch = vi.spyOn(cloudLaunches, "remove");
+	try {
+		let action!: Promise<void>;
+		act(() => {
+			action =
+				kind === "stop"
+					? screen.actions.onStopWorkspace(row)
+					: screen.actions.onDeleteSession(row);
+		});
+		screen.unmount();
+		await act(async () => {
+			finish();
+			await action;
+		});
+		expect(screen.refresh).not.toHaveBeenCalled();
+		expect(screen.deleted).not.toHaveBeenCalled();
+		expect(removeLaunch).toHaveBeenCalledExactlyOnceWith(row.key);
+		if (kind === "delete") expect(screen.store.get(row.key)).toBeUndefined();
+		else expect(screen.store.get(row.key)).toBeDefined();
+	} finally {
+		removeLaunch.mockRestore();
+	}
 });

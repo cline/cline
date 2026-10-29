@@ -24,6 +24,109 @@ import {
 
 afterEach(clearAllSessionDrafts);
 
+it("retires private drafts and pending submissions when token resolution signs out automatically", async () => {
+	const store = new ClineAuthStore({
+		storage: createInMemoryAuthStorage({
+			access: "expired",
+			refresh: "expired-refresh",
+			expires: 0,
+		}),
+		resolveCredentials: async () => null,
+	});
+	const endpoints = new SavedEndpointsStore();
+	await endpoints.save({
+		mode: "cloud",
+		url: "https://fixture.invalid/workspace",
+		pendingInitialMessage: "Old account pending input",
+	});
+	const mounted = render(
+		<EndpointsProvider store={endpoints}>
+			<CloudAuthProvider store={store}>
+				<></>
+			</CloudAuthProvider>
+		</EndpointsProvider>,
+	);
+	await act(async () => {});
+	writeSessionDraft("old-account-chat", "Old account private text");
+	writeSessionDraftImages("old-account-chat", [
+		"data:image/png;base64,cHJpdmF0ZQ==",
+	]);
+	const launchId = stagePendingHomeSubmission({
+		text: "Old account initial prompt",
+	});
+	await act(async () => {
+		expect(await store.getValidAccessToken()).toBeNull();
+	});
+	expect(readSessionDraft("old-account-chat")).toBeUndefined();
+	expect(readSessionDraftImages("old-account-chat")).toBeUndefined();
+	expect(readPendingHomeSubmission(launchId)).toBeUndefined();
+	expect(endpoints.list()[0].pendingInitialMessage).toBeUndefined();
+	mounted.unmount();
+});
+
+it.each([
+	{ previousId: "person-a", nextId: "person-b", retire: true },
+	{ previousId: undefined, nextId: "person-b", retire: true },
+	{ previousId: "person-a", nextId: "person-a", retire: false },
+	{ previousId: null, nextId: "person-b", retire: false },
+])("protects private input on credential replacement ($previousId → $nextId, retire=$retire)", async ({
+	previousId,
+	nextId,
+	retire,
+}) => {
+	const credentials = {
+		access: "old",
+		refresh: "old-refresh",
+		expires: Date.now() + 60_000,
+		...(previousId ? { accountId: previousId } : {}),
+	};
+	const store = new ClineAuthStore({
+		storage: createInMemoryAuthStorage(
+			previousId === null ? null : credentials,
+		),
+	});
+	await store.getCredentials();
+	const endpoints = new SavedEndpointsStore();
+	await endpoints.save({
+		mode: "cloud",
+		url: "https://fixture.invalid/workspace",
+		pendingInitialMessage: "Private input",
+	});
+	const mounted = render(
+		<EndpointsProvider store={endpoints}>
+			<CloudAuthProvider store={store}>
+				<></>
+			</CloudAuthProvider>
+		</EndpointsProvider>,
+	);
+	await act(async () => {});
+	writeSessionDraft("identity-test", "Private input");
+	writeSessionDraftImages("identity-test", [
+		"data:image/png;base64,cHJpdmF0ZQ==",
+	]);
+	const launchId = stagePendingHomeSubmission({ text: "Private input" });
+	await act(async () => {
+		await store.setCredentials({
+			...credentials,
+			access: "new",
+			accountId: nextId,
+		});
+	});
+	expect(readSessionDraft("identity-test")).toBe(
+		retire ? undefined : "Private input",
+	);
+	expect(readSessionDraftImages("identity-test")).toEqual(
+		retire ? undefined : ["data:image/png;base64,cHJpdmF0ZQ=="],
+	);
+	expect(readPendingHomeSubmission(launchId)?.text).toBe(
+		retire ? undefined : "Private input",
+	);
+	expect(endpoints.list()[0].pendingInitialMessage).toBe(
+		retire ? undefined : "Private input",
+	);
+	mounted.unmount();
+});
+
 describe("explicit Cloud sign-out privacy", () => {
 	it("invalidates credentials before waiting for slow saved-endpoint cleanup", async () => {
 		const store = new ClineAuthStore({ storage: createInMemoryAuthStorage() });
@@ -54,6 +157,7 @@ describe("explicit Cloud sign-out privacy", () => {
 			pending = auth.signOut();
 		});
 		expect(signOut).toHaveBeenCalledOnce();
+		expect(endpoints.retirePendingInitialMessages).toHaveBeenCalledOnce();
 		await act(async () => {
 			release();
 			await pending;

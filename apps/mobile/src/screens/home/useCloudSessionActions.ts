@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from "react";
 import { CloudSessionGateway, cloudAuthStore } from "@/cloud";
 import { cloudEnv } from "@/config/env";
 import { cloudLaunches } from "@/connection/cloud-launches";
@@ -11,6 +12,21 @@ export function useCloudSessionActions(
 	onClosed?: (key: string) => void,
 ) {
 	const { save, remove } = useEndpoints();
+	const mounted = useRef(true);
+	const callbacks = useRef({ onRefresh, onClosed });
+	callbacks.current = { onRefresh, onClosed };
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+	const publish = useCallback((closedKey?: string) => {
+		if (!mounted.current) return;
+		callbacks.current.onRefresh();
+		if (mounted.current && closedKey !== undefined)
+			callbacks.current.onClosed?.(closedKey);
+	}, []);
 	const gatewayFor = (row: SessionRow) => {
 		if (row.descriptor.mode !== "cloud" || !row.descriptor.remoteSessionId)
 			throw new Error("Only Cloud sessions can be changed here.");
@@ -29,8 +45,7 @@ export function useCloudSessionActions(
 				asRemoteSessionId(row.descriptor.remoteSessionId!),
 			);
 			cloudLaunches.remove(row.key);
-			onRefresh();
-			onClosed?.(row.key);
+			publish(row.key);
 		},
 		onRenameSession: async (row: SessionRow, title: string) => {
 			const gateway = gatewayFor(row);
@@ -45,7 +60,7 @@ export function useCloudSessionActions(
 				label: title,
 				sessionTitle: title,
 			}).catch(() => {});
-			onRefresh();
+			publish();
 		},
 		onDeleteSession: async (row: SessionRow) => {
 			const gateway = gatewayFor(row);
@@ -54,8 +69,7 @@ export function useCloudSessionActions(
 			);
 			await remove(row.key).catch(() => {});
 			cloudLaunches.remove(row.key);
-			onRefresh();
-			onClosed?.(row.key);
+			publish(row.key);
 		},
 	};
 }

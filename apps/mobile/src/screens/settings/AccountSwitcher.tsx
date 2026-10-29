@@ -74,11 +74,9 @@ export function AccountSwitcher() {
 		setError(undefined);
 		try {
 			await gateway.switchAccount(account.organizationId);
-			if (
-				!mounted.current ||
-				!publishSelection({ organizationId: account.organizationId })
-			)
-				return;
+			// The server preference change survives leaving Settings. Publish it to
+			// Home too; the selection lease still rejects sign-out/newer selections.
+			if (!publishSelection({ organizationId: account.organizationId })) return;
 			if (mounted.current)
 				setAccounts((current) =>
 					current.map((row) => ({

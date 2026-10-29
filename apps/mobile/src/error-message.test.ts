@@ -2,6 +2,36 @@ import { describe, expect, it } from "vitest";
 import { errorDetail, userErrorMessage } from "./error-message";
 
 describe("userErrorMessage", () => {
+	it("replaces Android native fetch IO failures with delivery uncertainty while retaining diagnostics", () => {
+		const nativeMessage =
+			"fetch failed: java.io.IOException: unexpected end of stream on http://127.0.0.1:4783/...";
+		for (const error of [
+			new TypeError(nativeMessage),
+			nativeMessage,
+			{ error: { message: nativeMessage } },
+			JSON.stringify({ error: { message: nativeMessage } }),
+		]) {
+			expect(userErrorMessage(error, "Couldn't stop this workspace.")).toBe(
+				"The request was interrupted. Check whether it completed before trying again.",
+			);
+			expect(errorDetail(error)).toBe(nativeMessage);
+		}
+		for (const message of [
+			"java.io.IOException: Connection reset (at okhttp3.internal.http1.Http1ExchangeCodec)",
+			"fetch failed: java.io.EOFException: unexpected end of stream",
+			"fetch failed: java.net.SocketException: Connection reset",
+		]) {
+			expect(userErrorMessage(new Error(message), "Fallback")).toBe(
+				"The request was interrupted. Check whether it completed before trying again.",
+			);
+		}
+		for (const message of [
+			"Could not stop this workspace (503).",
+			"The tool reported java.io.IOException while reading your file.",
+		]) {
+			expect(userErrorMessage(new Error(message), "Fallback")).toBe(message);
+		}
+	});
 	it("replaces the native Expo canceled-fetch stack with honest delivery uncertainty", () => {
 		const nativeMessage =
 			"fetch failed: FetchRequestCanceledException: Fetch request has been canceled (at Expo/NativeResponse.swift:63)";

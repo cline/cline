@@ -4,6 +4,12 @@ export const FAULTS = new Set([
 	"auth-expired",
 	"auth-error",
 	"auth-authorize-error",
+	"auth-short-credentials",
+	"auth-refresh-invalid",
+	"accounts-error",
+	"account-switch-error",
+	"account-switch-delay-ms",
+	"list-delay-ms",
 	"create-delay-ms",
 	"create-pending-ms",
 	"create-error",
@@ -40,6 +46,11 @@ export const FAULTS = new Set([
 export class FixtureFaults {
 	private scopes = new Map<string, Map<string, number>>();
 	set(scope: string, fault: string, value: number) {
+		if (
+			["auth-short-credentials", "auth-refresh-invalid"].includes(fault) &&
+			(scope !== "global" || (value !== 0 && value !== 1))
+		)
+			throw new Error(`${fault} requires global scope and value0 or1`);
 		if (
 			["status-auth-error", "mutation-delay-ms"].includes(fault) &&
 			(!scope.trim() || scope === "global")
