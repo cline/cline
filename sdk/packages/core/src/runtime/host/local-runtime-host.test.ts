@@ -294,6 +294,86 @@ describe("LocalRuntimeHost", () => {
 	});
 
 	it.each([
+		"bootstrap",
+		"initial turn",
+	])("rejects a competing start prompt during %s without waiting for the original start", async (phase) => {
+		let release!: () => void;
+		let entered!: () => void;
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const pause = async () => {
+			entered();
+			await barrier;
+		};
+		const runtimeBuilder = {
+			build: vi.fn(async () => {
+				if (phase === "bootstrap") await pause();
+				return { tools: [], shutdown: vi.fn() };
+			}),
+		};
+		const agent = {
+			run: vi.fn(async () => {
+				if (phase === "initial turn") await pause();
+				return createResult();
+			}),
+			continue: vi.fn(),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			prompt: "Original prompt",
+			config: createConfig({
+				sessionId: "concurrent-start",
+				cwd: isolatedHomeDir,
+				workspaceRoot: isolatedHomeDir,
+			}),
+		});
+		const original = manager.startSession(input);
+		let reopening: ReturnType<typeof manager.startSession> | undefined;
+		try {
+			await reached;
+			await expect(
+				manager.startSession({ ...input, prompt: "Competing prompt" }),
+			).rejects.toMatchObject({ code: "session_run_in_progress" });
+			expect(agent.abort).not.toHaveBeenCalled();
+			expect(agent.shutdown).not.toHaveBeenCalled();
+			reopening = manager.startSession({ ...input, prompt: undefined });
+			release();
+			const first = await original;
+			await expect(reopening).resolves.toMatchObject({
+				sessionId: first.sessionId,
+				reusedActiveSession: true,
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			expect(agent.run).toHaveBeenCalledOnce();
+			expect(agent.run.mock.calls[0]).toContain(
+				'<user_input mode="act">Original prompt</user_input>',
+			);
+		} finally {
+			release();
+			await original;
+			await reopening;
+			await manager.dispose();
+		}
+	});
+
+	it.each([
 		"user",
 		"scheduled",
 	])("reserves a %s turn during credential preparation and queues competing user input", async (firstSource) => {

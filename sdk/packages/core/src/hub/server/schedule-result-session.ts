@@ -54,6 +54,7 @@ export async function prepareScheduleResultSession(
 					"*": { autoApprove: metadata.autoApproveTools === true },
 				},
 				runtimeOptions: {
+					checkpointEnabled: metadata.checkpointEnabled === true,
 					autoApproveTools: metadata.autoApproveTools === true,
 				},
 			},

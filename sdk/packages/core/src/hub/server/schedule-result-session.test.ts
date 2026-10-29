@@ -98,6 +98,30 @@ describe("scheduled result session restoration", () => {
 			}),
 		);
 	});
+	it.each([
+		true,
+		false,
+		undefined,
+	])("restores the saved checkpoint setting %s into the runtime configuration", async (saved) => {
+		const { ctx, run, startSession, session } = fixture();
+		session.metadata = { ...session.metadata, checkpointEnabled: saved };
+		await prepareScheduleResultSession(ctx, run, vi.fn());
+		expect(startSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					checkpoint: saved === true ? { enabled: true } : undefined,
+				}),
+				...(saved === undefined
+					? {}
+					: {
+							sessionMetadata: expect.objectContaining({
+								checkpointEnabled: saved,
+							}),
+						}),
+			}),
+		);
+	});
+
 	it("attaches an ordinary reopening client to a reused restored session and returns its snapshot", async () => {
 		const { ctx, startSession } = fixture();
 		startSession.mockResolvedValueOnce({

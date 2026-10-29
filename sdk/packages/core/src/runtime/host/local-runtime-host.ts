@@ -514,6 +514,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const sessionId = requestedSessionId || createSessionId();
 		const pendingStart = this.sessionStarts.get(sessionId);
 		if (pendingStart) {
+			if (input.prompt?.trim()) throw new SessionRunInProgressError();
 			const result = await pendingStart;
 			this.applySessionClientSetup(sessionId, input);
 			return { ...result, reusedActiveSession: true };

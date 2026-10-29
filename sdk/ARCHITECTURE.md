@@ -1024,13 +1024,14 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   ledger preserves idempotency after terminal queue rows expire; acknowledged
   outbox rows discard their prompt bodies.
 - The queue executor restores a saved destination using its original ID,
-  history, compaction state, workspace, model, and explicit saved approval policy
-  (including `autoApprove: false`),
+  history, compaction state, workspace, model, saved checkpoint setting, and
+  explicit saved approval policy (including `autoApprove: false`),
   through ordinary Hub session bootstrap. A resident runtime is reused without
   replacing its live history or emitting another creation event. Clients joining
   a pending restoration or reattaching to a busy runtime install their tool
   executors and hooks without replacing the conversation or compaction state.
-  Result turns
+  Concurrent starts with a prompt reject immediately while the original start is
+  pending; promptless clients can wait and reattach. Result turns
   explicitly request immediate admission: a busy runtime rejects before adding
   the prompt to its in-memory queue, leaving the durable result queued for
   retry. A host-level turn reservation covers asynchronous preparation through
