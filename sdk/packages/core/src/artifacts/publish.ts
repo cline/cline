@@ -105,6 +105,7 @@ export function createPublishArtifactsTool({
 }) {
 	return createTool<unknown, { files: ArtifactPublicationResult[] }>({
 		name: "publish_artifacts",
+		resultPolicy: "cache-oversized",
 		description:
 			"Publish selected files to make them available outside the current workspace. " +
 			"Requires absolute file paths. Returns artifact IDs for successful publications. " +
