@@ -134,7 +134,7 @@ test("pins readers to a complete version across replacement and concurrent write
 		await (await f.fetch({ artifactId: "report" })).arrayBuffer(),
 	);
 	assert.ok(final.equals(old) || final.equals(next));
-	assert.equal((await readdir(f.directory)).length, 1);
+	assert.equal((await readdir(f.directory)).length, 5);
 });
 
 test("rejects changed sources and cancelled writes without replacing stored bytes", async (t) => {
@@ -170,7 +170,7 @@ test("rejects changed sources and cancelled writes without replacing stored byte
 		await (await f.fetch({ artifactId: "report" })).text(),
 		"original",
 	);
-	assert.equal((await readdir(f.directory)).length, 1);
+	assert.equal((await readdir(f.directory)).length, 2);
 });
 
 test("streams cancellable reads and supports a fresh read afterward", async (t) => {
@@ -206,10 +206,7 @@ test("cancels a pending read and closes its file handle", async (t) => {
 	const f = await fixture(t);
 	await writeFile(f.source, "data");
 	await f.publish();
-	const handle = await fsPromises.open(
-		join(f.directory, (await readdir(f.directory))[0]),
-		"r",
-	);
+	const handle = await fsPromises.open(f.source, "r");
 	const stream = handle.createReadStream();
 	const stalled = vi.spyOn(stream, "read").mockReturnValue(null);
 	const open = vi.spyOn(fsPromises, "open").mockResolvedValueOnce(handle);
@@ -262,7 +259,67 @@ for (const code of ["CANCELLED", "FILE_CHANGED"]) {
 			await (await f.fetch({ artifactId: "report" })).text(),
 			"original",
 		);
-		assert.equal((await readdir(f.directory)).length, 1);
+		assert.equal((await readdir(f.directory)).length, 2);
+	});
+}
+
+test("rejects a reference that names a path instead of a generation", async (t) => {
+	const f = await fixture(t);
+	await writeFile(f.source, "data");
+	await f.publish();
+	const reference = (await readdir(f.directory)).find(
+		(name) => !name.includes("."),
+	);
+	assert.ok(reference);
+	await writeFile(join(f.directory, reference), "../source.bin");
+	await assert.rejects(
+		f.fetch({ artifactId: "report" }),
+		/Invalid local artifact generation/,
+	);
+});
+
+for (const scenario of ["retry", "abort", "exhaust"]) {
+	test(`handles Windows reference contention (${scenario}) without losing committed bytes`, async (t) => {
+		const f = await fixture(t);
+		await writeFile(f.source, "original");
+		await f.publish();
+		await writeFile(f.source, "replacement");
+		const controller = new AbortController();
+		const platform = process.platform;
+		Object.defineProperty(process, "platform", { value: "win32" });
+		const rename = fsPromises.rename;
+		let attempts = 0;
+		const spy = vi
+			.spyOn(fsPromises, "rename")
+			.mockImplementation(async (...args) => {
+				attempts++;
+				if (scenario === "retry" && attempts === 3) return rename(...args);
+				if (scenario === "abort") controller.abort();
+				throw Object.assign(new Error("Sharing violation"), { code: "EPERM" });
+			});
+		try {
+			const result = await f.publish("report", controller.signal);
+			if (scenario === "retry") assert.ok(!("error" in result.files[0]));
+			else {
+				assert.ok("error" in result.files[0]);
+				assert.equal(
+					result.files[0].error.code,
+					scenario === "abort" ? "CANCELLED" : "WRITE_FAILED",
+				);
+			}
+			assert.equal(attempts, scenario === "abort" ? 1 : 3);
+		} finally {
+			spy.mockRestore();
+			Object.defineProperty(process, "platform", { value: platform });
+		}
+		assert.equal(
+			await (await f.fetch({ artifactId: "report" })).text(),
+			scenario === "retry" ? "replacement" : "original",
+		);
+		assert.equal(
+			(await readdir(f.directory)).length,
+			scenario === "retry" ? 3 : 2,
+		);
 	});
 }
 

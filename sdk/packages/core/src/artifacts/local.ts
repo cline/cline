@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { pipeline } from "node:stream/promises";
+import { setTimeout } from "node:timers/promises";
+import { writeFileAtomic } from "../session/stores/atomic-file";
 import type { ArtifactFetcher } from "./fetch";
 import {
 	ArtifactPublicationError,
@@ -23,6 +25,31 @@ function artifactPaths(directory: string) {
 		);
 }
 
+async function commitGeneration(
+	path: string,
+	generation: string,
+	signal?: AbortSignal,
+) {
+	for (let attempt = 0; ; attempt++) {
+		signal?.throwIfAborted();
+		try {
+			await writeFileAtomic(path, generation);
+			return;
+		} catch (error) {
+			// Windows may briefly hold the reference open while another reader resolves it.
+			const code =
+				error instanceof Error && "code" in error ? error.code : undefined;
+			if (
+				attempt === 2 ||
+				process.platform !== "win32" ||
+				(code !== "EPERM" && code !== "EACCES" && code !== "EBUSY")
+			)
+				throw error;
+			await setTimeout(25 * (attempt + 1), undefined, { signal });
+		}
+	}
+}
+
 export function createLocalArtifactPublisher({
 	directory,
 }: {
@@ -33,14 +60,15 @@ export function createLocalArtifactPublisher({
 		const results: ArtifactPublicationResult[] = [];
 		for (const file of files) {
 			const target = pathFor(file.artifactId);
-			const temporary = `${target}.${randomUUID()}.tmp`;
+			const generation = randomUUID();
+			const payload = `${target}.${generation}`;
 			try {
 				signal?.throwIfAborted();
 				await checkUnchanged(file);
 				await mkdir(directory, { recursive: true, mode: 0o700 });
 				await pipeline(
 					createReadStream(file.path),
-					createWriteStream(temporary, {
+					createWriteStream(payload, {
 						flags: "wx",
 						mode: 0o600,
 						flush: true,
@@ -48,12 +76,11 @@ export function createLocalArtifactPublisher({
 					{ signal },
 				);
 				await checkUnchanged(file);
-				signal?.throwIfAborted();
-				await rename(temporary, target);
-				// Rename commits the publication; cancellation afterward cannot undo it.
+				await commitGeneration(target, generation, signal);
+				// The reference is committed; cancellation afterward cannot remove its payload.
 				results.push({ path: file.path, artifactId: file.artifactId });
 			} catch (error) {
-				await rm(temporary, { force: true }).catch(() => {});
+				await rm(payload, { force: true }).catch(() => {});
 				results.push(
 					publicationFailure(
 						file.path,
@@ -81,7 +108,12 @@ export function createLocalArtifactFetcher({
 	const pathFor = artifactPaths(directory);
 	return async ({ artifactId, signal }) => {
 		signal?.throwIfAborted();
-		const handle = await open(pathFor(artifactId), "r");
+		const path = pathFor(artifactId);
+		const generation = await readFile(path, { encoding: "utf8", signal });
+		if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(generation))
+			throw new Error("Invalid local artifact generation");
+		signal?.throwIfAborted();
+		const handle = await open(`${path}.${generation}`, "r");
 		try {
 			const info = await handle.stat();
 			signal?.throwIfAborted();
