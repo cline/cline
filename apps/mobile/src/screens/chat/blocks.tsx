@@ -9,6 +9,7 @@
  */
 
 import { Brain } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { userErrorMessage } from "@/error-message";
 import type { MessageBlock, SessionMessageView } from "@/session";
@@ -27,8 +28,9 @@ import { GeneratedMediaBlock } from "./GeneratedMediaBlock";
 import { Markdown } from "./Markdown";
 import { extractToolOutputMedia, redactToolOutputMedia } from "./media";
 import { messageDisplayText } from "./message-text";
-import { useRememberedFlag } from "./reasoning-state";
+import { useDisclosureFlags, useRememberedFlag } from "./reasoning-state";
 import { ToolDiffView } from "./ToolDiffView";
+import type { ToolSearchReveal } from "./tool-search";
 import { diffCounts, toolIcon, toolLabel, toolPreview } from "./tools";
 import { parseUserInputEnvelope, userInputModeLabel } from "./user-text";
 
@@ -81,7 +83,13 @@ export function UserMessageBubble({
 	);
 }
 
-export function AssistantMessage({ message }: { message: SessionMessageView }) {
+export function AssistantMessage({
+	message,
+	toolSearchReveal,
+}: {
+	message: SessionMessageView;
+	toolSearchReveal?: ToolSearchReveal;
+}) {
 	if (message.displayRole === "error") {
 		return (
 			<Banner tone="danger">
@@ -125,7 +133,12 @@ export function AssistantMessage({ message }: { message: SessionMessageView }) {
 					);
 				}
 				return (
-					<BlockView key={blockKey} blockKey={blockKey} block={group.block} />
+					<BlockView
+						key={blockKey}
+						blockKey={blockKey}
+						block={group.block}
+						toolSearchReveal={toolSearchReveal}
+					/>
 				);
 			})}
 		</View>
@@ -158,9 +171,11 @@ export function groupBlocks(blocks: readonly MessageBlock[]): BlockGroup[] {
 function BlockView({
 	block,
 	blockKey,
+	toolSearchReveal,
 }: {
 	block: MessageBlock;
 	blockKey: string;
+	toolSearchReveal?: ToolSearchReveal;
 }) {
 	switch (block.kind) {
 		case "text":
@@ -174,7 +189,13 @@ function BlockView({
 				/>
 			);
 		case "tool":
-			return <ToolActivityCard block={block} blockKey={blockKey} />;
+			return (
+				<ToolActivityCard
+					block={block}
+					blockKey={blockKey}
+					toolSearchReveal={toolSearchReveal}
+				/>
+			);
 		case "media":
 			return <GeneratedMediaBlock media={block.media} />;
 	}
@@ -293,9 +314,11 @@ function countLines(text: string): number {
 function ToolActivityCard({
 	block,
 	blockKey,
+	toolSearchReveal,
 }: {
 	blockKey: string;
 	block: Extract<MessageBlock, { kind: "tool" }>;
+	toolSearchReveal?: ToolSearchReveal;
 }) {
 	const theme = useTheme();
 	const Icon = toolIcon(block.name);
@@ -317,6 +340,19 @@ function ToolActivityCard({
 		`${choiceKey}:expanded`,
 		false,
 	);
+	const flags = useDisclosureFlags();
+	const consumed = useRef<string | undefined>(undefined);
+	const [outputReveal, setOutputReveal] = useState<ToolSearchReveal>();
+	useEffect(() => {
+		if (!toolSearchReveal) return;
+		const key = `${choiceKey}:search:${toolSearchReveal.sequence}`;
+		if (flags?.get(key) || consumed.current === key) return;
+		flags?.set(key, true);
+		consumed.current = key;
+		setUserToggled(true);
+		setManualExpanded(true);
+		setOutputReveal(toolSearchReveal);
+	}, [choiceKey, toolSearchReveal, flags, setUserToggled, setManualExpanded]);
 	// Successful work recedes automatically. Active diffs and failures remain
 	// visible; explicit choices survive completion and virtualized row remounts.
 	const expanded = userToggled
@@ -356,6 +392,7 @@ function ToolActivityCard({
 				<CodeBlock
 					muted={block.state === "completed"}
 					copyLabel="Copy tool output"
+					revealText={outputReveal}
 				>
 					{preview}
 				</CodeBlock>

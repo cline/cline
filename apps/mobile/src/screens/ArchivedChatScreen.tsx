@@ -17,6 +17,7 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { ConversationNavigator } from "./chat/ConversationNavigator";
 import { visibleTranscriptMessages } from "./chat/message-text";
 import { ReasoningStateProvider } from "./chat/reasoning-state";
+import type { ToolSearchReveal } from "./chat/tool-search";
 import {
 	buildTranscriptWork,
 	type TranscriptRow,
@@ -70,6 +71,10 @@ export function ArchivedChatScreen({
 	);
 	const reduceMotion = useReducedMotion();
 	const [openWork, setOpenWork] = useState<Record<string, boolean>>({});
+	const [toolReveals, setToolReveals] = useState<
+		Record<string, ToolSearchReveal>
+	>({});
+	const toolRevealSequence = useRef(0);
 	const groupedMessages = useMemo(
 		() => buildTranscriptWork(projected.messages, { runStatus: "idle" }),
 		[projected.messages],
@@ -114,6 +119,7 @@ export function ArchivedChatScreen({
 		setNavigatorOpen(false);
 		setNavigationError(undefined);
 		setOpenWork({});
+		setToolReveals({});
 		return cancelJump;
 	}, [history, cancelJump]);
 	const attemptMessageJump = useCallback(() => {
@@ -135,7 +141,7 @@ export function ArchivedChatScreen({
 		if (pendingJump.current === jump && jump.attempts === attempts)
 			cancelJump();
 	}, [cancelJump]);
-	const jumpToMessage = (id: string) => {
+	const jumpToMessage = (id: string, query?: string) => {
 		Keyboard.dismiss();
 		cancelJump();
 		setNavigatorOpen(false);
@@ -146,6 +152,17 @@ export function ArchivedChatScreen({
 				message.sourceMessageIds?.includes(id),
 			);
 		pendingJump.current = { id: target?.id ?? id, attempts: 0 };
+		if (
+			target &&
+			query &&
+			target.blocks.some((block) => block.kind === "tool")
+		) {
+			const sequence = ++toolRevealSequence.current;
+			setToolReveals((current) => ({
+				...current,
+				[target.id]: { query, sequence },
+			}));
+		}
 		if (target?.parentWorkId && !openWork[target.parentWorkId]) {
 			const workId = target.parentWorkId;
 			setOpenWork((current) => ({ ...current, [workId]: true }));
@@ -270,6 +287,7 @@ export function ArchivedChatScreen({
 								renderItem={({ item, index }) => (
 									<MessageRow
 										message={item}
+										toolSearchReveal={toolReveals[item.id]}
 										previousCreatedAt={messages[index - 1]?.createdAt}
 										workExpanded={Boolean(openWork[item.id])}
 										onWorkToggle={(expanded) =>

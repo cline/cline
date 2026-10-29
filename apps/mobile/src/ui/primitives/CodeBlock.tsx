@@ -1,5 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, type StyleProp, View, type ViewStyle } from "react-native";
 import { withAlpha } from "@/theme/brand";
 import { useTheme } from "../theme";
@@ -17,6 +17,8 @@ export interface CodeBlockProps {
 	wrap?: boolean;
 	style?: StyleProp<ViewStyle>;
 	copyLabel?: string;
+	/** Explicit conversation Find request; preserves the exact displayed/copied text. */
+	revealText?: { query: string; sequence: number };
 }
 
 /**
@@ -34,8 +36,42 @@ export function CodeBlock({
 	wrap = false,
 	style,
 	copyLabel,
+	revealText,
 }: CodeBlockProps) {
 	const theme = useTheme();
+	const vertical = useRef<ScrollView>(null);
+	const horizontal = useRef<ScrollView>(null);
+	const content = useRef({ width: 0, height: 0 });
+	const revealedSequence = useRef<number | undefined>(undefined);
+	const revealMatch = useCallback(() => {
+		if (
+			!revealText?.query ||
+			revealedSequence.current === revealText.sequence ||
+			content.current.height <= 0 ||
+			(!wrap && content.current.width <= 0)
+		)
+			return;
+		const offset = children
+			.toLocaleLowerCase()
+			.indexOf(revealText.query.toLocaleLowerCase());
+		if (offset < 0) return;
+		revealedSequence.current = revealText.sequence;
+		const lines = children.split("\n");
+		const before = children.slice(0, offset).split("\n");
+		const line = before.length - 1;
+		const column = before.at(-1)?.length ?? 0;
+		vertical.current?.scrollTo({
+			y: (line * content.current.height) / Math.max(1, lines.length),
+			animated: false,
+		});
+		horizontal.current?.scrollTo({
+			x:
+				(column * content.current.width) /
+				lines.reduce((max, value) => Math.max(max, value.length), 1),
+			animated: false,
+		});
+	}, [children, revealText, wrap]);
+	useEffect(revealMatch, [revealMatch]);
 	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
 		"idle",
 	);
@@ -87,11 +123,25 @@ export function CodeBlock({
 					) : null}
 				</View>
 			) : null}
-			<ScrollView>
+			<ScrollView
+				ref={vertical}
+				onContentSizeChange={(_width, height) => {
+					content.current.height = height;
+					revealMatch();
+				}}
+			>
 				{wrap ? (
 					body
 				) : (
-					<ScrollView horizontal showsHorizontalScrollIndicator={false}>
+					<ScrollView
+						ref={horizontal}
+						horizontal
+						showsHorizontalScrollIndicator={false}
+						onContentSizeChange={(width) => {
+							content.current.width = width;
+							revealMatch();
+						}}
+					>
 						{body}
 					</ScrollView>
 				)}

@@ -13,6 +13,7 @@ import type { SessionMessageView } from "@/session";
 import { Button, IconButton, Text, TextField, useTheme } from "@/ui";
 import { KeyboardAvoidingContainer } from "@/ui/KeyboardAvoidingContainer";
 import { messageDisplayText, visibleTranscriptMessages } from "./message-text";
+import { toolSearchText } from "./tool-search";
 
 export function conversationEntries(
 	messages: readonly SessionMessageView[],
@@ -20,7 +21,23 @@ export function conversationEntries(
 ) {
 	const search = query.trim().toLocaleLowerCase();
 	return visibleTranscriptMessages(messages).flatMap((message, index) => {
-		const text = messageDisplayText(message).replace(/\s+/g, " ").trim();
+		const authoredText = messageDisplayText(message)
+			.replace(/\s+/g, " ")
+			.trim();
+		if (!search && (message.role !== "user" || !authoredText)) return [];
+		const text = [
+			authoredText,
+			...(search
+				? message.blocks.flatMap((block) =>
+						block.kind === "tool" && message.displayRole !== "error"
+							? [toolSearchText(block)]
+							: [],
+					)
+				: []),
+		]
+			.join("\n")
+			.replace(/\s+/g, " ")
+			.trim();
 		if (!text || (!search && message.role !== "user")) return [];
 		const match = text.toLocaleLowerCase().indexOf(search);
 		if (search && match < 0) return [];
@@ -28,7 +45,12 @@ export function conversationEntries(
 		return [
 			{
 				id: message.id,
-				role: message.role,
+				role:
+					message.role === "user" &&
+					authoredText &&
+					(!search || authoredText.toLocaleLowerCase().includes(search))
+						? ("user" as const)
+						: ("assistant" as const),
 				index,
 				preview: `${start ? "…" : ""}${text.slice(start, start + 180)}${text.length > start + 180 ? "…" : ""}`,
 			},
@@ -47,7 +69,7 @@ export function ConversationNavigator({
 	visible: boolean;
 	messages: readonly SessionMessageView[];
 	onClose(): void;
-	onSelect(id: string): void;
+	onSelect(id: string, query?: string): void;
 	onBeginning(): void;
 	onLatest(): void;
 }) {
@@ -144,7 +166,11 @@ export function ConversationNavigator({
 						<Pressable
 							accessibilityRole="button"
 							accessibilityLabel={`Jump to ${item.role === "user" ? "your prompt" : "Cline message"}: ${item.preview}`}
-							onPress={() => onSelect(item.id)}
+							onPress={() =>
+								query.trim()
+									? onSelect(item.id, query.trim())
+									: onSelect(item.id)
+							}
 							style={{
 								minHeight: 60,
 								paddingVertical: 14,

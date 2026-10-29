@@ -90,6 +90,7 @@ import {
 	formatMessageRelativeTime,
 	startsNewMessageDay,
 } from "./chat/time";
+import type { ToolSearchReveal } from "./chat/tool-search";
 import {
 	buildTranscriptWork,
 	type TranscriptRow,
@@ -256,6 +257,10 @@ function ChatScreenBody({
 		],
 	);
 	const [openWork, setOpenWork] = useState<Record<string, boolean>>({});
+	const [toolReveals, setToolReveals] = useState<
+		Record<string, ToolSearchReveal>
+	>({});
+	const toolRevealSequence = useRef(0);
 	const transcriptMessages = useMemo(
 		() =>
 			groupedMessages.flatMap((message) =>
@@ -576,7 +581,7 @@ function ChatScreenBody({
 		if (pendingJump.current === jump && jump.attempts === attempts)
 			pendingJump.current = undefined;
 	}, []);
-	const jumpToMessage = (id: string) => {
+	const jumpToMessage = (id: string, query?: string) => {
 		Keyboard.dismiss();
 		if (jumpTimer.current) clearTimeout(jumpTimer.current);
 		setNavigatorOpen(false);
@@ -589,6 +594,17 @@ function ChatScreenBody({
 				message.sourceMessageIds?.includes(id),
 			);
 		pendingJump.current = { id: target?.id ?? id, attempts: 0 };
+		if (
+			target &&
+			query &&
+			target.blocks.some((block) => block.kind === "tool")
+		) {
+			const sequence = ++toolRevealSequence.current;
+			setToolReveals((current) => ({
+				...current,
+				[target.id]: { query, sequence },
+			}));
+		}
 		if (target?.parentWorkId && !openWork[target.parentWorkId]) {
 			const workId = target.parentWorkId;
 			setOpenWork((current) => ({ ...current, [workId]: true }));
@@ -795,6 +811,7 @@ function ChatScreenBody({
 								renderItem={({ item, index }) => (
 									<MessageRow
 										message={item}
+										toolSearchReveal={toolReveals[item.id]}
 										previousCreatedAt={transcriptMessages[index - 1]?.createdAt}
 										onRetry={() => connection.retrySend(item.id)}
 										workExpanded={Boolean(openWork[item.id])}
@@ -1131,12 +1148,14 @@ export function MessageRow({
 	onRetry,
 	workExpanded = false,
 	onWorkToggle,
+	toolSearchReveal,
 }: {
 	message: TranscriptRow;
 	previousCreatedAt?: number;
 	onRetry?: () => void;
 	workExpanded?: boolean;
 	onWorkToggle?(expanded: boolean): void;
+	toolSearchReveal?: ToolSearchReveal;
 }) {
 	const theme = useTheme();
 	const [showTimestamp, setShowTimestamp] = useState(false);
@@ -1169,7 +1188,10 @@ export function MessageRow({
 	if (message.parentWorkId)
 		return (
 			<View style={{ paddingLeft: 24 }}>
-				<AssistantMessage message={message} />
+				<AssistantMessage
+					message={message}
+					toolSearchReveal={toolSearchReveal}
+				/>
 			</View>
 		);
 	const body =
@@ -1207,7 +1229,7 @@ export function MessageRow({
 				) : null}
 			</View>
 		) : (
-			<AssistantMessage message={message} />
+			<AssistantMessage message={message} toolSearchReveal={toolSearchReveal} />
 		);
 
 	return (

@@ -26,6 +26,11 @@ interface FlagStore {
 
 const ReasoningStateContext = createContext<FlagStore | undefined>(undefined);
 
+/** Consumed search requests survive virtualized tool-row remounts. */
+export function useDisclosureFlags() {
+	return useContext(ReasoningStateContext);
+}
+
 export function ReasoningStateProvider({ children }: { children: ReactNode }) {
 	const flags = useRef(new Map<string, boolean>());
 	const store = useMemo<FlagStore>(
