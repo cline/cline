@@ -341,6 +341,54 @@ it("saves a chat's accepted model as its account default, but preserves it when 
 	screen.unmount();
 });
 
+it("leaves the active chat after deletion even while endpoint persistence is pending", async () => {
+	const persistence = {
+		getItem: async () => null,
+		setItem: vi.fn(async () => {}),
+		deleteItem: async () => {},
+	};
+	const endpoints = new SavedEndpointsStore(persistence);
+	const descriptor: ConnectionDescriptor = {
+		mode: "cloud",
+		url: "https://core.example/session/deleted-chat",
+		remoteSessionId: "deleted-chat",
+	};
+	await endpoints.save(descriptor);
+	state.key = descriptorKey(descriptor);
+	const deletion = vi
+		.spyOn(CloudSessionGateway.prototype, "deleteRemoteSession")
+		.mockResolvedValue(undefined);
+	const write = Promise.withResolvers<void>();
+	const screen = render(
+		<EndpointsProvider store={endpoints}>
+			<ChatRoute />
+		</EndpointsProvider>,
+	);
+	try {
+		await act(async () => {});
+		const sidebar = screen.root.find((node) => node.type === SessionSidebar);
+		persistence.setItem.mockReturnValueOnce(write.promise);
+		let pending!: Promise<void>;
+		await act(async () => {
+			pending = sidebar.props.onDeleteSession({
+				key: state.key,
+				descriptor,
+			});
+		});
+		expect(endpoints.get(state.key)).toBeUndefined();
+		await act(async () => {
+			write.resolve();
+			await pending;
+		});
+		expect(deletion).toHaveBeenCalledExactlyOnceWith("deleted-chat");
+		expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith("/");
+	} finally {
+		write.resolve();
+		screen.unmount();
+		deletion.mockRestore();
+	}
+});
+
 it.each([
 	"blurred by newer route",
 	"same route changed to B",
