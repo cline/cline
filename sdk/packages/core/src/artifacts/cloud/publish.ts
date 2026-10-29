@@ -62,7 +62,7 @@ export function createArtifactPublisher({
 							redirect: "error",
 							signal: AbortSignal.any([
 								...(signal ? [signal] : []),
-								AbortSignal.timeout(120_000),
+								AbortSignal.timeout(15_000),
 							]),
 						},
 					);

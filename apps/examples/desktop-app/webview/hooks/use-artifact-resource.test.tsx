@@ -1,13 +1,10 @@
 // @vitest-environment jsdom
 
+import type { CloudArtifactDownload } from "@cline/core/cloud";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import {
-	type ArtifactResolver,
-	type ArtifactResource,
-	useArtifactResource,
-} from "./use-artifact-resource";
+import { useArtifactResource } from "./use-artifact-resource";
 
 type AccountScope = {
 	user: { id: string } | null;
@@ -39,18 +36,15 @@ let renderedUrls: (string | undefined)[];
 function Harness({
 	sessionId = "ses-one",
 	artifactId = "artifact-one",
-	resolver,
 	autoLoad = false,
 }: {
 	sessionId?: string;
 	artifactId?: string;
-	resolver?: ArtifactResolver;
 	autoLoad?: boolean;
 }) {
 	const hook = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
-		resolver,
 	});
 	current = hook;
 	const url =
@@ -67,9 +61,9 @@ async function render(props: Parameters<typeof Harness>[0] = {}) {
 }
 
 function pendingResource() {
-	let resolve: (resource: ArtifactResource) => void = () => {};
+	let resolve: (resource: CloudArtifactDownload) => void = () => {};
 	let reject: (error: Error) => void = () => {};
-	const promise = new Promise<ArtifactResource>((done, fail) => {
+	const promise = new Promise<CloudArtifactDownload>((done, fail) => {
 		resolve = done;
 		reject = fail;
 	});
@@ -83,9 +77,10 @@ beforeEach(() => {
 		activeOrganization: { organizationId: "org-one" },
 		accountReady: true,
 	};
-	mocks.invoke
-		.mockReset()
-		.mockResolvedValue({ url: "https://storage.example/first" });
+	mocks.invoke.mockReset().mockResolvedValue({
+		url: "https://storage.example/first",
+		expiresAt: "2030-01-01T00:01:00Z",
+	});
 	mocks.open.mockReset().mockResolvedValue(undefined);
 	renderedUrls = [];
 	container = document.createElement("div");
@@ -98,25 +93,17 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
-it("waits for account hydration, then supports a nonexpiring local resource while signed out", async () => {
-	mocks.account.user = null;
+it("waits for account hydration before resolving a cloud resource", async () => {
 	mocks.account.accountReady = false;
-	const resolver = vi
-		.fn<ArtifactResolver>()
-		.mockResolvedValue({ url: "blob:local-file" });
-	await render({ resolver, autoLoad: true });
-	expect(resolver).not.toHaveBeenCalled();
+	await render({ autoLoad: true });
+	expect(mocks.invoke).not.toHaveBeenCalled();
 	mocks.account.accountReady = true;
-	await render({ resolver, autoLoad: true });
-	expect(container.textContent).toBe("blob:local-file");
-	await act(async () => current.open());
-	await act(async () => current.open());
-	expect(resolver).toHaveBeenCalledExactlyOnceWith({
-		type: "artifact",
+	await render({ autoLoad: true });
+	expect(container.textContent).toBe("https://storage.example/first");
+	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("resolve_artifact", {
+		sessionId: "ses-one",
 		artifactId: "artifact-one",
 	});
-	expect(mocks.open).toHaveBeenNthCalledWith(2, "blob:local-file");
-	expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
 it("reuses a fresh resource but refreshes within the expiry margin on the next use", async () => {
@@ -128,7 +115,10 @@ it("reuses a fresh resource but refreshes within the expiry margin on the next u
 			url: "https://storage.example/first",
 			expiresAt: "2030-01-01T00:01:00Z",
 		})
-		.mockResolvedValue({ url: "https://storage.example/refreshed" });
+		.mockResolvedValue({
+			url: "https://storage.example/refreshed",
+			expiresAt: "2030-01-01T00:01:00Z",
+		});
 	await render({ autoLoad: true });
 	await act(async () => current.open());
 	expect(mocks.invoke).toHaveBeenCalledTimes(1);
@@ -193,7 +183,10 @@ it("discards a pending open when the organization changes away and back", async 
 	mocks.account.activeOrganization = { organizationId: "org-one" };
 	await render();
 	await act(async () =>
-		pending.resolve({ url: "https://storage.example/old-scope" }),
+		pending.resolve({
+			url: "https://storage.example/old-scope",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
 	);
 	expect(mocks.open).not.toHaveBeenCalled();
 	expect(container.textContent).toBe("idle");
@@ -206,7 +199,10 @@ it("forces manual retries and ignores an older failure for the same artifact", a
 	await act(async () => {
 		void current.retry();
 	});
-	mocks.invoke.mockResolvedValueOnce({ url: "https://storage.example/newest" });
+	mocks.invoke.mockResolvedValueOnce({
+		url: "https://storage.example/newest",
+		expiresAt: "2030-01-01T00:01:00Z",
+	});
 	await act(async () => current.retry());
 	await act(async () => older.reject(new Error("Stale failure")));
 	expect(container.textContent).toBe("https://storage.example/newest");
@@ -222,7 +218,10 @@ it("does not open an in-flight resource after unmount and resolves anew after re
 	});
 	await act(async () => root.render(null));
 	await act(async () =>
-		pending.resolve({ url: "https://storage.example/unmounted" }),
+		pending.resolve({
+			url: "https://storage.example/unmounted",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
 	);
 	expect(mocks.open).not.toHaveBeenCalled();
 	await render({ autoLoad: true });

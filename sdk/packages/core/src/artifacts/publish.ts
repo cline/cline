@@ -177,16 +177,14 @@ export function createPublishArtifactsTool({
 					pending.forEach(({ index }, position) => {
 						results[index] = published[position];
 					});
-				} catch (error) {
+				} catch {
 					for (const { index, file } of pending)
 						results[index] = publicationFailure(
 							file.path,
-							error instanceof ArtifactPublicationError
-								? error
-								: new ArtifactPublicationError(
-										"PUBLICATION_FAILED",
-										"Could not publish files",
-									),
+							new ArtifactPublicationError(
+								"PUBLICATION_FAILED",
+								"Could not publish files",
+							),
 							file.artifactId,
 							context.signal,
 						);

@@ -1,5 +1,6 @@
 "use client";
 
+import type { CloudArtifactDownload } from "@cline/core/cloud";
 import type { GeneratedMediaSource } from "@cline/shared/browser";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
@@ -9,38 +10,23 @@ export type ArtifactReference = Extract<
 	GeneratedMediaSource,
 	{ type: "artifact" }
 >;
-export type ArtifactResource = { url: string; expiresAt?: string };
-export type ArtifactResolver = (
-	reference: ArtifactReference,
-) => Promise<ArtifactResource>;
 
 const EXPIRY_MARGIN_MS = 30_000;
 
 type ResourceState =
 	| { status: "idle" | "loading" | "error" }
-	| { status: "ready"; resource: ArtifactResource; attempt: number };
+	| { status: "ready"; resource: CloudArtifactDownload; attempt: number };
 
 const IDLE: ResourceState = { status: "idle" };
 
 export function useArtifactResource({
 	sessionId,
 	reference,
-	resolver,
 }: {
 	sessionId: string;
 	reference: ArtifactReference;
-	resolver?: ArtifactResolver;
 }) {
 	const { user, activeOrganization, accountReady } = useAccount();
-	const desktopResolver = useCallback<ArtifactResolver>(
-		(source) =>
-			desktopClient.invoke<ArtifactResource>("resolve_artifact", {
-				sessionId,
-				artifactId: source.artifactId,
-			}),
-		[sessionId],
-	);
-	const resolve = resolver ?? desktopResolver;
 	const scope = useMemo(
 		() => ({
 			sessionId,
@@ -48,7 +34,6 @@ export function useArtifactResource({
 			userId: user?.id,
 			organizationId: activeOrganization?.organizationId,
 			accountReady,
-			resolve,
 		}),
 		[
 			sessionId,
@@ -56,7 +41,6 @@ export function useArtifactResource({
 			user?.id,
 			activeOrganization?.organizationId,
 			accountReady,
-			resolve,
 		],
 	);
 	const [stored, setStored] = useState<{
@@ -91,19 +75,20 @@ export function useArtifactResource({
 				activeScope.current === scope && generation.current === attempt;
 			const cached = cache.current?.resource;
 			const fresh =
-				cached &&
-				(cached.expiresAt === undefined ||
-					Date.parse(cached.expiresAt) > Date.now() + EXPIRY_MARGIN_MS);
+				cached && Date.parse(cached.expiresAt) > Date.now() + EXPIRY_MARGIN_MS;
 			if (force || !fresh) cache.current = null;
 			setStored({ scope, value: { status: "loading" } });
 			try {
 				const resource =
 					!force && fresh
 						? cached
-						: await scope.resolve({
-								type: "artifact",
-								artifactId: scope.artifactId,
-							});
+						: await desktopClient.invoke<CloudArtifactDownload>(
+								"resolve_artifact",
+								{
+									sessionId: scope.sessionId,
+									artifactId: scope.artifactId,
+								},
+							);
 				if (!isCurrent()) return;
 				const ready: Extract<ResourceState, { status: "ready" }> = {
 					status: "ready",
