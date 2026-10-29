@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -23,6 +24,7 @@ import {
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
+	type ToolPolicy,
 	SessionSource,
 	splitCoreSessionConfig,
 	toProviderConfig,
@@ -40,6 +42,14 @@ import {
 	type SessionPluginIssue,
 } from "@cline/shared";
 import {
+	CreateSideConversationRequestSchema,
+	CreateSideConversationResultSchema,
+	parseSideCommand,
+	readSideConfig,
+	readSideConversation,
+	SideConfigSchema,
+} from "../shared/side-conversation";
+import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
 	materializeUserFiles,
@@ -52,6 +62,7 @@ import {
 } from "./cloud-sessions";
 import {
 	cancelSidecarMistakeQuestions,
+	cancelSidecarSessionInteractions,
 	emitChunk,
 	findSessionRuntimeBinding,
 	getEnvironmentContext,
@@ -63,8 +74,23 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
-import { derivePromptFromMessages } from "./session-data/common";
+import {
+	derivePromptFromMessages,
+	normalizeSessionTitle,
+} from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
+import { findLocalSideSessionId } from "./session-data/discovery";
+import {
+	assertSideConversationAvailable,
+	isTemporarySideClosed,
+	deleteTemporarySideConversation,
+	sideConversationOwner,
+} from "./temporary-side-conversations";
+import {
+	captureSideReference,
+	SIDE_SCOPE_INSTRUCTIONS,
+} from "./side-conversation-context";
+import { createSideHistoryTool } from "./side-conversation-history";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -134,7 +160,13 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["compact", "fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set([
+	"compact",
+	"fork",
+	"team",
+	"btw",
+	"side",
+]);
 
 const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
 const COMPACT_WHILE_RUNNING_MESSAGE =
@@ -454,6 +486,15 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 		: undefined;
 }
 
+function readSideSessionMetadata(
+	binding: SessionRuntimeBinding,
+	sessionId: string,
+): JsonRecord | undefined {
+	if (binding.kind !== "local") return undefined;
+	const metadata = readSessionMetadata(sessionId);
+	return readSideConversation(metadata) ? metadata : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -619,6 +660,7 @@ export function createDesktopMistakeLimitPrompt(
 				context.iteration,
 				recovery?.latestIteration ?? context.iteration,
 			);
+			assertSideConversationAvailable(ctx, sessionId);
 			await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
 			if (recovery) {
 				recovery.continuedThroughIteration = continuedThroughIteration;
@@ -668,6 +710,7 @@ function buildCoreSessionConfig(
 	config: JsonRecord,
 	telemetryUser?: SidecarContext["telemetryUser"],
 	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
+	sideMetadata?: JsonRecord,
 ): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
@@ -703,6 +746,9 @@ function buildCoreSessionConfig(
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
+		...(readSideConversation(sideMetadata)
+			? { enableSpawnAgent: false, enableAgentTeams: false }
+			: {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -842,7 +888,26 @@ export function hasProviderChanged(
 	return nextProviderId !== undefined && currentProviderId !== nextProviderId;
 }
 
-async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
+function recoverSideConfig(
+	config: JsonRecord,
+	metadata?: JsonRecord,
+): JsonRecord {
+	return readSideConversation(metadata)
+		? mergeSessionConfig(config, readSideConfig(metadata) ?? {})
+		: config;
+}
+
+async function resolveSystemPrompt(
+	config: JsonRecord,
+	metadata?: JsonRecord,
+): Promise<string> {
+	const prompt = await resolveBaseSystemPrompt(config);
+	return readSideConversation(metadata)
+		? `${prompt}\n\n${SIDE_SCOPE_INSTRUCTIONS}`
+		: prompt;
+}
+
+async function resolveBaseSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
 	).trim();
@@ -878,8 +943,10 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 
 function resolveToolPolicies(
 	config: JsonRecord,
-): { "*": { autoApprove: boolean } } | undefined {
+	metadata?: unknown,
+): Record<string, ToolPolicy> {
 	return {
+		...(readSideConversation(metadata) ? { tasks: { enabled: false } } : {}),
 		"*": {
 			autoApprove: config.autoApproveTools !== false,
 		},
@@ -1031,9 +1098,220 @@ function getSessionManager(
 // Chat session action handlers
 // ---------------------------------------------------------------------------
 
+async function handleCreateSide(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const parsed = CreateSideConversationRequestSchema.parse(request);
+	assertSideConversationAvailable(ctx, parsed.newSessionId);
+	const state = ctx.temporarySideConversations;
+	if (state.closing)
+		throw new Error(
+			"The app is closing. Open a new side chat after restarting.",
+		);
+	const pending = state.pending.get(parsed.sessionId);
+	if (pending) return pending.promise;
+	const existingId = findLocalSideSessionId(parsed.sessionId, ctx.bootId);
+	if (existingId) assertSideConversationAvailable(ctx, existingId);
+	const effectiveRequest = existingId
+		? { ...request, newSessionId: existingId }
+		: request;
+	const promise = createSideConversation(ctx, effectiveRequest);
+	state.pending.set(parsed.sessionId, {
+		sessionId: existingId ?? parsed.newSessionId,
+		promise,
+	});
+	try {
+		return await promise;
+	} finally {
+		state.pending.delete(parsed.sessionId);
+	}
+}
+
+async function createSideConversation(
+	ctx: SidecarContext,
+	raw: ChatSessionCommandRequest,
+): Promise<unknown> {
+	if (raw.attachments?.userImages?.length || raw.attachments?.userFiles?.length)
+		throw new Error(
+			"Remove attachments before opening a side conversation; attach them after it opens.",
+		);
+	const request = CreateSideConversationRequestSchema.parse(raw);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		request.sessionId,
+		readEnvironmentId(request.config),
+	);
+	if (binding.kind !== "local")
+		throw new Error(
+			"Side conversations are available only for local chats. Open a local main conversation first.",
+		);
+	if (
+		request.visibleContext &&
+		(request.visibleContext.sessionId !== request.sessionId ||
+			request.visibleContext.environmentId !== binding.environmentId)
+	)
+		throw new Error(
+			"The visible context belongs to a different main conversation or environment.",
+		);
+	const manager = binding.sessionManager;
+	const parent = await manager.get(request.sessionId);
+	if (!parent)
+		throw new Error(
+			"The main conversation is unavailable. Open an existing local chat first.",
+		);
+	if (readSideConversation(parent.metadata))
+		throw new Error(
+			"Nested side conversations are unavailable. Return to the main conversation first.",
+		);
+	const liveParent = ctx.liveSessions.get(request.sessionId);
+	const cwd = parent.cwd || parent.workspaceRoot;
+	const workspaceRoot = parent.workspaceRoot || parent.cwd;
+	if (!cwd || !workspaceRoot)
+		throw new Error("The main conversation has no local workspace.");
+	const sourceConfig = mergeSessionConfig(
+		{ provider: parent.provider, model: parent.model, ...liveParent?.config },
+		request.config,
+	);
+	const sideConfig = SideConfigSchema.parse({
+		...sourceConfig,
+		selectionSource: "main",
+		mode: resolveDesktopSessionMode(sourceConfig),
+		autoApproveTools: sourceConfig.autoApproveTools !== false,
+		enableTools:
+			sourceConfig.enableTools !== false && sourceConfig.enable_tools !== false,
+	});
+	const config: JsonRecord = {
+		...sourceConfig,
+		...sideConfig,
+		sessionId: request.newSessionId,
+		desktopSideParentSessionId: request.sessionId,
+		provider:
+			sourceConfig.provider || sourceConfig.providerId || parent.provider || "",
+		model: sourceConfig.model || sourceConfig.modelId || parent.model || "",
+		cwd,
+		workspaceRoot,
+		environmentId: binding.environmentId,
+	};
+	for (const key of [
+		"session_id",
+		"initialMessages",
+		"initialCompactionState",
+		"parentSessionId",
+		"parentAgentId",
+		"agentId",
+		"conversationId",
+		"teamName",
+		"team_name",
+		"taskId",
+	])
+		delete config[key];
+	if (ctx.restoringWorkspacePaths.has(resolve(cwd)))
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	const existing = await manager.get(request.newSessionId);
+	if (existing) {
+		if (
+			readSideConversation(existing.metadata)?.parentSessionId !==
+				request.sessionId ||
+			readSideConversation(existing.metadata)?.owner?.runId !== ctx.bootId
+		)
+			throw new Error("The requested side conversation ID is already in use.");
+		return CreateSideConversationResultSchema.parse({
+			...existing,
+			...readSideConfig(existing.metadata),
+			environmentId: binding.environmentId,
+		});
+	}
+	if (ctx.liveSessions.has(request.newSessionId))
+		throw new Error(
+			"This side conversation is already being created. Open it using its existing ID once creation finishes.",
+		);
+	const reservation = createLiveSession(config, { status: "starting" });
+	ctx.liveSessions.set(request.newSessionId, reservation);
+	try {
+		const activeParentTurn =
+			Boolean(liveParent && hasActiveWorkspaceTurn(liveParent)) ||
+			parent.status === "running" ||
+			parent.status === "pending";
+		const messages = await manager.readMessages(request.sessionId);
+		const parentTitle =
+			typeof parent.metadata?.title === "string"
+				? parent.metadata.title
+				: "Main conversation";
+		const seed = captureSideReference(
+			messages,
+			activeParentTurn,
+			request.visibleContext,
+			parentTitle,
+		);
+		const metadata = {
+			title: "Side chat",
+			desktopSideConversation: {
+				version: 2,
+				owner: sideConversationOwner(ctx),
+				parentSessionId: request.sessionId,
+			},
+			desktopSideConfig: sideConfig,
+		};
+		assertSideConversationAvailable(ctx, request.sessionId);
+		assertSideConversationAvailable(ctx, request.newSessionId);
+		await handleStart(
+			ctx,
+			{ action: "start", config },
+			{ metadata, messages: [seed] },
+		);
+		const live = ctx.liveSessions.get(request.newSessionId);
+		if (live) live.title = metadata.title;
+		return CreateSideConversationResultSchema.parse({
+			...config,
+			...sideConfig,
+			metadata,
+		});
+	} finally {
+		if (ctx.liveSessions.get(request.newSessionId) === reservation)
+			ctx.liveSessions.delete(request.newSessionId);
+	}
+}
+
+type SideInitialState = {
+	metadata: JsonRecord;
+	messages: MessageWithMetadata[];
+};
+
 async function handleStart(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
+	side?: SideInitialState,
+): Promise<unknown> {
+	if (!request.config) throw new Error("config is required");
+	const key = workspacePathKey(request.config);
+	if (key && ctx.restoringWorkspacePaths?.has(key))
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	const reservationId = String(
+		request.config.sessionId ?? request.config.session_id ?? randomUUID(),
+	);
+	const previous = ctx.liveSessions.get(reservationId);
+	const reservation = createLiveSession(request.config, { status: "starting" });
+	ctx.liveSessions.set(reservationId, reservation);
+	try {
+		return await handleStartUnlocked(ctx, request, side);
+	} finally {
+		if (ctx.liveSessions.get(reservationId) === reservation) {
+			if (
+				previous &&
+				!isTemporarySideClosed(ctx, reservationId) &&
+				!ctx.temporarySideConversations.closing
+			)
+				ctx.liveSessions.set(reservationId, previous);
+			else ctx.liveSessions.delete(reservationId);
+		}
+	}
+}
+
+async function handleStartUnlocked(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	side?: SideInitialState,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
 	const binding = getSessionRuntimeBinding(
@@ -1042,22 +1320,46 @@ async function handleStart(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
+	let metadata =
+		side?.metadata ??
+		readSideSessionMetadata(
+			binding,
+			String(request.config.sessionId ?? request.config.session_id ?? ""),
+		);
+	assertSideConversationAvailable(
+		ctx,
+		String(request.config.sessionId ?? request.config.session_id ?? ""),
+		metadata,
+	);
+	const persistedSideConfig = readSideConversation(metadata)
+		? readSideConfig(metadata)
+		: undefined;
+	if (persistedSideConfig && !side) {
+		metadata = {
+			...metadata,
+			desktopSideConfig: SideConfigSchema.parse(
+				mergeSessionConfig(persistedSideConfig, request.config),
+			),
+		};
+	}
+	const requestedConfig = recoverSideConfig(request.config, metadata);
 	const config =
 		binding.kind === "ssh"
-			? await withRemoteProviderCredentials(request.config)
-			: request.config;
+			? await withRemoteProviderCredentials(requestedConfig)
+			: requestedConfig;
 	// Workspace discovery must happen where the files live. Local desktop
 	// sessions keep the eager prompt path; SSH sessions leave a blank prompt for
 	// the remote Hub's LocalRuntimeHost bootstrap to compose from remote metadata.
 	const systemPrompt =
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(config)
-			: await resolveSystemPrompt(config);
+			: await resolveSystemPrompt(config, metadata);
 	const requestedSessionId = String(
 		config.sessionId ?? config.session_id ?? "",
 	).trim();
 	const initialMessages =
-		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
+		side?.messages ??
+		(Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
 			: requestedSessionId
 				? binding.kind === "ssh"
@@ -1070,16 +1372,28 @@ async function handleStart(
 								throw error;
 							})
 					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
-				: undefined;
+				: undefined);
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
+	const relation = readSideConversation(metadata);
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(
 			config,
 			ctx.telemetryUser,
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
+			metadata,
 		),
 		systemPrompt,
+		...(relation
+			? {
+					extraTools: [
+						createSideHistoryTool({
+							manager,
+							parentSessionId: relation.parentSessionId,
+						}),
+					],
+				}
+			: {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -1091,12 +1405,13 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
+	assertSideConversationAvailable(ctx, requestedSessionId, metadata);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(config),
+		toolPolicies: resolveToolPolicies(config, metadata),
 		sessionMetadata:
 			binding.kind === "ssh"
 				? {
@@ -1104,16 +1419,40 @@ async function handleStart(
 						remoteEnvironmentName: binding.remote?.profile.name,
 						remoteHost: binding.remote?.profile.host,
 					}
-				: undefined,
+				: readSideConversation(metadata)
+					? metadata
+					: undefined,
 	});
 	const sessionId = startResult.sessionId;
+	try {
+		assertSideConversationAvailable(ctx, sessionId, metadata);
+	} catch (error) {
+		if (readSideConversation(metadata)) {
+			ctx.temporarySideConversations.closed.add(sessionId);
+			await cancelSidecarSessionInteractions(ctx, sessionId, "Side chat ended");
+			await deleteTemporarySideConversation(manager, sessionId);
+		}
+		throw error;
+	}
+	if (
+		persistedSideConfig &&
+		!side &&
+		!isDeepStrictEqual(persistedSideConfig, readSideConfig(metadata))
+	) {
+		const { updated } = await manager.update(sessionId, { metadata });
+		if (!updated)
+			throw new Error(
+				"The side conversation settings could not be saved. Reopen the conversation before sending.",
+			);
+	}
 	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
 	const session = createLiveSession(
 		{
-			...request.config,
+			...requestedConfig,
+			sessionId,
 			cwd,
 			workspaceRoot,
 			environmentId: binding.environmentId,
@@ -1186,26 +1525,31 @@ async function handleAttach(
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
+	assertSideConversationAvailable(ctx, sessionId, metadata);
 	const existing = ctx.liveSessions.get(sessionId);
 	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
-	const baseAttachedConfig: JsonRecord = {
-		...(existing?.config ?? {}),
-		...(request.config ?? {}),
-		sessionId,
-		environmentId: binding.environmentId,
-		provider: session.provider || existing?.config.provider || "",
-		model: session.model || existing?.config.model || "",
-		cwd:
-			session.cwd ||
-			session.workspaceRoot ||
-			String(request.config?.cwd ?? "").trim() ||
-			String(existing?.config.cwd ?? "").trim(),
-		workspaceRoot:
-			session.workspaceRoot ||
-			session.cwd ||
-			String(request.config?.workspaceRoot ?? "").trim() ||
-			String(existing?.config.workspaceRoot ?? "").trim(),
-	};
+	assertSideConversationAvailable(ctx, sessionId, metadata);
+	const baseAttachedConfig: JsonRecord = recoverSideConfig(
+		{
+			...(existing?.config ?? {}),
+			...(request.config ?? {}),
+			sessionId,
+			environmentId: binding.environmentId,
+			provider: session.provider || existing?.config.provider || "",
+			model: session.model || existing?.config.model || "",
+			cwd:
+				session.cwd ||
+				session.workspaceRoot ||
+				String(request.config?.cwd ?? "").trim() ||
+				String(existing?.config.cwd ?? "").trim(),
+			workspaceRoot:
+				session.workspaceRoot ||
+				session.cwd ||
+				String(request.config?.workspaceRoot ?? "").trim() ||
+				String(existing?.config.workspaceRoot ?? "").trim(),
+		},
+		metadata,
+	);
 	ctx.liveSessions.set(
 		sessionId,
 		createLiveSession(baseAttachedConfig, {
@@ -1241,6 +1585,7 @@ async function handleAttach(
 		workspaceRoot: session.workspaceRoot,
 		prompt: session.prompt,
 		metadata,
+		...(readSideConversation(metadata) ? readSideConfig(metadata) : {}),
 	};
 }
 
@@ -1253,35 +1598,73 @@ async function startRebuiltSession(
 	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
+	let metadata = readSideSessionMetadata(
+		getSessionRuntimeBinding(ctx, sessionId, readEnvironmentId(config)),
+		sessionId,
+	);
+	assertSideConversationAvailable(ctx, sessionId, metadata);
+	if (readSideConversation(metadata)) {
+		metadata = {
+			...metadata,
+			desktopSideConfig: SideConfigSchema.parse(
+				mergeSessionConfig(readSideConfig(metadata) ?? {}, config),
+			),
+		};
+		config = recoverSideConfig({ ...config, sessionId }, metadata);
+		systemPrompt = await resolveSystemPrompt(config, metadata);
+	}
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
-	const restarted = await manager.start({
-		...splitCoreSessionConfig(
-			buildCoreSessionConfig(
-				{
-					...config,
-					sessionId,
-					systemPrompt,
-				},
-				ctx.telemetryUser,
-				createDesktopMistakeRecovery(ctx, () => sessionId),
-			) as unknown as ClineCoreStartConfig,
+	const relation = readSideConversation(metadata);
+	const coreConfig = {
+		...buildCoreSessionConfig(
+			{ ...config, sessionId, systemPrompt },
+			ctx.telemetryUser,
+			createDesktopMistakeRecovery(ctx, () => sessionId),
+			metadata,
 		),
+		...(relation
+			? {
+					extraTools: [
+						createSideHistoryTool({
+							manager,
+							parentSessionId: relation.parentSessionId,
+						}),
+					],
+				}
+			: {}),
+	};
+	assertSideConversationAvailable(ctx, sessionId, metadata);
+	const restarted = await manager.start({
+		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		initialMessages: messages,
+		sessionMetadata: readSideConversation(metadata) ? metadata : undefined,
 		...(projectedMessages
 			? {
 					initialCompactionState: createSessionCompactionState({
 						sourceMessages: messages,
 						compactedMessages: projectedMessages,
-						systemPrompt: compactionState?.system_prompt,
+						systemPrompt: readSideConversation(metadata)
+							? undefined
+							: compactionState?.system_prompt,
 					}),
 				}
 			: {}),
-		toolPolicies: resolveToolPolicies(config),
+		toolPolicies: resolveToolPolicies(config, metadata),
 	});
+	try {
+		assertSideConversationAvailable(ctx, sessionId, metadata);
+	} catch (error) {
+		if (readSideConversation(metadata)) {
+			ctx.temporarySideConversations.closed.add(sessionId);
+			await cancelSidecarSessionInteractions(ctx, sessionId, "Side chat ended");
+			await deleteTemporarySideConversation(manager, sessionId);
+		}
+		throw error;
+	}
 	if (restarted.sessionId !== sessionId) {
 		throw new Error(
 			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
@@ -1628,6 +2011,7 @@ async function handleSend(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
+	const sideIdentityMetadata = readSideSessionMetadata(binding, sessionId);
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
@@ -1647,6 +2031,13 @@ async function handleSend(
 	// The handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (
+		(commandName === "team" || commandName === "fork") &&
+		sideIdentityMetadata
+	)
+		throw new Error(
+			"Teams and forks are unavailable in side conversations. Return to the main conversation.",
+		);
 	if (commandName === "compact") {
 		let text: string;
 		try {
@@ -1703,6 +2094,8 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				));
+	if (lockedWorkspaceKey && ctx.restoringWorkspacePaths.has(lockedWorkspaceKey))
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -1780,6 +2173,24 @@ async function handleSend(
 			}
 		}
 
+		const sideMetadata =
+			nextConfig && readSideSessionMetadata(binding, sessionId);
+		const savedSideConfig = readSideConfig(sideMetadata);
+		if (nextConfig && savedSideConfig) {
+			const sideConfig = SideConfigSchema.parse(
+				mergeSessionConfig(savedSideConfig, nextConfig),
+			);
+			if (!isDeepStrictEqual(savedSideConfig, sideConfig)) {
+				const { updated } = await manager.update(sessionId, {
+					metadata: { ...sideMetadata, desktopSideConfig: sideConfig },
+				});
+				if (!updated)
+					throw new Error(
+						"The side conversation settings could not be saved. Reopen the conversation before sending.",
+					);
+			}
+		}
+
 		if (
 			binding.kind === "ssh" &&
 			(request.attachments?.userFiles?.length ?? 0) > 0
@@ -1788,6 +2199,7 @@ async function handleSend(
 				"File attachments are not available in the SSH proof of concept yet. Images and text prompts are supported.",
 			);
 		}
+		assertSideConversationAvailable(ctx, sessionId, sideIdentityMetadata);
 		const userFiles = materializeUserFiles(
 			sessionId,
 			request.attachments?.userFiles,
@@ -1802,14 +2214,16 @@ async function handleSend(
 			if (session) {
 				session.prompt = prompt;
 			}
-			const queuePrompt = () =>
-				manager.send({
+			const queuePrompt = () => {
+				assertSideConversationAvailable(ctx, sessionId, sideIdentityMetadata);
+				return manager.send({
 					sessionId,
 					prompt: runtimePrompt,
 					delivery: "queue",
 					userImages: request.attachments?.userImages,
 					userFiles,
 				});
+			};
 			try {
 				await queuePrompt();
 			} catch (error) {
@@ -1862,6 +2276,7 @@ async function handleSend(
 		});
 		let result: Awaited<ReturnType<ClineCore["send"]>>;
 		try {
+			assertSideConversationAvailable(ctx, sessionId, sideIdentityMetadata);
 			result = await manager.send({
 				sessionId,
 				prompt: runtimePrompt,
@@ -1974,7 +2389,18 @@ async function handleStop(
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	cancelHubReconnect(sessionId);
-	cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
+	if (
+		readSideSessionMetadata(
+			getSessionRuntimeBinding(
+				ctx,
+				sessionId,
+				readEnvironmentId(request.config),
+			),
+			sessionId,
+		)
+	)
+		await cancelSidecarSessionInteractions(ctx, sessionId, "Session stopped");
+	else cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
 	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
@@ -1991,7 +2417,18 @@ async function handleAbort(
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	cancelHubReconnect(sessionId);
-	cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
+	if (
+		readSideSessionMetadata(
+			getSessionRuntimeBinding(
+				ctx,
+				sessionId,
+				readEnvironmentId(request.config),
+			),
+			sessionId,
+		)
+	)
+		await cancelSidecarSessionInteractions(ctx, sessionId, "Run aborted");
+	else cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
 	await getSessionManager(ctx, sessionId, request.config).abort(
 		sessionId,
 		"user_abort",
@@ -2027,6 +2464,10 @@ async function handleFork(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	const sourceSession = await manager.get(sourceSessionId);
+	if (readSideConversation(sourceSession?.metadata))
+		throw new Error(
+			"Forking and editing are unavailable in side conversations. Return to the main conversation.",
+		);
 	if (
 		forkBeforeRunCount !== undefined &&
 		(sourceSession?.status === "running" || sourceSession?.status === "pending")
@@ -2261,7 +2702,18 @@ async function handleReset(
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
 		cancelHubReconnect(sessionId);
-		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
+		if (
+			readSideSessionMetadata(
+				getSessionRuntimeBinding(
+					ctx,
+					sessionId,
+					readEnvironmentId(request.config),
+				),
+				sessionId,
+			)
+		)
+			await cancelSidecarSessionInteractions(ctx, sessionId, "Session reset");
+		else cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -2285,6 +2737,19 @@ async function handleRestoreCheckpoint(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (
+		readSideSessionMetadata(
+			getSessionRuntimeBinding(
+				ctx,
+				sourceSessionId,
+				readEnvironmentId(request.config),
+			),
+			sourceSessionId,
+		)
+	)
+		throw new Error(
+			"Checkpoint restore is unavailable in side conversations. Return to the main conversation.",
+		);
 	const runCount = request.checkpointRunCount;
 	if (
 		typeof runCount !== "number" ||
@@ -2501,6 +2966,7 @@ const ACTION_HANDLERS: Record<
 	(ctx: SidecarContext, req: ChatSessionCommandRequest) => Promise<unknown>
 > = {
 	start: handleStart,
+	create_side: handleCreateSide,
 	attach: handleAttach,
 	send: handleSend,
 	stop: handleStop,
@@ -2518,6 +2984,14 @@ export async function handleChatSessionCommand(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
+	if (
+		(request.action === "send" || request.action === "update_pending_prompt") &&
+		parseSideCommand(request.prompt ?? "")
+	) {
+		throw new Error(
+			"Use /btw or /side in an existing local chat composer to open a side conversation.",
+		);
+	}
 	const executionTarget = String(request.config?.executionTarget ?? "").trim();
 	const sessionId = request.sessionId?.trim();
 	const existingCloudSession =
@@ -2650,14 +3124,27 @@ export async function handleChatSessionCommand(
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	const requestedId =
+		request.sessionId ??
+		String(request.config?.sessionId ?? request.config?.session_id ?? "");
+	const scopedBinding =
+		binding ??
+		ctx.runtimeBindings.get(
+			explicitEnvironment ?? ctx.activeEnvironmentId ?? "local",
+		);
+	const scopedContext = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	assertSideConversationAvailable(
+		scopedContext,
+		requestedId,
+		scopedBinding
+			? readSideSessionMetadata(scopedBinding, requestedId)
+			: undefined,
+	);
+	return handler(scopedContext, request);
 }

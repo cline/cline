@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { SqliteSessionStore } from "@cline/core";
+import { readSideConversation } from "../../shared/side-conversation";
 import { readSessionManifest, sharedSessionDataDir } from "../paths";
 import type { JsonRecord } from "../types";
 import {
@@ -42,6 +43,35 @@ function trimKnownString(value: unknown): string | undefined {
 	return trimmed.toLowerCase() === "unknown" ? undefined : trimmed;
 }
 
+export function findLocalSideSessionId(
+	parentSessionId: string,
+	runId: string,
+): string | undefined {
+	const store = new SqliteSessionStore();
+	try {
+		const candidates = store.queryAll<{ session_id: string }>(
+			`SELECT session_id FROM sessions
+			 WHERE CASE WHEN json_valid(metadata_json)
+			   THEN json_extract(metadata_json, '$.desktopSideConversation.parentSessionId') END = ?
+			 ORDER BY started_at DESC, session_id DESC`,
+			[parentSessionId],
+		);
+		for (const { session_id: sessionId } of candidates) {
+			const metadata = store.get(sessionId)?.metadata;
+			const side = readSideConversation(metadata);
+			if (
+				side?.parentSessionId === parentSessionId &&
+				side?.owner?.runId === runId &&
+				!metadata?.remoteEnvironmentId
+			)
+				return sessionId;
+		}
+		return undefined;
+	} finally {
+		store.close();
+	}
+}
+
 export function discoverChatSessions(
 	ctx: DiscoveryChatContext,
 	limit = 300,
@@ -49,7 +79,11 @@ export function discoverChatSessions(
 	const out: JsonRecord[] = [];
 	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		if (session.config.executionTarget === "cloud") {
+		if (
+			session.config.executionTarget === "cloud" ||
+			session.config.desktopSideParentSessionId ||
+			readSideConversation(store.get(sessionId)?.metadata)
+		) {
 			continue;
 		}
 		const prompt =
@@ -106,6 +140,12 @@ export function discoverChatSessions(
 				continue;
 			}
 			const manifest = readSessionManifest(sessionId) ?? {};
+			if (
+				readSideConversation(
+					store.get(sessionId)?.metadata ?? manifest.metadata,
+				)
+			)
+				continue;
 			// Skip sessions explicitly marked as subagent.
 			if (manifest.source === "subagent") {
 				continue;
@@ -183,6 +223,7 @@ export function mergeDiscoveredSessionLists(
 			continue;
 		}
 		const normalized = item as JsonRecord;
+		if (readSideConversation(normalized.metadata)) continue;
 		merged.set(key, {
 			...normalized,
 			sessionId,

@@ -90,15 +90,20 @@ export function writeModelSelectionStorageToWindow(
 export const MODEL_SELECTION_CHANGED_EVENT = "cline:model-selection-changed";
 
 export type ModelSelectionChangedDetail = {
+	composerId: string;
 	providerId: string;
 	modelId: string;
 };
 
 /**
- * Makes a model the default for new chats and switches the open composer to
- * it, for selections made outside the composer (e.g. Settings → Local Models).
+ * Sets the default for new chats. An explicit composer target also receives
+ * the selection, including when its current turn is still running.
  */
-export function selectChatModel(providerId: string, modelId: string): void {
+export function selectChatModel(
+	providerId: string,
+	modelId: string,
+	composerId?: string,
+): void {
 	const selection = readModelSelectionStorageFromWindow();
 	writeModelSelectionStorageToWindow({
 		lastProvider: providerId,
@@ -107,10 +112,11 @@ export function selectChatModel(providerId: string, modelId: string): void {
 			[providerId]: modelId,
 		},
 	});
+	if (!composerId) return;
 	window.dispatchEvent(
 		new CustomEvent<ModelSelectionChangedDetail>(
 			MODEL_SELECTION_CHANGED_EVENT,
-			{ detail: { providerId, modelId } },
+			{ detail: { composerId, providerId, modelId } },
 		),
 	);
 }

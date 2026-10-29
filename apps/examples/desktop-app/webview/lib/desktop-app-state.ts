@@ -8,6 +8,10 @@ import { sessionKey } from "./session-identity";
 
 export type DesktopAppView = "chat" | "sessions" | "settings";
 
+export type InitialSideSubmission = {
+	question: string;
+};
+
 export type DesktopThread = {
 	id: string;
 	environmentId: string;
@@ -16,7 +20,30 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	pendingSideSubmissions?: InitialSideSubmission[];
 };
+
+export function appendSideAnswerToMainDraft({
+	threads,
+	drafts,
+	parent,
+	answer,
+}: {
+	threads: DesktopThread[];
+	drafts: Map<string, string>;
+	parent: SessionHistoryItem;
+	answer: string;
+}): string {
+	const parentThread = threads.find(
+		(thread) =>
+			thread.environmentId === parent.environmentId &&
+			(thread.sessionId === parent.sessionId ||
+				thread.historySession?.sessionId === parent.sessionId),
+	);
+	const threadId = parentThread?.id ?? `session_${sessionKey(parent)}`;
+	const existing = drafts.get(threadId) ?? "";
+	return `${existing}${existing ? "\n\n" : ""}From side conversation:\n\n${answer.trim()}`;
+}
 
 export type DesktopAppLocation<SettingsSection extends string> = {
 	activeThreadId: string;
@@ -27,6 +54,8 @@ export type DesktopAppLocation<SettingsSection extends string> = {
 export type DesktopAppState<SettingsSection extends string> = {
 	navigation: NavigationHistory<DesktopAppLocation<SettingsSection>>;
 	threads: DesktopThread[];
+	selectedSideByParent: Record<string, string>;
+	sideOpenVersion: number;
 };
 
 export type DesktopAppAction<SettingsSection extends string> =
@@ -45,8 +74,21 @@ export type DesktopAppAction<SettingsSection extends string> =
 			session: SessionHistoryItem;
 			environmentId: string;
 			initialPromptDraft?: string;
+			initialSideSubmission?: InitialSideSubmission;
+	  }
+	| {
+			type: "open-side";
+			parentThreadId: string;
+			session: SessionHistoryItem;
+			submission?: InitialSideSubmission;
+			reveal?: boolean;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
+	| {
+			type: "consume-initial-side-submission";
+			threadId: string;
+			submission: InitialSideSubmission;
+	  }
 	| {
 			type: "delete-session";
 			deletedSessionId: string;
@@ -81,6 +123,8 @@ export function createDesktopAppState<SettingsSection extends string>(
 ): DesktopAppState<SettingsSection> {
 	return {
 		threads: [{ id: initialThreadId, environmentId: initialEnvironmentId }],
+		selectedSideByParent: {},
+		sideOpenVersion: 0,
 		navigation: createNavigationHistory({
 			activeThreadId: initialThreadId,
 			settingsSection: initialSettingsSection,
@@ -113,6 +157,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		case "new-thread":
 			return {
+				...state,
 				threads: [
 					...state.threads,
 					{ id: action.threadId, environmentId: action.environmentId },
@@ -165,11 +210,30 @@ export function desktopAppReducer<SettingsSection extends string>(
 				return state;
 			}
 			return {
+				...state,
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
 					destination,
 				}),
+			};
+		}
+		case "open-side": {
+			const opened = desktopAppReducer(state, {
+				type: "open-session",
+				session: action.session,
+				environmentId: action.session.environmentId,
+				initialSideSubmission: action.submission,
+			});
+			return {
+				...opened,
+				navigation: state.navigation,
+				selectedSideByParent: {
+					...state.selectedSideByParent,
+					[action.parentThreadId]: opened.navigation.current.activeThreadId,
+				},
+				sideOpenVersion:
+					state.sideOpenVersion + (action.reveal === false ? 0 : 1),
 			};
 		}
 		case "open-session": {
@@ -197,6 +261,12 @@ export function desktopAppReducer<SettingsSection extends string>(
 											environmentId: action.environmentId,
 										},
 										initialPromptDraft: action.initialPromptDraft,
+										pendingSideSubmissions: action.initialSideSubmission
+											? [
+													...(thread.pendingSideSubmissions ?? []),
+													action.initialSideSubmission,
+												]
+											: thread.pendingSideSubmissions,
 									}
 								: thread,
 						)
@@ -211,9 +281,13 @@ export function desktopAppReducer<SettingsSection extends string>(
 									environmentId: action.environmentId,
 								},
 								initialPromptDraft: action.initialPromptDraft,
+								pendingSideSubmissions: action.initialSideSubmission
+									? [action.initialSideSubmission]
+									: undefined,
 							},
 						];
 			return {
+				...state,
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
@@ -225,6 +299,20 @@ export function desktopAppReducer<SettingsSection extends string>(
 				}),
 			};
 		}
+		case "consume-initial-side-submission":
+			return {
+				...state,
+				threads: state.threads.map((thread) =>
+					thread.id === action.threadId
+						? {
+								...thread,
+								pendingSideSubmissions: thread.pendingSideSubmissions?.filter(
+									(submission) => submission !== action.submission,
+								),
+							}
+						: thread,
+				),
+			};
 		case "consume-initial-prompt-draft":
 			return {
 				...state,
@@ -288,7 +376,14 @@ export function desktopAppReducer<SettingsSection extends string>(
 				view: "chat",
 			};
 			return {
+				...state,
 				threads,
+				selectedSideByParent: Object.fromEntries(
+					Object.entries(state.selectedSideByParent).filter(
+						([parentId, sideId]) =>
+							!deletedThreadIds.has(parentId) && !deletedThreadIds.has(sideId),
+					),
+				),
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "reconcile",
 					fallback,

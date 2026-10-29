@@ -3,6 +3,7 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	act,
+	type ComponentProps,
 	Fragment,
 	type MouseEvent as ReactMouseEvent,
 	StrictMode,
@@ -21,6 +22,7 @@ import {
 	readModelSelectionStorageFromWindow,
 	selectChatModel,
 } from "@/lib/model-selection";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
@@ -231,6 +233,7 @@ async function renderVoiceComposer({
 			<Wrapper>
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						composerId="test-composer"
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
@@ -277,16 +280,19 @@ function DraftComposer({
 	drafts,
 	threadId,
 	sendPrompt,
+	inputProps,
 }: {
 	drafts: Map<string, string>;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
+	inputProps?: Partial<Parameters<typeof ChatInputBar>[0]>;
 }) {
 	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
 		usePromptDraft(drafts, threadId);
 	return (
 		<WorkspaceProvider value={workspaceValue}>
 			<ChatInputBar
+				composerId={threadId}
 				environmentId="local"
 				attachments={[]}
 				gitBranch="main"
@@ -319,6 +325,7 @@ function DraftComposer({
 				status="idle"
 				summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 				thinking
+				{...inputProps}
 			/>
 		</WorkspaceProvider>
 	);
@@ -501,7 +508,9 @@ describe("ChatInputBar", () => {
 			executionTarget: "local",
 			strictMode: true,
 		});
-		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		expect(
+			container.querySelector('[id$="-slash-command-suggestions"]'),
+		).toBeNull();
 		const chip = container.querySelector("[aria-hidden] span");
 		expect(chip?.textContent).toBe("/publish-skill");
 
@@ -537,7 +546,9 @@ describe("ChatInputBar", () => {
 			textarea?.setSelectionRange(11, 11);
 			textarea?.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
 		});
-		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		expect(
+			container.querySelector('[id$="-slash-command-suggestions"]'),
+		).toBeNull();
 		await vi.waitFor(() =>
 			expect(container.querySelector("[aria-hidden] span")?.textContent).toBe(
 				"/deploy",
@@ -886,6 +897,8 @@ describe("ChatInputBar", () => {
 					{ name: "goal", description: "Set or clear a goal" },
 					{ name: "goal-status" },
 					{ name: "team", description: "Plugin team" },
+					{ name: "btw", description: "Plugin btw" },
+					{ name: "side", description: "Plugin side" },
 				],
 			),
 		).toEqual([
@@ -894,16 +907,26 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it.each(["/btw", "/side"])("suggests the side command %s", async (prompt) => {
+		await renderVoiceComposer({ prompt, executionTarget: "local" });
+		expect(
+			container.querySelector('[id$="-slash-command-suggestions"]')
+				?.textContent,
+		).toContain(prompt);
+	});
+
 	it("suggests the built-in /compact command", async () => {
 		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
-		const suggestions = container.querySelector("#slash-command-suggestions");
+		const suggestions = container.querySelector(
+			'[id$="-slash-command-suggestions"]',
+		);
 		expect(suggestions?.textContent).toContain("/compact");
 	});
 
 	it("opens the slash menu after leading whitespace", async () => {
 		await renderVoiceComposer({ prompt: "  /comp", executionTarget: "local" });
 		expect(
-			container.querySelector("#slash-command-suggestions"),
+			container.querySelector('[id$="-slash-command-suggestions"]'),
 		).not.toBeNull();
 	});
 
@@ -912,21 +935,23 @@ describe("ChatInputBar", () => {
 			prompt: "please /comp",
 			executionTarget: "local",
 		});
-		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		expect(
+			container.querySelector('[id$="-slash-command-suggestions"]'),
+		).toBeNull();
 	});
 
 	it("scrolls the arrow-key selected slash command into view", async () => {
 		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
 		const textarea = container.querySelector("textarea");
 		expect(
-			container.querySelector("#slash-command-suggestions"),
+			container.querySelector('[id$="-slash-command-suggestions"]'),
 		).not.toBeNull();
 		await act(async () => {
 			textarea?.dispatchEvent(
 				new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
 			);
 		});
-		const selected = container.querySelector("#slash-command-option-1");
+		const selected = container.querySelector('[id$="-slash-command-option-1"]');
 		expect(selected?.getAttribute("aria-selected")).toBe("true");
 		expect(selected?.scrollIntoView).toHaveBeenCalledWith({
 			block: "nearest",
@@ -973,6 +998,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						cloudBranch="feature/cloud"
 						environmentId="local"
@@ -1161,6 +1187,7 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						composerId="test-composer"
 						environmentId="local"
 						attachments={[]}
 						executionTarget="cloud"
@@ -1244,6 +1271,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
+							composerId="test-composer"
 							environmentId="local"
 							attachments={attachments}
 							executionTarget="cloud"
@@ -1346,6 +1374,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1795,6 +1824,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
+							composerId="test-composer"
 							attachments={[]}
 							environmentId="local"
 							gitBranch="main"
@@ -1986,6 +2016,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						environmentId="local"
 						gitBranch="main"
@@ -2057,7 +2088,30 @@ describe("ChatInputBar", () => {
 		).toEqual({ cline: "high" });
 	});
 
-	it("seeds an unset thinking level from the remembered provider choice instead of Low", async () => {
+	it.each([
+		{
+			name: "seeds an unset main choice",
+			side: false,
+			thinking: undefined,
+			effort: undefined,
+		},
+		{
+			name: "preserves an inherited side effort",
+			side: true,
+			thinking: true,
+			effort: "xhigh" as const,
+		},
+		{
+			name: "preserves disabled side thinking",
+			side: true,
+			thinking: false,
+			effort: undefined,
+		},
+	])("$name instead of overwriting it with the global provider choice", async ({
+		side,
+		thinking,
+		effort,
+	}) => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -2073,6 +2127,8 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						composerId="test-composer"
+						isSideConversation={side}
 						attachments={[]}
 						environmentId="local"
 						gitBranch="main"
@@ -2098,25 +2154,30 @@ describe("ChatInputBar", () => {
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
 						provider="cline"
-						reasoningEffort={undefined}
+						reasoningEffort={effort}
 						status="idle"
 						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
-						thinking={undefined}
+						thinking={thinking}
 					/>
 				</WorkspaceProvider>,
 			);
 		});
 
-		await vi.waitFor(() => {
+		await vi.waitFor(() =>
+			expect(
+				container.querySelector<HTMLButtonElement>(
+					'[aria-label="Thinking level"]',
+				)?.disabled,
+			).toBe(false),
+		);
+		if (side) {
+			expect(onReasoningChange).not.toHaveBeenCalled();
+		} else {
 			expect(onReasoningChange).toHaveBeenCalledWith({
 				thinking: true,
 				reasoningEffort: "medium",
 			});
-		});
-		expect(onReasoningChange).not.toHaveBeenCalledWith({
-			thinking: true,
-			reasoningEffort: "low",
-		});
+		}
 	});
 
 	it("applies the new provider's remembered thinking level when switching providers", async () => {
@@ -2139,6 +2200,7 @@ describe("ChatInputBar", () => {
 				root.render(
 					<WorkspaceProvider value={workspaceValue}>
 						<ChatInputBar
+							composerId="test-composer"
 							attachments={[]}
 							environmentId="local"
 							gitBranch="main"
@@ -2217,6 +2279,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						environmentId="local"
 						gitBranch="main"
@@ -2396,6 +2459,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -2495,6 +2559,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -2607,6 +2672,7 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -2694,6 +2760,7 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -2760,14 +2827,23 @@ describe("ChatInputBar", () => {
 			hasActiveSession?: boolean;
 			model: string;
 			provider: string;
-			onModelChange?: ReturnType<typeof vi.fn>;
-			onProviderChange?: ReturnType<typeof vi.fn>;
+			onModelChange?: ComponentProps<typeof ChatInputBar>["onModelChange"];
+			onProviderChange?: ComponentProps<
+				typeof ChatInputBar
+			>["onProviderChange"];
+			onSideSettingsChange?: ComponentProps<
+				typeof ChatInputBar
+			>["onSideSettingsChange"];
 			status?: "idle" | "running";
 		}) => {
 			await act(async () => {
 				root.render(
 					<WorkspaceProvider value={workspaceValue}>
 						<ChatInputBar
+							composerId="test-composer"
+							isSideConversation={Boolean(props.onSideSettingsChange)}
+							environmentId="local"
+							onSideSettingsChange={props.onSideSettingsChange}
 							attachments={[]}
 							executionTarget={props.executionTarget}
 							gitBranch="main"
@@ -2808,22 +2884,37 @@ describe("ChatInputBar", () => {
 			});
 		};
 
-		it("switches to a model chosen in Settings once the running turn ends", async () => {
+		it.each([
+			false,
+			true,
+		])("applies addressed Settings choices after the turn (side=%s)", async (side) => {
+			const onSideSettingsChange = side ? vi.fn() : undefined;
 			const onModelChange = vi.fn();
 			const onProviderChange = vi.fn();
 			const props = {
+				onSideSettingsChange,
 				model: "openai/gpt-5",
 				provider: "cline-pass",
 				onModelChange,
 				onProviderChange,
 			};
 			await renderComposer({ ...props, status: "running" });
-			await act(async () => selectChatModel("cline", "test-model"));
+			await act(async () =>
+				selectChatModel("cline", "test-model", "test-composer"),
+			);
 			expect(onProviderChange).not.toHaveBeenCalledWith("cline");
 
 			await renderComposer({ ...props, status: "idle" });
-			expect(onProviderChange).toHaveBeenCalledWith("cline");
-			expect(onModelChange).toHaveBeenCalledWith("test-model");
+			if (onSideSettingsChange) {
+				expect(onSideSettingsChange).toHaveBeenCalledWith({
+					provider: "cline",
+					model: "test-model",
+				});
+				expect(onProviderChange).not.toHaveBeenCalledWith("cline");
+			} else {
+				expect(onProviderChange).toHaveBeenCalledWith("cline");
+				expect(onModelChange).toHaveBeenCalledWith("test-model");
+			}
 		});
 
 		beforeEach(() => {
@@ -3243,6 +3334,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -3380,6 +3472,7 @@ describe("ChatInputBar token ring", () => {
 					}}
 				>
 					<ChatInputBar
+						composerId="test-composer"
 						attachments={[]}
 						environmentId="local"
 						gitBranch="main"
@@ -3597,6 +3690,7 @@ describe("ChatInputBar compact layout", () => {
 						}}
 					>
 						<ChatInputBar
+							composerId="test-composer"
 							attachments={[]}
 							environmentId="local"
 							gitBranch="main"
@@ -3644,5 +3738,214 @@ describe("ChatInputBar compact layout", () => {
 		} finally {
 			vi.unstubAllGlobals();
 		}
+	});
+});
+
+describe("ChatInputBar pane ownership", () => {
+	it("addresses focus and Stop while preserving menu and IME precedence", async () => {
+		const drafts = new Map([
+			["main", "/bt"],
+			["side", "/bt"],
+		]);
+		const abortMain = vi.fn();
+		const abortSide = vi.fn();
+		const renderPanes = (sideActive: boolean) =>
+			act(async () => {
+				root.render(
+					<>
+						<DraftComposer
+							drafts={drafts}
+							threadId="main"
+							inputProps={{ status: "running", onAbort: abortMain }}
+						/>
+						<DraftComposer
+							drafts={drafts}
+							threadId="side"
+							inputProps={{
+								status: "running",
+								onAbort: abortSide,
+								active: sideActive,
+							}}
+						/>
+					</>,
+				);
+			});
+		await renderPanes(false);
+		const [main, side] =
+			container.querySelectorAll<HTMLTextAreaElement>("textarea");
+		expect(document.activeElement).toBe(main);
+		const mainListId = main.getAttribute("aria-controls");
+		expect(document.getElementById(mainListId ?? "")?.textContent).toContain(
+			"/btw",
+		);
+		await act(async () => {
+			requestPromptInputFocus("side");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+		expect(document.activeElement).toBe(main);
+		await renderPanes(true);
+		expect(document.activeElement).toBe(main);
+		await act(async () => {
+			requestPromptInputFocus("side");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+		expect(document.activeElement).toBe(side);
+		const sideListId = side.getAttribute("aria-controls");
+		expect(sideListId).not.toBe(mainListId);
+		expect(document.getElementById(sideListId ?? "")?.textContent).toContain(
+			"/btw",
+		);
+		await act(async () => {
+			side.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+			);
+		});
+		expect(side.getAttribute("aria-expanded")).toBe("false");
+		expect(abortSide).not.toHaveBeenCalled();
+		await act(async () => {
+			side.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Escape",
+					bubbles: true,
+					isComposing: true,
+				}),
+			);
+		});
+		expect(abortSide).not.toHaveBeenCalled();
+		await act(async () => {
+			side.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+			);
+		});
+		expect(abortSide).toHaveBeenCalledOnce();
+		expect(abortMain).not.toHaveBeenCalled();
+	});
+
+	it("keeps deferred model changes on their addressed composer and never writes defaults on mount", async () => {
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "cline",
+				lastModelByProvider: { cline: "remembered-model" },
+			}),
+		);
+		const storageWrites = vi.spyOn(Storage.prototype, "setItem");
+		const drafts = new Map<string, string>();
+		const mainModel = vi.fn();
+		const sideModel = vi.fn();
+		const renderPanes = (status: ChatSessionStatus, sideId = "side") =>
+			act(async () => {
+				root.render(
+					<>
+						<DraftComposer
+							drafts={drafts}
+							threadId="main"
+							inputProps={{ onModelChange: mainModel }}
+						/>
+						<DraftComposer
+							drafts={drafts}
+							threadId={sideId}
+							inputProps={{ status, onModelChange: sideModel }}
+						/>
+					</>,
+				);
+			});
+		await renderPanes("running");
+		expect(
+			storageWrites.mock.calls.filter(
+				([key]) => key === MODEL_SELECTION_STORAGE_KEY,
+			),
+		).toEqual([]);
+		expect(
+			readModelSelectionStorageFromWindow().lastModelByProvider.cline,
+		).toBe("remembered-model");
+		await act(async () => selectChatModel("cline", "side-model", "side"));
+		expect(mainModel).not.toHaveBeenCalled();
+		expect(sideModel).not.toHaveBeenCalled();
+		await act(async () => selectChatModel("cline", "main-model", "main"));
+		expect(mainModel).toHaveBeenCalledExactlyOnceWith("main-model");
+		await renderPanes("idle");
+		expect(sideModel).toHaveBeenCalledExactlyOnceWith("side-model");
+		await renderPanes("running");
+		await act(async () => selectChatModel("cline", "stale-model", "side"));
+		await renderPanes("idle", "other-side");
+		expect(sideModel).toHaveBeenCalledTimes(1);
+		await act(async () => selectChatModel("cline", "default-only"));
+		expect(mainModel).toHaveBeenCalledTimes(1);
+		expect(sideModel).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("ChatInputBar background controls", () => {
+	it("keeps speech in its originating draft without refocusing and ignores late speech after hiding", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "voice",
+				providerName: "Voice",
+				modelId: "speech",
+				modelName: "Speech",
+				supportsStreaming: true,
+			}),
+		);
+		const drafts = new Map([
+			["main", "Main draft"],
+			["side", "Side draft"],
+		]);
+		const renderPanes = (active: boolean) =>
+			act(async () => {
+				root.render(
+					<>
+						<DraftComposer drafts={drafts} threadId="main" />
+						<DraftComposer
+							drafts={drafts}
+							threadId="side"
+							inputProps={{ active }}
+						/>
+					</>,
+				);
+			});
+		await renderPanes(true);
+		const speech = speechInputMockState.current;
+		const [main, side] =
+			container.querySelectorAll<HTMLTextAreaElement>("textarea");
+		await act(async () => {
+			side.setSelectionRange(side.value.length, side.value.length);
+			speech?.onStreamingStart?.();
+			main.focus();
+			speech?.onTranscriptionChange?.("spoken words");
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+		expect(main.value).toBe("Main draft");
+		expect(side.value).toBe("Side draft spoken words");
+		expect(document.activeElement).toBe(main);
+		await renderPanes(false);
+		await act(async () => speech?.onTranscriptionChange?.("late words"));
+		expect(side.value).toBe("Side draft spoken words");
+		await renderPanes(true);
+		await act(async () => speech?.onTranscriptionChange?.("still stale"));
+		expect(side.value).toBe("Side draft spoken words");
+	});
+
+	it("removes an open model menu when its pane becomes hidden", async () => {
+		const drafts = new Map<string, string>();
+		const renderPane = (active: boolean) =>
+			act(async () => {
+				root.render(
+					<DraftComposer
+						drafts={drafts}
+						threadId="side"
+						inputProps={{ active }}
+					/>,
+				);
+			});
+		await renderPane(true);
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		expect(trigger).not.toBeNull();
+		await act(async () => trigger?.click());
+		expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+		await renderPane(false);
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
 	});
 });

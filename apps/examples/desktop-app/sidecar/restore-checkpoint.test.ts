@@ -42,6 +42,11 @@ describe("restore_checkpoint", () => {
 		persistSessionMessages(sessionId, fullMessages);
 
 		const ctx = {
+			temporarySideConversations: {
+				closing: false,
+				closed: new Set<string>(),
+				pending: new Map(),
+			},
 			liveSessions: new Map([
 				[
 					sessionId,

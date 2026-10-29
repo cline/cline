@@ -22,6 +22,11 @@ const REMOTE_SESSION: CloudSessionRecord = {
 function createContext(): { ctx: SidecarContext } {
 	const ctx = {
 		liveSessions: new Map(),
+		temporarySideConversations: {
+			closing: false,
+			closed: new Set(),
+			pending: new Map(),
+		},
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		coreStreamActivity: new Map(),

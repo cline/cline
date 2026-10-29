@@ -110,11 +110,13 @@ let providerCatalogCache: {
 // -----------------------------------------------------------
 
 export function SettingsView({
+	composerId,
 	section,
 	onNavigateSection,
 	onOpenSession,
 	onExportDiagnostics,
 }: {
+	composerId?: string;
 	section: SettingsSection;
 	onExportDiagnostics: () => void;
 	onNavigateSection: (section: SettingsSection) => void;
@@ -635,7 +637,7 @@ export function SettingsView({
 				{addProviderDialog}
 			</>
 		) : activeNav === "Local Models" ? (
-			<LocalModelsContent />
+			<LocalModelsContent composerId={composerId} />
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}

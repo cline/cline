@@ -2690,3 +2690,96 @@ describe("ChatMessages last turn receipt", () => {
 		expect(receipts()).toHaveLength(0);
 	});
 });
+
+describe("ChatMessages answer transfer", () => {
+	it("transfers the selected completed answer, without offering a partial current response", async () => {
+		const onAddToMainDraft = vi.fn();
+		const messages: ChatMessage[] = [
+			{
+				id: "question-1",
+				sessionId: "side",
+				role: "user",
+				content: "First question",
+				createdAt: 1,
+			},
+			{
+				id: "answer-1",
+				sessionId: "side",
+				role: "assistant",
+				content: "First **answer**",
+				createdAt: 2,
+			},
+			{
+				id: "question-2",
+				sessionId: "side",
+				role: "user",
+				content: "Second question",
+				createdAt: 3,
+			},
+			{
+				id: "answer-2",
+				sessionId: "side",
+				role: "assistant",
+				content: "Second answer",
+				createdAt: 4,
+			},
+		];
+		await renderMessages(messages, {
+			status: "running",
+			streamingMessageId: "answer-2",
+			onAddToMainDraft,
+		});
+		let actions = container.querySelectorAll<HTMLButtonElement>(
+			'[aria-label="Add to main draft"]',
+		);
+		expect(actions).toHaveLength(1);
+		await act(async () => actions[0].click());
+		expect(onAddToMainDraft).toHaveBeenLastCalledWith("First **answer**");
+		await renderMessages(messages, { onAddToMainDraft });
+		actions = container.querySelectorAll<HTMLButtonElement>(
+			'[aria-label="Add to main draft"]',
+		);
+		expect(actions).toHaveLength(2);
+		await act(async () => actions[1].click());
+		expect(onAddToMainDraft).toHaveBeenLastCalledWith("Second answer");
+		await renderMessages(messages, { status: "cancelled", onAddToMainDraft });
+		expect(
+			container.querySelectorAll('[aria-label="Add to main draft"]'),
+		).toHaveLength(1);
+	});
+});
+
+describe("side chat empty state", () => {
+	it("shows the welcome copy only for a ready empty side", async () => {
+		await renderMessages([], { sideEmpty: true, status: "idle" });
+		expect(container.textContent).toContain("Side chat");
+		expect(container.textContent).toContain(
+			"Ask a related question while the main chat continues.",
+		);
+		await renderMessages(
+			[
+				{
+					id: "reply",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Saved response",
+					createdAt: Date.now(),
+				},
+			],
+			{ sideEmpty: true },
+		);
+		expect(container.textContent).not.toContain("Side chat");
+		expect(container.textContent).toContain("Saved response");
+	});
+	it.each([
+		{ sideEmpty: false },
+		{ isSessionSwitching: true },
+		{ status: "running" as const },
+		{ status: "starting" as const },
+		{ error: "Failed to load" },
+		{ chatTransportState: "reconnecting" as const },
+	])("does not flash empty copy over unresolved or active state: %o", async (state) => {
+		await renderMessages([], { sideEmpty: true, ...state });
+		expect(container.textContent).not.toContain("Side chat");
+	});
+});

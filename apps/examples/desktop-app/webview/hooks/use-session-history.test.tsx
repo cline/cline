@@ -1227,3 +1227,56 @@ describe("useSessionHistory background hydration", () => {
 		expect(hydratedSessionIds).not.toContain("ses-cloud");
 	});
 });
+
+function sideRow(index: number) {
+	return {
+		...sessionRow(`side-${index}`),
+		metadata: {
+			title: `Side question ${index}`,
+			desktopSideConversation: {
+				version: 1,
+				parentSessionId: "parent",
+				capturedAt: "2026-10-28T00:00:00.000Z",
+				sourceMessageCount: 2,
+				includedMessageCount: 2,
+				omittedMessageCount: 0,
+				omittedMediaCount: 0,
+			},
+		},
+	};
+}
+
+it("keeps side identities available while projecting only parent rows", async () => {
+	await act(async () => root.render(<HookHarness />));
+	await flush();
+	const side = sideRow(1);
+	await act(async () => pendingLists[0].resolve([sessionRow("parent"), side]));
+	expect(current.sessions.map((item) => item.sessionId)).toEqual(["parent"]);
+	expect(current.threads.map((item) => item.id)).toEqual([
+		sessionKey(sessionRow("parent")),
+	]);
+	expect(current.sessionById.get(sessionKey(side))?.sessionId).toBe(
+		side.sessionId,
+	);
+	expect(current.getSessionByThreadId(sessionKey(side))?.sessionId).toBe(
+		side.sessionId,
+	);
+	await flush(12_000);
+	const reassigned = {
+		...side,
+		metadata: {
+			...side.metadata,
+			desktopSideConversation: {
+				...side.metadata.desktopSideConversation,
+				parentSessionId: "older-parent",
+			},
+		},
+	};
+	await act(async () =>
+		pendingLists[1].resolve([sessionRow("parent"), reassigned]),
+	);
+	expect(
+		current.sessionById.get(sessionKey(side))?.metadata
+			?.desktopSideConversation,
+	).toEqual(reassigned.metadata.desktopSideConversation);
+});

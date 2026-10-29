@@ -72,6 +72,7 @@ function renderView({
 		renameThread: vi.fn(),
 		requestUsage,
 		setThreadPinned: vi.fn(),
+		allSessions: [],
 		sessionById: new Map(
 			threads.map((item) => [item.id, { ...session, sessionId: item.id }]),
 		),

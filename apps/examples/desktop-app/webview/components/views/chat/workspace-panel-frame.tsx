@@ -3,77 +3,88 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
 	clampWorkspacePanelWidth,
-	hasStoredWorkspacePanelWidth,
 	readWorkspacePanelWidth,
 	writeWorkspacePanelWidth,
+	type WorkspacePanelKind,
 } from "@/lib/workspace-panel";
 
-/**
- * The right-hand column beside the conversation, with a drag handle on its
- * left edge. Placed explicitly in column 2 spanning both grid rows, so the
- * transcript and composer keep auto-flowing into column 1.
- */
 export function WorkspacePanelFrame({
-	id,
 	children,
+	visible,
+	narrow,
+	panel = "workspace",
 }: {
-	id: string;
 	children: ReactNode;
+	visible: boolean;
+	narrow: boolean;
+	panel?: WorkspacePanelKind;
 }) {
-	const [width, setWidth] = useState(readWorkspacePanelWidth);
-	const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
-		null,
-	);
-
-	// Until the user drags it, the panel tracks its share of the main content area as
-	// the window resizes or the app sidebar collapses.
+	const [width, setWidth] = useState(() => readWorkspacePanelWidth(panel));
+	const drag = useRef<{ x: number; width: number } | null>(null);
 	useEffect(() => {
-		const follow = () =>
-			setWidth((current) =>
-				hasStoredWorkspacePanelWidth()
-					? clampWorkspacePanelWidth(current)
-					: readWorkspacePanelWidth(),
-			);
+		const follow = () => setWidth(readWorkspacePanelWidth(panel));
+		drag.current = null;
+		follow();
 		window.addEventListener("resize", follow);
 		const main = document.querySelector('[data-slot="sidebar-inset"]');
 		const observer =
-			main && typeof ResizeObserver !== "undefined"
-				? new ResizeObserver(follow)
-				: null;
+			typeof ResizeObserver !== "undefined" ? new ResizeObserver(follow) : null;
 		if (main) observer?.observe(main);
 		return () => {
 			window.removeEventListener("resize", follow);
 			observer?.disconnect();
 		};
-	}, []);
-
+	}, [panel]);
+	const resize = (next: number) => {
+		const clamped = clampWorkspacePanelWidth(next);
+		setWidth(clamped);
+		writeWorkspacePanelWidth(clamped, panel);
+	};
 	return (
 		<aside
-			className="relative col-start-2 row-span-2 row-start-1 flex min-h-0 border-l border-border bg-background"
-			id={id}
-			style={{ width }}
+			className="relative flex min-h-0 min-w-0 shrink-0 border-l border-border bg-background"
+			style={{
+				display: visible ? "flex" : "none",
+				width: narrow ? "100%" : width,
+			}}
 		>
-			<div
-				aria-hidden
-				className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-primary/30"
-				onPointerDown={(event) => {
-					dragStateRef.current = { startX: event.clientX, startWidth: width };
-					event.currentTarget.setPointerCapture(event.pointerId);
-				}}
-				onPointerMove={(event) => {
-					const drag = dragStateRef.current;
-					if (!drag) return;
-					setWidth(
-						clampWorkspacePanelWidth(
-							drag.startWidth + (drag.startX - event.clientX),
-						),
-					);
-				}}
-				onPointerUp={() => {
-					if (dragStateRef.current) writeWorkspacePanelWidth(width);
-					dragStateRef.current = null;
-				}}
-			/>
+			{!narrow && (
+				// biome-ignore lint/a11y/useSemanticElements: This focusable separator resizes panes; it is not a thematic break.
+				<div
+					role="separator"
+					aria-label="Resize workspace panel"
+					aria-orientation="vertical"
+					aria-valuenow={Math.round(width)}
+					tabIndex={0}
+					className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-primary/30 focus-visible:bg-primary/30"
+					onKeyDown={(event) => {
+						if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+							event.preventDefault();
+							resize(width + (event.key === "ArrowLeft" ? 20 : -20));
+						}
+					}}
+					onPointerDown={(event) => {
+						drag.current = { x: event.clientX, width };
+						event.currentTarget.setPointerCapture(event.pointerId);
+					}}
+					onPointerMove={(event) => {
+						if (drag.current)
+							setWidth(
+								clampWorkspacePanelWidth(
+									drag.current.width + drag.current.x - event.clientX,
+								),
+							);
+					}}
+					onPointerUp={() => {
+						if (drag.current) writeWorkspacePanelWidth(width, panel);
+						drag.current = null;
+					}}
+					onPointerCancel={() => {
+						drag.current = null;
+						setWidth(readWorkspacePanelWidth(panel));
+					}}
+				/>
+			)}
 			{children}
 		</aside>
 	);

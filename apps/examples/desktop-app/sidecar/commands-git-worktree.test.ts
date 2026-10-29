@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -71,6 +72,8 @@ describe("create_git_worktree command", () => {
 		const ctx = {
 			activeEnvironmentId: "local",
 			liveSessions: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
 			sessionEnvironmentIds: new Map(),
 			runtimeBindings: new Map([
 				[
@@ -162,7 +165,14 @@ describe("delete_chat_session worktree cleanup", () => {
 	async function deleteSession(store: SqliteSessionStore, sessionId: string) {
 		const events: Array<{ name: string; payload: unknown }> = [];
 		const ctx = {
+			temporarySideConversations: {
+				closing: false,
+				closed: new Set<string>(),
+				pending: new Map(),
+			},
 			liveSessions: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
 			sessionEnvironmentIds: new Map(),
 			wsClients: new Set([
 				{
@@ -207,7 +217,7 @@ describe("delete_chat_session worktree cleanup", () => {
 			name: "session_deleted",
 			payload: expect.objectContaining({
 				sessionId: "session-wt",
-				removedWorktree: { path: worktree.path, repoRoot: repo },
+				removedWorktree: { path: worktree.path, repoRoot: realpathSync(repo) },
 			}),
 		});
 		expect(existsSync(worktree.path)).toBe(false);
@@ -230,6 +240,38 @@ describe("delete_chat_session worktree cleanup", () => {
 		expect(git(repo, "branch", "--list", "feature/keep-me")).toContain(
 			"feature/keep-me",
 		);
+	});
+
+	it("keeps shared files after deleting the parent and then its last orphan side", async () => {
+		const worktree = await run(repo);
+		writeFileSync(join(worktree.path, "side-edit.txt"), "keep this edit");
+		const store = new SqliteSessionStore();
+		store.create(sessionRecord("parent", worktree.path) as never);
+		store.create({
+			...sessionRecord("side", worktree.path),
+			metadata: {
+				desktopSideConversation: {
+					version: 1,
+					parentSessionId: "parent",
+					capturedAt: new Date().toISOString(),
+					sourceMessageCount: 0,
+					includedMessageCount: 0,
+					omittedMessageCount: 0,
+					omittedMediaCount: 0,
+				},
+			},
+		} as never);
+		await deleteSession(store, "parent");
+		expect(existsSync(worktree.path)).toBe(true);
+		const { deleted, events } = await deleteSession(store, "side");
+		expect(deleted).toBe(true);
+		expect(existsSync(join(worktree.path, "side-edit.txt"))).toBe(true);
+		expect(git(repo, "worktree", "list")).toContain(worktree.path);
+		expect(events).toContainEqual({
+			name: "session_deleted",
+			payload: expect.objectContaining({ sessionId: "side" }),
+		});
+		expect(JSON.stringify(events)).not.toContain("removedWorktree");
 	});
 
 	it("keeps a worktree that another session still uses", async () => {

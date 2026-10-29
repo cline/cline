@@ -6,6 +6,7 @@ import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	Activity,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -13,6 +14,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubStartupScreen } from "@/components/hub-startup-screen";
@@ -40,8 +42,14 @@ import {
 import { normalizeTitle } from "@/components/utils";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import {
+	ConversationWorkspace,
+	type ConversationWorkspaceControls,
+} from "@/components/views/chat/conversation-workspace";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
+import { SideConversationMenu } from "@/components/views/chat/side-conversation-menu";
+import { SideConversationOpening } from "@/components/views/chat/side-conversation-opening";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
@@ -67,6 +75,8 @@ import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
+import { useSideChatAttention } from "@/hooks/use-side-chat-attention";
+import { useSideConversation } from "@/hooks/use-side-conversation";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -78,10 +88,14 @@ import {
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
 import {
+	appendSideAnswerToMainDraft,
 	createDesktopAppState,
+	type DesktopAppAction,
 	type DesktopAppLocation,
 	type DesktopAppView,
+	type DesktopThread,
 	desktopAppReducer,
+	type InitialSideSubmission,
 } from "@/lib/desktop-app-state";
 import {
 	desktopClient,
@@ -166,7 +180,6 @@ import {
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
 import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
-import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -177,6 +190,10 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+import {
+	DESKTOP_SIDE_REFERENCE_KIND,
+	readSideConversation,
+} from "../../shared/side-conversation";
 
 // Lazily loaded views: none of these are needed for the first paint of the
 // chat shell, so keeping them out of the entry chunk shortens app startup.
@@ -228,14 +245,8 @@ const loadProjectFilesPanel = () =>
 	import("@/components/views/chat/project-files-panel");
 const loadChangesPanel = () => import("@/components/views/chat/changes-panel");
 
-// Holds a workspace panel's grid cell at its final width while the chunk
-// loads; an empty cell would let the composer flow into it for a few frames.
 const workspacePanelLoading = () => (
-	<aside
-		aria-hidden
-		className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
-		style={{ width: readWorkspacePanelWidth() }}
-	/>
+	<aside aria-hidden className="h-full min-w-0 flex-1 bg-background" />
 );
 
 const ProjectFilesPanel = dynamic(
@@ -391,7 +402,7 @@ function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
-	const [appState, dispatchApp] = useReducer(
+	const [appState, reduceApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
 		(threadId) =>
@@ -401,10 +412,32 @@ function App() {
 				LOCAL_WORKSPACE_ENVIRONMENT_ID,
 			),
 	);
+	const navigationIntentRef = useRef(0);
+	const dispatchApp = useCallback(
+		(action: DesktopAppAction<SettingsSection>) => {
+			if (
+				action.type === "navigate" ||
+				action.type === "back" ||
+				action.type === "forward" ||
+				action.type === "new-thread" ||
+				action.type === "select-environment-draft" ||
+				action.type === "open-session" ||
+				action.type === "open-side" ||
+				action.type === "delete-session"
+			)
+				navigationIntentRef.current += 1;
+			reduceApp(action);
+		},
+		[],
+	);
+
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
 	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
+	const [settingsComposerId, setSettingsComposerId] = useState<
+		string | undefined
+	>(undefined);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	// The terminal panel is app-level so it stays open across session
@@ -438,14 +471,15 @@ function App() {
 		setTerminalPanel((current) => {
 			const next = { ...current, open: !current.open };
 			writeTerminalPanelState(next);
-			if (!next.open) requestPromptInputFocus();
+			if (!next.open)
+				requestPromptInputFocus(appState.navigation.current.activeThreadId);
 			return next;
 		});
-	}, []);
+	}, [appState.navigation.current.activeThreadId]);
 	const handleCloseTerminal = useCallback(() => {
 		updateTerminalPanel({ open: false });
-		requestPromptInputFocus();
-	}, [updateTerminalPanel]);
+		requestPromptInputFocus(appState.navigation.current.activeThreadId);
+	}, [updateTerminalPanel, appState.navigation.current.activeThreadId]);
 	const handleTerminalHeightChange = useCallback(
 		(height: number) => {
 			updateTerminalPanel({
@@ -492,9 +526,12 @@ function App() {
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
-	const navigate = useCallback((destination: AppLocation) => {
-		dispatchApp({ type: "navigate", destination });
-	}, []);
+	const navigate = useCallback(
+		(destination: AppLocation) => {
+			dispatchApp({ type: "navigate", destination });
+		},
+		[dispatchApp],
+	);
 	const navigateWith = useCallback(
 		(destination: Partial<AppLocation>) => {
 			navigate({ ...navigation.current, ...destination });
@@ -503,10 +540,10 @@ function App() {
 	);
 	const handleNavigateBack = useCallback(() => {
 		dispatchApp({ type: "back" });
-	}, []);
+	}, [dispatchApp]);
 	const handleNavigateForward = useCallback(() => {
 		dispatchApp({ type: "forward" });
-	}, []);
+	}, [dispatchApp]);
 
 	useAppUpdate();
 
@@ -559,7 +596,7 @@ function App() {
 					});
 				}
 			},
-			[],
+			[dispatchApp],
 		),
 	);
 
@@ -605,24 +642,41 @@ function App() {
 	useEffect(() => watchDesktopTrayStatus(), []);
 	useEffect(() => watchDesktopNotifications(), []);
 
-	const createThreadForEnvironment = useCallback((environmentId: string) => {
-		dispatchApp({
-			type: "new-thread",
-			threadId: makeThreadId(),
-			environmentId,
-		});
-		requestPromptInputFocus();
-	}, []);
+	const createThreadForEnvironment = useCallback(
+		(environmentId: string) => {
+			const threadId = makeThreadId();
+			dispatchApp({
+				type: "new-thread",
+				threadId,
+				environmentId,
+			});
+			requestPromptInputFocus(threadId);
+		},
+		[dispatchApp],
+	);
 	const handleNewThread = useCallback(() => {
 		createThreadForEnvironment(activeEnvironmentId);
 	}, [activeEnvironmentId, createThreadForEnvironment]);
-	const selectEnvironmentDraft = useCallback((environmentId: string) => {
-		dispatchApp({
-			type: "select-environment-draft",
-			environmentId,
-			threadId: makeThreadId(),
-		});
-	}, []);
+	const selectEnvironmentDraft = useCallback(
+		(environmentId: string) => {
+			const threadId =
+				[...threads]
+					.reverse()
+					.find(
+						(thread) =>
+							thread.environmentId === environmentId &&
+							!thread.hasStarted &&
+							!thread.historySession,
+					)?.id ?? makeThreadId();
+			dispatchApp({
+				type: "select-environment-draft",
+				environmentId,
+				threadId,
+			});
+			requestPromptInputFocus(threadId);
+		},
+		[threads, dispatchApp],
+	);
 	const handleSelectEnvironment = useCallback(
 		async (environmentId: string) => {
 			environmentSelectionRevision.current += 1;
@@ -787,15 +841,120 @@ function App() {
 	}, []);
 
 	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			dispatchApp({
-				type: "open-session",
-				session,
-				environmentId: session.environmentId,
-				initialPromptDraft,
+		(
+			session: SessionHistoryItem,
+			initialPromptDraft?: string,
+			initialSideSubmission?: InitialSideSubmission,
+		) => {
+			const intent = ++navigationIntentRef.current;
+			const open = async () => {
+				const relation = readSideConversation(session.metadata);
+				if (relation) {
+					const parentThread = threads.find(
+						(thread) =>
+							thread.environmentId === session.environmentId &&
+							(thread.sessionId === relation.parentSessionId ||
+								thread.historySession?.sessionId === relation.parentSessionId),
+					);
+					const parent = parentThread
+						? parentThread.historySession
+						: await desktopClient.invoke<SessionHistoryItem | null>(
+								"get_discovered_session",
+								{
+									sessionId: relation.parentSessionId,
+									environmentId: session.environmentId,
+								},
+							);
+					if (navigationIntentRef.current !== intent) return;
+					if (parentThread || parent) {
+						const parentThreadId =
+							parentThread?.id ??
+							`session_${sessionKey({ sessionId: relation.parentSessionId, environmentId: session.environmentId })}`;
+						if (parent)
+							dispatchApp({
+								type: "open-session",
+								session: parent,
+								environmentId: parent.environmentId,
+							});
+						else
+							dispatchApp({
+								type: "navigate",
+								destination: {
+									activeThreadId: parentThreadId,
+									settingsSection: "General",
+									view: "chat",
+								},
+							});
+						dispatchApp({
+							type: "open-side",
+							parentThreadId,
+							session,
+							submission: initialSideSubmission,
+						});
+						return;
+					}
+				}
+				dispatchApp({
+					type: "open-session",
+					session,
+					environmentId: session.environmentId,
+					initialPromptDraft,
+					initialSideSubmission,
+				});
+			};
+			void open().catch((error) => {
+				if (navigationIntentRef.current !== intent) return;
+				toast({
+					title: "Could not open conversation",
+					description: error instanceof Error ? error.message : String(error),
+				});
 			});
 		},
-		[],
+		[threads, dispatchApp],
+	);
+
+	const handleReturnFromSide = useCallback(
+		async (parentSessionId: string, environmentId: string, answer?: string) => {
+			const intent = ++navigationIntentRef.current;
+			const parent = await desktopClient.invoke<SessionHistoryItem | null>(
+				"get_discovered_session",
+				{ sessionId: parentSessionId, environmentId },
+			);
+			if (navigationIntentRef.current !== intent) return false;
+			if (!parent || parent.environmentId !== environmentId)
+				throw new Error("The main conversation is no longer available.");
+			let draft: string | undefined;
+			if (answer?.trim()) {
+				draft = appendSideAnswerToMainDraft({
+					threads,
+					drafts: promptDrafts,
+					parent,
+					answer,
+				});
+			}
+			handleOpenSession(parent, draft);
+			const parentThread = threads.find(
+				(thread) =>
+					thread.environmentId === environmentId &&
+					(thread.sessionId === parentSessionId ||
+						thread.historySession?.sessionId === parentSessionId),
+			);
+			requestPromptInputFocus(
+				parentThread?.id ?? `session_${sessionKey(parent)}`,
+			);
+			return true;
+		},
+		[handleOpenSession, promptDrafts, threads],
+	);
+	const handleInitialSideSubmissionConsumed = useCallback(
+		(threadId: string, submission: InitialSideSubmission) => {
+			dispatchApp({
+				type: "consume-initial-side-submission",
+				threadId,
+				submission,
+			});
+		},
+		[dispatchApp],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -813,7 +972,7 @@ function App() {
 				fallbackEnvironmentId: activeEnvironmentId,
 			});
 		},
-		[activeEnvironmentId],
+		[activeEnvironmentId, dispatchApp],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
@@ -829,7 +988,7 @@ function App() {
 				environmentId,
 			});
 		},
-		[],
+		[dispatchApp],
 	);
 
 	useEffect(() => {
@@ -864,17 +1023,17 @@ function App() {
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			selectEnvironmentDraft(activeEnvironmentId);
-			requestPromptInputFocus();
 			return;
 		}
 		navigateWith({ view: "chat" });
-		requestPromptInputFocus();
+		requestPromptInputFocus(activeThread.id);
 	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
+			if (nextView === "settings") setSettingsComposerId(activeThread?.id);
 			navigateWith({ view: nextView });
 		},
-		[navigateWith],
+		[activeThread?.id, navigateWith],
 	);
 	// The sidebar's New row reads as selected while the fresh, not-yet-started
 	// task page is showing; once the task starts the session row takes over.
@@ -884,10 +1043,11 @@ function App() {
 		!activeThread.hasStarted &&
 		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
-		(section: SettingsSection) => {
+		(section: SettingsSection, composerId = activeThread?.id) => {
+			setSettingsComposerId(composerId);
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
-		[navigateWith],
+		[activeThread?.id, navigateWith],
 	);
 	// App shortcuts come from keybindings.json (Settings → Keybindings).
 	const keybindings = useKeybindings();
@@ -934,11 +1094,14 @@ function App() {
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
 		},
-		[],
+		[dispatchApp],
 	);
-	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
-		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
-	}, []);
+	const handleInitialPromptDraftConsumed = useCallback(
+		(threadId: string) => {
+			dispatchApp({ type: "consume-initial-prompt-draft", threadId });
+		},
+		[dispatchApp],
+	);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
 		onDeleteSession: (sessionId, environmentId) =>
@@ -946,12 +1109,13 @@ function App() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
-	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	const sessionHistoryRef = useRef(sessionHistory.allSessions);
 	useEffect(() => {
-		sessionHistoryRef.current = sessionHistory.sessions;
-	}, [sessionHistory.sessions]);
+		sessionHistoryRef.current = sessionHistory.allSessions;
+	}, [sessionHistory.allSessions]);
 	const handleOpenSessionById = useCallback(
 		async (sessionId: string, environmentId?: string): Promise<void> => {
+			const intent = ++navigationIntentRef.current;
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -970,6 +1134,7 @@ function App() {
 						sessionId: sessionId,
 					},
 				);
+				if (navigationIntentRef.current !== intent) return;
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
@@ -983,6 +1148,7 @@ function App() {
 				}
 				handleOpenSession(session);
 			} catch (error) {
+				if (navigationIntentRef.current !== intent) return;
 				toast({
 					title: "Unable to open run",
 					description: humanizeCloudSessionError(
@@ -1062,6 +1228,135 @@ function App() {
 		sessionHistory.threads,
 	]);
 
+	const selectedSideThread = threads.find(
+		(thread) =>
+			thread.id === appState.selectedSideByParent[activeThread?.id ?? ""],
+	);
+	const activeParentId =
+		activeThread?.sessionId ?? activeThread?.historySession?.sessionId;
+	const sideSessions = useMemo(
+		() =>
+			threads.flatMap((thread) => {
+				const session = thread.historySession;
+				return session &&
+					session.environmentId === activeThread?.environmentId &&
+					readSideConversation(session.metadata)?.parentSessionId ===
+						activeParentId
+					? [session]
+					: [];
+			}),
+		[activeParentId, activeThread?.environmentId, threads],
+	);
+	const { attention: sideAttention } = useSideChatAttention(sideSessions);
+	const sideAttentionLabel = useCallback(
+		(session: SessionHistoryItem) => {
+			const value = sideAttention.get(sessionKey(session));
+			if (value && (value.approvals > 0 || value.questions > 0))
+				return "Needs input";
+			if (!value || value.kind === "unknown") return "Connection unknown";
+			if (value.status === "running" || value.status === "provisioning")
+				return "Working";
+			if (value.status === "failed" || value.status === "error")
+				return "Failed";
+			return "";
+		},
+		[sideAttention],
+	);
+	const orphanSide = readSideConversation(
+		activeThread?.historySession?.metadata,
+	);
+
+	const renderThread = (
+		thread: DesktopThread,
+		presentation: "main" | "side",
+		workspace: ConversationWorkspaceControls,
+		side?: {
+			renderSide?: (controls: SidePresentationControls) => ReactNode;
+			active?: boolean;
+			mainConfig?: ChatSessionConfig;
+		},
+	) => (
+		<ChatThreadPane
+			workspace={workspace}
+			mainConfig={side?.mainConfig}
+			renderSide={side?.renderSide}
+			presentation={presentation}
+			interactive={view === "chat" && side?.active !== false}
+			sideAttentionLabel={sideAttentionLabel}
+			sideSessions={sideSessions}
+			selectedSideSession={
+				selectedSideThread?.historySession ?? sideSessions[0]
+			}
+			onOpenSide={(session, submission, reveal) =>
+				dispatchApp({
+					type: "open-side",
+					parentThreadId: activeThread.id,
+					session,
+					submission,
+					reveal,
+				})
+			}
+			key={`${thread.id}:${thread.environmentId}`}
+			environmentId={thread.environmentId}
+			environmentProfiles={remoteEnvironmentProfiles}
+			environmentProfilesLoading={remoteEnvironmentProfilesLoading}
+			onAddSshHost={() => handleSettingsSectionChange("Remote")}
+			onPickRemoteWorkspaceDirectory={pickRemoteWorkspaceDirectory}
+			onSelectEnvironment={handleSelectEnvironment}
+			remoteEnvironment={
+				activeRemoteEnvironment?.id === thread.environmentId
+					? activeRemoteEnvironment
+					: null
+			}
+			historySession={thread.historySession}
+			liveHistorySession={sessionHistory.sessionById.get(
+				sessionKey({
+					sessionId: thread.sessionId ?? thread.historySession?.sessionId ?? "",
+					environmentId: thread.environmentId,
+				}),
+			)}
+			initialPromptDraft={thread.initialPromptDraft}
+			pendingSideSubmissions={thread.pendingSideSubmissions}
+			onInitialSideSubmissionConsumed={handleInitialSideSubmissionConsumed}
+			onReturnFromSide={handleReturnFromSide}
+			promptDrafts={promptDrafts}
+			knownWorkspacePaths={historyWorkspacePaths}
+			onInitialPromptDraftConsumed={handleInitialPromptDraftConsumed}
+			onUpdateSessionMetadata={(sessionId, metadata) =>
+				handleUpdateSessionMetadata(sessionId, metadata, thread.environmentId)
+			}
+			threadId={thread.id}
+			onDeleteSession={(sessionId, threadId) =>
+				handleDeleteSession(sessionId, threadId, thread.environmentId)
+			}
+			onNewThread={handleNewThread}
+			onOpenSession={handleOpenSession}
+			onOpenSessionById={handleOpenSessionById}
+			onOpenSetup={handleOpenSetup}
+			onOpenModelSettings={() => handleSettingsSectionChange("Providers")}
+			onOpenLocalModels={() =>
+				handleSettingsSectionChange("Local Models", thread.id)
+			}
+			onOpenAccountSettings={() => handleSettingsSectionChange("Account")}
+			parentSession={activeParentSession}
+			onThreadStarted={handleThreadStarted}
+			terminal={
+				terminalAvailable && presentation === "main"
+					? {
+							open: terminalPanel.open,
+							height: terminalPanel.height,
+							shortcut: keybindings["toggle-terminal"].key
+								? formatAccelerator(keybindings["toggle-terminal"].key)
+								: undefined,
+							onToggle: handleToggleTerminal,
+							onClose: handleCloseTerminal,
+							onHeightChange: handleTerminalHeightChange,
+						}
+					: undefined
+			}
+		/>
+	);
+
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -1116,83 +1411,85 @@ function App() {
 										className="flex min-h-0 flex-1 flex-col"
 										inert={view === "settings" ? true : undefined}
 									>
-										<ChatThreadPane
-											key={`${activeThread.id}:${activeThread.environmentId}`}
-											environmentId={activeThread.environmentId}
-											environmentProfiles={remoteEnvironmentProfiles}
-											environmentProfilesLoading={
-												remoteEnvironmentProfilesLoading
+										<ConversationWorkspace
+											key={activeThread.id}
+											mainThreadId={activeThread.id}
+											sideThreadId={
+												orphanSide ? activeThread.id : selectedSideThread?.id
 											}
-											onAddSshHost={() => handleSettingsSectionChange("Remote")}
-											onPickRemoteWorkspaceDirectory={
-												pickRemoteWorkspaceDirectory
+											openVersion={appState.sideOpenVersion}
+											main={(workspace) =>
+												orphanSide ? (
+													<div className="p-6 text-sm text-muted-foreground">
+														<WindowTitleBarContent>
+															<div className="flex h-full items-center justify-end gap-1 px-3">
+																{workspace.narrow && !workspace.mainVisible && (
+																	<Button
+																		variant="toolbar"
+																		size="sm"
+																		onClick={workspace.showMain}
+																	>
+																		Main
+																	</Button>
+																)}
+																<Button
+																	variant="toolbar"
+																	size="sm"
+																	onClick={() => {
+																		workspace.open({ kind: "side" });
+																		requestPromptInputFocus(activeThread.id);
+																	}}
+																>
+																	Side chat
+																</Button>
+															</div>
+														</WindowTitleBarContent>
+														Main chat unavailable.
+													</div>
+												) : (
+													renderThread(activeThread, "main", workspace, {
+														renderSide: ({ active, mainConfig }) =>
+															threads
+																.filter(
+																	(thread) =>
+																		thread.environmentId ===
+																			activeThread.environmentId &&
+																		readSideConversation(
+																			thread.historySession?.metadata,
+																		)?.parentSessionId === activeParentId,
+																)
+																.map((thread) => (
+																	<div
+																		key={thread.id}
+																		className="min-h-0 flex-1 flex-col"
+																		style={{
+																			display:
+																				thread.id === selectedSideThread?.id
+																					? "flex"
+																					: "none",
+																		}}
+																		inert={
+																			thread.id !== selectedSideThread?.id ||
+																			undefined
+																		}
+																		aria-hidden={
+																			thread.id !== selectedSideThread?.id ||
+																			undefined
+																		}
+																	>
+																		{renderThread(thread, "side", workspace, {
+																			active,
+																			mainConfig,
+																		})}
+																	</div>
+																)),
+													})
+												)
 											}
-											onSelectEnvironment={handleSelectEnvironment}
-											remoteEnvironment={
-												activeRemoteEnvironment?.id ===
-												activeThread.environmentId
-													? activeRemoteEnvironment
+											side={(workspace) =>
+												orphanSide
+													? renderThread(activeThread, "side", workspace)
 													: null
-											}
-											historySession={activeThread.historySession}
-											liveHistorySession={
-												activeHistorySessionId
-													? sessionHistory.sessionById.get(
-															activeHistorySessionId,
-														)
-													: undefined
-											}
-											initialPromptDraft={activeThread.initialPromptDraft}
-											promptDrafts={promptDrafts}
-											knownWorkspacePaths={historyWorkspacePaths}
-											onInitialPromptDraftConsumed={
-												handleInitialPromptDraftConsumed
-											}
-											onUpdateSessionMetadata={(sessionId, metadata) =>
-												handleUpdateSessionMetadata(
-													sessionId,
-													metadata,
-													activeThread.environmentId,
-												)
-											}
-											threadId={activeThread.id}
-											onDeleteSession={(sessionId, threadId) =>
-												handleDeleteSession(
-													sessionId,
-													threadId,
-													activeThread.environmentId,
-												)
-											}
-											onNewThread={handleNewThread}
-											onOpenSession={handleOpenSession}
-											onOpenSessionById={handleOpenSessionById}
-											onOpenSetup={handleOpenSetup}
-											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Providers")
-											}
-											onOpenLocalModels={() =>
-												handleSettingsSectionChange("Local Models")
-											}
-											onOpenAccountSettings={() =>
-												handleSettingsSectionChange("Account")
-											}
-											parentSession={activeParentSession}
-											onThreadStarted={handleThreadStarted}
-											terminal={
-												terminalAvailable
-													? {
-															open: terminalPanel.open,
-															height: terminalPanel.height,
-															shortcut: keybindings["toggle-terminal"].key
-																? formatAccelerator(
-																		keybindings["toggle-terminal"].key,
-																	)
-																: undefined,
-															onToggle: handleToggleTerminal,
-															onClose: handleCloseTerminal,
-															onHeightChange: handleTerminalHeightChange,
-														}
-													: undefined
 											}
 										/>
 									</div>
@@ -1200,8 +1497,11 @@ function App() {
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											composerId={settingsComposerId}
 											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
-											onNavigateSection={handleSettingsSectionChange}
+											onNavigateSection={(section) =>
+												handleSettingsSectionChange(section, settingsComposerId)
+											}
 											onOpenSession={handleOpenSessionById}
 											section={settingsSection}
 										/>
@@ -1271,6 +1571,11 @@ function App() {
 	);
 }
 
+type SidePresentationControls = {
+	active: boolean;
+	mainConfig: ChatSessionConfig;
+};
+
 // "+ new chat" remounts ChatThreadPane with a fresh thread id, and the pane
 // blocks on the provider catalog (a large fetch) before rendering anything.
 // Seed remounts from the last successful load (kept in the catalog module,
@@ -1279,6 +1584,15 @@ function App() {
 let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
+	workspace,
+	mainConfig,
+	renderSide,
+	presentation,
+	interactive,
+	sideSessions,
+	selectedSideSession,
+	onOpenSide,
+	sideAttentionLabel,
 	threadId,
 	promptDrafts,
 	environmentId,
@@ -1287,6 +1601,9 @@ function ChatThreadPane({
 	historySession,
 	liveHistorySession,
 	initialPromptDraft,
+	pendingSideSubmissions,
+	onInitialSideSubmissionConsumed,
+	onReturnFromSide,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -1306,6 +1623,20 @@ function ChatThreadPane({
 	onThreadStarted,
 	terminal,
 }: {
+	workspace: ConversationWorkspaceControls;
+	mainConfig?: ChatSessionConfig;
+	renderSide?: (controls: SidePresentationControls) => ReactNode;
+	presentation: "main" | "side";
+	interactive: boolean;
+	sideAttentionLabel: (session: SessionHistoryItem) => string;
+	sideSessions: readonly SessionHistoryItem[];
+	selectedSideSession?: SessionHistoryItem;
+	onOpenSide: (
+		session: SessionHistoryItem,
+		submission?: InitialSideSubmission,
+		reveal?: boolean,
+	) => void;
+
 	threadId: string;
 	promptDrafts: Map<string, string>;
 	environmentId: string;
@@ -1314,6 +1645,16 @@ function ChatThreadPane({
 	historySession?: SessionHistoryItem;
 	liveHistorySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
+	pendingSideSubmissions?: readonly InitialSideSubmission[];
+	onInitialSideSubmissionConsumed: (
+		threadId: string,
+		submission: InitialSideSubmission,
+	) => void;
+	onReturnFromSide: (
+		parentSessionId: string,
+		environmentId: string,
+		answer?: string,
+	) => Promise<boolean>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -1323,9 +1664,10 @@ function ChatThreadPane({
 	onAddSshHost: () => void;
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
-	onOpenSession?: (
+	onOpenSession: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
+		initialSideSubmission?: InitialSideSubmission,
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
@@ -1353,6 +1695,12 @@ function ChatThreadPane({
 		onHeightChange: (height: number) => void;
 	};
 }) {
+	const visible =
+		interactive &&
+		(presentation === "main"
+			? workspace.mainVisible
+			: workspace.sideVisible && workspace.sideThreadId === threadId);
+
 	const {
 		sessionId,
 		status,
@@ -1371,6 +1719,7 @@ function ChatThreadPane({
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		updateSideSettings,
 		setWorkspacePath,
 		sendPrompt,
 		steerPromptInQueue,
@@ -1381,11 +1730,12 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		createSideConversation,
 		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
-	} = useChatSession(environmentId);
+	} = useChatSession(environmentId, mainConfig);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
 	useEffect(() => {
@@ -1407,26 +1757,34 @@ function ChatThreadPane({
 		writeWorkInToWindow(next);
 	}, []);
 	// The Changes pane and the Files + Git panel share the right-hand column.
-	const [workspacePanel, setWorkspacePanel] = useState<
-		"changes" | "files" | null
-	>(null);
+	const workspacePanel =
+		"threadId" in workspace.surface && workspace.surface.threadId === threadId
+			? workspace.surface.kind
+			: null;
 	const [changesScope, setChangesScope] = useState<ChangesScope>("session");
 	const [changesPath, setChangesPath] = useState<string | null>(null);
+	const openWorkspacePanel = useCallback(
+		(kind: "files" | "changes") => workspace.open({ threadId, kind }),
+		[workspace.open, threadId],
+	);
 	const toggleFilesPanel = useCallback(
-		() =>
-			setWorkspacePanel((current) => (current === "files" ? null : "files")),
-		[],
+		() => workspace.toggle(threadId, "files"),
+		[workspace.toggle, threadId],
 	);
 	const toggleChangesPanel = useCallback(() => {
 		setChangesScope("session");
 		setChangesPath(null);
-		setWorkspacePanel((current) => (current === "changes" ? null : "changes"));
-	}, []);
-	const reviewLastTurn = useCallback((path?: string) => {
-		setChangesScope("last-turn");
-		setChangesPath(path ?? null);
-		setWorkspacePanel("changes");
-	}, []);
+		workspace.toggle(threadId, "changes");
+	}, [workspace.toggle, threadId]);
+	const reviewLastTurn = useCallback(
+		(path?: string) => {
+			setChangesScope("last-turn");
+			setChangesPath(path ?? null);
+			openWorkspacePanel("changes");
+		},
+		[openWorkspacePanel],
+	);
+
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -1532,6 +1890,9 @@ function ChatThreadPane({
 		() => workspacesLoadedOnce,
 	);
 	const hydratedSessionRef = useRef<string | null>(null);
+	const [hydrationSucceeded, setHydrationSucceeded] = useState<boolean | null>(
+		null,
+	);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
@@ -1649,6 +2010,7 @@ function ChatThreadPane({
 	useEffect(() => {
 		// Do not persist a sandbox's synthetic path as the local workspace.
 		if (
+			presentation === "side" ||
 			config.executionTarget === "cloud" ||
 			(config.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !== environmentId
 		) {
@@ -1671,6 +2033,7 @@ function ChatThreadPane({
 		config.workspaceRoot,
 		environmentId,
 		workspaces,
+		presentation,
 	]);
 
 	const providerCredentialsRequestRef = useRef(0);
@@ -2060,26 +2423,23 @@ function ChatThreadPane({
 		hydratedSessionRef.current = historySession.sessionId;
 		// Opening the current live session's sidebar row now reuses this pane.
 		// Don't reset its stream/attachments just to hydrate the same session.
-		if (
-			historySession.sessionId === sessionId &&
-			initialPromptDraft === undefined
-		) {
+		if (historySession.sessionId === sessionId) {
 			return;
 		}
-		if (initialPromptDraft !== undefined) {
-			setPromptInput(initialPromptDraft);
-			onInitialPromptDraftConsumed?.(threadId);
-		}
+
 		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
-		void hydrateSession(historySession);
+		setHydrationSucceeded(null);
+		void hydrateSession(historySession).then(setHydrationSucceeded);
+	}, [historySession, hydrateSession, sessionId, setPendingAttachments]);
+
+	useEffect(() => {
+		if (initialPromptDraft === undefined) return;
+		setPromptInput(initialPromptDraft);
+		onInitialPromptDraftConsumed?.(threadId);
 	}, [
-		historySession,
-		hydrateSession,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
-		sessionId,
-		setPendingAttachments,
 		setPromptInput,
 		threadId,
 	]);
@@ -2128,8 +2488,79 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
+	const sideRelation = readSideConversation(
+		liveHistorySession?.metadata ?? historySession?.metadata,
+	);
+	const isLocalMain =
+		!isCloudSession &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		!sideRelation &&
+		!historySession?.isSubagent &&
+		!historySession?.parentSessionId;
+	const sideAvailable = Boolean(sessionId) && isLocalMain;
+	const sideAttentionLabels = sideSessions.map(sideAttentionLabel);
+	const sideAttentionSummary =
+		sideAttentionLabels.find((label) => label === "Needs input") ??
+		sideAttentionLabels.find(Boolean);
+	const revealSide = useCallback(
+		() => workspace.open({ kind: "side" }),
+		[workspace.open],
+	);
+	const side = useSideConversation({
+		threadId,
+		sessionId,
+		isLocalMain,
+		attachmentCount: pendingAttachments.length,
+		pendingSubmissions: pendingSideSubmissions,
+		hydrationSucceeded,
+		consumeSubmission: onInitialSideSubmissionConsumed,
+		create: createSideConversation,
+		reveal: revealSide,
+		getCloseRevision: workspace.getCloseRevision,
+		existingSession:
+			presentation === "side" ? historySession : selectedSideSession,
+		isSide: Boolean(sideRelation),
+		open: onOpenSide,
+		send: sendPrompt,
+		setDraft: setPromptInput,
+		drafts: promptDrafts,
+	});
+
+	const sideContent = useMemo(
+		() =>
+			renderSide?.({
+				mainConfig: config,
+				active: side.openingState.kind === "idle",
+			}),
+		[renderSide, side.openingState.kind, config],
+	);
+	const sidePortal =
+		renderSide && workspace.sideTarget
+			? createPortal(
+					<div className="relative flex min-h-0 flex-1 flex-col">
+						<div
+							className="flex min-h-0 flex-1 flex-col"
+							inert={side.openingState.kind !== "idle" || undefined}
+							aria-hidden={side.openingState.kind !== "idle" || undefined}
+						>
+							{sideContent}
+						</div>
+						{side.openingState.kind !== "idle" && (
+							<SideConversationOpening
+								state={side.openingState}
+								onHide={workspace.close}
+								onRetry={side.retry}
+							/>
+						)}
+					</div>,
+					workspace.sideTarget,
+					"side-conversation",
+				)
+			: null;
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
+			if (await side.intercept(prompt)) return;
 			const trimmed = prompt.trim();
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
@@ -2155,6 +2586,7 @@ function ChatThreadPane({
 			}
 		},
 		[
+			side.intercept,
 			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
@@ -2327,6 +2759,7 @@ function ChatThreadPane({
 					},
 				}),
 			);
+			if (presentation === "side") workspace.close();
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
@@ -2350,6 +2783,8 @@ function ChatThreadPane({
 		deletingSession,
 		environmentId,
 		onDeleteSession,
+		presentation,
+		workspace.close,
 		reset,
 		threadId,
 		setPendingAttachments,
@@ -2545,7 +2980,11 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: messages.filter(
+				(message) => message.meta?.messageKind !== DESKTOP_SIDE_REFERENCE_KIND,
+			);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
@@ -2727,66 +3166,77 @@ function ChatThreadPane({
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
 
-	if (!isAppReady) {
-		return (
-			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
-				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-				<p className="text-sm text-muted-foreground">
-					{chatTransportState === "unavailable"
-						? "Desktop backend unavailable"
-						: chatTransportState !== "connected"
-							? "Connecting..."
-							: "Loading..."}
+	const loadingContent = (
+		<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
+			<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+			<p className="text-sm text-muted-foreground">
+				{chatTransportState === "unavailable"
+					? "Desktop backend unavailable"
+					: chatTransportState !== "connected"
+						? "Connecting..."
+						: "Loading..."}
+			</p>
+			{chatTransportError ? (
+				<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
+					{chatTransportError}
 				</p>
-				{chatTransportError ? (
-					<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
-						{chatTransportError}
-					</p>
-				) : null}
-			</div>
-		);
-	}
-
+			) : null}
+		</div>
+	);
 	const composer = (
-		<ChatInputBar
-			sessionId={sessionId}
-			readOnly={isCloudSessionExpired}
-			attachments={attachmentList}
-			environmentId={environmentId}
-			hasRunningAgents={agentActivity.running > 0}
-			onAbort={handleAbort}
-			onAttachFiles={handleAttachFiles}
-			onListGitBranches={listGitBranches}
-			onRemoveAttachment={handleRemoveAttachment}
-			onSwitchGitBranch={switchGitBranch}
-			onModelChange={handleModelChange}
-			onModeToggle={handleModeToggle}
-			onPromptInputChange={handlePromptInputChange}
-			onOpenModelSettings={onOpenModelSettings}
-			onOpenLocalModels={onOpenLocalModels}
-			onReasoningChange={handleReasoningChange}
-			onSteerPromptInQueue={steerPromptInQueue}
-			onEditPromptInQueue={updatePromptInQueue}
-			onRemovePromptInQueue={handleRemoveQueuedPrompt}
-			onProviderChange={handleProviderChange}
-			onSend={handleSendPrompt}
-			gitBranch={gitBranch}
-			cloudBranch={config.branch}
-			executionTarget={isCloudSession ? "cloud" : "local"}
-			hasActiveSession={Boolean(sessionId)}
-			repoUrl={config.repoUrl}
-			model={config.model}
-			modelContextWindow={modelContextWindow}
-			mode={config.mode}
-			promptsInQueue={promptsInQueue}
-			promptDraft={promptDraft}
-			provider={config.provider}
-			reasoningEffort={config.reasoningEffort}
-			status={status}
-			summary={summary}
-			thinking={config.thinking}
-			variant={isWelcomeState ? "welcome" : "conversation"}
-		/>
+		<div>
+			<ChatInputBar
+				composerId={threadId}
+				active={visible}
+				sessionId={sessionId}
+				isSideConversation={Boolean(sideRelation)}
+				sessionActions={
+					sideRelation &&
+					activeSessionToDelete && (
+						<SideConversationMenu onDelete={requestDeleteSession} />
+					)
+				}
+				readOnly={isCloudSessionExpired}
+				attachments={attachmentList}
+				environmentId={environmentId}
+				hasRunningAgents={agentActivity.running > 0}
+				onAbort={handleAbort}
+				onAttachFiles={handleAttachFiles}
+				onListGitBranches={listGitBranches}
+				onRemoveAttachment={handleRemoveAttachment}
+				onSwitchGitBranch={switchGitBranch}
+				onSideSettingsChange={
+					presentation === "side" ? updateSideSettings : undefined
+				}
+				onModelChange={handleModelChange}
+				onModeToggle={handleModeToggle}
+				onPromptInputChange={handlePromptInputChange}
+				onOpenModelSettings={onOpenModelSettings}
+				onOpenLocalModels={onOpenLocalModels}
+				onReasoningChange={handleReasoningChange}
+				onSteerPromptInQueue={steerPromptInQueue}
+				onEditPromptInQueue={updatePromptInQueue}
+				onRemovePromptInQueue={handleRemoveQueuedPrompt}
+				onProviderChange={handleProviderChange}
+				onSend={handleSendPrompt}
+				gitBranch={gitBranch}
+				cloudBranch={config.branch}
+				executionTarget={isCloudSession ? "cloud" : "local"}
+				hasActiveSession={Boolean(sessionId)}
+				repoUrl={config.repoUrl}
+				model={config.model}
+				modelContextWindow={modelContextWindow}
+				mode={config.mode === "plan" ? "plan" : "act"}
+				promptsInQueue={promptsInQueue}
+				promptDraft={promptDraft}
+				provider={config.provider}
+				reasoningEffort={config.reasoningEffort}
+				status={status}
+				summary={summary}
+				thinking={config.thinking}
+				variant={isWelcomeState ? "welcome" : "conversation"}
+			/>
+		</div>
 	);
 
 	const cloudConnectUrl =
@@ -2799,20 +3249,16 @@ function ChatThreadPane({
 	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
 	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
 
-	return (
+	const readyContent = (
 		<WorkspaceProvider value={workspaceContextValue}>
 			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
 			<AttachmentDropZone
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: filesPanelVisible || changesPanelVisible
-							? // The panel is placed explicitly in column 2 spanning both
-								// rows, so the transcript and composer auto-flow into column 1.
-								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
-							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				disabled={isCloudSessionExpired}
+				disabled={isCloudSessionExpired || !visible}
 				description={
 					isCloudSession
 						? "Images will be added to your next message"
@@ -2820,7 +3266,7 @@ function ChatThreadPane({
 				}
 				onAttachFiles={handleAttachFiles}
 			>
-				{!isWelcomeState ? (
+				{!isWelcomeState && presentation === "main" ? (
 					<WindowTitleBarContent>
 						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 							<AgentHeader
@@ -2838,6 +3284,28 @@ function ChatThreadPane({
 								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
+								onOpenSide={
+									sideAvailable
+										? () => {
+												if (workspace.sideVisible) workspace.close();
+												else if (
+													workspace.sideThreadId ||
+													side.openingState.kind !== "idle"
+												) {
+													workspace.open({ kind: "side" });
+													if (workspace.sideThreadId)
+														requestPromptInputFocus(workspace.sideThreadId);
+												} else void side.openSide();
+											}
+										: undefined
+								}
+								sideOpen={workspace.sideVisible}
+								sideAttention={sideAttentionSummary}
+								onShowMain={
+									workspace.narrow && !workspace.mainVisible
+										? workspace.showMain
+										: undefined
+								}
 								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
 								filesOpen={filesPanelVisible}
 								pullRequest={isCloudSession ? undefined : pullRequestSource}
@@ -2867,68 +3335,107 @@ function ChatThreadPane({
 							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
 						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								activityLabel={activityLabel}
-								error={cloudSessionError?.message ?? displayedError}
-								errorAction={
-									cloudConnectUrl
-										? {
-												label: "Connect GitHub",
-												onClick: () => openGitHubConnect(cloudConnectUrl),
-											}
-										: undefined
-								}
-								importedFromTool={importedFromTool}
-								messages={displayedMessages}
-								onEditMessage={isCloudSession ? undefined : handleEditMessage}
-								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
-								}
-								onForkSession={isCloudSession ? undefined : handleForkSession}
-								onProceedWhileRunning={
-									isCloudSession ? undefined : proceedWhileRunning
-								}
-								startingLabel={
-									isProvisioningCloudSession
-										? provisioningPhase
-										: isCloudSession && !displayedSessionId
-											? provisioningPhase
+							<div className="flex h-full min-h-0 flex-1 flex-col">
+								<ChatMessages
+									sideEmpty={
+										Boolean(sideRelation) && hydrationSucceeded === true
+									}
+									onAddToMainDraft={
+										sideRelation &&
+										presentation === "side" &&
+										workspace.mainThreadId !== threadId
+											? (answer) => {
+													void onReturnFromSide(
+														sideRelation.parentSessionId,
+														environmentId,
+														answer,
+													)
+														.then((added) => {
+															if (added) workspace.showMain();
+														})
+														.catch((error) =>
+															toast({
+																title: "Could not add to main draft",
+																description: String(error),
+															}),
+														);
+												}
 											: undefined
-								}
-								onFixCredentials={handleFixCredentials}
-								lastTurnChanges={
-									canBrowseFiles && sessionChangesCurrent
-										? sessionChanges?.lastTurn
-										: undefined
-								}
-								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={
-									isProvisioningCloudSession ? "starting" : displayedStatus
-								}
-							/>
+									}
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									activityLabel={activityLabel}
+									error={cloudSessionError?.message ?? displayedError}
+									errorAction={
+										cloudConnectUrl
+											? {
+													label: "Connect GitHub",
+													onClick: () => openGitHubConnect(cloudConnectUrl),
+												}
+											: undefined
+									}
+									importedFromTool={importedFromTool}
+									messages={displayedMessages}
+									onEditMessage={
+										isCloudSession || sideRelation
+											? undefined
+											: handleEditMessage
+									}
+									onRestoreCheckpoint={
+										isCloudSession || sideRelation
+											? undefined
+											: handleRestoreCheckpoint
+									}
+									onForkSession={
+										isCloudSession || sideRelation
+											? undefined
+											: handleForkSession
+									}
+									onProceedWhileRunning={
+										isCloudSession ? undefined : proceedWhileRunning
+									}
+									startingLabel={
+										isProvisioningCloudSession
+											? provisioningPhase
+											: isCloudSession && !displayedSessionId
+												? provisioningPhase
+												: undefined
+									}
+									onFixCredentials={handleFixCredentials}
+									lastTurnChanges={
+										canBrowseFiles && sessionChangesCurrent
+											? sessionChanges?.lastTurn
+											: undefined
+									}
+									onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isSessionSwitching={displayedIsSwitching}
+									status={
+										isProvisioningCloudSession ? "starting" : displayedStatus
+									}
+								/>
+							</div>
 						)
 					}
 					composer={composer}
 					environmentSelector={
-						<EnvironmentSelector
-							activeEnvironmentId={environmentId}
-							cloudEnabled={cloudAgentsEnabled}
-							executionTarget={isCloudSession ? "cloud" : "local"}
-							onSelectExecutionTarget={handleSelectExecutionTarget}
-							loading={environmentProfilesLoading}
-							onAddSshHost={onAddSshHost}
-							onSelectEnvironment={onSelectEnvironment}
-							profiles={environmentProfiles}
-						/>
+						presentation === "main" ? (
+							<EnvironmentSelector
+								activeEnvironmentId={environmentId}
+								cloudEnabled={cloudAgentsEnabled}
+								executionTarget={isCloudSession ? "cloud" : "local"}
+								onSelectExecutionTarget={handleSelectExecutionTarget}
+								loading={environmentProfilesLoading}
+								onAddSshHost={onAddSshHost}
+								onSelectEnvironment={onSelectEnvironment}
+								profiles={environmentProfiles}
+							/>
+						) : undefined
 					}
 					gitBranch={gitBranch}
 					notice={
@@ -2955,37 +3462,45 @@ function ChatThreadPane({
 						(cloudAgentsFlagEnabled === null &&
 							config.executionTarget === "cloud")
 					}
-					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					onWorkInChange={
+						presentation === "main" && canWorkInWorktree ? setWorkIn : undefined
+					}
 					workIn={workIn}
 					terminalToggle={terminalToggle}
 					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
 				/>
-				{changesPanelVisible ? (
-					<ChangesPanel
-						changes={sessionChanges}
-						cwd={config.cwd || resolvedWorkspaceRoot}
-						environmentId={environmentId}
-						fallbackFileDiffs={fileDiffs}
-						onClose={toggleChangesPanel}
-						onOpenGit={() => setWorkspacePanel("files")}
-						onScopeChange={(scope) => {
-							setChangesScope(scope);
-							setChangesPath(null);
-						}}
-						onSelectPath={setChangesPath}
-						scope={changesScope}
-						selectedPath={changesPath}
-					/>
-				) : null}
-				{filesPanelVisible ? (
-					<ProjectFilesPanel
-						cwd={config.cwd || config.workspaceRoot}
-						environmentId={environmentId}
-						fileDiffs={fileDiffs}
-						onClose={toggleFilesPanel}
-						workspaceRoot={resolvedWorkspaceRoot}
-					/>
-				) : null}
+				{changesPanelVisible && workspace.target
+					? createPortal(
+							<ChangesPanel
+								changes={sessionChanges}
+								cwd={config.cwd || resolvedWorkspaceRoot}
+								environmentId={environmentId}
+								fallbackFileDiffs={fileDiffs}
+								onClose={workspace.close}
+								onOpenGit={() => openWorkspacePanel("files")}
+								onScopeChange={(scope) => {
+									setChangesScope(scope);
+									setChangesPath(null);
+								}}
+								onSelectPath={setChangesPath}
+								scope={changesScope}
+								selectedPath={changesPath}
+							/>,
+							workspace.target,
+						)
+					: null}
+				{filesPanelVisible && workspace.target
+					? createPortal(
+							<ProjectFilesPanel
+								cwd={config.cwd || config.workspaceRoot}
+								environmentId={environmentId}
+								fileDiffs={fileDiffs}
+								onClose={workspace.close}
+								workspaceRoot={resolvedWorkspaceRoot}
+							/>,
+							workspace.target,
+						)
+					: null}
 			</AttachmentDropZone>
 			{terminalEnabled && terminal?.open ? (
 				<TerminalPanel
@@ -3006,12 +3521,17 @@ function ChatThreadPane({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
+						<AlertDialogTitle>
+							{sideRelation ? "Delete side chat?" : "Delete Session?"}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							{isCloudSession
-								? "This cloud session and its workspace will be deleted."
-								: "This session will be removed from local history."}
-							{!isCloudSession &&
+							{sideRelation
+								? `This deletes this side chat. It cannot be undone. Changes already made to files will remain.${status === "running" || status === "starting" ? " Its current work will stop." : ""}`
+								: isCloudSession
+									? "This cloud session and its workspace will be deleted."
+									: "This session will be removed from local history."}
+							{!sideRelation &&
+							!isCloudSession &&
 							isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
 								? ` ${TASK_WORKTREE_DELETE_WARNING}`
 								: null}
@@ -3026,11 +3546,21 @@ function ChatThreadPane({
 							disabled={deletingSession}
 							onClick={() => void handleDeleteSession()}
 						>
-							{deletingSession ? "Deleting..." : "Delete"}
+							{deletingSession
+								? "Deleting..."
+								: sideRelation
+									? "Delete side chat"
+									: "Delete"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 		</WorkspaceProvider>
+	);
+	return (
+		<>
+			{sidePortal}
+			{isAppReady ? readyContent : loadingContent}
+		</>
 	);
 }

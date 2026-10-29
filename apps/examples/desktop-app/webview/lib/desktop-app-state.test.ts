@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createDesktopAppState, desktopAppReducer } from "./desktop-app-state";
+import {
+	appendSideAnswerToMainDraft,
+	createDesktopAppState,
+	desktopAppReducer,
+} from "./desktop-app-state";
 import type { SessionHistoryItem } from "./session-history";
 import { sessionKey } from "./session-identity";
 
@@ -19,6 +23,107 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it.each([
+		"parent",
+		"side",
+	])("prunes side selection when deleting its %s", (target) => {
+		let state = createDesktopAppState("parent", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			parentThreadId: "parent",
+			session: createSession("side"),
+		});
+		const sideThreadId = state.selectedSideByParent.parent;
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: target,
+			deletedThreadId: target === "parent" ? "parent" : sideThreadId,
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.selectedSideByParent).toEqual({});
+		expect(
+			state.threads.some(
+				(thread) =>
+					thread.id === (target === "parent" ? sideThreadId : "parent"),
+			),
+		).toBe(true);
+	});
+
+	it("opens and reopens a child without changing the parent selection or identity", () => {
+		let state = createDesktopAppState(
+			"parent-thread",
+			settingsSection,
+			"local",
+		);
+		const parent = state.threads[0];
+		const navigation = state.navigation;
+		const child = createSession("side");
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			parentThreadId: parent.id,
+			session: child,
+		});
+		const childThreadId = state.selectedSideByParent[parent.id];
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads[0]).toBe(parent);
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			parentThreadId: parent.id,
+			session: child,
+			submission: { question: "continue" },
+		});
+		expect(state.selectedSideByParent[parent.id]).toBe(childThreadId);
+		expect(state.threads).toHaveLength(2);
+		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe(
+			"continue",
+		);
+		expect(state.navigation.current.activeThreadId).toBe(parent.id);
+	});
+
+	it("retains a side relation and consumes its one-shot question without altering the parent", () => {
+		let state = createDesktopAppState("main-thread", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "main-thread",
+			sessionId: "main",
+		});
+		const parent = state.threads[0];
+		const session = {
+			...createSession("side"),
+			metadata: {
+				title: "Side: Main",
+				desktopSideConversation: { parentSessionId: "main" },
+			},
+		};
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session,
+			environmentId: "local",
+			initialSideSubmission: { question: "why?" },
+		});
+		const sideId = state.navigation.current.activeThreadId;
+		expect(state.threads[0]).toBe(parent);
+		expect(state.threads[1].initialPromptDraft).toBeUndefined();
+		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe("why?");
+		const submission = state.threads[1].pendingSideSubmissions?.[0];
+		if (!submission) throw new Error("Missing queued question");
+		state = desktopAppReducer(state, {
+			type: "consume-initial-side-submission",
+			threadId: sideId,
+			submission,
+		});
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session,
+			environmentId: "local",
+		});
+		expect(state.threads[1].pendingSideSubmissions).toEqual([]);
+		expect(state.threads[1].historySession?.metadata).toEqual(session.metadata);
+		expect(state.threads[0]).toBe(parent);
+	});
+
 	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
 		let state = createDesktopAppState("new-local", settingsSection, "local");
 		state = desktopAppReducer(state, {
@@ -352,5 +457,25 @@ describe("desktopAppReducer", () => {
 			id: "fresh-local-draft",
 			environmentId: "local",
 		});
+	});
+});
+
+describe("side answer draft handoff", () => {
+	it("appends to the actual parent thread draft, preserving another environment", () => {
+		const drafts = new Map([
+			["original-thread", "Keep my draft"],
+			["remote-thread", "Remote draft"],
+		]);
+		const next = appendSideAnswerToMainDraft({
+			drafts,
+			answer: " Answer ",
+			parent: createSession("parent"),
+			threads: [
+				{ id: "remote-thread", environmentId: "remote", sessionId: "parent" },
+				{ id: "original-thread", environmentId: "local", sessionId: "parent" },
+			],
+		});
+		expect(next).toBe("Keep my draft\n\nFrom side conversation:\n\nAnswer");
+		expect(drafts.get("remote-thread")).toBe("Remote draft");
 	});
 });

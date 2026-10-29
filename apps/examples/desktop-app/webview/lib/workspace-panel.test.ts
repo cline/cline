@@ -2,7 +2,6 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	hasStoredWorkspacePanelWidth,
 	readWorkspacePanelWidth,
 	writeWorkspacePanelWidth,
 } from "./workspace-panel";
@@ -28,9 +27,15 @@ afterEach(() => {
 });
 
 describe("readWorkspacePanelWidth", () => {
+	it.each([
+		900, 1260, 1600,
+	])("keeps the default side chat narrower than main at %s pixels", (width) => {
+		mountMain(width);
+		expect(readWorkspacePanelWidth("side")).toBe(Math.round(width * 0.4));
+	});
+
 	it("defaults to 60% of the main content area beside the sidebar", () => {
 		mountMain(1600);
-		expect(hasStoredWorkspacePanelWidth()).toBe(false);
 		expect(readWorkspacePanelWidth()).toBe(960);
 	});
 
@@ -42,7 +47,6 @@ describe("readWorkspacePanelWidth", () => {
 	it("prefers a width the user dragged to, within bounds", () => {
 		mountMain(1260);
 		writeWorkspacePanelWidth(700);
-		expect(hasStoredWorkspacePanelWidth()).toBe(true);
 		expect(readWorkspacePanelWidth()).toBe(700);
 		writeWorkspacePanelWidth(5000);
 		// The conversation keeps room for the composer.

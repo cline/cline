@@ -25,6 +25,7 @@ export type ChatTurnAttachments = {
 export type ChatSessionCommandRequest = {
 	action:
 		| "start"
+		| "create_side"
 		| "attach"
 		| "send"
 		| "stop"
@@ -37,6 +38,8 @@ export type ChatSessionCommandRequest = {
 		| "update_pending_prompt"
 		| "remove_pending_prompt";
 	sessionId?: string;
+	newSessionId?: string;
+	visibleContext?: unknown;
 	prompt?: string;
 	promptId?: string;
 	checkpointRunCount?: number;
@@ -137,6 +140,11 @@ export type SidecarWebSocketClient = {
 };
 
 export type SidecarContext = {
+	temporarySideConversations: {
+		closing: boolean;
+		closed: Set<string>;
+		pending: Map<string, { sessionId: string; promise: Promise<unknown> }>;
+	};
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;

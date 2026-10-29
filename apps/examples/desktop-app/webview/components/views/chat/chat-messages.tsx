@@ -32,6 +32,7 @@ import { formatRunError } from "@/lib/run-error";
 import type { SessionChangeSet } from "@/lib/session-changes";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
+import { SideConversationEmpty } from "./side-conversation-opening";
 import { ImportedSessionNotice } from "./imported-session-notice";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -86,6 +87,7 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 	startingLabel?: string;
+	sideEmpty?: boolean;
 	errorAction?: { label: string; onClick: () => void | Promise<void> };
 	onProceedWhileRunning?: (
 		sessionId: string,
@@ -99,6 +101,7 @@ type ChatMessagesProps = {
 	 */
 	lastTurnChanges?: SessionChangeSet;
 	onReviewLastTurn?: (path?: string) => void;
+	onAddToMainDraft?: (answerText: string) => void;
 };
 
 type AskQuestionRequestItem = {
@@ -133,11 +136,13 @@ function ChatMessagesImpl({
 	onEditMessage,
 	onForkSession,
 	startingLabel,
+	sideEmpty = false,
 	errorAction,
 	onProceedWhileRunning,
 	onFixCredentials,
 	lastTurnChanges,
 	onReviewLastTurn,
+	onAddToMainDraft,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -234,6 +239,14 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
+	const showSideEmpty =
+		showIdleDetails &&
+		sideEmpty &&
+		chatTransportState === "connected" &&
+		!error &&
+		(status === "idle" || status === "completed") &&
+		pendingToolApprovals.length === 0 &&
+		pendingAskQuestions.length === 0;
 	// The live run keeps rendering its rows while the session is active, and an
 	// interrupted run (cancelled/failed/error) keeps them too — even when Stop
 	// landed mid-answer and left partial trailing text — so the user can see
@@ -563,6 +576,8 @@ function ChatMessagesImpl({
 		[onForkSession],
 	);
 
+	if (showSideEmpty) return <SideConversationEmpty />;
+
 	return (
 		<MessageScrollerProvider
 			key={sessionId ?? "new-chat"}
@@ -696,6 +711,12 @@ function ChatMessagesImpl({
 												runCount={userRunCountByMessage.get(message)}
 												onExpandImage={handleExpandImage}
 												onCopyMessage={handleCopyMessage}
+												onAddToMainDraft={
+													!isSessionSwitching &&
+													(itemIndex < lastUserItemIndex || collapseTrailingRun)
+														? onAddToMainDraft
+														: undefined
+												}
 												onEditMessage={
 													onEditMessage ? requestEditMessage : undefined
 												}
