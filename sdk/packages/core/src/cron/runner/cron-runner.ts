@@ -221,6 +221,7 @@ export class CronRunner {
 	}
 
 	public getActivity(): RuntimeActivity | undefined {
+		if (this.disposed) return undefined;
 		const activity = this.options.runtimeHandlers.getActivity?.();
 		if (!activity) return undefined;
 		return {

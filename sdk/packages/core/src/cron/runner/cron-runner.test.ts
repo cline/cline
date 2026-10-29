@@ -161,6 +161,10 @@ describe("CronRunner", () => {
 			expect(runner.getActivity()?.busy).toBe(true);
 			delete handlers.getActivity;
 			expect(runner.getActivity()).toBeUndefined();
+			runtimeActivity.busy = false;
+			handlers.getActivity = () => runtimeActivity;
+			await runner.dispose();
+			expect(runner.getActivity()).toBeUndefined();
 		} finally {
 			releaseStart();
 			releaseStop();
