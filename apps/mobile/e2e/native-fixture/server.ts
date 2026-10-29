@@ -10,6 +10,7 @@ import {
 	attachmentMessages,
 	type SubmittedAttachments,
 } from "./attachment-history";
+import { fixtureAuthResponse } from "./auth";
 import {
 	commandFault,
 	FixtureFaults,
@@ -852,23 +853,18 @@ const server = Bun.serve({
 						token_type: "Bearer",
 					})
 				: json({ error: "authorization_pending" }, 400);
-		if (path === "/api/v1/auth/register" || path === "/api/v1/auth/refresh")
-			return json({
-				success: true,
-				data: {
-					accessToken: token,
-					refreshToken: "fixture-refresh",
-					tokenType: "Bearer",
-					expiresAt: new Date(Date.now() + 86400000).toISOString(),
-					userInfo: {
-						subject: "fixture-user",
-						email: "simulator@example.invalid",
-						name: "Native Fixture",
-						clineUserId: "fixture-account",
-						accounts: [],
-					},
-				},
+		const authResponse = fixtureAuthResponse(path, faults, token);
+		if (authResponse) {
+			const expiresAt = authResponse.ok
+				? (await authResponse.clone().json()).data?.expiresAt
+				: undefined;
+			record("fixture-auth-response", {
+				path,
+				status: authResponse.status,
+				...(typeof expiresAt === "string" ? { expiresAt } : {}),
 			});
+			return authResponse;
+		}
 		if (
 			path === "/api/v1/ai/cline/models" &&
 			faults.get("global", "models-error")

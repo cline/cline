@@ -344,6 +344,20 @@ longer waits may therefore exercise client timeout recovery. Admission counts
 remain necessary: an idle disconnect or transport retry must not be reported as
 an application double submission without evidence of its origin.
 
+For real SDK credential-expiry recovery, global `auth-short-credentials=1`
+makes successful register/refresh responses expire seven minutes after issuance
+(default0 retains24hours). The SDK's unchanged five-minute refresh buffer leaves
+about two minutes to stage private drafts after a fresh sign-in. Global
+`auth-refresh-invalid=1` makes only `/api/v1/auth/refresh` return HTTP400 OAuth
+`invalid_grant`; device authorization and registration still succeed normally.
+Both controls accept only0/1 and use the private fixture control key. Existing
+stored credentials keep their issued expiry: enable short credentials before a
+fresh sign-in, stage drafts, then wait for normal refresh eligibility and trigger
+an ordinary authenticated read. No shipping clock, token resolver, or auth
+configuration is overridden. Clear both controls to0 afterward. A helper/SDK
+contract test proves response semantics; native expiry cleanup needs its own
+observed run and must not be inferred from that test.
+
 `status-auth-error` also requires an exact outer ID (global rejected). When set,
 only that workspace's GET status returns HTTP401 `{success:false,error:"Unauthorized"}`.
 Use it for post-create sign-in recovery, then clear the same scoped control.
