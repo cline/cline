@@ -372,6 +372,7 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_PATH` - Runtime log file path (default `<CLINE_DATA_DIR>/logs/cline.log`)
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
 - `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
+- `CLINE_CLOUD_SESSIONS` - Set to `1`/`true` to enable the experimental Local/Cloud toggle (`Ctrl+O`) for running tasks in Cline Cloud sandboxes
 
 `--key` takes precedence over environment variables.
 

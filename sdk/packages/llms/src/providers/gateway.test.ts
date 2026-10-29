@@ -7434,6 +7434,102 @@ describe("sdk-gateway", () => {
 		expect(headers.get("x-existing")).toBe("kept");
 	});
 
+	describe("aimlapi.com attribution", () => {
+		const ATTRIBUTION = [
+			"x-aimlapi-source",
+			"x-aimlapi-partner-id",
+			"x-aimlapi-integration-repo",
+			"x-aimlapi-integration-version",
+			"http-referer",
+			"x-title",
+		];
+
+		/** The fetch the aimlapi provider hands its vendor SDK, built around a
+		 *  fetch the HOST supplied, so the wrap is proven to survive one. */
+		async function aimlapiWireFetch(providerId = "aimlapi") {
+			const { fetchMock, fetch: hostFetch } = createFetchMock();
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+			});
+			const gateway = createGateway({
+				providerConfigs: [{ providerId, apiKey: "test-key", fetch: hostFetch }],
+			});
+			await collect(
+				await gateway.stream({
+					providerId,
+					modelId: "anthropic/claude-sonnet-5",
+					messages: baseMessages,
+				}),
+			);
+			const config = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as {
+				fetch?: typeof fetch;
+			};
+			return {
+				fetchMock,
+				send: async (url: string) => {
+					await config.fetch?.(url, {
+						method: "POST",
+						headers: { "x-existing": "kept" },
+						body: "{}",
+					});
+					const init = fetchMock.mock.calls.at(-1)?.[1] as
+						| RequestInit
+						| undefined;
+					return new Headers(init?.headers);
+				},
+			};
+		}
+
+		it("is added for api.aimlapi.com, through a host-supplied fetch", async () => {
+			const { fetchMock, send } = await aimlapiWireFetch();
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+
+			expect(fetchMock).toHaveBeenCalledOnce();
+			expect(headers.get("x-aimlapi-source")).toBe("agent/cline");
+			expect(headers.get("x-aimlapi-partner-id")).toBe(
+				"part_HSyUEqWOLXYAn56CBHNOMBlj",
+			);
+			expect(headers.get("x-aimlapi-partner-id")).toMatch(
+				/^part_[A-Za-z0-9]{1,64}$/,
+			);
+			expect(headers.get("x-aimlapi-integration-repo")).toBe("cline/cline");
+			expect(headers.get("http-referer")).toBe("https://cline.bot");
+			expect(headers.get("x-title")).toBe("Cline");
+			expect(headers.get("x-existing")).toBe("kept");
+		});
+
+		it("is NOT sent when the provider is pointed anywhere else", async () => {
+			const { send } = await aimlapiWireFetch();
+			for (const url of [
+				// look-alikes a suffix or substring test would attribute
+				"https://api.aimlapi.com.example.net/v1/chat/completions",
+				"https://notapi.aimlapi.com/v1/chat/completions",
+				// userinfo: the real host is evil.example
+				"https://api.aimlapi.com@evil.example/v1/chat/completions",
+				// the apex and a sibling are not the inference gateway
+				"https://aimlapi.com/v1/chat/completions",
+				"https://staging.api.aimlapi.com/v1/chat/completions",
+				// a plain baseUrl override: proxy, staging, local
+				"https://proxy.example.test/v1/chat/completions",
+				"http://localhost:8080/v1/chat/completions",
+			]) {
+				const headers = await send(url);
+				for (const name of ATTRIBUTION) {
+					expect(headers.has(name), `${name} leaked to ${url}`).toBe(false);
+				}
+				expect(headers.get("x-existing")).toBe("kept");
+			}
+		});
+
+		it("leaves every other provider's fetch untouched", async () => {
+			const { send } = await aimlapiWireFetch("openai-compatible");
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+			for (const name of ATTRIBUTION) {
+				expect(headers.has(name)).toBe(false);
+			}
+		});
+	});
+
 	it("preserves explicit configured header sticky session values", async () => {
 		const { fetchMock: customFetchMock, fetch: customFetch } =
 			createFetchMock();

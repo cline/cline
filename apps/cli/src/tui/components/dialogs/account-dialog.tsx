@@ -3,6 +3,7 @@ import type { ClineAccountOrganization } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import open from "../../../utils/open";
 import {
 	type ClineAccountSnapshot,
 	formatClineCredits,
@@ -38,7 +39,8 @@ interface AccountAction {
 		| "change-account"
 		| "change-provider"
 		| "learn-more"
-		| "login";
+		| "login"
+		| "privacy-settings";
 	label: string;
 	description: string;
 	enabled: boolean;
@@ -203,7 +205,7 @@ function OrganizationRow(props: {
 }
 
 function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
-	return LOADED_ACTIONS.map((action) => {
+	const actions = LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;
 		}
@@ -214,6 +216,15 @@ function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
 				Boolean(snapshot.activeOrganization),
 		};
 	});
+	if (snapshot.privacySettingsUrl) {
+		actions.push({
+			id: "privacy-settings",
+			label: "Privacy settings",
+			description: "Manage data sharing in the Cline web app",
+			enabled: true,
+		});
+	}
+	return actions;
 }
 
 function organizationDescription(org: ClineAccountOrganization): string {
@@ -365,11 +376,15 @@ export function AccountDialogContent(
 				resolve("change-provider");
 				return;
 			}
+			if (action.id === "privacy-settings" && snapshot?.privacySettingsUrl) {
+				void open(snapshot.privacySettingsUrl, { wait: false }).catch(() => {});
+				return;
+			}
 			if (action.id === "change-account") {
 				openOrganizationView();
 			}
 		},
-		[openOrganizationView, resolve],
+		[openOrganizationView, resolve, snapshot],
 	);
 
 	const runSelectedAction = useCallback(() => {

@@ -25,6 +25,7 @@ import {
 	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	summarizeConversation,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
@@ -46,6 +47,13 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
+import {
+	beginActiveSessionSend,
+	handleDiscardHandoff,
+	handleHandoff,
+	handlePrepareHandoff,
+	invalidateHandoffCaptureForWorkspace,
+} from "./cloud-handoff";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -71,6 +79,11 @@ import {
 	pluginReloads,
 } from "./plugin-reload";
 import { desktopUiSlots, reattachPluginUiViewers } from "./plugin-ui";
+import {
+	readReasoningEffort,
+	readWorkspacePath,
+	workspacePathKey,
+} from "./session-config";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -106,36 +119,6 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 	"Cannot send a prompt while the session workspace is being restored";
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
-
-type WorkspacePathSource = {
-	cwd?: unknown;
-	workspaceRoot?: unknown;
-	workspace_root?: unknown;
-};
-
-function readWorkspacePath(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
-	if (cwd) return cwd;
-	const workspaceRoot =
-		typeof source?.workspaceRoot === "string"
-			? source.workspaceRoot.trim()
-			: "";
-	if (workspaceRoot) return workspaceRoot;
-	const snakeCaseWorkspaceRoot =
-		typeof source?.workspace_root === "string"
-			? source.workspace_root.trim()
-			: "";
-	return snakeCaseWorkspaceRoot || undefined;
-}
-
-function workspacePathKey(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
-}
 
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
@@ -363,6 +346,7 @@ async function withWorkspaceRestoreLock<T>(
 
 	ctx.restoringWorkspacePaths.add(key);
 	try {
+		invalidateHandoffCaptureForWorkspace(ctx, key);
 		return await work();
 	} finally {
 		ctx.restoringWorkspacePaths.delete(key);
@@ -497,20 +481,6 @@ function isoTimestampToMs(
 	}
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readReasoningEffort(
-	value: unknown,
-): "low" | "medium" | "high" | "xhigh" | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh"
-	) {
-		return value;
-	}
-	return undefined;
 }
 
 function readPositiveInteger(value: unknown): number | undefined {
@@ -1659,25 +1629,6 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
-	const session = ctx.liveSessions.get(sessionId);
-	const releasePluginReload =
-		session?.pluginsStale && !session.busy && !request.delivery
-			? claimPluginReload(sessionId)
-			: undefined;
-	try {
-		return await sendPrompt(ctx, request, sessionId, releasePluginReload);
-	} finally {
-		releasePluginReload?.();
-	}
-}
-
-async function sendPrompt(
-	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
-	sessionId: string,
-	releasePluginReload: (() => void) | undefined,
-): Promise<unknown> {
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -1685,6 +1636,46 @@ async function sendPrompt(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
+	try {
+		return await sendAfterPluginReloads(ctx, request, sessionId, prompt);
+	} finally {
+		finishActiveSend();
+	}
+}
+
+async function sendAfterPluginReloads(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+): Promise<unknown> {
+	while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
+	const session = ctx.liveSessions.get(sessionId);
+	const releasePluginReload =
+		session?.pluginsStale && !session.busy && !request.delivery
+			? claimPluginReload(sessionId)
+			: undefined;
+	try {
+		return await handleSendOnce(
+			ctx,
+			request,
+			sessionId,
+			prompt,
+			releasePluginReload,
+		);
+	} finally {
+		releasePluginReload?.();
+	}
+}
+
+async function handleSendOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+	releasePluginReload: (() => void) | undefined,
+): Promise<unknown> {
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -2735,20 +2726,50 @@ export async function handleChatSessionCommand(
 		}
 	}
 	const handler = ACTION_HANDLERS[request.action];
-	if (!handler) throw new Error("unsupported action");
+	if (!handler && request.action !== "handoff")
+		throw new Error("unsupported action");
 	const explicitEnvironment = readEnvironmentId(request.config);
 	const binding =
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	ctx = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (request.action === "handoff") {
+		if (getSessionRuntimeBinding(ctx).kind !== "local")
+			throw new Error("Cloud handoff is only supported for local sessions.");
+		switch (request.operation) {
+			case "prepare":
+				return handlePrepareHandoff(ctx, request, async (messages, config) => {
+					const connection = buildSessionConnectionUpdate(
+						await withRemoteProviderCredentials(config),
+					);
+					if (!connection.providerId || !connection.modelId)
+						throw new Error(
+							"Select a local model before preparing a cloud summary.",
+						);
+					return summarizeConversation({
+						messages,
+						signal: AbortSignal.timeout(120_000),
+						config: {
+							...connection,
+							providerId: connection.providerId,
+							modelId: connection.modelId,
+						},
+					});
+				});
+			case "discard":
+				return handleDiscardHandoff(ctx, request);
+			case "launch":
+				return handleHandoff(ctx, request);
+			default:
+				throw new Error("unsupported handoff operation");
+		}
+	}
+	return handler(ctx, request);
 }

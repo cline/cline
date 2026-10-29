@@ -8,11 +8,11 @@ import {
 	type DesktopAppAction,
 	desktopAppReducer,
 } from "../lib/desktop-app-state";
-import { usePromptDraft } from "./use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
 
 let container: HTMLDivElement;
 let root: Root;
-let drafts: Map<string, string>;
+let drafts: PromptDraftCache;
 let current: ReturnType<typeof usePromptDraft>;
 let renders: number;
 let appState: ReturnType<typeof createDesktopAppState<"General">>;
@@ -72,7 +72,7 @@ beforeEach(() => {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	drafts = new Map();
+	drafts = new PromptDraftCache();
 	renders = 0;
 	appState = createDesktopAppState("new-session", "General", "local");
 });
@@ -83,6 +83,59 @@ afterEach(async () => {
 });
 
 describe("usePromptDraft", () => {
+	it.each([
+		false,
+		true,
+	])("restores cancelled cloud text and images after navigation (remounted: %s)", async (remounted) => {
+		await navigate();
+		const image = new File(["synthetic"], "draft.png", { type: "image/png" });
+		const pane = current;
+		let restore!: ReturnType<typeof current.clearDraftForHandoff>;
+		act(() => {
+			pane.setPromptInput("/cloud Continue");
+			pane.setPendingAttachments([image]);
+			restore = pane.clearDraftForHandoff("/cloud Continue");
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		if (remounted) await navigate({ type: "back" });
+		act(() => {
+			expect(restore()).toBe(true);
+		});
+		if (!remounted) await navigate({ type: "back" });
+		expect(current.promptDraft.value).toBe("/cloud Continue");
+		expect(current.pendingAttachments).toEqual([image]);
+	});
+
+	it.each([
+		"erased text",
+		"new image",
+	])("preserves %s when cancelled cloud preparation belongs to an old pane", async (edit) => {
+		await navigate();
+		let restore!: ReturnType<typeof current.clearDraftForHandoff>;
+		act(() => {
+			restore = current.clearDraftForHandoff("/cloud Continue");
+		});
+		await openSession();
+		await navigate({ type: "back" });
+		const image = new File(["new"], "new.png", { type: "image/png" });
+		act(() => {
+			if (edit === "erased text") {
+				current.handlePromptInputChange("Changed my mind");
+				current.handlePromptInputChange("");
+			} else {
+				current.setPendingAttachments([image]);
+			}
+			expect(restore()).toBe(false);
+		});
+		expect(current.draftRef.current.text).toBe("");
+		expect(current.pendingAttachments).toEqual(
+			edit === "new image" ? [image] : [],
+		);
+	});
+
 	it("restores an unchanged draft after a failed send, including the composer's clear acknowledgement", async () => {
 		await navigate();
 		let send!: ReturnType<typeof pendingSend>;
@@ -95,7 +148,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(current.promptDraft.value).toBe("Submitted prompt");
-		expect(drafts.get("new-session")).toBe("Submitted prompt");
+		expect(drafts.get("new-session")?.text).toBe("Submitted prompt");
 	});
 
 	it("does not restore a failed send after the user types and erases newer text", async () => {
@@ -110,8 +163,8 @@ describe("usePromptDraft", () => {
 			send.resolve(false);
 			await send.finished;
 		});
-		expect(current.promptInputRef.current).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(current.draftRef.current.text).toBe("");
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("invalidates recovery for an equal-valued external replacement", async () => {
@@ -122,7 +175,7 @@ describe("usePromptDraft", () => {
 			current.setPromptInput("");
 		});
 		act(() => expect(restore("Old prompt")).toBe(false));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("holds a box the send did not come from as it is, and never restores over its text", async () => {
@@ -137,9 +190,9 @@ describe("usePromptDraft", () => {
 			version,
 			value: "Typed during the wait",
 		});
-		expect(current.promptInputRef.current).toBe("Typed during the wait");
+		expect(current.draftRef.current.text).toBe("Typed during the wait");
 		act(() => expect(restore("Suggested prompt")).toBe(false));
-		expect(drafts.get("new-session")).toBe("Typed during the wait");
+		expect(drafts.get("new-session")?.text).toBe("Typed during the wait");
 	});
 
 	it("drops an injected draft the user cleared when a held send goes out", async () => {
@@ -164,10 +217,10 @@ describe("usePromptDraft", () => {
 			untouched = current.holdPromptForSend();
 		});
 		act(() => expect(edited("Suggested prompt")).toBe(false));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 		act(() => expect(untouched("Suggested prompt")).toBe(true));
 		expect(current.promptDraft.value).toBe("Suggested prompt");
-		expect(drafts.get("new-session")).toBe("Suggested prompt");
+		expect(drafts.get("new-session")?.text).toBe("Suggested prompt");
 	});
 
 	it("does not let an earlier send's failure replace a later send's draft", async () => {
@@ -182,12 +235,12 @@ describe("usePromptDraft", () => {
 			first.resolve(false);
 			await first.finished;
 		});
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		await act(async () => {
 			second.resolve(false);
 			await second.finished;
 		});
-		expect(current.promptInputRef.current).toBe("Submitted prompt");
+		expect(current.draftRef.current.text).toBe("Submitted prompt");
 	});
 
 	it("does not let a retired pane's failed send overwrite a newer draft", async () => {
@@ -227,7 +280,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(drafts.has("new-session")).toBe(false);
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 	});
 
 	it("preserves a newly started session's follow-up when reopened through history", async () => {
@@ -240,7 +293,7 @@ describe("usePromptDraft", () => {
 		act(() => current.handlePromptInputChange("Follow-up to my new session"));
 		// The same session ID on a different host must not reuse the local thread.
 		await openSession("remote");
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		act(() => current.handlePromptInputChange("Remote follow-up"));
 		await openSession("local");
 		expect(appState.navigation.current.activeThreadId).toBe("new-session");
@@ -257,10 +310,10 @@ describe("usePromptDraft", () => {
 			sessionId: "existing-session",
 		});
 		act(() => current.handlePromptInputChange("Unsent follow-up"));
-		const inputRef = current.promptInputRef;
+		const draftRef = current.draftRef;
 		await openSession();
-		expect(current.promptInputRef).toBe(inputRef);
-		expect(current.promptInputRef.current).toBe("Unsent follow-up");
+		expect(current.draftRef).toBe(draftRef);
+		expect(current.draftRef.current.text).toBe("Unsent follow-up");
 		expect(appState.threads).toHaveLength(1);
 	});
 
@@ -278,7 +331,7 @@ describe("usePromptDraft", () => {
 
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("Unsent prompt\nwith more detail");
-		expect(current.promptInputRef.current).toBe(current.promptDraft.value);
+		expect(current.draftRef.current.text).toBe(current.promptDraft.value);
 		await navigate({ type: "forward" });
 		expect(current.promptDraft.value).toBe("Follow-up draft");
 	});
@@ -333,7 +386,7 @@ describe("usePromptDraft", () => {
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("Edited fork prompt");
 		act(() => current.setPromptInput(""));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
@@ -346,6 +399,97 @@ describe("usePromptDraft", () => {
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
+	});
+
+	it("keeps edited cloud text and images through a pane remount", async () => {
+		await openSession();
+		const image = new File(["synthetic"], "test.png", { type: "image/png" });
+		act(() => {
+			current.setPromptInput("Original follow-up");
+			current.setPendingAttachments([image]);
+			current.handlePromptInputChange("Edited follow-up");
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		await openSession();
+		expect(current.draftRef.current.text).toBe("Edited follow-up");
+		expect(current.pendingAttachments).toEqual([image]);
+		act(() => {
+			current.handlePromptInputChange("");
+			current.setPendingAttachments([]);
+		});
+		await navigate({ type: "back" });
+		await openSession();
+		expect(current.draftRef.current.text).toBe("");
+		expect(current.pendingAttachments).toEqual([]);
+	});
+
+	it("restores a rejected prompt and its files alongside attachments added during sending", async () => {
+		await navigate();
+		const original = new File(["a"], "a.png");
+		const added = new File(["b"], "b.png");
+		act(() => {
+			current.setPromptInput("Submitted prompt");
+			current.setPendingAttachments([original]);
+		});
+		const sent = current.pendingAttachments;
+		const update = current.setPendingAttachments;
+		let finish!: ReturnType<typeof current.clearPromptForSend>;
+		act(() => {
+			update([]);
+			finish = current.clearPromptForSend();
+		});
+		act(() => current.setPendingAttachments([added]));
+		act(() => {
+			if (finish("Submitted prompt")) update((files) => [...files, ...sent]);
+		});
+		expect(current.promptDraft.value).toBe("Submitted prompt");
+		expect(current.pendingAttachments).toEqual([added, original]);
+		act(() => {
+			update([]);
+			update((files) => [...files, original]);
+			update((files) => [...files, added]);
+		});
+		expect(current.pendingAttachments).toEqual([original, added]);
+	});
+
+	it("takes only the wanted files still attached and leaves files added since", async () => {
+		await navigate();
+		const [kept, removed, pasted] = ["kept", "removed", "pasted"].map(
+			(name) => new File([name], `${name}.png`, { type: "image/png" }),
+		);
+		act(() => current.setPendingAttachments([kept, removed]));
+		const atPress = current.pendingAttachments;
+		act(() => {
+			current.setPendingAttachments((files) =>
+				files.filter((attached) => attached !== removed),
+			);
+			current.setPendingAttachments((files) => [...files, pasted]);
+		});
+
+		let taken: File[] = [];
+		act(() => {
+			taken = current.takePendingAttachments(atPress);
+		});
+
+		expect(taken).toEqual([kept]);
+		expect(current.pendingAttachments).toEqual([pasted]);
+		expect(drafts.get("new-session")?.attachments).toEqual([pasted]);
+	});
+
+	it("takes a file attached earlier in the same tick", async () => {
+		await navigate();
+		const attached = new File(["a"], "a.png", { type: "image/png" });
+		let taken: File[] = [];
+		act(() => {
+			current.setPendingAttachments([attached]);
+			taken = current.takePendingAttachments([attached]);
+		});
+
+		expect(taken).toEqual([attached]);
+		expect(current.pendingAttachments).toEqual([]);
 	});
 });
