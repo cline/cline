@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ProviderSettingsManager, toProviderConfig } from "@cline/core";
 import type { HubCloudSessionClient } from "@cline/core/cloud";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prepareCloudHandoff } from "./cloud-handoff";
@@ -172,6 +176,62 @@ describe("summary cloud handoff", () => {
 			}),
 		);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
+	});
+
+	it("accepts the shared Cline login when saved Pass settings retain the previous account", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "cline-handoff-auth-"));
+		try {
+			const manager = new ProviderSettingsManager({
+				filePath: join(directory, "providers.json"),
+			});
+			manager.saveProviderSettings({
+				provider: "cline-pass",
+				model: "model",
+				auth: { accessToken: "old-token", accountId: "account-one" },
+			});
+			manager.saveProviderSettings({
+				provider: "cline",
+				model: "other-model",
+				auth: { accessToken: "current-token", accountId: "account-two" },
+			});
+			const pass = manager.getProviderSettings("cline-pass");
+			const shared = manager.getProviderSettings("cline");
+			if (!pass || !shared) throw new Error("Expected saved provider settings");
+			const connection = toProviderConfig(pass);
+			expect(connection.accountId).toBe("account-one");
+			expect(shared.auth?.accountId).toBe("account-two");
+			helpers.resolveCredentials.mockResolvedValue({
+				apiKey: "current-token",
+				accountId: shared.auth?.accountId,
+				refreshed: false,
+			});
+			const input = fixture();
+			const prepared = await prepareCloudHandoff({
+				...input,
+				connection: { ...connection, accountId: shared.auth?.accountId },
+			});
+			await prepared.start(vi.fn());
+			expect(input.cloud.prepareHandoffRepository).toHaveBeenLastCalledWith(
+				plan.repoUrl,
+				{
+					serviceId: "hub",
+					scopeGeneration: 1,
+					expectedAccountId: "account-two",
+				},
+			);
+			expect(input.cloud.create).toHaveBeenCalledOnce();
+			expect(helpers.summarize).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						providerId: "cline-pass",
+						modelId: "model",
+						apiKey: "current-token",
+					}),
+				}),
+			);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	it.each([

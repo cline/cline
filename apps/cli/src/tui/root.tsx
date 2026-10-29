@@ -377,9 +377,11 @@ function App(props: TuiProps) {
 		handoff.reset();
 		cloud.reset();
 		if (wasCloudActive) {
+			session.closeInlineStream();
 			session.clearEntries();
 			session.setHasSubmitted(false);
 			session.setIsRunning(false);
+			session.setIsStreaming(false);
 		}
 		await props.onAccountChange();
 		if (wasCloudActive && sourceId) {
@@ -399,9 +401,12 @@ function App(props: TuiProps) {
 			localHandoffViewRef.current = undefined;
 			// A resumed chat is local, so it must not keep sending to Cloud.
 			detachCloudSession();
+			session.closeInlineStream();
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
 			return result;
 		},
-		[detachCloudSession, propsOnResumeSession],
+		[detachCloudSession, propsOnResumeSession, session],
 	);
 	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
 	const openTargetModelSelector = useCallback(
@@ -417,6 +422,11 @@ function App(props: TuiProps) {
 		localHandoffViewRef.current = undefined;
 		const shouldRestartSession = session.hasSubmitted;
 		resetCloudSession();
+		if (cloudActive) {
+			session.closeInlineStream();
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
+		}
 		session.clearEntries();
 		session.setHasSubmitted(false);
 		if (!shouldRestartSession) {
@@ -436,7 +446,7 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [props, resetCloudSession, session]);
+	}, [cloudActive, props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
 		if (cloudActive) {

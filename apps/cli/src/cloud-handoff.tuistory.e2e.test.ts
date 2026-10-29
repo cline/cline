@@ -510,6 +510,133 @@ describe("cloud handoff TUI", () => {
 		});
 	});
 
+	it.each([
+		"history",
+		"clear",
+	] as const)("clears pending cloud busy state on %s", async (transition) => {
+		const {
+			session,
+			statePath,
+			acceptCloudSend,
+			emitLateCloudSnapshot,
+			release,
+		} = await launch({ scenario: "held-cloud-send" });
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("Seed the synthetic source conversation");
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(
+					"Seed the synthetic source conversation",
+				) === true,
+			timeout,
+		});
+
+		await session.type("/clear");
+		await session.press("enter");
+		await session.waitForText("What can I do for you?", { timeout });
+		const activePrompt = "Seed the active local conversation";
+		await session.type(activePrompt);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(activePrompt) === true,
+			timeout,
+		});
+
+		await session.type("/cloud start the synthetic handoff");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Open cloud (Ctrl+O)", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+		await session.type("held synthetic cloud follow-up");
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 1,
+			timeout,
+		});
+		acceptCloudSend(1);
+		await session.text({
+			waitFor: () => readState(statePath).acceptedCloudSends?.length === 1,
+			timeout,
+		});
+
+		const resumedSessionId =
+			transition === "history" ? "synthetic-session-a" : "synthetic-session-b";
+		await session.type(transition === "history" ? "/history" : "/clear");
+		await session.waitForText(
+			transition === "history" ? "/history" : "/clear",
+			{
+				timeout,
+			},
+		);
+		await session.waitForText(
+			transition === "history" ? "View session history" : "Start a new session",
+			{ timeout },
+		);
+		expect(readState(statePath).runningChanges?.at(-1)).toBe(true);
+		await session.press("enter");
+		if (transition === "history") {
+			await session.waitForText("Synthetic history session A", { timeout });
+			await session.press("enter");
+			await session.waitForText("Synthetic history conversation", { timeout });
+		} else {
+			await session.waitForText("What can I do for you?", { timeout });
+		}
+		await session.text({
+			waitFor: () => readState(statePath).activeSessionId === resumedSessionId,
+			timeout,
+		});
+		await session.text({
+			waitFor: () => readState(statePath).runningChanges?.at(-1) === false,
+			timeout,
+		});
+		if (transition === "clear") {
+			await session.press(["ctrl", "o"]);
+			await session.waitForText("● Local", { timeout });
+		}
+
+		await session.waitForText(
+			transition === "history" ? "Ask anything..." : "What can I do for you?",
+			{ timeout },
+		);
+		const localPrompt = `Send after the pending cloud ${transition}`;
+		await session.type(localPrompt);
+		await session.waitForText(localPrompt, { timeout });
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(localPrompt) === true,
+			timeout,
+		});
+
+		emitLateCloudSnapshot();
+		await session.text({
+			waitFor: () => readState(statePath).lateSnapshotsEmitted === 1,
+			timeout,
+		});
+		release();
+		await session.text({
+			waitFor: () =>
+				readState(statePath).settledCloudSends?.includes(
+					"held synthetic cloud follow-up",
+				) === true,
+			timeout,
+		});
+		const localScreen = await session.text();
+		expect(localScreen).toContain(localPrompt);
+		expect(localScreen).not.toContain("Late synthetic cloud snapshot");
+		expect(localScreen).toContain("● Local");
+		expect(readState(statePath).activeSessionId).toBe(resumedSessionId);
+		await session.press(["ctrl", "p"]);
+		await session.waitForText("Command Palette", { timeout });
+		await session.waitForText("Change Model", { timeout });
+	});
+
 	it("keeps the paired local return action when the attached cloud task is removed", async () => {
 		const { session, statePath, removeCloudSession } = await launch({
 			scenario: "removed-cloud-session",

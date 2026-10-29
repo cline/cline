@@ -550,10 +550,19 @@ export async function runInteractive(
 									? undefined
 									: config.reasoningEffort,
 						},
-						connection: resolveCompactionProviderConfig(
-							config,
-							providerSettingsManager,
-						),
+						connection: {
+							...resolveCompactionProviderConfig(
+								config,
+								providerSettingsManager,
+							),
+							// ClinePass uses the shared Cline login, not its saved model settings' auth.
+							...((config.providerId === "cline" ||
+								config.providerId === "cline-pass") && {
+								accountId:
+									providerSettingsManager.getProviderSettings("cline")?.auth
+										?.accountId,
+							}),
+						},
 					});
 				}
 			: undefined,
