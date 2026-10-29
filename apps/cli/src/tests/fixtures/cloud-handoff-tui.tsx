@@ -1,28 +1,14 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { CoreSessionService, SqliteSessionStore } from "@cline/core";
 import { renderOpenTui } from "../../tui";
 import type { TuiProps } from "../../tui/types";
 import type { Config } from "../../utils/types";
+import type { FixtureState } from "./cloud-handoff-state";
 
 const statePath = process.env.CLOUD_HANDOFF_FIXTURE_STATE;
 if (!statePath) throw new Error("CLOUD_HANDOFF_FIXTURE_STATE is required");
 const dbDataDir = process.env.CLINE_DB_DATA_DIR;
 if (!dbDataDir) throw new Error("CLINE_DB_DATA_DIR is required");
-type FixtureState = {
-	preparedDraft?: { instruction: string; images: string[] };
-	preparedDrafts?: Array<{ instruction: string; images: string[] }>;
-	retryTargets?: Array<{
-		taskId: string;
-		instruction: string;
-		images: string[];
-	}>;
-	started?: boolean;
-	localPrompts?: string[];
-	activeSessionId?: string;
-	resumeCalls?: string[];
-	preparedSessionIds?: string[];
-	completedTaskIds?: string[];
-};
 const state: FixtureState = {};
 const record = <K extends keyof FixtureState>(
 	key: K,
@@ -31,6 +17,21 @@ const record = <K extends keyof FixtureState>(
 	state[key] = value;
 	writeFileSync(statePath, JSON.stringify(state));
 };
+
+const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
+async function waitForRelease() {
+	const releasePath = process.env.CLOUD_HANDOFF_FIXTURE_RELEASE;
+	if (!releasePath)
+		throw new Error("CLOUD_HANDOFF_FIXTURE_RELEASE is required");
+	const deadline = Date.now() + 20_000;
+	while (!existsSync(releasePath)) {
+		if (Date.now() >= deadline)
+			throw new Error(
+				"Timed out waiting for the test to release the cloud handoff",
+			);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+}
 
 const cwd = process.cwd();
 const providerId = process.env.CLOUD_HANDOFF_FIXTURE_PROVIDER ?? "cline";
@@ -192,20 +193,12 @@ const props = {
 			return () => sessionListeners.delete(listener);
 		},
 	},
-	onPrepareCloudHandoff: async (draft: {
-		instruction: string;
-		images: string[];
-	}) => {
-		record("preparedDraft", draft);
-		record("preparedDrafts", [...(state.preparedDrafts ?? []), draft]);
-		record("preparedSessionIds", [
-			...(state.preparedSessionIds ?? []),
-			activeSessionId,
+	onPrepareCloudHandoff: async (draft) => {
+		record("preparations", [
+			...(state.preparations ?? []),
+			{ sessionId: activeSessionId, draft },
 		]);
-		if (
-			process.env.CLOUD_HANDOFF_FIXTURE_REJECT_SECOND === "1" &&
-			(state.preparedDrafts?.length ?? 0) === 2
-		) {
+		if (scenario === "retry" && state.preparations?.length === 2) {
 			throw new Error("Synthetic second preparation rejected");
 		}
 		return {
@@ -219,21 +212,15 @@ const props = {
 				files: [{ path: "note.txt", status: "modified" }],
 				commits: ["abc1234 synthetic local commit"],
 			},
-			start: async (
-				onProgress: (progress: {
-					message: string;
-					dashboardUrl?: string;
-				}) => void,
-			) => {
+			start: async (onProgress) => {
 				record("started", true);
 				const target = {
-					taskId: `synthetic-task-${state.preparedDrafts?.length ?? 1}`,
+					taskId: `synthetic-task-${state.preparations?.length ?? 1}`,
 					instruction: draft.instruction,
 					images: draft.images,
 				};
 				onProgress({ message: "Publishing the approved Git snapshot." });
-				if (process.env.CLOUD_HANDOFF_FIXTURE_WITH_RETRY === "1") {
-					await new Promise((resolve) => setTimeout(resolve, 100));
+				if (scenario === "retry") {
 					return {
 						dashboardUrl: `https://app.cline.bot/tasks/${target.taskId}`,
 						retrySend: async () => {
@@ -244,30 +231,24 @@ const props = {
 						},
 					};
 				}
-				const delay = Number(process.env.CLOUD_HANDOFF_FIXTURE_DELAY_MS ?? 0);
-				if (delay > 0) {
-					await new Promise((resolve) => setTimeout(resolve, delay));
-					record("completedTaskIds", [
-						...(state.completedTaskIds ?? []),
-						target.taskId,
-					]);
-					return {
-						dashboardUrl: `https://app.cline.bot/tasks/${target.taskId}`,
-					};
+				if (scenario === "held-success" || scenario === "held-failure") {
+					await waitForRelease();
 				}
-				if (process.env.CLOUD_HANDOFF_FIXTURE_FAIL === "1") {
-					await new Promise((resolve) => setTimeout(resolve, 1500));
+				if (scenario === "failure" || scenario === "held-failure") {
 					throw new Error(
 						'CLOUD_SESSION_ERROR:{"code":"request_failed","message":"Synthetic publish failure"}',
 					);
 				}
-				await new Promise((resolve) => setTimeout(resolve, 5000));
+				record("completedTaskIds", [
+					...(state.completedTaskIds ?? []),
+					target.taskId,
+				]);
+				const dashboardUrl = `https://app.cline.bot/tasks/${target.taskId}`;
 				onProgress({
 					message: "Preparing the cloud workspace.",
-					dashboardUrl: "https://app.cline.bot/tasks/synthetic-task",
+					dashboardUrl,
 				});
-				await new Promise((resolve) => setTimeout(resolve, 2500));
-				return { dashboardUrl: "https://app.cline.bot/tasks/synthetic-task" };
+				return { dashboardUrl };
 			},
 		};
 	},

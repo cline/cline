@@ -149,25 +149,27 @@ export function usePromptInputController(input: {
 		clearPastedTextSnippets();
 	}, [clearPastedImages, clearPastedTextSnippets]);
 
-	const restoreCloudDraft = useCallback((draft: CloudHandoffDraft): boolean => {
-		if (inputValueRef.current.trim()) return false;
-		pastedImagesRef.current = draft.images.map((dataUrl, i) => ({
-			marker: `[Image ${i + 1}]`,
-			dataUrl,
-		}));
-		pastedTextSnippetsRef.current = [];
-		setInputValue(
-			[
-				"/cloud",
-				draft.instruction,
-				...pastedImagesRef.current.map((image) => image.marker),
-			]
-				.filter(Boolean)
-				.join(" "),
-		);
-		setInputKey((k) => k + 1);
-		return true;
-	}, []);
+	const restoreCloudDraft = useCallback(
+		(draft: CloudHandoffDraft): boolean => {
+			if (inputValueRef.current.trim()) return false;
+			pastedImagesRef.current = draft.images.map((dataUrl, i) => ({
+				marker: `[Image ${i + 1}]`,
+				dataUrl,
+			}));
+			pastedTextSnippetsRef.current = [];
+			populateInput(
+				[
+					"/cloud",
+					draft.instruction,
+					...pastedImagesRef.current.map((image) => image.marker),
+				]
+					.filter(Boolean)
+					.join(" "),
+			);
+			return true;
+		},
+		[populateInput],
+	);
 
 	const handleImagePaste = useCallback((dataUrl: string) => {
 		const marker = `[Image ${pastedImagesRef.current.length + 1}]`;

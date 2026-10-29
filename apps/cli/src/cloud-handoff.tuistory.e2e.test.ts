@@ -1,6 +1,5 @@
 import {
 	existsSync,
-	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
@@ -10,7 +9,11 @@ import os from "node:os";
 import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
 import { afterEach, describe, expect, it } from "vitest";
-import { z } from "zod";
+import {
+	fixtureStateSchema,
+	type FixtureState,
+	type FixtureScenario,
+} from "./tests/fixtures/cloud-handoff-state";
 
 const cliRoot = path.resolve(__dirname, "..");
 const fixture = path.join(
@@ -24,41 +27,19 @@ const bunExec = process.env.BUN_EXEC_PATH ?? "bun";
 const sessions: Session[] = [];
 const tempDirs: string[] = [];
 const timeout = 20_000;
-const fixtureStateSchema = z.object({
-	preparedDraft: z
-		.object({ instruction: z.string(), images: z.array(z.string()) })
-		.optional(),
-	preparedDrafts: z
-		.array(z.object({ instruction: z.string(), images: z.array(z.string()) }))
-		.optional(),
-	preparedSessionIds: z.array(z.string()).optional(),
-	completedTaskIds: z.array(z.string()).optional(),
-	retryTargets: z
-		.array(
-			z.object({
-				taskId: z.string(),
-				instruction: z.string(),
-				images: z.array(z.string()),
-			}),
-		)
-		.optional(),
-	started: z.boolean().optional(),
-	localPrompts: z.array(z.string()).optional(),
-	activeSessionId: z.string().optional(),
-	resumeCalls: z.array(z.string()).optional(),
-});
-type FixtureState = z.infer<typeof fixtureStateSchema>;
-
 type FixtureProvider = "cline" | "cline-pass" | "anthropic" | "openrouter";
 
-function launch(
-	fail = false,
-	provider: FixtureProvider = "cline",
-	extraEnv: Record<string, string | undefined> = {},
-) {
+function launch({
+	provider = "cline",
+	scenario = "success",
+}: {
+	provider?: FixtureProvider;
+	scenario?: FixtureScenario;
+} = {}) {
 	const stateDir = mkdtempSync(path.join(os.tmpdir(), "cloud-handoff-tui-"));
 	tempDirs.push(stateDir);
 	const statePath = path.join(stateDir, "state.json");
+	const releasePath = path.join(stateDir, "release");
 	const sessionPromise = launchTerminal({
 		command: bunExec,
 		args: [fixture],
@@ -81,8 +62,8 @@ function launch(
 			VITEST: undefined,
 			CLOUD_HANDOFF_FIXTURE_STATE: statePath,
 			CLOUD_HANDOFF_FIXTURE_PROVIDER: provider,
-			CLOUD_HANDOFF_FIXTURE_FAIL: fail ? "1" : undefined,
-			...extraEnv,
+			CLOUD_HANDOFF_FIXTURE_SCENARIO: scenario,
+			CLOUD_HANDOFF_FIXTURE_RELEASE: releasePath,
 		},
 		cols: 120,
 		rows: 40,
@@ -90,7 +71,12 @@ function launch(
 	});
 	return sessionPromise.then((session) => {
 		sessions.push(session);
-		return { session, statePath, stateDir };
+		return {
+			session,
+			statePath,
+			stateDir,
+			release: () => writeFileSync(releasePath, ""),
+		};
 	});
 }
 
@@ -98,21 +84,6 @@ function readState(statePath: string): FixtureState {
 	if (!existsSync(statePath)) return {};
 	const json: unknown = JSON.parse(readFileSync(statePath, "utf8"));
 	return fixtureStateSchema.parse(json);
-}
-
-async function saveEvidence(
-	label: string,
-	session: Session,
-	statePath: string,
-) {
-	const directory = process.env.CLOUD_HANDOFF_E2E_EVIDENCE_DIR;
-	if (!directory) return;
-	mkdirSync(directory, { recursive: true });
-	writeFileSync(path.join(directory, `${label}.txt`), await session.text());
-	writeFileSync(
-		path.join(directory, `${label}.json`),
-		JSON.stringify(readState(statePath), null, 2),
-	);
 }
 
 function createSyntheticImage(stateDir: string) {
@@ -146,7 +117,7 @@ describe("cloud handoff TUI", () => {
 		["anthropic", false],
 		["openrouter", false],
 	] as const)("shows /cloud for provider %s: %s", async (provider, visible) => {
-		const { session } = await launch(false, provider);
+		const { session } = await launch({ provider });
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("/clo");
 		await session.waitForText("/clo", { timeout });
@@ -181,9 +152,8 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Use /cloud from a local conversation.", {
 			timeout,
 		});
-		await saveEvidence("cloud-mode-rejection", session, statePath);
 		expect(await session.text()).toContain("[Image 1]");
-		expect(readState(statePath).preparedDraft).toBeUndefined();
+		expect(readState(statePath).preparations?.at(-1)?.draft).toBeUndefined();
 		expect(readState(statePath).started).toBeUndefined();
 
 		await session.press(["ctrl", "o"]);
@@ -193,7 +163,7 @@ describe("cloud handoff TUI", () => {
 		expect(localScreen).not.toContain("Restore /cloud draft");
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
-		expect(readState(statePath).preparedDraft).toEqual({
+		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
 			instruction,
 			images: [image.dataUrl],
 		});
@@ -217,7 +187,7 @@ describe("cloud handoff TUI", () => {
 		expect(cancelledDraft).toContain(instruction);
 		expect(cancelledDraft).toContain("[Image 1]");
 		expect(readState(statePath).started).toBeUndefined();
-		expect(readState(statePath).preparedDraft).toEqual({
+		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
 			instruction,
 			images: [image.dataUrl],
 		});
@@ -225,7 +195,7 @@ describe("cloud handoff TUI", () => {
 		await session.waitIdle({ timeout: 5_000 });
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
-		expect(readState(statePath).preparedDraft).toEqual({
+		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
 			instruction,
 			images: [image.dataUrl],
 		});
@@ -233,7 +203,9 @@ describe("cloud handoff TUI", () => {
 	});
 
 	it("forwards an image and keeps local chat usable while cloud work runs", async () => {
-		const { session, statePath, stateDir } = await launch();
+		const { session, statePath, stateDir, release } = await launch({
+			scenario: "held-success",
+		});
 		await session.waitForText("Ask anything...", { timeout });
 		const instruction = "continue the synthetic parser task";
 		const image = createSyntheticImage(stateDir);
@@ -245,7 +217,7 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Publishing the approved Git snapshot.", {
 			timeout,
 		});
-		expect(readState(statePath).preparedDraft).toEqual({
+		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
 			instruction,
 			images: [image.dataUrl],
 		});
@@ -265,19 +237,20 @@ describe("cloud handoff TUI", () => {
 		);
 		expect(duringProvisioning).not.toContain("Cloud task ready.");
 		expect(readState(statePath).localPrompts).toContain(localPrompt);
+		release();
 		await session.waitForText(
 			"Cloud task ready. You can keep working locally.",
 			{ timeout },
 		);
 		await session.waitForText(
-			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task",
+			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
 			{ timeout },
 		);
 		expect(readState(statePath).started).toBe(true);
 	});
 
 	it("shows a failed handoff and restores the captured draft", async () => {
-		const { session } = await launch(true);
+		const { session } = await launch({ scenario: "failure" });
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("An existing local conversation");
 		await session.press("enter");
@@ -302,7 +275,7 @@ describe("cloud handoff TUI", () => {
 	});
 
 	it("does not overwrite a newer draft when offering to restore a failed handoff", async () => {
-		const { session } = await launch(true);
+		const { session, release } = await launch({ scenario: "held-failure" });
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("/cloud earlier synthetic draft");
 		await session.press("enter");
@@ -314,6 +287,10 @@ describe("cloud handoff TUI", () => {
 		const newerDraft = "newer local text";
 		await session.type(newerDraft);
 		await session.waitForText(newerDraft, { timeout });
+		expect(await session.text()).toContain(
+			"Publishing the approved Git snapshot.",
+		);
+		release();
 		await session.waitForText("Synthetic publish failure", { timeout });
 		await session.press(["alt", "e"]);
 		const screen = await session.text();
@@ -322,7 +299,9 @@ describe("cloud handoff TUI", () => {
 	});
 
 	it("restores a failed handoff only after /history resumes its source session", async () => {
-		const { session, statePath, stateDir } = await launch(true);
+		const { session, statePath, stateDir } = await launch({
+			scenario: "failure",
+		});
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("Seed the synthetic local conversation");
 		await session.press("enter");
@@ -340,7 +319,6 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("What can I do for you?", { timeout });
 		expect(await session.text()).not.toContain("Synthetic publish failure");
 		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
-		await saveEvidence("recovery-session-b", session, statePath);
 
 		await session.type("/history");
 		await session.press("enter");
@@ -349,32 +327,33 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Synthetic publish failure", { timeout });
 		expect(readState(statePath).resumeCalls).toContain("synthetic-session-a");
 		expect(readState(statePath).activeSessionId).toBe("synthetic-session-a");
-		await saveEvidence("recovery-session-a", session, statePath);
 		await session.press(["alt", "e"]);
 		expect(await session.text()).toContain(`/cloud ${instruction}`);
 		expect(await session.text()).toContain("[Image 1]");
-		expect(readState(statePath).preparedSessionIds).toEqual([
-			"synthetic-session-a",
-		]);
-		expect(readState(statePath).preparedDrafts).toEqual([
-			{ instruction, images: [image.dataUrl] },
+		expect(readState(statePath).preparations).toEqual([
+			{
+				sessionId: "synthetic-session-a",
+				draft: { instruction, images: [image.dataUrl] },
+			},
 		]);
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
-		expect(readState(statePath).preparedSessionIds).toEqual([
-			"synthetic-session-a",
-			"synthetic-session-a",
-		]);
-		expect(readState(statePath).preparedDrafts).toEqual([
-			{ instruction, images: [image.dataUrl] },
-			{ instruction, images: [image.dataUrl] },
+		expect(readState(statePath).preparations).toEqual([
+			{
+				sessionId: "synthetic-session-a",
+				draft: { instruction, images: [image.dataUrl] },
+			},
+			{
+				sessionId: "synthetic-session-a",
+				draft: { instruction, images: [image.dataUrl] },
+			},
 		]);
 		await session.press("escape");
 	});
 
 	it("keeps delayed completion on the session that started it", async () => {
-		const { session, statePath } = await launch(false, "cline", {
-			CLOUD_HANDOFF_FIXTURE_DELAY_MS: "5000",
+		const { session, statePath, release } = await launch({
+			scenario: "held-success",
 		});
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("Seed the synthetic local conversation");
@@ -390,6 +369,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("What can I do for you?", { timeout });
 		expect(readState(statePath).completedTaskIds).toBeUndefined();
+		release();
 		await session.text({
 			waitFor: () =>
 				readState(statePath).completedTaskIds?.includes("synthetic-task-1") ===
@@ -398,7 +378,6 @@ describe("cloud handoff TUI", () => {
 		});
 		expect(await session.text()).not.toContain("Cloud task ready.");
 		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
-		await saveEvidence("late-completion-session-b", session, statePath);
 
 		await session.type("/history");
 		await session.press("enter");
@@ -410,20 +389,18 @@ describe("cloud handoff TUI", () => {
 				timeout,
 			},
 		);
-		await saveEvidence("late-completion-session-a", session, statePath);
 		await session.waitForText(
 			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-1",
 			{ timeout },
 		);
-		expect(readState(statePath).preparedSessionIds).toEqual([
-			"synthetic-session-a",
-		]);
+		expect(
+			readState(statePath).preparations?.map(({ sessionId }) => sessionId),
+		).toEqual(["synthetic-session-a"]);
 	});
 
 	it("retains the original retry target across a rejected prep and canceled confirmation", async () => {
-		const { session, statePath, stateDir } = await launch(false, "cline", {
-			CLOUD_HANDOFF_FIXTURE_WITH_RETRY: "1",
-			CLOUD_HANDOFF_FIXTURE_REJECT_SECOND: "1",
+		const { session, statePath, stateDir } = await launch({
+			scenario: "retry",
 		});
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("Seed the synthetic local conversation");
@@ -475,7 +452,6 @@ describe("cloud handoff TUI", () => {
 				images: [image.dataUrl],
 			},
 		]);
-		await saveEvidence("retry-original-target", session, statePath);
 		await session.writeRaw("\u0015");
 		await session.type("/cloud approved replacement plan");
 		await session.press("enter");
@@ -485,6 +461,6 @@ describe("cloud handoff TUI", () => {
 			"Open cloud task (Alt+O): https://app.cline.bot/tasks/synthetic-task-4",
 			{ timeout },
 		);
-		expect(readState(statePath).preparedDrafts).toHaveLength(4);
+		expect(readState(statePath).preparations).toHaveLength(4);
 	});
 });
