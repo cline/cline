@@ -22,6 +22,9 @@ export interface RunFileSummary {
 export interface RunSummary {
 	toolCount: number;
 	failedCount: number;
+	deniedCount?: number;
+	expiredCount?: number;
+	cancelledCount?: number;
 	files: RunFileSummary[];
 	additions: number;
 	deletions: number;
@@ -81,10 +84,26 @@ export function summarizeLastRun(
 		}
 	}
 
+	const deniedCount = tools.filter(
+		(tool) => tool.approvalStatus === "denied",
+	).length;
+	const expiredCount = tools.filter(
+		(tool) => tool.approvalStatus === "expired",
+	).length;
+	const cancelledCount = tools.filter(
+		(tool) => tool.approvalStatus === "cancelled",
+	).length;
 	const files = [...byPath.values()];
 	return {
 		toolCount: tools.length,
-		failedCount: tools.filter((tool) => tool.state === "failed").length,
+		failedCount: tools.filter(
+			(tool) =>
+				tool.state === "failed" &&
+				(!tool.approvalStatus || tool.approvalStatus === "pending"),
+		).length,
+		...(deniedCount ? { deniedCount } : {}),
+		...(expiredCount ? { expiredCount } : {}),
+		...(cancelledCount ? { cancelledCount } : {}),
 		files,
 		additions:
 			files.reduce((sum, file) => sum + file.additions, 0) + untrackedAdditions,

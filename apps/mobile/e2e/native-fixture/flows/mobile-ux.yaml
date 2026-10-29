@@ -1,0 +1,31 @@
+# Precondition: isolated fixture app, signed in to Personal, Home with Fixture Sonnet.
+# Read-only model/account inspection; no account preference change or task submission.
+appId: bot.cline.app.e2e
+name: Mobile model details and compact account context
+---
+- assertVisible: Message Cline from Home.*
+- tapOn: Settings
+- assertVisible: 'Current account: Personal'
+- assertVisible: 'Credit balance: 12.34 US dollars'
+- assertNotVisible: Fixture Team A
+- tapOn: 'Current account: Personal'
+- assertVisible: Fixture Team A
+- assertVisible: Fixture Team B
+- tapOn: 'Current account: Personal'
+- assertNotVisible: Fixture Team A
+- tapOn: Back
+- tapOn: 'Model: Fixture Sonnet'
+- assertVisible: 'Current model: Fixture Sonnet'
+- assertNotVisible: 'Model ID: anthropic/claude-sonnet-4-6'
+- tapOn: Show current model details
+- assertVisible: 'Model ID: anthropic/claude-sonnet-4-6'
+- tapOn: Hide current model details
+- tapOn: Close model picker
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: Message Cline from Home.*
+- tapOn: All sessions
+- assertVisible: 'Account: Personal'
+- assertVisible: 'Credit balance: 12.34 US dollars'
+- tapOn: Collapse sidebar
+- assertVisible: Message Cline from Home.*

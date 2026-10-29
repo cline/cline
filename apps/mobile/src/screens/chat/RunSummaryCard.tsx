@@ -43,7 +43,22 @@ export function RunSummaryCard({
 	const duration = formatRunDuration(lastRun.startedAt, lastRun.endedAt);
 	const files = summary.files.slice(0, FILES_SHOWN);
 	const moreFiles = summary.files.length - files.length;
-	const hasDetails = failed || summary.failedCount > 0 || files.length > 0;
+	const approvalOutcomes = [
+		summary.deniedCount
+			? `${summary.deniedCount} ${summary.deniedCount === 1 ? "tool call" : "tool calls"} denied`
+			: undefined,
+		summary.expiredCount
+			? `${summary.expiredCount} ${summary.expiredCount === 1 ? "approval" : "approvals"} expired`
+			: undefined,
+		summary.cancelledCount
+			? `${summary.cancelledCount} ${summary.cancelledCount === 1 ? "approval" : "approvals"} cancelled`
+			: undefined,
+	].filter((copy): copy is string => Boolean(copy));
+	const hasDetails =
+		failed ||
+		summary.failedCount > 0 ||
+		files.length > 0 ||
+		approvalOutcomes.length > 0;
 	const headline = [
 		OUTCOME_COPY[outcome],
 		duration,
@@ -56,7 +71,7 @@ export function RunSummaryCard({
 		<View
 			testID="run-summary"
 			accessible
-			accessibilityLabel={`${headline}. ${
+			accessibilityLabel={`${headline}. ${approvalOutcomes.length ? `${approvalOutcomes.join(". ")}. ` : ""}${
 				summary.files.length > 0
 					? `${summary.files.length} ${summary.files.length === 1 ? "file" : "files"} changed`
 					: "No files changed"
@@ -104,6 +119,12 @@ export function RunSummaryCard({
 					the transcript above.
 				</Text>
 			) : null}
+
+			{approvalOutcomes.map((copy) => (
+				<Text key={copy} variant="caption" tone="muted">
+					{copy}
+				</Text>
+			))}
 
 			{files.map((file) => (
 				<View

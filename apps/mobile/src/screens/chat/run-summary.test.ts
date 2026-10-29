@@ -103,3 +103,50 @@ describe("formatRunDuration", () => {
 		expect(formatRunDuration(5, 1)).toBeUndefined();
 	});
 });
+
+describe("confirmed approval outcomes in summaries", () => {
+	it.each([
+		"denied",
+		"expired",
+		"cancelled",
+	] as const)("keeps %s distinct from execution failure", (approvalStatus) => {
+		const summary = summarizeLastRun([
+			message("user", [{ kind: "text", text: "go" }]),
+			message("assistant", [
+				{
+					kind: "tool",
+					toolCallId: "blocked",
+					name: "edit_file",
+					state: "failed",
+					input: { path: "blocked.ts", new_text: "never applied" },
+					approvalStatus,
+				},
+				{
+					kind: "tool",
+					toolCallId: "failed",
+					name: "bash",
+					state: "failed",
+					error: "process failed",
+				},
+			]),
+		]);
+		expect(summary?.failedCount).toBe(1);
+		expect(summary?.[`${approvalStatus}Count`]).toBe(1);
+		expect(summary?.files).toEqual([]);
+	});
+	it("does not infer denial from an uncorrelated error message", () => {
+		const summary = summarizeLastRun([
+			message("assistant", [
+				{
+					kind: "tool",
+					toolCallId: "unknown",
+					name: "bash",
+					state: "failed",
+					error: "Denied",
+				},
+			]),
+		]);
+		expect(summary?.failedCount).toBe(1);
+		expect(summary?.deniedCount).toBeUndefined();
+	});
+});

@@ -1,4 +1,6 @@
-# Precondition: a connected fixture Cloud chat. These tools never run OS commands.
+# Precondition: a fresh UI-created fixture Cloud chat with registered approvals.
+# Create it after any fixture-server restart; restored history alone is insufficient.
+# These deterministic tools never run OS commands.
 appId: bot.cline.app.e2e
 name: Deterministic Cloud approval grant and reasoned denial
 ---
@@ -6,15 +8,20 @@ name: Deterministic Cloud approval grant and reasoned denial
 - inputText: "approval-fixture"
 - tapOn: "Send"
 - assertVisible: "Tool approval required"
+- assertVisible: "Waiting for approval"
+- assertVisible: "git diff -- src/Example.tsx"
 - tapOn: "Approve"
-- assertVisible: "Displayed the synthetic diff; no workspace command ran."
+- assertVisible: "Approval fixture finished.*"
 - tapOn: "Message composer"
 - inputText: "approval-fixture"
 - tapOn: "Send"
 - assertVisible: "Tool approval required"
+- assertVisible: "Waiting for approval"
+- assertVisible: "git diff -- src/Example.tsx"
 - tapOn: "Deny"
 - tapOn: "Denial reason"
 - inputText: "Native denial fixture"
 - tapOn: "Confirm deny"
-- assertVisible: "Tool bash was denied.*Native denial fixture.*"
+- assertVisible: "Tool Denied: command git diff -- src/Example.tsx.*"
+- assertVisible: "1 tool call denied"
 - takeScreenshot: fixture-approval-denied
