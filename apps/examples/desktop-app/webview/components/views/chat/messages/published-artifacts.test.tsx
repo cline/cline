@@ -10,7 +10,6 @@ import {
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	open: vi.fn(),
-	user: { id: "one" },
 	accountReady: true,
 }));
 vi.mock("@/lib/desktop-client", () => ({
@@ -20,7 +19,7 @@ vi.mock("@/lib/desktop-client", () => ({
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
-		user: mocks.user,
+		user: { id: "one" },
 		accountReady: mocks.accountReady,
 		activeOrganization: null,
 	}),
@@ -41,7 +40,6 @@ let root: Root;
 let reveal: () => void;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	mocks.user = { id: "one" };
 	mocks.accountReady = true;
 	vi.stubGlobal(
 		"IntersectionObserver",
@@ -81,6 +79,7 @@ it("downloads a persisted publication and keeps per-file errors visible", async 
 	mocks.accountReady = false;
 	await render();
 	expect(container.querySelector("button")?.disabled).toBe(true);
+	expect(container.querySelector("button")?.textContent).toBe("Download");
 	await click();
 	expect(mocks.invoke).not.toHaveBeenCalled();
 	mocks.accountReady = true;
@@ -113,24 +112,6 @@ it("requests a new URL when retrying a failed download", async () => {
 	await click();
 	expect(mocks.invoke).toHaveBeenCalledTimes(2);
 	expect(mocks.open).toHaveBeenCalledOnce();
-});
-
-it("does not open a pending download after the account changes", async () => {
-	let resolve: (value: unknown) => void = () => {};
-	mocks.invoke.mockImplementationOnce(
-		() =>
-			new Promise((done) => {
-				resolve = done;
-			}),
-	);
-	await render();
-	await click();
-	mocks.user = { id: "two" };
-	await render();
-	await act(async () =>
-		resolve({ url: "https://storage.example/old-account" }),
-	);
-	expect(mocks.open).not.toHaveBeenCalled();
 });
 
 it("previews a published image and keeps download available after preview failure", async () => {

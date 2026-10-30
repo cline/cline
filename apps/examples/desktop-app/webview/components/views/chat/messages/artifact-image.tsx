@@ -6,6 +6,7 @@ import {
 	type GeneratedMediaContentProps,
 } from "@cline/ui";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	type ArtifactReference,
 	useArtifactResource,
@@ -74,9 +75,14 @@ function ResolvedArtifactImage({
 			{state.status === "error" ? (
 				<output className={classNames?.unavailable ?? className}>
 					Image unavailable.{" "}
-					<button type="button" onClick={() => void retry()}>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => void retry()}
+					>
 						Retry
-					</button>
+					</Button>
 				</output>
 			) : state.status === "ready" ? (
 				// biome-ignore lint/performance/noImgElement: Load the access resource directly without the Next image proxy.

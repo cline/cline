@@ -95,7 +95,7 @@ function DownloadArtifact({
 	sessionId: string;
 	artifactId: string;
 }) {
-	const { state, open } = useArtifactResource({
+	const { accountReady, state, open } = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
 	});
@@ -107,7 +107,7 @@ function DownloadArtifact({
 				type="button"
 				size="sm"
 				variant="outline"
-				disabled={busy}
+				disabled={!accountReady || busy}
 				onClick={() => void open()}
 			>
 				{busy ? "Preparing…" : failed ? "Retry download" : "Download"}

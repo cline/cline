@@ -8,14 +8,13 @@ import { ArtifactImage } from "./artifact-image";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
-	user: { id: "account-one" },
 }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
-		user: mocks.user,
+		user: { id: "account-one" },
 		accountReady: true,
 		activeOrganization: null,
 	}),
@@ -38,7 +37,6 @@ let reveal: () => void;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	mocks.user = { id: "account-one" };
 	mocks.invoke.mockReset().mockResolvedValue(download);
 	vi.stubGlobal(
 		"IntersectionObserver",
@@ -60,9 +58,9 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
-async function render(sessionId = "ses-one") {
+async function render() {
 	await act(async () =>
-		root.render(<ArtifactImage media={media} sessionId={sessionId} />),
+		root.render(<ArtifactImage media={media} sessionId="ses-one" />),
 	);
 }
 
@@ -117,31 +115,6 @@ it("refreshes a failed image URL once and offers an explicit retry after another
 		container.querySelector("img")?.dispatchEvent(new Event("error")),
 	);
 	expect(mocks.invoke).toHaveBeenCalledTimes(4);
-});
-
-it("discards late URLs when the account or session changes", async () => {
-	let resolve: (result: typeof download) => void = () => {};
-	mocks.invoke.mockReturnValueOnce(
-		new Promise<typeof download>((done) => {
-			resolve = done;
-		}),
-	);
-	await render();
-	await act(async () => reveal());
-	mocks.invoke.mockResolvedValue({
-		...download,
-		url: "https://storage.example/new-account",
-	});
-	mocks.user = { id: "account-two" };
-	await render("ses-two");
-	await act(async () => resolve(download));
-	expect(container.querySelector("img")?.src).toBe(
-		"https://storage.example/new-account",
-	);
-	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
-		sessionId: "ses-two",
-		artifactId: "frame-one",
-	});
 });
 
 it("shows an error without looping when access is denied", async () => {

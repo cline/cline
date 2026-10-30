@@ -170,13 +170,10 @@ export function useArtifactResource({
 	);
 
 	// Identity changes must hide the previous resource before effects run.
-	const state: ResourceState = !accountReady
-		? { status: "loading" }
-		: stored.scope === scope
-			? stored.value
-			: IDLE;
+	const state: ResourceState = stored.scope === scope ? stored.value : IDLE;
 
 	return {
+		accountReady,
 		state,
 		load,
 		retry,
