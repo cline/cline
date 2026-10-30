@@ -82,12 +82,14 @@ function QueuedHarness({ hydrated }: { hydrated: boolean | null }) {
 		threadId: child?.id ?? "unopened",
 		pendingSubmissions: child?.pendingSideSubmissions,
 		hydrationSucceeded: hydrated,
-		consumeSubmission: (threadId, submission) =>
+		consumeSubmission: (threadId, submission) => {
+			props.consumeSubmission(threadId, submission);
 			dispatch({
 				type: "consume-initial-side-submission",
 				threadId,
 				submission,
-			}),
+			});
+		},
 	});
 	return null;
 }
@@ -156,15 +158,8 @@ describe("side conversation submission", () => {
 		"resolve",
 		"reject",
 	])("leaves newer navigation and the saved draft alone when creation %ss after unmount", async (outcome) => {
-		let resolveCreate: (value: typeof result) => void = () => {};
-		let rejectCreate: (error: Error) => void = () => {};
-		props.create = vi.fn(
-			() =>
-				new Promise<typeof result>((resolve, reject) => {
-					resolveCreate = resolve;
-					rejectCreate = reject;
-				}),
-		);
+		const creation = Promise.withResolvers<typeof result>();
+		props.create = vi.fn(() => creation.promise);
 		await render(true);
 		let pending: Promise<boolean> | undefined;
 		await act(async () => {
@@ -174,8 +169,8 @@ describe("side conversation submission", () => {
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		await act(async () => {
-			if (outcome === "resolve") resolveCreate(result);
-			else rejectCreate(new Error("Connection lost"));
+			if (outcome === "resolve") creation.resolve(result);
+			else creation.reject(new Error("Connection lost"));
 			await pending;
 		});
 		expect(props.open).not.toHaveBeenCalled();
@@ -194,13 +189,8 @@ describe("side conversation submission", () => {
 	});
 
 	it("retains accepted creation while a Hub reconnect hides the pane", async () => {
-		let resolveCreate: (value: typeof result) => void = () => {};
-		props.create = vi.fn(
-			() =>
-				new Promise<typeof result>((resolve) => {
-					resolveCreate = resolve;
-				}),
-		);
+		const creation = Promise.withResolvers<typeof result>();
+		props.create = vi.fn(() => creation.promise);
 		const renderActivity = async (mode: "visible" | "hidden") => {
 			await act(async () =>
 				root.render(
@@ -219,7 +209,7 @@ describe("side conversation submission", () => {
 		});
 		await renderActivity("hidden");
 		await act(async () => {
-			resolveCreate(result);
+			creation.resolve(result);
 			await pending;
 		});
 		await renderActivity("visible");
@@ -263,25 +253,9 @@ describe("side conversation submission", () => {
 		expect(props.open).toHaveBeenCalledWith(props.existingSession, undefined);
 		expect(props.drafts.get("thread")?.text).toBe("Keep this draft");
 	});
-	it("dispatches later routed questions once each through the same side controller", async () => {
-		props.hydrationSucceeded = true;
-		props.pendingSubmissions = [{ question: "first" }];
-		await render();
-		props.pendingSubmissions = [{ question: "second" }];
-		await render();
-		await render();
-		expect(props.send).toHaveBeenCalledTimes(2);
-		expect(props.send).toHaveBeenLastCalledWith("second");
-	});
-
 	it("does not clear newer parent typing when opening finishes", async () => {
-		let resolveCreate: (value: typeof result) => void = () => {};
-		props.create = vi.fn(
-			() =>
-				new Promise<typeof result>((resolve) => {
-					resolveCreate = resolve;
-				}),
-		);
+		const creation = Promise.withResolvers<typeof result>();
+		props.create = vi.fn(() => creation.promise);
 		await render(true);
 		let pending: Promise<boolean> | undefined;
 		await act(async () => {
@@ -289,7 +263,7 @@ describe("side conversation submission", () => {
 		});
 		await act(async () => editDraft("New parent draft"));
 		await act(async () => {
-			resolveCreate(result);
+			creation.resolve(result);
 			await pending;
 		});
 		expect(props.drafts.get("thread")?.text).toBe("New parent draft");
@@ -299,13 +273,8 @@ describe("side conversation submission", () => {
 	it("keeps an accepted creation hidden when the rail was closed during opening", async () => {
 		let revision = 0;
 		props.getCloseRevision = () => revision;
-		let resolveCreate: (value: typeof result) => void = () => {};
-		props.create = vi.fn(
-			() =>
-				new Promise<typeof result>((resolve) => {
-					resolveCreate = resolve;
-				}),
-		);
+		const creation = Promise.withResolvers<typeof result>();
+		props.create = vi.fn(() => creation.promise);
 		await render();
 		let pending: Promise<boolean> | undefined;
 		await act(async () => {
@@ -313,7 +282,7 @@ describe("side conversation submission", () => {
 		});
 		revision++;
 		await act(async () => {
-			resolveCreate(result);
+			creation.resolve(result);
 			await pending;
 		});
 		expect(props.open).toHaveBeenCalledWith(
@@ -343,29 +312,6 @@ describe("side conversation submission", () => {
 		expect(props.create).not.toHaveBeenCalled();
 		expect(props.send).not.toHaveBeenCalled();
 	});
-	it("consumes before one send after hydration, including StrictMode and remount", async () => {
-		props.pendingSubmissions = [{ question: "why?" }];
-		await render();
-		expect(props.send).not.toHaveBeenCalled();
-		props.send = vi.fn(async () => {
-			expect(props.consumeSubmission).toHaveBeenCalledWith(
-				"thread",
-				props.pendingSubmissions?.[0],
-			);
-			return true;
-		});
-		props.hydrationSucceeded = true;
-		await render();
-		await render();
-		expect(props.send).toHaveBeenCalledTimes(1);
-		expect(props.send).toHaveBeenCalledWith("why?");
-		expect(props.drafts.has("thread")).toBe(false);
-		props.pendingSubmissions = undefined;
-		await act(async () => root.unmount());
-		root = createRoot(container);
-		await render();
-		expect(props.send).toHaveBeenCalledTimes(1);
-	});
 	it("keeps a question as a side draft when attach fails, without sending", async () => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = false;
@@ -383,20 +329,15 @@ describe("side conversation submission", () => {
 	it("does not show a dispatched question as a draft while the turn is pending", async () => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = true;
-		let rejectSend: (error: Error) => void = () => {};
-		props.send = vi.fn(
-			() =>
-				new Promise<boolean>((_resolve, reject) => {
-					rejectSend = reject;
-				}),
-		);
+		const sending = Promise.withResolvers<boolean>();
+		props.send = vi.fn(() => sending.promise);
 		await render(true);
 		expect(props.drafts.get("thread")?.text).toBe("");
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		props.pendingSubmissions = undefined;
 		await render(true);
-		await act(async () => rejectSend(new Error("Not sent")));
+		await act(async () => sending.reject(new Error("Not sent")));
 		expect(props.drafts.get("thread")?.text).toBe("why?");
 		expect(container.textContent).toBe("why?");
 	});
@@ -413,14 +354,14 @@ describe("side conversation submission", () => {
 
 describe("pending side submissions with the actual app reducer", () => {
 	it("keeps all questions through delayed hydration, bare reopen, and an active first send", async () => {
-		let finishFirst: (taken: boolean) => void = () => {};
-		props.send = vi.fn((question: string) =>
-			question === "first"
-				? new Promise<boolean>((resolve) => {
-						finishFirst = resolve;
-					})
-				: Promise.resolve(true),
-		);
+		const firstSend = Promise.withResolvers<boolean>();
+		props.send = vi.fn((question: string) => {
+			expect(props.consumeSubmission).toHaveBeenLastCalledWith(
+				queuedState.threads[1].id,
+				{ question },
+			);
+			return question === "first" ? firstSend.promise : Promise.resolve(true);
+		});
 		await renderQueued(null);
 		await act(async () => {
 			enqueue("first");
@@ -433,7 +374,11 @@ describe("pending side submissions with the actual app reducer", () => {
 				(item) => item.question,
 			),
 		).toEqual(["first", "second"]);
+		restoredState = queuedState;
+		await act(async () => root.unmount());
+		root = createRoot(container);
 		await renderQueued(true);
+		expect(props.drafts.has(queuedState.threads[1].id)).toBe(false);
 		expect(props.send).toHaveBeenCalledTimes(2);
 		expect(
 			queuedState.threads[1].pendingSideSubmissions?.map(
@@ -445,7 +390,7 @@ describe("pending side submissions with the actual app reducer", () => {
 			enqueue();
 		});
 		expect(props.send).toHaveBeenCalledTimes(3);
-		await act(async () => finishFirst(true));
+		await act(async () => firstSend.resolve(true));
 		expect(
 			vi.mocked(props.send).mock.calls.map(([question]) => question),
 		).toEqual(["first", "second", "third"]);
@@ -455,6 +400,7 @@ describe("pending side submissions with the actual app reducer", () => {
 		root = createRoot(container);
 		await renderQueued(true);
 		expect(props.send).toHaveBeenCalledTimes(3);
+		expect(props.consumeSubmission).toHaveBeenCalledTimes(3);
 	});
 	it("restores every pending question in order after hydration fails without replacing an existing draft", async () => {
 		await renderQueued(null);
@@ -478,15 +424,10 @@ describe("pending side submissions with the actual app reducer", () => {
 
 describe("side pane opening", () => {
 	it("reveals before creation settles, shares pending work and ignores parent attachments for toolbar open", async () => {
-		let finishCreate: (value: typeof result) => void = () => {};
+		const creation = Promise.withResolvers<typeof result>();
 		props.attachmentCount = 1;
 		props.reveal = vi.fn();
-		props.create = vi.fn(
-			() =>
-				new Promise<typeof result>((resolve) => {
-					finishCreate = resolve;
-				}),
-		);
+		props.create = vi.fn(() => creation.promise);
 		await render(true);
 		let pending: Promise<void> | undefined;
 		await act(async () => {
@@ -499,7 +440,7 @@ describe("side pane opening", () => {
 		});
 		expect(props.create).toHaveBeenCalledOnce();
 		await act(async () => {
-			finishCreate(result);
+			creation.resolve(result);
 			await pending;
 		});
 		expect(props.send).not.toHaveBeenCalled();

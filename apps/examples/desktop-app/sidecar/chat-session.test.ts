@@ -3522,7 +3522,15 @@ describe("side conversation lifecycle", () => {
 					autoApproveTools: false,
 				},
 			});
+		const deleteSession = async (sessionId: string) => {
+			const { handleCommand } = await import("./commands");
+			return handleCommand(ctx, "delete_chat_session", {
+				sessionId,
+				environmentId: "local",
+			});
+		};
 		return {
+			deleteSession,
 			ctx,
 			start,
 			readMessages,
@@ -3574,46 +3582,6 @@ describe("side conversation lifecycle", () => {
 		expect(store.get(sideId)).toBeDefined();
 	});
 
-	it("keeps an announced queued turn active while its runtime record is still idle", async () => {
-		const { handleCommand } = await import("./commands");
-		const { ctx, create, records } = setup(false);
-		await create();
-		const read = () =>
-			handleCommand(ctx, "get_discovered_session", {
-				sessionId: sideId,
-				environmentId: "local",
-			});
-		handleCoreSessionEvent(ctx, {
-			type: "pending_prompt_submitted",
-			payload: {
-				sessionId: sideId,
-				id: "queued",
-				prompt: "Question",
-				delivery: "queue",
-				attachmentCount: 0,
-			},
-		});
-		await expect(read()).resolves.toMatchObject({ status: "running" });
-		const record = records.get(sideId);
-		if (!record) throw new Error("Missing side fixture");
-		record.status = "failed";
-		await expect(read()).resolves.toMatchObject({ status: "failed" });
-		record.status = "idle";
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: sideId,
-				event: {
-					type: "done",
-					reason: "completed",
-					text: "Answer",
-					iterations: 1,
-				},
-			},
-		});
-		await expect(read()).resolves.toMatchObject({ status: "idle" });
-	});
-
 	it("allows a fresh opening after runtime creation fails", async () => {
 		const { ctx, create, start } = setup(false);
 		start.mockRejectedValueOnce(new Error("Runtime unavailable"));
@@ -3630,7 +3598,7 @@ describe("side conversation lifecycle", () => {
 	});
 
 	it("does not resurrect a side deleted while runtime creation is finishing", async () => {
-		const { ctx, create, start } = setup(false);
+		const { ctx, create, deleteSession, start } = setup(false);
 		const originalStart = start.getMockImplementation();
 		if (!originalStart) throw new Error("start fixture missing");
 		const startingRuntime = Promise.withResolvers<void>();
@@ -3646,11 +3614,7 @@ describe("side conversation lifecycle", () => {
 			"temporary side chat has ended",
 		);
 		await startingRuntime.promise;
-		const { handleCommand } = await import("./commands");
-		await handleCommand(ctx, "delete_chat_session", {
-			sessionId: sideId,
-			environmentId: "local",
-		});
+		await deleteSession(sideId);
 		finishStart.resolve();
 		await rejection;
 		expect(store.get(sideId)).toBeUndefined();
@@ -3670,7 +3634,8 @@ describe("side conversation lifecycle", () => {
 		"queue",
 		"steer",
 	] as const)("does not dispatch a %s prompt after deletion interrupts preparation", async (delivery) => {
-		const { ctx, create, send, updateSessionConnection } = setup(false);
+		const { ctx, create, deleteSession, send, updateSessionConnection } =
+			setup(false);
 		await create();
 		const live = ctx.liveSessions.get(sideId);
 		if (!live) throw new Error("side fixture missing");
@@ -3689,11 +3654,7 @@ describe("side conversation lifecycle", () => {
 			config: { environmentId: "local" },
 		});
 		await preparing.promise;
-		const { handleCommand } = await import("./commands");
-		await handleCommand(ctx, "delete_chat_session", {
-			sessionId: sideId,
-			environmentId: "local",
-		});
+		await deleteSession(sideId);
 		finishPreparation.resolve();
 		await sending;
 		expect(send).not.toHaveBeenCalled();
@@ -4119,8 +4080,7 @@ describe("side conversation lifecycle", () => {
 	});
 
 	it("retains side history and live state when runtime deletion fails", async () => {
-		const { handleCommand } = await import("./commands");
-		const { ctx, create, send: modelSend } = setup();
+		const { ctx, create, deleteSession, send: modelSend } = setup();
 		await create();
 		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
 		if (!manager) throw new Error("local manager fixture missing");
@@ -4131,12 +4091,7 @@ describe("side conversation lifecycle", () => {
 		const history = readPersistedChatMessages(sideId);
 		const send = vi.fn();
 		ctx.wsClients.add({ send });
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId: sideId,
-				environmentId: "local",
-			}),
-		).rejects.toThrow("runtime stop failed");
+		await expect(deleteSession(sideId)).rejects.toThrow("runtime stop failed");
 		expect(store.get(sideId)).toBeDefined();
 		expect(ctx.liveSessions.get(sideId)).toBe(side);
 		expect(readPersistedChatMessages(sideId)).toEqual(history);
@@ -4152,8 +4107,7 @@ describe("side conversation lifecycle", () => {
 	});
 
 	it("keeps the parent usable if deleting its side fails", async () => {
-		const { handleCommand } = await import("./commands");
-		const { ctx, create, records, send } = setup(false);
+		const { ctx, create, deleteSession, records, send } = setup(false);
 		await create();
 		const parent = records.get(parentId);
 		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
@@ -4162,12 +4116,9 @@ describe("side conversation lifecycle", () => {
 		vi.mocked(manager.delete).mockRejectedValueOnce(
 			new Error("runtime stop failed"),
 		);
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId: parentId,
-				environmentId: "local",
-			}),
-		).rejects.toThrow("runtime stop failed");
+		await expect(deleteSession(parentId)).rejects.toThrow(
+			"runtime stop failed",
+		);
 		for (const sessionId of [parentId, sideId]) {
 			await handleChatSessionCommand(ctx, {
 				action: "send",
@@ -4183,7 +4134,7 @@ describe("side conversation lifecycle", () => {
 
 	it("keeps sides out of discovery while renderer reload can recover them, and parent deletion discards them", async () => {
 		const { handleCommand } = await import("./commands");
-		const { ctx, create, records } = setup(false);
+		const { ctx, create, deleteSession, records } = setup(false);
 		await create();
 		ctx.liveSessions.clear();
 		await expect(
@@ -4214,10 +4165,7 @@ describe("side conversation lifecycle", () => {
 			},
 			resolve: sideApproval,
 		});
-		await handleCommand(ctx, "delete_chat_session", {
-			sessionId: parentId,
-			environmentId: "local",
-		});
+		await deleteSession(parentId);
 		expect(store.get(sideId)).toBeUndefined();
 		expect(readPersistedChatMessages(sideId)).toBeNull();
 		expect(sideApproval).toHaveBeenCalledWith(

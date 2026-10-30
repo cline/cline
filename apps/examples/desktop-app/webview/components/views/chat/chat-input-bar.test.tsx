@@ -30,6 +30,7 @@ import {
 	ChatInputBar,
 	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
+import { SideConversationMenu } from "./side-conversation-menu";
 
 const {
 	toastMock,
@@ -213,6 +214,7 @@ async function renderVoiceComposer({
 	sessionId,
 	strictMode = false,
 	cloudHandoffAvailable = false,
+	sessionActions,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -229,6 +231,7 @@ async function renderVoiceComposer({
 	sessionId?: string;
 	strictMode?: boolean;
 	cloudHandoffAvailable?: boolean;
+	sessionActions?: ComponentProps<typeof ChatInputBar>["sessionActions"];
 } = {}) {
 	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
@@ -236,6 +239,7 @@ async function renderVoiceComposer({
 			<Wrapper>
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						sessionActions={sessionActions}
 						composerId="test-composer"
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
@@ -277,6 +281,28 @@ async function renderVoiceComposer({
 		await Promise.resolve();
 	});
 }
+
+it("opens side chat actions from the composer with the keyboard and requests deletion", async () => {
+	const onDelete = vi.fn();
+	await renderVoiceComposer({
+		sessionActions: <SideConversationMenu onDelete={onDelete} />,
+	});
+	const trigger = container.querySelector<HTMLButtonElement>(
+		'[aria-label="Side chat actions"]',
+	);
+	if (!trigger) throw new Error("Missing side actions");
+	await act(async () =>
+		trigger.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+		),
+	);
+	const items = [
+		...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+	];
+	expect(items.map((item) => item.textContent)).toEqual(["Delete side chat"]);
+	await act(async () => items[0].click());
+	expect(onDelete).toHaveBeenCalledOnce();
+});
 
 function DraftComposer({
 	drafts,
