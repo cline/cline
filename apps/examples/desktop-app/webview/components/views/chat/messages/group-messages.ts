@@ -1,6 +1,10 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { parseToolPayload } from "./tool-summaries";
+import {
+	getPublishedArtifacts,
+	isUxVerificationMessage,
+	parseToolPayload,
+} from "./tool-summaries";
 
 export type ChatRenderItem =
 	| {
@@ -318,13 +322,36 @@ export function collapseCompletedWork(
 				endTimestamp >= startTimestamp
 					? endTimestamp - startTimestamp
 					: undefined;
-			out.push({
-				type: "work",
-				id: firstMessageId(firstCollapsed) ?? "work",
-				items: collapsed,
-				durationMilliseconds,
-				toolCallCount,
-			});
+			const hidden: ChatRenderItem[] = [];
+			const deliverables: ChatMessage[] = [];
+			for (const item of collapsed) {
+				if (item.type !== "tools") {
+					hidden.push(item);
+					continue;
+				}
+				const messages = item.messages.filter((message) => {
+					if (
+						getPublishedArtifacts(message) ||
+						isUxVerificationMessage(message)
+					) {
+						deliverables.push(message);
+						return false;
+					}
+					return true;
+				});
+				if (messages.length > 0) hidden.push({ type: "tools", messages });
+			}
+			if (hidden.length > 0) {
+				out.push({
+					type: "work",
+					id: firstMessageId(firstCollapsed) ?? "work",
+					items: hidden,
+					durationMilliseconds,
+					toolCallCount,
+				});
+			}
+			if (deliverables.length > 0)
+				out.push({ type: "tools", messages: deliverables });
 			if (answer) {
 				out.push(answer);
 			}

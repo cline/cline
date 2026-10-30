@@ -2,10 +2,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import {
-	PublishedArtifacts,
-	parsePublishedArtifacts,
-} from "./published-artifacts";
+import type { ChatMessage } from "@/lib/chat-schema";
+import { ChatMessages } from "../chat-messages";
+import { PublishedArtifacts } from "./published-artifacts";
+import { parsePublishedArtifacts } from "./tool-summaries";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -37,17 +37,41 @@ const files = parsePublishedArtifacts(
 );
 let container: HTMLDivElement;
 let root: Root;
-let reveal: () => void;
+let reveal: Array<() => void>;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	mocks.accountReady = true;
+	HTMLElement.prototype.scrollTo = vi.fn();
+	vi.stubGlobal(
+		"matchMedia",
+		vi.fn((media: string) => ({
+			media,
+			matches: false,
+			addEventListener() {},
+			removeEventListener() {},
+		})),
+	);
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
+	reveal = [];
 	vi.stubGlobal(
 		"IntersectionObserver",
 		class {
-			constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
-				reveal = () => callback([{ isIntersecting: true }]);
+			constructor(
+				callback: (entries: { isIntersecting: boolean }[]) => void,
+				options?: IntersectionObserverInit,
+			) {
+				if (options?.rootMargin === "200px")
+					reveal.push(() => callback([{ isIntersecting: true }]));
 			}
 			observe() {}
+			unobserve() {}
 			disconnect() {}
 		},
 	);
@@ -128,7 +152,9 @@ it("previews a published image and keeps download available after preview failur
 	);
 	expect(container.textContent).toContain("Loading image");
 	expect(mocks.invoke).not.toHaveBeenCalled();
-	await act(async () => reveal());
+	await act(async () => {
+		for (const callback of reveal.splice(0)) callback();
+	});
 	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("resolve_artifact", {
 		sessionId: "ses-one",
 		artifactId: "published-frame",
@@ -153,4 +179,90 @@ it("previews a published image and keeps download available after preview failur
 	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(
 		"https://storage.example/file?signed=1",
 	);
+});
+
+it("keeps published images visible after completion and reopening history without expanding work", async () => {
+	const messages: ChatMessage[] = [
+		{
+			id: "user",
+			sessionId: "ses-one",
+			role: "user",
+			content: "Create screenshots",
+			createdAt: 1,
+		},
+		{
+			id: "command",
+			sessionId: "ses-one",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "run_commands",
+				result: "Created screenshots",
+			}),
+			createdAt: 2,
+		},
+		{
+			id: "publication",
+			sessionId: "ses-one",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "publish_artifacts",
+				result: JSON.stringify({
+					files: [
+						{ path: "/tmp/before.png", artifactId: "before" },
+						{ path: "/tmp/after.png", artifactId: "after" },
+					],
+				}),
+			}),
+			createdAt: 3,
+		},
+		{
+			id: "answer",
+			sessionId: "ses-one",
+			role: "assistant",
+			content: "Published screenshots",
+			createdAt: 4,
+		},
+	];
+	const stored = JSON.stringify(messages);
+	for (const [index, status] of (
+		["running", "completed", "completed"] as const
+	).entries()) {
+		if (index === 2) await act(async () => root.render(null));
+		await act(async () =>
+			root.render(
+				<ChatMessages
+					sessionId="ses-one"
+					status={status}
+					chatTransportState="connected"
+					error={null}
+					messages={messages}
+					pendingAskQuestions={[]}
+					pendingToolApprovals={[]}
+					onAnswerAskQuestion={vi.fn()}
+					onApproveToolApproval={vi.fn()}
+					onRejectToolApproval={vi.fn()}
+				/>,
+			),
+		);
+		const work = container.querySelector("button.cline-chat-work-trigger");
+		if (status === "completed")
+			expect(work?.getAttribute("aria-expanded")).toBe("false");
+		expect(
+			container.querySelectorAll('[aria-label="Published images"]'),
+		).toHaveLength(1);
+		expect(
+			container.querySelectorAll('[aria-roledescription="slide"]'),
+		).toHaveLength(2);
+		expect(
+			container.querySelector('[aria-label="Next screenshot"]'),
+		).not.toBeNull();
+		await act(async () => {
+			for (const callback of reveal.splice(0)) callback();
+		});
+		expect(
+			Array.from(container.querySelectorAll("img"), (image) => image.alt),
+		).toEqual(["before.png", "after.png"]);
+		expect(container.textContent).not.toContain("Verified");
+	}
+	expect(JSON.stringify(messages)).toBe(stored);
 });

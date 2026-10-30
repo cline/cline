@@ -166,6 +166,50 @@ describe("collapseCompletedWork", () => {
 		expect(work.items.map((item) => item.type)).toEqual(["tools"]);
 	});
 
+	it("extracts deliverables once in order while preserving whole-run duration and call count", () => {
+		const publish = makeMessage({
+			id: "publish",
+			role: "tool",
+			createdAt: 2_000,
+			content: JSON.stringify({
+				toolName: "publish_artifacts",
+				result: { files: [{ path: "/tmp/frame.png", artifactId: "frame" }] },
+			}),
+		});
+		const ordinary = makeTool("ordinary", 3_000);
+		const report = makeMessage({
+			id: "report",
+			role: "tool",
+			createdAt: 4_000,
+			content: JSON.stringify({
+				toolName: "present_results",
+				result: { kind: "ux_verification" },
+			}),
+		});
+		const answer = makeMessage({
+			id: "answer",
+			content: "Done",
+			createdAt: 5_000,
+		});
+		const items = collapse([publish, ordinary, report, answer], true);
+		expect(items).toEqual([
+			{
+				type: "work",
+				id: "publish",
+				items: [{ type: "tools", messages: [ordinary] }],
+				durationMilliseconds: 3_000,
+				toolCallCount: 3,
+			},
+			{ type: "tools", messages: [publish, report] },
+			{
+				type: "message",
+				agentRole: "assistant",
+				message: answer,
+				reasoningMessages: [],
+			},
+		]);
+	});
+
 	it("groups a live run's working rows into a tight run item", () => {
 		const items = collapse(
 			[
