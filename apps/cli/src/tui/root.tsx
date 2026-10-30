@@ -1020,6 +1020,7 @@ function App(props: TuiProps) {
 		appView,
 		cloud,
 		dialog,
+		handoff.setNativeOpenFailed,
 		handoff.sourceId,
 		handoff.status,
 		promptInput,
