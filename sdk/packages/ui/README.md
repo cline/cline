@@ -122,11 +122,11 @@ The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`palette.css` and `tokens.css` are the canonical theme sources;
-`scoped-tokens.css` and the internal component Tailwind mapping are generated
-from them and `theme.css`. Contributors change the source theme files and run
-`bun run generate:theme`; tests and CI reject drift in either generated output.
-Consumers may import either public token entry point.
+The solid colors in `palette.css`, the semantic values in `tokens.css`, and
+the mappings in `theme.css` are the authored sources. `bun run generate:theme`
+derives alpha colors in `palette.css`, then generates `scoped-tokens.css` and
+the internal component Tailwind mapping. Tests and CI reject drift in all
+derived values. Consumers may import either public token entry point.
 
 ## Theme usage
 
@@ -172,7 +172,7 @@ normal Tailwind utilities inherit Cline defaults without custom adapters.
 Theme authors work through three layers:
 
 1. Cline-owned 12-step solid and alpha palettes: Slate as `--neutral-*`,
-   Violet as `--accent-*`, Ruby as `--error-*`, Green as `--success-*`, Amber
+   Iris as `--accent-*`, Vermilion as `--error-*`, Emerald as `--success-*`, Amber
    as `--warning-*`, and Sky as `--info-*`.
 2. Readable visual roles such as `--surface-1`, `--text-2`, `--border-1`, and
    `--success-surface`.
@@ -184,8 +184,17 @@ Tailwind exposes the role and compatibility layers, but intentionally does not
 register every raw palette step. Brand artwork may use the separate
 `--brand-*` colors.
 
-The palette values are derived from Radix Colors 3.0.0 under the included MIT
-license; `@cline/ui` does not depend on Radix Colors at runtime.
+Iris, Vermilion, and Emerald use Cline brand OKLCH scales. Neutral scales
+began with Radix Colors 3.0.0 under the included MIT license. Solid colors are
+authored; alpha counterparts are generated to reproduce those colors over each
+mode's `--neutral-1` within 3/255 per sRGB channel. This equivalence applies over
+`--neutral-1`, not arbitrary host backgrounds. No palette package is required
+at runtime.
+
+Use `--accent-foreground` and the status `-text` roles for small colored text.
+Pair solid fills with their foreground or `-contrast` roles.
+The existing token names and component APIs remain available. Typography adds
+`--text-xxs` for 11px text at the default 15px root size.
 
 ## Agent-chat usage
 

@@ -357,7 +357,7 @@ export function CodeDiff({
 								className={cn(
 									"w-4 text-center",
 									row.kind === "addition" && "text-chart-2",
-									row.kind === "deletion" && "text-destructive",
+									row.kind === "deletion" && "text-error-text",
 								)}
 							>
 								{row.kind === "addition"

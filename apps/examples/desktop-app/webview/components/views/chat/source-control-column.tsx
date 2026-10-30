@@ -30,8 +30,8 @@ export const SOURCE_CONTROL_STATUS_CLASS: Record<string, string> = {
 	A: "text-chart-2",
 	"?": "text-chart-2",
 	R: "text-sky-500",
-	D: "text-destructive",
-	U: "text-destructive",
+	D: "text-error-text",
+	U: "text-error-text",
 };
 
 export function sourceControlFileName(path: string): string {
@@ -142,7 +142,7 @@ export function SourceControlColumn({
 			) : null}
 			<div className="min-h-0 flex-1 overflow-auto px-1 py-1">
 				{error ? (
-					<div className="px-2 py-1 text-[11px] text-destructive">{error}</div>
+					<div className="px-2 py-1 text-[11px] text-error-text">{error}</div>
 				) : null}
 				{!state && loading ? (
 					<div className="flex items-center gap-2 px-2 py-2 text-[11px] text-muted-foreground">
@@ -313,7 +313,7 @@ export function SourceControlColumn({
 													</CommitDetailRow>
 												) : filesState?.error ? (
 													<CommitDetailRow last={isLast}>
-														<span className="text-destructive">
+														<span className="text-error-text">
 															{filesState.error}
 														</span>
 													</CommitDetailRow>
@@ -356,7 +356,7 @@ export function SourceControlColumn({
 																	<span className="text-chart-2">
 																		+{file.additions ?? 0}
 																	</span>{" "}
-																	<span className="text-destructive">
+																	<span className="text-error-text">
 																		-{file.deletions ?? 0}
 																	</span>
 																</span>
@@ -629,7 +629,7 @@ export function ChangeRow({
 			{file.additions !== null || file.deletions !== null ? (
 				<span className="shrink-0 font-mono text-[10.5px]">
 					<span className="text-chart-2">+{file.additions ?? 0}</span>{" "}
-					<span className="text-destructive">-{file.deletions ?? 0}</span>
+					<span className="text-error-text">-{file.deletions ?? 0}</span>
 				</span>
 			) : null}
 			<span

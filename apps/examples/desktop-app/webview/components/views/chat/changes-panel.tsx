@@ -212,7 +212,7 @@ export function ChangesPanel({
 				<div className="flex shrink-0 items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] text-muted-foreground">
 					<span className="font-mono">
 						<span className="text-chart-2">+{totals.additions}</span>{" "}
-						<span className="text-destructive">-{totals.deletions}</span>
+						<span className="text-error-text">-{totals.deletions}</span>
 					</span>
 					<span className="truncate">
 						· {files.length} file{files.length === 1 ? "" : "s"}
@@ -266,7 +266,7 @@ export function ChangesPanel({
 							</span>
 							<span className="shrink-0 font-mono">
 								<span className="text-chart-2">+{selected.additions ?? 0}</span>{" "}
-								<span className="text-destructive">
+								<span className="text-error-text">
 									-{selected.deletions ?? 0}
 								</span>
 							</span>
@@ -344,7 +344,7 @@ export function ChangesPanel({
 							<Loader2 className="size-4 animate-spin" />
 						</div>
 					) : "error" in selectedContents ? (
-						<p className="p-4 text-xs text-destructive">
+						<p className="p-4 text-xs text-error-text">
 							{selectedContents.error}
 						</p>
 					) : selectedContents.binary ? (

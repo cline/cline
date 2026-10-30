@@ -99,7 +99,7 @@ export function ImportContent() {
 					</div>
 				))}
 				{scanError ? (
-					<p className="mt-4 text-sm text-destructive" role="alert">
+					<p className="mt-4 text-sm text-error-text" role="alert">
 						Couldn't scan for sessions: {scanError}
 					</p>
 				) : null}

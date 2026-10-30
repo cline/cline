@@ -298,7 +298,7 @@ function EntryDetails({
 			<EntrySetupGuidance entry={entry} />
 
 			{actionState?.status === "failed" ? (
-				<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+				<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-error-text">
 					{actionState.message}
 				</div>
 			) : null}
@@ -405,7 +405,7 @@ function MarketplaceEntryCard({
 			className={cn(
 				"text-xs",
 				actionState?.status === "failed"
-					? "text-destructive"
+					? "text-error-text"
 					: "text-muted-foreground",
 			)}
 		>
@@ -1157,7 +1157,7 @@ export function MarketplaceView({
 			) : null}
 
 			{errorMessage ? (
-				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-error-text">
 					{errorMessage}
 				</div>
 			) : null}

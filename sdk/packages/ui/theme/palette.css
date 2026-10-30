@@ -1,347 +1,351 @@
 /*
- * Cline-owned palette values copied from Radix Colors 3.0.0.
+ * Cline-owned light/dark solid and alpha palettes.
  *
- * Source mapping: Slate → neutral, Violet → accent, Ruby → error,
- * Green → success, Amber → warning, and Sky → info.
- * This file intentionally includes the sRGB solid and alpha scales only.
+ * Iris, Vermilion, and Emerald use Cline brand scales. Neutral scales began
+ * with Radix Colors 3.0.0. Solid OKLCH values are authored and may exceed sRGB.
+ * Edit solids, then run `bun run generate:theme` to derive all alpha values.
+ * The generator clips solids to 8-bit sRGB, matching the color renderer, and
+ * finds the minimum 8-bit alpha that reproduces each solid over --neutral-1.
+ * Derived foregrounds are expressed in OKLCH; composited sRGB channels match
+ * within 3/255. Gamut-edge colors may be opaque; matching the backdrop is clear.
  */
 
 :root {
 	/* Neutral */
-	--neutral-1: #fcfcfd;
-	--neutral-2: #f9f9fb;
-	--neutral-3: #f0f0f3;
-	--neutral-4: #e8e8ec;
-	--neutral-5: #e0e1e6;
-	--neutral-6: #d9d9e0;
-	--neutral-7: #cdced6;
-	--neutral-8: #b9bbc6;
-	--neutral-9: #8b8d98;
-	--neutral-10: #80838d;
-	--neutral-11: #60646c;
-	--neutral-12: #1c2024;
+	--neutral-1: oklch(98.5% 0.01 286);
+	--neutral-2: oklch(96.5% 0.01 286);
+	--neutral-3: oklch(94.5% 0.012 286);
+	--neutral-4: oklch(92% 0.014 286);
+	--neutral-5: oklch(89% 0.015 286);
+	--neutral-6: oklch(85% 0.015 286);
+	--neutral-7: oklch(79% 0.016 286);
+	--neutral-8: oklch(71% 0.017 286);
+	--neutral-9: oklch(59% 0.018 286);
+	--neutral-10: oklch(45% 0.015 286);
+	--neutral-11: oklch(36% 0.014 286);
+	--neutral-12: oklch(24% 0.012 286);
 
 	/* Neutral alpha */
-	--neutral-a1: #00005503;
-	--neutral-a2: #00005506;
-	--neutral-a3: #0000330b;
-	--neutral-a4: #00002d17;
-	--neutral-a5: #0009321f;
-	--neutral-a6: #00002f26;
-	--neutral-a7: #00062e32;
-	--neutral-a8: #00083046;
-	--neutral-a9: #00051d74;
-	--neutral-a10: #00071b7f;
-	--neutral-a11: #0007149f;
-	--neutral-a12: #000509e3;
+	--neutral-a1: oklch(0% 0 0 / 0);
+	--neutral-a2: oklch(26.209232% 0.078035 279.566556 / 0.027451);
+	--neutral-a3: oklch(21.209998% 0.108129 272.315437 / 0.054902);
+	--neutral-a4: oklch(18.748207% 0.1102 269.017115 / 0.090196);
+	--neutral-a5: oklch(15.835556% 0.098847 267.360051 / 0.129412);
+	--neutral-a6: oklch(14.712658% 0.067608 274.256486 / 0.184314);
+	--neutral-a7: oklch(12.222506% 0.065671 271.192412 / 0.258824);
+	--neutral-a8: oklch(11.335959% 0.055878 272.983196 / 0.360784);
+	--neutral-a9: oklch(10.636797% 0.047153 274.851865 / 0.505882);
+	--neutral-a10: oklch(6.761091% 0.04685 264.052021 / 0.662745);
+	--neutral-a11: oklch(8.094916% 0.032531 276.306281 / 0.760784);
+	--neutral-a12: oklch(7.796166% 0.027808 277.787846 / 0.878431);
 
 	/* Accent */
-	--accent-1: #fdfcfe;
-	--accent-2: #faf8ff;
-	--accent-3: #f4f0fe;
-	--accent-4: #ebe4ff;
-	--accent-5: #e1d9ff;
-	--accent-6: #d4cafe;
-	--accent-7: #c2b5f5;
-	--accent-8: #aa99ec;
-	--accent-9: #6e56cf;
-	--accent-10: #654dc4;
-	--accent-11: #6550b9;
-	--accent-12: #2f265f;
+	--accent-1: oklch(98% 0.03 280);
+	--accent-2: oklch(96% 0.04 279);
+	--accent-3: oklch(93% 0.04 278);
+	--accent-4: oklch(90% 0.05 278);
+	--accent-5: oklch(85% 0.07 278);
+	--accent-6: oklch(79% 0.1 278);
+	--accent-7: oklch(71% 0.15 279);
+	--accent-8: oklch(63% 0.19 279);
+	--accent-9: oklch(55% 0.22 279);
+	--accent-10: oklch(49% 0.22 278);
+	--accent-11: oklch(40% 0.2 278);
+	--accent-12: oklch(28% 0.16 278);
 
 	/* Accent alpha */
-	--accent-a1: #5500aa03;
-	--accent-a2: #4900ff07;
-	--accent-a3: #4400ee0f;
-	--accent-a4: #4300ff1b;
-	--accent-a5: #3600ff26;
-	--accent-a6: #3100fb35;
-	--accent-a7: #2d01dd4a;
-	--accent-a8: #2b00d066;
-	--accent-a9: #2400b7a9;
-	--accent-a10: #2300abb2;
-	--accent-a11: #1f0099af;
-	--accent-a12: #0b0043d9;
+	--accent-a1: oklch(69.698699% 0.168941 246.381743 / 0.023529);
+	--accent-a2: oklch(55.337447% 0.246781 262.03802 / 0.058824);
+	--accent-a3: oklch(48.998705% 0.287617 264.274809 / 0.098039);
+	--accent-a4: oklch(47.754005% 0.295939 264.245555 / 0.141176);
+	--accent-a5: oklch(45.71176% 0.285667 264.395985 / 0.223529);
+	--accent-a6: oklch(44.437898% 0.288709 264.201259 / 0.313725);
+	--accent-a7: oklch(45.150367% 0.304291 264.206139 / 0.431373);
+	--accent-a8: oklch(43.635023% 0.299735 264.155253 / 0.537255);
+	--accent-a9: oklch(41.769795% 0.285997 265.267609 / 0.658824);
+	--accent-a10: oklch(38.328238% 0.259804 266.072291 / 0.741176);
+	--accent-a11: oklch(32.629712% 0.216009 268.440559 / 0.843137);
+	--accent-a12: oklch(25.800653% 0.162302 274.880398 / 0.964706);
 
 	/* Error */
-	--error-1: #fffcfd;
-	--error-2: #fff7f8;
-	--error-3: #feeaed;
-	--error-4: #ffdce1;
-	--error-5: #ffced6;
-	--error-6: #f8bfc8;
-	--error-7: #efacb8;
-	--error-8: #e592a3;
-	--error-9: #e54666;
-	--error-10: #dc3b5d;
-	--error-11: #ca244d;
-	--error-12: #64172b;
+	--error-1: oklch(98.5% 0.03 26);
+	--error-2: oklch(96% 0.04 31);
+	--error-3: oklch(93% 0.07 31);
+	--error-4: oklch(90% 0.12 30);
+	--error-5: oklch(86% 0.15 30);
+	--error-6: oklch(80% 0.18 30);
+	--error-7: oklch(74% 0.2 30);
+	--error-8: oklch(66% 0.22 30);
+	--error-9: oklch(58% 0.23 30);
+	--error-10: oklch(48% 0.24 29);
+	--error-11: oklch(23% 0.48 29.5);
+	--error-12: oklch(18% 0.4 30);
 
 	/* Error alpha */
-	--error-a1: #ff005503;
-	--error-a2: #ff002008;
-	--error-a3: #f3002515;
-	--error-a4: #ff002523;
-	--error-a5: #ff002a31;
-	--error-a6: #e4002440;
-	--error-a7: #ce002553;
-	--error-a8: #c300286d;
-	--error-a9: #db002cb9;
-	--error-a10: #d2002cc4;
-	--error-a11: #c10030db;
-	--error-a12: #550016e8;
+	--error-a1: oklch(97.270132% 0.013589 34.299098 / 1);
+	--error-a2: oklch(94.978923% 0.025925 38.464202 / 1);
+	--error-a3: oklch(91.006106% 0.047457 35.853623 / 1);
+	--error-a4: oklch(86.065085% 0.076759 35.630387 / 1);
+	--error-a5: oklch(81.425908% 0.106189 33.70766 / 1);
+	--error-a6: oklch(75.88254% 0.145068 31.901152 / 1);
+	--error-a7: oklch(71.252778% 0.181127 30.436619 / 1);
+	--error-a8: oklch(62.979679% 0.250882 30.230871 / 0.796078);
+	--error-a9: oklch(57.919898% 0.232114 30.026167 / 0.980392);
+	--error-a10: oklch(50.922873% 0.208963 29.233885 / 1);
+	--error-a11: oklch(44.114539% 0.181025 29.233885 / 1);
+	--error-a12: oklch(35.747138% 0.146689 29.233885 / 1);
 
 	/* Success */
-	--success-1: #fbfefc;
-	--success-2: #f4fbf6;
-	--success-3: #e6f6eb;
-	--success-4: #d6f1df;
-	--success-5: #c4e8d1;
-	--success-6: #adddc0;
-	--success-7: #8eceaa;
-	--success-8: #5bb98b;
-	--success-9: #30a46c;
-	--success-10: #2b9a66;
-	--success-11: #218358;
-	--success-12: #193b2d;
+	--success-1: oklch(98.5% 0.03 147);
+	--success-2: oklch(96% 0.04 148);
+	--success-3: oklch(93.5% 0.07 148);
+	--success-4: oklch(90.5% 0.09 148);
+	--success-5: oklch(87% 0.13 148);
+	--success-6: oklch(81.5% 0.15 149.19);
+	--success-7: oklch(74% 0.17 149.87);
+	--success-8: oklch(66% 0.2 150.79);
+	--success-9: oklch(48% 0.44 170);
+	--success-10: oklch(37% 0.7 153);
+	--success-11: oklch(29% 0.9 153);
+	--success-12: oklch(24% 0.5 153);
 
 	/* Success alpha */
-	--success-a1: #00c04004;
-	--success-a2: #00a32f0b;
-	--success-a3: #00a43319;
-	--success-a4: #00a83829;
-	--success-a5: #019c393b;
-	--success-a6: #00963c52;
-	--success-a7: #00914071;
-	--success-a8: #00924ba4;
-	--success-a9: #008f4acf;
-	--success-a10: #008647d4;
-	--success-a11: #00713fde;
-	--success-a12: #002616e6;
+	--success-a1: oklch(98.314033% 0.027558 147.032691 / 1);
+	--success-a2: oklch(88.697284% 0.241645 141.543864 / 0.168627);
+	--success-a3: oklch(82.261753% 0.278974 142.507648 / 0.188235);
+	--success-a4: oklch(77.258496% 0.261313 142.654991 / 0.266667);
+	--success-a5: oklch(76.493893% 0.256239 142.925779 / 0.396078);
+	--success-a6: oklch(71.47164% 0.232776 143.823456 / 0.533333);
+	--success-a7: oklch(66.948317% 0.208432 145.309183 / 0.713725);
+	--success-a8: oklch(66.629787% 0.190356 148.507615 / 1);
+	--success-a9: oklch(58.281668% 0.178354 145.944912 / 1);
+	--success-a10: oklch(48.729003% 0.165812 142.495339 / 1);
+	--success-a11: oklch(41.756454% 0.142087 142.495339 / 1);
+	--success-a12: oklch(32.187794% 0.109527 142.495339 / 1);
 
 	/* Warning */
-	--warning-1: #fefdfb;
-	--warning-2: #fefbe9;
-	--warning-3: #fff7c2;
-	--warning-4: #ffee9c;
-	--warning-5: #fbe577;
-	--warning-6: #f3d673;
-	--warning-7: #e9c162;
-	--warning-8: #e2a336;
-	--warning-9: #ffc53d;
-	--warning-10: #ffba18;
-	--warning-11: #ab6400;
-	--warning-12: #4f3422;
+	--warning-1: oklch(99% 0.02 85);
+	--warning-2: oklch(97.2% 0.07 85);
+	--warning-3: oklch(94% 0.1 85);
+	--warning-4: oklch(90% 0.14 85);
+	--warning-5: oklch(86% 0.18 85);
+	--warning-6: oklch(82% 0.24 85);
+	--warning-7: oklch(78% 0.28 85);
+	--warning-8: oklch(72% 0.3 85);
+	--warning-9: oklch(64% 0.36 91);
+	--warning-10: oklch(52% 0.34 93);
+	--warning-11: oklch(43% 0.33 96);
+	--warning-12: oklch(32% 0.34 103);
 
 	/* Warning alpha */
-	--warning-a1: #c0800004;
-	--warning-a2: #f4d10016;
-	--warning-a3: #ffde003d;
-	--warning-a4: #ffd40063;
-	--warning-a5: #f8cf0088;
-	--warning-a6: #eab5008c;
-	--warning-a7: #dc9b009d;
-	--warning-a8: #da8a00c9;
-	--warning-a9: #ffb300c2;
-	--warning-a10: #ffb300e7;
-	--warning-a11: #ab6400;
-	--warning-a12: #341500dd;
+	--warning-a1: oklch(98.739421% 0.018863 93.658287 / 1);
+	--warning-a2: oklch(96.12289% 0.066699 96.367535 / 1);
+	--warning-a3: oklch(93.099008% 0.096222 92.183677 / 1);
+	--warning-a4: oklch(89.012402% 0.13665 89.102481 / 1);
+	--warning-a5: oklch(85.170844% 0.174189 87.039836 / 1);
+	--warning-a6: oklch(81.424436% 0.170412 76.910492 / 1);
+	--warning-a7: oklch(78.048504% 0.172395 67.073316 / 1);
+	--warning-a8: oklch(73.035707% 0.175554 57.60897 / 1);
+	--warning-a9: oklch(65.232669% 0.16718 52.25759 / 1);
+	--warning-a10: oklch(52.89626% 0.143974 48.036025 / 1);
+	--warning-a11: oklch(43.756957% 0.123072 45.974109 / 1);
+	--warning-a12: oklch(32.499023% 0.089235 47.470885 / 1);
 
 	/* Info */
-	--info-1: #f9feff;
-	--info-2: #f1fafd;
-	--info-3: #e1f6fd;
-	--info-4: #d1f0fa;
-	--info-5: #bee7f5;
-	--info-6: #a9daed;
-	--info-7: #8dcae3;
-	--info-8: #60b3d7;
-	--info-9: #7ce2fe;
-	--info-10: #74daf8;
-	--info-11: #00749e;
-	--info-12: #1d3e56;
+	--info-1: oklch(99% 0.018 232);
+	--info-2: oklch(96.5% 0.03 230);
+	--info-3: oklch(93.5% 0.05 230);
+	--info-4: oklch(89.5% 0.075 230);
+	--info-5: oklch(85% 0.095 230);
+	--info-6: oklch(79% 0.12 230);
+	--info-7: oklch(71% 0.135 230);
+	--info-8: oklch(63.5% 0.145 230);
+	--info-9: oklch(54.5% 0.14 230);
+	--info-10: oklch(45% 0.145 230);
+	--info-11: oklch(37% 0.14 230);
+	--info-12: oklch(28% 0.135 220);
 
 	/* Info alpha */
-	--info-a1: #00d5ff06;
-	--info-a2: #00a4db0e;
-	--info-a3: #00b3ee1e;
-	--info-a4: #00ace42e;
-	--info-a5: #00a1d841;
-	--info-a6: #0092ca56;
-	--info-a7: #0089c172;
-	--info-a8: #0085bf9f;
-	--info-a9: #00c7fe83;
-	--info-a10: #00bcf38b;
-	--info-a11: #00749e;
-	--info-a12: #002540e2;
+	--info-a1: oklch(98.752434% 0.017787 196.868927 / 0.835294);
+	--info-a2: oklch(86.783068% 0.147568 203.464229 / 0.101961);
+	--info-a3: oklch(79.740473% 0.146245 221.371193 / 0.2);
+	--info-a4: oklch(75.303642% 0.153965 232.180862 / 0.321569);
+	--info-a5: oklch(73.005061% 0.160178 237.379909 / 0.447059);
+	--info-a6: oklch(70.870089% 0.155317 237.246215 / 0.631373);
+	--info-a7: oklch(68.217506% 0.140701 232.964341 / 0.87451);
+	--info-a8: oklch(64.306215% 0.133772 233.543341 / 1);
+	--info-a9: oklch(55.571315% 0.121662 237.177601 / 1);
+	--info-a10: oklch(46.996057% 0.113897 243.115817 / 1);
+	--info-a11: oklch(39.172204% 0.104653 247.68209 / 1);
+	--info-a12: oklch(30.840029% 0.080929 246.908623 / 1);
 }
 
 .dark {
 	/* Neutral */
-	--neutral-1: #121216;
-	--neutral-2: #18191b;
-	--neutral-3: #212225;
-	--neutral-4: #2f2f37;
-	--neutral-5: #2e3135;
-	--neutral-6: #363a3f;
-	--neutral-7: #43484e;
-	--neutral-8: #5a6169;
-	--neutral-9: #696e77;
-	--neutral-10: #777b84;
-	--neutral-11: #b0b4ba;
-	--neutral-12: #fcfcfd;
+	--neutral-1: oklch(18% 0.01 285);
+	--neutral-2: oklch(22% 0.01 285);
+	--neutral-3: oklch(25% 0.012 285);
+	--neutral-4: oklch(28% 0.015 285);
+	--neutral-5: oklch(32% 0.015 285);
+	--neutral-6: oklch(37% 0.015 285);
+	--neutral-7: oklch(42% 0.015 285);
+	--neutral-8: oklch(49% 0.015 285);
+	--neutral-9: oklch(56% 0.015 285);
+	--neutral-10: oklch(67% 0.014 285);
+	--neutral-11: oklch(81% 0.009 285);
+	--neutral-12: oklch(99% 0.001 285);
 
 	/* Neutral alpha */
-	--neutral-a1: #00000000;
-	--neutral-a2: #d8f4f609;
-	--neutral-a3: #ddeaf814;
-	--neutral-a4: #d3edf81d;
-	--neutral-a5: #d9edfe25;
-	--neutral-a6: #d6ebfd30;
-	--neutral-a7: #d9edff40;
-	--neutral-a8: #d9edff5d;
-	--neutral-a9: #dfebfd6d;
-	--neutral-a10: #e5edfd7b;
-	--neutral-a11: #f1f7feb5;
-	--neutral-a12: #fcfdffef;
+	--neutral-a1: oklch(0% 0 0 / 0);
+	--neutral-a2: oklch(97.755421% 0.006622 286.276602 / 0.039216);
+	--neutral-a3: oklch(93.63287% 0.024198 285.923169 / 0.07451);
+	--neutral-a4: oklch(90.137864% 0.043587 285.492666 / 0.113725);
+	--neutral-a5: oklch(92.340065% 0.03379 285.71945 / 0.156863);
+	--neutral-a6: oklch(93.216502% 0.032351 285.75545 / 0.215686);
+	--neutral-a7: oklch(94.600292% 0.02683 285.875736 / 0.270588);
+	--neutral-a8: oklch(94.870598% 0.025463 285.904418 / 0.356863);
+	--neutral-a9: oklch(95.380641% 0.021396 285.987138 / 0.443137);
+	--neutral-a10: oklch(96.221717% 0.018668 286.043686 / 0.584314);
+	--neutral-a11: oklch(97.841968% 0.010603 286.202129 / 0.760784);
+	--neutral-a12: oklch(99.999999% 0 0 / 0.988235);
 
 	/* Accent */
-	--accent-1: #14121f;
-	--accent-2: #1b1525;
-	--accent-3: #291f43;
-	--accent-4: #33255b;
-	--accent-5: #3c2e69;
-	--accent-6: #473876;
-	--accent-7: #56468b;
-	--accent-8: #6958ad;
-	--accent-9: #6e56cf;
-	--accent-10: #7d66d9;
-	--accent-11: #baa7ff;
-	--accent-12: #e2ddfe;
+	--accent-1: oklch(18% 0.08 278);
+	--accent-2: oklch(23% 0.09 278);
+	--accent-3: oklch(27% 0.1 278);
+	--accent-4: oklch(32% 0.15 278);
+	--accent-5: oklch(39% 0.17 278);
+	--accent-6: oklch(45% 0.2 278);
+	--accent-7: oklch(53% 0.2 278);
+	--accent-8: oklch(61% 0.2 278);
+	--accent-9: oklch(67% 0.18 278);
+	--accent-10: oklch(75% 0.17 279);
+	--accent-11: oklch(85% 0.18 280);
+	--accent-12: oklch(92% 0.2 280);
 
 	/* Accent alpha */
-	--accent-a1: #4422ff0f;
-	--accent-a2: #853ff916;
-	--accent-a3: #8354fe36;
-	--accent-a4: #7d51fd50;
-	--accent-a5: #845ffd5f;
-	--accent-a6: #8f6cfd6d;
-	--accent-a7: #9879ff83;
-	--accent-a8: #977dfea8;
-	--accent-a9: #8668ffcc;
-	--accent-a10: #9176fed7;
-	--accent-a11: #baa7ff;
-	--accent-a12: #e3defffe;
+	--accent-a1: oklch(20.561145% 0.136831 268.292039 / 0.470588);
+	--accent-a2: oklch(47.107422% 0.296398 267.671372 / 0.207843);
+	--accent-a3: oklch(51.560482% 0.271746 272.366209 / 0.270588);
+	--accent-a4: oklch(50.039% 0.280728 273.690271 / 0.439216);
+	--accent-a5: oklch(53.410066% 0.259829 275.869196 / 0.576471);
+	--accent-a6: oklch(54.332507% 0.254746 277.149071 / 0.733333);
+	--accent-a7: oklch(58.697145% 0.228723 277.800743 / 0.847059);
+	--accent-a8: oklch(62.214794% 0.204791 278.023215 / 0.968627);
+	--accent-a9: oklch(66.908203% 0.177566 277.974782 / 1);
+	--accent-a10: oklch(73.648821% 0.13825 279.248775 / 1);
+	--accent-a11: oklch(81.992956% 0.091612 280.075469 / 1);
+	--accent-a12: oklch(87.388844% 0.062529 279.057175 / 1);
 
 	/* Error */
-	--error-1: #191113;
-	--error-2: #1e1517;
-	--error-3: #3a141e;
-	--error-4: #4e1325;
-	--error-5: #5e1a2e;
-	--error-6: #6f2539;
-	--error-7: #883447;
-	--error-8: #b3445a;
-	--error-9: #e54666;
-	--error-10: #ec5a72;
-	--error-11: #ff949d;
-	--error-12: #fed2e1;
+	--error-1: oklch(17% 0.08 31);
+	--error-2: oklch(21% 0.1 30);
+	--error-3: oklch(27% 0.1 30);
+	--error-4: oklch(32% 0.12 30);
+	--error-5: oklch(41% 0.14 28);
+	--error-6: oklch(52% 0.18 28);
+	--error-7: oklch(60% 0.19 28);
+	--error-8: oklch(67% 0.2 28);
+	--error-9: oklch(91% 0.32 28);
+	--error-10: oklch(100% 0.34 28);
+	--error-11: oklch(98% 0.26 27);
+	--error-12: oklch(96% 0.14 27);
 
 	/* Error alpha */
-	--error-a1: #f4124a09;
-	--error-a2: #fe5a7f0e;
-	--error-a3: #ff235d2c;
-	--error-a4: #fd195e42;
-	--error-a5: #fe2d6b53;
-	--error-a6: #ff447665;
-	--error-a7: #ff577d80;
-	--error-a8: #ff5c7cae;
-	--error-a9: #fe4c70e4;
-	--error-a10: #ff617beb;
-	--error-a11: #ff949d;
-	--error-a12: #ffd3e2fe;
+	--error-a1: oklch(17.641792% 0.072394 29.233885 / 1);
+	--error-a2: oklch(21.881711% 0.089792 29.233885 / 1);
+	--error-a3: oklch(28.817268% 0.110387 31.609183 / 0.866667);
+	--error-a4: oklch(36.641234% 0.14409 30.676977 / 0.776471);
+	--error-a5: oklch(64.059335% 0.242783 29.632493 / 0.494118);
+	--error-a6: oklch(64.915391% 0.234445 28.965135 / 0.713725);
+	--error-a7: oklch(66.861321% 0.216326 28.510737 / 0.847059);
+	--error-a8: oklch(68.401429% 0.204931 28.140222 / 0.972549);
+	--error-a9: oklch(69.699377% 0.193581 27.546383 / 1);
+	--error-a10: oklch(73.165021% 0.165219 28.716711 / 1);
+	--error-a11: oklch(80.361977% 0.112537 30.43572 / 1);
+	--error-a12: oklch(88.63874% 0.060937 34.684013 / 1);
 
 	/* Success */
-	--success-1: #0e1512;
-	--success-2: #121b17;
-	--success-3: #132d21;
-	--success-4: #113b29;
-	--success-5: #174933;
-	--success-6: #20573e;
-	--success-7: #28684a;
-	--success-8: #2f7c57;
-	--success-9: #30a46c;
-	--success-10: #33b074;
-	--success-11: #3dd68c;
-	--success-12: #b1f1cb;
+	--success-1: oklch(19% 0.15 160);
+	--success-2: oklch(24% 0.15 160);
+	--success-3: oklch(29% 0.15 160);
+	--success-4: oklch(35% 0.15 160);
+	--success-5: oklch(42% 0.15 160);
+	--success-6: oklch(51% 0.16 160);
+	--success-7: oklch(61% 0.18 160);
+	--success-8: oklch(70% 0.17 158);
+	--success-9: oklch(77% 0.16 158);
+	--success-10: oklch(83% 0.14 158);
+	--success-11: oklch(88% 0.11 158);
+	--success-12: oklch(93% 0.06 158);
 
 	/* Success alpha */
-	--success-a1: #00de4505;
-	--success-a2: #29f99d0b;
-	--success-a3: #22ff991e;
-	--success-a4: #11ff992d;
-	--success-a5: #2bffa23c;
-	--success-a6: #44ffaa4b;
-	--success-a7: #50fdac5e;
-	--success-a8: #54ffad73;
-	--success-a9: #44ffa49e;
-	--success-a10: #43fea4ab;
-	--success-a11: #46fea5d4;
-	--success-a12: #bbffd7f0;
+	--success-a1: oklch(22.194137% 0.075521 142.495339 / 1);
+	--success-a2: oklch(26.789068% 0.091156 142.495339 / 1);
+	--success-a3: oklch(31.618077% 0.099872 144.855521 / 1);
+	--success-a4: oklch(37.28987% 0.1081 147.93935 / 1);
+	--success-a5: oklch(43.733244% 0.1168 151.322863 / 1);
+	--success-a6: oklch(52.616827% 0.133943 153.543203 / 1);
+	--success-a7: oklch(62.534376% 0.155932 154.5636 / 1);
+	--success-a8: oklch(70.266142% 0.166823 157.16038 / 1);
+	--success-a9: oklch(88.901995% 0.190252 157.253591 / 0.811765);
+	--success-a10: oklch(90.594377% 0.1562 157.597744 / 0.882353);
+	--success-a11: oklch(92.695743% 0.116967 157.915057 / 0.929412);
+	--success-a12: oklch(95.588793% 0.062562 158.453371 / 0.960784);
 
 	/* Warning */
-	--warning-1: #16120c;
-	--warning-2: #1d180f;
-	--warning-3: #302008;
-	--warning-4: #3f2700;
-	--warning-5: #4d3000;
-	--warning-6: #5c3d05;
-	--warning-7: #714f19;
-	--warning-8: #8f6424;
-	--warning-9: #ffc53d;
-	--warning-10: #ffd60a;
-	--warning-11: #ffca16;
-	--warning-12: #ffe7b3;
+	--warning-1: oklch(19.5% 0.11 93);
+	--warning-2: oklch(23.5% 0.13 92);
+	--warning-3: oklch(27.5% 0.14 91);
+	--warning-4: oklch(33% 0.155 89);
+	--warning-5: oklch(40% 0.185 88);
+	--warning-6: oklch(52% 0.23 87);
+	--warning-7: oklch(62% 0.25 86);
+	--warning-8: oklch(71% 0.23 85);
+	--warning-9: oklch(79% 0.2 85);
+	--warning-10: oklch(88% 0.17 85);
+	--warning-11: oklch(93% 0.14 85);
+	--warning-12: oklch(97% 0.09 83);
 
 	/* Warning alpha */
-	--warning-a1: #e63c0006;
-	--warning-a2: #fd9b000d;
-	--warning-a3: #fa820022;
-	--warning-a4: #fc820032;
-	--warning-a5: #fd8b0041;
-	--warning-a6: #fd9b0051;
-	--warning-a7: #ffab2567;
-	--warning-a8: #ffae3587;
-	--warning-a9: #ffc53d;
-	--warning-a10: #ffd60a;
-	--warning-a11: #ffca16;
-	--warning-a12: #ffe7b3;
+	--warning-a1: oklch(19.993395% 0.048656 56.487816 / 1);
+	--warning-a2: oklch(24.025408% 0.059471 55.0235 / 1);
+	--warning-a3: oklch(27.920979% 0.068024 56.390877 / 1);
+	--warning-a4: oklch(33.609085% 0.080928 57.445944 / 1);
+	--warning-a5: oklch(40.708408% 0.098311 57.177757 / 1);
+	--warning-a6: oklch(52.863971% 0.126741 57.847963 / 1);
+	--warning-a7: oklch(62.960222% 0.146654 60.698986 / 1);
+	--warning-a8: oklch(71.569303% 0.156115 68.90635 / 1);
+	--warning-a9: oklch(79.269888% 0.164993 78.429826 / 1);
+	--warning-a10: oklch(86.83194% 0.166766 89.435807 / 1);
+	--warning-a11: oklch(91.088756% 0.134657 93.971492 / 1);
+	--warning-a12: oklch(95.195924% 0.083886 96.686688 / 1);
 
 	/* Info */
-	--info-1: #0d141f;
-	--info-2: #111a27;
-	--info-3: #112840;
-	--info-4: #113555;
-	--info-5: #154467;
-	--info-6: #1b537b;
-	--info-7: #1f6692;
-	--info-8: #197cae;
-	--info-9: #7ce2fe;
-	--info-10: #a8eeff;
-	--info-11: #75c7f0;
-	--info-12: #c2f3ff;
+	--info-1: oklch(19% 0.07 232);
+	--info-2: oklch(22.5% 0.09 232);
+	--info-3: oklch(26% 0.115 232);
+	--info-4: oklch(30% 0.14 231);
+	--info-5: oklch(36% 0.15 231);
+	--info-6: oklch(44% 0.16 231);
+	--info-7: oklch(53% 0.16 231);
+	--info-8: oklch(64% 0.15 231);
+	--info-9: oklch(71% 0.14 231);
+	--info-10: oklch(81% 0.12 230);
+	--info-11: oklch(89% 0.1 230);
+	--info-12: oklch(97% 0.07 230);
 
 	/* Info alpha */
-	--info-a1: #0044ff0f;
-	--info-a2: #1171fb18;
-	--info-a3: #1184fc33;
-	--info-a4: #128fff49;
-	--info-a5: #1c9dfd5d;
-	--info-a6: #28a5ff72;
-	--info-a7: #2badfe8b;
-	--info-a8: #1db2fea9;
-	--info-a9: #7ce3fffe;
-	--info-a10: #a8eeff;
-	--info-a11: #7cd3ffef;
-	--info-a12: #c2f3ff;
+	--info-a1: oklch(19.995443% 0.05407 248.188374 / 1);
+	--info-a2: oklch(24.010048% 0.068381 250.231545 / 1);
+	--info-a3: oklch(28.029099% 0.085014 252.458277 / 1);
+	--info-a4: oklch(32.587505% 0.101237 253.239478 / 1);
+	--info-a5: oklch(38.555588% 0.110824 250.574586 / 1);
+	--info-a6: oklch(46.506605% 0.121847 246.838724 / 1);
+	--info-a7: oklch(54.880942% 0.130432 242.081326 / 1);
+	--info-a8: oklch(64.803015% 0.137915 235.231948 / 1);
+	--info-a9: oklch(76.104491% 0.150712 231.022904 / 0.901961);
+	--info-a10: oklch(80.954927% 0.119826 229.85788 / 1);
+	--info-a11: oklch(88.437951% 0.088794 216.685201 / 1);
+	--info-a12: oklch(96.084404% 0.058158 196.224832 / 1);
 }

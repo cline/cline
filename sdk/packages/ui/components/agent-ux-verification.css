@@ -43,8 +43,8 @@
 	white-space: nowrap;
 }
 .cline-ui-ux-verifier-count.all-passed {
-	color: light-dark(#167354, #86d9bb);
-	background: light-dark(#e4f2ec, #183b32);
+	color: var(--success-text);
+	background: var(--success-surface);
 }
 .cline-ui-ux-evidence-carousel {
 	border-radius: 12px;
@@ -113,16 +113,18 @@
 	place-items: center;
 	flex-shrink: 0;
 	border-radius: 50%;
-	color: white;
 }
 .cline-ui-ux-status-passed {
-	background: #239f7e;
+	color: var(--success-contrast);
+	background: var(--success-solid);
 }
 .cline-ui-ux-status-failed {
-	background: #bb424b;
+	color: var(--error-contrast);
+	background: var(--error-solid);
 }
 .cline-ui-ux-status-blocked {
-	background: #8e7539;
+	color: var(--warning-contrast);
+	background: var(--warning-solid);
 }
 .cline-ui-ux-evidence-expand,
 .cline-ui-ux-evidence-prev,

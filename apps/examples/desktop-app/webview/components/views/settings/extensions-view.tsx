@@ -1035,7 +1035,7 @@ export function CustomizationSectionView({
 				className={cn(
 					"text-xs",
 					message.status === "failed"
-						? "text-destructive"
+						? "text-error-text"
 						: "text-muted-foreground",
 				)}
 			>
@@ -1095,7 +1095,7 @@ export function CustomizationSectionView({
 					</DropdownMenuItem>
 					{showDelete ? (
 						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
+							className="text-error-text focus:text-error-text"
 							disabled={uninstalling}
 							onClick={() => void uninstallLocalPrimitive(target)}
 						>
@@ -1258,7 +1258,7 @@ export function CustomizationSectionView({
 						</p>
 					) : null}
 					{plugin.loadError?.trim() ? (
-						<p className="mb-2 whitespace-pre-line text-xs text-destructive">
+						<p className="mb-2 whitespace-pre-line text-xs text-error-text">
 							{plugin.loadError}
 						</p>
 					) : null}
@@ -1461,7 +1461,7 @@ export function CustomizationSectionView({
 			) : null}
 
 			{errorMessage && (
-				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-error-text">
 					Failed to load configuration lists: {errorMessage}
 				</div>
 			)}

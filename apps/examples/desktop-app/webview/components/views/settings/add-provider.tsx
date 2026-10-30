@@ -207,7 +207,7 @@ export function AddProviderContent({
 							Lowercase ID used in provider registry.
 						</p>
 						{duplicateProviderId ? (
-							<p className="mt-1 text-xs text-destructive">
+							<p className="mt-1 text-xs text-error-text">
 								This provider ID already exists.
 							</p>
 						) : null}
@@ -418,7 +418,7 @@ export function AddProviderContent({
 										/>
 										<Button
 											onClick={() => removeHeader(key)}
-											className="rounded-md p-2 text-muted-foreground hover:text-destructive transition-colors"
+											className="rounded-md p-2 text-muted-foreground hover:text-error-text transition-colors"
 											aria-label="Remove header"
 										>
 											<Trash2 className="h-4 w-4" />
@@ -438,7 +438,7 @@ export function AddProviderContent({
 				) : null}
 			</div>
 
-			{error ? <p className="text-sm text-destructive">{error}</p> : null}
+			{error ? <p className="text-sm text-error-text">{error}</p> : null}
 
 			<div className="flex items-center justify-end gap-3 pt-2">
 				<Button

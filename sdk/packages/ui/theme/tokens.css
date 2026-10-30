@@ -10,16 +10,17 @@
 
 :root {
 	/* Brand extensions for artwork; components should prefer semantic tokens. */
-	--brand-violet: oklch(0.55 0.22 293);
-	/* Filled brand surface (user chat bubbles): deep enough in both themes to
-	 * carry near-white text at readable contrast. */
-	--brand-violet-surface: oklch(0.55 0.22 293);
-	--brand-violet-surface-foreground: oklch(0.985 0.005 293);
+	--brand-violet: var(--accent-9);
+	/* Filled brand artwork surface, paired with a readable white foreground. */
+	--brand-violet-surface: var(--accent-9);
+	--brand-violet-surface-foreground: #fff;
 	--brand-lilac: oklch(0.88 0.09 315);
 	--brand-magenta: oklch(0.75 0.15 330);
 	--brand-periwinkle: oklch(0.69 0.14 275);
 	--brand-cyan: oklch(0.87 0.07 210);
 	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
+	/* Solid roles choose brand steps that support white labels. */
+	--primary: var(--accent-9);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Inter Variable", sans-serif;
@@ -30,6 +31,10 @@
 	--font-weight-medium: 560;
 	--font-weight-semibold: 640;
 	--font-weight-bold: 640;
+	/* 11px at 15px root */
+	--text-xxs: 0.73333rem;
+	--text-xxs--line-height: 1rem;
+	--text-xxs--letter-spacing: 0.0025em;
 	/* 12px at 15px root */
 	--text-xs: 0.8rem;
 	--text-xs--line-height: 1rem;
@@ -63,21 +68,38 @@
 	--text-6xl: 3.75rem;
 	--text-6xl--line-height: 3.75rem;
 	--text-6xl--letter-spacing: -0.025em;
+
+	/* Filled statuses choose a palette step for each color mode. */
+	--success-solid: var(--success-10);
+	--warning-solid: var(--warning-10);
+	--error-solid: var(--error-9);
+	--info-solid: var(--info-9);
 }
 
 .dark {
-	--brand-violet: oklch(0.7 0.17 293);
-	--brand-violet-surface: oklch(0.48 0.18 293);
-	--brand-violet-surface-foreground: oklch(0.97 0.01 293);
+	--brand-violet: var(--accent-9);
+	--brand-violet-surface: color-mix(
+		in srgb,
+		var(--accent-8) 60%,
+		var(--accent-7)
+	);
+	--brand-violet-surface-foreground: #fff;
 	--brand-lilac: oklch(0.68 0.13 315);
 	--brand-magenta: oklch(0.64 0.17 330);
 	--brand-periwinkle: oklch(0.63 0.16 275);
 	--brand-cyan: oklch(0.72 0.09 210);
 	--card-surface: var(--neutral-3);
+	/* Blend the adjacent accent steps to keep white labels above 4.5:1. */
+	--primary: color-mix(in srgb, var(--accent-8) 60%, var(--accent-7));
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
 	--font-weight-bold: 600;
+
+	--success-solid: var(--success-6);
+	--warning-solid: var(--warning-6);
+	--error-solid: var(--error-6);
+	--info-solid: var(--info-7);
 }
 
 :root,
@@ -96,27 +118,23 @@
 	--border-2: var(--neutral-5);
 	--focus-ring: var(--accent-8);
 
-	/* Status roles. Alpha surfaces stay composable over any host surface. */
-	--success-surface: var(--success-a3);
-	--success-border: var(--success-a7);
-	--success-solid: var(--success-9);
-	--success-text: var(--success-11);
+	/* Recompute status aliases in each theme, including nested dark roots. */
+	--success-surface: var(--success-a2);
+	--success-border: var(--success-a4);
+	--success-text: var(--success-10);
 	--success-contrast: #fff;
-	--warning-surface: var(--warning-a3);
-	--warning-border: var(--warning-a7);
-	--warning-solid: var(--warning-9);
-	--warning-text: var(--warning-11);
-	--warning-contrast: #1c2024;
-	--error-surface: var(--error-a3);
-	--error-border: var(--error-a7);
-	--error-solid: var(--error-9);
-	--error-text: var(--error-11);
+	--warning-surface: var(--warning-a2);
+	--warning-border: var(--warning-a4);
+	--warning-text: var(--warning-10);
+	--warning-contrast: #fff;
+	--error-surface: var(--error-a2);
+	--error-border: var(--error-a4);
+	--error-text: var(--error-10);
 	--error-contrast: #fff;
-	--info-surface: var(--info-a3);
-	--info-border: var(--info-a7);
-	--info-solid: var(--info-9);
-	--info-text: var(--info-11);
-	--info-contrast: #1c2024;
+	--info-surface: var(--info-a2);
+	--info-border: var(--info-a4);
+	--info-text: var(--info-10);
+	--info-contrast: #fff;
 
 	/* Global browser affordances. */
 	--scrollbar-thumb: var(--neutral-8);
@@ -130,9 +148,8 @@
 	--card-foreground: var(--text-1);
 	--popover: var(--surface-2);
 	--popover-foreground: var(--text-1);
-	--primary: var(--accent-9);
 	--primary-foreground: #fff;
-	--primary-emphasis: var(--accent-10);
+	--primary-emphasis: color-mix(in srgb, var(--primary) 90%, #000);
 	--secondary: var(--surface-3);
 	--secondary-foreground: var(--text-1);
 	--muted: var(--surface-3);
@@ -144,7 +161,7 @@
 	--border: var(--border-1);
 	--input: var(--border-2);
 	--ring: var(--focus-ring);
-	--chart-1: var(--accent-9);
+	--chart-1: var(--primary);
 	--chart-2: var(--success-9);
 	--chart-3: var(--info-9);
 	--chart-4: var(--warning-9);
@@ -156,10 +173,10 @@
 	--radius-xl: calc(var(--radius) + 4px);
 	--sidebar: var(--surface-2);
 	--sidebar-foreground: var(--text-1);
-	--sidebar-primary: var(--accent-9);
-	--sidebar-primary-foreground: #fff;
-	--sidebar-accent: var(--accent-3);
-	--sidebar-accent-foreground: var(--accent-11);
+	--sidebar-primary: var(--primary);
+	--sidebar-primary-foreground: var(--primary-foreground);
+	--sidebar-accent: var(--accent);
+	--sidebar-accent-foreground: var(--accent-foreground);
 	--sidebar-border: var(--border-1);
-	--sidebar-ring: var(--focus-ring);
+	--sidebar-ring: var(--ring);
 }

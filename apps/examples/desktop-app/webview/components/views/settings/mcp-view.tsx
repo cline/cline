@@ -659,7 +659,7 @@ export function McpServersContent({
 							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
 							role="alert"
 						>
-							<p className="text-xs font-medium text-destructive">
+							<p className="text-xs font-medium text-error-text">
 								Invalid configuration
 							</p>
 							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
@@ -710,7 +710,7 @@ export function McpServersContent({
 							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
 							role="alert"
 						>
-							<p className="text-xs font-medium text-destructive">
+							<p className="text-xs font-medium text-error-text">
 								Connection failed
 							</p>
 							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
@@ -807,7 +807,7 @@ export function McpServersContent({
 				</Button>
 			</div>
 			{errorMessage && (
-				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text">
 					{errorMessage}
 				</div>
 			)}
@@ -1123,7 +1123,7 @@ export function McpServersContent({
 						</div>
 
 						{formErrorMessage ? (
-							<div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+							<div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text">
 								{formErrorMessage}
 							</div>
 						) : null}

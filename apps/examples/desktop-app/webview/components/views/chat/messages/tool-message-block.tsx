@@ -233,7 +233,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				deletions={summary.diff?.deletions || undefined}
 				icon={
 					hasError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
+						<AlertCircle className="size-4 text-error-text/80" />
 					) : (
 						<Icon className="size-4" />
 					)
@@ -336,7 +336,7 @@ const ToolCallRow = memo(function ToolCallRow({
 					</div>
 				) : null}
 				{summary.errorText ? (
-					<div className="mt-1 break-words text-destructive">
+					<div className="mt-1 break-words text-error-text">
 						{summary.errorText}
 					</div>
 				) : null}
@@ -355,7 +355,7 @@ const ToolCallRow = memo(function ToolCallRow({
 							Proceed while running
 						</Button>
 						{proceedError ? (
-							<div className="text-xs text-destructive">{proceedError}</div>
+							<div className="text-xs text-error-text">{proceedError}</div>
 						) : null}
 					</div>
 				) : null}

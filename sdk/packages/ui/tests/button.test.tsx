@@ -53,7 +53,7 @@ describe("Button", () => {
 		const element = container.querySelector<HTMLButtonElement>("button");
 		expect(forwardedRef).toBe(element);
 		expect(element?.className).toContain("consumer-class");
-		expect(element?.className).toContain("text-cline-ui-destructive");
+		expect(element?.className).toContain("text-cline-ui-error-text");
 		await act(async () => element?.click());
 		expect(onClick).toHaveBeenCalledOnce();
 	});

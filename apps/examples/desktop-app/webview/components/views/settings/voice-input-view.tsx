@@ -167,12 +167,12 @@ export function VoiceInputContent({
 			!selectedEntry?.models.some(
 				(model) => model.id === voiceInput.modelId,
 			) ? (
-				<p className="mb-4 text-sm text-destructive" role="alert">
+				<p className="mb-4 text-sm text-error-text" role="alert">
 					Choose a streaming transcription model to use live voice input.
 				</p>
 			) : null}
 			{modelErrors.length > 0 ? (
-				<p className="mb-4 text-sm text-destructive" role="alert">
+				<p className="mb-4 text-sm text-error-text" role="alert">
 					{modelErrors.join(" ")} Reopen Voice settings to retry.
 				</p>
 			) : null}
@@ -192,7 +192,7 @@ export function VoiceInputContent({
 		return (
 			<PageFrame>
 				{header}
-				<p className="text-sm text-destructive">
+				<p className="text-sm text-error-text">
 					Failed to load providers: {loadError}
 				</p>
 			</PageFrame>
@@ -254,7 +254,7 @@ export function VoiceInputContent({
 				</div>
 
 				{saveError ? (
-					<p className="mt-3 text-xs text-destructive" role="alert">
+					<p className="mt-3 text-xs text-error-text" role="alert">
 						Failed to save voice input settings: {saveError}
 					</p>
 				) : null}

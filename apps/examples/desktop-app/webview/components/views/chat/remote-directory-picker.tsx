@@ -177,7 +177,7 @@ export function RemoteDirectoryPicker({
 							Loading remote directories…
 						</div>
 					) : error ? (
-						<div className="flex h-52 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-destructive">
+						<div className="flex h-52 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-error-text">
 							<CircleAlert className="size-5" />
 							{error}
 						</div>

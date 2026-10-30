@@ -88,6 +88,9 @@
 	--font-weight-cline-ui-medium: var(--font-weight-medium);
 	--font-weight-cline-ui-semibold: var(--font-weight-semibold);
 	--font-weight-cline-ui-bold: var(--font-weight-bold);
+	--text-cline-ui-xxs: var(--text-xxs);
+	--text-cline-ui-xxs--line-height: var(--text-xxs--line-height);
+	--text-cline-ui-xxs--letter-spacing: var(--text-xxs--letter-spacing);
 	--text-cline-ui-xs: var(--text-xs);
 	--text-cline-ui-xs--line-height: var(--text-xs--line-height);
 	--text-cline-ui-xs--letter-spacing: var(--text-xs--letter-spacing);
