@@ -88,6 +88,7 @@ export interface ChatState {
  */
 export interface MessageHandlers {
 	handoffError?: string
+	restoreHandoffDraft?: () => Promise<void>
 	errorRecoveryAvailable: boolean
 	recoveryActionInFlight: boolean
 	compactTask: () => Promise<boolean>

@@ -73,6 +73,20 @@ describe("cloud handoff navigation", () => {
 		expect(clients.discardHandoff).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
 	})
 
+	it("protects recovery until restored and exposes a failed discard for retry", async () => {
+		view = { id: "handoff", sourceTaskId: "local-task", phase: "failed", message: "Launch failed" }
+		const restore = vi.fn().mockRejectedValue(new Error("Discard unavailable"))
+		const { rerender } = render(<CloudHandoff onRestoreDraft={restore} />)
+		expect(screen.queryByRole("button", { name: "Dismiss handoff" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Restore draft" }))
+		await screen.findByText("Discard unavailable")
+		expect(restore).toHaveBeenCalledOnce()
+		rerender(<CloudHandoff />)
+		expect(screen.queryByRole("button", { name: "Restore draft" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Dismiss handoff" }))
+		expect(clients.discardHandoff).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
+	})
+
 	it("shows a failed in-panel open without silently launching a browser", async () => {
 		clients.showTaskWithId.mockRejectedValue(new Error("Cloud session is unavailable."))
 		render(<CloudHandoff />)

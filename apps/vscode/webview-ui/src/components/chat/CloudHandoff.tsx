@@ -19,27 +19,41 @@ function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): str
 		case "complete":
 			return {
 				sent: "Cloud task started. Your local task is still open.",
-				unsent: "The cloud task was created, but the continuation was not sent. Retry here while this window stays open. Your draft has been kept.",
-				unconfirmed: "Delivery is unconfirmed. Open the cloud task and check before resending. Your draft has been kept.",
+				unsent: "The cloud task was created, but the continuation was not sent. Retry here while this window stays open.",
+				unconfirmed: "Delivery is unconfirmed. Open the cloud task and check before resending.",
 			}[view.delivery]
 		case "failed":
 			return view.message
 	}
 }
 
-export function CloudHandoff({ error: preparationError }: { error?: string }) {
+interface CloudHandoffProps {
+	error?: string
+	onRestoreDraft?: () => Promise<void>
+}
+
+export function CloudHandoff({ error: preparationError, onRestoreDraft }: CloudHandoffProps) {
 	const { cloudHandoff: view } = useExtensionState()
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	return (
 		<CloudHandoffNotice
 			key={JSON.stringify([view?.id, view?.phase, sessionId])}
+			onRestoreDraft={onRestoreDraft}
 			preparationError={preparationError}
 			view={view}
 		/>
 	)
 }
 
-function CloudHandoffNotice({ view, preparationError }: { view?: CloudHandoffView; preparationError?: string }) {
+function CloudHandoffNotice({
+	view,
+	preparationError,
+	onRestoreDraft,
+}: {
+	view?: CloudHandoffView
+	preparationError?: string
+	onRestoreDraft?: CloudHandoffProps["onRestoreDraft"]
+}) {
 	const [error, setError] = useState<string>()
 	const [nativeOpenFailed, setNativeOpenFailed] = useState(false)
 	const [confirming, setConfirming] = useState(false)
@@ -200,23 +214,30 @@ function CloudHandoffNotice({ view, preparationError }: { view?: CloudHandoffVie
 									)}
 								</div>
 							)}
+							{onRestoreDraft && (
+								<VSCodeButton appearance="secondary" onClick={() => void run(onRestoreDraft)}>
+									Restore draft
+								</VSCodeButton>
+							)}
 							{errorText && (
 								<div className="w-full text-error whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
 									{errorText}
 								</div>
 							)}
 						</div>
-						{view.phase !== "launching" && !(view.phase === "complete" && view.delivery === "unsent") && (
-							<Button
-								aria-label={dismissLabel}
-								className="size-5 shrink-0"
-								onClick={() => void dismiss()}
-								size="icon"
-								title={dismissLabel}
-								variant="icon">
-								<XIcon />
-							</Button>
-						)}
+						{!onRestoreDraft &&
+							view.phase !== "launching" &&
+							!(view.phase === "complete" && view.delivery === "unsent") && (
+								<Button
+									aria-label={dismissLabel}
+									className="size-5 shrink-0"
+									onClick={() => void dismiss()}
+									size="icon"
+									title={dismissLabel}
+									variant="icon">
+									<XIcon />
+								</Button>
+							)}
 					</div>
 				</section>
 			)}

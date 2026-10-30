@@ -15,9 +15,13 @@ const clearTask = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
 const prepareHandoff = vi.fn().mockResolvedValue(undefined)
+const discardHandoff = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
-	CloudServiceClient: { prepareHandoff: (req: unknown) => prepareHandoff(req) },
+	CloudServiceClient: {
+		prepareHandoff: (req: unknown) => prepareHandoff(req),
+		discardHandoff: (req: unknown) => discardHandoff(req),
+	},
 	TaskServiceClient: {
 		newTask: (req: unknown) => newTask(req),
 		askResponse: (req: unknown) => askResponse(req),
@@ -118,6 +122,7 @@ const completedConversation: ClineMessage[] = [
 describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
 		prepareHandoff.mockClear()
+		discardHandoff.mockReset().mockResolvedValue(undefined)
 		mockHandoff = undefined
 		mockTaskId = undefined
 		newTask.mockReset()
@@ -158,7 +163,12 @@ describe("useMessageHandlers — send routing", () => {
 		expect(state.consumeDraftSnapshot).not.toHaveBeenCalled()
 	})
 
-	it.each([false, true])("consumes only the confirmed handoff draft (edited=%s)", async (edited) => {
+	it.each([
+		{ edited: false, phase: "launching" },
+		{ edited: true, phase: "launching" },
+		{ edited: false, phase: "complete" },
+		{ edited: true, phase: "complete" },
+	] as const)("consumes only the confirmed handoff draft ($phase, edited=$edited)", async ({ edited, phase }) => {
 		mockTaskId = "local-task"
 		const { result, rerender } = renderHook(() => {
 			const chatState = useChatState(completedConversation)
@@ -174,21 +184,107 @@ describe("useMessageHandlers — send routing", () => {
 		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
 		rerender()
 		if (edited) act(() => result.current.chatState.setInputValue("Continue locally"))
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "complete", sessionId: "ses_example", delivery: "sent" }
+		mockHandoff =
+			phase === "launching"
+				? { id: "attempt", sourceTaskId: "local-task", phase, sessionId: "ses_example" }
+				: { id: "attempt", sourceTaskId: "local-task", phase, sessionId: "ses_example", delivery: "sent" }
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
-		const completedHandoff = mockHandoff
+		const retainedHandoff = mockHandoff
 		mockTaskId = "ses_example"
-		mockHandoff = completedHandoff
+		mockHandoff = retainedHandoff
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
 		mockTaskId = "local-task"
-		mockHandoff = completedHandoff
+		mockHandoff = retainedHandoff
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
+	})
+
+	it.each([
+		"failed",
+		"unconfirmed",
+		"unsent",
+		"sent",
+		"cancelled",
+		"preparation-failed",
+	] as const)("preserves local edits and offers the appropriate recovery after %s", async (outcome) => {
+		mockTaskId = "local-task"
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("/cloud finish tests")
+			result.current.chatState.setActiveQuote("quoted context")
+			result.current.chatState.setSelectedImages(["image"])
+		})
+		await act(async () => result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], []))
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		rerender()
+		if (outcome === "cancelled" || outcome === "preparation-failed") {
+			mockHandoff = outcome === "cancelled" ? undefined : { ...mockHandoff, phase: "failed", message: "Preparation failed" }
+			rerender()
+			expect(result.current.chatState.inputValue).toBe("/cloud finish tests")
+			expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+			return
+		}
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "launching" }
+		rerender()
+		expect(result.current.chatState.inputValue).toBe("")
+		expect(result.current.chatState.activeQuote).toBeNull()
+		expect(result.current.chatState.selectedImages).toEqual([])
+		act(() => result.current.chatState.setInputValue("Continue locally"))
+		mockHandoff = { ...mockHandoff, sessionId: "ses_example" }
+		rerender()
+		mockHandoff =
+			outcome === "failed"
+				? { id: "attempt", sourceTaskId: "local-task", phase: "failed", message: "Launch failed" }
+				: { id: "attempt", sourceTaskId: "local-task", phase: "complete", sessionId: "ses_example", delivery: outcome }
+		rerender()
+		expect(result.current.chatState.inputValue).toBe("Continue locally")
+		if (outcome === "sent" || outcome === "unsent") {
+			expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+			return
+		}
+		await expect(result.current.handlers.restoreHandoffDraft?.()).rejects.toThrow("Move or clear")
+		expect(discardHandoff).not.toHaveBeenCalled()
+		act(() => result.current.chatState.setInputValue(""))
+		for (const field of ["quote", "image", "file"] as const) {
+			act(() => {
+				if (field === "quote") result.current.chatState.setActiveQuote("new quote")
+				if (field === "image") result.current.chatState.setSelectedImages(["new image"])
+				if (field === "file") result.current.chatState.setSelectedFiles(["new file"])
+			})
+			await expect(result.current.handlers.restoreHandoffDraft?.()).rejects.toThrow("Move or clear")
+			act(() => {
+				result.current.chatState.setActiveQuote(null)
+				result.current.chatState.setSelectedImages([])
+				result.current.chatState.setSelectedFiles([])
+			})
+		}
+		const savedView = mockHandoff
+		mockTaskId = "other-task"
+		mockHandoff = undefined
+		rerender()
+		expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+		mockTaskId = "local-task"
+		mockHandoff = savedView
+		rerender()
+		if (outcome === "failed") discardHandoff.mockRejectedValueOnce(new Error("Discard unavailable"))
+		await act(async () => {
+			const restore = result.current.handlers.restoreHandoffDraft?.()
+			if (outcome === "failed") await expect(restore).rejects.toThrow("Discard unavailable")
+			else await restore
+		})
+		expect(result.current.chatState.inputValue).toBe("/cloud finish tests")
+		expect(result.current.chatState.activeQuote).toBe("quoted context")
+		expect(result.current.chatState.selectedImages).toEqual(["image"])
+		expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+		expect(discardHandoff).toHaveBeenCalledTimes(outcome === "failed" ? 1 : 0)
 	})
 
 	it("clears the existing-handoff warning after dismissal without consuming the draft", async () => {
