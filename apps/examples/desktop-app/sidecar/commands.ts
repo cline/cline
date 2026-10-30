@@ -1,8 +1,4 @@
 import { execFile, spawn } from "node:child_process";
-import {
-	assertSideConversationAvailable,
-	listTemporarySideConversations,
-} from "./side-conversation/lifecycle";
 import { randomUUID } from "node:crypto";
 import {
 	existsSync,
@@ -214,6 +210,7 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import { assertSideConversationAvailable } from "./side-conversation/lifecycle";
 import {
 	getCommitDetails,
 	getCommitFileDiff,
@@ -692,6 +689,13 @@ async function getSessionFromSidecarManager(
 				assertSideConversationAvailable(ctx, sessionId, merged.metadata);
 			return {
 				...merged,
+				// Queued dispatch precedes the runtime's asynchronous turn preparation.
+				status:
+					binding.kind === "local" &&
+					merged.status === "idle" &&
+					ctx.liveSessions.get(sessionId)?.busy
+						? "running"
+						: merged.status,
 				environmentId: binding.environmentId,
 				remoteEnvironment:
 					binding.kind === "ssh"
@@ -2845,17 +2849,12 @@ export async function handleCommand(
 						sides.closed.add(pending.sessionId);
 						await pending.promise.catch(() => undefined);
 					}
-					for (const child of listTemporarySideConversations()) {
-						if (
-							child.side.parentSessionId === sessionId &&
-							child.side.owner?.runId === ctx.bootId
-						) {
-							await handleCommand(ctx, "delete_chat_session", {
-								sessionId: child.sessionId,
-								environmentId: LOCAL_ENVIRONMENT_ID,
-							});
-						}
-					}
+					const childId = sides.byParent.get(sessionId);
+					if (childId)
+						await handleCommand(ctx, "delete_chat_session", {
+							sessionId: childId,
+							environmentId: LOCAL_ENVIRONMENT_ID,
+						});
 				}
 			}
 
@@ -2981,6 +2980,9 @@ export async function handleCommand(
 					deleted: true,
 					removedWorktree,
 				});
+			}
+			for (const [parentId, childId] of sides.byParent) {
+				if (childId === sessionId) sides.byParent.delete(parentId);
 			}
 			return deleted;
 		} catch (error) {

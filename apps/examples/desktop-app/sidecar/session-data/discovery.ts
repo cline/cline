@@ -43,35 +43,6 @@ function trimKnownString(value: unknown): string | undefined {
 	return trimmed.toLowerCase() === "unknown" ? undefined : trimmed;
 }
 
-export function findLocalSideSessionId(
-	parentSessionId: string,
-	runId: string,
-): string | undefined {
-	const store = new SqliteSessionStore();
-	try {
-		const candidates = store.queryAll<{ session_id: string }>(
-			`SELECT session_id FROM sessions
-			 WHERE CASE WHEN json_valid(metadata_json)
-			   THEN json_extract(metadata_json, '$.desktopSideConversation.parentSessionId') END = ?
-			 ORDER BY started_at DESC, session_id DESC`,
-			[parentSessionId],
-		);
-		for (const { session_id: sessionId } of candidates) {
-			const metadata = store.get(sessionId)?.metadata;
-			const side = readSideConversation(metadata);
-			if (
-				side?.parentSessionId === parentSessionId &&
-				side?.owner?.runId === runId &&
-				!metadata?.remoteEnvironmentId
-			)
-				return sessionId;
-		}
-		return undefined;
-	} finally {
-		store.close();
-	}
-}
-
 export function discoverChatSessions(
 	ctx: DiscoveryChatContext,
 	limit = 300,

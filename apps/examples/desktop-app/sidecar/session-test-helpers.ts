@@ -13,6 +13,7 @@ export function localRuntimeContext(
 		temporarySideConversations: {
 			closing: false,
 			closed: new Set<string>(),
+			byParent: new Map(),
 			pending: new Map<
 				string,
 				{ sessionId: string; promise: Promise<unknown> }

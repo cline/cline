@@ -32,6 +32,12 @@ import {
 } from "./feature-flags";
 import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
+import {
+	cleanupStaleSideConversations,
+	deleteTemporarySideConversation,
+	isTemporarySideClosed,
+	listTemporarySideConversations,
+} from "./side-conversation/lifecycle";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -42,12 +48,6 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
-import {
-	cleanupStaleSideConversations,
-	isTemporarySideClosed,
-	deleteTemporarySideConversation,
-	listTemporarySideConversations,
-} from "./side-conversation/lifecycle";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 const hubClientInitialization = new WeakMap<
@@ -710,6 +710,7 @@ export function createSidecarContext(
 		temporarySideConversations: {
 			closing: false,
 			closed: new Set(),
+			byParent: new Map(),
 			pending: new Map(),
 		},
 		wsClients: new Set(),

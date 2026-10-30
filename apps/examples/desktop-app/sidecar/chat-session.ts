@@ -4,12 +4,10 @@ import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
-	captureSideReference,
-	createSideHistoryTool,
-	SIDE_SCOPE_INSTRUCTIONS,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	captureSideReference,
 	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
@@ -27,10 +25,10 @@ import {
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
-	type ToolPolicy,
 	SessionSource,
 	splitCoreSessionConfig,
 	summarizeConversation,
+	type ToolPolicy,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
@@ -90,18 +88,14 @@ import {
 	readWorkspacePath,
 	workspacePathKey,
 } from "./session-config";
-import {
-	derivePromptFromMessages,
-	normalizeSessionTitle,
-} from "./session-data/common";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
-import { findLocalSideSessionId } from "./session-data/discovery";
 import {
 	assertSideConversationAvailable,
 	isTemporarySideClosed,
-	deleteTemporarySideConversation,
 	sideConversationOwner,
 } from "./side-conversation/lifecycle";
+import { startSessionWithSidePolicy } from "./side-conversation/runtime";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -678,7 +672,6 @@ function buildCoreSessionConfig(
 	config: JsonRecord,
 	telemetryUser?: SidecarContext["telemetryUser"],
 	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
-	sideMetadata?: JsonRecord,
 ): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
@@ -714,9 +707,6 @@ function buildCoreSessionConfig(
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
-		...(readSideConversation(sideMetadata)
-			? { enableSpawnAgent: false, enableAgentTeams: false }
-			: {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -865,17 +855,7 @@ function recoverSideConfig(
 		: config;
 }
 
-async function resolveSystemPrompt(
-	config: JsonRecord,
-	metadata?: JsonRecord,
-): Promise<string> {
-	const prompt = await resolveBaseSystemPrompt(config);
-	return readSideConversation(metadata)
-		? `${prompt}\n\n${SIDE_SCOPE_INSTRUCTIONS}`
-		: prompt;
-}
-
-async function resolveBaseSystemPrompt(config: JsonRecord): Promise<string> {
+async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
 	).trim();
@@ -909,12 +889,8 @@ async function resolveBaseSystemPrompt(config: JsonRecord): Promise<string> {
 	});
 }
 
-function resolveToolPolicies(
-	config: JsonRecord,
-	metadata?: unknown,
-): Record<string, ToolPolicy> {
+function resolveToolPolicies(config: JsonRecord): Record<string, ToolPolicy> {
 	return {
-		...(readSideConversation(metadata) ? { tasks: { enabled: false } } : {}),
 		"*": {
 			autoApprove: config.autoApproveTools !== false,
 		},
@@ -1079,7 +1055,7 @@ async function handleCreateSide(
 		);
 	const pending = state.pending.get(parsed.sessionId);
 	if (pending) return pending.promise;
-	const existingId = findLocalSideSessionId(parsed.sessionId, ctx.bootId);
+	const existingId = state.byParent.get(parsed.sessionId);
 	if (existingId) assertSideConversationAvailable(ctx, existingId);
 	const effectiveRequest = existingId
 		? { ...request, newSessionId: existingId }
@@ -1184,6 +1160,10 @@ async function createSideConversation(
 			readSideConversation(existing.metadata)?.owner?.runId !== ctx.bootId
 		)
 			throw new Error("The requested side conversation ID is already in use.");
+		ctx.temporarySideConversations.byParent.set(
+			request.sessionId,
+			request.newSessionId,
+		);
 		return CreateSideConversationResultSchema.parse({
 			...existing,
 			...readSideConfig(existing.metadata),
@@ -1227,6 +1207,10 @@ async function createSideConversation(
 			ctx,
 			{ action: "start", config },
 			{ metadata, messages: [seed] },
+		);
+		ctx.temporarySideConversations.byParent.set(
+			request.sessionId,
+			request.newSessionId,
 		);
 		const live = ctx.liveSessions.get(request.newSessionId);
 		if (live) live.title = metadata.title;
@@ -1321,7 +1305,7 @@ async function handleStartUnlocked(
 	const systemPrompt =
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(config)
-			: await resolveSystemPrompt(config, metadata);
+			: await resolveSystemPrompt(config);
 	const requestedSessionId = String(
 		config.sessionId ?? config.session_id ?? "",
 	).trim();
@@ -1343,25 +1327,13 @@ async function handleStartUnlocked(
 				: undefined);
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
-	const relation = readSideConversation(metadata);
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(
 			config,
 			ctx.telemetryUser,
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
-			metadata,
 		),
 		systemPrompt,
-		...(relation
-			? {
-					extraTools: [
-						createSideHistoryTool({
-							manager,
-							parentSessionId: relation.parentSessionId,
-						}),
-					],
-				}
-			: {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -1373,13 +1345,12 @@ async function handleStartUnlocked(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	assertSideConversationAvailable(ctx, requestedSessionId, metadata);
-	const startResult = await manager.start({
+	const startResult = await startSessionWithSidePolicy(ctx, manager, {
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(config, metadata),
+		toolPolicies: resolveToolPolicies(config),
 		sessionMetadata:
 			binding.kind === "ssh"
 				? {
@@ -1392,16 +1363,6 @@ async function handleStartUnlocked(
 					: undefined,
 	});
 	const sessionId = startResult.sessionId;
-	try {
-		assertSideConversationAvailable(ctx, sessionId, metadata);
-	} catch (error) {
-		if (readSideConversation(metadata)) {
-			ctx.temporarySideConversations.closed.add(sessionId);
-			await cancelSidecarSessionInteractions(ctx, sessionId, "Side chat ended");
-			await deleteTemporarySideConversation(manager, sessionId);
-		}
-		throw error;
-	}
 	if (
 		persistedSideConfig &&
 		!side &&
@@ -1579,32 +1540,19 @@ async function startRebuiltSession(
 			),
 		};
 		config = recoverSideConfig({ ...config, sessionId }, metadata);
-		systemPrompt = await resolveSystemPrompt(config, metadata);
+		systemPrompt = await resolveSystemPrompt(config);
 	}
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
-	const relation = readSideConversation(metadata);
 	const coreConfig = {
 		...buildCoreSessionConfig(
 			{ ...config, sessionId, systemPrompt },
 			ctx.telemetryUser,
 			createDesktopMistakeRecovery(ctx, () => sessionId),
-			metadata,
 		),
-		...(relation
-			? {
-					extraTools: [
-						createSideHistoryTool({
-							manager,
-							parentSessionId: relation.parentSessionId,
-						}),
-					],
-				}
-			: {}),
 	};
-	assertSideConversationAvailable(ctx, sessionId, metadata);
-	const restarted = await manager.start({
+	const restarted = await startSessionWithSidePolicy(ctx, manager, {
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -1621,18 +1569,8 @@ async function startRebuiltSession(
 					}),
 				}
 			: {}),
-		toolPolicies: resolveToolPolicies(config, metadata),
+		toolPolicies: resolveToolPolicies(config),
 	});
-	try {
-		assertSideConversationAvailable(ctx, sessionId, metadata);
-	} catch (error) {
-		if (readSideConversation(metadata)) {
-			ctx.temporarySideConversations.closed.add(sessionId);
-			await cancelSidecarSessionInteractions(ctx, sessionId, "Side chat ended");
-			await deleteTemporarySideConversation(manager, sessionId);
-		}
-		throw error;
-	}
 	if (restarted.sessionId !== sessionId) {
 		throw new Error(
 			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,

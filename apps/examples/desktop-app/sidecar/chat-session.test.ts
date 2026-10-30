@@ -13,14 +13,14 @@ import {
 	createSessionCompactionState,
 	SessionNotFoundError,
 	type SessionRecord,
-	SqliteSessionStore,
 	SIDE_SCOPE_INSTRUCTIONS,
+	SqliteSessionStore,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
+import type { SideVisibleContext } from "@cline/shared";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateSideConversationResultSchema } from "../shared/side-conversation";
-import type { SideVisibleContext } from "@cline/shared";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -37,23 +37,20 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
-	getEnvironmentContext,
 	disposeSidecarContext,
+	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import * as sessionPaths from "./paths";
 import { writeSessionManifest } from "./paths";
-import {
-	discoverChatSessions,
-	findLocalSideSessionId,
-} from "./session-data/discovery";
+import * as pluginCommands from "./plugin-commands";
+import { discoverChatSessions } from "./session-data/discovery";
 import {
 	persistSessionMessages,
 	readPersistedChatMessages,
 } from "./session-data/messages";
-import * as sessionPaths from "./paths";
-import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -3570,7 +3567,6 @@ describe("side conversation lifecycle", () => {
 		expect(readMessages).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledTimes(1);
 		ctx.bootId = "another-app-run";
-		expect(findLocalSideSessionId(parentId, ctx.bootId)).toBeUndefined();
 		for (const action of ["attach", "send"] as const) {
 			await expect(
 				handleChatSessionCommand(ctx, {
@@ -3582,6 +3578,61 @@ describe("side conversation lifecycle", () => {
 			).rejects.toThrow("temporary side chat has ended");
 		}
 		expect(store.get(sideId)).toBeDefined();
+	});
+
+	it("keeps an announced queued turn active while its runtime record is still idle", async () => {
+		const { handleCommand } = await import("./commands");
+		const { ctx, create, records } = setup(false);
+		await create();
+		const read = () =>
+			handleCommand(ctx, "get_discovered_session", {
+				sessionId: sideId,
+				environmentId: "local",
+			});
+		handleCoreSessionEvent(ctx, {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: sideId,
+				id: "queued",
+				prompt: "Question",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		});
+		await expect(read()).resolves.toMatchObject({ status: "running" });
+		const record = records.get(sideId);
+		if (!record) throw new Error("Missing side fixture");
+		record.status = "failed";
+		await expect(read()).resolves.toMatchObject({ status: "failed" });
+		record.status = "idle";
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: sideId,
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "Answer",
+					iterations: 1,
+				},
+			},
+		});
+		await expect(read()).resolves.toMatchObject({ status: "idle" });
+	});
+
+	it("allows a fresh opening after runtime creation fails", async () => {
+		const { ctx, create, start } = setup(false);
+		start.mockRejectedValueOnce(new Error("Runtime unavailable"));
+		await expect(create()).rejects.toThrow("Runtime unavailable");
+		const newSessionId = "3757c861-c10c-4df4-9ec1-72867dc01104";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId,
+				config: { environmentId: "local" },
+			}),
+		).resolves.toMatchObject({ sessionId: newSessionId });
 	});
 
 	it("does not resurrect a side deleted while runtime creation is finishing", async () => {
@@ -4071,39 +4122,6 @@ describe("side conversation lifecycle", () => {
 			],
 		});
 		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
-	});
-
-	it("looks up a saved side without paging unrelated history or accepting malformed metadata", async () => {
-		const { ctx, create } = setup(false);
-		await create();
-		const side = store.get(sideId);
-		if (!side) throw new Error("side fixture missing");
-		for (let index = 0; index < 300; index++) {
-			store.create({
-				...side,
-				sessionId: `unrelated-${index}`,
-				startedAt: "2099-01-01T00:00:00.000Z",
-				metadata: {},
-			});
-		}
-		store.create({
-			...side,
-			sessionId: "malformed-side",
-			startedAt: "2099-01-01T00:00:00.000Z",
-			metadata: { desktopSideConversation: { parentSessionId: parentId } },
-		});
-		store.create({
-			...side,
-			sessionId: "remote-side",
-			startedAt: "2099-01-01T00:00:00.000Z",
-			metadata: { ...side.metadata, remoteEnvironmentId: "remote" },
-		});
-		store.run("UPDATE sessions SET metadata_json = ? WHERE session_id = ?", [
-			"not-json",
-			"unrelated-0",
-		]);
-		expect(findLocalSideSessionId(parentId, ctx.bootId)).toBe(sideId);
-		expect(findLocalSideSessionId("absent", ctx.bootId)).toBeUndefined();
 	});
 
 	it("retains side history and live state when runtime deletion fails", async () => {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
 	ConversationWorkspace,
 	type ConversationWorkspaceControls,
+	useConversationWorkspace,
 } from "./conversation-workspace";
 
 vi.mock("@/lib/prompt-input-focus", () => ({
@@ -70,26 +71,45 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
-async function render(version = 1) {
-	await act(async () =>
-		root.render(
-			<ConversationWorkspace
-				mainThreadId="parent"
-				sideThreadId="child"
-				openVersion={version}
-				main={(controls) => {
-					rail = controls;
-					return (
-						<>
-							<Chat surface="main" />
-							{controls.sideTarget &&
-								createPortal(<Chat surface="side" />, controls.sideTarget)}
-						</>
-					);
-				}}
-			/>,
-		),
+function Harness({
+	version = 1,
+	child = "child",
+	ready = true,
+	onDetail,
+}: {
+	version?: number;
+	child?: string;
+	ready?: boolean;
+	onDetail?: () => void;
+}) {
+	rail = useConversationWorkspace({
+		mainThreadId: "parent",
+		sideThreadId: child || undefined,
+		openVersion: version,
+	});
+	return (
+		<ConversationWorkspace
+			controls={rail}
+			main={ready ? <Chat surface="main" /> : <div>Connecting…</div>}
+			side={
+				<>
+					<Chat surface="side" />
+					{onDetail &&
+						rail.target &&
+						rail.surface.kind === "changes" &&
+						createPortal(
+							<button type="button" onClick={onDetail}>
+								Detail action
+							</button>,
+							rail.target,
+						)}
+				</>
+			}
+		/>
 	);
+}
+async function render(version = 1) {
+	await act(async () => root.render(<Harness version={version} />));
 }
 it("retains both controllers and drafts through close, reopen, and narrow switching", async () => {
 	await render();
@@ -178,18 +198,7 @@ it("retains saved desktop width across narrow mode and supports keyboard resizin
 	);
 });
 it("does not reveal a late selected child without an open version change", async () => {
-	await act(async () =>
-		root.render(
-			<ConversationWorkspace
-				mainThreadId="parent"
-				openVersion={0}
-				main={(controls) => {
-					rail = controls;
-					return <Chat surface="main" />;
-				}}
-			/>,
-		),
-	);
+	await act(async () => root.render(<Harness version={0} child="" />));
 	const before = rail.getCloseRevision();
 	await act(async () => rail.close());
 	expect(rail.getCloseRevision()).toBeGreaterThan(before);
@@ -202,38 +211,7 @@ it("keeps source-owned detail controls usable when their narrow conversation is 
 	width = 700;
 	const onReview = () => rail.open({ kind: "changes", threadId: "child" });
 	const clicked = vi.fn();
-	await act(async () =>
-		root.render(
-			<ConversationWorkspace
-				mainThreadId="parent"
-				sideThreadId="child"
-				openVersion={1}
-				main={(controls) => {
-					rail = controls;
-					return (
-						<>
-							<Chat surface="main" />
-							{controls.sideTarget &&
-								createPortal(
-									<>
-										<Chat surface="side" />
-										{controls.target && controls.surface.kind === "changes"
-											? createPortal(
-													<button type="button" onClick={clicked}>
-														Detail action
-													</button>,
-													controls.target,
-												)
-											: null}
-									</>,
-									controls.sideTarget,
-								)}
-						</>
-					);
-				}}
-			/>,
-		),
-	);
+	await act(async () => root.render(<Harness onDetail={clicked} />));
 	await act(async () => onReview());
 	const button = [...host.querySelectorAll("button")].find(
 		(element) => element.textContent === "Detail action",
@@ -248,39 +226,10 @@ it("keeps source-owned detail controls usable when their narrow conversation is 
 	expect(rail.mainVisible).toBe(false);
 });
 
-it("opens an empty side host immediately and retains its portal through main readiness changes", async () => {
-	function Main({
-		ready,
-		controls,
-	}: {
-		ready: boolean;
-		controls: ConversationWorkspaceControls;
-	}) {
-		return (
-			<>
-				{controls.sideTarget
-					? createPortal(
-							<Chat surface="side" />,
-							controls.sideTarget,
-							"side-conversation",
-						)
-					: null}
-				{ready ? <Chat surface="main" /> : <div>Connecting…</div>}
-			</>
-		);
-	}
+it("opens an empty side host immediately and retains its draft through main readiness changes", async () => {
 	const renderReady = async (ready: boolean) => {
 		await act(async () =>
-			root.render(
-				<ConversationWorkspace
-					mainThreadId="parent"
-					openVersion={0}
-					main={(controls) => {
-						rail = controls;
-						return <Main ready={ready} controls={controls} />;
-					}}
-				/>,
-			),
+			root.render(<Harness version={0} child="" ready={ready} />),
 		);
 	};
 	await renderReady(true);
@@ -290,7 +239,7 @@ it("opens an empty side host immediately and retains its portal through main rea
 	const draft = host.querySelector<HTMLTextAreaElement>(
 		'[aria-label="side draft"]',
 	);
-	if (!draft) throw new Error("Missing portal draft");
+	if (!draft) throw new Error("Missing side draft");
 	draft.value = "Keep this side draft";
 	await renderReady(false);
 	await renderReady(true);

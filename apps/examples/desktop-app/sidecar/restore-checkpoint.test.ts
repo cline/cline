@@ -45,6 +45,7 @@ describe("restore_checkpoint", () => {
 			temporarySideConversations: {
 				closing: false,
 				closed: new Set<string>(),
+				byParent: new Map(),
 				pending: new Map(),
 			},
 			liveSessions: new Map([

@@ -8,7 +8,6 @@ import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	Activity,
-	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -52,6 +51,7 @@ import {
 import {
 	ConversationWorkspace,
 	type ConversationWorkspaceControls,
+	useConversationWorkspace,
 } from "@/components/views/chat/conversation-workspace";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
@@ -75,7 +75,6 @@ import {
 	getInitialChatConfig,
 	getInitialCloudModel,
 } from "@/hooks/chat-session/constants";
-import { useSideChatAttention } from "@/hooks/side-conversation/use-side-chat-attention";
 import { useSideConversation } from "@/hooks/side-conversation/use-side-conversation";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -1416,110 +1415,79 @@ function App() {
 				activeParentId,
 	);
 	const selectedSideSession = sideThread?.historySession;
-	const attention = useSideChatAttention(selectedSideSession);
-	const sideAttentionLabel = (() => {
-		if (!selectedSideSession) return "";
-		if (attention && (attention.approvals > 0 || attention.questions > 0))
-			return "Needs input";
-		if (!attention || attention.kind === "unknown") return "Connection unknown";
-		if (attention.status === "running" || attention.status === "provisioning")
-			return "Working";
-		if (attention.status === "failed" || attention.status === "error")
-			return "Failed";
-		return "";
-	})();
 
-	const renderThread = (
+	const threadProps = (
 		thread: DesktopThread,
 		presentation: "main" | "side",
-		workspace: ConversationWorkspaceControls,
-		side?: {
-			renderSide?: (controls: SidePresentationControls) => ReactNode;
-			active?: boolean;
-			mainConfig?: ChatSessionConfig;
-		},
-	) => (
-		<ChatThreadPane
-			handoffUiState={handoffUiState}
-			onHandoffUiAction={dispatchHandoffUi}
-			handoffLifecycle={handoffLifecycle}
-			confirmHandoffGit={confirmHandoffGit}
-			initialAttachments={thread.initialAttachments}
-			workspace={workspace}
-			mainConfig={side?.mainConfig}
-			renderSide={side?.renderSide}
-			presentation={presentation}
-			interactive={view === "chat" && side?.active !== false}
-			sideAttentionLabel={sideAttentionLabel}
-			selectedSideSession={selectedSideSession}
-			onOpenSide={(session, submission, reveal) =>
-				dispatchApp({
-					type: "open-side",
-					session,
-					submission,
-					reveal,
-				})
-			}
-			key={`${thread.id}:${thread.environmentId}`}
-			environmentId={thread.environmentId}
-			environmentProfiles={remoteEnvironmentProfiles}
-			environmentProfilesLoading={remoteEnvironmentProfilesLoading}
-			onAddSshHost={() => handleSettingsSectionChange("Remote")}
-			onPickRemoteWorkspaceDirectory={pickRemoteWorkspaceDirectory}
-			onSelectEnvironment={handleSelectEnvironment}
-			remoteEnvironment={
-				activeRemoteEnvironment?.id === thread.environmentId
-					? activeRemoteEnvironment
-					: null
-			}
-			historySession={thread.historySession}
-			liveHistorySession={sessionHistory.sessionById.get(
-				sessionKey({
-					sessionId: thread.sessionId ?? thread.historySession?.sessionId ?? "",
-					environmentId: thread.environmentId,
-				}),
-			)}
-			initialPromptDraft={thread.initialPromptDraft}
-			pendingSideSubmissions={thread.pendingSideSubmissions}
-			onInitialSideSubmissionConsumed={handleInitialSideSubmissionConsumed}
-			onReturnFromSide={handleReturnFromSide}
-			promptDrafts={promptDrafts}
-			knownWorkspacePaths={historyWorkspacePaths}
-			onInitialPromptDraftConsumed={handleInitialPromptDraftConsumed}
-			onUpdateSessionMetadata={(sessionId, metadata) =>
-				handleUpdateSessionMetadata(sessionId, metadata, thread.environmentId)
-			}
-			threadId={thread.id}
-			onDeleteSession={(sessionId, threadId) =>
-				handleDeleteSession(sessionId, threadId, thread.environmentId)
-			}
-			onNewThread={handleNewThread}
-			onOpenSession={handleOpenSession}
-			onOpenSessionById={handleOpenSessionById}
-			onOpenSetup={handleOpenSetup}
-			onOpenModelSettings={() => handleSettingsSectionChange("Providers")}
-			onOpenLocalModels={() =>
-				handleSettingsSectionChange("Local Models", thread.id)
-			}
-			onOpenAccountSettings={() => handleSettingsSectionChange("Account")}
-			parentSession={activeParentSession}
-			onThreadStarted={handleThreadStarted}
-			terminal={
-				terminalAvailable && presentation === "main"
-					? {
-							open: terminalPanel.open,
-							height: terminalPanel.height,
-							shortcut: keybindings["toggle-terminal"].key
-								? formatAccelerator(keybindings["toggle-terminal"].key)
-								: undefined,
-							onToggle: handleToggleTerminal,
-							onClose: handleCloseTerminal,
-							onHeightChange: handleTerminalHeightChange,
-						}
-					: undefined
-			}
-		/>
-	);
+	): ThreadPaneProps => ({
+		handoffUiState,
+		onHandoffUiAction: dispatchHandoffUi,
+		handoffLifecycle,
+		confirmHandoffGit,
+		initialAttachments: thread.initialAttachments,
+		presentation,
+		interactive: view === "chat",
+		selectedSideSession,
+		onOpenSide: (session, submission, reveal) =>
+			dispatchApp({
+				type: "open-side",
+				session,
+				submission,
+				reveal,
+			}),
+		environmentId: thread.environmentId,
+		environmentProfiles: remoteEnvironmentProfiles,
+		environmentProfilesLoading: remoteEnvironmentProfilesLoading,
+		onAddSshHost: () => handleSettingsSectionChange("Remote"),
+		onPickRemoteWorkspaceDirectory: pickRemoteWorkspaceDirectory,
+		onSelectEnvironment: handleSelectEnvironment,
+		remoteEnvironment:
+			activeRemoteEnvironment?.id === thread.environmentId
+				? activeRemoteEnvironment
+				: null,
+		historySession: thread.historySession,
+		liveHistorySession: sessionHistory.sessionById.get(
+			sessionKey({
+				sessionId: thread.sessionId ?? thread.historySession?.sessionId ?? "",
+				environmentId: thread.environmentId,
+			}),
+		),
+		initialPromptDraft: thread.initialPromptDraft,
+		pendingSideSubmissions: thread.pendingSideSubmissions,
+		onInitialSideSubmissionConsumed: handleInitialSideSubmissionConsumed,
+		onReturnFromSide: handleReturnFromSide,
+		promptDrafts,
+		knownWorkspacePaths: historyWorkspacePaths,
+		onInitialPromptDraftConsumed: handleInitialPromptDraftConsumed,
+		onUpdateSessionMetadata: (sessionId, metadata) =>
+			handleUpdateSessionMetadata(sessionId, metadata, thread.environmentId),
+		threadId: thread.id,
+		onDeleteSession: (sessionId, threadId) =>
+			handleDeleteSession(sessionId, threadId, thread.environmentId),
+		onNewThread: handleNewThread,
+		onOpenSession: handleOpenSession,
+		onOpenSessionById: handleOpenSessionById,
+		onOpenSetup: handleOpenSetup,
+		onOpenModelSettings: () => handleSettingsSectionChange("Providers"),
+		onOpenLocalModels: () =>
+			handleSettingsSectionChange("Local Models", thread.id),
+		onOpenAccountSettings: () => handleSettingsSectionChange("Account"),
+		parentSession: activeParentSession,
+		onThreadStarted: handleThreadStarted,
+		terminal:
+			terminalAvailable && presentation === "main"
+				? {
+						open: terminalPanel.open,
+						height: terminalPanel.height,
+						shortcut: keybindings["toggle-terminal"].key
+							? formatAccelerator(keybindings["toggle-terminal"].key)
+							: undefined,
+						onToggle: handleToggleTerminal,
+						onClose: handleCloseTerminal,
+						onHeightChange: handleTerminalHeightChange,
+					}
+				: undefined,
+	});
 
 	return (
 		<AccountProvider>
@@ -1575,22 +1543,13 @@ function App() {
 										className="flex min-h-0 flex-1 flex-col"
 										inert={view === "settings" ? true : undefined}
 									>
-										<ConversationWorkspace
-											key={activeThread.id}
-											mainThreadId={activeThread.id}
-											sideThreadId={sideThread?.id}
-											openVersion={appState.sideOpenVersion}
-											main={(workspace) =>
-												renderThread(activeThread, "main", workspace, {
-													renderSide: ({ active, mainConfig }) =>
-														sideThread
-															? renderThread(sideThread, "side", workspace, {
-																	active,
-																	mainConfig,
-																})
-															: null,
-												})
+										<MainConversation
+											key={`${activeThread.id}:${activeThread.environmentId}`}
+											main={threadProps(activeThread, "main")}
+											side={
+												sideThread ? threadProps(sideThread, "side") : undefined
 											}
+											openVersion={appState.sideOpenVersion}
 										/>
 									</div>
 								) : null}
@@ -1677,11 +1636,6 @@ function App() {
 	);
 }
 
-type SidePresentationControls = {
-	active: boolean;
-	mainConfig: ChatSessionConfig;
-};
-
 // "+ new chat" remounts ChatThreadPane with a fresh thread id, and the pane
 // blocks on the provider catalog (a large fetch) before rendering anything.
 // Seed remounts from the last successful load (kept in the catalog module,
@@ -1689,56 +1643,9 @@ type SidePresentationControls = {
 // the boot spinner; the effect still refreshes in the background.
 let workspacesLoadedOnce = false;
 
-function ChatThreadPane({
-	workspace,
-	mainConfig,
-	renderSide,
-	presentation,
-	interactive,
-	selectedSideSession,
-	onOpenSide,
-	sideAttentionLabel,
-	confirmHandoffGit,
-	threadId,
-	promptDrafts,
-	environmentId,
-	environmentProfiles,
-	environmentProfilesLoading,
-	historySession,
-	liveHistorySession,
-	initialAttachments,
-	initialPromptDraft,
-	pendingSideSubmissions,
-	onInitialSideSubmissionConsumed,
-	onReturnFromSide,
-	handoffLifecycle,
-	knownWorkspacePaths,
-	onInitialPromptDraftConsumed,
-	onUpdateSessionMetadata,
-	onAddSshHost,
-	onDeleteSession,
-	onNewThread,
-	onOpenSession,
-	onOpenSessionById,
-	onOpenSetup,
-	onOpenModelSettings,
-	onOpenLocalModels,
-	onOpenAccountSettings,
-	onPickRemoteWorkspaceDirectory,
-	onSelectEnvironment,
-	parentSession,
-	remoteEnvironment,
-	onThreadStarted,
-	handoffUiState,
-	onHandoffUiAction,
-	terminal,
-}: {
-	workspace: ConversationWorkspaceControls;
-	mainConfig?: ChatSessionConfig;
-	renderSide?: (controls: SidePresentationControls) => ReactNode;
+type ThreadPaneProps = {
 	presentation: "main" | "side";
 	interactive: boolean;
-	sideAttentionLabel: string;
 	selectedSideSession?: SessionHistoryItem;
 	onOpenSide: (
 		session: SessionHistoryItem,
@@ -1807,6 +1714,73 @@ function ChatThreadPane({
 		onClose: () => void;
 		onHeightChange: (height: number) => void;
 	};
+};
+
+function MainConversation({
+	main,
+	side,
+	openVersion,
+}: {
+	main: ThreadPaneProps;
+	side?: ThreadPaneProps;
+	openVersion: number;
+}) {
+	const workspace = useConversationWorkspace({
+		mainThreadId: main.threadId,
+		sideThreadId: side?.threadId,
+		openVersion,
+	});
+	return <ChatThreadPane {...main} workspace={workspace} sideThread={side} />;
+}
+
+function ChatThreadPane({
+	workspace,
+	mainConfig,
+	sideThread,
+	onAttentionChange,
+	presentation,
+	interactive,
+	selectedSideSession,
+	onOpenSide,
+	confirmHandoffGit,
+	threadId,
+	promptDrafts,
+	environmentId,
+	environmentProfiles,
+	environmentProfilesLoading,
+	historySession,
+	liveHistorySession,
+	initialAttachments,
+	initialPromptDraft,
+	pendingSideSubmissions,
+	onInitialSideSubmissionConsumed,
+	onReturnFromSide,
+	handoffLifecycle,
+	knownWorkspacePaths,
+	onInitialPromptDraftConsumed,
+	onUpdateSessionMetadata,
+	onAddSshHost,
+	onDeleteSession,
+	onNewThread,
+	onOpenSession,
+	onOpenSessionById,
+	onOpenSetup,
+	onOpenModelSettings,
+	onOpenLocalModels,
+	onOpenAccountSettings,
+	onPickRemoteWorkspaceDirectory,
+	onSelectEnvironment,
+	parentSession,
+	remoteEnvironment,
+	onThreadStarted,
+	handoffUiState,
+	onHandoffUiAction,
+	terminal,
+}: ThreadPaneProps & {
+	workspace: ConversationWorkspaceControls;
+	mainConfig?: ChatSessionConfig;
+	sideThread?: ThreadPaneProps;
+	onAttentionChange?: (threadId: string, label: string) => void;
 }) {
 	const visible =
 		interactive &&
@@ -1831,6 +1805,7 @@ function ChatThreadPane({
 		promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
+		interactionsKnown,
 		setConfig,
 		updateSideSettings,
 		setWorkspacePath,
@@ -1849,6 +1824,51 @@ function ChatThreadPane({
 		abort,
 		hydrateSession,
 	} = useChatSession(environmentId, mainConfig);
+	const [sideAttention, setSideAttention] = useState<{
+		threadId: string;
+		label: string;
+	}>();
+	const reportSideAttention = useCallback((threadId: string, label: string) => {
+		setSideAttention((current) =>
+			current?.threadId === threadId && current.label === label
+				? current
+				: { threadId, label },
+		);
+	}, []);
+	const sideAttentionLabel = sideThread
+		? sideAttention?.threadId === sideThread.threadId
+			? sideAttention.label
+			: "Connection unknown"
+		: "";
+	useEffect(() => {
+		if (!onAttentionChange) return;
+		const label =
+			pendingToolApprovals.length || pendingAskQuestions.length
+				? "Needs input"
+				: !sessionId ||
+						isHydratingSession ||
+						chatTransportState !== "connected" ||
+						!interactionsKnown
+					? "Connection unknown"
+					: status === "running" ||
+							status === "starting" ||
+							status === "stopping"
+						? "Working"
+						: status === "error" || status === "failed"
+							? "Failed"
+							: "";
+		onAttentionChange(threadId, label);
+	}, [
+		onAttentionChange,
+		threadId,
+		sessionId,
+		isHydratingSession,
+		chatTransportState,
+		interactionsKnown,
+		pendingToolApprovals.length,
+		pendingAskQuestions.length,
+		status,
+	]);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
 	useEffect(() => {
@@ -2661,37 +2681,6 @@ function ChatThreadPane({
 		drafts: promptDrafts,
 	});
 
-	const sideContent = useMemo(
-		() =>
-			renderSide?.({
-				mainConfig: config,
-				active: side.openingState.kind === "idle",
-			}),
-		[renderSide, side.openingState.kind, config],
-	);
-	const sidePortal =
-		renderSide && workspace.sideTarget
-			? createPortal(
-					<div className="relative flex min-h-0 flex-1 flex-col">
-						<div
-							className="flex min-h-0 flex-1 flex-col"
-							inert={side.openingState.kind !== "idle" || undefined}
-							aria-hidden={side.openingState.kind !== "idle" || undefined}
-						>
-							{sideContent}
-						</div>
-						{side.openingState.kind !== "idle" && (
-							<SideConversationOpening
-								state={side.openingState}
-								onHide={workspace.close}
-								onRetry={side.retry}
-							/>
-						)}
-					</div>,
-					workspace.sideTarget,
-					"side-conversation",
-				)
-			: null;
 	const handleRestoreHandoffDraft = useCallback(
 		async (destination: "local" | "cloud") => {
 			if (!sourceSessionId) return;
@@ -3992,10 +3981,39 @@ function ChatThreadPane({
 			</AlertDialog>
 		</WorkspaceProvider>
 	);
+	const content = isAppReady ? readyContent : loadingContent;
+	if (presentation === "side") return content;
 	return (
-		<>
-			{sidePortal}
-			{isAppReady ? readyContent : loadingContent}
-		</>
+		<ConversationWorkspace
+			controls={workspace}
+			main={content}
+			side={
+				<div className="relative flex min-h-0 flex-1 flex-col">
+					<div
+						className="flex min-h-0 flex-1 flex-col"
+						inert={side.openingState.kind !== "idle" || undefined}
+						aria-hidden={side.openingState.kind !== "idle" || undefined}
+					>
+						{sideThread && (
+							<ChatThreadPane
+								{...sideThread}
+								key={`${sideThread.threadId}:${sideThread.environmentId}`}
+								workspace={workspace}
+								mainConfig={config}
+								interactive={interactive && side.openingState.kind === "idle"}
+								onAttentionChange={reportSideAttention}
+							/>
+						)}
+					</div>
+					{side.openingState.kind !== "idle" && (
+						<SideConversationOpening
+							state={side.openingState}
+							onHide={workspace.close}
+							onRetry={side.retry}
+						/>
+					)}
+				</div>
+			}
+		/>
 	);
 }

@@ -153,6 +153,7 @@ export type SidecarContext = {
 	temporarySideConversations: {
 		closing: boolean;
 		closed: Set<string>;
+		byParent: Map<string, string>;
 		pending: Map<string, { sessionId: string; promise: Promise<unknown> }>;
 	};
 	liveSessions: Map<string, LiveSession>;

@@ -13,37 +13,22 @@ type Surface =
 	| { kind: "hidden" }
 	| { kind: "side" }
 	| { kind: "files" | "changes"; threadId: string };
-export type ConversationWorkspaceControls = {
-	surface: Surface;
-	target: HTMLDivElement | null;
-	sideTarget: HTMLElement | null;
-	mainThreadId: string;
-	sideThreadId?: string;
-	mainVisible: boolean;
-	sideVisible: boolean;
-	narrow: boolean;
-	open: (surface: Exclude<Surface, { kind: "hidden" }>) => void;
-	toggle: (threadId: string, kind: "files" | "changes") => void;
-	close: () => void;
-	showMain: () => void;
-	getCloseRevision: () => number;
-};
-export function ConversationWorkspace({
+export type ConversationWorkspaceControls = ReturnType<
+	typeof useConversationWorkspace
+>;
+export function useConversationWorkspace({
 	mainThreadId,
 	sideThreadId,
 	openVersion,
-	main,
 }: {
 	mainThreadId: string;
 	sideThreadId?: string;
 	openVersion: number;
-	main: (controls: ConversationWorkspaceControls) => ReactNode;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	const epoch = useRef(0);
 	const lastOpenVersion = useRef(openVersion);
 	const lastSideThreadId = useRef(sideThreadId);
-	const [sideTarget, setSideTarget] = useState<HTMLElement | null>(null);
 	const [surface, setSurface] = useState<Surface>(
 		sideThreadId ? { kind: "side" } : { kind: "hidden" },
 	);
@@ -63,7 +48,7 @@ export function ConversationWorkspace({
 		observer.observe(element);
 		return () => observer.disconnect();
 	}, []);
-	const open = useCallback((next: Surface) => {
+	const open = useCallback((next: Exclude<Surface, { kind: "hidden" }>) => {
 		epoch.current++;
 		setSurface(next);
 		setShowWorkspace(true);
@@ -114,14 +99,16 @@ export function ConversationWorkspace({
 		surface.kind !== "hidden" && (!narrow || showWorkspace);
 	const mainVisible = !narrow || !workspaceVisible;
 	const sideVisible = workspaceVisible && surface.kind === "side";
-	const controls = {
+	return {
 		surface,
 		target,
-		sideTarget,
+		host,
+		setTarget,
 		mainThreadId,
 		sideThreadId,
 		mainVisible,
 		sideVisible,
+		workspaceVisible,
 		narrow,
 		open,
 		toggle,
@@ -129,6 +116,27 @@ export function ConversationWorkspace({
 		showMain,
 		getCloseRevision,
 	};
+}
+
+export function ConversationWorkspace({
+	controls,
+	main,
+	side,
+}: {
+	controls: ConversationWorkspaceControls;
+	main: ReactNode;
+	side: ReactNode;
+}) {
+	const {
+		host,
+		mainVisible,
+		sideVisible,
+		workspaceVisible,
+		surface,
+		narrow,
+		setTarget,
+	} = controls;
+
 	return (
 		<div ref={host} className="flex min-h-0 flex-1 overflow-hidden">
 			<section
@@ -138,7 +146,7 @@ export function ConversationWorkspace({
 				aria-hidden={!mainVisible || undefined}
 				aria-label="Main conversation"
 			>
-				{main(controls)}
+				{main}
 			</section>
 			<WorkspacePanelFrame
 				visible={workspaceVisible}
@@ -146,13 +154,14 @@ export function ConversationWorkspace({
 				panel={surface.kind === "side" ? "side" : "workspace"}
 			>
 				<section
-					ref={setSideTarget}
 					className="min-h-0 min-w-0 flex-1 flex-col"
 					style={{ display: sideVisible ? "flex" : "none" }}
 					inert={!sideVisible || undefined}
 					aria-hidden={!sideVisible || undefined}
 					aria-label="Side conversation"
-				/>
+				>
+					{side}
+				</section>
 				<div
 					ref={setTarget}
 					className="min-h-0 min-w-0 flex-1"

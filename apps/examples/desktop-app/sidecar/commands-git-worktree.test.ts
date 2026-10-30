@@ -168,6 +168,7 @@ describe("delete_chat_session worktree cleanup", () => {
 			temporarySideConversations: {
 				closing: false,
 				closed: new Set<string>(),
+				byParent: new Map(),
 				pending: new Map(),
 			},
 			liveSessions: new Map(),

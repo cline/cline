@@ -1,9 +1,9 @@
 import { rmSync } from "node:fs";
 import {
+	type ClineCore,
 	getProcessStartToken,
 	probeProcessStartTokenAsync,
 	SqliteSessionStore,
-	type ClineCore,
 } from "@cline/core";
 import {
 	readSideConversation,

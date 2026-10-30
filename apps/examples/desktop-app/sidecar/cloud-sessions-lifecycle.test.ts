@@ -25,6 +25,7 @@ function createContext(): { ctx: SidecarContext } {
 		temporarySideConversations: {
 			closing: false,
 			closed: new Set(),
+			byParent: new Map(),
 			pending: new Map(),
 		},
 		restoringWorkspacePaths: new Set(),
