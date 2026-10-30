@@ -173,9 +173,7 @@ it.each([
 	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
 		sessionId: props.sessionId,
 		artifactId: props.artifactId,
-		...(props.downloadFilename
-			? { downloadFilename: props.downloadFilename }
-			: {}),
+		downloadFilename: props.downloadFilename,
 	});
 });
 

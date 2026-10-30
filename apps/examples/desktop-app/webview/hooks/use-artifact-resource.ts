@@ -91,9 +91,7 @@ export function useArtifactResource({
 								{
 									sessionId: scope.sessionId,
 									artifactId: scope.artifactId,
-									...(scope.downloadFilename
-										? { downloadFilename: scope.downloadFilename }
-										: {}),
+									downloadFilename: scope.downloadFilename,
 								},
 							);
 				if (!isCurrent()) return;
