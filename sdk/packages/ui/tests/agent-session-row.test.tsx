@@ -138,10 +138,10 @@ describe("AgentSessionRow host integration", () => {
 	});
 
 	it.each([
-		["pending", true, "bg-yellow-400", false],
-		["provisioning", true, "bg-yellow-400", true],
-		["running", true, "bg-green-500", false],
-		["idle", true, "bg-blue-500", false],
+		["pending", true, "bg-cline-ui-warning-solid", false],
+		["provisioning", true, "bg-cline-ui-warning-solid", true],
+		["running", true, "bg-cline-ui-success-solid", false],
+		["idle", true, "bg-cline-ui-info-solid", false],
 		["idle", false, null, false],
 	] as const)("preserves desktop status precedence for %s/unread=%s", async (status, unread, color, pulsing) => {
 		await act(async () =>
