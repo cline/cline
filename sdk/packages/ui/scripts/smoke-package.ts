@@ -13,7 +13,10 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
+	Button, IconButton, Badge, SegmentedControl, PillSelector, PillSelectorItem, Dialog, AlertDialog,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -82,6 +85,25 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const control of [Button, IconButton, Badge, SegmentedControl, PillSelector, PillSelectorItem, Dialog, AlertDialog]) {
+ if (!control) throw new Error("packed shared control export is missing");
+}
+const legacyButton = renderToStaticMarkup(createElement(Button, { variant: "fill" }, "Continue"));
+const badge = renderToStaticMarkup(createElement(Badge, { interactive: true, tone: "error" }, "Retry"));
+const segmented = renderToStaticMarkup(createElement(SegmentedControl, {
+ "aria-label": "View", name: "view", defaultValue: "list",
+ options: [{ value: "list", label: "List" }, { value: "grid", label: "Grid" }],
+}));
+if (!legacyButton.includes('data-slot="button"') || !legacyButton.includes('type="button"') || !badge.startsWith("<button") || !segmented.includes('type="radio"')) {
+ throw new Error("packed controls did not retain their native semantics");
+}
+const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
+for (const name of ["button", "segmented-control", "pill-selector", "dialog"]) {
+ if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl))) || !componentStyles.includes("./components/" + name + ".css")) {
+  throw new Error("packed control stylesheet is missing: " + name);
+ }
+}
+
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
@@ -228,7 +250,18 @@ async function verifyDiffDeclarations(root: string): Promise<void> {
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import type { ComponentProps } from "react";
+import { createElement, createRef, type ComponentProps } from "react";
+import { Badge, Button, IconButton, Switch, SegmentedControl, Dialog, AlertDialog, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
+const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
+const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
+createElement(Badge, { ...spanProps, ref: createRef<HTMLSpanElement>() });
+createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
+createElement(Button, { variant: "fill", asChild: true });
+createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
+createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
+createElement(SegmentedControl, { options: [], "aria-label": "View", ref: createRef<HTMLFieldSetElement>() });
+void [Dialog, AlertDialog];
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -386,8 +419,8 @@ try {
 		? resolve(process.argv[2])
 		: await pack(packageRoot, join(temporaryRoot, "pack"));
 	// The packed UI pins @cline/shared to the workspace version, which is not on
-	// npm yet during a release, so both consumers install the local pack. npm
-	// dedupes onto it directly; Bun only resolves it through an override.
+	// the registry yet during a release, so both consumers install the local pack
+	// and use a Bun override to resolve it consistently.
 	const sharedArchive = await pack(
 		join(packageRoot, "../shared"),
 		join(temporaryRoot, "shared-pack"),
@@ -406,6 +439,7 @@ try {
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.4.0",
 			"@types/react@19.2.14",
+			"@types/react-dom@19.2.3",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
@@ -421,37 +455,39 @@ try {
 		"tailwindcss",
 	]);
 
-	const npmConsumer = join(temporaryRoot, "npm-consumer");
-	createConsumer(npmConsumer);
+	const react18Consumer = join(temporaryRoot, "react18-consumer");
+	createConsumer(react18Consumer, { "@cline/shared": `file:${sharedArchive}` });
 	await run(
 		[
-			"npm",
-			"install",
+			process.execPath,
+			"add",
 			"--ignore-scripts",
-			"--no-audit",
-			"--no-fund",
 			archive,
 			sharedArchive,
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
 			"@types/react@18.3.1",
+			"@types/react-dom@18.3.1",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
-		npmConsumer,
+		react18Consumer,
 	);
-	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
-	await verifyDiffDeclarations(npmConsumer);
-	await verifyTailwindContract(npmConsumer, [
-		"npx",
-		"--no-install",
+	await run(
+		["node", "--input-type=module", "-e", importCheck],
+		react18Consumer,
+	);
+	await verifyDiffDeclarations(react18Consumer);
+	await verifyTailwindContract(react18Consumer, [
+		process.execPath,
+		"x",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and Bun/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });

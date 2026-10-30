@@ -107,6 +107,8 @@
 		"components/switch.tsx",
 		"dist",
 		"theme",
+		"ADOPTION.md",
+		"README.md",
 		"RADIX-COLORS-LICENSE",
 		"components/agent-composer.tsx",
 		"components/message-scroller.tsx",
@@ -149,7 +151,8 @@
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit",
-		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
+		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts",
+		"test:controls-browser": "bun scripts/test-button-browser.ts"
 	},
 	"peerDependencies": {
 		"@pierre/diffs": "^1.3.0",
@@ -215,7 +218,9 @@
 		"tailwindcss": "^4.2.0",
 		"typescript": "5.9.3",
 		"vite": "^7.1.11",
-		"vitest": "^4.0.18"
+		"vitest": "^4.0.18",
+		"@tailwindcss/node": "4.3.3",
+		"playwright": "1.62.1"
 	},
 	"dependencies": {
 		"@cline/shared": "workspace:*",
