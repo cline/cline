@@ -275,6 +275,7 @@ export type CloudSessionControllerOptions = {
 		| "status"
 		| "waitUntilReady"
 		| "history"
+		| "getArtifactDownloadUrl"
 		| "updateTitle"
 		| "listRepositories"
 		| "listBranches"
@@ -2114,6 +2115,10 @@ export class CloudSessionController {
 		const messages = await this.options.api.history(outerSessionId);
 		this.assertSessionActive(outerSessionId);
 		return messages;
+	}
+
+	getArtifactDownloadUrl(outerSessionId: string, artifactId: string) {
+		return this.options.api.getArtifactDownloadUrl(outerSessionId, artifactId);
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
