@@ -785,7 +785,7 @@ function WorkspacePicker({
 							{selectingChat ? "Switching to chat..." : "Just chat"}
 						</Button>
 						{error && (
-							<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+							<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-error-text">
 								{error}
 							</div>
 						)}

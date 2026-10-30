@@ -1082,7 +1082,7 @@ export function ProviderDetailContent({
 
 				{modelsError ? (
 					<div className="border-t border-destructive/30 bg-destructive/5 px-4 py-2">
-						<p className="text-sm text-destructive">{modelsError}</p>
+						<p className="text-sm text-error-text">{modelsError}</p>
 					</div>
 				) : null}
 				{/* A failed refresh means the endpoint's list is unknown; the

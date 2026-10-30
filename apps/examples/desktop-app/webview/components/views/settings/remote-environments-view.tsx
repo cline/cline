@@ -94,7 +94,7 @@ function StatusBadge({ label, value }: { label: string; value: string }) {
 						"border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 					isPending &&
 						"border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
-					isError && "border-destructive/30 bg-destructive/10 text-destructive",
+					isError && "border-destructive/30 bg-destructive/10 text-error-text",
 				)}
 				variant="outline"
 			>
@@ -576,7 +576,7 @@ export function RemoteEnvironmentsContent() {
 						</div>
 
 						{formError ? (
-							<p className="text-sm text-destructive">{formError}</p>
+							<p className="text-sm text-error-text">{formError}</p>
 						) : null}
 
 						<div className="rounded-lg border bg-muted/30 p-4">
@@ -633,7 +633,7 @@ export function RemoteEnvironmentsContent() {
 										(selectedRuntime.connection === "error" ||
 											selectedRuntime.test === "failed" ||
 											selectedRuntime.bootstrap === "failed") &&
-											"text-destructive",
+											"text-error-text",
 									)}
 								>
 									{selectedRuntime.message}

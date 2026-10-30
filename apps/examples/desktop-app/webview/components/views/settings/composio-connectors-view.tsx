@@ -405,7 +405,7 @@ export function ComposioConnectorsView({
 
 	if (loadError && !status) {
 		return (
-			<p className="select-text text-sm text-destructive" role="alert">
+			<p className="select-text text-sm text-error-text" role="alert">
 				Failed to load connectors: {loadError}
 			</p>
 		);
@@ -479,7 +479,7 @@ export function ComposioConnectorsView({
 			</output>
 		) : catalogError ? (
 			<div className="flex flex-wrap items-center gap-3">
-				<p className="text-xs text-destructive" role="alert">
+				<p className="text-xs text-error-text" role="alert">
 					{catalogError}
 				</p>
 				<Button
@@ -524,10 +524,7 @@ export function ComposioConnectorsView({
 								{actionError?.toolkit === entry.slug ? (
 									// Scoped to this connector's own card; no shared
 									// surface retains another connector's failure.
-									<p
-										className="mt-1 px-1 text-xs text-destructive"
-										role="alert"
-									>
+									<p className="mt-1 px-1 text-xs text-error-text" role="alert">
 										{actionError.message}
 									</p>
 								) : null}
@@ -587,7 +584,7 @@ export function ComposioConnectorsView({
 						</Button>
 					</div>
 					{loadError ? (
-						<p className="text-xs text-destructive" role="alert">
+						<p className="text-xs text-error-text" role="alert">
 							Failed to refresh connectors: {loadError}
 						</p>
 					) : null}
@@ -858,7 +855,7 @@ function ConnectorsUnavailable({
 					</p>
 				) : null}
 				{error ? (
-					<p className="text-xs text-destructive" role="alert">
+					<p className="text-xs text-error-text" role="alert">
 						{error}
 					</p>
 				) : null}
@@ -1012,7 +1009,7 @@ function ConnectorCard({
 				) : null}
 			</div>
 			{error ? (
-				<p className="text-xs text-destructive" role="alert">
+				<p className="text-xs text-error-text" role="alert">
 					{error}
 				</p>
 			) : null}
@@ -1110,7 +1107,7 @@ function RecipeCard({
 				})}
 			</div>
 			{error ? (
-				<p className="text-xs text-destructive" role="alert">
+				<p className="text-xs text-error-text" role="alert">
 					{error}
 				</p>
 			) : null}
@@ -1208,7 +1205,7 @@ function ConnectorDetailDialog({
 							) : null}
 
 							{(actionError ?? summary?.error) ? (
-								<p className="text-xs text-destructive" role="alert">
+								<p className="text-xs text-error-text" role="alert">
 									{actionError ?? summary?.error}
 								</p>
 							) : null}
