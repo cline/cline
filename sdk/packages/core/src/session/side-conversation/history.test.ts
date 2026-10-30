@@ -1,6 +1,6 @@
-import type { ClineCore } from "../../ClineCore";
 import type { MessageWithMetadata } from "@cline/llms";
 import { describe, expect, it, vi } from "vitest";
+import type { ClineCore } from "../../ClineCore";
 import { createSideHistoryTool } from "./history";
 
 const context = { agentId: "side", iteration: 0 };
@@ -220,6 +220,37 @@ describe("side parent history tool", () => {
 				},
 			},
 			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "mcp",
+						name: "mcp_media",
+						content: JSON.stringify({
+							content: [
+								{ type: "audio", data: "AUDIO_SECRET", mimeType: "audio/wav" },
+								{
+									type: "resource",
+									resource: {
+										uri: "fixture:image",
+										mimeType: "image/png",
+										blob: "BLOB_SECRET",
+									},
+								},
+								{
+									type: "resource",
+									resource: {
+										uri: "fixture:text",
+										mimeType: "text/plain",
+										text: "Resource evidence",
+									},
+								},
+							],
+						}),
+					},
+				],
+			},
+			{
 				role: "assistant",
 				content: "HIDDEN_NOTICE",
 				metadata: { displayOnly: true },
@@ -229,6 +260,7 @@ describe("side parent history tool", () => {
 		const text = JSON.stringify(result);
 		expect(text).toContain("provider tool observation");
 		expect(text).toContain("Public evidence");
+		expect(text).toContain("Resource evidence");
 		expect(text).not.toContain("result not yet available");
 		expect(
 			await tool.execute(
@@ -244,6 +276,8 @@ describe("side parent history tool", () => {
 		for (const hidden of [
 			"PRIVATE_IMAGE",
 			"PRIVATE_THINKING",
+			"AUDIO_SECRET",
+			"BLOB_SECRET",
 			"cline://cache/private",
 			"HIDDEN_NOTICE",
 		])

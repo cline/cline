@@ -3,6 +3,7 @@ import { SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
+
 const exchange = (question: string, answer: string): MessageWithMetadata[] => [
 	{ role: "user", content: question },
 	{ role: "assistant", content: answer },
@@ -94,6 +95,37 @@ describe("side reference capture", () => {
 					},
 				],
 			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "mcp",
+						name: "mcp_media",
+						content: JSON.stringify({
+							content: [
+								{ type: "audio", data: "AUDIO_SECRET", mimeType: "audio/wav" },
+								{
+									type: "resource",
+									resource: {
+										uri: "fixture:image",
+										mimeType: "image/png",
+										blob: "BLOB_SECRET",
+									},
+								},
+								{
+									type: "resource",
+									resource: {
+										uri: "fixture:text",
+										mimeType: "text/plain",
+										text: "Resource evidence",
+									},
+								},
+							],
+						}),
+					},
+				],
+			},
 			{ role: "assistant", content: "described" },
 			{ role: "user", content: "incomplete question" },
 			{
@@ -108,12 +140,13 @@ describe("side reference capture", () => {
 			activeParentTurn: false,
 		});
 		expect(capture.content).toContain("0 saved messages omitted");
-		expect(capture.content).toContain("2 media items omitted");
+		expect(capture.content).toContain("4 media items omitted");
 		expect(capture.content).toContain("[parent cache handle omitted]");
+		expect(capture.content).toContain("Resource evidence");
 		expect(capture.content).toContain("incomplete question");
 		expect(capture.content).toContain("result not yet available");
 		expect(capture.content).not.toMatch(
-			/cline:\/\/cache|BASE64_SECRET|TOOL_IMAGE/,
+			/cline:\/\/cache|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
 		);
 	});
 
