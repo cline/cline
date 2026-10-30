@@ -152,7 +152,7 @@ export class CloudSessionHost implements SdkSessionHost {
 				if (!token) {
 					throw new Error("Sign in to Cline to connect to this cloud session.")
 				}
-				return { Authorization: `Bearer ${token}` }
+				return { Authorization: `Bearer ${token}`, "User-Agent": "cline-vscode-cloud-session" }
 			},
 		})
 		await host.connect()
