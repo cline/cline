@@ -49,6 +49,7 @@ export interface ProviderFactoryResult {
 	 * middleware. Leave unset for the defaults.
 	 */
 	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
+	traceMetadata?: Record<string, string>;
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,
