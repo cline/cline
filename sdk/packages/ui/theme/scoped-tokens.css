@@ -366,6 +366,10 @@
 	--font-weight-medium: 560;
 	--font-weight-semibold: 640;
 	--font-weight-bold: 640;
+	/* 11px at 15px root */
+	--text-xxs: 0.73333rem;
+	--text-xxs--line-height: 1rem;
+	--text-xxs--letter-spacing: 0.0025em;
 	/* 12px at 15px root */
 	--text-xs: 0.8rem;
 	--text-xs--line-height: 1rem;
