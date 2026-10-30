@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 	openExternalUrl: mocks.open,
+	isTauriAvailable: () => true,
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({

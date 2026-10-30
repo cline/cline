@@ -18,11 +18,12 @@ const mocks = vi.hoisted(() => {
 		activeOrganization: { organizationId: "org-one" },
 		accountReady: true,
 	};
-	return { invoke: vi.fn(), open: vi.fn(), account };
+	return { invoke: vi.fn(), open: vi.fn(), account, native: true };
 });
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 	openExternalUrl: mocks.open,
+	isTauriAvailable: () => mocks.native,
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => mocks.account,
@@ -72,6 +73,7 @@ function pendingResource() {
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	mocks.native = true;
 	mocks.account = {
 		user: { id: "account-one" },
 		activeOrganization: { organizationId: "org-one" },
@@ -91,6 +93,7 @@ afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 it("waits for account hydration before resolving a cloud resource", async () => {
@@ -238,4 +241,127 @@ it("keeps an external-open failure retryable and obtains a fresh resource", asyn
 	expect(mocks.invoke).toHaveBeenCalledTimes(2);
 	expect(mocks.open).toHaveBeenCalledTimes(2);
 	expect(container.textContent).toBe("https://storage.example/first");
+});
+
+function browserWindow() {
+	mocks.native = false;
+	const popup = {
+		opener: window,
+		document: document.implementation.createHTMLDocument(),
+		location: { replace: vi.fn() },
+		closed: false,
+		close: vi.fn(),
+	};
+	const open = vi.fn(() => popup);
+	vi.stubGlobal("open", open);
+	return { popup, open };
+}
+
+it("reserves a browser tab before URL resolution and navigates it afterward", async () => {
+	const { popup, open } = browserWindow();
+	const pending = pendingResource();
+	mocks.invoke.mockReturnValueOnce(pending.promise);
+	await render();
+	await act(async () => {
+		void current.open();
+	});
+	expect(open).toHaveBeenCalledWith("about:blank", "_blank");
+	expect(open.mock.invocationCallOrder[0]).toBeLessThan(
+		mocks.invoke.mock.invocationCallOrder[0],
+	);
+	expect(popup.opener).toBeNull();
+	expect(
+		popup.document
+			.querySelector('meta[name="referrer"]')
+			?.getAttribute("content"),
+	).toBe("no-referrer");
+	expect(popup.location.replace).not.toHaveBeenCalled();
+	await act(async () =>
+		pending.resolve({
+			url: "https://storage.example/ready",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
+	);
+	expect(popup.location.replace).toHaveBeenCalledWith(
+		"https://storage.example/ready",
+	);
+	expect(mocks.open).not.toHaveBeenCalled();
+	await act(async () => root.render(null));
+	expect(popup.close).not.toHaveBeenCalled();
+});
+
+it("reports a blocked browser tab without requesting a URL", async () => {
+	mocks.native = false;
+	vi.stubGlobal(
+		"open",
+		vi.fn(() => null),
+	);
+	await render();
+	await act(async () => current.open());
+	expect(container.textContent).toBe("error");
+	expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+it.each([
+	"request failure",
+	"account change",
+	"unmount",
+])("closes a pending browser tab on %s", async (reason) => {
+	const { popup } = browserWindow();
+	const pending = pendingResource();
+	mocks.invoke.mockReturnValueOnce(pending.promise);
+	await render();
+	await act(async () => {
+		void current.open();
+	});
+	if (reason === "request failure")
+		await act(async () => pending.reject(new Error("Unavailable")));
+	else if (reason === "account change") {
+		mocks.account.user = { id: "account-two" };
+		await render();
+	} else await act(async () => root.render(null));
+	expect(popup.close).toHaveBeenCalled();
+	await act(async () =>
+		pending.resolve({
+			url: "https://storage.example/old",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
+	);
+	expect(popup.location.replace).not.toHaveBeenCalled();
+});
+
+it("does not let stale completion close a newer browser tab", async () => {
+	const first = browserWindow().popup;
+	const pending = pendingResource();
+	mocks.invoke.mockReturnValueOnce(pending.promise);
+	await render();
+	await act(async () => {
+		void current.open();
+	});
+	const second = browserWindow().popup;
+	const newer = pendingResource();
+	mocks.invoke.mockReturnValueOnce(newer.promise);
+	await act(async () => {
+		void current.open();
+	});
+	expect(first.close).toHaveBeenCalled();
+	await act(async () =>
+		pending.resolve({
+			url: "https://storage.example/old",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
+	);
+	expect(first.location.replace).not.toHaveBeenCalled();
+	expect(second.close).not.toHaveBeenCalled();
+	expect(second.location.replace).not.toHaveBeenCalled();
+	await act(async () =>
+		newer.resolve({
+			url: "https://storage.example/first",
+			expiresAt: "2030-01-01T00:01:00Z",
+		}),
+	);
+	expect(second.location.replace).toHaveBeenCalledWith(
+		"https://storage.example/first",
+	);
+	expect(second.close).not.toHaveBeenCalled();
 });

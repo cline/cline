@@ -4,7 +4,11 @@ import type { CloudArtifactDownload } from "@cline/core/cloud";
 import type { GeneratedMediaSource } from "@cline/shared/browser";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	isTauriAvailable,
+	openExternalUrl,
+} from "@/lib/desktop-client";
 
 export type ArtifactReference = Extract<
 	GeneratedMediaSource,
@@ -56,6 +60,7 @@ export function useArtifactResource({
 		null,
 	);
 	const recovered = useRef(false);
+	const pendingWindow = useRef<Window | null>(null);
 
 	useLayoutEffect(() => {
 		activeScope.current = scope;
@@ -64,6 +69,8 @@ export function useArtifactResource({
 			generation.current += 1;
 			cache.current = null;
 			recovered.current = false;
+			pendingWindow.current?.close();
+			pendingWindow.current = null;
 		};
 	}, [scope]);
 
@@ -71,6 +78,9 @@ export function useArtifactResource({
 		async ({ force = false, open = false } = {}) => {
 			if (activeScope.current !== scope || !scope.accountReady) return;
 			const attempt = ++generation.current;
+			pendingWindow.current?.close();
+			pendingWindow.current = null;
+			let popup: Window | null = null;
 			const isCurrent = () =>
 				activeScope.current === scope && generation.current === attempt;
 			const cached = cache.current?.resource;
@@ -79,6 +89,17 @@ export function useArtifactResource({
 			if (force || !fresh) cache.current = null;
 			setStored({ scope, value: { status: "loading" } });
 			try {
+				if (open && !isTauriAvailable()) {
+					// Reserve the tab while the click still has browser activation.
+					popup = window.open("about:blank", "_blank");
+					if (!popup) throw new Error("Download popup was blocked");
+					pendingWindow.current = popup;
+					popup.opener = null;
+					const policy = popup.document.createElement("meta");
+					policy.name = "referrer";
+					policy.content = "no-referrer";
+					popup.document.head.append(policy);
+				}
 				const resource =
 					!force && fresh
 						? cached
@@ -96,7 +117,12 @@ export function useArtifactResource({
 					attempt,
 				};
 				cache.current = ready;
-				if (open) await openExternalUrl(resource.url);
+				if (popup) {
+					if (popup.closed) throw new Error("Download tab was closed");
+					popup.location.replace(resource.url);
+					pendingWindow.current = null;
+					popup = null;
+				} else if (open) await openExternalUrl(resource.url);
 				if (isCurrent()) setStored({ scope, value: ready });
 			} catch {
 				if (!isCurrent()) return;
@@ -105,6 +131,9 @@ export function useArtifactResource({
 					scope,
 					value: { status: "error" },
 				});
+			} finally {
+				popup?.close();
+				if (pendingWindow.current === popup) pendingWindow.current = null;
 			}
 		},
 		[scope],
