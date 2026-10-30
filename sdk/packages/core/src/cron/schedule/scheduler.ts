@@ -240,6 +240,17 @@ function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
 	);
 }
 
+function cronCouldMatchUtcDate(cron: ParsedCron, timestampMs: number): boolean {
+	const date = new Date(timestampMs);
+	// An unrepresentable UTC date can still be a valid zoned date.
+	if (Number.isNaN(date.getTime())) return true;
+	return (
+		cron.months.includes(date.getUTCMonth() + 1) &&
+		cron.daysOfMonth.includes(date.getUTCDate()) &&
+		cron.daysOfWeek.includes(date.getUTCDay())
+	);
+}
+
 function getNextCronTimeByMinuteScan(
 	pattern: string,
 	after: number,
@@ -250,12 +261,31 @@ function getNextCronTimeByMinuteScan(
 	const seconds = currentMinute.getSeconds();
 	let nextMs =
 		after - seconds * 1000 - currentMinute.getMilliseconds() + 60_000;
+	const firstCandidateMs = nextMs;
+	const dayMs = 24 * 60 * 60_000;
 
 	const limit = new Date(after);
 	limit.setFullYear(limit.getFullYear() + 4);
 	const limitMs = limit.getTime();
 
 	while (nextMs <= limitMs) {
+		if (timezone) {
+			const utcDayStart = Math.floor(nextMs / dayMs) * dayMs;
+			if (nextMs === firstCandidateMs || nextMs - utcDayStart < 60_000) {
+				// IANA and Intl offsets are within 24 hours, so a local date can
+				// only be the previous, current, or next UTC date.
+				const possibleDates = [
+					utcDayStart - dayMs,
+					utcDayStart,
+					utcDayStart + dayMs,
+				];
+				if (!possibleDates.some((date) => cronCouldMatchUtcDate(cron, date))) {
+					// Stay on the original minute grid, including historical seconds.
+					nextMs += Math.ceil((utcDayStart + dayMs - nextMs) / 60_000) * 60_000;
+					continue;
+				}
+			}
+		}
 		const parts = timezone
 			? getZonedCronDateParts(nextMs, timezone)
 			: getLocalCronDateParts(nextMs);
