@@ -1057,6 +1057,7 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export { createHubProviderAuthApi } from "./hub/client/provider-auth";
 export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";

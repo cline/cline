@@ -28,6 +28,7 @@ export interface OAuthCredentials {
 }
 
 export interface OAuthLoginCallbacks {
+	onUserCode?: (userCode: string) => void;
 	onAuth: (info: { url: string; instructions?: string }) => void;
 	onPrompt: (prompt: OAuthPrompt) => Promise<string>;
 	onProgress?: (message: string) => void;

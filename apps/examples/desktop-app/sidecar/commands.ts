@@ -33,23 +33,20 @@ import type {
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
-	ClineAccountService,
 	type ClineAccountUser,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
+	createHubProviderAuthApi,
 	createHubProvidersApi,
 	createUserInstructionConfigService,
-	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalTranscriptionModels,
-	getProviderAuthHandler,
 	identifyAccount,
 	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
-	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
@@ -74,11 +71,13 @@ import {
 import { CloudSessionApi } from "@cline/core/cloud";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT,
 	CLINE_DEFAULT_MODEL_ID,
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
+	isClineAccountNotAuthenticatedResult,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	readHubScheduleMode,
@@ -87,7 +86,6 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import packageJson from "../package.json";
-import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import {
@@ -163,10 +161,7 @@ import {
 	runCancellableMcpOAuthAuthorization,
 	shouldRestoreEnabledStateAfterOAuthCancellation,
 } from "./mcp-oauth";
-import {
-	cancelProviderOAuthLogin,
-	runCancellableProviderOAuthLogin,
-} from "./oauth-login";
+import { cancelProviderOAuthLogin, runProviderOAuthLogin } from "./oauth-login";
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
@@ -551,7 +546,6 @@ function removePathIfExists(
 
 function syncAccountContextFromResult(
 	ctx: SidecarContext,
-	manager: ProviderSettingsManager,
 	operation: string,
 	result: unknown,
 ): void {
@@ -565,7 +559,6 @@ function syncAccountContextFromResult(
 				organizationId: identity.organizationId,
 			});
 			identifyAccount(ctx.telemetry, identity);
-			persistClineAccountTelemetryIdentity(manager, identity);
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
 				{ logger: ctx.logger, telemetry: ctx.telemetry },
@@ -2983,30 +2976,15 @@ export async function handleCommand(
 	if (command === "cline_account") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
-		const manager = new ProviderSettingsManager();
-		// Signed out is an expected state, not a command failure: resolve the
-		// token up front and return a typed result the webview can act on
-		// instead of letting the account service throw a generic error that
-		// would be captured as error telemetry and shown raw to the user.
-		const authToken = await resolveFreshClineAuthToken(manager, ctx);
-		if (!authToken) {
-			// Backstop for credentials that go away without a settings write —
-			// an expired or server-revoked token. Explicit sign-out is handled
-			// at its source in `save_provider_settings`; this catches the rest
-			// so a stale account never keeps serving its rollout cohort.
+		const api = createHubProviderAuthApi(await ensureSharedHubClient(ctx));
+		const result = await api.account({
+			...args,
+			action: "clineAccount",
+		} as ClineAccountActionRequest);
+		if (isClineAccountNotAuthenticatedResult(result)) {
 			syncSignedOutAccountContext(ctx);
-			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+			return result;
 		}
-		const settings = manager.getProviderSettings("cline");
-		const accountService = new ClineAccountService({
-			apiBaseUrl:
-				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => authToken,
-		});
-		const result = await executeClineAccountAction(
-			args as ClineAccountActionRequest,
-			accountService,
-		);
 		if (operation === "switchAccount") {
 			await resetCloudSessionManager(ctx);
 			if (isCloudAgentsEnabled()) {
@@ -3020,7 +2998,7 @@ export async function handleCommand(
 				}
 			}
 		}
-		syncAccountContextFromResult(ctx, manager, operation, result);
+		syncAccountContextFromResult(ctx, operation, result);
 		return result;
 	}
 
@@ -3329,9 +3307,8 @@ export async function handleCommand(
 	}
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		const manager = new ProviderSettingsManager();
-		const result = await runCancellableProviderOAuthLogin(
-			manager,
+		const result = await runProviderOAuthLogin(
+			ctx,
 			providerId,
 			(url) => {
 				// The OAuth helper's openUrl callback is fire-and-forget; surface
@@ -3343,19 +3320,21 @@ export async function handleCommand(
 				});
 			},
 			{
-				owner: options?.connection,
+				owner: options?.connection ?? ctx,
 				// Push the device sign-in confirmation code so the webview can
 				// show it while the user confirms it in the browser.
-				onUserCode: (userCode) =>
-					broadcastEvent(ctx, "provider_oauth_user_code", {
-						provider: providerId,
-						userCode,
-					}),
+				onUserCode: (userCode) => {
+					if (options?.connection)
+						sendEventToClient(
+							ctx,
+							options.connection,
+							"provider_oauth_user_code",
+							{ provider: providerId, userCode },
+						);
+				},
 			},
 		);
-		const storageProviderId =
-			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
-		if (storageProviderId === "cline") {
+		if (providerId === "cline" || providerId === "cline-pass") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
 		}
@@ -3365,7 +3344,10 @@ export async function handleCommand(
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		return {
 			provider: providerId,
-			cancelled: cancelProviderOAuthLogin(providerId),
+			cancelled: cancelProviderOAuthLogin(
+				providerId,
+				options?.connection ?? ctx,
+			),
 		};
 	}
 

@@ -42,6 +42,7 @@ export {
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/managed-hub-build-watcher";
+export { createHubProviderAuthApi } from "./client/provider-auth";
 export { createHubProvidersApi } from "./client/providers";
 export * from "./client/session-client";
 export * from "./client/ui-client";
