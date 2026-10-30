@@ -678,6 +678,13 @@ async function getSessionFromSidecarManager(
 			);
 			return {
 				...merged,
+				// Queued dispatch precedes the runtime's asynchronous turn preparation.
+				status:
+					binding.kind === "local" &&
+					merged.status === "idle" &&
+					ctx.liveSessions.get(sessionId)?.busy
+						? "running"
+						: merged.status,
 				environmentId: binding.environmentId,
 				remoteEnvironment:
 					binding.kind === "ssh"
