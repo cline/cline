@@ -150,7 +150,7 @@ export function AgentUxVerification({
 					</strong>
 					<p>
 						{pending
-							? "A subagent is walking through the checklist and capturing evidence."
+							? "Walking through the checklist and capturing evidence."
 							: typeof error === "string"
 								? error
 								: "The verifier did not return a valid evidence report."}
