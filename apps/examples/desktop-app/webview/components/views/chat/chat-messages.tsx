@@ -249,7 +249,8 @@ function ChatMessagesImpl({
 		[messages, collapseTrailingRun],
 	);
 	const isRunActive =
-		status === "starting" || status === "running" || status === "stopping";
+		!isHistoryPreview &&
+		(status === "starting" || status === "running" || status === "stopping");
 	const lastUserItemIndex = renderItems.findLastIndex(
 		(item) =>
 			item.type === "message" &&

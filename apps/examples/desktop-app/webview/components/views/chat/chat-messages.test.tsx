@@ -258,6 +258,12 @@ describe("ChatMessages tool disclosures", () => {
 		};
 		await renderMessages([tool], { status: "completed" });
 		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], {
+			status: "starting",
+			isHistoryPreview: true,
+		});
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
 		await renderMessages([tool], { status: "running" });
 		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
 		await renderMessages(
