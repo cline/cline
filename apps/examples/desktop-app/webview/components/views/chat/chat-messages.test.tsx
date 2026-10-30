@@ -2342,6 +2342,27 @@ describe("ChatMessages thinking indicator", () => {
 		).toBe(true);
 	});
 
+	it("keeps archived messages readable without a transcript startup indicator", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "assistant-1",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Previous answer",
+					createdAt: 2,
+				},
+			],
+			{ status: "starting", isHistoryPreview: true },
+		);
+		expect(container.textContent).toContain("Previous answer");
+		expect(container.textContent).not.toContain("Thinking...");
+		expect(
+			container.querySelector('button[aria-label="Copy assistant message"]'),
+		).not.toBeNull();
+	});
+
 	it("keeps showing while running until the first assistant output arrives", async () => {
 		await renderMessages([userMessage], { status: "running" });
 		expect(container.textContent).toContain("Thinking...");

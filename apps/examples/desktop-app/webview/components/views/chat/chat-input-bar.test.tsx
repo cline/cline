@@ -1933,8 +1933,12 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.rows).toBe(2);
 
 		await render("starting");
+		expect(promptInput?.placeholder).toBe("Getting session ready…");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
 		await render("running");
+		expect(promptInput?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
 		expect(container.querySelector('[aria-label="Stop agent"]')).not.toBeNull();
 
 		expect(onReasoningChange).not.toHaveBeenCalled();

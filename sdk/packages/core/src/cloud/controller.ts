@@ -2108,6 +2108,14 @@ export class CloudSessionController {
 		return mapped;
 	}
 
+	async readArchivedMessages(
+		outerSessionId: string,
+	): Promise<unknown[] | null> {
+		const messages = await this.options.api.history(outerSessionId);
+		this.assertSessionActive(outerSessionId);
+		return messages;
+	}
+
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
 		if (known?.status === "provisioning" || known?.status === "failed") {
@@ -2259,8 +2267,7 @@ export class CloudSessionController {
 		record: CloudSessionRecord,
 	): Promise<unknown[] | null> {
 		const generation = this.sessionGenerations.get(record.id);
-		const messages = await this.options.api.history(record.id);
-		this.assertSessionActive(record.id);
+		const messages = await this.readArchivedMessages(record.id);
 		if (this.sessionGenerations.get(record.id) !== generation)
 			throw new Error("Cloud session attachment changed while loading history");
 		if (messages === null) {

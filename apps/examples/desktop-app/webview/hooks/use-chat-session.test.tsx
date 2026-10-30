@@ -433,6 +433,164 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	describe("cloud history preview", () => {
+		const session = {
+			sessionId: "preview-cloud",
+			origin: "cloud" as const,
+			status: "suspended",
+			startedAt: "2026-01-01T00:00:00Z",
+		};
+		const saved: ChatSessionHook["messages"] = [
+			{
+				id: "saved",
+				sessionId: session.sessionId,
+				role: "assistant",
+				content: "Saved reply",
+				createdAt: 1,
+			},
+		];
+		const latest: ChatSessionHook["messages"] = [
+			{
+				id: "live",
+				sessionId: session.sessionId,
+				role: "assistant",
+				content: "Live reply",
+				createdAt: 2,
+			},
+		];
+		function historyRequests(
+			archive: Promise<ChatSessionHook["messages"] | null>,
+			live: Promise<ChatSessionHook["messages"]>,
+		) {
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "read_archived_cloud_messages") return archive;
+				if (command === "read_session_messages") return live;
+				if (command === "chat_session_command")
+					return { sessionId: session.sessionId, status: "idle" };
+				return [];
+			});
+		}
+
+		it("shows saved messages before live history without treating them as live", async () => {
+			const archive = deferred<ChatSessionHook["messages"]>();
+			const live = deferred<ChatSessionHook["messages"]>();
+			historyRequests(archive.promise, live.promise);
+			let hydration!: Promise<void>;
+			await act(async () => {
+				hydration = current.hydrateSession(session);
+			});
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual(saved);
+			expect(current.messages).toEqual([]);
+			expect(current.isHydratingSession).toBe(true);
+			await act(async () => {
+				live.resolve(latest);
+				await hydration;
+			});
+			expect(current.messages).toEqual(latest);
+			expect(current.historyPreview).toEqual([]);
+			expect(current.isHydratingSession).toBe(false);
+		});
+
+		it.each([
+			"missing",
+			"empty",
+			"failed",
+		])("keeps startup unchanged when the archive is %s", async (outcome) => {
+			const live = deferred<ChatSessionHook["messages"]>();
+			historyRequests(
+				Promise.resolve(outcome === "missing" ? null : []),
+				live.promise,
+			);
+			if (outcome === "failed") {
+				const normal = invokeMock.getMockImplementation();
+				invokeMock.mockImplementation(
+					async (command: string, ...args: unknown[]) => {
+						if (command === "read_archived_cloud_messages")
+							throw new Error("Archive unavailable");
+						return normal?.(command, ...args);
+					},
+				);
+			}
+			let hydration!: Promise<void>;
+			await act(async () => {
+				hydration = current.hydrateSession(session);
+			});
+			expect(current.historyPreview).toEqual([]);
+			expect(current.isHydratingSession).toBe(true);
+			expect(current.error).toBeNull();
+			await act(async () => {
+				live.resolve(latest);
+				await hydration;
+			});
+			expect(current.messages).toEqual(latest);
+			expect(current.error).toBeNull();
+		});
+
+		it.each([
+			"empty live history",
+			"live messages",
+		])("ignores an archive arriving after %s", async (outcome) => {
+			const archive = deferred<ChatSessionHook["messages"]>();
+			historyRequests(
+				archive.promise,
+				Promise.resolve(outcome === "live messages" ? latest : []),
+			);
+			await act(async () => current.hydrateSession(session));
+			const before = current.messages;
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual(before);
+		});
+
+		it.each([
+			"before",
+			"after",
+		])("retires the archive when an empty live snapshot arrives %s it", async (order) => {
+			const archive = deferred<ChatSessionHook["messages"]>();
+			const live = deferred<ChatSessionHook["messages"]>();
+			historyRequests(archive.promise, live.promise);
+			let hydration!: Promise<void>;
+			await act(async () => {
+				hydration = current.hydrateSession(session);
+			});
+			if (order === "after") await act(async () => archive.resolve(saved));
+			await act(async () => {
+				handlerFor("cloud_session_rehydrated")({
+					sessionId: session.sessionId,
+					status: "idle",
+					transcriptKnown: true,
+					messages: [],
+				});
+			});
+			if (order === "before") await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual([]);
+			await act(async () => {
+				live.resolve([]);
+				await hydration;
+			});
+		});
+
+		it("ignores pending history after resetting the selected session", async () => {
+			const archive = deferred<ChatSessionHook["messages"]>();
+			const live = deferred<ChatSessionHook["messages"]>();
+			historyRequests(archive.promise, live.promise);
+			let hydration!: Promise<void>;
+			await act(async () => {
+				hydration = current.hydrateSession(session);
+			});
+			await act(async () => current.reset());
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			await act(async () => {
+				live.resolve(latest);
+				await hydration;
+			});
+			expect(current.messages).toEqual([]);
+		});
+	});
+
 	it("keeps flushing streamed text after the app is hidden and restored", async () => {
 		vi.useFakeTimers();
 		try {

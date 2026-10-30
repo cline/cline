@@ -1502,15 +1502,17 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+										: status === "starting"
+											? "Getting session ready…"
+											: isBusy && variant !== "welcome"
+												? promptsInQueue.length > 0
+													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+													: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
