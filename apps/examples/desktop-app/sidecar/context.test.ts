@@ -304,9 +304,10 @@ describe("Code sidecar runtime capabilities", () => {
 			handleCommand(ctx, "resolve_artifact", {
 				sessionId: "ses-one",
 				artifactId: " frame ",
+				downloadFilename: "frame.png",
 			}),
 		).resolves.toEqual(download);
-		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
+		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ", "frame.png");
 	});
 
 	it("does not send local artifact references to cloud storage", async () => {

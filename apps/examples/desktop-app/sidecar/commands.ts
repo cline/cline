@@ -2256,10 +2256,11 @@ export async function handleCommand(
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "resolve_artifact") {
-		const { sessionId, artifactId } = z
+		const { sessionId, artifactId, downloadFilename } = z
 			.object({
 				sessionId: z.string().trim().min(1),
 				artifactId: z.string().min(1),
+				downloadFilename: z.string().min(1).optional(),
 			})
 			.parse(args);
 		const cloud = getCloudSessionManager(ctx);
@@ -2268,7 +2269,9 @@ export async function handleCommand(
 				"Artifact access is not available for local sessions yet.",
 			);
 		}
-		return cloud.getArtifactDownloadUrl(sessionId, artifactId);
+		return downloadFilename
+			? cloud.getArtifactDownloadUrl(sessionId, artifactId, downloadFilename)
+			: cloud.getArtifactDownloadUrl(sessionId, artifactId);
 	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();

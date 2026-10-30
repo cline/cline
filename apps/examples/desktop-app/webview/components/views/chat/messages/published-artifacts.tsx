@@ -37,24 +37,26 @@ export function PublishedArtifacts({
 }) {
 	return (
 		<ul className="space-y-2 py-1 text-sm">
-			{files.map((file, index) => (
-				<li
-					key={`${index}:${file.path}`}
-					className="flex flex-wrap items-center gap-2"
-				>
-					<span className="break-all">
-						{file.path.split(/[\\/]/).pop() || file.path}
-					</span>
-					{file.error ? (
-						<span className="text-destructive">{file.error.message}</span>
-					) : (
-						<DownloadArtifact
-							sessionId={sessionId}
-							artifactId={file.artifactId}
-						/>
-					)}
-				</li>
-			))}
+			{files.map((file, index) => {
+				const filename = file.path.split(/[\\/]/).pop() || file.path;
+				return (
+					<li
+						key={`${index}:${file.path}`}
+						className="flex flex-wrap items-center gap-2"
+					>
+						<span className="break-all">{filename}</span>
+						{file.error ? (
+							<span className="text-destructive">{file.error.message}</span>
+						) : (
+							<DownloadArtifact
+								sessionId={sessionId}
+								artifactId={file.artifactId}
+								filename={filename}
+							/>
+						)}
+					</li>
+				);
+			})}
 		</ul>
 	);
 }
@@ -62,13 +64,16 @@ export function PublishedArtifacts({
 function DownloadArtifact({
 	sessionId,
 	artifactId,
+	filename,
 }: {
 	sessionId: string;
 	artifactId: string;
+	filename: string;
 }) {
 	const { state, open } = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
+		downloadFilename: filename,
 	});
 	const busy = state.status === "loading";
 	const failed = state.status === "error";

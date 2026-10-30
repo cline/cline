@@ -2101,8 +2101,16 @@ export class CloudSessionController {
 		return mapped;
 	}
 
-	getArtifactDownloadUrl(outerSessionId: string, artifactId: string) {
-		return this.options.api.getArtifactDownloadUrl(outerSessionId, artifactId);
+	getArtifactDownloadUrl(
+		outerSessionId: string,
+		artifactId: string,
+		downloadFilename?: string,
+	) {
+		return this.options.api.getArtifactDownloadUrl(
+			outerSessionId,
+			artifactId,
+			downloadFilename,
+		);
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {

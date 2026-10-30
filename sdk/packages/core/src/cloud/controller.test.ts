@@ -2294,7 +2294,11 @@ describe("seeded cloud handoff controller", () => {
 it("retrieves an artifact without connecting to or resuming its sandbox", async () => {
 	const f = fixture();
 	expect(
-		await f.controller.getArtifactDownloadUrl("ses-stopped", "frame"),
+		await f.controller.getArtifactDownloadUrl(
+			"ses-stopped",
+			"frame",
+			"frame.png",
+		),
 	).toEqual({
 		url: "https://storage.example/image.png",
 		expiresAt: "2030-01-01T00:00:00Z",
@@ -2302,6 +2306,7 @@ it("retrieves an artifact without connecting to or resuming its sandbox", async 
 	expect(f.api.getArtifactDownloadUrl).toHaveBeenCalledWith(
 		"ses-stopped",
 		"frame",
+		"frame.png",
 	);
 	expect(f.api.resume).not.toHaveBeenCalled();
 	expect(f.commands).toEqual([]);

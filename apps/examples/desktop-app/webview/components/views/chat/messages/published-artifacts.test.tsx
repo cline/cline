@@ -80,6 +80,7 @@ it("downloads a persisted publication and keeps per-file errors visible", async 
 	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("resolve_artifact", {
 		sessionId: "ses-one",
 		artifactId: " report/雪 ",
+		downloadFilename: "report.txt",
 	});
 	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(
 		"https://storage.example/file?signed=1",

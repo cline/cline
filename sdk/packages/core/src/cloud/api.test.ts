@@ -67,6 +67,15 @@ describe("CloudSessionApi", () => {
 		await expect(
 			api.getArtifactDownloadUrl("ses-other", "frame"),
 		).rejects.toMatchObject({ status: 403 });
+		await api.getArtifactDownloadUrl(
+			"ses/outer",
+			"frame + 1",
+			'résumé "final".pdf',
+		);
+		expect(fetch).toHaveBeenLastCalledWith(
+			"https://api.example/api/v1/session/ses%2Fouter/artifacts/download-url?name=frame%20%2B%201&downloadFilename=r%C3%A9sum%C3%A9%20%22final%22.pdf",
+			expect.anything(),
+		);
 	});
 	it.each([
 		"http://storage.example/image.png",

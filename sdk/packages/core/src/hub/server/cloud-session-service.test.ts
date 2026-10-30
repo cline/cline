@@ -221,10 +221,12 @@ describe("hub-owned cloud sessions", () => {
 		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
 		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
 		expect(resolver).toHaveBeenCalledWith("ses-one", " frame ");
+		await viewer.getArtifactDownloadUrl("ses-one", "frame", "frame.png");
+		expect(resolver).toHaveBeenLastCalledWith("ses-one", "frame", "frame.png");
 		const pending = deferred<{ url: string; expiresAt: string }>();
 		resolver.mockReturnValueOnce(pending.promise);
 		const result = viewer.getArtifactDownloadUrl("ses-one", "frame");
-		await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(3));
 		f.changeScope("account-two");
 		pending.resolve({
 			url: "https://storage.example/private.png",

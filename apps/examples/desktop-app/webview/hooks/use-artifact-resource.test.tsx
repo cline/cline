@@ -36,15 +36,18 @@ let renderedUrls: (string | undefined)[];
 function Harness({
 	sessionId = "ses-one",
 	artifactId = "artifact-one",
+	downloadFilename,
 	autoLoad = false,
 }: {
 	sessionId?: string;
 	artifactId?: string;
+	downloadFilename?: string;
 	autoLoad?: boolean;
 }) {
 	const hook = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
+		downloadFilename,
 	});
 	current = hook;
 	const url =
@@ -145,6 +148,7 @@ it.each([
 	"organization",
 	"session",
 	"artifact",
+	"filename",
 ])("hides the cached resource on the first render after a %s switch", async (change) => {
 	await render({ autoLoad: true });
 	const previousOpen = current.open;
@@ -154,6 +158,7 @@ it.each([
 	const props = {
 		sessionId: change === "session" ? "ses-two" : "ses-one",
 		artifactId: change === "artifact" ? "artifact-two" : "artifact-one",
+		downloadFilename: change === "filename" ? "renamed.txt" : undefined,
 	};
 	const frameCount = renderedUrls.length;
 	await render(props);
@@ -168,6 +173,9 @@ it.each([
 	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
 		sessionId: props.sessionId,
 		artifactId: props.artifactId,
+		...(props.downloadFilename
+			? { downloadFilename: props.downloadFilename }
+			: {}),
 	});
 });
 

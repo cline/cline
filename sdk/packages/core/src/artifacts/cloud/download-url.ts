@@ -15,6 +15,13 @@ export const ArtifactDownloadSchema = z.object({
 
 export type CloudArtifactDownload = z.infer<typeof ArtifactDownloadSchema>;
 
-export function artifactDownloadPath(sessionId: string, artifactId: string) {
-	return `/api/v1/session/${encodeURIComponent(sessionId)}/artifacts/download-url?name=${encodeURIComponent(artifactId)}`;
+export function artifactDownloadPath(
+	sessionId: string,
+	artifactId: string,
+	downloadFilename?: string,
+) {
+	const path = `/api/v1/session/${encodeURIComponent(sessionId)}/artifacts/download-url?name=${encodeURIComponent(artifactId)}`;
+	return downloadFilename
+		? `${path}&downloadFilename=${encodeURIComponent(downloadFilename)}`
+		: path;
 }
