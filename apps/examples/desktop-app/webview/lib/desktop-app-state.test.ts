@@ -68,12 +68,25 @@ describe("desktopAppReducer", () => {
 		expect(state.navigation).toBe(navigation);
 		expect(state.threads[0]).toBe(parent);
 		state = desktopAppReducer(state, {
+			type: "set-side-panel-visible",
+			threadId: childThreadId,
+			visible: false,
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "other",
+			environmentId: "local",
+		});
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.threads[1].sidePanelVisible).toBe(false);
+		state = desktopAppReducer(state, {
 			type: "open-side",
 			session: child,
 			submission: { question: "continue" },
 		});
 		expect(state.threads[1].id).toBe(childThreadId);
-		expect(state.threads).toHaveLength(2);
+		expect(state.threads[1].sidePanelVisible).toBe(true);
+		expect(state.threads).toHaveLength(3);
 		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe(
 			"continue",
 		);

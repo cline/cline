@@ -20,17 +20,21 @@ export function useConversationWorkspace({
 	mainThreadId,
 	sideThreadId,
 	openVersion,
+	initialSideVisible = Boolean(sideThreadId),
+	onSideVisibilityChange,
 }: {
 	mainThreadId: string;
 	sideThreadId?: string;
 	openVersion: number;
+	initialSideVisible?: boolean;
+	onSideVisibilityChange?: (threadId: string, visible: boolean) => void;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	const epoch = useRef(0);
 	const lastOpenVersion = useRef(openVersion);
 	const lastSideThreadId = useRef(sideThreadId);
 	const [surface, setSurface] = useState<Surface>(
-		sideThreadId ? { kind: "side" } : { kind: "hidden" },
+		initialSideVisible ? { kind: "side" } : { kind: "hidden" },
 	);
 	const [showWorkspace, setShowWorkspace] = useState(true);
 	const [narrow, setNarrow] = useState(false);
@@ -99,6 +103,9 @@ export function useConversationWorkspace({
 		surface.kind !== "hidden" && (!narrow || showWorkspace);
 	const mainVisible = !narrow || !workspaceVisible;
 	const sideVisible = workspaceVisible && surface.kind === "side";
+	useEffect(() => {
+		if (sideThreadId) onSideVisibilityChange?.(sideThreadId, sideVisible);
+	}, [sideThreadId, sideVisible, onSideVisibilityChange]);
 	return {
 		surface,
 		target,

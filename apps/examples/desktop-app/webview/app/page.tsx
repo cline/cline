@@ -600,6 +600,12 @@ function App() {
 			visible ? id : current === id ? null : current,
 		);
 	}, []);
+	const handleSidePanelVisibility = useCallback(
+		(threadId: string, visible: boolean) => {
+			dispatchApp({ type: "set-side-panel-visible", threadId, visible });
+		},
+		[dispatchApp],
+	);
 	useEffect(() => {
 		const threadIds = new Set(threads.map((thread) => thread.id));
 		for (const threadId of promptDrafts.keys()) {
@@ -1582,6 +1588,8 @@ function App() {
 												sideThread ? threadProps(sideThread, "side") : undefined
 											}
 											openVersion={appState.sideOpenVersion}
+											initialSideVisible={sideThread?.sidePanelVisible ?? false}
+											onSideVisibilityChange={handleSidePanelVisibility}
 										/>
 									</div>
 								) : null}
@@ -1749,15 +1757,21 @@ function MainConversation({
 	main,
 	side,
 	openVersion,
+	initialSideVisible,
+	onSideVisibilityChange,
 }: {
 	main: ThreadPaneProps;
 	side?: ThreadPaneProps;
 	openVersion: number;
+	initialSideVisible: boolean;
+	onSideVisibilityChange: (threadId: string, visible: boolean) => void;
 }) {
 	const workspace = useConversationWorkspace({
 		mainThreadId: main.threadId,
 		sideThreadId: side?.threadId,
 		openVersion,
+		initialSideVisible,
+		onSideVisibilityChange,
 	});
 	return <ChatThreadPane {...main} workspace={workspace} sideThread={side} />;
 }

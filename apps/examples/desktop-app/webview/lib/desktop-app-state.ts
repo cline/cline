@@ -21,6 +21,7 @@ export type DesktopThread = {
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
 	pendingSideSubmissions?: InitialSideSubmission[];
+	sidePanelVisible?: boolean;
 	initialAttachments?: File[];
 };
 
@@ -62,6 +63,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			reveal?: boolean;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
+	| { type: "set-side-panel-visible"; threadId: string; visible: boolean }
 	| {
 			type: "consume-initial-side-submission";
 			threadId: string;
@@ -202,13 +204,30 @@ export function desktopAppReducer<SettingsSection extends string>(
 				environmentId: action.session.environmentId,
 				initialSideSubmission: action.submission,
 			});
+			const revealed =
+				action.reveal === false
+					? opened
+					: desktopAppReducer(opened, {
+							type: "set-side-panel-visible",
+							threadId: opened.navigation.current.activeThreadId,
+							visible: true,
+						});
 			return {
-				...opened,
+				...revealed,
 				navigation: state.navigation,
 				sideOpenVersion:
 					state.sideOpenVersion + (action.reveal === false ? 0 : 1),
 			};
 		}
+		case "set-side-panel-visible":
+			return {
+				...state,
+				threads: state.threads.map((thread) =>
+					thread.id === action.threadId
+						? { ...thread, sidePanelVisible: action.visible }
+						: thread,
+				),
+			};
 		case "open-session": {
 			const existingIdx = state.threads.findIndex(
 				(thread) =>

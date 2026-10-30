@@ -76,16 +76,22 @@ function Harness({
 	child = "child",
 	ready = true,
 	onDetail,
+	initialSideVisible,
+	onSideVisibilityChange,
 }: {
 	version?: number;
 	child?: string;
 	ready?: boolean;
 	onDetail?: () => void;
+	initialSideVisible?: boolean;
+	onSideVisibilityChange?: (threadId: string, visible: boolean) => void;
 }) {
 	rail = useConversationWorkspace({
 		mainThreadId: "parent",
 		sideThreadId: child || undefined,
 		openVersion: version,
+		initialSideVisible,
+		onSideVisibilityChange,
 	});
 	return (
 		<ConversationWorkspace
@@ -111,6 +117,31 @@ function Harness({
 async function render(version = 1) {
 	await act(async () => root.render(<Harness version={version} />));
 }
+it("keeps a hidden side pane hidden after remount until explicitly reopened", async () => {
+	let savedVisibility = true;
+	const saveVisibility = (_threadId: string, visible: boolean) => {
+		savedVisibility = visible;
+	};
+	const mount = (version = 1) =>
+		act(async () =>
+			root.render(
+				<Harness
+					version={version}
+					initialSideVisible={savedVisibility}
+					onSideVisibilityChange={saveVisibility}
+				/>,
+			),
+		);
+	await mount();
+	await act(async () => rail.close());
+	expect(savedVisibility).toBe(false);
+	await act(async () => root.render(null));
+	await mount();
+	expect(rail.sideVisible).toBe(false);
+	await mount(2);
+	expect(rail.sideVisible).toBe(true);
+	expect(savedVisibility).toBe(true);
+});
 it("retains both controllers and drafts through close, reopen, and narrow switching", async () => {
 	await render();
 	const main = host.querySelector<HTMLTextAreaElement>(
