@@ -258,6 +258,20 @@ unreachable without interrupting existing cloud work.
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
 models. Handoff requires the selected model; it never substitutes another.
 
+For a confirmed Git snapshot and summary, `publishCloudHandoff({ controller,
+input, assertCurrent })` from `@cline/core/cloud` validates the approved target,
+media budget, repository access, organization, and model before publishing and
+verifying the captured Git tree. It then delegates creation and initial send to
+`CloudSessionController.create`, defaulting to a resumable sandbox and preserving
+its `initialSend` result. `PublishedHandoffInput` requires the captured `localGit`,
+`requestId`, approved `organizationId` (or `null` for Personal), and `initialMessage`.
+Hosts prevent duplicate confirmation and supply an `assertCurrent` callback that
+throws when the account or host lifetime changes. The guard runs before publication
+and after each preparation/publication await; an entered Git operation can still
+finish. The operation provides no automatic replay or rollback after uncertainty.
+The Hub uses the same operation while retaining its request deduplication and
+viewer-independent lifetime.
+
 Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
 an existing target. Persist target IDs and dispatch markers through the callbacks;
 use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.
