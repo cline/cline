@@ -397,15 +397,17 @@ A Desktop consumer can pass `check.screenshot` directly to its existing `Artifac
   output={report}
   state="completed"
   renderScreenshot={(check, className) =>
-    check.screenshot ? (
+    check.screenshot?.source.type === "artifact" ? (
       <ArtifactImage
         media={check.screenshot}
         sessionId={sessionId}
         className={className}
       />
-    ) : null
+    ) : undefined
   }
 />
 ```
 
 `ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.
+
+A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. Desktop does this for inline screenshots so the shared Blob rendering and image-load fallback stay active.

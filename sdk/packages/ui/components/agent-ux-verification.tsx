@@ -42,7 +42,10 @@ function EvidenceImage({
 }) {
 	const image = check.screenshot;
 	const [failedImage, setFailedImage] = useState<typeof image>();
-	if (image && renderScreenshot) return renderScreenshot(check, className);
+	if (image && renderScreenshot) {
+		const rendered = renderScreenshot(check, className);
+		if (rendered !== undefined) return rendered;
+	}
 	if (image?.source.type === "base64" && failedImage !== image)
 		return (
 			<div className={className} onErrorCapture={() => setFailedImage(image)}>
@@ -70,7 +73,8 @@ export interface AgentUxVerificationProps {
 	output: unknown;
 	state: "running" | "completed" | "error";
 	error?: string;
-	/** Host-owned rendering for authenticated asset references or remote URLs. */
+	/** Host-owned rendering for asset references or remote URLs. Return undefined
+	 * to use the default renderer (including its inline image error handling). */
 	renderScreenshot?: UxScreenshotRenderer;
 	/** The host owns its focus-managed image viewer. */
 	onExpandScreenshot?: (check: UxVerificationCheck) => void;

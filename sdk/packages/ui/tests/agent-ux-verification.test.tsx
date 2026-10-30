@@ -274,3 +274,19 @@ it("passes canonical artifact media unchanged to a host screenshot renderer", as
 	});
 	expect(container.textContent).toContain("Host image component");
 });
+it("uses the default inline renderer when the host declines a source", async () => {
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={report}
+				state="completed"
+				renderScreenshot={() => undefined}
+			/>,
+		),
+	);
+	expect(container.querySelector("img")?.src).toBe("blob:ux-evidence");
+	await act(async () => {
+		container.querySelector("img")!.dispatchEvent(new Event("error"));
+	});
+	expect(container.textContent).toContain("Screenshot could not be loaded");
+});

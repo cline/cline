@@ -71,7 +71,7 @@ function ResolvedArtifactImage({
 	}, [visible, load]);
 
 	return (
-		<div ref={container} data-media-id={media.id}>
+		<div ref={container} data-media-id={media.id} className={className}>
 			{state.status === "error" ? (
 				<output className={classNames?.unavailable ?? className}>
 					Image unavailable.{" "}
