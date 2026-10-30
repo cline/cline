@@ -1,0 +1,200 @@
+@layer components {
+	/* Shared presentation for Dialog and AlertDialog; their Radix primitives own behavior. */
+	.cline-dialog__overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		background: rgb(0 0 0 / 50%);
+	}
+
+	.cline-dialog__content {
+		--cline-dialog-padding-inline: 1rem;
+		--cline-dialog-padding-block: 1.5rem;
+		box-sizing: border-box;
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		z-index: 50;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		width: calc(100% - 2rem);
+		max-width: 40rem;
+		max-height: min(48rem, calc(100dvh - 2rem));
+		translate: -50% -50%;
+		overflow: hidden;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xl);
+		background: var(--background);
+		color: var(--foreground);
+		font-family: var(--font-sans);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+		font-weight: var(--font-weight-normal);
+		box-shadow:
+			0 10px 15px -3px rgb(0 0 0 / 10%),
+			0 4px 6px -4px rgb(0 0 0 / 10%);
+		outline: none;
+	}
+	.cline-dialog__content[data-size="sm"] {
+		max-width: 32rem;
+	}
+	.cline-dialog__content[data-size="lg"] {
+		max-width: 48rem;
+	}
+
+	.cline-dialog__header {
+		box-sizing: border-box;
+		display: flex;
+		flex: none;
+		flex-direction: column;
+		min-width: 0;
+		gap: 0.4rem;
+		padding: var(--cline-dialog-padding-block)
+			var(--cline-dialog-padding-inline);
+		overflow-wrap: anywhere;
+	}
+	/* Bound rich descriptions without taking space from host-owned scrolling bodies. */
+	.cline-dialog__content > .cline-dialog__header {
+		max-height: min(20rem, 40dvh);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	.cline-dialog__title {
+		margin: 0;
+		font-size: var(--text-xl);
+		line-height: var(--text-xl--line-height);
+		letter-spacing: var(--text-xl--letter-spacing);
+		font-weight: var(--font-weight-medium);
+	}
+	.cline-dialog__content[data-has-close="true"] .cline-dialog__title {
+		padding-right: 1.5rem;
+	}
+	.cline-dialog__description {
+		color: var(--muted-foreground);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+	.cline-dialog__description > * + * {
+		margin-top: 8px;
+	}
+	.cline-dialog__body {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		gap: 1.5rem;
+		padding: 0 var(--cline-dialog-padding-inline)
+			var(--cline-dialog-padding-block);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	/* Confirmations scroll their title and description along with any details. */
+	.cline-dialog__body--with-header {
+		padding-top: var(--cline-dialog-padding-block);
+	}
+	.cline-dialog__body > .cline-dialog__header {
+		padding: 0;
+	}
+	.cline-dialog__body:focus-visible,
+	.cline-dialog__header:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: -2px;
+	}
+	.cline-dialog__body > * {
+		flex-shrink: 0;
+	}
+	.cline-dialog__footer {
+		display: flex;
+		flex: none;
+		flex-direction: column-reverse;
+		gap: 0.5rem;
+		border-top: 1px solid var(--border);
+		background: var(--surface-2);
+		padding: 1rem;
+	}
+	.cline-dialog__footer > :is(button, .cline-ui-button) {
+		min-width: 0;
+		flex-shrink: 1;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.cline-dialog__footer > .cline-ui-button {
+		/* Preserve the size variant's height until a wrapped label needs more room. */
+		min-height: min-content;
+		padding-block: calc(var(--spacing, 0.25rem) * 1.5);
+	}
+	.cline-dialog__close {
+		position: absolute;
+		top: 0.8rem;
+		right: 0.8rem;
+	}
+	@media (min-width: 640px) {
+		.cline-dialog__content {
+			--cline-dialog-padding-inline: 1.3rem;
+			--cline-dialog-padding-block: 1.3rem;
+		}
+		.cline-dialog__footer {
+			flex-direction: row;
+			justify-content: flex-end;
+		}
+	}
+
+	/* Shared motion stays below host utilities, like the surface styles. */
+	.cline-dialog__overlay[data-state="open"] {
+		animation: cline-dialog-fade-in 64ms ease-out;
+	}
+	.cline-dialog__overlay[data-state="closed"] {
+		animation: cline-dialog-fade-out 40ms ease-in;
+	}
+	.cline-dialog__content[data-state="open"] {
+		animation: cline-dialog-enter 64ms ease-out;
+	}
+	.cline-dialog__content[data-state="closed"] {
+		animation: cline-dialog-exit 40ms ease-in;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cline-dialog__overlay[data-state],
+		.cline-dialog__content[data-state] {
+			animation: none;
+		}
+	}
+}
+@keyframes cline-dialog-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes cline-dialog-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+@keyframes cline-dialog-enter {
+	from {
+		opacity: 0;
+		scale: 0.95;
+	}
+	to {
+		opacity: 1;
+		scale: 1;
+	}
+}
+@keyframes cline-dialog-exit {
+	from {
+		opacity: 1;
+		scale: 1;
+	}
+	to {
+		opacity: 0;
+		scale: 0.95;
+	}
+}

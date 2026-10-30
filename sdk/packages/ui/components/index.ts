@@ -98,13 +98,15 @@ export {
 	type AgentWelcomeHeroLayout,
 	type AgentWelcomeHeroProps,
 } from "./agent-welcome-hero.js";
+export { AlertDialog, type AlertDialogProps } from "./alert-dialog.js";
 export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
-export { Badge, type BadgeProps } from "./badge.js";
+export { Badge, type BadgeProps, type InteractiveBadgeProps } from "./badge.js";
 export {
 	Button,
+	type ButtonIcon,
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonTone,
@@ -114,6 +116,7 @@ export {
 	type IconButtonProps,
 	iconButtonVariants,
 } from "./button.js";
+export { Dialog, type DialogProps } from "./dialog.js";
 export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,
@@ -122,11 +125,23 @@ export {
 export { GitHubIcon } from "./github-icon.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
+	PillSelector,
+	PillSelectorItem,
+	type PillSelectorItemProps,
+	type PillSelectorProps,
+} from "./pill-selector.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
 	type SearchComboboxSection,
 } from "./search-combobox.js";
+export {
+	SegmentedControl,
+	type SegmentedControlOption,
+	type SegmentedControlProps,
+	type SegmentedControlSize,
+} from "./segmented-control.js";
 export {
 	SessionStatus,
 	type SessionStatusProps,

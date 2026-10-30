@@ -1,107 +1,74 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { clsx } from "clsx";
 import {
-	type ButtonHTMLAttributes,
+	type ComponentType,
 	cloneElement,
 	forwardRef,
 	isValidElement,
-	type MouseEventHandler,
 	type ReactNode,
+	type SVGProps,
 } from "react";
+import { ButtonControl, type ButtonControlProps } from "./button-control.js";
 
-const BASE =
-	"inline-flex items-center justify-center whitespace-nowrap rounded-cline-ui-md font-cline-ui-medium cursor-pointer " +
-	"disabled:pointer-events-none disabled:opacity-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 " +
-	"[&_svg]:pointer-events-none [&_svg]:shrink-0 shrink-0 " +
-	"outline-none focus-visible:ring-2 focus-visible:ring-cline-ui-ring/60 transition-colors";
-
-// ─── Button ───────────────────────────────────────────────────────────────────
-
-export const buttonVariants = cva(BASE, {
-	variants: {
-		variant: {
-			fill: "",
-			surface: "",
-			ghost: "",
-		},
-		tone: {
-			accent: "",
-			neutral: "",
-			destructive: "",
-		},
-		size: {
-			xs: "h-7 px-2.5 gap-1.5 text-cline-ui-xs [&_svg:not([class*='size-'])]:size-3",
-			sm: "h-8 px-3 gap-1.5 text-cline-ui-sm [&_svg:not([class*='size-'])]:size-3.5",
-			md: "h-9 px-3.5 gap-2 text-cline-ui-sm [&_svg:not([class*='size-'])]:size-4",
-			lg: "h-10 px-4 gap-2 text-cline-ui-base [&_svg:not([class*='size-'])]:size-4",
-		},
+// Defaults live in the component CSS layer so host utilities can override them.
+const VARIANTS = {
+	variant: {
+		primary: "cline-ui-button-primary",
+		secondary: "cline-ui-button-secondary",
+		ghost: "cline-ui-button-ghost",
+		/** @deprecated Use primary. */
+		fill: "cline-ui-button-primary",
+		/** @deprecated Use secondary. */
+		surface: "cline-ui-button-secondary",
 	},
-	compoundVariants: [
-		// fill
-		{
-			variant: "fill",
-			tone: "accent",
-			className:
-				"bg-cline-ui-primary text-cline-ui-primary-foreground hover:bg-cline-ui-primary-emphasis",
-		},
-		{
-			variant: "fill",
-			tone: "neutral",
-			className:
-				"bg-cline-ui-secondary text-cline-ui-secondary-foreground hover:bg-cline-ui-border",
-		},
-		{
-			variant: "fill",
-			tone: "destructive",
-			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
-		},
-		// surface
-		{
-			variant: "surface",
-			tone: "accent",
-			className:
-				"bg-cline-ui-accent text-cline-ui-accent-foreground hover:bg-cline-ui-primary/15",
-		},
-		{
-			variant: "surface",
-			tone: "neutral",
-			className:
-				"bg-cline-ui-surface-hover-lighter text-cline-ui-foreground hover:bg-cline-ui-surface-hover",
-		},
-		{
-			variant: "surface",
-			tone: "destructive",
-			className:
-				"bg-cline-ui-destructive/10 text-cline-ui-error-text hover:bg-cline-ui-destructive/15",
-		},
-		// ghost
-		{
-			variant: "ghost",
-			tone: "accent",
-			className: "text-cline-ui-accent-foreground hover:bg-cline-ui-primary/10",
-		},
-		{
-			variant: "ghost",
-			tone: "neutral",
-			className:
-				"text-cline-ui-muted-foreground hover:bg-cline-ui-surface-hover hover:text-cline-ui-foreground",
-		},
-		{
-			variant: "ghost",
-			tone: "destructive",
-			className: "text-cline-ui-error-text hover:bg-cline-ui-destructive/10",
-		},
-	],
+	tone: {
+		accent: "cline-ui-button-accent",
+		neutral: "cline-ui-button-neutral",
+		destructive: "cline-ui-button-destructive",
+	},
+	size: {
+		xs: "cline-ui-button-xs",
+		sm: "cline-ui-button-sm",
+		md: "cline-ui-button-md",
+		lg: "cline-ui-button-lg",
+	},
+};
+
+const BUTTON_CONFIG = {
+	variants: VARIANTS,
 	defaultVariants: {
-		variant: "fill",
+		variant: "primary",
 		tone: "accent",
 		size: "md",
 	},
-});
+} as const;
+
+const ICON_BUTTON_CONFIG = {
+	variants: VARIANTS,
+	defaultVariants: {
+		variant: "ghost",
+		tone: "neutral",
+		size: "sm",
+	},
+} as const;
+
+const buttonClasses = cva("cline-ui-button", BUTTON_CONFIG);
+const iconButtonClasses = cva(
+	"cline-ui-button cline-ui-icon-button",
+	ICON_BUTTON_CONFIG,
+);
+
+// Consumers of the helpers supply their own content, so retain the legacy SVG
+// defaults. React components opt into managed icons without sizing unrelated SVGs.
+export const buttonVariants = cva(
+	"cline-ui-button cline-ui-button-legacy-icons",
+	BUTTON_CONFIG,
+);
+export const iconButtonVariants = cva(
+	"cline-ui-button cline-ui-icon-button cline-ui-button-legacy-icons",
+	ICON_BUTTON_CONFIG,
+);
 
 export type ButtonVariant = NonNullable<
 	VariantProps<typeof buttonVariants>["variant"]
@@ -113,212 +80,119 @@ export type ButtonSize = NonNullable<
 	VariantProps<typeof buttonVariants>["size"]
 >;
 
+/** An SVG icon component that forwards its props to the SVG element. */
+export type ButtonIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
 export interface ButtonProps
-	extends ButtonHTMLAttributes<HTMLButtonElement>,
+	extends ButtonControlProps,
 		VariantProps<typeof buttonVariants> {
-	asChild?: boolean;
-	children?: ReactNode;
+	leadingIcon?: ButtonIcon;
+	trailingIcon?: ButtonIcon;
 }
 
-const preventDisabledActivation: MouseEventHandler<HTMLElement> = (event) => {
-	event.preventDefault();
-	event.stopPropagation();
-};
+function renderIcon(
+	Icon: ButtonIcon | undefined,
+	position: "leading" | "trailing" | "icon",
+) {
+	return Icon ? (
+		<Icon
+			aria-hidden="true"
+			className="cline-ui-button__icon"
+			data-icon={position}
+			focusable="false"
+		/>
+	) : null;
+}
 
-function disableComposedChild(children: ReactNode) {
-	if (
-		!isValidElement<{
-			onClick?: MouseEventHandler;
-			onClickCapture?: MouseEventHandler;
-		}>(children)
-	) {
-		return children;
-	}
+function composeContent(
+	children: ReactNode,
+	asChild: boolean | undefined,
+	renderContent: (children: ReactNode) => ReactNode,
+) {
+	if (!asChild) return renderContent(children);
+	if (!isValidElement<{ children?: ReactNode }>(children)) return children;
 
-	// Radix Slot composes same-element event handlers child-first. Remove the
-	// child's activation handlers before Slot sees them so disabled composed
-	// controls cannot run an action before our guard.
-	return cloneElement(children, {
-		onClick: preventDisabledActivation,
-		onClickCapture: preventDisabledActivation,
-	});
+	// Keep the actual target as Slot's only child so ButtonControl can preserve
+	// its ref, native button type, and disabled event handling.
+	return cloneElement(
+		children,
+		undefined,
+		renderContent(children.props.children),
+	);
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 	(
 		{
-			asChild = false,
+			asChild,
 			children,
 			className,
-			disabled,
-			onClick,
-			onClickCapture,
+			leadingIcon,
+			trailingIcon,
 			size,
 			tone,
-			type,
 			variant,
 			...props
 		},
 		ref,
-	) => {
-		const Comp = asChild ? Slot : "button";
-		return (
-			<Comp
-				{...props}
-				className={clsx(buttonVariants({ size, tone, variant }), className)}
-				data-slot="button"
-				ref={ref}
-				{...(asChild
-					? disabled
-						? {
-								"aria-disabled": true,
-								"data-disabled": "",
-								onClick: preventDisabledActivation,
-								onClickCapture: preventDisabledActivation,
-								tabIndex: -1,
-							}
-						: { onClick, onClickCapture }
-					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
-			>
-				{asChild && disabled ? disableComposedChild(children) : children}
-			</Comp>
-		);
-	},
+	) => (
+		<ButtonControl
+			{...props}
+			asChild={asChild}
+			className={buttonClasses({
+				className: [
+					!leadingIcon && !trailingIcon && "cline-ui-button-legacy-icons",
+					className,
+				],
+				size,
+				tone,
+				variant,
+			})}
+			data-slot="button"
+			ref={ref}
+		>
+			{leadingIcon || trailingIcon
+				? composeContent(children, asChild, (label) => (
+						<>
+							{renderIcon(leadingIcon, "leading")}
+							{label}
+							{renderIcon(trailingIcon, "trailing")}
+						</>
+					))
+				: children}
+		</ButtonControl>
+	),
 );
 Button.displayName = "Button";
 
-// ─── IconButton ───────────────────────────────────────────────────────────────
-
-export const iconButtonVariants = cva(BASE, {
-	variants: {
-		variant: {
-			fill: "",
-			surface: "",
-			ghost: "",
-		},
-		tone: {
-			accent: "",
-			neutral: "",
-			destructive: "",
-		},
-		size: {
-			xs: "size-7 [&_svg:not([class*='size-'])]:size-3.5",
-			sm: "size-8 [&_svg:not([class*='size-'])]:size-4",
-			md: "size-9 [&_svg:not([class*='size-'])]:size-4",
-			lg: "size-10 [&_svg:not([class*='size-'])]:size-5",
-		},
-	},
-	compoundVariants: [
-		// fill
-		{
-			variant: "fill",
-			tone: "accent",
-			className:
-				"bg-cline-ui-primary text-cline-ui-primary-foreground hover:bg-cline-ui-primary-emphasis",
-		},
-		{
-			variant: "fill",
-			tone: "neutral",
-			className:
-				"bg-cline-ui-secondary text-cline-ui-secondary-foreground hover:bg-cline-ui-border",
-		},
-		{
-			variant: "fill",
-			tone: "destructive",
-			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
-		},
-		// surface
-		{
-			variant: "surface",
-			tone: "accent",
-			className:
-				"bg-cline-ui-accent text-cline-ui-accent-foreground hover:bg-cline-ui-primary/15",
-		},
-		{
-			variant: "surface",
-			tone: "neutral",
-			className:
-				"bg-cline-ui-surface-hover-lighter text-cline-ui-foreground hover:bg-cline-ui-surface-hover",
-		},
-		{
-			variant: "surface",
-			tone: "destructive",
-			className:
-				"bg-cline-ui-destructive/10 text-cline-ui-error-text hover:bg-cline-ui-destructive/15",
-		},
-		// ghost
-		{
-			variant: "ghost",
-			tone: "accent",
-			className: "text-cline-ui-accent-foreground hover:bg-cline-ui-primary/10",
-		},
-		{
-			variant: "ghost",
-			tone: "neutral",
-			className:
-				"text-cline-ui-muted-foreground hover:bg-cline-ui-surface-hover hover:text-cline-ui-foreground",
-		},
-		{
-			variant: "ghost",
-			tone: "destructive",
-			className: "text-cline-ui-error-text hover:bg-cline-ui-destructive/10",
-		},
-	],
-	defaultVariants: {
-		variant: "ghost",
-		tone: "neutral",
-		size: "sm",
-	},
-});
-
 export interface IconButtonProps
-	extends ButtonHTMLAttributes<HTMLButtonElement>,
-		VariantProps<typeof iconButtonVariants> {
+	extends Omit<ButtonProps, "leadingIcon" | "trailingIcon"> {
 	"aria-label": string;
-	asChild?: boolean;
-	children?: ReactNode;
+	/** Managed icon content. When omitted, existing children render unchanged. */
+	icon?: ButtonIcon;
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 	(
-		{
-			asChild = false,
-			children,
-			className,
-			disabled,
-			onClick,
-			onClickCapture,
-			size,
-			tone,
-			type,
-			variant,
-			...props
-		},
+		{ asChild, children, className, icon, size, tone, variant, ...props },
 		ref,
-	) => {
-		const Comp = asChild ? Slot : "button";
-		return (
-			<Comp
-				{...props}
-				className={clsx(iconButtonVariants({ size, tone, variant }), className)}
-				data-slot="icon-button"
-				ref={ref}
-				{...(asChild
-					? disabled
-						? {
-								"aria-disabled": true,
-								"data-disabled": "",
-								onClick: preventDisabledActivation,
-								onClickCapture: preventDisabledActivation,
-								tabIndex: -1,
-							}
-						: { onClick, onClickCapture }
-					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
-			>
-				{asChild && disabled ? disableComposedChild(children) : children}
-			</Comp>
-		);
-	},
+	) => (
+		<ButtonControl
+			{...props}
+			asChild={asChild}
+			className={iconButtonClasses({
+				className: [!icon && "cline-ui-button-legacy-icons", className],
+				size,
+				tone,
+				variant,
+			})}
+			data-slot="icon-button"
+			ref={ref}
+		>
+			{icon
+				? composeContent(children, asChild, () => renderIcon(icon, "icon"))
+				: children}
+		</ButtonControl>
+	),
 );
 IconButton.displayName = "IconButton";

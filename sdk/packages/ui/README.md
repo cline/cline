@@ -70,9 +70,11 @@ share welcome/conversation geometry and header groups through host-owned slots.
 See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
-accent, neutral, and destructive tones. Both default to `type="button"` so they
-are safe inside forms. `IconButton` requires an accessible `aria-label`, and
-both components support Radix-style composition through `asChild`.
+accent, neutral, and destructive tones. Without `asChild`, both default to
+`type="button"`. Composed children retain their native form behavior unless a
+`type` is specified; a native button without a type submits its form.
+`IconButton` requires an accessible `aria-label`, and both components support
+Radix-style composition through `asChild`.
 
 ```tsx
 import { Button, IconButton } from "@cline/ui";
@@ -195,6 +197,22 @@ Use `--accent-foreground` and the status `-text` roles for small colored text.
 Pair solid fills with their foreground or `-contrast` roles.
 The existing token names and component APIs remain available. Typography adds
 `--text-xxs` for 11px text at the default 15px root size.
+
+## Shared controls
+
+Import `Button`, `IconButton`, `Badge`, `Switch`, `SegmentedControl`,
+`PillSelector`, `PillSelectorItem`, `Dialog`, and `AlertDialog` from
+`@cline/ui` after loading the theme and `@cline/ui/components.css`.
+
+Buttons support `primary`, `secondary`, and `ghost` styles, with the existing
+`fill` and `surface` aliases retained. Icon props are optional; existing child
+icons keep working. Badges render spans by default and use a native button only
+when `interactive` is supplied. Switches and segmented controls retain native
+form behavior. Dialog state and actions remain owned by the consuming app.
+
+See [control adoption examples](./ADOPTION.md#buttons) for keyboard behavior,
+scoped portal containers, and compatible props. Stories cover light/dark modes
+and disabled, focus, and loading states.
 
 ## Agent-chat usage
 
