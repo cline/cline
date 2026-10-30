@@ -427,18 +427,19 @@ function parseOptionalNumber(
 }
 
 async function fetchHicapPrivateModels(
-	_config: ProviderConfig,
+	config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
-	const response = await fetchWithTimeout(
-		"https://api.hicap.ai/v2/openai/models",
-		{
-			method: "GET",
-			headers: {
-				"api-key": token,
-			},
+	// Fall back to the documented base URL, matching the `hicap` builtin spec's
+	// `defaults.baseUrl`; an explicitly configured base URL wins.
+	const baseUrl = normalizeBaseUrl(config.baseUrl) || "https://api.hicap.ai/v1";
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			"api-key": token,
 		},
-	);
+	});
 	if (!response.ok) {
 		throw new Error(`Hicap model refresh failed: HTTP ${response.status}`);
 	}
