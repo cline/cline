@@ -119,9 +119,16 @@ const pendingApprovals = new Map<string, {
 
 Cloud sessions project approval snapshots from the shared Hub. Their async
 resolvers send `respondApproval` through the cloud RPC facade; the daemon forwards
-the response to the sandbox Hub. Desktop owns no cloud API client or sandbox connection.
+the response to the sandbox Hub. Desktop owns no cloud lifecycle controller or sandbox connection.
 Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
 are owned by the daemon.
+
+Published artifact previews and downloads share `useArtifactResource`. The sidecar
+resolves signed URLs through the account-scoped Hub without resuming the sandbox.
+If an older Hub rejects the operation as unknown, the sidecar uses `CloudSessionApi`
+with refreshed, account-bound credentials. Other failures do not trigger fallback.
+Artifact IDs remain in history; signed URLs stay transient and bytes load directly
+from storage.
 
 ### 3. Provider Management — Shared Hub Commands
 

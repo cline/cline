@@ -24,6 +24,10 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
+import {
+	PublishedArtifacts,
+	parsePublishedArtifacts,
+} from "./published-artifacts";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
@@ -153,7 +157,15 @@ const ToolCallRow = memo(function ToolCallRow({
 	const otherOutputMedia = summary.outputMedia.filter(
 		(media) => media.modality !== "image",
 	);
+	const publishedFiles =
+		toolName === "publish_artifacts" &&
+		!inProgress &&
+		!payload?.isError &&
+		message.sessionId
+			? parsePublishedArtifacts(payload?.result)
+			: undefined;
 	const shouldAutoOpen =
+		Boolean(publishedFiles) ||
 		hasFileDiffs ||
 		Boolean(submitText) ||
 		summary.outputMedia.length > 0 ||
@@ -195,6 +207,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const inputPreview =
 		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
 	const hasExpandedSections =
+		Boolean(publishedFiles) ||
 		details.length > 0 ||
 		fileDiffs.length > 0 ||
 		Boolean(submitText) ||
@@ -257,7 +270,12 @@ const ToolCallRow = memo(function ToolCallRow({
 						</ToolActivityCode>
 					),
 				)}
-				{commandOutput ? (
+				{publishedFiles && message.sessionId ? (
+					<PublishedArtifacts
+						files={publishedFiles}
+						sessionId={message.sessionId}
+					/>
+				) : commandOutput ? (
 					<AgentCommandOutput isRunning={isRunning} output={commandOutput}>
 						<Ansi>{commandOutput}</Ansi>
 					</AgentCommandOutput>
