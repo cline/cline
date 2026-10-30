@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import {
 	createMediaBudgetState,
+	FeatureFlag,
 	getClineEnvironmentConfig,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
@@ -10,6 +11,7 @@ import { z } from "zod";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { CloudSessionApi } from "../../cloud/api";
+import { CLOUD_COMPUTER_USE_ENV } from "../../cloud/computer-use-prompt";
 import { CloudSessionController } from "../../cloud/controller";
 import type {
 	CloudHubOperation,
@@ -28,6 +30,7 @@ import {
 	applyHandoffGit,
 	verifyPublishedHandoffGit,
 } from "../../services/cloud-handoff/git-preparation";
+import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { captureAuthRefreshSoftFailure } from "../../services/telemetry/core-events";
 
@@ -394,6 +397,9 @@ export class HubCloudSessionService {
 				source: "desktop",
 			},
 			lateCreateDisposition: "preserve",
+			isComputerUseEnabled: async () =>
+				process.env[CLOUD_COMPUTER_USE_ENV] === "1" ||
+				(await isClineAccountFeatureEnabled(FeatureFlag.CLOUD_COMPUTER_USE)),
 			getActiveOrganizationId: async (options) => {
 				if (options?.fresh) this.invalidateOrganization();
 				const organization = this.organization;
@@ -461,16 +467,29 @@ export class HubCloudSessionService {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}
-		this.checkScope();
 		const expected = z
-			.object({ serviceId: z.string(), scopeGeneration: z.number().int() })
+			.object({
+				serviceId: z.string(),
+				scopeGeneration: z.number().int(),
+				expectedAccountId: id.optional(),
+			})
 			.parse(expectedScope) satisfies CloudHubScope;
+		const controller = this.getController();
 		if (
 			expected.serviceId !== this.serviceId ||
 			expected.scopeGeneration !== this.scopeGeneration
 		)
 			throw new Error("Cloud account changed before request");
-		const controller = this.getController();
+		if (expected.expectedAccountId !== undefined) {
+			const account = this.scope;
+			if (
+				account?.kind !== "account" ||
+				account.identity !== expected.expectedAccountId
+			)
+				throw new Error(
+					"The cloud account does not match the signed-in account. Sign in again before continuing.",
+				);
+		}
 		this.activeCommands++;
 		try {
 			const result =
