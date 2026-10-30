@@ -150,10 +150,10 @@ export function AgentChangedFile({
 					type="button"
 				/>
 				{actions}
-				<span className="cline-ui-agent-changes__additions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-primary">
+				<span className="cline-ui-agent-changes__additions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-accent-foreground">
 					+{additions}
 				</span>
-				<span className="cline-ui-agent-changes__deletions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-destructive">
+				<span className="cline-ui-agent-changes__deletions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-error-text">
 					-{deletions}
 				</span>
 			</div>
