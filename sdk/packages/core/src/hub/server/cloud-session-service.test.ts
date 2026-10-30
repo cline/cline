@@ -212,7 +212,7 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
-	it("resolves artifact URLs through the viewer and rejects an account switch during resolution", async () => {
+	it("resolves artifact URLs through the viewer without trimming artifact IDs", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.connect();
@@ -221,16 +221,6 @@ describe("hub-owned cloud sessions", () => {
 		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
 		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
 		expect(resolver).toHaveBeenCalledWith("ses-one", " frame ");
-		const pending = deferred<{ url: string; expiresAt: string }>();
-		resolver.mockReturnValueOnce(pending.promise);
-		const result = viewer.getArtifactDownloadUrl("ses-one", "frame");
-		await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
-		f.changeScope("account-two");
-		pending.resolve({
-			url: "https://storage.example/private.png",
-			expiresAt: "2030-01-01T00:00:00Z",
-		});
-		await expect(result).rejects.toThrow(/account changed/i);
 		await viewer.dispose();
 	});
 

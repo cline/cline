@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
-import { ArtifactDownloadSchema, artifactDownloadPath } from "./download-url";
+import {
+	ArtifactDownloadSchema,
+	artifactDownloadPath,
+	type CloudArtifactDownload,
+} from "./download-url";
 
 const EXPIRY_MARGIN_MS = 30_000;
 const MAX_CACHED_URLS = 128;
@@ -17,10 +21,7 @@ export function createArtifactFetcher({
 	request: ConnectorsRequest;
 	cloudSessionId: string;
 }) {
-	const urls = new Map<
-		string,
-		z.infer<typeof DownloadResponseSchema>["data"]
-	>();
+	const urls = new Map<string, CloudArtifactDownload>();
 	return async function fetchArtifact({
 		artifactId,
 		signal,

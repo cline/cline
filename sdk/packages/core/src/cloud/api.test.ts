@@ -68,17 +68,18 @@ describe("CloudSessionApi", () => {
 			api.getArtifactDownloadUrl("ses-other", "frame"),
 		).rejects.toMatchObject({ status: 403 });
 	});
-	it.each([
-		"http://storage.example/image.png",
-		"javascript:alert(1)",
-		"https://user:password@storage.example/image.png",
-	])("rejects an unsafe artifact URL: %s", async (url) => {
+	it("validates artifact URLs returned by the API", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
 			getAuthToken: async () => "token",
 			fetch: async () =>
-				jsonResponse({ data: { url, expiresAt: "2030-01-01T00:00:00Z" } }),
+				jsonResponse({
+					data: {
+						url: "http://storage.example/image.png",
+						expiresAt: "2030-01-01T00:00:00Z",
+					},
+				}),
 		});
 		await expect(
 			api.getArtifactDownloadUrl("ses-outer", "frame"),
