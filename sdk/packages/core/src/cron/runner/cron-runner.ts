@@ -172,7 +172,13 @@ export function buildRunSessionMetadata(
 	};
 }
 
+import {
+	type ScheduleResultDelivery,
+	scheduleResultDelivery,
+} from "../service/schedule-result-delivery";
+
 export interface CronRunnerOptions {
+	deliverResult?: (delivery: ScheduleResultDelivery) => Promise<void>;
 	store: SqliteCronStore;
 	materializer: CronMaterializer;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
@@ -244,6 +250,7 @@ export class CronRunner {
 			);
 		}
 		await Promise.allSettled([...this.executions]);
+		await this.deliveringResults;
 	}
 
 	public async dispose(): Promise<void> {
@@ -268,6 +275,7 @@ export class CronRunner {
 					active.controller.abort(new RunCancelledError("run lease lost"));
 				}
 			}
+			await this.deliverPendingResults();
 			this.materializer.materializeAll();
 			this.store.cancelSupersededScheduleRuns();
 			const claims = this.store.claimDueRuns({
@@ -297,6 +305,49 @@ export class CronRunner {
 		// Only serialize queue dispatch. Agent turns can outlive many polls;
 		// waiting for one batch must not prevent unrelated schedules dispatching.
 		await Promise.allSettled(executions);
+		await this.deliverPendingResults();
+	}
+
+	private deliveringResults: Promise<void> | undefined;
+	private async deliverPendingResults(): Promise<void> {
+		if (!this.options.deliverResult || this.deliveringResults || this.stopping)
+			return;
+		const deliver = this.options.deliverResult;
+		const task = (async () => {
+			for (const delivery of this.store.claimResultDeliveries()) {
+				if (this.stopping) {
+					this.store.recordResultDeliveryError(
+						delivery.runId,
+						"Runner stopped before handoff",
+						delivery.claimToken,
+					);
+					continue;
+				}
+				try {
+					await deliver({
+						runId: delivery.runId,
+						sessionId: delivery.sessionId,
+						prompt: delivery.prompt,
+					});
+					this.store.acknowledgeResultDelivery(
+						delivery.runId,
+						delivery.claimToken,
+					);
+				} catch (error) {
+					this.store.recordResultDeliveryError(
+						delivery.runId,
+						error instanceof Error ? error.message : String(error),
+						delivery.claimToken,
+					);
+				}
+			}
+		})();
+		this.deliveringResults = task;
+		try {
+			await task;
+		} finally {
+			this.deliveringResults = undefined;
+		}
 	}
 
 	public getActiveRuns(): Array<
@@ -442,13 +493,27 @@ export class CronRunner {
 			result = sendResult.result as HubTurnResult;
 			// Provider failures (e.g. a retired model id) resolve the turn with an
 			// error finish instead of throwing.
-			if (result.finishReason === "error") {
+			if (
+				["aborted", "cancelled", "mistake_limit", "max_iterations"].includes(
+					result.finishReason ?? "",
+				)
+			) {
+				throw new RunCancelledError("scheduled agent turn was cancelled");
+			}
+			if (result.finishReason === "error" || result.finishReason === "failed") {
 				throw new Error(result.text || "agent turn ended with an error");
 			}
 
 			const endMs = Date.now();
 			const completed = this.store.completeRun(run.runId, {
 				status: "done",
+				delivery: scheduleResultDelivery(
+					spec.metadata,
+					run.runId,
+					spec.title,
+					"completed",
+					result.text,
+				),
 				sessionId,
 				claimToken: claim.claimToken,
 			});
@@ -505,6 +570,16 @@ export class CronRunner {
 			const status = err instanceof RunCancelledError ? "cancelled" : "failed";
 			const completed = this.store.completeRun(run.runId, {
 				status,
+				delivery:
+					status === "failed"
+						? scheduleResultDelivery(
+								spec.metadata,
+								run.runId,
+								spec.title,
+								"failed",
+								message,
+							)
+						: undefined,
 				sessionId,
 				error: message,
 				claimToken: claim.claimToken,

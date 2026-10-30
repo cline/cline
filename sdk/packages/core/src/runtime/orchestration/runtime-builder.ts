@@ -141,7 +141,7 @@ export function createTeamName(): string {
 	return `team-${nanoid(5)}`;
 }
 
-function createBuiltinToolsList(
+export function createBuiltinToolsList(
 	cwd: string,
 	providerId: string,
 	mode: CoreAgentMode,

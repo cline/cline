@@ -1577,6 +1577,32 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(session.canStartRun()).toBe(true);
 	});
 
+	it("rebinds tools for the next turn while preserving unrelated tools and live history", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const other = { ...echoTool, name: "other" };
+		const session = new SessionRuntime(
+			makeAgentConfig({ tools: [echoTool, other] }),
+			deps,
+		);
+		await session.run("saved input");
+		const history = session.getMessages();
+		const replacement = {
+			...echoTool,
+			execute: vi.fn(async () => "new executor"),
+		};
+		session.replaceTools([replacement, { ...echoTool, name: "new_tool" }]);
+		expect(session.getMessages()).toEqual(history);
+		await session.continue("next input");
+		expect(configs[1]?.tools).toContainEqual(replacement);
+		expect(configs[1]?.tools).toContainEqual(other);
+		expect(configs[1]?.tools?.map((tool) => tool.name)).toEqual([
+			"echo",
+			"other",
+			"new_tool",
+		]);
+		await session.shutdown();
+	});
+
 	it("updateConnection mutates provider/model/api fields for next run", async () => {
 		const { deps, calls } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

@@ -315,6 +315,7 @@ export class PendingPromptsController {
 			session.pendingPrompts.length === 0 ||
 			session.aborting ||
 			session.drainingPendingPrompts ||
+			session.turnInFlight ||
 			!session.agent.canStartRun()
 		) {
 			return;
@@ -330,7 +331,7 @@ export class PendingPromptsController {
 		if (session.aborting || session.drainingPendingPrompts) {
 			return;
 		}
-		if (!session.agent.canStartRun()) {
+		if (session.turnInFlight || !session.agent.canStartRun()) {
 			return;
 		}
 		const { entry: next } = this.service.shiftNext(session);

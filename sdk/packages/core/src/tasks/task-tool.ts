@@ -24,6 +24,7 @@ Use the \`tasks\` tool to manage durable Todo items and explicitly requested sch
 - Use \`kind: "scheduled"\` only when the user explicitly asks Cline to execute work once at a future time or on a recurrence. One-time schedules require an exact future ISO 8601 \`run_at\` with an offset or Z. Recurring schedules require a five-field \`cron_pattern\` and default to the local timezone. Omit \`timezone\` unless the user explicitly requests a different timezone; never guess EST, UTC, or another zone. When a timezone is requested, use its IANA name (for example, America/New_York) so daylight-saving changes are handled.
 - "Remind me" is ambiguous: ask whether the user wants a reviewed Todo note or an agent to execute work at that time when intent is unclear.
 - Never create both kinds for the same request unless the user explicitly requests both. Check existing items before creating a likely duplicate.
+- Use \`delivery: "current_session"\` when the user wants scheduled results reported back here. Otherwise use \`delivery: "new_session"\` (the default). Work always runs in a separate session; current-session delivery queues a follow-up turn in this conversation, restoring it if needed.
 - Todo instructions and scheduled prompts must be self-contained. Include the goal, constraints, relevant project context, and expected output.
 - Scheduled sessions run in the user's schedules home workspace, not this conversation's folder. Include absolute paths in the scheduled \`prompt\` for any project files or repositories the work must touch.
 - Never approve or start a Todo yourself. Only mutate schedules from an interactive user session, and only update, pause, resume, delete, or run one immediately when the user asks.`;
@@ -35,6 +36,7 @@ Use the \`tasks\` tool only when the user explicitly asks Cline to execute work 
 
 - One-time schedules require an exact future ISO 8601 \`run_at\` with an offset or Z. Recurring schedules require a five-field \`cron_pattern\` and default to the local timezone. Omit \`timezone\` unless the user explicitly requests a different timezone; never guess EST, UTC, or another zone. When a timezone is requested, use its IANA name (for example, America/New_York) so daylight-saving changes are handled.
 - Never create a schedule proactively. Check existing schedules before creating a likely duplicate.
+- Use \`delivery: "current_session"\` when the user wants scheduled results reported back here. Otherwise use \`delivery: "new_session"\` (the default). Work always runs in a separate session; current-session delivery queues a follow-up turn in this conversation, restoring it if needed.
 - Make the scheduled \`prompt\` self-contained because it runs in a new unattended session in the user's schedules home workspace, not this conversation's folder. Include the goal, constraints, expected output, and absolute paths for any project files or repositories the work must touch.
 - Only update, pause, resume, delete, or run a schedule immediately when the user asks for that action.`;
 

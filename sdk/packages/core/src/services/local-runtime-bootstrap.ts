@@ -270,6 +270,8 @@ function buildProviderConfig(
 export interface PrepareLocalRuntimeBootstrapOptions {
 	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
+	/** Live client callbacks; original localRuntime hooks still determine audit ownership. */
+	clientHooks?: AgentHooks;
 	sessionId: string;
 	/**
 	 * How the session was initiated (user, automation, import, ...). Stamped
@@ -452,7 +454,10 @@ export async function prepareLocalRuntimeBootstrap(
 				workspacePath,
 				workspaceInfo,
 			});
-	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
+	const baseHooks = mergeAgentHooks([
+		options.clientHooks ?? localConfig?.hooks,
+		auditHooks,
+	]);
 
 	let pluginCommandError: string | undefined;
 	let loadedPlugins:

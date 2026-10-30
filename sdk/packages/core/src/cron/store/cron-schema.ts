@@ -69,6 +69,19 @@ const CRON_SCHEMA_STATEMENTS: readonly string[] = [
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL
 	);`,
+	`CREATE TABLE IF NOT EXISTS cron_result_deliveries (
+		run_id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		prompt TEXT NOT NULL,
+		delivered_at TEXT,
+		next_attempt_at TEXT NOT NULL DEFAULT '',
+		claim_token TEXT,
+		claim_until_at TEXT,
+		error TEXT
+	);`,
+	`CREATE INDEX IF NOT EXISTS cron_result_deliveries_pending_idx
+		ON cron_result_deliveries(next_attempt_at, run_id, claim_until_at)
+		WHERE delivered_at IS NULL;`,
 	`CREATE TABLE IF NOT EXISTS cron_event_log (
 		event_id TEXT PRIMARY KEY,
 		event_type TEXT NOT NULL,
