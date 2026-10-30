@@ -9,7 +9,6 @@ import {
 	MessageContent,
 } from "@cline/ui/components/agent-chat";
 import {
-	ArrowLeftToLine,
 	Check,
 	Copy,
 	Loader2,
@@ -138,7 +137,6 @@ export const MessageBubble = memo(function MessageBubble({
 	restoreError,
 	wasCopied = false,
 	onForkSession,
-	onAddToMainDraft,
 	forkDisabled = false,
 	forkPending = false,
 	forkError,
@@ -172,7 +170,6 @@ export const MessageBubble = memo(function MessageBubble({
 	restoreError?: string;
 	wasCopied?: boolean;
 	onForkSession?: (messageId: string) => void | Promise<void>;
-	onAddToMainDraft?: (answerText: string) => void;
 	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
@@ -220,7 +217,7 @@ export const MessageBubble = memo(function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyMessage || onForkSession || onAddToMainDraft);
+		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
@@ -397,15 +394,6 @@ export const MessageBubble = memo(function MessageBubble({
 							) : (
 								<Copy className="h-3 w-3" />
 							)}
-						</MessageAction>
-					) : null}
-					{onAddToMainDraft ? (
-						<MessageAction
-							label="Add to main draft"
-							onClick={() => onAddToMainDraft(message.content)}
-							title="Add this answer to the main draft"
-						>
-							<ArrowLeftToLine className="h-3 w-3" />
 						</MessageAction>
 					) : null}
 					{onForkSession ? (

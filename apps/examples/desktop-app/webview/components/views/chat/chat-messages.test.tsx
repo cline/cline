@@ -1114,34 +1114,43 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
-	it("copies a user message without its transport envelope", async () => {
+	it.each([
+		[
+			"user",
+			'<user_input mode="act">Original prompt</user_input>',
+			"Original prompt",
+		],
+		["assistant", "Original **answer**", "Original **answer**"],
+	] as const)("copies the %s message content", async (role, content, expected) => {
 		const writeText = vi.fn(async () => undefined);
 		Object.assign(navigator, { clipboard: { writeText } });
 		await renderMessages([
 			{
-				id: "copyable-user",
+				id: "copyable-message",
 				sessionId: "session-1",
-				role: "user",
-				content: '<user_input mode="act">Original prompt</user_input>',
+				role,
+				content,
 				createdAt: 1,
 			},
 		]);
 
 		const copyButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Copy user message"]',
+			`button[aria-label="Copy ${role} message"]`,
 		);
 		vi.useFakeTimers();
 		try {
 			await act(async () => copyButton?.click());
 
 			expect(writeText).toHaveBeenCalledOnce();
-			expect(writeText).toHaveBeenCalledWith("Original prompt");
+			expect(writeText).toHaveBeenCalledWith(expected);
 			expect(copyButton?.getAttribute("aria-label")).toBe(
-				"Copied user message",
+				`Copied ${role} message`,
 			);
 
 			await act(async () => vi.runOnlyPendingTimers());
-			expect(copyButton?.getAttribute("aria-label")).toBe("Copy user message");
+			expect(copyButton?.getAttribute("aria-label")).toBe(
+				`Copy ${role} message`,
+			);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -2688,64 +2697,6 @@ describe("ChatMessages last turn receipt", () => {
 			status: "running",
 		});
 		expect(receipts()).toHaveLength(0);
-	});
-});
-
-describe("ChatMessages answer transfer", () => {
-	it("transfers the selected completed answer, without offering a partial current response", async () => {
-		const onAddToMainDraft = vi.fn();
-		const messages: ChatMessage[] = [
-			{
-				id: "question-1",
-				sessionId: "side",
-				role: "user",
-				content: "First question",
-				createdAt: 1,
-			},
-			{
-				id: "answer-1",
-				sessionId: "side",
-				role: "assistant",
-				content: "First **answer**",
-				createdAt: 2,
-			},
-			{
-				id: "question-2",
-				sessionId: "side",
-				role: "user",
-				content: "Second question",
-				createdAt: 3,
-			},
-			{
-				id: "answer-2",
-				sessionId: "side",
-				role: "assistant",
-				content: "Second answer",
-				createdAt: 4,
-			},
-		];
-		await renderMessages(messages, {
-			status: "running",
-			streamingMessageId: "answer-2",
-			onAddToMainDraft,
-		});
-		let actions = container.querySelectorAll<HTMLButtonElement>(
-			'[aria-label="Add to main draft"]',
-		);
-		expect(actions).toHaveLength(1);
-		await act(async () => actions[0].click());
-		expect(onAddToMainDraft).toHaveBeenLastCalledWith("First **answer**");
-		await renderMessages(messages, { onAddToMainDraft });
-		actions = container.querySelectorAll<HTMLButtonElement>(
-			'[aria-label="Add to main draft"]',
-		);
-		expect(actions).toHaveLength(2);
-		await act(async () => actions[1].click());
-		expect(onAddToMainDraft).toHaveBeenLastCalledWith("Second answer");
-		await renderMessages(messages, { status: "cancelled", onAddToMainDraft });
-		expect(
-			container.querySelectorAll('[aria-label="Add to main draft"]'),
-		).toHaveLength(1);
 	});
 });
 

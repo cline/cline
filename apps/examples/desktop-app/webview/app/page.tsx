@@ -1632,7 +1632,6 @@ type ThreadPaneProps = {
 		threadId: string,
 		submission: InitialSideSubmission,
 	) => void;
-	onAddToMainDraft?: (answer: string) => void;
 	handoffLifecycle: Omit<HandoffLifecycle, "onEvent">;
 	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
@@ -1715,7 +1714,6 @@ function ChatThreadPane({
 	initialPromptDraft,
 	pendingSideSubmissions,
 	onInitialSideSubmissionConsumed,
-	onAddToMainDraft,
 	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -3717,7 +3715,6 @@ function ChatThreadPane({
 									sideEmpty={
 										Boolean(sideRelation) && hydrationSucceeded === true
 									}
-									onAddToMainDraft={onAddToMainDraft}
 									onAnswerAskQuestion={handleAnswerAskQuestion}
 									onApproveToolApproval={handleApproveToolApproval}
 									onRejectToolApproval={handleRejectToolApproval}
@@ -3940,13 +3937,6 @@ function ChatThreadPane({
 								mainConfig={config}
 								interactive={interactive && side.openingState.kind === "idle"}
 								onAttentionChange={reportSideAttention}
-								onAddToMainDraft={(answer) => {
-									const existing = draftRef.current.text;
-									setPromptInput(
-										`${existing}${existing ? "\n\n" : ""}From side conversation:\n\n${answer.trim()}`,
-									);
-									workspace.showMain();
-								}}
 							/>
 						)}
 					</div>

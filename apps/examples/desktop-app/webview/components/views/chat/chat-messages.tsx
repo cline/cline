@@ -101,7 +101,6 @@ type ChatMessagesProps = {
 	 */
 	lastTurnChanges?: SessionChangeSet;
 	onReviewLastTurn?: (path?: string) => void;
-	onAddToMainDraft?: (answerText: string) => void;
 };
 
 type AskQuestionRequestItem = {
@@ -142,7 +141,6 @@ function ChatMessagesImpl({
 	onFixCredentials,
 	lastTurnChanges,
 	onReviewLastTurn,
-	onAddToMainDraft,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -711,12 +709,6 @@ function ChatMessagesImpl({
 												runCount={userRunCountByMessage.get(message)}
 												onExpandImage={handleExpandImage}
 												onCopyMessage={handleCopyMessage}
-												onAddToMainDraft={
-													!isSessionSwitching &&
-													(itemIndex < lastUserItemIndex || collapseTrailingRun)
-														? onAddToMainDraft
-														: undefined
-												}
 												onEditMessage={
 													onEditMessage ? requestEditMessage : undefined
 												}
