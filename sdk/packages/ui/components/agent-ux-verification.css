@@ -50,19 +50,18 @@
 	border-radius: 12px;
 	overflow: hidden;
 	border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+	container-type: inline-size;
 }
 .cline-ui-ux-evidence-slide {
 	position: relative;
 	width: 100%;
-	aspect-ratio: 16 / 10;
-	max-height: min(54dvh, 560px);
 	background: color-mix(in srgb, var(--background) 90%, var(--primary));
-	overflow: hidden;
 }
 .cline-ui-ux-evidence-image {
 	display: block;
 	width: 100%;
-	height: 100%;
+	aspect-ratio: 16 / 10;
+	max-height: min(54dvh, 560px);
 	object-fit: contain;
 }
 .cline-ui-ux-evidence-missing {
@@ -77,12 +76,9 @@
 	color: var(--foreground);
 }
 .cline-ui-ux-evidence-caption {
-	position: absolute;
-	inset: auto 0 0;
-	padding: 58px 18px 18px;
-	color: white;
-	background: linear-gradient(transparent, #0b0c15e8);
-	pointer-events: none;
+	padding: 12px 18px 16px;
+	border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+	background: var(--background);
 }
 .cline-ui-ux-evidence-action {
 	display: flex;
@@ -93,8 +89,8 @@
 }
 .cline-ui-ux-evidence-action > span + span {
 	padding: 2px 7px;
-	border: 1px solid #ffffff30;
-	background: #ffffff15;
+	border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+	background: color-mix(in srgb, var(--foreground) 7%, transparent);
 	border-radius: 5px;
 }
 .cline-ui-ux-evidence-caption h4 {
@@ -108,7 +104,7 @@
 	font-size: 11px;
 	line-height: 1.5;
 	margin: 5px 0 0 28px;
-	color: #ffffffc9;
+	opacity: 0.8;
 }
 .cline-ui-ux-status-icon {
 	width: 21px;
@@ -150,13 +146,16 @@
 	opacity: 0.4;
 	cursor: default;
 }
+.cline-ui-ux-evidence-prev,
+.cline-ui-ux-evidence-next {
+	/* Centered on the 16:10 screenshot area, above the caption. */
+	top: calc(min(62.5cqw, 54dvh, 560px) / 2 - 17px);
+}
 .cline-ui-ux-evidence-prev {
 	left: 12px;
-	top: 48%;
 }
 .cline-ui-ux-evidence-next {
 	right: 12px;
-	top: 48%;
 }
 .cline-ui-ux-evidence-footer {
 	display: flex;
@@ -238,7 +237,7 @@
 		margin-left: 47px;
 	}
 	.cline-ui-ux-evidence-caption {
-		padding: 36px 12px 12px;
+		padding: 10px 12px 12px;
 	}
 	.cline-ui-ux-evidence-caption h4 {
 		font-size: 12px;
