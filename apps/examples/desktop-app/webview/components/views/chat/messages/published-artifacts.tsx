@@ -22,13 +22,34 @@ export function PublishedArtifacts({
 	files: PublishedFile[];
 	sessionId: string;
 }) {
-	const images: ReactNode[] = [];
+	const images: {
+		key: string;
+		name: string;
+		caption?: string;
+		artifactId: string;
+		mediaType: string;
+	}[] = [];
 	const otherFiles: ReactNode[] = [];
 	for (const [index, file] of files.entries()) {
 		const name = file.path.split(/[\\/]/).pop() || file.path;
 		const mediaType = imageAttachmentMediaType({ name, type: "" });
-		const details = (
-			<div className="flex flex-wrap items-center gap-2">
+		const key = `${index}:${file.path}`;
+		if (
+			!file.error &&
+			mediaType &&
+			SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === mediaType)
+		) {
+			images.push({
+				key,
+				name,
+				caption: file.caption,
+				artifactId: file.artifactId,
+				mediaType,
+			});
+			continue;
+		}
+		otherFiles.push(
+			<li key={key} className="flex flex-wrap items-center gap-2">
 				<span className="break-all">{name}</span>
 				{file.error ? (
 					<span className="text-destructive">{file.error.message}</span>
@@ -38,48 +59,67 @@ export function PublishedArtifacts({
 						artifactId={file.artifactId}
 					/>
 				)}
-			</div>
+			</li>,
 		);
-		const key = `${index}:${file.path}`;
-		if (
-			!file.error &&
-			mediaType &&
-			SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === mediaType)
-		) {
-			images.push(
-				<CarouselItem key={key} aria-label={name} className="space-y-2">
-					{details}
-					<ArtifactImage
-						sessionId={sessionId}
-						media={{
-							id: file.artifactId,
-							name,
-							modality: "image",
-							mediaType,
-							source: { type: "artifact", artifactId: file.artifactId },
-						}}
-						className="flex min-h-48 items-center justify-center rounded-lg border border-border bg-muted/30"
-						classNames={{ image: "max-h-96 max-w-full object-contain" }}
-					/>
-				</CarouselItem>,
-			);
-		} else {
-			otherFiles.push(<li key={key}>{details}</li>);
-		}
 	}
 	return (
 		<div className="min-w-0 space-y-2 py-1 text-sm">
 			{images.length > 0 && (
-				<Carousel aria-label="Published images" opts={{ loop: true }}>
-					<CarouselContent>{images}</CarouselContent>
+				<Carousel
+					aria-label="Published images"
+					opts={{ loop: true }}
+					className="@container w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				>
+					<CarouselContent>
+						{images.map((image, index) => (
+							<CarouselItem key={image.key} aria-label={image.name}>
+								<figure className="flex h-full flex-col">
+									{/* 16:10 matches the computer-use display, so screenshots fill the
+									    frame; other shapes letterbox instead of being cropped. */}
+									<div className="aspect-[16/10] min-h-0 bg-muted/40">
+										<ArtifactImage
+											sessionId={sessionId}
+											media={{
+												id: image.artifactId,
+												name: image.name,
+												modality: "image",
+												mediaType: image.mediaType,
+												source: {
+													type: "artifact",
+													artifactId: image.artifactId,
+												},
+											}}
+											className="flex size-full items-center justify-center gap-2 text-muted-foreground"
+											classNames={{ image: "size-full object-contain" }}
+										/>
+									</div>
+									<figcaption className="flex flex-1 items-center gap-3 border-t border-border px-3 py-2">
+										<div className="min-w-0 flex-1">
+											{image.caption && (
+												<p className="wrap-break-word text-foreground">
+													{image.caption}
+												</p>
+											)}
+											<p className="truncate text-xs text-muted-foreground">
+												{images.length > 1 &&
+													`${index + 1} of ${images.length} · `}
+												{image.name}
+											</p>
+										</div>
+										<DownloadArtifact
+											sessionId={sessionId}
+											artifactId={image.artifactId}
+										/>
+									</figcaption>
+								</figure>
+							</CarouselItem>
+						))}
+					</CarouselContent>
 					{images.length > 1 && (
-						<div className="mt-2 flex items-center justify-end gap-2">
-							<span className="mr-auto text-muted-foreground">
-								{images.length} images
-							</span>
-							<CarouselPrevious className="rounded-md border border-border p-2 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" />
-							<CarouselNext className="rounded-md border border-border p-2 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" />
-						</div>
+						<>
+							<CarouselPrevious className={`${NAV_BUTTON} left-2`} />
+							<CarouselNext className={`${NAV_BUTTON} right-2`} />
+						</>
 					)}
 				</Carousel>
 			)}
@@ -87,6 +127,10 @@ export function PublishedArtifacts({
 		</div>
 	);
 }
+
+// Vertically centered on the 16:10 frame: half its height is 31.25% of the width.
+const NAV_BUTTON =
+	"absolute top-[31.25cqw] flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-border bg-background/80 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function DownloadArtifact({
 	sessionId,

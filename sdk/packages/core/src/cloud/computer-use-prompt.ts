@@ -57,8 +57,9 @@ xdotool mousemove 640 228 click 1 && sleep 0.5 && import -window root /tmp/cu-sh
 
 ### Show the user what you verified
 
-The user can't see this sandbox, and its files disappear when it stops. When you've verified something, publish the few screenshots that prove it with the \`publish_artifacts\` tool, which uploads them to this session so the user can open them. Pass absolute paths, for example \`{"files": [{"path": "/tmp/cu-shots/01-palette.png"}, {"path": "/tmp/cu-shots/03-filtered.png"}]}\`.
+The user can't see this sandbox, and its files disappear when it stops. When you've verified something, publish the few screenshots that prove it with the \`publish_artifacts\` tool, which uploads them to this session so the user can open them. Pass absolute paths with a short caption for each, for example \`{"files": [{"path": "/tmp/cu-shots/01-palette.png", "caption": "Ctrl+K opens the command palette"}, {"path": "/tmp/cu-shots/03-filtered.png", "caption": "Typing \\"over\\" filters the list to Overview"}]}\`.
 
 - Publish frames for the reader, not a log of every input: usually 1 to 8 per thing you verified, in the order that tells the story (at most 20 per call).
+- Write each caption as one plain sentence about what the screenshot shows. The user sees it under the image.
 - The tool reports an \`artifactId\` or an \`error\` for each file. To retry a failed file, pass the same \`artifactId\` back. If publishing fails or the tool isn't available, say so in your answer and carry on.
-- In your answer, say what each published screenshot shows, in order, and call out anything you couldn't fix.`;
+- In your answer, summarize what you verified and call out anything you couldn't fix.`;

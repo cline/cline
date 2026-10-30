@@ -44,7 +44,7 @@ test("publishes through an injected store without cloud credentials and preserve
 				{ path },
 				{ path: join(dir, "missing") },
 				{ path, artifactId: "denied" },
-				{ path: empty, artifactId: " empty/雪 " },
+				{ path: empty, artifactId: " empty/雪 ", caption: "An empty file" },
 			],
 		},
 		context,
