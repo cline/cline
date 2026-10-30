@@ -218,6 +218,9 @@ export const Overview = () => (
 					<p className="text-base text-muted-foreground">
 						Readable product copy with a warm, technical character.
 					</p>
+					<p className="text-xxs text-muted-foreground">
+						Small metadata · text-xxs · 11px at the default 15px root size
+					</p>
 					<code className="block rounded-md bg-muted p-3 font-mono text-sm">
 						Geist Mono · bun run build
 					</code>

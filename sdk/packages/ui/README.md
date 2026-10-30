@@ -187,6 +187,9 @@ register every raw palette step. Brand artwork may use the separate
 The palette values are derived from Radix Colors 3.0.0 under the included MIT
 license; `@cline/ui` does not depend on Radix Colors at runtime.
 
+The existing token names and component APIs remain available. Typography adds
+`--text-xxs` for 11px text at the default 15px root size.
+
 ## Agent-chat usage
 
 Agent-chat consumers must provide React 18.3 or 19. Install React in the

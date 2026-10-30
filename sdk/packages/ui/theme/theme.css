@@ -1,6 +1,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+	--text-xxs: var(--text-xxs);
+	--text-xxs--line-height: var(--text-xxs--line-height);
+	--text-xxs--letter-spacing: var(--text-xxs--letter-spacing);
+
 	/* Register non-default typography companions for standard text utilities. */
 	--text-xs--letter-spacing: var(--text-xs--letter-spacing);
 	--text-sm--letter-spacing: var(--text-sm--letter-spacing);
