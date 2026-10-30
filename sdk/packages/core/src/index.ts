@@ -1031,6 +1031,7 @@ export {
 	type EditFileInput,
 	type EditorExecutor,
 	type EditorExecutorOptions,
+	extractToolPayloadError,
 	getCoreAcpToolNames,
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
