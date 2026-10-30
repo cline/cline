@@ -133,7 +133,7 @@ it("does not open a pending download after the account changes", async () => {
 	expect(mocks.open).not.toHaveBeenCalled();
 });
 
-it("renders a published image inside chat without opening the browser", async () => {
+it("previews a published image and keeps download available after preview failure", async () => {
 	const images = parsePublishedArtifacts(
 		JSON.stringify({
 			files: [
@@ -156,6 +156,20 @@ it("renders a published image inside chat without opening the browser", async ()
 		"https://storage.example/file?signed=1",
 	);
 	expect(container.querySelector("img")?.alt).toBe("screenshot.png");
-	expect(container.querySelector("button")).toBeNull();
+	expect(container.querySelector("button")?.textContent).toBe("Download");
 	expect(mocks.open).not.toHaveBeenCalled();
+	for (let attempt = 0; attempt < 2; attempt++) {
+		const image = container.querySelector("img");
+		if (!image) throw new Error("Preview must exist before its load fails");
+		await act(async () => image.dispatchEvent(new Event("error")));
+	}
+	expect(container.textContent).toContain("Image unavailable");
+	const download = Array.from(container.querySelectorAll("button")).find(
+		(button) => button.textContent === "Download",
+	);
+	expect(download).toBeDefined();
+	await act(async () => download?.click());
+	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(
+		"https://storage.example/file?signed=1",
+	);
 });

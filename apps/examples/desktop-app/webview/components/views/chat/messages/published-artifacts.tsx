@@ -51,27 +51,35 @@ export function PublishedArtifacts({
 						<span className="break-all">{name}</span>
 						{file.error ? (
 							<span className="text-destructive">{file.error.message}</span>
-						) : mediaType &&
-							SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === mediaType) ? (
-							<ArtifactImage
-								sessionId={sessionId}
-								media={{
-									id: file.artifactId,
-									name,
-									modality: "image",
-									mediaType,
-									source: { type: "artifact", artifactId: file.artifactId },
-								}}
-								classNames={{
-									image:
-										"max-h-96 max-w-full rounded-lg border border-border object-contain",
-								}}
-							/>
 						) : (
-							<DownloadArtifact
-								sessionId={sessionId}
-								artifactId={file.artifactId}
-							/>
+							<>
+								<DownloadArtifact
+									sessionId={sessionId}
+									artifactId={file.artifactId}
+								/>
+								{mediaType &&
+									SUPPORTED_IMAGE_MEDIA_TYPES.some(
+										(type) => type === mediaType,
+									) && (
+										<ArtifactImage
+											sessionId={sessionId}
+											media={{
+												id: file.artifactId,
+												name,
+												modality: "image",
+												mediaType,
+												source: {
+													type: "artifact",
+													artifactId: file.artifactId,
+												},
+											}}
+											classNames={{
+												image:
+													"max-h-96 max-w-full rounded-lg border border-border object-contain",
+											}}
+										/>
+									)}
+							</>
 						)}
 					</li>
 				);
