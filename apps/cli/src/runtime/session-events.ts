@@ -83,6 +83,67 @@ function doneEventCompletenessScore(event: AgentDoneEvent): number {
 	return score;
 }
 
+function isDelegationTool(toolName: string | undefined): boolean {
+	return toolName === "spawn_agent" || !!toolName?.startsWith("subagent_");
+}
+
+/**
+ * Subagents stream into the parent's event feed and run concurrently, so
+ * their per-delta text and reasoning would interleave into one garbled
+ * message. The parent never streams while its delegation tool calls are in
+ * flight, so any delta arriving then belongs to a child: drop the fragments
+ * and surface each child's message whole at `content_end`, which already
+ * carries the full text.
+ */
+function createDelegatedContentCoalescer(): (
+	event: AgentEvent,
+) => AgentEvent[] {
+	const openDelegations = new Set<string>();
+	return (event) => {
+		if (event.type === "content_start" && event.contentType === "tool") {
+			if (isDelegationTool(event.toolName) && event.toolCallId) {
+				openDelegations.add(event.toolCallId);
+			}
+			return [event];
+		}
+		if (event.type === "content_end" && event.contentType === "tool") {
+			if (event.toolCallId) openDelegations.delete(event.toolCallId);
+			return [event];
+		}
+		// Completed delegations are closed by their tool content_end; an aborted
+		// or failed run may never emit those, so drop the stale bookkeeping.
+		if (event.type === "done" && event.reason !== "completed") {
+			openDelegations.clear();
+			return [event];
+		}
+		if (openDelegations.size === 0) return [event];
+		if (event.type === "content_start") {
+			return event.contentType === "text" || event.contentType === "reasoning"
+				? []
+				: [event];
+		}
+		if (event.type === "content_end" && event.contentType === "text") {
+			if (!event.text) return [event];
+			return [
+				{ type: "content_start", contentType: "text", text: event.text },
+				event,
+			];
+		}
+		if (event.type === "content_end" && event.contentType === "reasoning") {
+			if (!event.reasoning) return [event];
+			return [
+				{
+					type: "content_start",
+					contentType: "reasoning",
+					reasoning: event.reasoning,
+				},
+				event,
+			];
+		}
+		return [event];
+	};
+}
+
 export function subscribeToAgentEvents(
 	sessionManager: SessionManagerSubscriber,
 	onAgentEvent: (event: AgentEvent) => void,
@@ -90,7 +151,13 @@ export function subscribeToAgentEvents(
 ): () => void {
 	let hasSeenStructuredAgentEvent = false;
 	let lastDoneEvent: AgentDoneEvent | undefined;
-	const emitAgentEvent = (event: AgentEvent): void => {
+	const coalesceDelegatedContent = createDelegatedContentCoalescer();
+	const emitAgentEvent = (rawEvent: AgentEvent): void => {
+		for (const event of coalesceDelegatedContent(rawEvent)) {
+			emitDedupedAgentEvent(event);
+		}
+	};
+	const emitDedupedAgentEvent = (event: AgentEvent): void => {
 		if (event.type === "iteration_start") {
 			lastDoneEvent = undefined;
 		}
