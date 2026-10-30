@@ -12,6 +12,7 @@ import type {
 	UserRemoteConfigDiscoveryResponse,
 	UserResponse,
 } from "@shared/ClineAccount"
+import { NO_CURRENT_PLAN_STATUSES } from "@cline/core"
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
@@ -271,9 +272,9 @@ export class ClineAccountService {
 
 	/**
 	 * Whether the user has a ClinePass subscription, or undefined when that
-	 * could not be checked. ClinePass is the only individual plan. The API
-	 * answers 404 when the user has no current plan and 402 when the plan is
-	 * unpaid; inference on a ClinePass model is refused in both cases.
+	 * could not be checked. ClinePass is the only individual plan; the API
+	 * reports "no current plan" by status (NO_CURRENT_PLAN_STATUSES), under
+	 * which inference on a ClinePass model is refused.
 	 */
 	async fetchClinePassSubscribedRPC(): Promise<boolean | undefined> {
 		try {
@@ -284,7 +285,7 @@ export class ClineAccountService {
 			)
 			return !!current?.plan
 		} catch (error) {
-			if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 402)) {
+			if (axios.isAxiosError(error) && NO_CURRENT_PLAN_STATUSES.has(error.response?.status ?? 0)) {
 				return false
 			}
 			Logger.error("Failed to fetch ClinePass subscription (RPC):", error)
