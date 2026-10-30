@@ -5,6 +5,7 @@ import {
 	type ToolResultContent,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { MAX_READ_OUTPUT_CHARS } from "../../extensions/tools/executors/output-limits";
 import {
 	agentMessagesToMessages,
 	messagesToAgentMessages,
@@ -1620,10 +1621,7 @@ describe("MessageBuilder default-on truncation", () => {
 	});
 
 	it("preserves nested image data that the formatter hoists natively", () => {
-		const builder = new MessageBuilder({
-			maxToolResultChars: 100,
-			maxFileContentChars: 100,
-		});
+		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const imageData = "i".repeat(5_000);
 		const messages: Message[] = [
 			{
@@ -2256,42 +2254,48 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 });
 
 describe("MessageBuilder read-result cap", () => {
-	// The file-read executor bounds a window at 48k characters including
-	// line-number prefixes, then appends a paging footer.
-	const TOOL_CAPPED_READ = `${"r".repeat(47_900)}\n\n[Showing lines 1-900 of 2400. Use start_line/end_line to read other sections.]`;
+	const READ_PATH = "/repo/README.md";
+	const READ_FOOTER =
+		"\n\n[Showing lines 1-900 of 2400. Use start_line/end_line to read other sections.]";
+	// Exactly what the file-read executor hands back for a capped window: a
+	// body that fills its character cap, plus the paging footer.
+	const TOOL_CAPPED_READ = `${"r".repeat(MAX_READ_OUTPUT_CHARS - READ_FOOTER.length)}${READ_FOOTER}`;
+	// Twice the file-content cap around a sentinel that only survives when
+	// nothing cuts the middle.
+	const MIDDLE_SENTINEL = "__MIDDLE__";
+	const OVERSIZED_READ = `${"a".repeat(DEFAULT_MAX_FILE_CONTENT_CHARS)}${MIDDLE_SENTINEL}${"b".repeat(DEFAULT_MAX_FILE_CONTENT_CHARS)}`;
+	// Below the default tool-result cap, so an override that is ignored
+	// cannot pass by accident.
+	const EXPLICIT_CAP = DEFAULT_MAX_TOOL_RESULT_CHARS / 2;
+	const TRUNCATION_MARKER = "...[truncated";
 
-	function readMessages(
+	function toolMessages(
 		name: string,
+		input: Record<string, unknown>,
 		content: ToolResultContent["content"],
 	): Message[] {
 		return [
 			{ role: "user", content: "task" },
 			{
 				role: "assistant",
-				content: [
-					{
-						type: "tool_use",
-						id: "call_read",
-						name,
-						input: { files: [{ path: "/repo/README.md" }] },
-					},
-				],
+				content: [{ type: "tool_use", id: "call_1", name, input }],
 			},
 			{
 				role: "user",
 				content: [
-					{ type: "tool_result", tool_use_id: "call_read", name, content },
+					{ type: "tool_result", tool_use_id: "call_1", name, content },
 				],
 			},
 		];
 	}
 
-	function structuredRead(result: string): ToolResultContent["content"] {
+	function structured(result: string): ToolResultContent["content"] {
 		return [
-			{ query: "/repo/README.md", result, success: true },
+			{ query: READ_PATH, result, success: true },
 		] as unknown as ToolResultContent["content"];
 	}
 
+	/** The read payload as the provider request carries it. */
 	function sentResult(result: Message[]): string {
 		const block = (result[2].content as ToolResultContent[])[0];
 		if (typeof block.content === "string") {
@@ -2300,102 +2304,76 @@ describe("MessageBuilder read-result cap", () => {
 		return (block.content[0] as unknown as { result: string }).result;
 	}
 
-	it("sends a read_files window that the tool already capped without cutting it again", () => {
-		const builder = new MessageBuilder();
-		const result = builder.buildForApi(
-			readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
+	function sendRead(
+		builder: MessageBuilder,
+		content: ToolResultContent["content"],
+		name = "read_files",
+	): string {
+		return sentResult(
+			builder.buildForApi(
+				toolMessages(name, { files: [{ path: READ_PATH }] }, content),
+			),
 		);
+	}
 
-		expect(sentResult(result)).toBe(TOOL_CAPPED_READ);
+	it.each([
+		[
+			"structured read_files output",
+			"read_files",
+			structured(TOOL_CAPPED_READ),
+		],
+		["string output of the read tool", "read", TOOL_CAPPED_READ],
+	])("sends %s that the tool already capped without cutting it again", (_label, name, content) => {
+		expect(sendRead(new MessageBuilder(), content, name)).toBe(
+			TOOL_CAPPED_READ,
+		);
 	});
 
-	it("applies the same cap to string read results", () => {
-		const builder = new MessageBuilder();
-		const result = builder.buildForApi(readMessages("read", TOOL_CAPPED_READ));
+	it("still cuts a read result that exceeds the file-content cap", () => {
+		const sent = sendRead(new MessageBuilder(), structured(OVERSIZED_READ));
 
-		expect(sentResult(result)).toBe(TOOL_CAPPED_READ);
-	});
-
-	it("still cuts read results that exceed the file-content cap", () => {
-		const builder = new MessageBuilder();
-		const oversized = `${"a".repeat(30_000)}__MIDDLE__${"b".repeat(30_000)}`;
-		const result = builder.buildForApi(
-			readMessages("read_files", structuredRead(oversized)),
-		);
-
-		const sent = sentResult(result);
 		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_FILE_CONTENT_CHARS);
-		expect(sent).toContain("...[truncated");
-		expect(sent).not.toContain("__MIDDLE__");
+		expect(sent).toContain(TRUNCATION_MARKER);
+		expect(sent).not.toContain(MIDDLE_SENTINEL);
 	});
 
 	it("keeps the tool-result cap for tools that do not bound their own output", () => {
-		const builder = new MessageBuilder();
-		const messages: Message[] = [
-			{ role: "user", content: "task" },
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "tool_use",
-						id: "call_cmd",
-						name: "run_commands",
-						input: { commands: ["cat big.log"] },
-					},
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "call_cmd",
-						name: "run_commands",
-						content: structuredRead(TOOL_CAPPED_READ),
-					},
-				],
-			},
-		];
+		const sent = sentResult(
+			new MessageBuilder().buildForApi(
+				toolMessages(
+					"run_commands",
+					{ commands: ["cat big.log"] },
+					structured(TOOL_CAPPED_READ),
+				),
+			),
+		);
 
-		const sent = sentResult(builder.buildForApi(messages));
 		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
-		expect(sent).toContain("...[truncated");
+		expect(sent).toContain(TRUNCATION_MARKER);
 	});
 
-	it("lets an explicitly configured tool-result cap bound reads too", () => {
-		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
-		const sent = sentResult(
-			builder.buildForApi(
-				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
-			),
-		);
-
-		expect(sent.length).toBeLessThanOrEqual(4_000);
-		expect(sent).toContain("...[truncated");
-	});
-
-	it("honours the tool-result cap from the environment for reads", () => {
-		const builder = new MessageBuilder(
+	it.each([
+		["the maxToolResultChars option", { maxToolResultChars: EXPLICIT_CAP }],
+		[
+			"the environment override",
 			getMessageBuilderOptionsFromEnv({
-				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "4000",
+				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: String(EXPLICIT_CAP),
 			}),
-		);
-		const sent = sentResult(
-			builder.buildForApi(
-				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
-			),
+		],
+	])("lets a tool-result cap set through %s bound reads too", (_label, options) => {
+		const sent = sendRead(
+			new MessageBuilder(options),
+			structured(TOOL_CAPPED_READ),
 		);
 
-		expect(sent.length).toBeLessThanOrEqual(4_000);
-		expect(sent).toContain("...[truncated");
+		expect(sent.length).toBeLessThanOrEqual(EXPLICIT_CAP);
+		expect(sent).toContain(TRUNCATION_MARKER);
 	});
 
 	it("keeps the file-content cap for reads when the environment sets no override", () => {
-		const builder = new MessageBuilder(getMessageBuilderOptionsFromEnv({}));
-		const sent = sentResult(
-			builder.buildForApi(
-				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
-			),
+		const sent = sendRead(
+			new MessageBuilder(getMessageBuilderOptionsFromEnv({})),
+			structured(TOOL_CAPPED_READ),
 		);
 
 		expect(sent).toBe(TOOL_CAPPED_READ);
