@@ -59,6 +59,31 @@ function listPortOwners(port: number): string[] | undefined {
 	return process.platform === "win32" ? lines : parseLsofOwners(result.stdout);
 }
 
+/**
+ * The pid listening on `port`, when exactly one process does. Used to retire a
+ * Hub whose discovery record is gone: its `/health` answers but carries no pid
+ * (older builds) and no token, so the OS listener table is the only way left
+ * to name the process. Ambiguous or unavailable lookups return undefined
+ * rather than guess — the caller would SIGTERM the result.
+ */
+export function findListeningPid(port: number): number | undefined {
+	const owners = listPortOwners(port);
+	if (!owners) {
+		return undefined;
+	}
+	const pids = new Set<number>();
+	for (const owner of owners) {
+		const pid = Number.parseInt(owner.split("\t")[0] ?? "", 10);
+		if (Number.isInteger(pid) && pid > 0) {
+			pids.add(pid);
+		}
+	}
+	if (pids.size !== 1) {
+		return undefined;
+	}
+	return [...pids][0];
+}
+
 function redactUserPaths(value: string): string {
 	return value
 		.replace(/\/Users\/[^/\s]+/g, "/Users/[redacted]")
