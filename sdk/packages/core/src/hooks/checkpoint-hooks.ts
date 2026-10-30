@@ -6,6 +6,10 @@ import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger, ITelemetryService } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { countUserRunMessages } from "../session/user-run-messages";
+import {
+	createCheckpointExcludes,
+	type WithCheckpointExcludes,
+} from "./checkpoint-exclusions";
 
 const execFile = promisify(execFileCallback);
 const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
@@ -249,11 +253,22 @@ function runGitWithIndexStdin(
 async function createUntrackedParentCommit(
 	cwd: string,
 	scratchDir: string,
+	withExcludes: WithCheckpointExcludes,
 ): Promise<string | undefined> {
-	const listing = await execFile(
-		"git",
-		["-C", cwd, "ls-files", "--others", "--exclude-standard", "-z"],
-		{ windowsHide: true, maxBuffer: LS_FILES_MAX_BUFFER },
+	const listing = await withExcludes((excludeArgs) =>
+		execFile(
+			"git",
+			[
+				"-C",
+				cwd,
+				...excludeArgs,
+				"ls-files",
+				"--others",
+				"--exclude-standard",
+				"-z",
+			],
+			{ windowsHide: true, maxBuffer: LS_FILES_MAX_BUFFER },
+		),
 	);
 	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
 	if (untrackedFiles.length === 0) {
@@ -349,10 +364,15 @@ async function createUntrackedParentCommit(
 async function createWorktreeStashCommit(
 	cwd: string,
 	scratchDir: string,
+	withExcludes: WithCheckpointExcludes,
 	message: string,
 ): Promise<string | undefined> {
 	const stashRef = (await runGit(cwd, ["stash", "create", message])).stdout;
-	const untrackedParent = await createUntrackedParentCommit(cwd, scratchDir);
+	const untrackedParent = await createUntrackedParentCommit(
+		cwd,
+		scratchDir,
+		withExcludes,
+	);
 
 	if (stashRef) {
 		if (!untrackedParent) {
@@ -511,6 +531,9 @@ export function createCheckpointHooks(
 	// to undefined — so the durable persisted checkpoint history is what
 	// actually prevents duplicate/overwriting checkpoints.
 	let rootRunMessageStart: number | undefined;
+	// Exclusions apply from the next snapshot on, in new and ongoing sessions
+	// alike; restore handles checkpoints made either way (checkpoint-restore).
+	const withExcludes = createCheckpointExcludes(options.cwd);
 
 	const ensureGitRepository = async (): Promise<boolean> => {
 		// Only cache the positive answer: a cwd that is not a git repo can
@@ -598,6 +621,7 @@ export function createCheckpointHooks(
 				(await createWorktreeStashCommit(
 					options.cwd,
 					checkpointScratchDir(options.cwd, options.sessionId),
+					withExcludes,
 					message,
 				)) ?? "";
 		} catch (error) {
