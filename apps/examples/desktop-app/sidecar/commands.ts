@@ -150,9 +150,16 @@ import {
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	MarketplaceInstallFailure,
 	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
+import {
+	captureMarketplaceInstallEvent,
+	marketplaceInstallEventFromFailure,
+	marketplaceInstallEventFromResult,
+	requestedMarketplaceType,
+} from "./marketplace-telemetry";
 import {
 	ensureMcpSettingsFile,
 	readMcpServersResponse,
@@ -3942,8 +3949,27 @@ export async function handleCommand(
 		);
 	}
 	if (command === "install_marketplace_entry") {
-		const result = await installMarketplaceEntryForDesktopCommand(args);
-		return result;
+		// One event per attempt, so we can see which install path Desktop users
+		// end up on (skills CLI vs. the GitHub download) and why.
+		try {
+			const result = await installMarketplaceEntryForDesktopCommand(args);
+			captureMarketplaceInstallEvent(
+				ctx.telemetry,
+				marketplaceInstallEventFromResult(result),
+			);
+			return result;
+		} catch (error) {
+			captureMarketplaceInstallEvent(
+				ctx.telemetry,
+				marketplaceInstallEventFromFailure(
+					requestedMarketplaceType(args),
+					error instanceof MarketplaceInstallFailure
+						? error.telemetry
+						: undefined,
+				),
+			);
+			throw error;
+		}
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
