@@ -21,14 +21,6 @@
 	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
 	/* Solid roles choose brand steps that support white labels. */
 	--primary: var(--accent-9);
-	--success-solid: var(--success-10);
-	--error-solid: var(--error-9);
-	/* Amber and Sky step 9 use white labels on the light ramp. */
-	--warning-contrast: #fff;
-	--info-contrast: #fff;
-	/* Small status text needs deeper steps on light surfaces. */
-	--success-text: var(--success-10);
-	--error-text: var(--error-10);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Inter Variable", sans-serif;
@@ -76,6 +68,12 @@
 	--text-6xl: 3.75rem;
 	--text-6xl--line-height: 3.75rem;
 	--text-6xl--letter-spacing: -0.025em;
+
+	/* Filled statuses choose a palette step for each color mode. */
+	--success-solid: var(--success-10);
+	--warning-solid: var(--warning-10);
+	--error-solid: var(--error-9);
+	--info-solid: var(--info-9);
 }
 
 .dark {
@@ -93,16 +91,15 @@
 	--card-surface: var(--neutral-3);
 	/* Blend the adjacent accent steps to keep white labels above 4.5:1. */
 	--primary: color-mix(in srgb, var(--accent-8) 60%, var(--accent-7));
-	--success-solid: var(--success-6);
-	--error-solid: var(--error-6);
-	--warning-contrast: #1c2024;
-	--info-contrast: #1c2024;
-	--success-text: var(--success-9);
-	--error-text: var(--error-9);
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
 	--font-weight-bold: 600;
+
+	--success-solid: var(--success-6);
+	--warning-solid: var(--warning-6);
+	--error-solid: var(--error-6);
+	--info-solid: var(--info-7);
 }
 
 :root,
@@ -121,21 +118,23 @@
 	--border-2: var(--neutral-5);
 	--focus-ring: var(--accent-8);
 
-	/* Status roles. Solid surfaces and translucent borders share each status hue. */
-	--success-surface: var(--success-2);
+	/* Recompute status aliases in each theme, including nested dark roots. */
+	--success-surface: var(--success-a2);
 	--success-border: var(--success-a4);
+	--success-text: var(--success-10);
 	--success-contrast: #fff;
-	--warning-surface: var(--warning-2);
+	--warning-surface: var(--warning-a2);
 	--warning-border: var(--warning-a4);
-	--warning-solid: var(--warning-9);
 	--warning-text: var(--warning-10);
-	--error-surface: var(--error-2);
-	--error-border: var(--error-a3);
+	--warning-contrast: #fff;
+	--error-surface: var(--error-a2);
+	--error-border: var(--error-a4);
+	--error-text: var(--error-10);
 	--error-contrast: #fff;
-	--info-surface: var(--info-2);
-	--info-border: var(--info-a3);
-	--info-solid: var(--info-9);
-	--info-text: var(--info-11);
+	--info-surface: var(--info-a2);
+	--info-border: var(--info-a4);
+	--info-text: var(--info-10);
+	--info-contrast: #fff;
 
 	/* Global browser affordances. */
 	--scrollbar-thumb: var(--neutral-8);
