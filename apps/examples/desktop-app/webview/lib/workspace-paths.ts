@@ -177,6 +177,21 @@ export function filterWorkspacePaths(paths: readonly string[]): string[] {
 }
 
 /**
+ * Drops paths whose folder no longer exists, so a deleted folder stops showing
+ * up in the workspace switcher. A path is kept when the check itself fails: an
+ * unreachable sidecar is not proof that the folder is gone.
+ */
+export async function pruneMissingWorkspacePaths(
+	paths: readonly string[],
+	folderExists: (path: string) => Promise<boolean>,
+): Promise<string[]> {
+	const exists = await Promise.all(
+		paths.map((path) => folderExists(path).catch(() => true)),
+	);
+	return paths.filter((_, index) => exists[index]);
+}
+
+/**
  * Workspaces with the most recent session activity come first; paths whose
  * sessions carry no parseable timestamp fall back to alphabetical order at
  * the end.
