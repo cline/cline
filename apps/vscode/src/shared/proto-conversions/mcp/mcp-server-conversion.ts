@@ -1,13 +1,23 @@
 import {
+	McpServerStatus,
 	McpPrompt as ProtoMcpPrompt,
 	McpPromptArgument as ProtoMcpPromptArgument,
 	McpResource as ProtoMcpResource,
 	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
-	McpServerStatus,
 	McpTool as ProtoMcpTool,
+	McpToolAnnotations as ProtoMcpToolAnnotations,
 } from "@shared/proto/cline/mcp"
-import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
+import {
+	McpOAuthAuthStatus,
+	McpPrompt,
+	McpPromptArgument,
+	McpResource,
+	McpResourceTemplate,
+	McpServer,
+	McpTool,
+	McpToolAnnotations,
+} from "../../mcp"
 
 // Helper to convert TS status to Proto enum
 function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
@@ -57,6 +67,17 @@ function convertTool(tool: McpTool): ProtoMcpTool {
 		description: tool.description,
 		inputSchema: inputSchemaString,
 		autoApprove: tool.autoApprove,
+		annotations: tool.annotations ? convertToolAnnotations(tool.annotations) : undefined,
+	}
+}
+
+function convertToolAnnotations(annotations: McpToolAnnotations): ProtoMcpToolAnnotations {
+	return {
+		title: annotations.title,
+		readOnlyHint: annotations.readOnlyHint,
+		destructiveHint: annotations.destructiveHint,
+		idempotentHint: annotations.idempotentHint,
+		openWorldHint: annotations.openWorldHint,
 	}
 }
 
@@ -156,6 +177,17 @@ function convertProtoTool(protoTool: ProtoMcpTool): McpTool {
 				: protoTool.inputSchema
 			: undefined,
 		autoApprove: protoTool.autoApprove,
+		annotations: protoTool.annotations ? convertProtoToolAnnotations(protoTool.annotations) : undefined,
+	}
+}
+
+function convertProtoToolAnnotations(annotations: ProtoMcpToolAnnotations): McpToolAnnotations {
+	return {
+		title: annotations.title === "" ? undefined : annotations.title,
+		readOnlyHint: annotations.readOnlyHint,
+		destructiveHint: annotations.destructiveHint,
+		idempotentHint: annotations.idempotentHint,
+		openWorldHint: annotations.openWorldHint,
 	}
 }
 

@@ -16,6 +16,27 @@ type McpToolRowProps = {
 // SDK ever gains per-tool approval granularity.
 export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
 
+/**
+ * Shows the server's own read-only claim next to the tool name. Only a declared
+ * hint is shown: an undeclared tool gets no badge, since absence of a hint is
+ * not a statement about the tool.
+ */
+// Only a declared read-only tool gets a badge: readOnlyHint false is the spec
+// default, so marking it would suggest undeclared tools are safe.
+const ToolHintBadge = ({ tool }: { tool: McpTool }) => {
+	if (tool.annotations?.readOnlyHint !== true) {
+		return null
+	}
+	return (
+		<span
+			className="text-description border border-description/40 rounded-sm px-1.5 py-px text-[10px] uppercase tracking-wide shrink-0"
+			data-testid="tool-hint-badge"
+			title="The server declares this tool read-only (readOnlyHint). A hint from the server, not a guarantee.">
+			read-only
+		</span>
+	)
+}
+
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
@@ -53,8 +74,11 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				onClick={(e) => e.stopPropagation()}
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
 				<div style={{ display: "flex", alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
-					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }} />
+					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", marginRight: "6px" }}>
+						{tool.name}
+					</span>
+					<ToolHintBadge tool={tool} />
 				</div>
 				{SHOW_MCP_PER_TOOL_AUTO_APPROVE && serverName && autoApprovalSettings.actions.useMcp && (
 					<VSCodeCheckbox

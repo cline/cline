@@ -1,3 +1,4 @@
+export { normalizeMcpToolAnnotations } from "./annotations";
 export type { McpAppToolMeta, McpAppToolVisibility } from "./apps";
 export {
 	createMcpAppsClientCapabilities,
@@ -98,6 +99,7 @@ export type {
 	McpSseTransportConfig,
 	McpStdioTransportConfig,
 	McpStreamableHttpTransportConfig,
+	McpToolAnnotations,
 	McpToolCallRequest,
 	McpToolCallResult,
 	McpToolDescriptor,

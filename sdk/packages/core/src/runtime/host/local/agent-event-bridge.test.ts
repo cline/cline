@@ -81,6 +81,7 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 		expect(toolUsedProperties(telemetry)).toMatchObject({
 			ulid: "session-1",
 			tool: "run_commands",
+			mode: "act",
 			agentId: "agent-1",
 			agentKind: "root",
 			isSubagent: false,

@@ -9,6 +9,7 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ReadResourceResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { normalizeMcpToolAnnotations } from "./annotations";
 import { createMcpAppsClientCapabilities } from "./apps";
 import {
 	createMcpOAuthClientInformation,
@@ -26,6 +27,13 @@ import type {
 	McpToolCallResult,
 	McpToolDescriptor,
 } from "./types";
+
+function withAnnotations(
+	value: unknown,
+): Pick<McpToolDescriptor, "annotations"> {
+	const annotations = normalizeMcpToolAnnotations(value);
+	return annotations ? { annotations } : {};
+}
 
 type JsonRpcRequest = {
 	jsonrpc: "2.0";
@@ -367,6 +375,7 @@ class StdioMcpClient implements McpServerClient {
 				name?: string;
 				description?: string;
 				inputSchema?: Record<string, unknown>;
+				annotations?: unknown;
 				_meta?: Record<string, unknown>;
 			}>;
 		};
@@ -378,6 +387,7 @@ class StdioMcpClient implements McpServerClient {
 					name: string;
 					description?: string;
 					inputSchema: Record<string, unknown>;
+					annotations?: unknown;
 					_meta?: Record<string, unknown>;
 				} =>
 					typeof tool?.name === "string" &&
@@ -388,6 +398,7 @@ class StdioMcpClient implements McpServerClient {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				...withAnnotations(tool.annotations),
 				...(tool._meta &&
 				typeof tool._meta === "object" &&
 				!Array.isArray(tool._meta)
@@ -864,6 +875,7 @@ class SdkUrlMcpClient implements McpServerClient {
 					!Array.isArray(tool.inputSchema)
 						? tool.inputSchema
 						: {},
+				...withAnnotations(tool.annotations),
 				...(tool._meta ? { _meta: tool._meta } : {}),
 			}));
 		} catch (error) {

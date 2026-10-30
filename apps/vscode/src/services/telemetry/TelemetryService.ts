@@ -1,3 +1,4 @@
+import type { AgentMode } from "@cline/shared"
 import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
@@ -748,6 +749,8 @@ export class TelemetryService {
 	 * @param status The status of the tool call.
 	 * @param errorMessage Optional error message if the call failed.
 	 * @param argumentKeys Optional array of argument keys for the tool.
+	 * @param isNativeToolCall Whether the model issued a native tool call.
+	 * @param mode Session mode at call time, so Plan-mode MCP use is measurable.
 	 */
 	public captureMcpToolCall(
 		ulid: string,
@@ -757,6 +760,7 @@ export class TelemetryService {
 		errorMessage?: string,
 		argumentKeys?: string[],
 		isNativeToolCall = false,
+		mode?: AgentMode,
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
@@ -768,6 +772,7 @@ export class TelemetryService {
 				errorMessage,
 				argumentKeys,
 				isNativeToolCall,
+				mode,
 			},
 		})
 	}
