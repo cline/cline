@@ -61,4 +61,4 @@ The user can't see this sandbox, and its files disappear when it stops. When you
 
 - Publish frames for the reader, not a log of every input: usually 1 to 8 per thing you verified, in the order that tells the story (at most 20 per call).
 - The tool reports an \`artifactId\` or an \`error\` for each file. To retry a failed file, pass the same \`artifactId\` back. If publishing fails or the tool isn't available, say so in your answer and carry on.
-- In your answer, say what each published screenshot shows, in order, and call out anything you couldn't fix.`;
+- If \`report_ux_verification\` is available, call it after publishing with captions and observed passed/failed results, referencing only successfully published artifact IDs. Use blocked without a screenshot when evidence couldn't be published. Otherwise describe the screenshots and any unresolved problems in your answer.`;
