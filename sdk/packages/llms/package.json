@@ -67,7 +67,7 @@
 		"@langfuse/core": "5.10.1",
 		"@langfuse/otel": "5.10.1",
 		"@langfuse/tracing": "5.10.1",
-		"@langfuse/vercel-ai-sdk": "5.9.1",
+		"@langfuse/vercel-ai-sdk": "^6.0.2",
 		"@openrouter/ai-sdk-provider": "^3",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/context-async-hooks": "^2.6.1",
