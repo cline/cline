@@ -299,3 +299,101 @@ describe("tool state controls", () => {
 		).toBe(!initialEnabled);
 	});
 });
+
+describe("inventory refresh feedback", () => {
+	const inventory = (enabled: boolean) => ({
+		workspaceRoot: "/workspace",
+		tools: [
+			{ id: "read_files", name: "read_files", source: "builtin", enabled },
+		],
+	});
+
+	async function mountTools() {
+		invoke.mockImplementation((command: string) => {
+			if (command === "list_user_instruction_configs") {
+				return Promise.resolve(inventory(true));
+			}
+			return Promise.reject(new Error(`Unexpected command: ${command}`));
+		});
+		await act(async () => {
+			root.render(<CustomizationSectionView section="Tools" />);
+		});
+		await act(async () => {
+			await vi.waitFor(() => {
+				expect(invoke).toHaveBeenCalledExactlyOnceWith(
+					"list_user_instruction_configs",
+				);
+			});
+		});
+		const refresh =
+			container.querySelector<HTMLButtonElement>("section button");
+		expect(refresh?.disabled).toBe(false);
+		invoke.mockClear();
+		return refresh;
+	}
+
+	it("refreshes invalidated inventory without disabling or spinning the Refresh button", async () => {
+		const refresh = await mountTools();
+		let completeBackground!: (response: unknown) => void;
+		invoke.mockReturnValueOnce(
+			new Promise((resolve) => {
+				completeBackground = resolve;
+			}),
+		);
+
+		await act(async () => invalidateExtensionInventoryCache());
+		expect(invoke).toHaveBeenCalledExactlyOnceWith(
+			"list_user_instruction_configs",
+		);
+		expect(refresh?.disabled).toBe(false);
+		expect(
+			refresh?.querySelector("svg")?.classList.contains("animate-spin"),
+		).toBe(false);
+
+		await act(async () => completeBackground(inventory(false)));
+		expect(
+			container.querySelector<HTMLInputElement>(
+				'[aria-label="Toggle read_files"]',
+			)?.checked,
+		).toBe(false);
+		expect(refresh?.disabled).toBe(false);
+	});
+
+	it("keeps a manual refresh active when an earlier background refresh finishes", async () => {
+		const refresh = await mountTools();
+		let completeBackground!: (response: unknown) => void;
+		let completeManual!: (response: unknown) => void;
+		invoke
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					completeBackground = resolve;
+				}),
+			)
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					completeManual = resolve;
+				}),
+			);
+
+		await act(async () => invalidateExtensionInventoryCache());
+		expect(refresh?.disabled).toBe(false);
+		await act(async () => refresh?.click());
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(refresh?.disabled).toBe(true);
+		expect(
+			refresh?.querySelector("svg")?.classList.contains("animate-spin"),
+		).toBe(true);
+
+		await act(async () => completeBackground(inventory(false)));
+		expect(refresh?.disabled).toBe(true);
+		expect(
+			refresh?.querySelector("svg")?.classList.contains("animate-spin"),
+		).toBe(true);
+
+		await act(async () => completeManual(inventory(false)));
+		expect(refresh?.disabled).toBe(false);
+		expect(
+			refresh?.querySelector("svg")?.classList.contains("animate-spin"),
+		).toBe(false);
+	});
+});

@@ -460,7 +460,8 @@ export function CustomizationSectionView({
 	}, [section]);
 
 	const refresh = useCallback(
-		async (force = false) => {
+		async (force = false, options?: { showLoading?: boolean }) => {
+			const showLoading = options?.showLoading !== false;
 			const now = Date.now();
 			if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
 				setWorkspaceRoot(extensionListsCache.workspaceRoot);
@@ -474,11 +475,15 @@ export function CustomizationSectionView({
 				setMcp(extensionListsCache.mcp);
 				setWarnings(extensionListsCache.warnings);
 				setErrorMessage(null);
-				setIsLoading(false);
+				if (showLoading) {
+					setIsLoading(false);
+				}
 				return;
 			}
 
-			setIsLoading(true);
+			if (showLoading) {
+				setIsLoading(true);
+			}
 			setErrorMessage(null);
 			try {
 				const response = await fetchUserInstructionLists();
@@ -503,7 +508,9 @@ export function CustomizationSectionView({
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
 			} finally {
-				setIsLoading(false);
+				if (showLoading) {
+					setIsLoading(false);
+				}
 			}
 		},
 		[onInventoryChanged],
@@ -818,7 +825,7 @@ export function CustomizationSectionView({
 	useEffect(
 		() =>
 			subscribeToExtensionInventoryInvalidation(() => {
-				void refresh(true);
+				void refresh(true, { showLoading: false });
 			}),
 		[refresh],
 	);
