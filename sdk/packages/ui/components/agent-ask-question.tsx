@@ -219,7 +219,7 @@ export function AgentAskQuestion({
 						<div className="cline-ui-agent-ask-question__footer flex flex-col gap-2 border-cline-ui-border border-t px-2 py-2">
 							{error ? (
 								<div
-									className="cline-ui-agent-ask-question__error text-cline-ui-destructive text-cline-ui-xs px-2"
+									className="cline-ui-agent-ask-question__error text-cline-ui-error-text text-cline-ui-xs px-2"
 									role="alert"
 								>
 									{error}
@@ -229,7 +229,7 @@ export function AgentAskQuestion({
 								{item.multiple ? null : (
 									<input
 										aria-label="Custom answer"
-										className="cline-ui-agent-ask-question__custom min-w-0 flex-1 h-8 rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 text-cline-ui-foreground text-cline-ui-sm outline-none focus:border-[color-mix(in_oklab,var(--cline-ui-primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--cline-ui-primary)_20%,transparent)]"
+										className="cline-ui-agent-ask-question__custom min-w-0 flex-1 h-8 rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 text-cline-ui-foreground text-cline-ui-sm outline-none focus:border-[color-mix(in_oklab,var(--primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_20%,transparent)]"
 										disabled={isPending}
 										onChange={(event) => {
 											const value = event.target.value;

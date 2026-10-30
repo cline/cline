@@ -4,9 +4,9 @@ const steps = Array.from({ length: 12 }, (_, index) => index + 1);
 
 const palettes = [
 	["Neutral · Slate", "neutral"],
-	["Accent · Violet", "accent"],
-	["Error · Ruby", "error"],
-	["Success · Green", "success"],
+	["Accent · Iris", "accent"],
+	["Error · Vermilion", "error"],
+	["Success · Emerald", "success"],
 	["Warning · Amber", "warning"],
 	["Info · Sky", "info"],
 ] as const;
@@ -84,7 +84,7 @@ const TokenCard = ({ label, token }: { label: string; token: string }) => (
 export const Overview = () => (
 	<main className="mx-auto grid max-w-6xl gap-10 p-8">
 		<header className="space-y-3">
-			<p className="text-sm font-medium text-primary">@cline/ui</p>
+			<p className="text-sm font-medium text-accent-foreground">@cline/ui</p>
 			<h1 className="text-4xl font-semibold tracking-tight">
 				Cline visual foundations
 			</h1>
@@ -98,7 +98,8 @@ export const Overview = () => (
 			<div>
 				<h2 className="text-xl font-semibold">Cline-owned palettes</h2>
 				<p className="text-sm text-muted-foreground">
-					Solid and alpha values copied from Radix Colors 3.0.0.
+					Cline brand scales use OKLCH. Generated alpha colors match each solid
+					swatch over the theme’s neutral background.
 				</p>
 			</div>
 			<div className="grid gap-5">

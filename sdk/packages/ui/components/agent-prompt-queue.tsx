@@ -216,7 +216,7 @@ export function AgentPromptQueue({
 					return (
 						<div
 							aria-busy={isPending || undefined}
-							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md px-0 py-1 hover:bg-[color-mix(in_oklab,var(--cline-ui-accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5"
+							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md px-0 py-1 hover:bg-[color-mix(in_oklab,var(--accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5"
 							data-steer={item.steer || undefined}
 							key={item.id}
 						>
@@ -234,7 +234,7 @@ export function AgentPromptQueue({
 								{isEditing ? (
 									<textarea
 										aria-label="Edit queued prompt"
-										className="cline-ui-agent-prompt-queue__editor block min-h-8 w-full resize-none rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 py-1.5 text-cline-ui-foreground text-cline-ui-xs leading-4 outline-none focus:border-[color-mix(in_oklab,var(--cline-ui-primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--cline-ui-primary)_20%,transparent)]"
+										className="cline-ui-agent-prompt-queue__editor block min-h-8 w-full resize-none rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 py-1.5 text-cline-ui-foreground text-cline-ui-xs leading-4 outline-none focus:border-[color-mix(in_oklab,var(--primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_20%,transparent)]"
 										disabled={isPending}
 										onChange={(event) => setEditingValue(event.target.value)}
 										onKeyDown={(event) => {
@@ -266,7 +266,7 @@ export function AgentPromptQueue({
 											</span>
 										) : null}
 										{item.steer ? (
-											<span className="cline-ui-agent-prompt-queue__badge shrink-0 rounded-full bg-cline-ui-primary/10 px-1.5 py-0.5 font-cline-ui-medium text-[10px] text-cline-ui-primary">
+											<span className="cline-ui-agent-prompt-queue__badge shrink-0 rounded-full bg-cline-ui-primary/10 px-1.5 py-0.5 font-cline-ui-medium text-[10px] text-cline-ui-accent-foreground">
 												Next turn
 											</span>
 										) : null}
@@ -274,7 +274,7 @@ export function AgentPromptQueue({
 								)}
 								{actionError?.id === item.id ? (
 									<p
-										className="cline-ui-agent-prompt-queue__error m-0 mt-1 text-cline-ui-destructive text-cline-ui-xs"
+										className="cline-ui-agent-prompt-queue__error m-0 mt-1 text-cline-ui-error-text text-cline-ui-xs"
 										role="alert"
 									>
 										{actionError.message}

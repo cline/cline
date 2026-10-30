@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { generatePaletteAlpha } from "./palette-alpha";
 
 const packageRoot = join(import.meta.dir, "..");
 const palettePath = join(packageRoot, "theme", "palette.css");
@@ -149,10 +150,8 @@ function scopeVariableBlocks(source: string, sourcePath: string): string {
 	);
 }
 
-const paletteSource = stripContractComment(
-	readFileSync(palettePath, "utf8"),
-	palettePath,
-);
+const palette = generatePaletteAlpha(readFileSync(palettePath, "utf8"));
+const paletteSource = stripContractComment(palette, palettePath);
 const tokensSource = stripContractComment(
 	readFileSync(tokensPath, "utf8"),
 	tokensPath,
@@ -175,6 +174,7 @@ const generatedComponentTheme = generateComponentTheme(
 	theme,
 );
 const outputs = [
+	[palettePath, palette],
 	[scopedOutputPath, generatedScopedTokens],
 	[componentThemeOutputPath, generatedComponentTheme],
 ] as const;
@@ -190,5 +190,5 @@ if (checkOnly) {
 	for (const [outputPath, generated] of outputs) {
 		writeFileSync(outputPath, generated);
 	}
-	console.log("Generated @cline/ui scoped and component themes");
+	console.log("Generated @cline/ui alpha palette, scoped and component themes");
 }
