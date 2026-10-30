@@ -2932,7 +2932,10 @@ function parseToolArguments(
 	};
 }
 
-function mergeToolInputText(current: string, incoming: string): string {
+function mergeToolInputText(current: string, incoming: unknown): string {
+	if (typeof incoming !== "string") {
+		return current;
+	}
 	if (!current) {
 		return incoming;
 	}
