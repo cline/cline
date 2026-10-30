@@ -2,6 +2,7 @@
 @import "./components/button.css";
 @import "./components/segmented-control.css";
 @import "./components/pill-selector.css";
+@import "./components/dialog.css";
 @import "./components/agent-changes.css";
 @import "./components/agent-pull-request-bar.css";
 @import "./components/agent-approval-card.css";
