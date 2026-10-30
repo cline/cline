@@ -121,7 +121,9 @@ host. Importing this subpath does not start a local agent.
 `publish_artifacts` tool. It validates batches and local file paths, assigns missing
 IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
 receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
-signal, and returns one result per file in input order. Storage-specific policy
+signal, and returns one result per file in input order. Entries may include an
+optional `caption`; it stays in the tool input for hosts to display with the
+published file and is not passed to the publisher. Storage-specific policy
 and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
 be published; the tool itself does not restrict paths to a workspace.

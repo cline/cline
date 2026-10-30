@@ -126,6 +126,12 @@ export function createPublishArtifactsTool({
 								minLength: 1,
 							},
 							artifactId: { type: "string", minLength: 1 },
+							caption: {
+								type: "string",
+								description:
+									"Optional one-sentence caption shown to the user with the file, such as what a screenshot shows",
+								maxLength: 300,
+							},
 						},
 						required: ["path"],
 						additionalProperties: false,
