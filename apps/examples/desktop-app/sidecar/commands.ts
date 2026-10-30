@@ -2261,10 +2261,11 @@ export async function handleCommand(
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "resolve_artifact") {
-		const { sessionId, artifactId } = z
+		const { sessionId, artifactId, downloadFilename } = z
 			.object({
 				sessionId: z.string().trim().min(1),
 				artifactId: z.string().min(1),
+				downloadFilename: z.string().min(1).max(255).optional(),
 			})
 			.parse(args);
 		const cloud = getCloudSessionManager(ctx);
@@ -2274,16 +2275,18 @@ export async function handleCommand(
 			);
 		}
 		const accountId = getClineAccountId();
-		try {
-			return await cloud.getArtifactDownloadUrl(sessionId, artifactId);
-		} catch (error) {
-			if (
-				!(error instanceof Error) ||
-				error.message !== "Unknown cloud operation: getArtifactDownloadUrl"
-			)
-				throw error;
+		// Request named downloads directly: older Hubs accept only two arguments.
+		if (!downloadFilename) {
+			try {
+				return await cloud.getArtifactDownloadUrl(sessionId, artifactId);
+			} catch (error) {
+				if (
+					!(error instanceof Error) ||
+					error.message !== "Unknown cloud operation: getArtifactDownloadUrl"
+				)
+					throw error;
+			}
 		}
-		// A busy older Hub stays running during upgrades; do not interrupt its sessions.
 		const checkAccount = () => {
 			if (!accountId || getClineAccountId() !== accountId) {
 				throw new Error("Cline account changed during artifact access");
@@ -2302,7 +2305,11 @@ export async function handleCommand(
 				return token;
 			},
 		});
-		const download = await api.getArtifactDownloadUrl(sessionId, artifactId);
+		const download = await api.getArtifactDownloadUrl(
+			sessionId,
+			artifactId,
+			downloadFilename,
+		);
 		checkAccount();
 		return download;
 	}

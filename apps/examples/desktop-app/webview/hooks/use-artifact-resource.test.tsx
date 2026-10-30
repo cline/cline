@@ -38,14 +38,17 @@ function Harness({
 	sessionId = "ses-one",
 	artifactId = "artifact-one",
 	autoLoad = false,
+	downloadFilename,
 }: {
 	sessionId?: string;
 	artifactId?: string;
 	autoLoad?: boolean;
+	downloadFilename?: string;
 }) {
 	const hook = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
+		downloadFilename,
 	});
 	current = hook;
 	const url =
@@ -361,4 +364,19 @@ it("does not let stale completion close a newer browser tab", async () => {
 	expect(second.link.click).toHaveBeenCalledOnce();
 	expect(second.link.href).toBe("https://storage.example/first");
 	expect(second.close).not.toHaveBeenCalled();
+});
+
+it("does not reuse a cached URL for a different download filename", async () => {
+	await render({ downloadFilename: "first.png" });
+	await act(async () => current.open());
+	await act(async () => current.open());
+	expect(mocks.invoke).toHaveBeenCalledTimes(1);
+	await render({ downloadFilename: "renamed.png" });
+	await act(async () => current.open());
+	expect(mocks.invoke).toHaveBeenCalledTimes(2);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: "artifact-one",
+		downloadFilename: "renamed.png",
+	});
 });
