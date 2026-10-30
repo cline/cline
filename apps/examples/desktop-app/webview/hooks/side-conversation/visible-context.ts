@@ -7,7 +7,7 @@ import {
 	type SideVisibleContext,
 	sanitizeReferenceText,
 	serializeReferenceData,
-} from "../../../shared/side-conversation";
+} from "@cline/shared/browser";
 
 export function captureVisibleSideContext({
 	messages,

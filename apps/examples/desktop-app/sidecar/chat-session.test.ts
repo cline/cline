@@ -14,14 +14,13 @@ import {
 	SessionNotFoundError,
 	type SessionRecord,
 	SqliteSessionStore,
+	SIDE_SCOPE_INSTRUCTIONS,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	CreateSideConversationResultSchema,
-	type SideVisibleContext,
-} from "../shared/side-conversation";
+import { CreateSideConversationResultSchema } from "../shared/side-conversation";
+import type { SideVisibleContext } from "@cline/shared";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -53,7 +52,6 @@ import {
 	persistSessionMessages,
 	readPersistedChatMessages,
 } from "./session-data/messages";
-import { SIDE_SCOPE_INSTRUCTIONS } from "./side-conversation/context";
 import * as sessionPaths from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {

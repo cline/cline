@@ -4,6 +4,9 @@ import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
+	captureSideReference,
+	createSideHistoryTool,
+	SIDE_SCOPE_INSTRUCTIONS,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
@@ -99,11 +102,6 @@ import {
 	deleteTemporarySideConversation,
 	sideConversationOwner,
 } from "./side-conversation/lifecycle";
-import {
-	captureSideReference,
-	SIDE_SCOPE_INSTRUCTIONS,
-} from "./side-conversation/context";
-import { createSideHistoryTool } from "./side-conversation/history";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -1208,12 +1206,12 @@ async function createSideConversation(
 			typeof parent.metadata?.title === "string"
 				? parent.metadata.title
 				: "Main conversation";
-		const seed = captureSideReference(
+		const seed = captureSideReference({
 			messages,
 			activeParentTurn,
-			request.visibleContext,
+			visibleContext: request.visibleContext,
 			parentTitle,
-		);
+		});
 		const metadata = {
 			title: "Side chat",
 			desktopSideConversation: {

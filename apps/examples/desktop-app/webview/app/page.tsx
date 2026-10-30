@@ -214,10 +214,8 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
-import {
-	DESKTOP_SIDE_REFERENCE_KIND,
-	readSideConversation,
-} from "../../shared/side-conversation";
+import { readSideConversation } from "../../shared/side-conversation";
+import { SIDE_REFERENCE_KIND } from "@cline/shared/browser";
 import type {
 	HandoffResponse,
 	PrepareHandoffResult,
@@ -3405,7 +3403,7 @@ function ChatThreadPane({
 	const displayedMessages = hideDeletedSessionUi
 		? []
 		: messages.filter(
-				(message) => message.meta?.messageKind !== DESKTOP_SIDE_REFERENCE_KIND,
+				(message) => message.meta?.messageKind !== SIDE_REFERENCE_KIND,
 			);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
