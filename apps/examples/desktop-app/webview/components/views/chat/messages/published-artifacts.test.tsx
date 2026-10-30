@@ -206,6 +206,12 @@ it("keeps published images visible after completion and reopening history withou
 			role: "tool",
 			content: JSON.stringify({
 				toolName: "publish_artifacts",
+				input: {
+					files: [
+						{ path: "/tmp/before.png", caption: "Menu is closed" },
+						{ path: "/tmp/after.png" },
+					],
+				},
 				result: JSON.stringify({
 					files: [
 						{ path: "/tmp/before.png", artifactId: "before" },
@@ -262,6 +268,15 @@ it("keeps published images visible after completion and reopening history withou
 		expect(
 			Array.from(container.querySelectorAll("img"), (image) => image.alt),
 		).toEqual(["before.png", "after.png"]);
+		expect(
+			Array.from(
+				container.querySelectorAll("figcaption"),
+				(caption) => caption.textContent,
+			),
+		).toEqual([
+			"Menu is closed1 of 2 · before.pngDownload",
+			"2 of 2 · after.pngDownload",
+		]);
 		expect(container.textContent).not.toContain("Verified");
 	}
 	expect(JSON.stringify(messages)).toBe(stored);

@@ -167,14 +167,25 @@ export function parsePublishedArtifacts(value: unknown) {
 	return parsed.success ? parsed.data.files : undefined;
 }
 
-export type PublishedFile = z.infer<typeof PublicationSchema>["files"][number];
+export type PublishedFile = z.infer<
+	typeof PublicationSchema
+>["files"][number] & { caption?: string };
 
-export function getPublishedArtifacts(message: ChatMessage) {
+export function getPublishedArtifacts(
+	message: ChatMessage,
+): PublishedFile[] | undefined {
 	if (message.role !== "tool" || !message.sessionId) return undefined;
 	const { payload, toolName, inProgress } = parseToolMessage(message);
-	return toolName === "publish_artifacts" && !inProgress && !payload?.isError
-		? parsePublishedArtifacts(payload?.result)
-		: undefined;
+	if (toolName !== "publish_artifacts" || inProgress || payload?.isError)
+		return undefined;
+	// Results are returned in input order, so captions pair up by index.
+	const inputs = asRecord(normalizeDisplayValue(payload?.input))?.files;
+	return parsePublishedArtifacts(payload?.result)?.map((file, index) => {
+		const caption = Array.isArray(inputs)
+			? recordString(asRecord(inputs[index]), "caption").trim()
+			: "";
+		return caption ? { ...file, caption } : file;
+	});
 }
 
 /** Recognize the semantic result, independently of the tool or agent producing it. */
