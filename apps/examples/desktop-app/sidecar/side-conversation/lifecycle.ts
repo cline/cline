@@ -12,6 +12,15 @@ import {
 import { sessionLogPath } from "../paths";
 import { LOCAL_ENVIRONMENT_ID, type SidecarContext } from "../types";
 
+export function createTemporarySideState(): SidecarContext["temporarySideConversations"] {
+	return {
+		closing: false,
+		closed: new Set(),
+		byParent: new Map(),
+		pending: new Map(),
+	};
+}
+
 export function sideConversationOwner(ctx: SidecarContext) {
 	return {
 		runId: ctx.bootId,
@@ -38,7 +47,7 @@ export function assertSideConversationAvailable(
 	if (
 		(side && state.closing) ||
 		isTemporarySideClosed(ctx, sessionId) ||
-		(side && side.owner?.runId !== ctx.bootId)
+		(side && side.owner.runId !== ctx.bootId)
 	) {
 		throw new Error(
 			"This temporary side chat has ended. Open a new side chat from the main conversation.",
@@ -56,16 +65,14 @@ export function listTemporarySideConversations() {
 			)
 			.flatMap(({ session_id: sessionId }) => {
 				const side = readSideConversation(store.get(sessionId)?.metadata);
-				return side?.owner ? [{ sessionId, side }] : [];
+				return side ? [{ sessionId, side }] : [];
 			});
 	} finally {
 		store.close();
 	}
 }
 
-async function isSideConversationOwnerDead(
-	owner: NonNullable<SideConversation["owner"]>,
-) {
+async function isSideConversationOwnerDead(owner: SideConversation["owner"]) {
 	const probe = await probeProcessStartTokenAsync(owner.pid);
 	return (
 		probe.status === "missing" ||
@@ -97,7 +104,7 @@ export async function cleanupStaleSideConversations(
 	}
 	for (const { sessionId, side } of sides) {
 		try {
-			if (side.owner && (await isSideConversationOwnerDead(side.owner))) {
+			if (await isSideConversationOwnerDead(side.owner)) {
 				await deleteTemporarySideConversation(manager, sessionId);
 			}
 		} catch (error) {

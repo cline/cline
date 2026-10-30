@@ -34,6 +34,7 @@ import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import {
 	cleanupStaleSideConversations,
+	createTemporarySideState,
 	deleteTemporarySideConversation,
 	isTemporarySideClosed,
 	listTemporarySideConversations,
@@ -707,12 +708,7 @@ export function createSidecarContext(
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		bootId: randomUUID(),
-		temporarySideConversations: {
-			closing: false,
-			closed: new Set(),
-			byParent: new Map(),
-			pending: new Map(),
-		},
+		temporarySideConversations: createTemporarySideState(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -745,7 +741,7 @@ export async function disposeSidecarContext(
 	if (localManager) {
 		sideCleanupResults = await Promise.allSettled(
 			listTemporarySideConversations()
-				.filter(({ side }) => side.owner?.runId === ctx.bootId)
+				.filter(({ side }) => side.owner.runId === ctx.bootId)
 				.map(async ({ sessionId }) => {
 					sides.closed.add(sessionId);
 					await cancelSidecarSessionInteractions(ctx, sessionId, reason);

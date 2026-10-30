@@ -295,7 +295,10 @@ describe("side conversation submission", () => {
 		expect(props.send).not.toHaveBeenCalled();
 	});
 
-	it("does not show a dispatched question as a draft while the turn is pending", async () => {
+	it.each([
+		"reject",
+		"decline",
+	])("restores a pending send after remount when it %ss", async (outcome) => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = true;
 		const sending = Promise.withResolvers<boolean>();
@@ -306,16 +309,11 @@ describe("side conversation submission", () => {
 		root = createRoot(container);
 		props.pendingSubmissions = undefined;
 		await render(true);
-		await act(async () => sending.reject(new Error("Not sent")));
+		await act(async () => {
+			if (outcome === "reject") sending.reject(new Error("Not sent"));
+			else sending.resolve(false);
+		});
 		expect(props.drafts.get("thread")?.text).toBe("why?");
-		expect(container.textContent).toBe("why?");
-	});
-
-	it("restores rejected first sends without recreating a side", async () => {
-		props.pendingSubmissions = [{ question: "why?" }];
-		props.hydrationSucceeded = true;
-		props.send = vi.fn(async () => false);
-		await render(true);
 		expect(container.textContent).toBe("why?");
 		expect(props.create).not.toHaveBeenCalled();
 	});

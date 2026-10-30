@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { SqliteSessionStore } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTemporarySideState } from "./side-conversation/lifecycle";
 import { handleCommand } from "./commands";
 import type { SidecarContext } from "./types";
 
@@ -165,12 +166,7 @@ describe("delete_chat_session worktree cleanup", () => {
 	async function deleteSession(store: SqliteSessionStore, sessionId: string) {
 		const events: Array<{ name: string; payload: unknown }> = [];
 		const ctx = {
-			temporarySideConversations: {
-				closing: false,
-				closed: new Set<string>(),
-				byParent: new Map(),
-				pending: new Map(),
-			},
+			temporarySideConversations: createTemporarySideState(),
 			liveSessions: new Map(),
 			pendingApprovals: new Map(),
 			pendingQuestions: new Map(),
@@ -252,13 +248,9 @@ describe("delete_chat_session worktree cleanup", () => {
 			...sessionRecord("side", worktree.path),
 			metadata: {
 				desktopSideConversation: {
-					version: 1,
+					version: 2,
 					parentSessionId: "parent",
-					capturedAt: new Date().toISOString(),
-					sourceMessageCount: 0,
-					includedMessageCount: 0,
-					omittedMessageCount: 0,
-					omittedMediaCount: 0,
+					owner: { runId: "test-run", pid: process.pid, startToken: null },
 				},
 			},
 		} as never);

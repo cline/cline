@@ -104,7 +104,6 @@ export function useConversationWorkspace({
 		target,
 		host,
 		setTarget,
-		mainThreadId,
 		sideThreadId,
 		mainVisible,
 		sideVisible,

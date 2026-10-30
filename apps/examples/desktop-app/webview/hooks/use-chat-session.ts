@@ -4197,12 +4197,7 @@ export function useChatSession(
 						branch?: string;
 						prompt?: string;
 						environmentId?: string;
-						mode?: SideConfig["mode"];
-						selectionSource?: SideConfig["selectionSource"];
-						thinking?: SideConfig["thinking"];
-						reasoningEffort?: SideConfig["reasoningEffort"];
-						autoApproveTools?: boolean;
-						enableTools?: boolean;
+						metadata?: unknown;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -4235,8 +4230,10 @@ export function useChatSession(
 						`Session ${session.sessionId} attached to environment ${attached.environmentId}, not ${environmentId}.`,
 					);
 				}
+				const attachedSideConfig = readSideConfig(attached?.metadata);
 				setConfig((prev) => ({
 					...prev,
+					...attachedSideConfig,
 					environmentId,
 					sessionId: session.sessionId,
 					executionTarget: session.origin === "cloud" ? "cloud" : "local",
@@ -4247,18 +4244,17 @@ export function useChatSession(
 							? getSessionMetadataGitBranch(session.metadata)
 							: undefined),
 					provider:
+						attachedSideConfig?.provider ||
 						attached?.provider ||
 						sideConfig?.provider ||
 						session.provider ||
 						prev.provider,
-					mode: attached?.mode ?? prev.mode,
-					selectionSource: attached?.selectionSource ?? prev.selectionSource,
-					thinking: attached?.thinking ?? prev.thinking,
-					reasoningEffort: attached?.reasoningEffort ?? prev.reasoningEffort,
-					autoApproveTools: attached?.autoApproveTools ?? prev.autoApproveTools,
-					enableTools: attached?.enableTools ?? prev.enableTools,
 					model:
-						attached?.model || sideConfig?.model || session.model || prev.model,
+						attachedSideConfig?.model ||
+						attached?.model ||
+						sideConfig?.model ||
+						session.model ||
+						prev.model,
 					workspaceRoot:
 						attached?.workspaceRoot ||
 						session.workspaceRoot ||

@@ -472,6 +472,19 @@ function readSideSessionMetadata(
 	return readSideConversation(metadata) ? metadata : undefined;
 }
 
+function isLocalSideSession(
+	ctx: SidecarContext,
+	sessionId: string,
+	config?: JsonRecord,
+): boolean {
+	return Boolean(
+		readSideSessionMetadata(
+			getSessionRuntimeBinding(ctx, sessionId, readEnvironmentId(config)),
+			sessionId,
+		),
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -1183,10 +1196,10 @@ async function createSideConversation(
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
 	const existing = await manager.get(request.newSessionId);
 	if (existing) {
+		const side = readSideConversation(existing.metadata);
 		if (
-			readSideConversation(existing.metadata)?.parentSessionId !==
-				request.sessionId ||
-			readSideConversation(existing.metadata)?.owner?.runId !== ctx.bootId
+			side?.parentSessionId !== request.sessionId ||
+			side?.owner.runId !== ctx.bootId
 		)
 			throw new Error("The requested side conversation ID is already in use.");
 		ctx.temporarySideConversations.byParent.set(
@@ -1265,59 +1278,61 @@ async function handleStart(
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
 	const key = workspacePathKey(request.config);
-	if (key && ctx.restoringWorkspacePaths?.has(key))
+	if (key && ctx.restoringWorkspacePaths.has(key))
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
 	const reservationId = String(
 		request.config.sessionId ?? request.config.session_id ?? randomUUID(),
 	);
 	const previous = ctx.liveSessions.get(reservationId);
-	const reservation = createLiveSession(request.config, { status: "starting" });
+	const reservation = previous ?? createLiveSession(request.config);
+	const previousStatus = reservation.status;
+	reservation.status = "starting";
 	ctx.liveSessions.set(reservationId, reservation);
 	try {
-		return await handleStartUnlocked(ctx, request, side);
+		return await handleStartUnlocked(ctx, request.config, side);
 	} finally {
 		if (ctx.liveSessions.get(reservationId) === reservation) {
 			if (
 				previous &&
 				!isTemporarySideClosed(ctx, reservationId) &&
 				!ctx.temporarySideConversations.closing
-			)
-				ctx.liveSessions.set(reservationId, previous);
-			else ctx.liveSessions.delete(reservationId);
+			) {
+				if (reservation.status === "starting")
+					reservation.status = previousStatus;
+			} else ctx.liveSessions.delete(reservationId);
 		}
 	}
 }
 
 async function handleStartUnlocked(
 	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
+	inputConfig: JsonRecord,
 	side?: SideInitialState,
 ): Promise<unknown> {
-	if (!request.config) throw new Error("config is required");
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
-		readEnvironmentId(request.config),
+		readEnvironmentId(inputConfig),
 	);
 	const manager = binding.sessionManager;
 	let metadata =
 		side?.metadata ??
 		readSideSessionMetadata(
 			binding,
-			String(request.config.sessionId ?? request.config.session_id ?? ""),
+			String(inputConfig.sessionId ?? inputConfig.session_id ?? ""),
 		);
 	assertSideConversationAvailable(
 		ctx,
-		String(request.config.sessionId ?? request.config.session_id ?? ""),
+		String(inputConfig.sessionId ?? inputConfig.session_id ?? ""),
 		metadata,
 	);
 	const persistedSideConfig = readSideConversation(metadata)
 		? readSideConfig(metadata)
 		: undefined;
 	if (persistedSideConfig && !side) {
-		metadata = withSideConfig(metadata, request.config);
+		metadata = withSideConfig(metadata, inputConfig);
 	}
-	const requestedConfig = recoverSideConfig(request.config, metadata);
+	const requestedConfig = recoverSideConfig(inputConfig, metadata);
 	const config =
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(requestedConfig)
@@ -1529,7 +1544,6 @@ async function handleAttach(
 		workspaceRoot: session.workspaceRoot,
 		prompt: session.prompt,
 		metadata,
-		...(readSideConversation(metadata) ? readSideConfig(metadata) : {}),
 	};
 }
 
@@ -2312,16 +2326,7 @@ async function handleStop(
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	cancelHubReconnect(sessionId);
-	if (
-		readSideSessionMetadata(
-			getSessionRuntimeBinding(
-				ctx,
-				sessionId,
-				readEnvironmentId(request.config),
-			),
-			sessionId,
-		)
-	)
+	if (isLocalSideSession(ctx, sessionId, request.config))
 		await cancelSidecarSessionInteractions(ctx, sessionId, "Session stopped");
 	else cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
 	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
@@ -2340,16 +2345,7 @@ async function handleAbort(
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	cancelHubReconnect(sessionId);
-	if (
-		readSideSessionMetadata(
-			getSessionRuntimeBinding(
-				ctx,
-				sessionId,
-				readEnvironmentId(request.config),
-			),
-			sessionId,
-		)
-	)
+	if (isLocalSideSession(ctx, sessionId, request.config))
 		await cancelSidecarSessionInteractions(ctx, sessionId, "Run aborted");
 	else cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
 	await getSessionManager(ctx, sessionId, request.config).abort(
@@ -2625,16 +2621,7 @@ async function handleReset(
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
 		cancelHubReconnect(sessionId);
-		if (
-			readSideSessionMetadata(
-				getSessionRuntimeBinding(
-					ctx,
-					sessionId,
-					readEnvironmentId(request.config),
-				),
-				sessionId,
-			)
-		)
+		if (isLocalSideSession(ctx, sessionId, request.config))
 			await cancelSidecarSessionInteractions(ctx, sessionId, "Session reset");
 		else cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
@@ -2660,16 +2647,7 @@ async function handleRestoreCheckpoint(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
-	if (
-		readSideSessionMetadata(
-			getSessionRuntimeBinding(
-				ctx,
-				sourceSessionId,
-				readEnvironmentId(request.config),
-			),
-			sourceSessionId,
-		)
-	)
+	if (isLocalSideSession(ctx, sourceSessionId, request.config))
 		throw new Error(
 			"Checkpoint restore is unavailable in side conversations. Return to the main conversation.",
 		);

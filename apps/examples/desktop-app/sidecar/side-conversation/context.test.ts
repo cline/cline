@@ -1,9 +1,6 @@
 import { captureSideReference, countUserRunMessages } from "@cline/core";
 import { describe, expect, it } from "vitest";
-import {
-	readSideConversation,
-	parseSideCommand,
-} from "../../shared/side-conversation";
+import { parseSideCommand } from "../../shared/side-conversation";
 import { derivePromptFromMessages } from "../session-data/common";
 import { readSessionMessagesSync } from "../session-data/messages";
 
@@ -44,23 +41,4 @@ describe("side slash commands", () => {
 		expect(parseSideCommand("/side")).toEqual({ question: "" });
 		expect(parseSideCommand("/sidekick question")).toBeUndefined();
 	});
-});
-
-it.each([
-	1, 2,
-])("recognizes side identity v%s independently of capture diagnostics", (version) => {
-	expect(
-		readSideConversation({
-			desktopSideConversation: {
-				version,
-				parentSessionId: "main",
-				sourceMessageCount: "old-format",
-			},
-		}),
-	).toEqual({ version, parentSessionId: "main" });
-	expect(
-		readSideConversation({
-			desktopSideConversation: { version, sourceMessageCount: 1 },
-		}),
-	).toBeUndefined();
 });

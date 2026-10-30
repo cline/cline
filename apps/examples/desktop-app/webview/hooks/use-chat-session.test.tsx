@@ -761,7 +761,8 @@ describe("useChatSession", () => {
 		let failNextSave = false;
 		invokeMock.mockImplementation(async (command, args) => {
 			if (command === "read_session_messages") return [];
-			if (args?.request?.action === "attach") return { ...side, ...saved };
+			if (args?.request?.action === "attach")
+				return { ...side, metadata: { desktopSideConfig: saved } };
 			if (args?.request?.action === "start") return side;
 			if (command === "update_chat_session_metadata") {
 				if (failNextSave) {
@@ -859,7 +860,8 @@ describe("useChatSession", () => {
 					provider: "chosen-provider",
 					model: "chosen-model",
 					mode: "yolo",
-					autoApproveTools: false,
+					thinking: true,
+					autoApproveTools: true,
 					enableTools: true,
 				},
 			},
@@ -887,11 +889,18 @@ describe("useChatSession", () => {
 					environmentId: "local",
 					provider: "chosen-provider",
 					model: "chosen-model",
-					mode: "yolo",
-					thinking: true,
-					reasoningEffort: "xhigh",
-					autoApproveTools: false,
-					enableTools: true,
+					metadata: {
+						desktopSideConfig: {
+							provider: "attached-provider",
+							model: "attached-model",
+							selectionSource: "side",
+							mode: "plan",
+							thinking: false,
+							reasoningEffort: "xhigh",
+							autoApproveTools: false,
+							enableTools: false,
+						},
+					},
 				};
 			}
 			if (
@@ -908,19 +917,24 @@ describe("useChatSession", () => {
 		expect(current.config).toMatchObject({
 			provider: "chosen-provider",
 			model: "chosen-model",
+			mode: "yolo",
+			thinking: true,
+			autoApproveTools: true,
+			enableTools: true,
 		});
 		fail = false;
 		await act(async () => {
 			expect(await current.hydrateSession(session)).toBe(true);
 		});
 		expect(current.config).toMatchObject({
-			provider: "chosen-provider",
-			model: "chosen-model",
-			mode: "yolo",
-			thinking: true,
+			provider: "attached-provider",
+			model: "attached-model",
+			selectionSource: "side",
+			mode: "plan",
+			thinking: false,
 			reasoningEffort: "xhigh",
 			autoApproveTools: false,
-			enableTools: true,
+			enableTools: false,
 		});
 		await act(async () =>
 			current.setConfig((config) => ({

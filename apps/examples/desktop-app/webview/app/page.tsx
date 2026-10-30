@@ -1741,9 +1741,10 @@ function ChatThreadPane({
 	sideThread?: ThreadPaneProps;
 	onAttentionChange?: (threadId: string, label: string) => void;
 }) {
+	const isSide = presentation === "side";
 	const visible =
 		interactive &&
-		(presentation === "main"
+		(!isSide
 			? workspace.mainVisible
 			: workspace.sideVisible && workspace.sideThreadId === threadId);
 
@@ -1896,7 +1897,7 @@ function ChatThreadPane({
 	>(null);
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
-		presentation !== "side" &&
+		!isSide &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	// Handoff state is keyed by local session id; another environment may reuse the id.
@@ -2115,7 +2116,7 @@ function ChatThreadPane({
 	useEffect(() => {
 		// Do not persist a sandbox's synthetic path as the local workspace.
 		if (
-			presentation === "side" ||
+			isSide ||
 			config.executionTarget === "cloud" ||
 			(config.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !== environmentId
 		) {
@@ -2138,7 +2139,7 @@ function ChatThreadPane({
 		config.workspaceRoot,
 		environmentId,
 		workspaces,
-		presentation,
+		isSide,
 	]);
 
 	const providerCredentialsRequestRef = useRef(0);
@@ -2604,13 +2605,10 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
-	const sideRelation = readSideConversation(
-		liveHistorySession?.metadata ?? historySession?.metadata,
-	);
 	const isLocalMain =
 		!isCloudSession &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
-		!sideRelation &&
+		!isSide &&
 		!historySession?.isSubagent &&
 		!historySession?.parentSessionId;
 	const sideAvailable = Boolean(sessionId) && isLocalMain;
@@ -2629,9 +2627,8 @@ function ChatThreadPane({
 		create: createSideConversation,
 		reveal: revealSide,
 		getCloseRevision: workspace.getCloseRevision,
-		existingSession:
-			presentation === "side" ? historySession : selectedSideSession,
-		isSide: Boolean(sideRelation),
+		existingSession: isSide ? historySession : selectedSideSession,
+		isSide,
 		open: onOpenSide,
 		send: sendPrompt,
 		setDraft: setPromptInput,
@@ -3104,7 +3101,7 @@ function ChatThreadPane({
 					},
 				}),
 			);
-			if (presentation === "side") workspace.close();
+			if (isSide) workspace.close();
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
@@ -3128,7 +3125,7 @@ function ChatThreadPane({
 		deletingSession,
 		environmentId,
 		onDeleteSession,
-		presentation,
+		isSide,
 		workspace.close,
 		reset,
 		threadId,
@@ -3542,58 +3539,54 @@ function ChatThreadPane({
 		</div>
 	);
 	const chatComposer = (
-		<div>
-			<ChatInputBar
-				composerId={threadId}
-				active={visible}
-				sessionId={sessionId}
-				isSideConversation={Boolean(sideRelation)}
-				sessionActions={
-					sideRelation &&
-					activeSessionToDelete && (
-						<SideConversationMenu onDelete={requestDeleteSession} />
-					)
-				}
-				readOnly={isCloudSessionExpired}
-				cloudHandoffAvailable={cloudAgentsEnabled}
-				attachments={attachmentList}
-				environmentId={environmentId}
-				hasRunningAgents={agentActivity.running > 0}
-				onAbort={handleAbort}
-				onAttachFiles={handleAttachFiles}
-				onListGitBranches={listGitBranches}
-				onRemoveAttachment={handleRemoveAttachment}
-				onSwitchGitBranch={switchGitBranch}
-				onSideSettingsChange={
-					presentation === "side" ? updateSideSettings : undefined
-				}
-				onModelChange={handleModelChange}
-				onPromptInputChange={handlePromptInputChange}
-				onOpenModelSettings={onOpenModelSettings}
-				onOpenLocalModels={onOpenLocalModels}
-				onReasoningChange={handleReasoningChange}
-				onSteerPromptInQueue={steerPromptInQueue}
-				onEditPromptInQueue={updatePromptInQueue}
-				onRemovePromptInQueue={handleRemoveQueuedPrompt}
-				onProviderChange={handleProviderChange}
-				onSend={handleSendPrompt}
-				gitBranch={gitBranch}
-				cloudBranch={config.branch}
-				executionTarget={isCloudSession ? "cloud" : "local"}
-				hasActiveSession={Boolean(sessionId)}
-				repoUrl={config.repoUrl}
-				model={config.model}
-				modelContextWindow={modelContextWindow}
-				promptsInQueue={promptsInQueue}
-				promptDraft={promptDraft}
-				provider={config.provider}
-				reasoningEffort={config.reasoningEffort}
-				status={status}
-				summary={summary}
-				thinking={config.thinking}
-				variant={isWelcomeState ? "welcome" : "conversation"}
-			/>
-		</div>
+		<ChatInputBar
+			composerId={threadId}
+			active={visible}
+			sessionId={sessionId}
+			isSideConversation={isSide}
+			sessionActions={
+				isSide &&
+				activeSessionToDelete && (
+					<SideConversationMenu onDelete={requestDeleteSession} />
+				)
+			}
+			readOnly={isCloudSessionExpired}
+			cloudHandoffAvailable={cloudAgentsEnabled}
+			attachments={attachmentList}
+			environmentId={environmentId}
+			hasRunningAgents={agentActivity.running > 0}
+			onAbort={handleAbort}
+			onAttachFiles={handleAttachFiles}
+			onListGitBranches={listGitBranches}
+			onRemoveAttachment={handleRemoveAttachment}
+			onSwitchGitBranch={switchGitBranch}
+			onSideSettingsChange={isSide ? updateSideSettings : undefined}
+			onModelChange={handleModelChange}
+			onPromptInputChange={handlePromptInputChange}
+			onOpenModelSettings={onOpenModelSettings}
+			onOpenLocalModels={onOpenLocalModels}
+			onReasoningChange={handleReasoningChange}
+			onSteerPromptInQueue={steerPromptInQueue}
+			onEditPromptInQueue={updatePromptInQueue}
+			onRemovePromptInQueue={handleRemoveQueuedPrompt}
+			onProviderChange={handleProviderChange}
+			onSend={handleSendPrompt}
+			gitBranch={gitBranch}
+			cloudBranch={config.branch}
+			executionTarget={isCloudSession ? "cloud" : "local"}
+			hasActiveSession={Boolean(sessionId)}
+			repoUrl={config.repoUrl}
+			model={config.model}
+			modelContextWindow={modelContextWindow}
+			promptsInQueue={promptsInQueue}
+			promptDraft={promptDraft}
+			provider={config.provider}
+			reasoningEffort={config.reasoningEffort}
+			status={status}
+			summary={summary}
+			thinking={config.thinking}
+			variant={isWelcomeState ? "welcome" : "conversation"}
+		/>
 	);
 	const composer = (
 		<div className="w-full">
@@ -3639,7 +3632,7 @@ function ChatThreadPane({
 				}
 				onAttachFiles={handleAttachFiles}
 			>
-				{!isWelcomeState && presentation === "main" ? (
+				{!isWelcomeState && !isSide ? (
 					<WindowTitleBarContent>
 						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 							<AgentHeader
@@ -3712,9 +3705,7 @@ function ChatThreadPane({
 						) : (
 							<div className="flex h-full min-h-0 flex-1 flex-col">
 								<ChatMessages
-									sideEmpty={
-										Boolean(sideRelation) && hydrationSucceeded === true
-									}
+									sideEmpty={isSide && hydrationSucceeded === true}
 									onAnswerAskQuestion={handleAnswerAskQuestion}
 									onApproveToolApproval={handleApproveToolApproval}
 									onRejectToolApproval={handleRejectToolApproval}
@@ -3732,19 +3723,15 @@ function ChatThreadPane({
 									importedFromTool={importedFromTool}
 									messages={displayedMessages}
 									onEditMessage={
-										isCloudSession || sideRelation
-											? undefined
-											: handleEditMessage
+										isCloudSession || isSide ? undefined : handleEditMessage
 									}
 									onRestoreCheckpoint={
-										isCloudSession || sideRelation
+										isCloudSession || isSide
 											? undefined
 											: handleRestoreCheckpoint
 									}
 									onForkSession={
-										isCloudSession || sideRelation
-											? undefined
-											: handleForkSession
+										isCloudSession || isSide ? undefined : handleForkSession
 									}
 									onProceedWhileRunning={
 										isCloudSession ? undefined : proceedWhileRunning
@@ -3777,7 +3764,7 @@ function ChatThreadPane({
 					}
 					composer={composer}
 					environmentSelector={
-						presentation === "main" ? (
+						!isSide ? (
 							<EnvironmentSelector
 								activeEnvironmentId={environmentId}
 								cloudEnabled={cloudAgentsEnabled}
@@ -3821,9 +3808,7 @@ function ChatThreadPane({
 						(cloudAgentsFlagEnabled === null &&
 							config.executionTarget === "cloud")
 					}
-					onWorkInChange={
-						presentation === "main" && canWorkInWorktree ? setWorkIn : undefined
-					}
+					onWorkInChange={!isSide && canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 					terminalToggle={terminalToggle}
 					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
@@ -3881,15 +3866,15 @@ function ChatThreadPane({
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							{sideRelation ? "Delete side chat?" : "Delete Session?"}
+							{isSide ? "Delete side chat?" : "Delete Session?"}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
-							{sideRelation
+							{isSide
 								? `This deletes this side chat. It cannot be undone. Changes already made to files will remain.${status === "running" || status === "starting" ? " Its current work will stop." : ""}`
 								: isCloudSession
 									? "This cloud session and its workspace will be deleted."
 									: "This session will be removed from local history."}
-							{!sideRelation &&
+							{!isSide &&
 							!isCloudSession &&
 							isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
 								? ` ${TASK_WORKTREE_DELETE_WARNING}`
@@ -3907,7 +3892,7 @@ function ChatThreadPane({
 						>
 							{deletingSession
 								? "Deleting..."
-								: sideRelation
+								: isSide
 									? "Delete side chat"
 									: "Delete"}
 						</AlertDialogAction>
@@ -3917,7 +3902,7 @@ function ChatThreadPane({
 		</WorkspaceProvider>
 	);
 	const content = isAppReady ? readyContent : loadingContent;
-	if (presentation === "side") return content;
+	if (isSide) return content;
 	return (
 		<ConversationWorkspace
 			controls={workspace}

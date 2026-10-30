@@ -7,9 +7,9 @@ const SideOwnerSchema = z.object({
 	startToken: z.string().nullable(),
 });
 const SideConversationSchema = z.object({
-	version: z.union([z.literal(1), z.literal(2)]),
+	version: z.literal(2),
 	parentSessionId: z.string().min(1),
-	owner: SideOwnerSchema.optional(),
+	owner: SideOwnerSchema,
 });
 export type SideConversation = z.infer<typeof SideConversationSchema>;
 
@@ -69,10 +69,7 @@ export const CreateSideConversationResultSchema = z.object({
 	enableTools: z.boolean(),
 	metadata: z.object({
 		title: z.string(),
-		desktopSideConversation: SideConversationSchema.extend({
-			version: z.literal(2),
-			owner: SideOwnerSchema,
-		}),
+		desktopSideConversation: SideConversationSchema,
 		desktopSideConfig: SideConfigSchema,
 	}),
 });

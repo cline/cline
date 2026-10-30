@@ -50,10 +50,11 @@ export function discoverChatSessions(
 	const out: JsonRecord[] = [];
 	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
+		const persistedMetadata = store.get(sessionId)?.metadata;
 		if (
 			session.config.executionTarget === "cloud" ||
 			session.config.desktopSideParentSessionId ||
-			readSideConversation(store.get(sessionId)?.metadata)
+			readSideConversation(persistedMetadata)
 		) {
 			continue;
 		}
@@ -69,7 +70,6 @@ export function discoverChatSessions(
 			prompt,
 			messages: session.messages,
 		});
-		const persistedMetadata = store.get(sessionId)?.metadata;
 		out.push({
 			sessionId,
 			status: session.status,

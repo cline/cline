@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi } from "vitest";
+import { createTemporarySideState } from "./side-conversation/lifecycle";
 import type { SidecarContext } from "./types";
 
 export function localRuntimeContext(
@@ -10,15 +11,7 @@ export function localRuntimeContext(
 ) {
 	const workspaceRoot = options.workspaceRoot ?? "/workspace";
 	return {
-		temporarySideConversations: {
-			closing: false,
-			closed: new Set<string>(),
-			byParent: new Map(),
-			pending: new Map<
-				string,
-				{ sessionId: string; promise: Promise<unknown> }
-			>(),
-		},
+		temporarySideConversations: createTemporarySideState(),
 		runtimeBindings: new Map([
 			[
 				"local",

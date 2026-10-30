@@ -12,7 +12,7 @@ import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { expect, it, vi } from "vitest";
 import { cleanupStaleSideConversations } from "./lifecycle";
 
-it("cleans dead and reused process owners without deleting another live app's sides or legacy history", async () => {
+it("cleans dead and reused process owners without deleting another live app's sides", async () => {
 	const previous = resolveClineDir();
 	const directory = mkdtempSync(join(tmpdir(), "desktop-side-owners-"));
 	setClineDir(directory);
@@ -56,14 +56,13 @@ it("cleans dead and reused process owners without deleting another live app's si
 					startToken: "different-process-start",
 				},
 			],
-			["legacy-side", undefined],
 		] as const) {
 			store.create({
 				...base,
 				sessionId,
 				metadata: {
 					desktopSideConversation: {
-						version: 1,
+						version: 2,
 						owner,
 						parentSessionId: "main",
 					},
@@ -86,13 +85,11 @@ it("cleans dead and reused process owners without deleting another live app's si
 		expect(store.get("reused-pid")).toBeDefined();
 		failDeletion = false;
 		expect(store.get("live-other-app")).toBeDefined();
-		expect(store.get("legacy-side")).toBeDefined();
 		const exited = once(child, "exit");
 		child.kill();
 		await exited;
 		await cleanupStaleSideConversations(manager, onError);
 		expect(store.get("live-other-app")).toBeUndefined();
-		expect(store.get("legacy-side")).toBeDefined();
 		expect(store.get("main")).toBeDefined();
 		await cleanupStaleSideConversations(manager, onError);
 		expect(manager.delete).toHaveBeenCalledTimes(3);
