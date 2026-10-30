@@ -126,6 +126,128 @@ describe("side parent history tool", () => {
 		expect(collected).toBe(`[user]\nTool result read_files (call): ${payload}`);
 	});
 
+	it("searches attached text beyond the snapshot excerpt and reads the matching passage", async () => {
+		const { tool } = fixture([
+			{
+				role: "user",
+				content: [
+					{
+						type: "file",
+						path: "requirements.txt",
+						content: `${"start ".repeat(1000)}MIDDLE_REQUIREMENT${" end".repeat(1000)}`,
+					},
+				],
+			},
+		]);
+		const search = await tool.execute(
+			{ operation: "search", query: "MIDDLE_REQUIREMENT" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected matches");
+		expect(search.result.matches).toHaveLength(1);
+		const match = search.result.matches[0];
+		expect(
+			await tool.execute(
+				{ operation: "read", reference: match.reference, offset: match.offset },
+				context,
+			),
+		).toMatchObject({
+			ok: true,
+			result: { text: expect.stringContaining("MIDDLE_REQUIREMENT") },
+		});
+	});
+
+	it("reads one source without serializing unrelated outputs and preserves cross-message deduplication", async () => {
+		const unrelatedOutput = vi.fn(() => "unrelated".repeat(10000));
+		const { tool } = fixture([
+			{
+				role: "assistant",
+				content: "other",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "unrelated",
+							toolName: "lookup",
+							execution: "provider",
+							input: {},
+							output: {
+								get text() {
+									return unrelatedOutput();
+								},
+							},
+						},
+					],
+				},
+			},
+			{
+				role: "assistant",
+				content: "target evidence",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "duplicate",
+							toolName: "lookup",
+							execution: "provider",
+							input: {},
+							output: "duplicate output",
+						},
+					],
+				},
+			},
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "duplicate", name: "lookup", input: {} },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "duplicate",
+						name: "lookup",
+						content: "duplicate output",
+					},
+				],
+			},
+		]);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		if (!recent.ok || recent.result.operation === "read")
+			throw new Error("Expected matches");
+		const match = recent.result.matches.find(
+			(item) => item.preview === "[assistant]\ntarget evidence",
+		);
+		if (!match) throw new Error("Expected deduplicated target");
+		expect(unrelatedOutput).toHaveBeenCalled();
+		unrelatedOutput.mockClear();
+		expect(
+			await tool.execute(
+				{ operation: "read", reference: match.reference },
+				context,
+			),
+		).toMatchObject({
+			ok: true,
+			result: { text: "[assistant]\ntarget evidence" },
+		});
+		expect(unrelatedOutput).not.toHaveBeenCalled();
+	});
+
+	it("rejects a starting offset inside a surrogate pair while preserving aligned reads", async () => {
+		const { tool } = fixture([{ role: "user", content: "A😀B" }]);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		if (!recent.ok || recent.result.operation === "read")
+			throw new Error("Expected matches");
+		const reference = recent.result.matches[0].reference;
+		expect(
+			await tool.execute({ operation: "read", reference, offset: 9 }, context),
+		).toMatchObject({ ok: false, error: "invalid_input" });
+		expect(
+			await tool.execute({ operation: "read", reference, offset: 8 }, context),
+		).toMatchObject({ ok: true, result: { text: "😀B", offset: 8 } });
+	});
+
 	it("rejects references after edit or rewind instead of returning replacement content", async () => {
 		const messages: MessageWithMetadata[] = [
 			{ role: "assistant", content: "original evidence" },
@@ -215,6 +337,7 @@ describe("side parent history tool", () => {
 							execution: "provider",
 							input: { query: "example" },
 							output: { text: "Public evidence" },
+							isError: true,
 						},
 					],
 				},
@@ -226,6 +349,7 @@ describe("side parent history tool", () => {
 						type: "tool_result",
 						tool_use_id: "mcp",
 						name: "mcp_media",
+						is_error: true,
 						content: JSON.stringify({
 							content: [
 								{ type: "audio", data: "AUDIO_SECRET", mimeType: "audio/wav" },
@@ -260,6 +384,8 @@ describe("side parent history tool", () => {
 		const text = JSON.stringify(result);
 		expect(text).toContain("provider tool observation");
 		expect(text).toContain("Public evidence");
+		expect(text).toContain("Tool result web_search (provider-call) [failed]:");
+		expect(text).toContain("Tool result mcp_media (mcp) [failed]:");
 		expect(text).toContain("Resource evidence");
 		expect(text).not.toContain("result not yet available");
 		expect(

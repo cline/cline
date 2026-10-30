@@ -194,6 +194,7 @@ describe("current context and provider request", () => {
 							toolName: "web_search",
 							execution: "provider",
 							input: { query: "synthetic PR 42" },
+							isError: true,
 							output: [
 								{
 									type: "web_search_result",
@@ -218,6 +219,7 @@ describe("current context and provider request", () => {
 						tool_use_id: "custom",
 						name: "custom_report",
 						content: "Adds a maximum attempt count",
+						is_error: true,
 					},
 				],
 			},
@@ -229,8 +231,60 @@ describe("current context and provider request", () => {
 		});
 		expect(capture.content).toContain("PR 42 changes retry scheduling");
 		expect(capture.content).toContain("Adds a maximum attempt count");
+		expect(capture.content).toContain(
+			"Tool result web_search (search) [failed]:",
+		);
+		expect(capture.content).toContain(
+			"Tool result custom_report (custom) [failed]:",
+		);
 		expect(capture.content).toContain("0 saved messages omitted");
 		expect(source).toEqual(original);
+	});
+
+	it("keeps textual attachments within the snapshot budget and omits binary files", () => {
+		const capture = captureSideReference({
+			activeParentTurn: false,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "file",
+							path: "requirements.txt",
+							content: `START ${"a".repeat(5000)} MIDDLE ${"b".repeat(5000)} END`,
+						},
+						{
+							type: "tool_result",
+							name: "attachment",
+							tool_use_id: "attachment",
+							content: JSON.stringify([
+								{
+									type: "file",
+									path: "notes.txt",
+									content: "Nested requirement cline://cache/private/note",
+									source: "attachment",
+								},
+								{
+									type: "file",
+									data: "BINARY_FILE",
+									mediaType: "application/pdf",
+								},
+							]),
+						},
+					],
+				},
+			],
+		});
+		expect(capture.content).toContain('path="requirements.txt"');
+		expect(capture.content).toContain("START");
+		expect(capture.content).toContain("END");
+		expect(capture.content).not.toContain("MIDDLE");
+		expect(capture.content).toContain("Nested requirement");
+		expect(capture.content).toContain("1 media items omitted");
+		expect(capture.content).not.toMatch(/BINARY_FILE|cline:\/\/cache/);
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
 	});
 
 	it("prioritizes current and original requests within the total cap, including clipped labels", () => {

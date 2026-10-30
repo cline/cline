@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import type { ClineCore } from "../../ClineCore";
 import { createTool, referenceByteLength } from "@cline/shared";
 import { z } from "zod/v4";
+import type { ClineCore } from "../../ClineCore";
 import { projectSideReferenceBlocks } from "./context";
 
 const limit = z.number().int().min(1).max(12).default(6);
@@ -108,9 +108,16 @@ export function createSideHistoryTool({
 				};
 			}
 			context.signal?.throwIfAborted();
+			const request = parsed.data;
+			const sourceIndex =
+				request.operation === "read"
+					? Number(request.reference.split(":")[0])
+					: undefined;
 			const grouped = new Map<number, string[]>();
-			for (const block of projectSideReferenceBlocks(messages, "history")
-				.blocks) {
+			for (const block of projectSideReferenceBlocks(messages, {
+				mode: "history",
+				sourceIndex,
+			}).blocks) {
 				const texts = grouped.get(block.sourceIndex) ?? [];
 				texts.push(block.text);
 				grouped.set(block.sourceIndex, texts);
@@ -126,7 +133,6 @@ export function createSideHistoryTool({
 				parentStatus: parent.status,
 				note: SOURCE_NOTE,
 			};
-			const request = parsed.data;
 			if (request.operation === "read") {
 				const entry = entries.find(
 					(item) => item.reference === request.reference,
@@ -144,6 +150,18 @@ export function createSideHistoryTool({
 						ok: false,
 						error: "invalid_input",
 						message: "The offset is beyond the message.",
+					};
+				}
+				if (
+					request.offset > 0 &&
+					/[\uD800-\uDBFF]/.test(entry.text.charAt(request.offset - 1)) &&
+					/[\uDC00-\uDFFF]/.test(entry.text.charAt(request.offset))
+				) {
+					return {
+						ok: false,
+						error: "invalid_input",
+						message:
+							"The offset splits a character. Use the preceding offset or a returned nextOffset.",
 					};
 				}
 				let end = Math.min(entry.text.length, request.offset + READ_CHARACTERS);
