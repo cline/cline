@@ -1301,6 +1301,7 @@ describe("sdk-gateway", () => {
 		});
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 10,
 				outputTokens: 4,
@@ -3735,6 +3736,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 10091,
 				outputTokens: 87,
@@ -3782,6 +3784,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 9125,
 				outputTokens: 96,
@@ -3841,6 +3844,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: {
 				inputTokens: 3793,
 				outputTokens: 1250,
@@ -3894,6 +3898,7 @@ describe("sdk-gateway", () => {
 		);
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: {
 				inputTokens: 1000,
 				outputTokens: 200,
@@ -3950,6 +3955,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				totalCost: 0,
 			}),
@@ -4004,6 +4010,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 1000,
 				outputTokens: 200,
@@ -4063,6 +4070,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				totalCost: 0.01829135,
 			}),
@@ -4116,6 +4124,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				totalCost: 0.0123725,
 			}),
@@ -4272,6 +4281,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 24553,
 				outputTokens: 32,
@@ -4328,6 +4338,7 @@ describe("sdk-gateway", () => {
 		expect(usageEvents).toHaveLength(1);
 		expect(usageEvents[0]).toEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: {
 				inputTokens: 1000,
 				outputTokens: 25,
@@ -4377,6 +4388,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 15997,
 				outputTokens: 4,
@@ -4429,6 +4441,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 10091,
 				outputTokens: 87,
@@ -4474,6 +4487,7 @@ describe("sdk-gateway", () => {
 
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				inputTokens: 50,
 				outputTokens: 10,
@@ -6062,6 +6076,7 @@ describe("sdk-gateway", () => {
 		);
 		expect(events).toContainEqual({
 			type: "usage",
+			requestInputTokens: null,
 			usage: expect.objectContaining({
 				cacheReadTokens: 0,
 				cacheWriteTokens: 10106,
