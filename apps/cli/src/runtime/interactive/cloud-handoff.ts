@@ -226,8 +226,8 @@ export async function prepareCloudHandoff(input: {
 									"Delivery is unconfirmed. Check the cloud task before resending.",
 							};
 						const retrySend = async (): Promise<CloudHandoffResult> => {
-							assertAccount();
 							try {
+								assertAccount();
 								const sent = await cloud.send(
 									result.sessionId,
 									prompt,

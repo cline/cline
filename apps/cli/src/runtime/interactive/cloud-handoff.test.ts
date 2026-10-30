@@ -334,6 +334,7 @@ describe("summary cloud handoff", () => {
 		"recovered",
 		"draining",
 		"command-error",
+		"scope-changed",
 	])("retains retry only for a confirmed unsent continuation (%s)", async (outcome) => {
 		const input = fixture();
 		input.cloud.create.mockResolvedValue({
@@ -361,6 +362,11 @@ describe("summary cloud handoff", () => {
 			);
 		else if (outcome === "error")
 			input.cloud.send.mockRejectedValueOnce(new Error("Connection failed"));
+		else if (outcome === "scope-changed")
+			input.cloud.scope = {
+				...input.cloud.scope,
+				serviceId: "replacement-hub",
+			};
 		else
 			input.cloud.send.mockResolvedValueOnce({
 				sessionId: "ses-example",
@@ -369,6 +375,7 @@ describe("summary cloud handoff", () => {
 			});
 		const retried = await initial.retrySend?.();
 		expect(retried?.sessionId).toBe("ses-example");
+		expect(retried?.dashboardUrl).toBe(initial.dashboardUrl);
 		if (outcome === "draining") {
 			expect(retried?.retrySend).toBeTypeOf("function");
 			expect(retried?.warning).toContain("not sent");
@@ -382,7 +389,9 @@ describe("summary cloud handoff", () => {
 		} else {
 			expect(retried?.warning).toContain("before resending");
 			expect(retried?.retrySend).toBeUndefined();
-			expect(input.cloud.send).toHaveBeenCalledOnce();
+			expect(input.cloud.send).toHaveBeenCalledTimes(
+				outcome === "scope-changed" ? 0 : 1,
+			);
 		}
 		expect(helpers.summarize).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledOnce();
