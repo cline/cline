@@ -48,9 +48,9 @@ export function AgentContextUsage({
 	const percent = Math.round(ratio * 100);
 	const ringColorClass =
 		ratio >= 0.75
-			? "stroke-red-500"
+			? "stroke-cline-ui-error-text"
 			: ratio >= 0.5
-				? "stroke-orange-500"
+				? "stroke-cline-ui-warning-text"
 				: "stroke-cline-ui-primary";
 	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
 	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);

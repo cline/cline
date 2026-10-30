@@ -47,8 +47,8 @@ describe("AgentContextUsage", () => {
 
 	it.each([
 		[499, "stroke-cline-ui-primary"],
-		[500, "stroke-orange-500"],
-		[750, "stroke-red-500"],
+		[500, "stroke-cline-ui-warning-text"],
+		[750, "stroke-cline-ui-error-text"],
 	])("preserves the desktop warning thresholds at %i tokens", (tokensIn, tone) => {
 		expect(
 			render({ ...usage, tokensIn, tokensOut: 0, contextWindow: 1_000 }),

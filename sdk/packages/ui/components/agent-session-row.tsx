@@ -62,13 +62,13 @@ export const AgentSessionRow = forwardRef<HTMLDivElement, AgentSessionRowProps>(
 	) {
 		const statusDotClass =
 			status === "pending"
-				? "bg-yellow-400"
+				? "bg-cline-ui-warning-solid"
 				: status === "provisioning"
-					? "animate-pulse bg-yellow-400"
+					? "animate-pulse bg-cline-ui-warning-solid"
 					: status === "running"
-						? "bg-green-500"
+						? "bg-cline-ui-success-solid"
 						: unread
-							? "bg-blue-500"
+							? "bg-cline-ui-info-solid"
 							: "";
 		const navigationClassName = clsx(
 			"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-cline-ui-md px-2 text-left text-cline-ui-sm font-cline-ui-normal",
