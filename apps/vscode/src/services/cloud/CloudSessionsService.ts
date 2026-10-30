@@ -51,7 +51,7 @@ function trimTrailingSlash(value: string): string {
 }
 
 export function isCloudSessionExpired(record: Pick<CloudSessionRecord, "expiredAt" | "status">): boolean {
-	if (record.status === "expired") {
+	if (record.status?.toLowerCase() === "expired") {
 		return true
 	}
 	const expiredAt = record.expiredAt ? Date.parse(record.expiredAt) : Number.NaN
@@ -260,8 +260,7 @@ export class CloudSessionsService {
 
 	/**
 	 * Polls until the sandbox accepts connections. Aborting the signal stops the
-	 * poll at once (the caller then deletes the unused record) instead of after
-	 * the sandbox comes up.
+	 * poll at once without changing the sandbox's lifecycle.
 	 */
 	async waitUntilReady(
 		sessionId: string,
@@ -291,18 +290,22 @@ export class CloudSessionsService {
 	}
 
 	/** Wakes a suspended sandbox and waits until it accepts connections. */
-	async resumeSession(sessionId: string, onPhase?: (phase: CloudProvisioningPhase) => void): Promise<void> {
+	async resumeSession(
+		sessionId: string,
+		onPhase?: (phase: CloudProvisioningPhase) => void,
+		signal?: AbortSignal,
+	): Promise<void> {
 		let status: string | undefined
 		try {
-			status = (await this.withApi((api) => api.resume(sessionId)))?.status
+			status = (await this.withApi((api) => api.resume(sessionId, signal)))?.status
 		} catch (error) {
 			// Another client may have resumed it first, or resume may still be in flight.
 			if (!(error instanceof CloudSessionError) || error.status !== 409) throw error
-			status = (await this.getStatus(sessionId)).status
+			status = (await this.getStatus(sessionId, signal)).status
 			if (status !== "provisioning" && status !== "ready" && status !== "active") throw error
 		}
 		if (status !== "ready" && status !== "active") {
-			await this.waitUntilReady(sessionId, undefined, onPhase)
+			await this.waitUntilReady(sessionId, signal, onPhase)
 		}
 	}
 

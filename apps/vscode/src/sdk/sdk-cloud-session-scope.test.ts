@@ -20,7 +20,7 @@ function deferred<T>() {
 	return { promise, resolve, reject }
 }
 
-type WaitPoint = "create" | "readiness" | "connect" | "lifecycle" | "prompt" | "delete"
+type WaitPoint = "create" | "readiness" | "wakeReadiness" | "connect" | "lifecycle" | "prompt" | "delete"
 function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const barrier = deferred<void>()
 	const entered = deferred<void>()
@@ -41,10 +41,31 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	}
 	const currentRecord = () =>
 		scope === origin ? record : { ...record, id: "ses-successor", metadata: { ...record.metadata, taskId: "tsk-successor" } }
-	const wait = async (point: WaitPoint) => {
+	const wait = async (point: WaitPoint, signal?: AbortSignal) => {
 		if (waitPoint === point) {
 			entered.resolve()
-			await barrier.promise
+			if (point === "wakeReadiness" && signal) {
+				await new Promise<void>((resolve, reject) => {
+					const abort = () => reject(signal.reason)
+					if (signal.aborted) {
+						abort()
+						return
+					}
+					signal.addEventListener("abort", abort, { once: true })
+					void barrier.promise.then(
+						() => {
+							signal.removeEventListener("abort", abort)
+							resolve()
+						},
+						(error) => {
+							signal.removeEventListener("abort", abort)
+							reject(error)
+						},
+					)
+				})
+			} else {
+				await barrier.promise
+			}
 		}
 	}
 	const service = new CloudSessionsService({
@@ -63,6 +84,9 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				token: new Headers(init?.headers).get("Authorization"),
 				body: typeof init?.body === "string" ? init.body : undefined,
 			})
+			if (method === "POST" && url.endsWith("/resume")) {
+				return Response.json({ data: { ...currentRecord(), status: "provisioning" } })
+			}
 			if (method === "POST") {
 				await wait("create")
 				return Response.json({
@@ -82,7 +106,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				return Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
 			}
 			if (url.endsWith("/status")) {
-				await wait("readiness")
+				await wait(waitPoint === "wakeReadiness" ? "wakeReadiness" : "readiness", init?.signal ?? undefined)
 				return Response.json({ data: { status: readinessStatus } })
 			}
 			if (method === "PATCH") return Response.json({ data: record })
@@ -165,6 +189,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		isSignedIn: () => true,
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
+		getTurnPhase: () => "idle",
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
@@ -201,6 +226,9 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setReadinessStatus: (status: string) => {
 			readinessStatus = status
 		},
+		setRecordStatus: (status: string) => {
+			record.status = status
+		},
 	}
 }
 
@@ -212,6 +240,52 @@ afterEach(() => {
 })
 
 describe("originating-account cloud cleanup", () => {
+	it.each([
+		"reset",
+		"dispose",
+	] as const)("aborts suspended-session readiness during %s without deleting or dispatching", async (boundary) => {
+		const f = fixture("wakeReadiness", "org-origin")
+		f.setRecordStatus("suspended")
+		f.setReadinessStatus("provisioning")
+		await f.coordinator.listHistoryRecords()
+		const task = { taskId: f.record.id } as TaskProxy
+		f.options.setTask(task)
+
+		const preparing = f.coordinator.beginFollowup(task, () => true).prepare()
+		await f.entered.promise
+		const boundaryPromise = boundary === "reset" ? f.coordinator.reset(f.changeScope) : f.coordinator.dispose()
+		await expect(preparing).rejects.toThrow()
+		await boundaryPromise
+		f.barrier.resolve()
+
+		expect(f.requests.map(({ method, url, token }) => ({ method, url, token }))).toEqual([
+			expect.objectContaining({
+				method: "GET",
+				url: `${f.origin.endpoint}/api/v1/session?organizationId=org-origin`,
+				token: `Bearer ${f.origin.token}`,
+			}),
+			expect.objectContaining({
+				method: "POST",
+				url: `${f.origin.endpoint}/api/v1/session/${f.record.id}/resume`,
+				token: `Bearer ${f.origin.token}`,
+			}),
+			expect.objectContaining({
+				method: "GET",
+				url: `${f.origin.endpoint}/api/v1/session/${f.record.id}/status`,
+				token: `Bearer ${f.origin.token}`,
+			}),
+		])
+		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
+		expect(vi.mocked(CloudSessionHost.connect)).not.toHaveBeenCalled()
+		expect(f.host.send).not.toHaveBeenCalled()
+		if (boundary === "reset") {
+			expect(f.scope).toBe(f.successor)
+			expect(f.changeScope).toHaveBeenCalledOnce()
+			expect(f.requests.every((request) => request.token === `Bearer ${f.origin.token}`)).toBe(true)
+		}
+		await f.coordinator.dispose()
+	})
+
 	it.each([
 		"create",
 		"readiness",

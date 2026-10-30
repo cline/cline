@@ -4,6 +4,7 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import type { SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -34,6 +35,7 @@ export interface SdkFollowupCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
+	beginCloudFollowup?: (task: TaskProxy) => ReturnType<SdkCloudSessionCoordinator["beginFollowup"]> | undefined
 	createTempSessionHost: () => Promise<SdkSessionHost>
 	getWorkspaceRoot: () => Promise<string>
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
@@ -60,6 +62,8 @@ export interface SdkFollowupCoordinatorOptions {
 }
 
 export class SdkFollowupCoordinator {
+	private cloudFollowupsInFlight = 0
+
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
 	async askResponse(
@@ -79,18 +83,26 @@ export class SdkFollowupCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
-		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
+		const cloudFollowup = task ? this.options.beginCloudFollowup?.(task) : undefined
+		// The controller shows streaming during preparation, before a cloud turn exists.
+		const submittedDuringActiveTurn =
+			(turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval") &&
+			(!cloudFollowup || this.cloudFollowupsInFlight === 0)
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
+			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files, cloudFollowup?.isCurrent)
 			return
 		}
 
-		await this.options.runExclusive(async () => {
+		if (cloudFollowup) this.cloudFollowupsInFlight++
+		const sending = this.options.runExclusive(async () => {
+			if (cloudFollowup && !cloudFollowup.isCurrent()) {
+				throw new Error("Cloud follow-up was cancelled because its task changed.")
+			}
 			// Task navigation and follow-up selection share this rebuild boundary.
 			// Still recheck logical identity because navigation may have completed
 			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
-			// and the user's follow-up should survive that.
+			// and a local follow-up should survive that; cloud identity is checked above.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
 				await this.abandonFollowUp(
 					`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`,
@@ -100,7 +112,13 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
+				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files, cloudFollowup?.isCurrent)
+				return
+			}
+
+			if (cloudFollowup) {
+				const prepared = await cloudFollowup.prepare()
+				await this.continueIdleSession(prepared, prompt, images, files, cloudFollowup.isCurrent)
 				return
 			}
 
@@ -123,6 +141,32 @@ export class SdkFollowupCoordinator {
 			Logger.error("[SdkController] askResponse: No active session")
 			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
+		return sending
+			.catch(async (error) => {
+				if (cloudFollowup?.isCurrent()) {
+					const task = this.options.getTask()
+					if (task) {
+						this.options.messages.appendAndEmit(
+							[
+								{
+									ts: Date.now(),
+									type: "say",
+									say: "error",
+									text: `Could not prepare cloud task: ${error instanceof Error ? error.message : String(error)}`,
+									partial: false,
+								},
+							],
+							{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
+						)
+					}
+					this.options.onResumeFailed()
+					await this.options.postStateToWebview()
+				}
+				throw error
+			})
+			.finally(() => {
+				if (cloudFollowup) this.cloudFollowupsInFlight--
+			})
 	}
 
 	/** Queue a follow-up onto a session whose turn is still running. */
@@ -132,6 +176,7 @@ export class SdkFollowupCoordinator {
 		prompt?: string,
 		images?: string[],
 		files?: string[],
+		isCurrent?: () => boolean,
 	): Promise<void> {
 		const { sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
@@ -142,12 +187,17 @@ export class SdkFollowupCoordinator {
 		// at once, and a later session rebuild carries the queue over.
 		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+		if (isCurrent && !isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
 		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
 			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return
 		}
 
 		const currentSession = this.options.sessions.getActiveSession()
+		if (isCurrent && currentSession !== activeSession) {
+			if (!currentSession) await this.abandonFollowUp("Cloud connection ended before the follow-up could be queued")
+			throw new Error("Cloud session connection was superseded")
+		}
 		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
 			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
 			return
@@ -175,9 +225,23 @@ export class SdkFollowupCoordinator {
 		prompt?: string,
 		images?: string[],
 		files?: string[],
+		isCurrent?: () => boolean,
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
+
+		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
+		// Cloud preparation can be cancelled while mentions resolve; accept the prompt only afterwards.
+		const preparedPrompt = isCurrent ? await this.options.resolveContextMentions(effectivePrompt) : undefined
+		if (isCurrent) {
+			if (!isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
+			if (this.options.sessions.getActiveSession() !== activeSession)
+				throw new Error("Cloud session connection was superseded")
+			if (activeSession.isRunning && preparedPrompt !== undefined) {
+				this.options.sessions.fireAndForgetSend(sdkHost, sessionId, preparedPrompt, images, files, "queue")
+				return
+			}
+		}
 
 		this.options.sessions.setRunning(true)
 		// Bump the epoch before echoing the bubble, as resumeSessionFromTask does.
@@ -190,8 +254,7 @@ export class SdkFollowupCoordinator {
 			this.emitUserFeedback(sessionId, prompt, images, files)
 		}
 
-		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		const resolvedPrompt = preparedPrompt ?? (await this.options.resolveContextMentions(effectivePrompt))
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 

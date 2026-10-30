@@ -273,6 +273,7 @@ describe("SDK remote-config coordination", () => {
 			return "task-id"
 		})
 		const controller = {
+			cloud: { cancelPendingFollowup: vi.fn() },
 			waitForInitialRemoteConfig: vi.fn(async () => {
 				await policyReady
 				events.push("policy")
@@ -415,7 +416,11 @@ describe("SDK remote-config coordination", () => {
 				messageTranslatorState: { clearTurnOutcome: vi.fn() },
 				messages: { appendAndEmit: vi.fn() },
 				sessions: { getActiveSession: () => undefined },
-				cloud: { isCloudSessionId: () => true, getCurrentTaskInfo: () => ({ status: "unknown" }) },
+				cloud: {
+					isCloudSessionId: () => true,
+					canPrepareFollowup: () => false,
+					getCurrentTaskInfo: () => ({ status: "unknown" }),
+				},
 				postStateToWebview: vi.fn(async () => {}),
 				initTask: vi.fn(async () => "ses-retried"),
 				followups: { askResponse: vi.fn(async () => {}) },
@@ -440,7 +445,7 @@ describe("SDK remote-config coordination", () => {
 				text: new ClineError({ message, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
 			}
 			const { controller, errorTask } = controllerShowingCloudStartError(ask)
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(errorTask.handleWebviewAskResponse("yesButtonClicked")).rejects.toThrow(message)
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledWith(
@@ -492,14 +497,21 @@ describe("SDK remote-config coordination", () => {
 			)
 		})
 
-		it("advances the turn phase when it refuses a response to a session that is gone", async () => {
+		it.each([
+			"failed",
+			"expired",
+		])("rejects an unsent draft and settles the phase for a detached %s sandbox", async (status) => {
 			const { controller, errorTask } = controllerShowingCloudStartError()
 			// The retry is consumed by the first response; a second one finds no session to send to.
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
+			controller.cloud.getCurrentTaskInfo = () => ({ status })
 
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(
+				errorTask.handleWebviewAskResponse("messageResponse", "keep this draft", ["image"], ["file"]),
+			).rejects.toThrow("This cloud session is no longer running")
 
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledOnce()
 			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error")
@@ -744,7 +756,7 @@ describe("starting a cloud task", () => {
 	it("leaves the turn phase to the coordinator so a start cancelled during policy loading stays idle", async () => {
 		const run = vi.fn(async () => undefined)
 		const controller = {
-			cloud: { beginCloudTask: vi.fn(() => run) },
+			cloud: { beginCloudTask: vi.fn(() => run), cancelPendingFollowup: vi.fn() },
 			waitForInitialRemoteConfig: vi.fn(async () => undefined),
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
@@ -758,6 +770,7 @@ describe("starting a cloud task", () => {
 			controller.waitForInitialRemoteConfig.mock.invocationCallOrder[0],
 		)
 		expect(run).toHaveBeenCalledOnce()
+		expect(controller.cloud.cancelPendingFollowup).toHaveBeenCalledOnce()
 		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
 		expect(controller.messageTranslatorState.clearTurnOutcome).not.toHaveBeenCalled()
 	})
@@ -783,7 +796,7 @@ describe("cancelling a provisioning cloud task", () => {
 		const cancelPendingStart = vi.fn(() => true)
 		const controller = {
 			turnStateTracker: { set: vi.fn() },
-			cloud: { cancelPendingStart },
+			cloud: { cancelPendingStart, cancelPendingFollowup: vi.fn() },
 			taskControl: { clearTask: vi.fn(async () => undefined) },
 			postStateToWebview: vi.fn(async () => undefined),
 		}
@@ -791,6 +804,7 @@ describe("cancelling a provisioning cloud task", () => {
 		await SdkController.prototype.clearTask.call(controller as never)
 
 		expect(cancelPendingStart).toHaveBeenCalledOnce()
+		expect(controller.cloud.cancelPendingFollowup).toHaveBeenCalledOnce()
 		expect(controller.taskControl.clearTask).toHaveBeenCalledOnce()
 	})
 })

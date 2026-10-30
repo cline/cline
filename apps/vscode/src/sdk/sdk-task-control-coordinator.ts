@@ -67,6 +67,11 @@ export class SdkTaskControlCoordinator {
 		return () => generation !== this.taskViewGeneration
 	}
 
+	captureTaskView(): () => boolean {
+		const generation = this.taskViewGeneration
+		return () => generation === this.taskViewGeneration
+	}
+
 	async cancelClineTaskOnSignOut(isClineManagedProvider: boolean): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!isClineManagedProvider || !activeSession?.isRunning || "isCloud" in activeSession.sdkHost) {

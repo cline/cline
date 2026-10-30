@@ -30,7 +30,11 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget, currentCloudTask } = useExtensionState()
+	const cloudTaskRef = useRef({ sessionId: currentCloudTask?.sessionId })
+	if (cloudTaskRef.current.sessionId !== currentCloudTask?.sessionId) {
+		cloudTaskRef.current = { sessionId: currentCloudTask?.sessionId }
+	}
 	const {
 		setInputValue,
 		activeQuote,
@@ -96,6 +100,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
+			const submittedCloudTask = cloudTaskRef.current
 			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
 			const submittedText = recoveryDraft?.text ?? text
 			const submittedImages = recoveryDraft?.images ?? images
@@ -153,14 +158,20 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages([])
 					setSelectedFiles([])
 					setEnableButtons(false)
+					return chatState.getDraftSnapshot().revision
 				}
-				const restorePendingMessageState = () => {
-					setInputValue(text)
-					setActiveQuote(activeQuote)
-					setSendingDisabled(sendingDisabled)
-					setSelectedImages(images)
-					setSelectedFiles(files)
-					setEnableButtons(enableButtons)
+				const restorePendingMessageState = (clearedRevision: number, responseId: number) => {
+					if (submittedCloudTask.sessionId && cloudTaskRef.current !== submittedCloudTask) return
+					if (chatState.getDraftSnapshot().revision === clearedRevision) {
+						setInputValue(text)
+						setActiveQuote(activeQuote)
+						setSelectedImages(images)
+						setSelectedFiles(files)
+					}
+					if (pendingResponseIdRef.current === responseId) {
+						setSendingDisabled(sendingDisabled)
+						setEnableButtons(enableButtons)
+					}
 				}
 				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
 					const id = ++pendingResponseIdRef.current
@@ -199,7 +210,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					const { id, optimisticMessage } = beginPendingResponse(
 						options.showPendingMessage
 							? {
@@ -217,7 +228,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 				}
@@ -280,7 +291,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								}
 							: {}),
 					})
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					trackPromptSubmitted(false)
 					const { id, optimisticMessage } = beginPendingResponse({
 						ts: Date.now(),
@@ -295,7 +306,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 					messageSent = true
@@ -438,6 +449,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
+			currentCloudTask?.sessionId,
 		],
 	)
 
