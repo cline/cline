@@ -21,6 +21,7 @@ import {
 	AgentChangesPanel,
 	AgentPullRequestBar,
 	AgentCommandOutput,
+	AgentUxVerification,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
 	AgentContextUsage,
@@ -66,6 +67,8 @@ if (
 	throw new Error("packed message-scroller exports are missing");
 }
 
+if (typeof AgentUxVerification !== "function") throw new Error("packed UX verifier export is missing");
+
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
@@ -79,7 +82,7 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
 	}

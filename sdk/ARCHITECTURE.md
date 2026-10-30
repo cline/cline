@@ -1323,3 +1323,11 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### UX verification presentation boundary
+
+The reusable `@cline/ui` UX verification carousel consumes a report contract owned by `@cline/shared`. It handles report validation, screenshot presentation, native inline image load failures and navigation. It does not depend on a verification tool, subagent executor, transcript grouping, persistence changes or a particular host. Web, Desktop and IDE consumers can supply image renderers and expanded-image callbacks.
+
+Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.
+
+UX screenshot evidence specializes the existing `GeneratedMediaSchema` to supported raster images rather than introducing another transport shape. Reports can retain artifact IDs while Desktop/IDE/web consumers reuse their existing media-access lifecycle through the renderer callback. The shared UI performs no artifact lookup, upload, signed-URL refresh or transcript mutation.

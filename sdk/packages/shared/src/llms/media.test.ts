@@ -196,3 +196,18 @@ describe("media validation", () => {
 		).toMatchObject({ ok: false, reason: "invalid_base64" });
 	});
 });
+
+it.each([
+	"",
+	"not a URL",
+	"//example.com/image.png",
+	"https://%",
+])("rejects malformed remote media URLs without throwing: %s", (url) => {
+	const result = GeneratedMediaSchema.safeParse({
+		id: "invalid-url",
+		modality: "image",
+		mediaType: "image/png",
+		source: { type: "url", url },
+	});
+	expect(result.success).toBe(false);
+});
