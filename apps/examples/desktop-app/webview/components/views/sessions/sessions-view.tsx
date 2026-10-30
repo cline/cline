@@ -364,7 +364,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						className="h-8 rounded-md px-2.5"
 						onClick={() => setImportDialogOpen(true)}
 						size="sm"
-						title="Import sessions from Claude Code, Codex, or opencode"
+						title="Import sessions from Claude Code, Codex, opencode, or Cursor"
 						type="button"
 						variant="outline"
 					>
