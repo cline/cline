@@ -79,15 +79,22 @@ function CloudHandoffNotice({
 
 	if (insideCloud) {
 		return (
-			<section aria-label="Cloud handoff" className="m-2 text-sm">
-				<VSCodeButton
-					onClick={() =>
-						void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: view.sourceTaskId })))
-					}>
-					Back to local
-				</VSCodeButton>
+			<section
+				aria-label="Cloud handoff"
+				className="m-2 p-3 max-h-[min(35vh,14rem)] overflow-y-auto border border-input-border rounded text-sm focus-visible:ring-1 focus-visible:ring-ring"
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: Long navigation errors need keyboard scrolling.
+				tabIndex={0}>
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="min-w-0 flex-1">Cloud task</span>
+					<VSCodeButton
+						onClick={() =>
+							void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: view.sourceTaskId })))
+						}>
+						Back to local
+					</VSCodeButton>
+				</div>
 				{error && (
-					<div className="text-error mt-2 whitespace-pre-wrap break-words" role="alert">
+					<div className="text-error mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
 						{error}
 					</div>
 				)}
@@ -182,10 +189,54 @@ function CloudHandoffNotice({
 					// biome-ignore lint/a11y/noNoninteractiveTabindex: Long notices need keyboard scrolling.
 					tabIndex={0}>
 					<div className="flex items-start gap-2">
-						<div className="min-w-0 flex-1 whitespace-pre-wrap break-words">
-							<div role={view.phase === "failed" ? "alert" : "status"}>{handoffStatus(view)}</div>
+						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+							<div
+								className="min-w-0 flex-[1_1_16rem] whitespace-pre-wrap [overflow-wrap:anywhere]"
+								role={view.phase === "failed" ? "alert" : "status"}>
+								{handoffStatus(view)}
+							</div>
+							{view.phase === "failed" && view.recovery === "connect_github" && (
+								<VSCodeButton
+									appearance="secondary"
+									onClick={() => void run(() => CloudServiceClient.connectGitHub(EmptyRequest.create()))}>
+									Connect GitHub
+								</VSCodeButton>
+							)}
+							{sessionId && (
+								<div className="flex max-w-full flex-wrap gap-2">
+									<VSCodeButton
+										disabled={view.phase === "launching"}
+										onClick={() =>
+											void run(
+												() =>
+													nativeOpenFailed
+														? CloudServiceClient.openCloudSessionDashboard(
+																StringRequest.create({ value: sessionId }),
+															)
+														: TaskServiceClient.showTaskWithId(
+																StringRequest.create({ value: sessionId }),
+															),
+												{ nativeOpen: !nativeOpenFailed },
+											)
+										}>
+										{nativeOpenFailed ? "Open in browser" : "Open cloud task"}
+									</VSCodeButton>
+									{view.phase === "complete" && view.delivery === "unsent" && (
+										<VSCodeButton
+											onClick={() =>
+												void run(() =>
+													CloudServiceClient.retryHandoffMessage(
+														StringRequest.create({ value: view.id }),
+													),
+												)
+											}>
+											Retry continuation
+										</VSCodeButton>
+									)}
+								</div>
+							)}
 							{errorText && (
-								<div className="text-error mt-2" role="alert">
+								<div className="w-full text-error whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
 									{errorText}
 								</div>
 							)}
@@ -202,44 +253,6 @@ function CloudHandoffNotice({
 							</Button>
 						)}
 					</div>
-					{view.phase === "failed" && view.recovery === "connect_github" && (
-						<div className="flex mt-2">
-							<VSCodeButton
-								appearance="secondary"
-								onClick={() => void run(() => CloudServiceClient.connectGitHub(EmptyRequest.create()))}>
-								Connect GitHub
-							</VSCodeButton>
-						</div>
-					)}
-					{sessionId && (
-						<div className="flex flex-wrap gap-2 mt-2">
-							<VSCodeButton
-								disabled={view.phase === "launching"}
-								onClick={() =>
-									void run(
-										() =>
-											nativeOpenFailed
-												? CloudServiceClient.openCloudSessionDashboard(
-														StringRequest.create({ value: sessionId }),
-													)
-												: TaskServiceClient.showTaskWithId(StringRequest.create({ value: sessionId })),
-										{ nativeOpen: !nativeOpenFailed },
-									)
-								}>
-								{nativeOpenFailed ? "Open in browser" : "Open cloud task"}
-							</VSCodeButton>
-							{view.phase === "complete" && view.delivery === "unsent" && (
-								<VSCodeButton
-									onClick={() =>
-										void run(() =>
-											CloudServiceClient.retryHandoffMessage(StringRequest.create({ value: view.id })),
-										)
-									}>
-									Retry continuation
-								</VSCodeButton>
-							)}
-						</div>
-					)}
 				</section>
 			)}
 		</>
