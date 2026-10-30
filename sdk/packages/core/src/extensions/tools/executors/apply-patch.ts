@@ -20,6 +20,7 @@ import {
 	PatchParser,
 	type PatchWarning,
 } from "./apply-patch-parser";
+import { serializeFileEdits } from "./file-edit-queue";
 import {
 	detectLineEnding,
 	type LineEnding,
@@ -406,21 +407,31 @@ export function createApplyPatchExecutor(
 		cwd: string,
 		_context: AgentToolContext,
 	): Promise<string> => {
-		const { changes, fuzz } = await computePatchChanges(input.input, cwd, {
-			encoding,
-			restrictToCwd,
-		});
-		const touched = await applyChanges(changes, cwd, encoding, restrictToCwd);
+		const { lines } = normalizePatchInput(input.input);
+		const filePaths = extractFilesForOperations(lines, [
+			PATCH_MARKERS.ADD,
+			PATCH_MARKERS.UPDATE,
+			PATCH_MARKERS.DELETE,
+			PATCH_MARKERS.MOVE,
+		]).map((filePath) => resolveFilePath(cwd, filePath, restrictToCwd));
 
-		const responseLines = [
-			"Successfully applied patch to the following files:",
-		];
-		for (const file of touched) {
-			responseLines.push(file);
-		}
-		if (fuzz > 0) {
-			responseLines.push(`Note: Patch applied with fuzz factor ${fuzz}`);
-		}
-		return responseLines.join("\n");
+		return serializeFileEdits(filePaths, async () => {
+			const { changes, fuzz } = await computePatchChanges(input.input, cwd, {
+				encoding,
+				restrictToCwd,
+			});
+			const touched = await applyChanges(changes, cwd, encoding, restrictToCwd);
+
+			const responseLines = [
+				"Successfully applied patch to the following files:",
+			];
+			for (const file of touched) {
+				responseLines.push(file);
+			}
+			if (fuzz > 0) {
+				responseLines.push(`Note: Patch applied with fuzz factor ${fuzz}`);
+			}
+			return responseLines.join("\n");
+		});
 	};
 }

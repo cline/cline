@@ -9,6 +9,7 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
+import { serializeFileEdits } from "./file-edit-queue";
 import {
 	detectLineEnding,
 	normalizeLineEndings,
@@ -37,27 +38,6 @@ export interface EditorExecutorOptions {
 	 * @default 200
 	 */
 	maxDiffLines?: number;
-}
-
-const pendingEdits = new Map<string, Promise<void>>();
-
-function serializeFileEdit(
-	filePath: string,
-	edit: () => Promise<string>,
-): Promise<string> {
-	const key = process.platform === "win32" ? filePath.toLowerCase() : filePath;
-	const result = (pendingEdits.get(key) ?? Promise.resolve()).then(edit);
-	const completion = result.then(
-		() => undefined,
-		() => undefined,
-	);
-	pendingEdits.set(key, completion);
-	void completion.then(() => {
-		if (pendingEdits.get(key) === completion) {
-			pendingEdits.delete(key);
-		}
-	});
-	return result;
 }
 
 function resolveFilePath(
@@ -255,7 +235,7 @@ export function createEditorExecutor(
 	): Promise<string> => {
 		const filePath = resolveFilePath(cwd, input.path, restrictToCwd);
 
-		return serializeFileEdit(filePath, async () => {
+		return serializeFileEdits([filePath], async () => {
 			if (input.insert_line != null) {
 				return insertInFile(
 					filePath,
