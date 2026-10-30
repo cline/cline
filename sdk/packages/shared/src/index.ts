@@ -625,6 +625,18 @@ export {
 	RUNTIME_CONFIG_EXTENSION_KINDS,
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
+export {
+	SIDE_REFERENCE_KIND,
+	SIDE_REFERENCE_BUDGET_BYTES,
+	SIDE_EXCERPT_BUDGET_BYTES,
+	SIDE_VISIBLE_BUDGET_BYTES,
+	SideVisibleContextSchema,
+	type SideVisibleContext,
+	referenceByteLength,
+	referenceExcerpt,
+	sanitizeReferenceText,
+	serializeReferenceData,
+} from "./session/side-conversation";
 export * from "./session/workspace";
 export {
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,

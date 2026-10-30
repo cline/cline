@@ -936,6 +936,11 @@ export {
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
 export {
+	captureSideReference,
+	SIDE_SCOPE_INSTRUCTIONS,
+} from "./session/side-conversation/context";
+export { createSideHistoryTool } from "./session/side-conversation/history";
+export {
 	countUserRunMessages,
 	getUserRunSpan,
 	isUserRunMessage,

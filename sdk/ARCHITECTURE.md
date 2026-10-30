@@ -40,6 +40,29 @@ flowchart LR
   apps --> core
 ```
 
+## Side-conversation context
+
+`@cline/core` owns side-conversation reference projection and the opt-in
+`read_parent_history` tool in `src/session/side-conversation/`. Both use the
+canonical parent history; projection includes provider tool observations as
+inert text and omits reasoning, media, and parent cache handles. The initial
+reference is bounded and frozen. Later history reads are explicit tool calls.
+These helpers reuse `ClineCore.get` and `readMessages`, so the same composition
+works with local and Hub-backed core instances without a separate Hub command.
+
+`@cline/shared` owns browser-safe reference limits, text projection utilities,
+and the optional visible-context contract. A host may supply recent unsaved
+observations; they remain labeled and are reconciled with saved history rather
+than treated as a replacement for it.
+
+Hosts own session creation and retention policy, current composer selections,
+and presentation. Desktop composes these helpers with its existing start/send
+flow and keeps its sidecar-run ownership, cleanup, hidden-history filtering,
+and pane state. App exit is not Hub exit. This extraction does not make those
+desktop lifecycle or discovery rules a cross-client guarantee. Adding that
+capability requires a shared identity and lifecycle contract rather than
+reusing desktop process ownership as Hub ownership.
+
 ## Package Responsibilities
 
 ### `@cline/shared`
