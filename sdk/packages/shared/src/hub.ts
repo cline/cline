@@ -3,6 +3,7 @@ import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type {
 	AddProviderActionRequest,
+	ClineAccountActionRequest,
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
 	SaveProviderSettingsActionRequest,
@@ -58,6 +59,11 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"providers.oauth.start",
+	"providers.oauth.next",
+	"providers.oauth.respond",
+	"providers.oauth.cancel",
+	"providers.account.action",
 	"providers.list",
 	"providers.models.list",
 	"providers.models.recommended",
@@ -605,6 +611,38 @@ export interface ClineRecommendedModelsData {
 	clineCloud?: ClineRecommendedModel[];
 }
 
+/** Browser-facing steps in a Hub-owned provider login. Never includes credentials. */
+export type HubOAuthInteraction =
+	| { kind: "auth"; url: string; instructions?: string }
+	| { kind: "user_code"; userCode: string }
+	| { kind: "progress"; message: string }
+	| {
+			kind: "prompt";
+			promptId: string;
+			message: string;
+			defaultValue?: string;
+			manual?: boolean;
+	  }
+	| {
+			kind: "server_listening";
+			host: string;
+			port: number;
+			callbackUrl: string;
+	  }
+	| { kind: "server_close"; host: string; port: number };
+
+export interface HubOAuthLoginResult {
+	provider: string;
+	accountId?: string;
+	email?: string;
+}
+
+export interface HubOAuthLoginSnapshot {
+	events: HubOAuthInteraction[];
+	result?: HubOAuthLoginResult;
+	error?: { code: string; message: string };
+}
+
 export interface HubProviderSaveResult {
 	providerId: string;
 	enabled: boolean;
@@ -627,6 +665,19 @@ export interface HubProviderMutationResult {
 
 /** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"providers.oauth.start": {
+		providerId: string;
+		loginId: string;
+		manualCodeInput?: boolean;
+	};
+	"providers.oauth.next": { loginId: string };
+	"providers.oauth.respond": {
+		loginId: string;
+		promptId: string;
+		value: string;
+	};
+	"providers.oauth.cancel": { loginId: string };
+	"providers.account.action": ClineAccountActionRequest;
 	"providers.list": { isClinePassEnabled?: boolean };
 	"providers.models.list": { providerId: string; includeCloudModels?: boolean };
 	"providers.models.recommended": Record<string, never>;
@@ -650,6 +701,11 @@ export interface HubCommandInputMap {
 
 /** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"providers.oauth.start": { loginId: string };
+	"providers.oauth.next": HubOAuthLoginSnapshot;
+	"providers.oauth.respond": { applied: boolean };
+	"providers.oauth.cancel": { cancelled: boolean };
+	"providers.account.action": { result: unknown };
 	"providers.list": ProviderCatalogResponse;
 	"providers.models.list": ProviderModelsResponse;
 	"providers.models.recommended": ClineRecommendedModelsData;
@@ -678,6 +734,11 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubProviderCommandName =
+	| "providers.oauth.start"
+	| "providers.oauth.next"
+	| "providers.oauth.respond"
+	| "providers.oauth.cancel"
+	| "providers.account.action"
 	| "providers.list"
 	| "providers.models.list"
 	| "providers.models.recommended"

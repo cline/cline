@@ -293,6 +293,7 @@ function toCodexCredentials(
 }
 
 export async function loginOpenAICodex(options: {
+	signal?: AbortSignal;
 	onAuth: (info: { url: string; instructions?: string }) => void;
 	onPrompt: (prompt: OAuthPrompt) => Promise<string>;
 	onProgress?: (message: string) => void;
@@ -306,6 +307,7 @@ export async function loginOpenAICodex(options: {
 		options.originator,
 	);
 	const server = await startLocalOAuthServer({
+		signal: options.signal,
 		host: callbackConfig.host,
 		ports: [callbackConfig.port],
 		callbackPath: callbackConfig.callbackPath,

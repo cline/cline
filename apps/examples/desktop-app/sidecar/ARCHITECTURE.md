@@ -136,7 +136,13 @@ Provider catalog/model discovery, recommended models, provider settings, custom
 provider creation, and model overrides use `createHubProvidersApi` over the
 existing local Hub connection. Credential mutations and sign-out cleanup belong
 to the daemon. Desktop retains cloud-view and account-context reactions.
-Provider OAuth and voice operations still use their existing sidecar services.
+Provider OAuth and Cline account actions use `createHubProviderAuthApi` on the
+same local connection. The Hub owns login attempts, loopback servers, credential
+writes/refresh and account requests. The sidecar's OAuth adapter only opens the
+browser, displays device codes and aborts the initiating webview's interaction
+when it disconnects. Results contain completion metadata rather than credentials.
+Account results still drive Desktop telemetry, feature flags and cloud views.
+Voice operations still use their existing sidecar services.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 
@@ -221,7 +227,7 @@ Supported commands:
 | `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | shared Hub `providers.settings.save` |
 | `add_provider` | shared Hub `providers.add` |
-| `run_provider_oauth_login` | `loginLocalProvider` |
+| `run_provider_oauth_login` | shared Hub OAuth lifecycle via `createHubProviderAuthApi` |
 | `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
 | `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
 | `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |

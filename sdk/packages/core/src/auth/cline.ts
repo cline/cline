@@ -89,6 +89,7 @@ type AuthTelemetryDetails = AuthTokenTelemetryClaims &
 	AuthCredentialTelemetryProperties;
 
 export interface ClineOAuthProviderOptions {
+	signal?: AbortSignal;
 	apiBaseUrl: string;
 	headers?: HeaderInput;
 	requestTimeoutMs?: number;
@@ -540,6 +541,7 @@ export async function loginClineOAuth(
 	const localServer = useWorkOSDeviceAuth
 		? null
 		: await startLocalOAuthServer({
+				signal: options.signal,
 				ports: callbackPorts,
 				callbackPath,
 				onListening: options.callbacks.onServerListening,
@@ -557,6 +559,8 @@ export async function loginClineOAuth(
 				clientId,
 				options,
 			);
+			options.signal?.throwIfAborted();
+			options.callbacks.onUserCode?.(deviceAuthorization.userCode);
 			options.callbacks.onAuth({
 				url:
 					deviceAuthorization.verificationUriComplete ??
@@ -565,6 +569,7 @@ export async function loginClineOAuth(
 			});
 
 			const workosTokens = await pollWorkOSTokens({
+				signal: options.signal,
 				clientId,
 				deviceCode: deviceAuthorization.deviceCode,
 				expiresInSeconds: deviceAuthorization.expiresInSeconds,
@@ -578,6 +583,7 @@ export async function loginClineOAuth(
 				workosTokens,
 				options,
 				options.provider,
+				options.signal,
 			);
 		} else {
 			const authUrl = new URL(
