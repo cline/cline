@@ -17,7 +17,12 @@ const report: UxVerificationReport = {
 			subtitle: "The welcome artwork and composer are visible together.",
 			action: "Opened Chat",
 			status: "passed",
-			screenshot: { type: "image", mediaType: "image/jpeg", url: home },
+			screenshot: {
+				id: "home-frame",
+				modality: "image",
+				mediaType: "image/jpeg",
+				source: { type: "url", url: home },
+			},
 		},
 		{
 			id: "sidebar",
@@ -25,7 +30,12 @@ const report: UxVerificationReport = {
 			subtitle: "Chat is available from the original navigation.",
 			action: "Returned to Chat",
 			status: "passed",
-			screenshot: { type: "image", mediaType: "image/jpeg", url: sidebar },
+			screenshot: {
+				id: "sidebar-frame",
+				modality: "image",
+				mediaType: "image/jpeg",
+				source: { type: "url", url: sidebar },
+			},
 		},
 	],
 };
@@ -40,7 +50,11 @@ const meta: Meta<typeof AgentUxVerification> = {
 			<img
 				alt={check.title}
 				className={className}
-				src={check.screenshot?.url}
+				src={
+					check.screenshot?.source.type === "url"
+						? check.screenshot.source.url
+						: undefined
+				}
 			/>
 		),
 	},
@@ -70,3 +84,28 @@ export const Blocked: Story = {
 	},
 };
 export const Invalid: Story = { args: { output: {}, state: "completed" } };
+
+/** Artifact access belongs to the host; this story illustrates the unresolved state. */
+export const ArtifactReference: Story = {
+	args: {
+		renderScreenshot: undefined,
+		output: {
+			...report,
+			checks: [
+				{
+					id: "cloud",
+					title: "Menu opened",
+					subtitle:
+						"Screenshot retained by artifact ID for the host to resolve.",
+					status: "passed",
+					screenshot: {
+						id: "cloud-frame",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "artifact", artifactId: "captured-menu.png" },
+					},
+				},
+			],
+		},
+	},
+};

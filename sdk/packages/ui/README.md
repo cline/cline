@@ -387,3 +387,25 @@ request's context tokens. See [context usage](./ADOPTION.md#context-usage).
 Inline screenshots use the existing safe Blob renderer. Hosts can supply `renderScreenshot(check, className)` to resolve authenticated asset references, and `onExpandScreenshot(check)` to open their focus-managed image viewer. The component owns no transport or upload client. Its styles ship in `@cline/ui/components.css`; see the **Agent/UX verification** Storybook stories.
 
 When the carousel has focus, Left/Right switch slides and Space toggles slideshow playback without scrolling the page. Arrow navigation pauses playback. Space on a focused button retains that button’s normal action.
+
+Screenshot evidence uses the existing `GeneratedMedia` image contract: `id`, `modality: "image"`, a supported raster `mediaType`, and `source` (`base64`, `url`, or `artifact`). Optional `name` and `sizeBytes` metadata are preserved. Persist artifact IDs in reports and let the host resolve access URLs when displaying them; the shared component does not invent or refresh signed URLs.
+
+A Desktop consumer can pass `check.screenshot` directly to its existing `ArtifactImage` component from the cloud-artifact integration, without converting between image formats:
+
+```tsx
+<AgentUxVerification
+  output={report}
+  state="completed"
+  renderScreenshot={(check, className) =>
+    check.screenshot ? (
+      <ArtifactImage
+        media={check.screenshot}
+        sessionId={sessionId}
+        className={className}
+      />
+    ) : null
+  }
+/>
+```
+
+`ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.

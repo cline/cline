@@ -43,18 +43,12 @@ function EvidenceImage({
 	const image = check.screenshot;
 	const [failedImage, setFailedImage] = useState<typeof image>();
 	if (image && renderScreenshot) return renderScreenshot(check, className);
-	if (image?.data && failedImage !== image)
+	if (image?.source.type === "base64" && failedImage !== image)
 		return (
 			<div className={className} onErrorCapture={() => setFailedImage(image)}>
 				<GeneratedMediaContent
 					className={className}
-					media={{
-						id: check.id,
-						modality: "image",
-						mediaType: image.mediaType,
-						name: check.title,
-						source: { type: "base64", data: image.data },
-					}}
+					media={{ ...image, name: image.name ?? check.title }}
 				/>
 			</div>
 		);
@@ -64,7 +58,7 @@ function EvidenceImage({
 			<span>
 				{failedImage && failedImage === image
 					? "Screenshot could not be loaded"
-					: image?.url
+					: image
 						? "Screenshot requires a host image resolver"
 						: "No screenshot available"}
 			</span>

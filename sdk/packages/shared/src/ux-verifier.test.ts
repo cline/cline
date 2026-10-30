@@ -11,7 +11,12 @@ const report = {
 			title: "Menu opens",
 			subtitle: "The menu is visible",
 			status: "passed",
-			screenshot: { type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+			screenshot: {
+				id: "frame-one",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
 		},
 	],
 };
@@ -53,9 +58,13 @@ describe("UX verification presentation contract", () => {
 					{
 						...report.checks[0],
 						screenshot: {
-							type: "image",
+							id: "frame-one",
+							modality: "image",
 							mediaType: "image/png",
-							url: "https://example.com/screenshot.png?signature=example",
+							source: {
+								type: "url",
+								url: "https://example.com/screenshot.png?signature=example",
+							},
 						},
 					},
 				],
@@ -73,10 +82,82 @@ describe("UX verification presentation contract", () => {
 				checks: [
 					{
 						...report.checks[0],
-						screenshot: { type: "image", mediaType: "image/png", url },
+						screenshot: {
+							id: "frame-one",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "url", url },
+						},
 					},
 				],
 			}).success,
 		).toBe(false);
 	});
+});
+it("preserves canonical artifact references and metadata without storing a signed URL", () => {
+	const screenshot = {
+		id: "frame-one",
+		modality: "image",
+		mediaType: "image/png",
+		name: "Opened menu",
+		sizeBytes: 123,
+		source: { type: "artifact", artifactId: " frame/雪 " },
+	};
+	const parsed = UxVerificationReportSchema.parse({
+		...report,
+		checks: [{ ...report.checks[0], screenshot }],
+	});
+	expect(parsed.checks[0].screenshot).toEqual(screenshot);
+	expect(JSON.stringify(parsed)).not.toContain("https:");
+});
+it("accepts GIF evidence supported by the existing media renderer", () => {
+	expect(
+		UxVerificationReportSchema.safeParse({
+			...report,
+			checks: [
+				{
+					...report.checks[0],
+					screenshot: {
+						...report.checks[0].screenshot,
+						mediaType: "image/gif",
+					},
+				},
+			],
+		}).success,
+	).toBe(true);
+});
+it.each([
+	{
+		id: "frame",
+		modality: "image",
+		mediaType: "image/png",
+		source: { type: "artifact", artifactId: "" },
+	},
+	{
+		id: "frame",
+		modality: "video",
+		mediaType: "video/webm",
+		source: { type: "artifact", artifactId: "frame" },
+	},
+	{
+		id: "frame",
+		modality: "image",
+		mediaType: "image/svg+xml",
+		source: { type: "artifact", artifactId: "frame" },
+	},
+	{
+		id: "frame",
+		modality: "image",
+		mediaType: "image/png",
+		sizeBytes: -1,
+		source: { type: "artifact", artifactId: "frame" },
+	},
+	{ type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+])("rejects invalid or obsolete screenshot content: %j", (screenshot) => {
+	expect(
+		UxVerificationReportSchema.safeParse({
+			...report,
+			checks: [{ ...report.checks[0], screenshot }],
+		}).success,
+	).toBe(false);
 });

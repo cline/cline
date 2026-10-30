@@ -2,7 +2,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { AgentUxVerification } from "../components/agent-ux-verification.js";
+import {
+	AgentUxVerification,
+	type UxScreenshotRenderer,
+} from "../components/agent-ux-verification.js";
 import type { UxVerificationReport } from "@cline/shared/browser";
 
 const report: UxVerificationReport = {
@@ -16,7 +19,12 @@ const report: UxVerificationReport = {
 			title: "Composer is visible",
 			subtitle: "The send button remains reachable",
 			status: "passed",
-			screenshot: { type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+			screenshot: {
+				id: "frame-one",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
 		},
 		{
 			id: "login",
@@ -115,9 +123,10 @@ it("does not bind remote screenshot URLs without a host renderer", async () => {
 			{
 				...report.checks[0],
 				screenshot: {
-					type: "image",
+					id: "private-frame",
+					modality: "image",
 					mediaType: "image/png",
-					url: "https://example.com/private.png",
+					source: { type: "url", url: "https://example.com/private.png" },
 				},
 			},
 		],
@@ -193,4 +202,75 @@ it("shows an unavailable state when native screenshot loading fails", async () =
 		image.dispatchEvent(new Event("error"));
 	});
 	expect(container.textContent).toContain("Screenshot could not be loaded");
+});
+it("renders canonical inline media using its own ID and metadata", async () => {
+	const screenshot = {
+		...report.checks[0].screenshot!,
+		name: "Captured menu",
+		sizeBytes: 5,
+	};
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={{ ...report, checks: [{ ...report.checks[0], screenshot }] }}
+				state="completed"
+			/>,
+		),
+	);
+	const image = container.querySelector("img");
+	expect(image?.getAttribute("data-media-id")).toBe("frame-one");
+	expect(image?.alt).toBe("Captured menu");
+	expect(image?.src).toBe("blob:ux-evidence");
+});
+it("leaves unresolved artifact screenshots to the host without fetching or fabricating an image URL", async () => {
+	const screenshot = {
+		id: "cloud-frame",
+		modality: "image",
+		mediaType: "image/png",
+		source: { type: "artifact", artifactId: "capture/one" },
+	};
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={{ ...report, checks: [{ ...report.checks[0], screenshot }] }}
+				state="completed"
+			/>,
+		),
+	);
+	expect(container.querySelector("img")).toBeNull();
+	expect(container.textContent).toContain(
+		"Screenshot requires a host image resolver",
+	);
+});
+it("passes canonical artifact media unchanged to a host screenshot renderer", async () => {
+	const screenshot = {
+		id: "cloud-frame",
+		modality: "image",
+		mediaType: "image/png",
+		name: "Menu screenshot",
+		sizeBytes: 123,
+		source: { type: "artifact", artifactId: "capture/one" },
+	};
+	const output = { ...report, checks: [{ ...report.checks[0], screenshot }] };
+	const renderer = vi.fn<UxScreenshotRenderer>((_check, className) => (
+		<span className={className}>Host image component</span>
+	));
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={output}
+				state="completed"
+				renderScreenshot={renderer}
+			/>,
+		),
+	);
+	expect(renderer).toHaveBeenCalled();
+	for (const [check] of renderer.mock.calls) {
+		expect(check.screenshot).toEqual(screenshot);
+	}
+	expect(output.checks[0].screenshot.source).toEqual({
+		type: "artifact",
+		artifactId: "capture/one",
+	});
+	expect(container.textContent).toContain("Host image component");
 });
