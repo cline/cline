@@ -167,6 +167,22 @@ describe("PlanCompletionOutputRow", () => {
 		expect(screen.getByRole("button", { name: "Copy plan response" })).toBeInTheDocument()
 	})
 
+	it("uses contrast-safe warning-foreground on the Plan label and copy button", () => {
+		render(<PlanCompletionOutputRow text="Here is the plan" />)
+
+		const label = screen.getByText("Plan")
+		expect(label).toHaveClass("text-warning-foreground")
+		expect(label).not.toHaveClass("text-warning/70")
+
+		const copyButton = screen.getByRole("button", { name: "Copy plan response" })
+		expect(copyButton).toHaveClass("text-warning-foreground")
+		expect(copyButton).not.toHaveClass("text-warning/70")
+
+		const banner = label.closest("div")?.parentElement
+		expect(banner).toHaveClass("bg-warning/10")
+		expect(banner).toHaveClass("border-warning/20")
+	})
+
 	it("copies the plan response text to the clipboard", async () => {
 		render(<PlanCompletionOutputRow text="Here is the plan" />)
 
