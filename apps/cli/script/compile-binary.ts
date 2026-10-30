@@ -149,6 +149,14 @@ export async function compileCliBinary(
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),
+				// OpenTUI picks its native library from OPENTUI_LIBC at runtime and
+				// defaults to glibc, so a musl binary would load the glibc .so and
+				// die in the loader (ld-linux-x86-64.so.2 is not present on musl).
+				// A compiled binary cannot be re-pointed after the fact, so the
+				// target's libc is baked in here.
+				...(input.bunTarget.includes("-musl")
+					? { "process.env.OPENTUI_LIBC": JSON.stringify("musl") }
+					: {}),
 			},
 			throw: false,
 		});

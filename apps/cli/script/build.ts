@@ -30,18 +30,43 @@ const buildOptions = parseBuildOptions(process.argv.slice(2));
 const allTargets: {
 	os: string;
 	arch: "arm64" | "x64";
+	libc?: "musl";
 }[] = [
 	{ os: "linux", arch: "arm64" },
 	{ os: "linux", arch: "x64" },
+	// musl builds (Alpine, OpenWrt, other musl distros). Bun links these
+	// against the musl loader and needs libstdc++ present on the host, so they
+	// are published as their own packages with a libc field rather than
+	// replacing the glibc ones.
+	{ os: "linux", arch: "arm64", libc: "musl" },
+	{ os: "linux", arch: "x64", libc: "musl" },
 	{ os: "darwin", arch: "arm64" },
 	{ os: "darwin", arch: "x64" },
 	{ os: "win32", arch: "x64" },
 	{ os: "win32", arch: "arm64" },
 ];
 
+/** The libc this host links against, for --single and the smoke test. */
+function hostLibc(): "glibc" | "musl" {
+	if (process.platform !== "linux") {
+		return "glibc";
+	}
+	try {
+		const report = process.report?.getReport() as
+			| { header?: { glibcVersionRuntime?: string } }
+			| undefined;
+		return report?.header?.glibcVersionRuntime ? "glibc" : "musl";
+	} catch {
+		return "glibc";
+	}
+}
+
 const targets = buildOptions.single
 	? allTargets.filter(
-			(item) => item.os === process.platform && item.arch === process.arch,
+			(item) =>
+				item.os === process.platform &&
+				item.arch === process.arch &&
+				(item.libc ?? "glibc") === hostLibc(),
 		)
 	: allTargets;
 
@@ -91,14 +116,16 @@ function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
-	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
+	const libcSuffix = item.libc ? `-${item.libc}` : "";
+	return `bun-${targetOs}-${item.arch}${libcSuffix}` as Bun.Build.CompileTarget;
 }
 
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
-	const name = `@cline/cli-${displayOs}-${item.arch}`;
-	const dirName = `cli-${displayOs}-${item.arch}`;
+	const libcSuffix = item.libc ? `-${item.libc}` : "";
+	const name = `@cline/cli-${displayOs}-${item.arch}${libcSuffix}`;
+	const dirName = `cli-${displayOs}-${item.arch}${libcSuffix}`;
 	const binaryName = item.os === "win32" ? "cline.exe" : "cline";
 	const bunTarget = getBunTarget(item);
 
@@ -115,8 +142,12 @@ for (const item of targets) {
 		process.exit(1);
 	}
 
-	// Smoke test: only run on current platform
-	if (item.os === process.platform && item.arch === process.arch) {
+	// Smoke test: only run on current platform and libc
+	if (
+		item.os === process.platform &&
+		item.arch === process.arch &&
+		(item.libc ?? "glibc") === hostLibc()
+	) {
 		console.log(`  Smoke test: ${outfile} --version`);
 		try {
 			const output = await $`${outfile} --version`.text();
@@ -187,9 +218,13 @@ for (const item of targets) {
 			{
 				name,
 				version,
-				description: `Cline CLI binary for ${displayOs} ${item.arch}`,
+				description: `Cline CLI binary for ${displayOs} ${item.arch}${libcSuffix}`,
 				os: [item.os],
 				cpu: [item.arch],
+				// npm's libc-aware optional-dependency selection (npm >= 10.4):
+				// without this field a musl host would install the glibc package
+				// and the binary would die in the loader.
+				...(item.os === "linux" ? { libc: [item.libc ?? "glibc"] } : {}),
 				...(repository ? { repository } : {}),
 				bin: {
 					cline: `bin/${binaryName}`,
