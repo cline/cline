@@ -14,6 +14,7 @@ The Cline API is OpenAI-compatible, so any library or tool that works with OpenA
 curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer $CLINE_API_KEY" \
   -H "Content-Type: application/json" \
+  -H "X-Response-Format: openai" \
   -d '{
     "model": "anthropic/claude-sonnet-4-6",
     "messages": [{"role": "user", "content": "What is 2+2?"}],
@@ -38,7 +39,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
 
 ### OpenAI SDK
 
-The [OpenAI Python SDK](https://github.com/openai/openai-python) works with the Cline API by setting `base_url`:
+The [OpenAI Python SDK](https://github.com/openai/openai-python) works with the Cline API by setting `base_url`. Send the `X-Response-Format: openai` header so non-streaming responses use the standard OpenAI shape:
 
 ```python
 from openai import OpenAI
@@ -46,6 +47,7 @@ from openai import OpenAI
 client = OpenAI(
     base_url="https://api.cline.bot/api/v1",
     api_key="YOUR_API_KEY",
+    default_headers={"X-Response-Format": "openai"},
 )
 
 # Non-streaming
@@ -88,6 +90,7 @@ import json
 client = OpenAI(
     base_url="https://api.cline.bot/api/v1",
     api_key="YOUR_API_KEY",
+    default_headers={"X-Response-Format": "openai"},
 )
 
 tools = [
@@ -133,6 +136,7 @@ response = requests.post(
     headers={
         "Authorization": "Bearer YOUR_API_KEY",
         "Content-Type": "application/json",
+        "X-Response-Format": "openai",
     },
     json={
         "model": "anthropic/claude-sonnet-4-6",
@@ -149,7 +153,7 @@ print(data["choices"][0]["message"]["content"])
 
 ### OpenAI SDK
 
-The [OpenAI Node.js SDK](https://github.com/openai/openai-node) works with the Cline API by setting `baseURL`:
+The [OpenAI Node.js SDK](https://github.com/openai/openai-node) works with the Cline API by setting `baseURL`. Send the `X-Response-Format: openai` header so non-streaming responses use the standard OpenAI shape:
 
 ```typescript
 import OpenAI from "openai"
@@ -157,6 +161,7 @@ import OpenAI from "openai"
 const client = new OpenAI({
   baseURL: "https://api.cline.bot/api/v1",
   apiKey: "YOUR_API_KEY",
+  defaultHeaders: { "X-Response-Format": "openai" },
 })
 
 // Non-streaming
@@ -200,6 +205,7 @@ const response = await fetch("https://api.cline.bot/api/v1/chat/completions", {
   headers: {
     Authorization: "Bearer YOUR_API_KEY",
     "Content-Type": "application/json",
+    "X-Response-Format": "openai",
   },
   body: JSON.stringify({
     model: "anthropic/claude-sonnet-4-6",
