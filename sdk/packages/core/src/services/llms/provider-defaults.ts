@@ -536,6 +536,78 @@ async function fetchPoolsidePrivateModels(
 	return models;
 }
 
+interface UberllmModelResponse {
+	id?: string;
+	display_name?: string;
+	created?: number;
+	/** chat | image | video | music | speech | transcription */
+	type?: string;
+	context_length?: number;
+	max_output_tokens?: number;
+	input_modalities?: string[];
+	/** USD per 1M tokens: the current market price, not a fixed rate. */
+	pricing?: {
+		input_usd?: number;
+		output_usd?: number;
+		cache_read_usd?: number;
+		cache_write_usd?: number;
+	};
+}
+
+async function fetchUberllmPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl =
+		normalizeBaseUrl(config.baseUrl) || "https://api.uberllm.dev/v1";
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models?type=chat`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`UberLLM model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: UberllmModelResponse[] };
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		// The list also carries image, video and audio models; only chat models
+		// can drive an agent session.
+		if (!id || (model.type !== undefined && model.type !== "chat")) {
+			continue;
+		}
+		const info = buildModelFromPrivateSource(id, {
+			name: model.display_name ?? id,
+			contextWindow: model.context_length,
+			maxInputTokens: model.context_length,
+			maxTokens: model.max_output_tokens,
+			supportsImages: model.input_modalities?.includes("image"),
+			supportsPromptCache: model.pricing?.cache_read_usd !== undefined,
+			releaseDate:
+				typeof model.created === "number" && model.created > 0
+					? new Date(model.created * 1000).toISOString().slice(0, 10)
+					: undefined,
+		});
+		const pricing = {
+			input: model.pricing?.input_usd,
+			output: model.pricing?.output_usd,
+			cacheRead: model.pricing?.cache_read_usd,
+			cacheWrite: model.pricing?.cache_write_usd,
+		};
+		if (pricing.input !== undefined || pricing.output !== undefined) {
+			info.pricing = pricing;
+		}
+		models[id] = info;
+	}
+	return models;
+}
+
 interface LiteLlmModelInfoResponse {
 	model_name?: string;
 	litellm_params?: {
@@ -660,6 +732,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
+	uberllm: fetchUberllmPrivateModels,
 };
 
 /**

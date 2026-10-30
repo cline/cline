@@ -965,6 +965,19 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
 	},
 	{
+		id: "uberllm",
+		name: "UberLLM",
+		description:
+			"Marketplace for spare inference capacity: one OpenAI-compatible API key, each request routed to an available provider for the model",
+		family: "openai-compatible",
+		defaultModelId: "anthropic/claude-sonnet-5.5",
+		apiKeyEnv: ["UBERLLM_API_KEY"],
+		docsUrl: "https://uberllm.dev/docs/cline",
+		// Not on models.dev: the model list is loaded from the account's own
+		// GET /v1/models by the private catalog fetcher in @cline/core.
+		defaults: { baseUrl: "https://api.uberllm.dev/v1" },
+	},
+	{
 		id: "nousResearch",
 		name: "Nous Research",
 		description: "Open-source AI research lab",

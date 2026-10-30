@@ -444,6 +444,32 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("registers UberLLM as an OpenAI-compatible built-in with an API key field", async () => {
+		await expect(getProvider("uberllm")).resolves.toMatchObject({
+			id: "uberllm",
+			name: "UberLLM",
+			baseUrl: "https://api.uberllm.dev/v1",
+			defaultModelId: "anthropic/claude-sonnet-5.5",
+			client: "openai-compatible",
+			env: ["UBERLLM_API_KEY"],
+			docsUrl: "https://uberllm.dev/docs/cline",
+		});
+		const configFields =
+			BUILTIN_PROVIDER_MANIFESTS_BY_ID.uberllm?.metadata?.configFields ?? [];
+		expect(configFields.map((field) => field.path)).toEqual(
+			expect.arrayContaining(["apiKey", "baseUrl"]),
+		);
+		// Not on models.dev: the list comes from the account's /v1/models at
+		// runtime (@cline/core private catalog), so the bundled entry is only
+		// the default model.
+		expect(GENERATED_PROVIDER_SPECS.some((s) => s.id === "uberllm")).toBe(
+			false,
+		);
+		expect(Object.keys(await getModelsForProvider("uberllm"))).toEqual([
+			"anthropic/claude-sonnet-5.5",
+		]);
+	});
+
 	it("serves the ai& default model from the catalog instead of the stub fallback", async () => {
 		const provider = await getProvider("aiand");
 		const models = await getModelsForProvider("aiand");
