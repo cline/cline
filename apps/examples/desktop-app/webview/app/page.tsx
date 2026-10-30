@@ -574,6 +574,32 @@ function App() {
 	const { navigation, threads } = appState;
 	const threadsRef = useRef(threads);
 	threadsRef.current = threads;
+	const sideSessionParents = useMemo(() => {
+		const parents = new Map<string, string>();
+		for (const thread of threads) {
+			const session = thread.historySession;
+			const side = readSideConversation(session?.metadata);
+			if (session && side)
+				parents.set(
+					sessionKey(session),
+					sessionKey({
+						sessionId: side.parentSessionId,
+						environmentId: thread.environmentId,
+					}),
+				);
+		}
+		return parents;
+	}, [threads]);
+	const [visibleSideSessionId, setVisibleSideSessionId] = useState<
+		string | null
+	>(null);
+	const visibleSideRef = useRef(visibleSideSessionId);
+	visibleSideRef.current = visibleSideSessionId;
+	const handleSideVisibility = useCallback((id: string, visible: boolean) => {
+		setVisibleSideSessionId((current) =>
+			visible ? id : current === id ? null : current,
+		);
+	}, []);
 	useEffect(() => {
 		const threadIds = new Set(threads.map((thread) => thread.id));
 		for (const threadId of promptDrafts.keys()) {
@@ -698,7 +724,39 @@ function App() {
 	);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
-	useEffect(() => watchDesktopNotifications(), []);
+	useEffect(
+		() =>
+			watchDesktopNotifications({
+				resolveSession: async (sessionId, environmentId) => {
+					const findSession = async (id: string) =>
+						threadsRef.current.find(
+							(thread) =>
+								thread.environmentId === environmentId &&
+								(thread.sessionId === id ||
+									thread.historySession?.sessionId === id),
+						)?.historySession ??
+						(await desktopClient.invoke<SessionHistoryItem | null>(
+							"get_discovered_session",
+							{ sessionId: id, environmentId },
+						));
+					const session = await findSession(sessionId);
+					if (!session) return null;
+					const side = readSideConversation(session.metadata);
+					if (!side) return {};
+					const parent = await findSession(side.parentSessionId);
+					return parent
+						? {
+								sideParentTitle:
+									getSessionMetadataTitle(parent.metadata) ||
+									"Main conversation",
+							}
+						: null;
+				},
+				isSideVisible: (sessionId, environmentId) =>
+					visibleSideRef.current === sessionKey({ sessionId, environmentId }),
+			}),
+		[],
+	);
 
 	const createThreadForEnvironment = useCallback(
 		(environmentId: string) => {
@@ -1147,6 +1205,8 @@ function App() {
 		[dispatchApp],
 	);
 	const sessionHistory = useSessionHistory({
+		sideSessionParents,
+		visibleSideSessionId,
 		activeSessionId: activeHistorySessionId,
 		onDeleteSession: (sessionId, environmentId) =>
 			handleDeleteSession(sessionId, undefined, environmentId),
@@ -1392,6 +1452,13 @@ function App() {
 		confirmHandoffGit,
 		initialAttachments: thread.initialAttachments,
 		presentation,
+		onSideVisibilityChange: handleSideVisibility,
+		unreadSideReply: sessionHistory.unreadSideSessionIds.has(
+			sessionKey({
+				sessionId: thread.sessionId ?? thread.historySession?.sessionId ?? "",
+				environmentId: thread.environmentId,
+			}),
+		),
 		interactive: view === "chat",
 		selectedSideSession,
 		onOpenSide: (session, submission, reveal) =>
@@ -1609,6 +1676,8 @@ function App() {
 let workspacesLoadedOnce = false;
 
 type ThreadPaneProps = {
+	onSideVisibilityChange: (id: string, visible: boolean) => void;
+	unreadSideReply: boolean;
 	presentation: "main" | "side";
 	interactive: boolean;
 	selectedSideSession?: SessionHistoryItem;
@@ -1698,6 +1767,8 @@ function ChatThreadPane({
 	mainConfig,
 	sideThread,
 	onAttentionChange,
+	onSideVisibilityChange,
+	unreadSideReply,
 	presentation,
 	interactive,
 	selectedSideSession,
@@ -1816,7 +1887,9 @@ function ChatThreadPane({
 						? "Working"
 						: status === "error" || status === "failed"
 							? "Failed"
-							: "";
+							: unreadSideReply
+								? "New reply"
+								: "";
 		onAttentionChange(threadId, label);
 	}, [
 		onAttentionChange,
@@ -1828,7 +1901,14 @@ function ChatThreadPane({
 		pendingToolApprovals.length,
 		pendingAskQuestions.length,
 		status,
+		unreadSideReply,
 	]);
+	useEffect(() => {
+		if (!isSide || !sessionId) return;
+		const id = sessionKey({ sessionId, environmentId });
+		onSideVisibilityChange(id, visible);
+		return () => onSideVisibilityChange(id, false);
+	}, [isSide, sessionId, environmentId, visible, onSideVisibilityChange]);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
 	useEffect(() => {

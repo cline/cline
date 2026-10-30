@@ -4371,7 +4371,14 @@ describe("side conversation lifecycle", () => {
 				type: "pending_prompts",
 				payload: {
 					sessionId: parentId,
-					prompts: [{ id: "during-restart", prompt: "later update" }],
+					prompts: [
+						{
+							id: "during-restart",
+							prompt: "later update",
+							delivery: "queue",
+							attachmentCount: 0,
+						},
+					],
 				},
 			});
 			if (newerStatus) {

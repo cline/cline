@@ -62,6 +62,96 @@ afterEach(() => {
 });
 
 describe("desktop notifications", () => {
+	it("keeps side completion silent without consuming the main completion notification", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications({
+			resolveSession: async (id, environment) =>
+				id === "side" && environment === "local"
+					? { sideParentTitle: "Main task" }
+					: {},
+		});
+		for (const sessionId of ["side", "main"]) {
+			emit("chat_event", {
+				sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+			});
+			emit("chat_session_ended", { sessionId, reason: "completed" });
+		}
+		await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledOnce());
+		expect(mocks.invoke).toHaveBeenCalledWith(
+			"show_session_notification",
+			expect.objectContaining({ sessionId: "main", title: "Task completed" }),
+		);
+		emit("chat_session_ended", {
+			sessionId: "side",
+			environmentId: "remote",
+			reason: "completed",
+		});
+		await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
+		stop();
+	});
+
+	it.each([
+		"tool_approval_state",
+		"ask_question_requested",
+		"chat_session_ended",
+	])("labels hidden-side %s with its parent and retains the side click target", async (event) => {
+		const { watchDesktopNotifications } = await importFresh();
+		mocks.focused = true;
+		let visible = false;
+		const stop = watchDesktopNotifications({
+			resolveSession: async () => ({ sideParentTitle: "Main task" }),
+			isSideVisible: () => visible,
+		});
+		const payload = (id: string) => ({
+			sessionId: "side",
+			requestId: id,
+			question: "Choose one",
+			reason: "error",
+			items: [{ requestId: id, toolName: "edit_file" }],
+		});
+		emit(event, payload("first"));
+		emit(event, payload("first"));
+		await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledOnce());
+		expect(mocks.invoke).toHaveBeenCalledWith(
+			"show_session_notification",
+			expect.objectContaining({
+				sessionId: "side",
+				title: "Main task",
+				body: expect.stringContaining("Side chat"),
+			}),
+		);
+		visible = true;
+		emit("chat_session_status", { sessionId: "side", status: "running" });
+		emit(event, payload("second"));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mocks.invoke).toHaveBeenCalledOnce();
+		stop();
+	});
+
+	it("does not notify when session resolution fails or the watcher is disposed during lookup", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const pending = Promise.withResolvers<{
+			sideParentTitle?: string;
+		} | null>();
+		const stop = watchDesktopNotifications({
+			resolveSession: () => pending.promise,
+		});
+		emit("chat_session_ended", { sessionId: "deleted", reason: "completed" });
+		stop();
+		pending.resolve({});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mocks.invoke).not.toHaveBeenCalled();
+		const stopMissing = watchDesktopNotifications({
+			resolveSession: async () => null,
+		});
+		emit("chat_session_ended", { sessionId: "deleted", reason: "error" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mocks.invoke).not.toHaveBeenCalled();
+		stopMissing();
+	});
+
 	it("does not deduplicate completion notifications across hosts", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();
