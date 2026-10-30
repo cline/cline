@@ -7,11 +7,11 @@ import {
 import type { MessageWithMetadata } from "@cline/llms";
 import { describe, expect, it, vi } from "vitest";
 // biome-ignore lint/style/noRestrictedImports: Exercise actual compaction in this desktop integration test without expanding the SDK public API.
-import { runAgenticCompaction } from "../../../../sdk/packages/core/src/extensions/context/agentic-compaction";
+import { runAgenticCompaction } from "../../../../../sdk/packages/core/src/extensions/context/agentic-compaction";
 // biome-ignore lint/style/noRestrictedImports: Exercise actual compaction in this desktop integration test without expanding the SDK public API.
-import { runBasicCompaction } from "../../../../sdk/packages/core/src/extensions/context/basic-compaction";
-import { DESKTOP_SIDE_REFERENCE_KIND } from "../shared/side-conversation";
-import { captureSideReference } from "./side-conversation-context";
+import { runBasicCompaction } from "../../../../../sdk/packages/core/src/extensions/context/basic-compaction";
+import { DESKTOP_SIDE_REFERENCE_KIND } from "../../shared/side-conversation";
+import { captureSideReference } from "./context";
 
 vi.mock("@cline/llms", async (original) => ({
 	...(await original<typeof import("@cline/llms")>()),

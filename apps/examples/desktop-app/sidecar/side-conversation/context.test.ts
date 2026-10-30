@@ -1,14 +1,14 @@
-import { readSideConversation } from "../shared/side-conversation";
+import { readSideConversation } from "../../shared/side-conversation";
 import { countUserRunMessages } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import { describe, expect, it } from "vitest";
 import {
 	parseSideCommand,
 	SIDE_REFERENCE_BUDGET_BYTES,
-} from "../shared/side-conversation";
-import { derivePromptFromMessages } from "./session-data/common";
-import { readSessionMessagesSync } from "./session-data/messages";
-import { captureSideReference } from "./side-conversation-context";
+} from "../../shared/side-conversation";
+import { derivePromptFromMessages } from "../session-data/common";
+import { readSessionMessagesSync } from "../session-data/messages";
+import { captureSideReference } from "./context";
 
 const exchange = (question: string, answer: string): MessageWithMetadata[] => [
 	{ role: "user", content: question },
@@ -304,15 +304,15 @@ describe("current context and provider request", () => {
 	it("delivers active PR evidence to the actual API-handler request as text without parent tool protocol or usage", async () => {
 		const { messagesToAgentMessages, agentMessagesToMessages } = await import(
 			// biome-ignore lint/style/noRestrictedImports: Verify the real model-request boundary without adding SDK exports for a desktop test.
-			"../../../../sdk/packages/core/src/runtime/config/agent-message-codec"
+			"../../../../../sdk/packages/core/src/runtime/config/agent-message-codec"
 		);
 		const { MessageBuilder } = await import(
 			// biome-ignore lint/style/noRestrictedImports: Verify the real model-request boundary without adding SDK exports for a desktop test.
-			"../../../../sdk/packages/core/src/session/services/message-builder"
+			"../../../../../sdk/packages/core/src/session/services/message-builder"
 		);
 		const { createAgentModelFromApiHandler } = await import(
 			// biome-ignore lint/style/noRestrictedImports: Verify the real model-request boundary without adding SDK exports for a desktop test.
-			"../../../../sdk/packages/core/src/services/llms/apihandler-agent-model-adapter"
+			"../../../../../sdk/packages/core/src/services/llms/apihandler-agent-model-adapter"
 		);
 		const source: MessageWithMetadata[] = [
 			{ role: "user", content: "Review synthetic PR 42" },

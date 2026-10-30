@@ -31,7 +31,7 @@ import {
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
-import { captureVisibleSideContext } from "@/hooks/chat-session/side-context";
+import { captureVisibleSideContext } from "@/hooks/side-conversation/visible-context";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,

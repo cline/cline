@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { SideVisibleContextSchema } from "../../../shared/side-conversation";
-import { captureVisibleSideContext } from "./side-context";
+import { captureVisibleSideContext } from "./visible-context";
 
 const row = (
 	id: string,

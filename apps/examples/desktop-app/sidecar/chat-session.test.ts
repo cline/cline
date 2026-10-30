@@ -53,7 +53,7 @@ import {
 	persistSessionMessages,
 	readPersistedChatMessages,
 } from "./session-data/messages";
-import { SIDE_SCOPE_INSTRUCTIONS } from "./side-conversation-context";
+import { SIDE_SCOPE_INSTRUCTIONS } from "./side-conversation/context";
 import * as sessionPaths from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {

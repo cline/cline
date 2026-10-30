@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import {
 	assertSideConversationAvailable,
 	listTemporarySideConversations,
-} from "./temporary-side-conversations";
+} from "./side-conversation/lifecycle";
 import { randomUUID } from "node:crypto";
 import {
 	existsSync,

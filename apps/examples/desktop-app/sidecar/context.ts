@@ -47,7 +47,7 @@ import {
 	isTemporarySideClosed,
 	deleteTemporarySideConversation,
 	listTemporarySideConversations,
-} from "./temporary-side-conversations";
+} from "./side-conversation/lifecycle";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 const hubClientInitialization = new WeakMap<

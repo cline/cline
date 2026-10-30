@@ -1,7 +1,7 @@
 import type { ClineCore } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import { describe, expect, it, vi } from "vitest";
-import { createSideHistoryTool } from "./side-conversation-history";
+import { createSideHistoryTool } from "./history";
 
 const context = { agentId: "side", iteration: 0 };
 

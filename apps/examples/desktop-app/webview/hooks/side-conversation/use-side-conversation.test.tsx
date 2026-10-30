@@ -10,7 +10,7 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
-import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "../use-prompt-draft";
 import { useSideConversation } from "./use-side-conversation";
 
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));

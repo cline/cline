@@ -8,9 +8,9 @@ import {
 import {
 	readSideConversation,
 	type SideConversation,
-} from "../shared/side-conversation";
-import { sessionLogPath } from "./paths";
-import { LOCAL_ENVIRONMENT_ID, type SidecarContext } from "./types";
+} from "../../shared/side-conversation";
+import { sessionLogPath } from "../paths";
+import { LOCAL_ENVIRONMENT_ID, type SidecarContext } from "../types";
 
 export function sideConversationOwner(ctx: SidecarContext) {
 	return {

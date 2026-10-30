@@ -1,6 +1,6 @@
 import { Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { SideOpeningState } from "@/hooks/use-side-conversation";
+import type { SideOpeningState } from "@/hooks/side-conversation/use-side-conversation";
 
 export function SideConversationOpening({
 	state,

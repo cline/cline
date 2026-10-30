@@ -10,7 +10,7 @@ import {
 } from "@cline/core";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { expect, it, vi } from "vitest";
-import { cleanupStaleSideConversations } from "./temporary-side-conversations";
+import { cleanupStaleSideConversations } from "./lifecycle";
 
 it("cleans dead and reused process owners without deleting another live app's sides or legacy history", async () => {
 	const previous = resolveClineDir();

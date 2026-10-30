@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { type ClineCore, createTool } from "@cline/core";
 import { z } from "zod/v4";
-import { referenceByteLength } from "../shared/side-conversation";
-import { projectSideReferenceBlocks } from "./side-conversation-context";
+import { referenceByteLength } from "../../shared/side-conversation";
+import { projectSideReferenceBlocks } from "./context";
 
 const limit = z.number().int().min(1).max(12).default(6);
 const reference = z.string().regex(/^\d+:[a-f0-9]{64}$/);

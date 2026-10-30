@@ -5,14 +5,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { PromptDraftCache } from "./use-prompt-draft";
+import type { PromptDraftCache } from "../use-prompt-draft";
 import { toast } from "@/hooks/use-toast";
 import type { InitialSideSubmission } from "@/lib/desktop-app-state";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import {
 	type CreateSideConversationResult,
 	parseSideCommand,
-} from "../../shared/side-conversation";
+} from "../../../shared/side-conversation";
 
 export type SideOpeningState =
 	| { kind: "idle" }

@@ -98,12 +98,12 @@ import {
 	isTemporarySideClosed,
 	deleteTemporarySideConversation,
 	sideConversationOwner,
-} from "./temporary-side-conversations";
+} from "./side-conversation/lifecycle";
 import {
 	captureSideReference,
 	SIDE_SCOPE_INSTRUCTIONS,
-} from "./side-conversation-context";
-import { createSideHistoryTool } from "./side-conversation-history";
+} from "./side-conversation/context";
+import { createSideHistoryTool } from "./side-conversation/history";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
