@@ -45,7 +45,15 @@ export function serializeReferenceData(
 	return sanitizeReferenceText(
 		JSON.stringify(value, (_key, item: unknown) => {
 			if (item && typeof item === "object" && "type" in item) {
-				if (["image", "media", "file"].includes(String(item.type))) {
+				if (
+					["image", "audio", "media", "file"].includes(String(item.type)) ||
+					(item.type === "resource" &&
+						"resource" in item &&
+						item.resource !== null &&
+						typeof item.resource === "object" &&
+						"blob" in item.resource &&
+						typeof item.resource.blob === "string")
+				) {
 					onOmittedMedia?.();
 					return "[media omitted]";
 				}
