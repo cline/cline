@@ -19,8 +19,8 @@ import {
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
-import { APICallError } from "ai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { APICallError, RetryError, StreamProviderError } from "ai";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
@@ -98,11 +98,17 @@ function createFetchMock() {
 }
 
 vi.mock("ai", async (importOriginal) => {
-	const { APICallError, RetryError } =
-		await importOriginal<typeof import("ai")>();
+	const {
+		APICallError,
+		RetryError,
+		StreamProviderError,
+		ToolChoiceViolationError,
+	} = await importOriginal<typeof import("ai")>();
 	return {
 		APICallError,
 		RetryError,
+		StreamProviderError,
+		ToolChoiceViolationError,
 		jsonSchema: (schema: unknown, options: unknown) => ({
 			jsonSchema: schema,
 			...(options && typeof options === "object" ? options : {}),
@@ -7853,5 +7859,165 @@ describe("sdk-gateway", () => {
 		expect(readdirSync(keepDir)).toContain(
 			"old.ai_sdk_prompt.1.provider-request.json",
 		);
+	});
+});
+
+describe("stream retry backoff", () => {
+	type OnError = (event: { error: unknown }) => Promise<void> | void;
+	const overloaded = () =>
+		new StreamProviderError({
+			message: "Our servers are currently overloaded. Please try again later.",
+			code: "server_is_overloaded",
+		});
+
+	async function openStream(input: {
+		emitStatusNotice?: ReturnType<typeof vi.fn>;
+		parts?: unknown[];
+	}) {
+		let onError: OnError | undefined;
+		streamTextSpy.mockImplementation((options: { onError?: OnError }) => {
+			onError = options.onError;
+			return {
+				fullStream: makeStreamParts(
+					(input.parts ?? [
+						{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+					]) as never,
+				),
+			};
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				emitStatusNotice: input.emitStatusNotice,
+			}),
+		);
+		if (!onError) throw new Error("streamText was not given onError");
+		return { onError, capture, events };
+	}
+
+	function settle(promise: Promise<void> | void) {
+		const state = { settled: false };
+		Promise.resolve(promise).then(() => {
+			state.settled = true;
+		});
+		return state;
+	}
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("waits before the SDK re-dials and tells the user", async () => {
+		const emitStatusNotice = vi.fn();
+		const { onError, capture } = await openStream({ emitStatusNotice });
+
+		const wait = settle(onError({ error: overloaded() }));
+		await vi.advanceTimersByTimeAsync(999);
+		expect(wait.settled).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(wait.settled).toBe(true);
+
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"provider error — retrying in 1s (attempt 1/3)",
+			expect.objectContaining({
+				kind: "stream_retry",
+				attempt: 1,
+				maxAttempts: 3,
+				delayMs: 1000,
+				providerId: "openai-native",
+			}),
+		);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.stream_retry",
+			properties: expect.objectContaining({
+				providerId: "openai-native",
+				attempt: 1,
+				delayMs: 1000,
+			}),
+		});
+	});
+
+	it("doubles the wait per attempt and stops once the SDK stops retrying", async () => {
+		const emitStatusNotice = vi.fn();
+		const { onError } = await openStream({ emitStatusNotice });
+
+		for (const delayMs of [1000, 2000, 4000]) {
+			const wait = settle(onError({ error: overloaded() }));
+			await vi.advanceTimersByTimeAsync(delayMs - 1);
+			expect(wait.settled).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(wait.settled).toBe(true);
+		}
+		const terminal = settle(onError({ error: overloaded() }));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(terminal.settled).toBe(true);
+		expect(emitStatusNotice).toHaveBeenCalledTimes(3);
+	});
+
+	it("does not wait for errors the SDK will not retry", async () => {
+		const emitStatusNotice = vi.fn();
+		const { onError } = await openStream({ emitStatusNotice });
+		const exhausted = new RetryError({
+			message: "Failed after 4 attempts",
+			reason: "maxRetriesExceeded",
+			errors: [
+				new APICallError({
+					message: "overloaded",
+					url: "https://api.example.com/v1/responses",
+					requestBodyValues: {},
+					statusCode: 503,
+				}),
+			],
+		});
+		const unauthorized = new APICallError({
+			message: "Invalid API key",
+			url: "https://api.example.com/v1/responses",
+			requestBodyValues: {},
+			statusCode: 401,
+		});
+
+		for (const error of [exhausted, unauthorized]) {
+			const wait = settle(onError({ error }));
+			await vi.advanceTimersByTimeAsync(0);
+			expect(wait.settled).toBe(true);
+		}
+		expect(emitStatusNotice).not.toHaveBeenCalled();
+	});
+
+	it("records the retries on the terminal failure", async () => {
+		const error = overloaded();
+		streamTextSpy.mockImplementation((options: { onError?: OnError }) => {
+			void options.onError?.({ error });
+			return { fullStream: makeStreamParts([{ type: "error", error }]) };
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				streamRetryAttempts: 1,
+				streamRetryWaitMs: 1000,
+			}),
+		});
 	});
 });

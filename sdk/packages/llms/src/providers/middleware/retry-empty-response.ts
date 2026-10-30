@@ -72,6 +72,7 @@ import type {
 	LanguageModelV4StreamResult,
 	LanguageModelV4Usage,
 } from "@ai-sdk/provider";
+import { sleep } from "../sleep";
 import { classifyModelStreamPart } from "./stream-part-classification";
 
 /** Minimal logger surface (a subset of `BasicLogger`). */
@@ -244,25 +245,6 @@ function withAggregatedUsage(
 		usage = addUsage(discarded, usage);
 	}
 	return { ...finish, usage };
-}
-
-/** Sleep that resolves early (without throwing) when the signal aborts. */
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-	return new Promise((resolve) => {
-		if (ms <= 0 || signal?.aborted) {
-			resolve();
-			return;
-		}
-		const onAbort = () => {
-			clearTimeout(timer);
-			resolve();
-		};
-		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort);
-			resolve();
-		}, ms);
-		signal?.addEventListener("abort", onAbort, { once: true });
-	});
 }
 
 /**

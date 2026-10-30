@@ -551,6 +551,7 @@ export {
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
+	CaptureSdkStreamRetryInput,
 	CaptureTaskLifecycleEventInput,
 	CoreSpawnReason,
 	ITelemetryService,
@@ -570,6 +571,7 @@ export {
 	CORE_SPAWN_REASONS,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureSdkStreamRetry,
 	captureTaskLifecycleEvent,
 	isOtlpTraceRelayProvider,
 	markOtlpTraceRelayProvider,
@@ -577,6 +579,7 @@ export {
 	OTLP_TRACE_RELAY_MARKER,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
+	SDK_STREAM_RETRY_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_MAX_TOKENS_RECOVERY_EVENT,
