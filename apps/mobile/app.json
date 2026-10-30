@@ -12,7 +12,7 @@
 		"ios": {
 			"bundleIdentifier": "bot.cline.app",
 			"supportsTablet": true,
-			"buildNumber": "7"
+			"buildNumber": "8"
 		},
 		"android": {
 			"package": "bot.cline.app",
