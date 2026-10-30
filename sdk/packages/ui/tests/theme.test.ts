@@ -308,11 +308,9 @@ describe("@cline/ui theme contract", () => {
 				[
 					"primary",
 					"success-solid",
+					"warning-solid",
 					"error-solid",
-					"success-text",
-					"error-text",
-					"warning-contrast",
-					"info-contrast",
+					"info-solid",
 				].includes(token)
 			) {
 				expect(root).toContain(`--${token}:`);
@@ -365,13 +363,19 @@ describe("@cline/ui theme contract", () => {
 		expect(shared).toContain(
 			"--sidebar-primary-foreground: var(--primary-foreground);",
 		);
-		for (const status of ["success", "error"]) {
+		for (const [status, lightStep, darkStep] of [
+			["success", 10, 6],
+			["warning", 10, 6],
+			["error", 9, 6],
+			["info", 9, 7],
+		] as const) {
 			expect(root).toContain(
-				`--${status}-solid: var(--${status}-${status === "success" ? 10 : 9});`,
+				`--${status}-solid: var(--${status}-${lightStep});`,
 			);
-			expect(dark).toContain(`--${status}-solid: var(--${status}-6);`);
-			expect(root).toContain(`--${status}-text: var(--${status}-10);`);
-			expect(dark).toContain(`--${status}-text: var(--${status}-9);`);
+			expect(dark).toContain(
+				`--${status}-solid: var(--${status}-${darkStep});`,
+			);
+			expect(shared).toContain(`--${status}-text: var(--${status}-10);`);
 			expect(shared).toContain(`--${status}-contrast: #fff;`);
 		}
 		for (const mode of [root, dark]) {
@@ -387,13 +391,9 @@ describe("@cline/ui theme contract", () => {
 		expect(shared).toContain("--secondary-foreground: var(--text-1);");
 		expect(shared).toContain("--ring: var(--focus-ring);");
 		expect(shared).toContain("--destructive: var(--error-solid);");
-		for (const status of ["success", "warning"]) {
-			expect(shared).toContain(`--${status}-surface: var(--${status}-2);`);
+		for (const status of ["success", "warning", "error", "info"]) {
+			expect(shared).toContain(`--${status}-surface: var(--${status}-a2);`);
 			expect(shared).toContain(`--${status}-border: var(--${status}-a4);`);
-		}
-		for (const status of ["error", "info"]) {
-			expect(shared).toContain(`--${status}-surface: var(--${status}-2);`);
-			expect(shared).toContain(`--${status}-border: var(--${status}-a3);`);
 		}
 	});
 

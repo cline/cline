@@ -66,13 +66,13 @@
 	--error-3: oklch(93% 0.07 31);
 	--error-4: oklch(90% 0.12 30);
 	--error-5: oklch(86% 0.15 30);
-	--error-6: oklch(80.5% 0.18 30);
-	--error-7: oklch(74.5% 0.2 30);
-	--error-8: oklch(66% 0.21 30);
-	--error-9: oklch(59% 0.21 30);
-	--error-10: oklch(46% 0.25 29);
-	--error-11: oklch(22% 0.48 29.5);
-	--error-12: oklch(23% 0.4 30);
+	--error-6: oklch(80% 0.18 30);
+	--error-7: oklch(74% 0.2 30);
+	--error-8: oklch(66% 0.22 30);
+	--error-9: oklch(58% 0.23 30);
+	--error-10: oklch(48% 0.24 29);
+	--error-11: oklch(23% 0.48 29.5);
+	--error-12: oklch(18% 0.4 30);
 
 	/* Error alpha */
 	--error-a1: oklch(97.270132% 0.013589 34.299098 / 1);
@@ -80,17 +80,17 @@
 	--error-a3: oklch(91.006106% 0.047457 35.853623 / 1);
 	--error-a4: oklch(86.065085% 0.076759 35.630387 / 1);
 	--error-a5: oklch(81.425908% 0.106189 33.70766 / 1);
-	--error-a6: oklch(76.073877% 0.143506 31.495378 / 1);
-	--error-a7: oklch(71.547537% 0.178705 30.469073 / 1);
-	--error-a8: oklch(62.170187% 0.245858 30.481955 / 0.772549);
-	--error-a9: oklch(56.512699% 0.224663 30.300762 / 0.866667);
-	--error-a10: oklch(50.134222% 0.205727 29.233885 / 1);
-	--error-a11: oklch(43.091715% 0.176828 29.233885 / 1);
-	--error-a12: oklch(40.194593% 0.16494 29.233885 / 1);
+	--error-a6: oklch(75.88254% 0.145068 31.901152 / 1);
+	--error-a7: oklch(71.252778% 0.181127 30.436619 / 1);
+	--error-a8: oklch(62.979679% 0.250882 30.230871 / 0.796078);
+	--error-a9: oklch(57.919898% 0.232114 30.026167 / 0.980392);
+	--error-a10: oklch(50.922873% 0.208963 29.233885 / 1);
+	--error-a11: oklch(44.114539% 0.181025 29.233885 / 1);
+	--error-a12: oklch(35.747138% 0.146689 29.233885 / 1);
 
 	/* Success */
 	--success-1: oklch(98.5% 0.03 147);
-	--success-2: oklch(96% 0.05 148);
+	--success-2: oklch(96% 0.04 148);
 	--success-3: oklch(93.5% 0.07 148);
 	--success-4: oklch(90.5% 0.09 148);
 	--success-5: oklch(87% 0.13 148);
@@ -104,7 +104,7 @@
 
 	/* Success alpha */
 	--success-a1: oklch(98.314033% 0.027558 147.032691 / 1);
-	--success-a2: oklch(94.091391% 0.106906 144.666918 / 0.501961);
+	--success-a2: oklch(88.697284% 0.241645 141.543864 / 0.168627);
 	--success-a3: oklch(82.261753% 0.278974 142.507648 / 0.188235);
 	--success-a4: oklch(77.258496% 0.261313 142.654991 / 0.266667);
 	--success-a5: oklch(76.493893% 0.256239 142.925779 / 0.396078);
@@ -118,59 +118,59 @@
 
 	/* Warning */
 	--warning-1: oklch(99% 0.02 85);
-	--warning-2: oklch(97.2% 0.05 85);
-	--warning-3: oklch(94% 0.09 85);
-	--warning-4: oklch(89.5% 0.12 85);
-	--warning-5: oklch(84% 0.15 85);
-	--warning-6: oklch(78% 0.18 85);
-	--warning-7: oklch(71% 0.23 85);
-	--warning-8: oklch(63% 0.25 85);
-	--warning-9: oklch(53.5% 0.28 90);
-	--warning-10: oklch(46% 0.27 93);
-	--warning-11: oklch(37.5% 0.26 96);
-	--warning-12: oklch(28% 0.35 103);
+	--warning-2: oklch(97.2% 0.07 85);
+	--warning-3: oklch(94% 0.1 85);
+	--warning-4: oklch(90% 0.14 85);
+	--warning-5: oklch(86% 0.18 85);
+	--warning-6: oklch(82% 0.24 85);
+	--warning-7: oklch(78% 0.28 85);
+	--warning-8: oklch(72% 0.3 85);
+	--warning-9: oklch(64% 0.36 91);
+	--warning-10: oklch(52% 0.34 93);
+	--warning-11: oklch(43% 0.33 96);
+	--warning-12: oklch(32% 0.34 103);
 
 	/* Warning alpha */
 	--warning-a1: oklch(98.739421% 0.018863 93.658287 / 1);
-	--warning-a2: oklch(96.666619% 0.048207 93.001634 / 1);
-	--warning-a3: oklch(93.239098% 0.087414 90.373859 / 1);
-	--warning-a4: oklch(89.25654% 0.119124 85.725607 / 1);
-	--warning-a5: oklch(79.864618% 0.166065 78.72835 / 0.737255);
-	--warning-a6: oklch(78.084379% 0.161095 81.477175 / 1);
-	--warning-a7: oklch(71.569303% 0.156115 68.90635 / 1);
-	--warning-a8: oklch(63.976487% 0.149835 60.134929 / 1);
-	--warning-a9: oklch(54.321907% 0.135902 54.146663 / 1);
-	--warning-a10: oklch(46.814308% 0.117468 53.906594 / 1);
-	--warning-a11: oklch(38.303075% 0.099462 51.280616 / 1);
-	--warning-a12: oklch(28.557887% 0.087791 41.03689 / 1);
+	--warning-a2: oklch(96.12289% 0.066699 96.367535 / 1);
+	--warning-a3: oklch(93.099008% 0.096222 92.183677 / 1);
+	--warning-a4: oklch(89.012402% 0.13665 89.102481 / 1);
+	--warning-a5: oklch(85.170844% 0.174189 87.039836 / 1);
+	--warning-a6: oklch(81.424436% 0.170412 76.910492 / 1);
+	--warning-a7: oklch(78.048504% 0.172395 67.073316 / 1);
+	--warning-a8: oklch(73.035707% 0.175554 57.60897 / 1);
+	--warning-a9: oklch(65.232669% 0.16718 52.25759 / 1);
+	--warning-a10: oklch(52.89626% 0.143974 48.036025 / 1);
+	--warning-a11: oklch(43.756957% 0.123072 45.974109 / 1);
+	--warning-a12: oklch(32.499023% 0.089235 47.470885 / 1);
 
 	/* Info */
-	--info-1: oklch(99% 0.0051 230);
-	--info-2: oklch(97% 0.0155 230);
-	--info-3: oklch(94% 0.0314 230);
-	--info-4: oklch(90% 0.0532 230);
-	--info-5: oklch(85% 0.0812 230);
-	--info-6: oklch(79% 0.1 230);
-	--info-7: oklch(71% 0.12 230);
-	--info-8: oklch(63% 0.12 230);
-	--info-9: oklch(55% 0.13 230);
-	--info-10: oklch(47% 0.11 230);
-	--info-11: oklch(37% 0.12 230);
-	--info-12: oklch(28% 0.12 230);
+	--info-1: oklch(99% 0.018 232);
+	--info-2: oklch(96.5% 0.03 230);
+	--info-3: oklch(93.5% 0.05 230);
+	--info-4: oklch(89.5% 0.075 230);
+	--info-5: oklch(85% 0.095 230);
+	--info-6: oklch(79% 0.12 230);
+	--info-7: oklch(71% 0.135 230);
+	--info-8: oklch(63.5% 0.145 230);
+	--info-9: oklch(54.5% 0.14 230);
+	--info-10: oklch(45% 0.145 230);
+	--info-11: oklch(37% 0.14 230);
+	--info-12: oklch(28% 0.135 220);
 
 	/* Info alpha */
-	--info-a1: oklch(99.403035% 0.00843 197.02062 / 0.501961);
-	--info-a2: oklch(80.488675% 0.137599 208.522206 / 0.058824);
-	--info-a3: oklch(72.955893% 0.144705 229.660182 / 0.137255);
-	--info-a4: oklch(69.641906% 0.152038 237.127992 / 0.25098);
-	--info-a5: oklch(68.993879% 0.155319 239.020935 / 0.4);
-	--info-a6: oklch(66.044395% 0.145677 237.745944 / 0.545098);
-	--info-a7: oklch(63.700081% 0.137583 236.358057 / 0.74902);
-	--info-a8: oklch(59.844726% 0.122432 232.359143 / 0.901961);
-	--info-a9: oklch(55.654385% 0.11787 234.881599 / 1);
-	--info-a10: oklch(47.73973% 0.099701 233.843155 / 1);
-	--info-a11: oklch(38.634808% 0.094255 243.456139 / 1);
-	--info-a12: oklch(30.105914% 0.086015 250.350415 / 1);
+	--info-a1: oklch(98.752434% 0.017787 196.868927 / 0.835294);
+	--info-a2: oklch(86.783068% 0.147568 203.464229 / 0.101961);
+	--info-a3: oklch(79.740473% 0.146245 221.371193 / 0.2);
+	--info-a4: oklch(75.303642% 0.153965 232.180862 / 0.321569);
+	--info-a5: oklch(73.005061% 0.160178 237.379909 / 0.447059);
+	--info-a6: oklch(70.870089% 0.155317 237.246215 / 0.631373);
+	--info-a7: oklch(68.217506% 0.140701 232.964341 / 0.87451);
+	--info-a8: oklch(64.306215% 0.133772 233.543341 / 1);
+	--info-a9: oklch(55.571315% 0.121662 237.177601 / 1);
+	--info-a10: oklch(46.996057% 0.113897 243.115817 / 1);
+	--info-a11: oklch(39.172204% 0.104653 247.68209 / 1);
+	--info-a12: oklch(30.840029% 0.080929 246.908623 / 1);
 }
 
 .dark .cline-ui-theme,
@@ -232,116 +232,116 @@
 	--accent-a12: oklch(87.388844% 0.062529 279.057175 / 1);
 
 	/* Error */
-	--error-1: oklch(17% 0.06 31);
-	--error-2: oklch(21% 0.08 30);
-	--error-3: oklch(27% 0.09 30);
-	--error-4: oklch(33% 0.11 30);
-	--error-5: oklch(43% 0.143 28);
-	--error-6: oklch(55% 0.18 28);
-	--error-7: oklch(65% 0.2 28);
-	--error-8: oklch(74% 0.2 28);
-	--error-9: oklch(90% 0.27 28);
-	--error-10: oklch(95% 0.26 28);
-	--error-11: oklch(99% 0.23 27);
-	--error-12: oklch(96% 0.12 27);
+	--error-1: oklch(17% 0.08 31);
+	--error-2: oklch(21% 0.1 30);
+	--error-3: oklch(27% 0.1 30);
+	--error-4: oklch(32% 0.12 30);
+	--error-5: oklch(41% 0.14 28);
+	--error-6: oklch(52% 0.18 28);
+	--error-7: oklch(60% 0.19 28);
+	--error-8: oklch(67% 0.2 28);
+	--error-9: oklch(91% 0.32 28);
+	--error-10: oklch(100% 0.34 28);
+	--error-11: oklch(98% 0.26 27);
+	--error-12: oklch(96% 0.14 27);
 
 	/* Error alpha */
-	--error-a1: oklch(17.089726% 0.063753 32.584734 / 0.956863);
-	--error-a2: oklch(21.451215% 0.083963 30.84038 / 0.956863);
-	--error-a3: oklch(33.461244% 0.127221 31.881105 / 0.639216);
-	--error-a4: oklch(60.64175% 0.237371 30.838821 / 0.364706);
-	--error-a5: oklch(64.774469% 0.238417 29.37851 / 0.52549);
-	--error-a6: oklch(66.127568% 0.225533 28.580959 / 0.756863);
-	--error-a7: oklch(67.805649% 0.210235 28.290826 / 0.941176);
-	--error-a8: oklch(71.344015% 0.179886 28.341096 / 1);
-	--error-a9: oklch(74.281688% 0.156567 29.239871 / 1);
-	--error-a10: oklch(78.414223% 0.126535 31.930749 / 1);
-	--error-a11: oklch(83.845543% 0.090158 33.389059 / 1);
-	--error-a12: oklch(90.109017% 0.052864 37.072242 / 1);
+	--error-a1: oklch(17.641792% 0.072394 29.233885 / 1);
+	--error-a2: oklch(21.881711% 0.089792 29.233885 / 1);
+	--error-a3: oklch(28.817268% 0.110387 31.609183 / 0.866667);
+	--error-a4: oklch(36.641234% 0.14409 30.676977 / 0.776471);
+	--error-a5: oklch(64.059335% 0.242783 29.632493 / 0.494118);
+	--error-a6: oklch(64.915391% 0.234445 28.965135 / 0.713725);
+	--error-a7: oklch(66.861321% 0.216326 28.510737 / 0.847059);
+	--error-a8: oklch(68.401429% 0.204931 28.140222 / 0.972549);
+	--error-a9: oklch(69.699377% 0.193581 27.546383 / 1);
+	--error-a10: oklch(73.165021% 0.165219 28.716711 / 1);
+	--error-a11: oklch(80.361977% 0.112537 30.43572 / 1);
+	--error-a12: oklch(88.63874% 0.060937 34.684013 / 1);
 
 	/* Success */
-	--success-1: oklch(19% 0.15 158);
-	--success-2: oklch(24% 0.15 158);
-	--success-3: oklch(29% 0.15 158);
-	--success-4: oklch(35% 0.15 158);
-	--success-5: oklch(42% 0.15 158);
-	--success-6: oklch(51% 0.16 158);
-	--success-7: oklch(61% 0.18 158);
-	--success-8: oklch(73% 0.18 158);
-	--success-9: oklch(80% 0.15 158);
-	--success-10: oklch(86% 0.14 158);
-	--success-11: oklch(90% 0.1 158);
-	--success-12: oklch(93% 0.04 158);
+	--success-1: oklch(19% 0.15 160);
+	--success-2: oklch(24% 0.15 160);
+	--success-3: oklch(29% 0.15 160);
+	--success-4: oklch(35% 0.15 160);
+	--success-5: oklch(42% 0.15 160);
+	--success-6: oklch(51% 0.16 160);
+	--success-7: oklch(61% 0.18 160);
+	--success-8: oklch(70% 0.17 158);
+	--success-9: oklch(77% 0.16 158);
+	--success-10: oklch(83% 0.14 158);
+	--success-11: oklch(88% 0.11 158);
+	--success-12: oklch(93% 0.06 158);
 
 	/* Success alpha */
 	--success-a1: oklch(22.194137% 0.075521 142.495339 / 1);
 	--success-a2: oklch(26.789068% 0.091156 142.495339 / 1);
-	--success-a3: oklch(31.572082% 0.103454 143.658457 / 1);
-	--success-a4: oklch(37.237575% 0.11161 146.69031 / 1);
-	--success-a5: oklch(43.666816% 0.120664 149.858723 / 1);
-	--success-a6: oklch(52.258202% 0.136464 152.339078 / 1);
-	--success-a7: oklch(62.187852% 0.158364 153.525848 / 1);
-	--success-a8: oklch(73.275119% 0.174939 156.852207 / 1);
-	--success-a9: oklch(89.535039% 0.171334 157.444866 / 0.847059);
-	--success-a10: oklch(90.88048% 0.150433 157.841955 / 0.92549);
-	--success-a11: oklch(93.096908% 0.104432 158.214797 / 0.952941);
-	--success-a12: oklch(97.165374% 0.04244 158.096115 / 0.941176);
+	--success-a3: oklch(31.618077% 0.099872 144.855521 / 1);
+	--success-a4: oklch(37.28987% 0.1081 147.93935 / 1);
+	--success-a5: oklch(43.733244% 0.1168 151.322863 / 1);
+	--success-a6: oklch(52.616827% 0.133943 153.543203 / 1);
+	--success-a7: oklch(62.534376% 0.155932 154.5636 / 1);
+	--success-a8: oklch(70.266142% 0.166823 157.16038 / 1);
+	--success-a9: oklch(88.901995% 0.190252 157.253591 / 0.811765);
+	--success-a10: oklch(90.594377% 0.1562 157.597744 / 0.882353);
+	--success-a11: oklch(92.695743% 0.116967 157.915057 / 0.929412);
+	--success-a12: oklch(95.588793% 0.062562 158.453371 / 0.960784);
 
 	/* Warning */
-	--warning-1: oklch(18% 0.1 93);
-	--warning-2: oklch(23% 0.11 92);
-	--warning-3: oklch(28% 0.12 91);
-	--warning-4: oklch(33% 0.13 89);
-	--warning-5: oklch(39% 0.14 88);
-	--warning-6: oklch(46% 0.15 87);
-	--warning-7: oklch(56% 0.16 86);
-	--warning-8: oklch(68% 0.16 85);
-	--warning-9: oklch(79% 0.16 85);
-	--warning-10: oklch(89% 0.15 85);
-	--warning-11: oklch(93% 0.12 85);
-	--warning-12: oklch(97% 0.08 83);
+	--warning-1: oklch(19.5% 0.11 93);
+	--warning-2: oklch(23.5% 0.13 92);
+	--warning-3: oklch(27.5% 0.14 91);
+	--warning-4: oklch(33% 0.155 89);
+	--warning-5: oklch(40% 0.185 88);
+	--warning-6: oklch(52% 0.23 87);
+	--warning-7: oklch(62% 0.25 86);
+	--warning-8: oklch(71% 0.23 85);
+	--warning-9: oklch(79% 0.2 85);
+	--warning-10: oklch(88% 0.17 85);
+	--warning-11: oklch(93% 0.14 85);
+	--warning-12: oklch(97% 0.09 83);
 
 	/* Warning alpha */
-	--warning-a1: oklch(18.394088% 0.04504 55.949407 / 1);
-	--warning-a2: oklch(23.364506% 0.053449 62.670536 / 1);
-	--warning-a3: oklch(28.427495% 0.063826 64.907842 / 1);
-	--warning-a4: oklch(33.42876% 0.074718 65.48305 / 1);
-	--warning-a5: oklch(39.50496% 0.086453 68.415054 / 1);
-	--warning-a6: oklch(46.377164% 0.099568 71.525443 / 1);
-	--warning-a7: oklch(56.389984% 0.118571 75.754125 / 1);
-	--warning-a8: oklch(68.246845% 0.140975 80.978402 / 1);
-	--warning-a9: oklch(84.319149% 0.17126 85.216764 / 0.909804);
-	--warning-a10: oklch(88.064876% 0.147454 88.840684 / 1);
-	--warning-a11: oklch(91.755344% 0.116355 92.440076 / 1);
-	--warning-a12: oklch(95.566554% 0.074301 95.927863 / 1);
+	--warning-a1: oklch(19.993395% 0.048656 56.487816 / 1);
+	--warning-a2: oklch(24.025408% 0.059471 55.0235 / 1);
+	--warning-a3: oklch(27.920979% 0.068024 56.390877 / 1);
+	--warning-a4: oklch(33.609085% 0.080928 57.445944 / 1);
+	--warning-a5: oklch(40.708408% 0.098311 57.177757 / 1);
+	--warning-a6: oklch(52.863971% 0.126741 57.847963 / 1);
+	--warning-a7: oklch(62.960222% 0.146654 60.698986 / 1);
+	--warning-a8: oklch(71.569303% 0.156115 68.90635 / 1);
+	--warning-a9: oklch(79.269888% 0.164993 78.429826 / 1);
+	--warning-a10: oklch(86.83194% 0.166766 89.435807 / 1);
+	--warning-a11: oklch(91.088756% 0.134657 93.971492 / 1);
+	--warning-a12: oklch(95.195924% 0.083886 96.686688 / 1);
 
 	/* Info */
-	--info-1: oklch(18% 0.05 232);
-	--info-2: oklch(22% 0.07 232);
-	--info-3: oklch(26% 0.08 232);
-	--info-4: oklch(31% 0.08 231);
-	--info-5: oklch(37% 0.08 231);
-	--info-6: oklch(43% 0.1 231);
-	--info-7: oklch(51% 0.11 231);
-	--info-8: oklch(60% 0.11 231);
-	--info-9: oklch(71% 0.11 231);
-	--info-10: oklch(81% 0.1 230);
-	--info-11: oklch(89% 0.09 230);
-	--info-12: oklch(95% 0.05 230);
+	--info-1: oklch(19% 0.07 232);
+	--info-2: oklch(22.5% 0.09 232);
+	--info-3: oklch(26% 0.115 232);
+	--info-4: oklch(30% 0.14 231);
+	--info-5: oklch(36% 0.15 231);
+	--info-6: oklch(44% 0.16 231);
+	--info-7: oklch(53% 0.16 231);
+	--info-8: oklch(64% 0.15 231);
+	--info-9: oklch(71% 0.14 231);
+	--info-10: oklch(81% 0.12 230);
+	--info-11: oklch(89% 0.1 230);
+	--info-12: oklch(97% 0.07 230);
 
 	/* Info alpha */
-	--info-a1: oklch(18.666284% 0.042811 240.074231 / 1);
-	--info-a2: oklch(23.017938% 0.056177 243.47615 / 1);
-	--info-a3: oklch(26.961222% 0.064732 242.625007 / 1);
-	--info-a4: oklch(31.607621% 0.070146 238.061177 / 1);
-	--info-a5: oklch(37.105353% 0.077024 233.379731 / 1);
-	--info-a6: oklch(43.452394% 0.092066 234.91202 / 1);
-	--info-a7: oklch(51.264961% 0.105548 232.738852 / 1);
-	--info-a8: oklch(76.57761% 0.144873 231.349706 / 0.690196);
-	--info-a9: oklch(79.678705% 0.125255 230.582385 / 0.843137);
-	--info-a10: oklch(83.233267% 0.103116 229.533378 / 0.960784);
-	--info-a11: oklch(88.664613% 0.081711 219.75212 / 1);
-	--info-a12: oklch(94.705917% 0.04388 212.481734 / 1);
+	--info-a1: oklch(19.995443% 0.05407 248.188374 / 1);
+	--info-a2: oklch(24.010048% 0.068381 250.231545 / 1);
+	--info-a3: oklch(28.029099% 0.085014 252.458277 / 1);
+	--info-a4: oklch(32.587505% 0.101237 253.239478 / 1);
+	--info-a5: oklch(38.555588% 0.110824 250.574586 / 1);
+	--info-a6: oklch(46.506605% 0.121847 246.838724 / 1);
+	--info-a7: oklch(54.880942% 0.130432 242.081326 / 1);
+	--info-a8: oklch(64.803015% 0.137915 235.231948 / 1);
+	--info-a9: oklch(76.104491% 0.150712 231.022904 / 0.901961);
+	--info-a10: oklch(80.954927% 0.119826 229.85788 / 1);
+	--info-a11: oklch(88.437951% 0.088794 216.685201 / 1);
+	--info-a12: oklch(96.084404% 0.058158 196.224832 / 1);
 }
 
 .cline-ui-theme {
@@ -357,14 +357,6 @@
 	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
 	/* Solid roles choose brand steps that support white labels. */
 	--primary: var(--accent-9);
-	--success-solid: var(--success-10);
-	--error-solid: var(--error-9);
-	/* Amber and Sky step 9 use white labels on the light ramp. */
-	--warning-contrast: #fff;
-	--info-contrast: #fff;
-	/* Small status text needs deeper steps on light surfaces. */
-	--success-text: var(--success-10);
-	--error-text: var(--error-10);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Inter Variable", sans-serif;
@@ -412,6 +404,12 @@
 	--text-6xl: 3.75rem;
 	--text-6xl--line-height: 3.75rem;
 	--text-6xl--letter-spacing: -0.025em;
+
+	/* Filled statuses choose a palette step for each color mode. */
+	--success-solid: var(--success-10);
+	--warning-solid: var(--warning-10);
+	--error-solid: var(--error-9);
+	--info-solid: var(--info-9);
 }
 
 .dark .cline-ui-theme,
@@ -430,16 +428,15 @@
 	--card-surface: var(--neutral-3);
 	/* Blend the adjacent accent steps to keep white labels above 4.5:1. */
 	--primary: color-mix(in srgb, var(--accent-8) 60%, var(--accent-7));
-	--success-solid: var(--success-6);
-	--error-solid: var(--error-6);
-	--warning-contrast: #1c2024;
-	--info-contrast: #1c2024;
-	--success-text: var(--success-9);
-	--error-text: var(--error-9);
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
 	--font-weight-bold: 600;
+
+	--success-solid: var(--success-6);
+	--warning-solid: var(--warning-6);
+	--error-solid: var(--error-6);
+	--info-solid: var(--info-7);
 }
 
 .cline-ui-theme,
@@ -459,21 +456,23 @@
 	--border-2: var(--neutral-5);
 	--focus-ring: var(--accent-8);
 
-	/* Status roles. Solid surfaces and translucent borders share each status hue. */
-	--success-surface: var(--success-2);
+	/* Recompute status aliases in each theme, including nested dark roots. */
+	--success-surface: var(--success-a2);
 	--success-border: var(--success-a4);
+	--success-text: var(--success-10);
 	--success-contrast: #fff;
-	--warning-surface: var(--warning-2);
+	--warning-surface: var(--warning-a2);
 	--warning-border: var(--warning-a4);
-	--warning-solid: var(--warning-9);
 	--warning-text: var(--warning-10);
-	--error-surface: var(--error-2);
-	--error-border: var(--error-a3);
+	--warning-contrast: #fff;
+	--error-surface: var(--error-a2);
+	--error-border: var(--error-a4);
+	--error-text: var(--error-10);
 	--error-contrast: #fff;
-	--info-surface: var(--info-2);
-	--info-border: var(--info-a3);
-	--info-solid: var(--info-9);
-	--info-text: var(--info-11);
+	--info-surface: var(--info-a2);
+	--info-border: var(--info-a4);
+	--info-text: var(--info-10);
+	--info-contrast: #fff;
 
 	/* Global browser affordances. */
 	--scrollbar-thumb: var(--neutral-8);
