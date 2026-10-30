@@ -37,10 +37,21 @@ const files = parsePublishedArtifacts(
 );
 let container: HTMLDivElement;
 let root: Root;
+let reveal: () => void;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	mocks.user = { id: "one" };
 	mocks.accountReady = true;
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+				reveal = () => callback([{ isIntersecting: true }]);
+			}
+			observe() {}
+			disconnect() {}
+		},
+	);
 	mocks.invoke.mockReset().mockResolvedValue({
 		url: "https://storage.example/file?signed=1",
 		expiresAt: "2030-01-01T00:00:00Z",
@@ -53,6 +64,7 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	vi.unstubAllGlobals();
 });
 async function render() {
 	if (!files) throw new Error("Fixture must parse");
@@ -117,5 +129,32 @@ it("does not open a pending download after the account changes", async () => {
 	await act(async () =>
 		resolve({ url: "https://storage.example/old-account" }),
 	);
+	expect(mocks.open).not.toHaveBeenCalled();
+});
+
+it("renders a published image inside chat without opening the browser", async () => {
+	const images = parsePublishedArtifacts(
+		JSON.stringify({
+			files: [
+				{ path: "/workspace/screenshot.png", artifactId: "published-frame" },
+			],
+		}),
+	);
+	if (!images) throw new Error("Fixture must parse");
+	await act(async () =>
+		root.render(<PublishedArtifacts files={images} sessionId="ses-one" />),
+	);
+	expect(container.textContent).toContain("Loading image");
+	expect(mocks.invoke).not.toHaveBeenCalled();
+	await act(async () => reveal());
+	expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: "published-frame",
+	});
+	expect(container.querySelector("img")?.src).toBe(
+		"https://storage.example/file?signed=1",
+	);
+	expect(container.querySelector("img")?.alt).toBe("screenshot.png");
+	expect(container.querySelector("button")).toBeNull();
 	expect(mocks.open).not.toHaveBeenCalled();
 });
