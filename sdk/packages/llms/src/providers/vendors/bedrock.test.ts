@@ -1,5 +1,6 @@
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import { createBedrockProviderModule, resolveBedrockModelId } from "./bedrock";
 
 const createAmazonBedrockMock = vi.hoisted(() => vi.fn());
@@ -7,6 +8,7 @@ const fromNodeProviderChainMock = vi.hoisted(() => vi.fn());
 const bedrockModelMock = vi.hoisted(() =>
 	vi.fn((modelId: string) => ({ modelId })),
 );
+const wrapLanguageModelMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@ai-sdk/amazon-bedrock", () => ({
 	createAmazonBedrock: createAmazonBedrockMock,
@@ -14,6 +16,10 @@ vi.mock("@ai-sdk/amazon-bedrock", () => ({
 
 vi.mock("@aws-sdk/credential-providers", () => ({
 	fromNodeProviderChain: fromNodeProviderChainMock,
+}));
+
+vi.mock("ai", () => ({
+	wrapLanguageModel: wrapLanguageModelMock,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -29,6 +35,11 @@ describe("createBedrockProviderModule", () => {
 			secretAccessKey: "chain-secret-key",
 		}));
 		bedrockModelMock.mockClear();
+		wrapLanguageModelMock.mockReset();
+		wrapLanguageModelMock.mockImplementation(({ model, middleware }) => ({
+			wrapped: model,
+			middleware,
+		}));
 	});
 
 	afterEach(() => {
@@ -253,6 +264,74 @@ describe("createBedrockProviderModule", () => {
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"global.anthropic.claude-sonnet-4-6",
 		);
+	});
+
+	it("wraps non-Anthropic models with splitToolImagesMiddleware", async () => {
+		// Converse rejects image blocks inside `toolResult` content for some
+		// non-Anthropic models (e.g. Moonshot Kimi K3), leaving the session
+		// unrecoverable once a tool returns an image (cline/cline#14917).
+		// The middleware moves tool-result images into a following user
+		// message, as the Mistral/Ollama/OpenAI-compatible/Cline vendors do.
+		const module = await createBedrockProviderModule(
+			config({
+				apiKey: "bedrock-api-key",
+				options: { region: "us-east-1" },
+			}),
+		);
+
+		const model = module.operations.language("global.moonshotai.kimi-k3");
+
+		expect(wrapLanguageModelMock).toHaveBeenCalledTimes(1);
+		const { model: wrappedModel, middleware } =
+			wrapLanguageModelMock.mock.calls[0][0];
+		expect(wrappedModel).toEqual({ modelId: "global.moonshotai.kimi-k3" });
+		expect(middleware).toBe(splitToolImagesMiddleware);
+		expect(model).toBe(wrapLanguageModelMock.mock.results[0].value);
+	});
+
+	it("returns geo-prefixed Anthropic models unwrapped", async () => {
+		// The Anthropic converter renders multimodal tool-results faithfully,
+		// so the middleware must not run for it; the split test uses the
+		// resolved (profile-prefixed) id, so the check has to match ids like
+		// `eu.anthropic.…`, not just bare ones.
+		process.env.AWS_REGION = "eu-west-1";
+
+		const module = await createBedrockProviderModule(
+			config({ apiKey: "bedrock-api-key" }),
+		);
+
+		const model = module.operations.language(
+			"anthropic.claude-haiku-4-5-20251001-v1:0",
+		);
+
+		expect(wrapLanguageModelMock).not.toHaveBeenCalled();
+		expect(bedrockModelMock).toHaveBeenCalledWith(
+			"eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+		);
+		expect(model).toEqual({
+			modelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+		});
+	});
+
+	it("returns bare on-demand Anthropic model ids unwrapped", async () => {
+		const module = await createBedrockProviderModule(
+			config({
+				apiKey: "bedrock-api-key",
+				options: { region: "us-east-1" },
+			}),
+		);
+
+		const model = module.operations.language(
+			"anthropic.claude-3-5-sonnet-20241022-v2:0",
+		);
+
+		expect(wrapLanguageModelMock).not.toHaveBeenCalled();
+		expect(bedrockModelMock).toHaveBeenCalledWith(
+			"anthropic.claude-3-5-sonnet-20241022-v2:0",
+		);
+		expect(model).toEqual({
+			modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+		});
 	});
 });
 
