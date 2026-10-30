@@ -36,6 +36,7 @@ export function PublishedArtifacts({
 					<DownloadArtifact
 						sessionId={sessionId}
 						artifactId={file.artifactId}
+						downloadFilename={name}
 					/>
 				)}
 			</div>
@@ -91,13 +92,16 @@ export function PublishedArtifacts({
 function DownloadArtifact({
 	sessionId,
 	artifactId,
+	downloadFilename,
 }: {
 	sessionId: string;
 	artifactId: string;
+	downloadFilename: string;
 }) {
 	const { accountReady, state, open } = useArtifactResource({
 		sessionId,
 		reference: { type: "artifact", artifactId },
+		downloadFilename,
 	});
 	const busy = state.status === "loading";
 	const failed = state.status === "error";

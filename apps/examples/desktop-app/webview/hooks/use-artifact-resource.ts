@@ -26,15 +26,18 @@ const IDLE: ResourceState = { status: "idle" };
 export function useArtifactResource({
 	sessionId,
 	reference,
+	downloadFilename,
 }: {
 	sessionId: string;
 	reference: ArtifactReference;
+	downloadFilename?: string;
 }) {
 	const { user, activeOrganization, accountReady } = useAccount();
 	const scope = useMemo(
 		() => ({
 			sessionId,
 			artifactId: reference.artifactId,
+			downloadFilename,
 			userId: user?.id,
 			organizationId: activeOrganization?.organizationId,
 			accountReady,
@@ -42,6 +45,7 @@ export function useArtifactResource({
 		[
 			sessionId,
 			reference.artifactId,
+			downloadFilename,
 			user?.id,
 			activeOrganization?.organizationId,
 			accountReady,
@@ -104,6 +108,7 @@ export function useArtifactResource({
 								{
 									sessionId: scope.sessionId,
 									artifactId: scope.artifactId,
+									downloadFilename: scope.downloadFilename,
 								},
 							);
 				if (!isCurrent()) return;

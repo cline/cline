@@ -316,17 +316,20 @@ describe("Code sidecar runtime capabilities", () => {
 	});
 
 	it.each([
-		"https://api.example",
-		"https://api.example/api/v1",
-		"https://api.example/api/v1/",
-	])("resolves artifacts with an older Hub and API base %s", async (baseUrl) => {
+		["https://api.example", undefined],
+		["https://api.example/api/v1", undefined],
+		["https://api.example/api/v1/", undefined],
+		["https://api.example", "résumé.png"],
+	] as const)("resolves artifacts with API base %s and filename %s", async (baseUrl, downloadFilename) => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
 		await createSearchCloudManager(ctx, async () => []);
-		vi.spyOn(HubCloudSessionService.prototype, "command").mockRejectedValue(
-			new Error("Unknown cloud operation: getArtifactDownloadUrl"),
-		);
+		const hubCommand = vi
+			.spyOn(HubCloudSessionService.prototype, "command")
+			.mockRejectedValue(
+				new Error("Unknown cloud operation: getArtifactDownloadUrl"),
+			);
 		vi.spyOn(clineAuth, "getClineAccountId").mockReturnValue("account-one");
 		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(baseUrl);
 		const refresh = vi
@@ -344,11 +347,16 @@ describe("Code sidecar runtime capabilities", () => {
 			handleCommand(ctx, "resolve_artifact", {
 				sessionId: "ses-one",
 				artifactId: " frame/雪 ",
+				downloadFilename,
 			}),
 		).resolves.toEqual(download);
+		if (downloadFilename) expect(hubCommand).not.toHaveBeenCalled();
 		expect(refresh).toHaveBeenCalledOnce();
 		expect(fetch).toHaveBeenCalledExactlyOnceWith(
-			"https://api.example/api/v1/session/ses-one/artifacts/download-url?name=%20frame%2F%E9%9B%AA%20",
+			"https://api.example/api/v1/session/ses-one/artifacts/download-url?name=%20frame%2F%E9%9B%AA%20" +
+				(downloadFilename
+					? `&downloadFilename=${encodeURIComponent(downloadFilename)}`
+					: ""),
 			expect.objectContaining({
 				headers: expect.objectContaining({
 					Authorization: "Bearer fresh-token",
