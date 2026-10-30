@@ -260,13 +260,13 @@ export function AgentPromptQueue({
 											{item.prompt}
 										</span>
 										{hasAttachments ? (
-											<span className="cline-ui-agent-prompt-queue__attachments shrink-0 text-[10px] text-cline-ui-muted-foreground">
+											<span className="cline-ui-agent-prompt-queue__attachments shrink-0 text-cline-ui-muted-foreground text-cline-ui-xxs">
 												{item.attachmentCount} attachment
 												{item.attachmentCount === 1 ? "" : "s"}
 											</span>
 										) : null}
 										{item.steer ? (
-											<span className="cline-ui-agent-prompt-queue__badge shrink-0 rounded-full bg-cline-ui-primary/10 px-1.5 py-0.5 font-cline-ui-medium text-[10px] text-cline-ui-accent-foreground">
+											<span className="cline-ui-agent-prompt-queue__badge shrink-0 rounded-full bg-cline-ui-primary/10 px-1.5 py-0.5 font-cline-ui-medium text-cline-ui-accent-foreground text-cline-ui-xxs">
 												Next turn
 											</span>
 										) : null}
