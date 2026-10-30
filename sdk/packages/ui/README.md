@@ -70,9 +70,11 @@ share welcome/conversation geometry and header groups through host-owned slots.
 See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
-accent, neutral, and destructive tones. Both default to `type="button"` so they
-are safe inside forms. `IconButton` requires an accessible `aria-label`, and
-both components support Radix-style composition through `asChild`.
+accent, neutral, and destructive tones. Without `asChild`, both default to
+`type="button"`. Composed children retain their native form behavior unless a
+`type` is specified; a native button without a type submits its form.
+`IconButton` requires an accessible `aria-label`, and both components support
+Radix-style composition through `asChild`.
 
 ```tsx
 import { Button, IconButton } from "@cline/ui";

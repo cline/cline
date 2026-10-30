@@ -439,6 +439,7 @@ describe("managed button icons", () => {
 
 describe("shared button composition", () => {
 	for (const [name, Component] of [
+		["Button with legacy children", Button],
 		["Button", ButtonWithIcon],
 		["IconButton", IconButtonWithIcon],
 		["IconButton with legacy children", IconButtonWithChildren],
@@ -542,10 +543,10 @@ describe("shared button composition", () => {
 
 		for (const scenario of [
 			{
-				description: "defaults to a non-submitting button",
+				description: "preserves implicit native form submission",
 				wrapperType: undefined,
 				childType: undefined,
-				expectedType: "button",
+				expectedType: "submit",
 			},
 			{
 				description: "forwards an explicit non-submitting type",
@@ -577,6 +578,9 @@ describe("shared button composition", () => {
 				);
 				const button = container.querySelector("button");
 				expect(button?.type).toBe(scenario.expectedType);
+				expect(button?.getAttribute("type")).toBe(
+					scenario.childType ?? scenario.wrapperType ?? null,
+				);
 				await act(async () => button?.click());
 				expect(onSubmit).toHaveBeenCalledTimes(
 					scenario.expectedType === "submit" ? 1 : 0,

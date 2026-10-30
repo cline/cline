@@ -70,7 +70,7 @@ function composeChild(
 	return cloneElement(children, {
 		...(nativeButton
 			? {
-					type: children.props.type ?? type ?? "button",
+					type: children.props.type ?? type,
 					...(disabled ? { disabled: true } : {}),
 				}
 			: {}),

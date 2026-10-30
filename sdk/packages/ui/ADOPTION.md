@@ -280,11 +280,12 @@ in dark mode. A secondary neutral button has a visible gray background in both
 themes. `Button` defaults to primary/accent/md; `IconButton` defaults to
 ghost/neutral/sm. Both support `xs`, `sm`, `md`, and `lg` sizes.
 
-Native buttons default to `type="button"`; set `type="submit"` for form
-submission. With `asChild`, a direct native button receives the same safe
-default, and an explicit child `type` takes precedence over the wrapper's
-`type`. Links receive no default button type. `IconButton` requires an
-accessible `aria-label`.
+Without `asChild`, buttons default to `type="button"`; set `type="submit"` for
+form submission. With `asChild`, no default type is added: a native button
+without a type retains its implicit form submission behavior. Set `type="button"`
+on the child or wrapper to prevent submission. An explicit child `type` takes
+precedence over the wrapper's `type`. Links receive no default button type.
+`IconButton` requires an accessible `aria-label`.
 
 For composed children, `disabled` makes `aria-disabled`, `data-disabled`, and
 `tabIndex` authoritative, suppresses click and Enter/Space activation, and sets
