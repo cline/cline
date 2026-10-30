@@ -315,12 +315,16 @@ describe("resolveProviderFetch", () => {
 		}
 	})
 
-	it("keeps the proxy-aware fetch for remote gateways", () => {
+	it("keeps the proxy-aware fetch for remote gateways and HTTPS servers", () => {
 		for (const baseUrl of [
 			"https://litellm.corp.example.com/v1",
 			"https://8.8.8.8/v1",
 			"http://172.32.0.1:8000",
 			"https://[2001:db8::1]/v1",
+			"https://192.168.1.20:8000/v1",
+			"https://localhost:1234/v1",
+			"https://litellm.internal/v1",
+			"https://gpu-box:8000/v1",
 			"not a url",
 		]) {
 			expect(resolveProviderFetch("litellm", baseUrl)).toBe(netModule.fetch)
