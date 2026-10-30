@@ -273,8 +273,10 @@ export function AgentUxVerification({
 				)}
 			</Carousel>
 			<footer className="cline-ui-ux-evidence-footer">
+				{/* biome-ignore lint/a11y/useSemanticElements: fieldset would break layout styling */}
 				<div
 					className="cline-ui-ux-evidence-thumbnails"
+					role="group"
 					aria-label="Choose verification check"
 				>
 					{report.checks.map((check, index) => (

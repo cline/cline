@@ -62,6 +62,7 @@ export function Carousel({
 	);
 	return (
 		<Context.Provider value={{ viewport, api }}>
+			{/* biome-ignore lint/a11y/useSemanticElements: section would break carousel structure */}
 			<div
 				{...props}
 				className={cn("relative", className)}
@@ -88,6 +89,7 @@ export function CarouselContent({
 }
 export function CarouselItem({ className, ...props }: ComponentProps<"div">) {
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: fieldset would break layout styling
 		<div
 			{...props}
 			role="group"
