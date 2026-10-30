@@ -1367,15 +1367,38 @@ describe("createContextCompactionPrepareTurn", () => {
 			expect(JSON.stringify(result?.messages)).toContain("original task");
 		});
 
-		it("ignores a provider count that agrees with or undercuts the estimate", async () => {
-			// Well-estimated models must keep their existing behavior: a count at or
-			// below the estimate cannot loosen or tighten the budget.
+		it("widens the budget when the provider's count shows the estimate over-counts", async () => {
+			// The provider reports half of what the estimate claims, so the
+			// correction loosens the budget ~2x: a trigger at 0.9x the estimate
+			// (which compacted before the two-sided correction) stays unhit.
 			await expect(
 				run({
-					maxInputTokensMultiple: 1.05,
+					maxInputTokensMultiple: 0.9,
 					previousRequestInputTokens: Math.floor(estimate() * 0.5),
 				}),
 			).resolves.toBeUndefined();
+		});
+
+		it("leaves the trigger alone when the provider count agrees with the estimate", async () => {
+			// A matching count keeps the correction at 1, so a trigger below the
+			// estimate still compacts.
+			await expect(
+				run({
+					maxInputTokensMultiple: 0.9,
+					previousRequestInputTokens: estimate(),
+				}),
+			).resolves.toBeDefined();
+		});
+
+		it("floors how far a provider count may loosen the budget", async () => {
+			// A count at a tenth of the estimate wants a 10x loosening; the floor
+			// caps it at 2x, so a trigger at 0.4x the estimate still trips.
+			await expect(
+				run({
+					maxInputTokensMultiple: 0.4,
+					previousRequestInputTokens: Math.floor(estimate() * 0.1),
+				}),
+			).resolves.toBeDefined();
 		});
 
 		it("caps how far a provider count may tighten the budget", async () => {

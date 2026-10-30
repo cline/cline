@@ -30,6 +30,7 @@ import {
 	DEFAULT_TARGET_RATIO,
 	findLatestSummaryIndex,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
+	MIN_INPUT_OVERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -335,31 +336,36 @@ export function createContextCompactionPrepareTurn(
 		}
 		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
 		// The char-based estimate under-counts dense content (disassembly, image
-		// dumps, minified sources). When the provider's actual count for the
-		// PREVIOUS request already exceeds our estimate for the (larger) current
-		// transcript, the estimator is demonstrably under-counting, so scale the
-		// whole budget down by that ratio. Scaling the budget rather than just the
-		// trigger keeps every downstream number — trigger, target and the
-		// projection's message costs — in the same estimate units while still
-		// corresponding to the provider's real limit; raising only the trigger
-		// would start a compaction that then retains too much and still overflows.
+		// dumps, minified sources) and over-counts ordinary prose (~4 chars per
+		// token, not 3). When the provider's actual count for the PREVIOUS
+		// request disagrees with our estimate for the (larger) current
+		// transcript, the estimator is demonstrably miscalibrated, so scale the
+		// whole budget by that ratio — down when it under-counts, up when it
+		// over-counts. Scaling the budget rather than just the trigger keeps
+		// every downstream number — trigger, target and the projection's
+		// message costs — in the same estimate units while still corresponding
+		// to the provider's real limit; raising only the trigger would start a
+		// compaction that then retains too much and still overflows.
 		//
-		// Deliberately conservative: it never loosens the budget, engages only on
-		// direct evidence of under-counting, and is capped so a tiny estimate
-		// cannot collapse the budget.
+		// Clamped on both ends: a pathological under-count cannot collapse the
+		// budget, and an inflated estimate cannot push compaction past the real
+		// window.
 		const actualPreviousInputTokens =
 			typeof context.previousRequestInputTokens === "number" &&
 			context.previousRequestInputTokens > 0
 				? context.previousRequestInputTokens
 				: 0;
-		const underestimateFactor =
+		const estimateCorrectionFactor =
 			actualPreviousInputTokens > 0 && requestInputTokens > 0
 				? Math.min(
 						MAX_INPUT_UNDERESTIMATE_FACTOR,
-						Math.max(1, actualPreviousInputTokens / requestInputTokens),
+						Math.max(
+							MIN_INPUT_OVERESTIMATE_FACTOR,
+							actualPreviousInputTokens / requestInputTokens,
+						),
 					)
 				: 1;
-		const maxInputTokens = rawMaxInputTokens / underestimateFactor;
+		const maxInputTokens = rawMaxInputTokens / estimateCorrectionFactor;
 		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
 		const messageTriggerTokens = translateRequestBudgetToMessages(
 			requestTriggerTokens,
@@ -381,7 +387,7 @@ export function createContextCompactionPrepareTurn(
 			maxInputTokens,
 			rawMaxInputTokens,
 			actualPreviousInputTokens,
-			underestimateFactor,
+			estimateCorrectionFactor,
 			requestTriggerTokens,
 			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
