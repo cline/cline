@@ -18,6 +18,13 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+The `dev`, `dev:headless`, and `dev:sidecar` commands set `CLINE_BUILD_ENV=development`, the same as `bun run cli` from
+the repository root, so a desktop built from source talks to the development Cline Hub
+(default port 25466) rather than the Hub an installed Cline app or CLI is using (default
+port 25463). Clients only share live session updates when they attach to the same Hub,
+so run the CLI with `bun run cli` when testing both from source. Session history on disk
+is shared either way. Restart a running dev process after changing its launch environment.
+
 ### Checking webview changes
 
 Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
