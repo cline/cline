@@ -20,6 +20,7 @@ import {
 	normalizeUserInput,
 	type ResolvedMediaBudget,
 	resolveMediaBudget,
+	sliceUtf16,
 	type TextContent,
 	type ToolResultContent,
 	validateAndReserveImageMedia,
@@ -1605,8 +1606,8 @@ function truncateMiddleByChars(
 	const removed = Math.max(0, text.length - tentativeKeep * 2);
 	const marker = makeMarker(removed);
 	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
-	const start = text.slice(0, keep);
-	const end = keep > 0 ? text.slice(-keep) : "";
+	const start = sliceUtf16(text, 0, keep);
+	const end = keep > 0 ? sliceUtf16(text, -keep) : "";
 	return `${start}${marker}${end}`;
 }
 

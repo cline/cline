@@ -210,6 +210,96 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
+	it.each([
+		100, 101, 102, 103,
+	])("keeps surrogate pairs intact when middle-cutting tool results to %i chars", (maxToolResultChars) => {
+		const builder = new MessageBuilder({ maxToolResultChars });
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["cat emoji.txt"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: "😀".repeat(200),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || typeof block.content !== "string") {
+			throw new Error("expected string tool_result");
+		}
+		expect(block.content.length).toBeLessThanOrEqual(maxToolResultChars);
+		expect(block.content).toContain("...[truncated");
+		expect(Buffer.from(block.content).toString("utf8")).toBe(block.content);
+	});
+
+	// Eight consecutive budgets cover every head/tail parity of the byte
+	// backstop's binary search, so at least one would cut inside a pair.
+	it.each(
+		Array.from({ length: 8 }, (_, offset) => 9_000 + offset),
+	)("keeps surrogate pairs intact when applying a %i-byte aggregate budget", (maxTotalTextBytes) => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 50_000,
+			maxTotalTextBytes,
+		});
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["cat emoji.txt"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: [{ type: "text", text: "😀".repeat(7_500) }],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result entries");
+		}
+		const entry = block.content[0];
+		if (entry?.type !== "text") {
+			throw new Error("expected text entry");
+		}
+		expect(entry.text).toContain("provider request budget");
+		expect(Buffer.from(entry.text).toString("utf8")).toBe(entry.text);
+	});
+
 	it("uses an aggressive per-result cap and a loose aggregate budget", () => {
 		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
 		expect(DEFAULT_MAX_FILE_CONTENT_CHARS).toBe(50_000);

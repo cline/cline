@@ -655,3 +655,12 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+## UTF-16 string truncation
+
+`@cline/shared` exports `sliceUtf16(text, start, end?)`, with `String.slice`
+offset semantics. Cuts move inward by one code unit if they would split a
+surrogate pair. Existing unpaired surrogates are not repaired, and grapheme
+clusters are not preserved. `truncateStr`, `truncateSplit`, and command-output
+truncation use this helper while retaining UTF-16 budgets and existing notices.
+
