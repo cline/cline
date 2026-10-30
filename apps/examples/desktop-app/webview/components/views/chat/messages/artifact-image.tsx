@@ -12,7 +12,11 @@ import {
 	useArtifactResource,
 } from "@/hooks/use-artifact-resource";
 
-type Props = GeneratedMediaContentProps & { sessionId: string | null };
+type Props = GeneratedMediaContentProps & {
+	sessionId: string | null;
+	/** Disable controls when rendered inside a selection button. */
+	interactive?: boolean;
+};
 
 export function ArtifactImage(props: Props) {
 	const { media, sessionId } = props;
@@ -39,6 +43,7 @@ function ResolvedArtifactImage({
 	reference,
 	className,
 	classNames,
+	interactive = true,
 }: Props & {
 	sessionId: string;
 	reference: ArtifactReference;
@@ -71,18 +76,20 @@ function ResolvedArtifactImage({
 	}, [visible, load]);
 
 	return (
-		<div ref={container} data-media-id={media.id}>
+		<div ref={container} data-media-id={media.id} className={className}>
 			{state.status === "error" ? (
 				<output className={classNames?.unavailable ?? className}>
 					Image unavailable.{" "}
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={() => void retry()}
-					>
-						Retry
-					</Button>
+					{interactive && (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => void retry()}
+						>
+							Retry
+						</Button>
+					)}
 				</output>
 			) : state.status === "ready" ? (
 				// biome-ignore lint/performance/noImgElement: Load the access resource directly without the Next image proxy.

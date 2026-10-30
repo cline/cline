@@ -25,6 +25,10 @@ import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
 import {
+	isUxVerificationMessage,
+	UxVerificationMessage,
+} from "./ux-verification-message";
+import {
 	PublishedArtifacts,
 	parsePublishedArtifacts,
 } from "./published-artifacts";
@@ -375,15 +379,19 @@ export const ToolMessageBlock = memo(
 		if (messages.length === 0) return null;
 		return (
 			<div className="flex flex-col gap-1">
-				{messages.map((message) => (
-					<ToolCallRow
-						isRunActive={isRunActive}
-						key={message.id}
-						message={message}
-						onExpandImage={onExpandImage}
-						onProceedWhileRunning={onProceedWhileRunning}
-					/>
-				))}
+				{messages.map((message) =>
+					isUxVerificationMessage(message) ? (
+						<UxVerificationMessage key={message.id} message={message} />
+					) : (
+						<ToolCallRow
+							isRunActive={isRunActive}
+							key={message.id}
+							message={message}
+							onExpandImage={onExpandImage}
+							onProceedWhileRunning={onProceedWhileRunning}
+						/>
+					),
+				)}
 			</div>
 		);
 	},
