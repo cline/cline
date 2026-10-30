@@ -16,6 +16,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubCapabilityNotice } from "@/components/hub-capability-notice/hub-capability-notice";
 import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { QuitHoldHandler } from "@/components/quit-hold-handler";
@@ -68,8 +69,13 @@ import {
 } from "@/hooks/chat-session/constants";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useComposerSuggestions } from "@/hooks/use-composer-suggestions";
 import { useHubStartup } from "@/hooks/use-hub-startup";
-import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
+import {
+	PromptDraftCache,
+	type RestorePrompt,
+	usePromptDraft,
+} from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -1290,6 +1296,7 @@ function App() {
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
+							<HubCapabilityNotice className="mx-4 my-2 shrink-0" />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -1605,7 +1612,10 @@ function ChatThreadPane({
 		pendingAttachments,
 		setPendingAttachments,
 		clearPromptForSend,
+		holdPromptForSend,
 		clearDraftForHandoff,
+		takePendingAttachments,
+		updateSavedAttachments,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -2331,7 +2341,7 @@ function ChatThreadPane({
 						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
 				});
 			}
-			setPendingAttachments((current) => {
+			updateSavedAttachments((current) => {
 				const existing = new Set(
 					current.map(
 						(file) => `${file.name}:${file.size}:${file.lastModified}`,
@@ -2353,7 +2363,7 @@ function ChatThreadPane({
 				return next;
 			});
 		},
-		[isCloudSession, setPendingAttachments],
+		[isCloudSession, updateSavedAttachments],
 	);
 
 	const handleRestoreHandoffDraft = useCallback(
@@ -2615,50 +2625,42 @@ function ChatThreadPane({
 	);
 
 	const handleSend = useCallback(
-		async (prompt: string) => {
+		async (
+			prompt: string,
+			takeDraft: () => RestorePrompt,
+			attachments: readonly File[],
+		) => {
 			const trimmed = prompt.trim();
-			const handoff = parseHandoffCommand(trimmed);
-			if (handoff && cloudAgentsEnabled) {
-				await prepareHandoff(handoff.nextCommand);
-				return;
-			}
-			if (!trimmed && pendingAttachments.length === 0) {
+			if (!trimmed && attachments.length === 0) {
 				return;
 			}
 			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
 				return;
 			}
 			onThreadStarted?.(threadId);
-			// Also clear the injected draft: the composer cleared its local copy,
-			// but a stale non-empty draft would repopulate the input if the
-			// composer remounts (e.g. a transport blip re-showing the loader).
-			const toSend = [...pendingAttachments];
-			setPendingAttachments([]);
-			const restorePrompt = clearPromptForSend();
+			const restorePrompt = takeDraft();
+			const toSend = takePendingAttachments(attachments);
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
-			// without retyping, but only if this pane still owns the unchanged draft.
-			if (!promptTaken && restorePrompt(trimmed)) {
-				handleAttachFiles(toSend);
-			}
+			// without retyping, but only into a box this pane still holds unchanged.
+			// Its files go back to the draft either way, even once the pane closed.
+			if (promptTaken) return;
+			restorePrompt(trimmed);
+			handleAttachFiles(toSend);
 		},
 		[
-			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
 			onThreadStarted,
-			pendingAttachments,
-			prepareHandoff,
 			sendPrompt,
 			sessionId,
-			setPendingAttachments,
+			takePendingAttachments,
 			threadId,
-			cloudAgentsEnabled,
 			workIn,
 		],
 	);
@@ -3017,9 +3019,30 @@ function ChatThreadPane({
 			}),
 		[providerCredentials, setConfig],
 	);
+	// A typed send also clears the injected draft: the composer cleared its
+	// local copy, but a stale non-empty draft would repopulate the input if the
+	// composer remounts (e.g. a transport blip re-showing the loader).
 	const handleSendPrompt = useCallback(
-		(prompt: string) => void handleSend(prompt),
-		[handleSend],
+		(prompt: string) => {
+			const handoff = parseHandoffCommand(prompt.trim());
+			if (handoff && cloudAgentsEnabled) {
+				void prepareHandoff(handoff.nextCommand);
+				return;
+			}
+			void handleSend(prompt, clearPromptForSend, pendingAttachments);
+		},
+		[
+			clearPromptForSend,
+			cloudAgentsEnabled,
+			handleSend,
+			pendingAttachments,
+			prepareHandoff,
+		],
+	);
+	const handleSendSuggestion = useCallback(
+		(prompt: string, attachments: readonly File[]) =>
+			void handleSend(prompt, holdPromptForSend, attachments),
+		[handleSend, holdPromptForSend],
 	);
 	const handleOpenHandoffProgressLink = useCallback(() => {
 		if (!handoffUi || !("dashboardUrl" in handoffUi) || !handoffUi.dashboardUrl)
@@ -3079,6 +3102,23 @@ function ChatThreadPane({
 		!displayedError &&
 		!isProvisioningCloudSession &&
 		!historySession;
+	const composerSuggestions = useComposerSuggestions({
+		enabled:
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID && !isCloudSession,
+		environmentId,
+		sessionId: displayedSessionId,
+		status: displayedStatus,
+		loadingChat: displayedIsSwitching,
+		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
+		messages: displayedMessages,
+		promptsInQueue,
+		pendingAttachments,
+		onAttachFiles: handleAttachFiles,
+		onSend: handleSendSuggestion,
+		onUndoTurn: handleEditMessage,
+		onRemoveQueuedPrompt: removePromptInQueue,
+		abort,
+	});
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
@@ -3300,6 +3340,7 @@ function ChatThreadPane({
 			status={status}
 			summary={summary}
 			thinking={config.thinking}
+			suggestions={composerSuggestions}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
 	);

@@ -182,6 +182,12 @@ export interface StartSessionInput {
 	 * are enabled by default. Plugin tools still go through `toolPolicies`.
 	 */
 	plugins?: import("@cline/shared").PluginPolicies;
+	/**
+	 * The slots the host that starts this session renders: its slot catalog. Core offers worker plugins
+	 * `registerUiSlot` and `ctx.ui` only when this names at least one slot it knows (in-process extensions
+	 * always have `registerUiSlot`, never `ctx.ui`). Fixed for the session's epoch.
+	 */
+	uiSlots?: readonly string[];
 }
 
 /** Session input after the execution host has resolved a concrete workspace. */
@@ -263,6 +269,12 @@ export interface StartSessionResult {
 	 * are disabled. Clients should show these to the user.
 	 */
 	pluginIssues?: import("@cline/shared").SessionPluginIssue[];
+	/**
+	 * The id already had a run in progress, so the start returned that live
+	 * session instead of a new runtime: none of the start's config, plugins or
+	 * messages took effect.
+	 */
+	reattached?: boolean;
 }
 
 export interface SendSessionInput {

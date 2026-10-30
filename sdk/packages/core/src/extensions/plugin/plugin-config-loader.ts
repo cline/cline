@@ -4,6 +4,7 @@ import type {
 	AgentConfig,
 	PluginPolicies,
 	PluginSetupContext,
+	PluginUiSlot,
 	SessionPluginIssue,
 	WorkspaceInfo,
 } from "@cline/shared";
@@ -20,6 +21,7 @@ import {
 	getProcessPluginRegistry,
 	type PluginHookErrorMode,
 	type PluginRegistry,
+	type PluginUiStatePush,
 } from "./plugin-registry";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
@@ -311,6 +313,13 @@ export interface ResolveAndLoadAgentPluginsOptions
 	contributionTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 	/**
+	 * The session's slot catalog: the slots its host renders. Plugins are
+	 * offered `registerUiSlot` and `ctx.ui` only when it is non-empty and
+	 * `onUiState` is set.
+	 */
+	uiSlots?: readonly PluginUiSlot[];
+	onUiState?: (push: PluginUiStatePush) => void;
+	/**
 	 * Structured workspace and git metadata, forwarded to plugins via
 	 * PluginSetupCtx.workspaceInfo.
 	 */
@@ -374,6 +383,8 @@ export async function resolveAndLoadAgentPlugins(
 			cwd: options.cwd,
 			hookErrorMode: options.hookErrorMode,
 			emitEvent: options.onEvent,
+			uiSlots: options.uiSlots,
+			onUiState: options.onUiState,
 			onIssue: options.onIssue,
 			importTimeoutMs: options.importTimeoutMs,
 			hookTimeoutMs: options.hookTimeoutMs,
@@ -410,6 +421,7 @@ export async function resolveAndLoadAgentPlugins(
 			issues: [],
 		};
 	}
+	const { onUiState } = options;
 	const sandboxed = await loadSandboxedPlugins({
 		pluginPaths: paths,
 		transport: "subprocess",
@@ -418,6 +430,13 @@ export async function resolveAndLoadAgentPlugins(
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
 		onEvent: options.onEvent,
+		...(onUiState && options.uiSlots?.length
+			? {
+					uiSlots: options.uiSlots,
+					onUiState: ({ pluginName, slot, state }) =>
+						onUiState({ plugin: pluginName, slot, state }),
+				}
+			: {}),
 		telemetryAvailable: Boolean(options.telemetry),
 		providerId: options.providerId,
 		modelId: options.modelId,

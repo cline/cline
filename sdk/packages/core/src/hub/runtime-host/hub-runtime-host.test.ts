@@ -8,6 +8,7 @@ import { projectSessionEvent } from "../server/handlers/session-event-projector"
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const onRegisteredMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
 const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
@@ -23,6 +24,7 @@ vi.mock("../client", () => ({
 
 		command = commandMock;
 		subscribe = subscribeMock;
+		onRegistered = onRegisteredMock;
 		close = closeMock;
 		dispose = disposeMock;
 		getClientId = getClientIdMock;
@@ -76,6 +78,7 @@ describe("HubRuntimeHost", () => {
 	afterEach(() => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();
+		onRegisteredMock.mockReset();
 		closeMock.mockReset();
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();
@@ -238,6 +241,40 @@ describe("HubRuntimeHost", () => {
 				},
 			},
 		});
+	});
+
+	it("reports a start the hub joined to a run already in flight", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const reply = (sessionId: string, reattached?: true) => ({
+			payload: {
+				session: {
+					sessionId,
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+				...(reattached ? { reattached } : {}),
+			},
+		});
+		commandMock
+			.mockResolvedValueOnce(reply("sess-live", true))
+			.mockResolvedValueOnce(reply("sess-new"));
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const start = (sessionId: string) =>
+			host.startSession({
+				config: { ...createConfig(), sessionId },
+				source: SessionSource.CORE,
+			});
+
+		await expect(start("sess-live")).resolves.toMatchObject({
+			sessionId: "sess-live",
+			reattached: true,
+		});
+		await expect(start("sess-new")).resolves.not.toHaveProperty("reattached");
 	});
 
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {

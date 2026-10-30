@@ -3823,6 +3823,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			manifestPath: "/tmp/manifest.json",
 			messagesPath: "/tmp/messages.json",
+			reattached: true,
 		});
 		expect(createAgent).toHaveBeenCalledTimes(1);
 		await expect(

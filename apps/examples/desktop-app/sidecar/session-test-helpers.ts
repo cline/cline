@@ -23,7 +23,11 @@ export function localRuntimeContext(
 						...sessionManager,
 					},
 					hubClient: {
-						command: vi.fn(async () => ({ ok: true, payload: {} })),
+						command: vi.fn(async (command: string) =>
+							command === "session.pending_prompts"
+								? { ok: true, payload: { prompts: [] } }
+								: { ok: true, payload: {} },
+						),
 					},
 					unsubscribeSessionEvents: () => {},
 				},

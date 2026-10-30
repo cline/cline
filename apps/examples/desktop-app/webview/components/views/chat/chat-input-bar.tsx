@@ -43,6 +43,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
@@ -86,6 +87,7 @@ import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { LocalModelIndicator } from "./local-model-indicator";
+import { SuggestionTray } from "./suggestion-tray/suggestion-tray";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -360,6 +362,8 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
+	/** The composer.suggestions slot; its tray sits above a conversation's composer while it is enabled. */
+	suggestions?: ComposerSuggestionsController | null;
 	/** Opens Settings → Local Models from the local model chip. */
 	onOpenLocalModels?: () => void;
 	summary: {
@@ -412,6 +416,7 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenModelSettings,
+	suggestions,
 	onOpenLocalModels,
 	summary,
 }: ChatInputBarProps) {
@@ -607,13 +612,23 @@ function ChatInputBarImpl({
 			steeringPromptRef.current = false;
 		}
 	};
-	const handleSend = useCallback(() => {
-		if (speechInputActive || readOnly) return;
+	const composerRefusesSend = useCallback(() => {
+		if (speechInputActive || readOnly) return true;
 		if (unsupportedDraftImageCount > 0) {
 			reportUnsupportedImages();
-			return;
+			return true;
 		}
-		if (needsCloudRepository || needsCloudModel) return;
+		return needsCloudRepository || needsCloudModel;
+	}, [
+		needsCloudRepository,
+		needsCloudModel,
+		readOnly,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
+	const handleSend = useCallback(() => {
+		if (composerRefusesSend()) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -623,19 +638,10 @@ function ChatInputBarImpl({
 			});
 			return;
 		}
+		suggestions?.submitted(prompt);
 		setPromptInput("");
 		onSend(prompt);
-	}, [
-		needsCloudRepository,
-		needsCloudModel,
-		readOnly,
-		onSend,
-		promptInput,
-		setPromptInput,
-		speechInputActive,
-		unsupportedDraftImageCount,
-		reportUnsupportedImages,
-	]);
+	}, [composerRefusesSend, onSend, promptInput, setPromptInput, suggestions]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -1237,7 +1243,7 @@ function ChatInputBarImpl({
 		[promptsInQueue],
 	);
 
-	return (
+	const composer = (
 		<AgentComposer
 			className="group/composer"
 			data-compact={compact || undefined}
@@ -1784,6 +1790,22 @@ function ChatInputBarImpl({
 				</AgentComposerSettingsEnd>
 			</AgentComposerSettings>
 		</AgentComposer>
+	);
+
+	return (
+		<>
+			{suggestions?.enabled && variant === "conversation" ? (
+				<SuggestionTray
+					composerInputRef={promptInputRef}
+					composerMenuOpen={slashOpen || mentionOpen}
+					draft={promptInput}
+					refusesSend={composerRefusesSend}
+					setDraft={setPromptInput}
+					suggestions={suggestions}
+				/>
+			) : null}
+			{composer}
+		</>
 	);
 }
 
