@@ -364,6 +364,33 @@ export function resolveAnthropicReasoningRequestPolicy(
 		: { kind: "anthropic-manual" };
 }
 
+/**
+ * True when the request asks for thinking and its resolved Anthropic policy
+ * is adaptive. Adaptive thinking picks its own length and is counted inside
+ * max_tokens, so a synthesized output cap below the model's budget truncates
+ * it instead of shortening it. Manual thinking is bounded by its own budget,
+ * which already lifts the cap (see resolveGatewayRequestMaxTokens).
+ */
+export function requestsAnthropicAdaptiveThinking(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	const reasoning = request.reasoning;
+	if (
+		!reasoning ||
+		reasoning.enabled === false ||
+		(reasoning.enabled !== true &&
+			reasoning.effort === undefined &&
+			typeof reasoning.budgetTokens !== "number")
+	) {
+		return false;
+	}
+	return (
+		resolveAnthropicReasoningRequestPolicy(request, context).kind ===
+		"anthropic-adaptive"
+	);
+}
+
 export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
