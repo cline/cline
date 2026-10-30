@@ -67,6 +67,7 @@ describe("SdkSessionLifecycle", () => {
 
 	it("waits for tracked session starts, including ones that fail", async () => {
 		const lifecycle = makeLifecycle()
+		expect(lifecycle.captureState).toEqual({ generation: 0, starting: false })
 		let finishStart!: () => void
 		const start = lifecycle.trackSessionStart(
 			() =>
@@ -74,6 +75,7 @@ describe("SdkSessionLifecycle", () => {
 					finishStart = resolve
 				}),
 		)
+		expect(lifecycle.captureState).toEqual({ generation: 1, starting: true })
 		let waited = false
 		const waiting = lifecycle.waitForSessionStarts().then(() => {
 			waited = true
@@ -86,6 +88,7 @@ describe("SdkSessionLifecycle", () => {
 		await start
 		await waiting
 		expect(waited).toBe(true)
+		expect(lifecycle.captureState).toEqual({ generation: 1, starting: false })
 
 		// A waiter already in place when a start fails is released, not rejected:
 		// a mode toggle waiting on a failed new-task start must still go ahead.
@@ -101,6 +104,7 @@ describe("SdkSessionLifecycle", () => {
 		await expect(failing).rejects.toThrow("start failed")
 		await expect(waitingOnFailure).resolves.toBeUndefined()
 		await expect(lifecycle.waitForSessionStarts()).resolves.toBeUndefined()
+		expect(lifecycle.captureState).toEqual({ generation: 2, starting: false })
 	})
 
 	it("stores the provider and model config used to start the active session", async () => {

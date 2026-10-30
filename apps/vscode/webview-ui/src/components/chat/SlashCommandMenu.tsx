@@ -6,6 +6,7 @@ import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
+	cloudHandoffEnabled: boolean
 	onSelect: (command: SlashCommand) => void
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
@@ -29,6 +30,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	remoteWorkflowToggles,
 	remoteWorkflows,
 	mcpServers = [],
+	cloudHandoffEnabled,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -40,6 +42,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		remoteWorkflowToggles,
 		remoteWorkflows,
 		mcpServers,
+		cloudHandoffEnabled,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")

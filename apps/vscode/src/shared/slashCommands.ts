@@ -40,4 +40,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 ]
 
 // VS Code-only slash commands
-export const VSCODE_ONLY_COMMANDS: SlashCommand[] = []
+export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
+	{ name: "cloud", description: "Continue this conversation in cloud from a summary and Git snapshot", section: "default" },
+]
