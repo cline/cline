@@ -315,7 +315,11 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
 	});
 
-	it("resolves artifacts directly when an older Hub lacks the operation", async () => {
+	it.each([
+		"https://api.example",
+		"https://api.example/api/v1",
+		"https://api.example/api/v1/",
+	])("resolves artifacts with an older Hub and API base %s", async (baseUrl) => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
@@ -324,9 +328,7 @@ describe("Code sidecar runtime capabilities", () => {
 			new Error("Unknown cloud operation: getArtifactDownloadUrl"),
 		);
 		vi.spyOn(clineAuth, "getClineAccountId").mockReturnValue("account-one");
-		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(
-			"https://api.example",
-		);
+		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(baseUrl);
 		const refresh = vi
 			.spyOn(clineAuth, "resolveFreshClineAuthToken")
 			.mockResolvedValue("fresh-token");

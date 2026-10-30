@@ -2291,7 +2291,7 @@ export async function handleCommand(
 		};
 		checkAccount();
 		const api = new CloudSessionApi({
-			apiBaseUrl: getClineApiBaseUrl(),
+			apiBaseUrl: getClineApiBaseUrl().replace(/\/api\/v1\/*$/, ""),
 			appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
 			getAuthToken: async () => {
 				const token = await resolveFreshClineAuthToken(
