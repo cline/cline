@@ -57,7 +57,6 @@ describe("command palette", () => {
 				kind: "progress",
 				progress: {
 					message: "Starting",
-					dashboardUrl: "https://example.test/task",
 				},
 			},
 		});

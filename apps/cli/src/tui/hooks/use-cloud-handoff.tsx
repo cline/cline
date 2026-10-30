@@ -154,7 +154,6 @@ export function useCloudHandoff(input: {
 			kind: "progress",
 			progress: {
 				message: "Sending the saved summary and images to the cloud task…",
-				dashboardUrl: status.result.dashboardUrl,
 			},
 		});
 		try {

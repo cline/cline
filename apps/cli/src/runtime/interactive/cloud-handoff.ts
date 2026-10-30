@@ -31,7 +31,6 @@ export type CloudHandoffDraft = {
 
 export type CloudHandoffProgress = {
 	message: string;
-	dashboardUrl?: string;
 };
 
 export type CloudHandoffResult = {
@@ -193,7 +192,6 @@ export async function prepareCloudHandoff(input: {
 					sessionId = event.sessionId;
 					onProgress({
 						message: "Preparing the cloud workspace.",
-						dashboardUrl: dashboard(sessionId),
 					});
 				});
 				try {
@@ -249,7 +247,20 @@ export async function prepareCloudHandoff(input: {
 											}
 										: {}),
 								};
-							} catch {
+							} catch (error) {
+								if (
+									error instanceof Error &&
+									error.name === "HubCommandError" &&
+									"code" in error &&
+									error.code === "hub_draining"
+								) {
+									return {
+										sessionId: result.sessionId,
+										dashboardUrl,
+										warning: `The prompt was not sent. ${error.message}`,
+										retrySend,
+									};
+								}
 								return {
 									sessionId: result.sessionId,
 									dashboardUrl,

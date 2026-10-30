@@ -396,7 +396,6 @@ export function useCloudSessions(input: {
 				(typeof attached.branch === "string" ? attached.branch : undefined);
 			reset();
 			abortRequestedRef.current = false;
-			sendInFlightRef.current = false;
 			sessionIdRef.current = id;
 			setSessionId(id);
 			setTarget("cloud");

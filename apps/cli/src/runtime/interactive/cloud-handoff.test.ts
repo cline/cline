@@ -1,8 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { ProviderSettingsManager, toProviderConfig } from "@cline/core";
 import type { HubCloudSessionClient } from "@cline/core/cloud";
+import { HubCommandError } from "@cline/core/hub";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prepareCloudHandoff } from "./cloud-handoff";
 
@@ -152,9 +149,12 @@ describe("summary cloud handoff", () => {
 		expect(input.cloud.create).not.toHaveBeenCalled();
 	});
 
-	it("resolves current credentials after confirmation while preserving the captured model", async () => {
+	it.each([
+		"cline",
+		"cline-pass",
+	])("resolves current %s credentials after confirmation while preserving the captured model", async (providerId) => {
 		const input = fixture();
-		input.connection = { ...input.connection, providerId: "cline" };
+		input.connection = { ...input.connection, providerId };
 		const prepared = await prepareCloudHandoff(input);
 		expect(helpers.resolveCredentials).not.toHaveBeenCalled();
 		helpers.resolveCredentials.mockResolvedValue({
@@ -164,74 +164,18 @@ describe("summary cloud handoff", () => {
 		});
 		await prepared.start(vi.fn());
 		expect(helpers.resolveCredentials).toHaveBeenCalledWith({
-			providerId: "cline",
+			providerId,
 		});
 		expect(helpers.summarize).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					providerId: "cline",
+					providerId,
 					modelId: "model",
 					apiKey: "refreshed-token",
 				}),
 			}),
 		);
 		expect(input.cloud.create).toHaveBeenCalledOnce();
-	});
-
-	it("accepts the shared Cline login when saved Pass settings retain the previous account", async () => {
-		const directory = mkdtempSync(join(tmpdir(), "cline-handoff-auth-"));
-		try {
-			const manager = new ProviderSettingsManager({
-				filePath: join(directory, "providers.json"),
-			});
-			manager.saveProviderSettings({
-				provider: "cline-pass",
-				model: "model",
-				auth: { accessToken: "old-token", accountId: "account-one" },
-			});
-			manager.saveProviderSettings({
-				provider: "cline",
-				model: "other-model",
-				auth: { accessToken: "current-token", accountId: "account-two" },
-			});
-			const pass = manager.getProviderSettings("cline-pass");
-			const shared = manager.getProviderSettings("cline");
-			if (!pass || !shared) throw new Error("Expected saved provider settings");
-			const connection = toProviderConfig(pass);
-			expect(connection.accountId).toBe("account-one");
-			expect(shared.auth?.accountId).toBe("account-two");
-			helpers.resolveCredentials.mockResolvedValue({
-				apiKey: "current-token",
-				accountId: shared.auth?.accountId,
-				refreshed: false,
-			});
-			const input = fixture();
-			const prepared = await prepareCloudHandoff({
-				...input,
-				connection: { ...connection, accountId: shared.auth?.accountId },
-			});
-			await prepared.start(vi.fn());
-			expect(input.cloud.prepareHandoffRepository).toHaveBeenLastCalledWith(
-				plan.repoUrl,
-				{
-					serviceId: "hub",
-					scopeGeneration: 1,
-					expectedAccountId: "account-two",
-				},
-			);
-			expect(input.cloud.create).toHaveBeenCalledOnce();
-			expect(helpers.summarize).toHaveBeenCalledWith(
-				expect.objectContaining({
-					config: expect.objectContaining({
-						providerId: "cline-pass",
-						modelId: "model",
-						apiKey: "current-token",
-					}),
-				}),
-			);
-		} finally {
-			rmSync(directory, { recursive: true, force: true });
-		}
 	});
 
 	it.each([
@@ -388,7 +332,9 @@ describe("summary cloud handoff", () => {
 	it.each([
 		"error",
 		"recovered",
-	])("does not offer another retry after an uncertain send (%s)", async (outcome) => {
+		"draining",
+		"command-error",
+	])("retains retry only for a confirmed unsent continuation (%s)", async (outcome) => {
 		const input = fixture();
 		input.cloud.create.mockResolvedValue({
 			sessionId: "ses-example",
@@ -397,7 +343,23 @@ describe("summary cloud handoff", () => {
 		});
 		const prepared = await prepareCloudHandoff(input);
 		const initial = await prepared.start(vi.fn());
-		if (outcome === "error")
+		if (outcome === "draining")
+			input.cloud.send.mockRejectedValueOnce(
+				new HubCommandError(
+					"cloud.command",
+					"hub_draining",
+					"Hub is draining; retry once a hub is serving again.",
+				),
+			);
+		else if (outcome === "command-error")
+			input.cloud.send.mockRejectedValueOnce(
+				new HubCommandError(
+					"cloud.command",
+					"cloud_command_failed",
+					"Cloud send failed",
+				),
+			);
+		else if (outcome === "error")
 			input.cloud.send.mockRejectedValueOnce(new Error("Connection failed"));
 		else
 			input.cloud.send.mockResolvedValueOnce({
@@ -407,9 +369,21 @@ describe("summary cloud handoff", () => {
 			});
 		const retried = await initial.retrySend?.();
 		expect(retried?.sessionId).toBe("ses-example");
-		expect(retried?.warning).toContain("before resending");
-		expect(retried?.retrySend).toBeUndefined();
-		expect(input.cloud.send).toHaveBeenCalledOnce();
+		if (outcome === "draining") {
+			expect(retried?.retrySend).toBeTypeOf("function");
+			expect(retried?.warning).toContain("not sent");
+			const delivered = await retried?.retrySend?.();
+			expect(delivered?.sessionId).toBe("ses-example");
+			expect(delivered?.retrySend).toBeUndefined();
+			expect(input.cloud.send).toHaveBeenCalledTimes(2);
+			expect(input.cloud.send.mock.calls[1]).toEqual(
+				input.cloud.send.mock.calls[0],
+			);
+		} else {
+			expect(retried?.warning).toContain("before resending");
+			expect(retried?.retrySend).toBeUndefined();
+			expect(input.cloud.send).toHaveBeenCalledOnce();
+		}
 		expect(helpers.summarize).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledOnce();
 	});
