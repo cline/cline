@@ -110,6 +110,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	aiand: {
 		signupUrl: "https://console.aiand.com/",
 	},
+	uberllm: {
+		signupUrl: "https://uberllm.dev/dashboard/keys",
+	},
 	"zai-coding-plan": {},
 }
 
@@ -173,6 +176,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
 	aiand: "ai&",
+	uberllm: "UberLLM",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 
