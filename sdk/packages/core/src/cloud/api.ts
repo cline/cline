@@ -10,8 +10,6 @@ import {
 	type CloudArtifactDownload,
 } from "../artifacts/cloud/download-url";
 
-export type { CloudArtifactDownload } from "../artifacts/cloud/download-url";
-
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
