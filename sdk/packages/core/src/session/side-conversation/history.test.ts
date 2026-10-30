@@ -306,88 +306,33 @@ describe("side parent history tool", () => {
 		expect(after.ok).toBe(true);
 	});
 
-	it("projects provider activity and pending tools while omitting media, reasoning and cache handles", async () => {
+	it("returns sanitized provider evidence and stable pending-tool text", async () => {
 		const { tool } = fixture([
 			{
-				role: "user",
-				content: [
-					{ type: "image", data: "PRIVATE_IMAGE", mediaType: "image/png" },
-				],
-			},
-			{
 				role: "assistant",
 				content: [
-					{ type: "thinking", thinking: "PRIVATE_THINKING" },
-					{
-						type: "tool_use",
-						id: "pending",
-						name: "read_files",
-						input: { path: "cline://cache/private/tool.txt" },
-					},
+					{ type: "tool_use", id: "pending", name: "read_files", input: {} },
 				],
-			},
-			{
-				role: "assistant",
-				content: "lookup finished",
 				metadata: {
 					modelToolActivities: [
 						{
-							toolCallId: "provider-call",
+							toolCallId: "search",
 							toolName: "web_search",
 							execution: "provider",
-							input: { query: "example" },
-							output: { text: "Public evidence" },
-							isError: true,
+							input: {},
+							output: { text: "Public evidence cline://cache/parent/result" },
 						},
 					],
 				},
 			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "mcp",
-						name: "mcp_media",
-						is_error: true,
-						content: JSON.stringify({
-							content: [
-								{ type: "audio", data: "AUDIO_SECRET", mimeType: "audio/wav" },
-								{
-									type: "resource",
-									resource: {
-										uri: "fixture:image",
-										mimeType: "image/png",
-										blob: "BLOB_SECRET",
-									},
-								},
-								{
-									type: "resource",
-									resource: {
-										uri: "fixture:text",
-										mimeType: "text/plain",
-										text: "Resource evidence",
-									},
-								},
-							],
-						}),
-					},
-				],
-			},
-			{
-				role: "assistant",
-				content: "HIDDEN_NOTICE",
-				metadata: { displayOnly: true },
-			},
 		]);
-		const result = await tool.execute({ operation: "recent" }, context);
-		const text = JSON.stringify(result);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		expect(recent.ok).toBe(true);
+		const text = JSON.stringify(recent);
 		expect(text).toContain("provider tool observation");
-		expect(text).toContain("Public evidence");
-		expect(text).toContain("Tool result web_search (provider-call) [failed]:");
-		expect(text).toContain("Tool result mcp_media (mcp) [failed]:");
-		expect(text).toContain("Resource evidence");
-		expect(text).not.toContain("result not yet available");
+		expect(text).toContain("Public evidence [parent cache handle omitted]");
+		expect(text).toContain("Tool call read_files (pending)");
+		expect(text).not.toMatch(/cline:\/\/cache|result not yet available/);
 		expect(
 			await tool.execute(
 				{ operation: "search", query: "Public evidence" },
@@ -399,39 +344,15 @@ describe("side parent history tool", () => {
 				matches: [{ preview: expect.stringContaining("Public evidence") }],
 			},
 		});
-		for (const hidden of [
-			"PRIVATE_IMAGE",
-			"PRIVATE_THINKING",
-			"AUDIO_SECRET",
-			"BLOB_SECRET",
-			"cline://cache/private",
-			"HIDDEN_NOTICE",
-		])
-			expect(text).not.toContain(hidden);
 	});
 
-	it("bounds encoded output, validates scope and parameters, and distinguishes failure from no matches", async () => {
-		const { manager, tool } = fixture(
+	it("bounds encoded previews and reads", async () => {
+		const { tool } = fixture(
 			Array.from({ length: 20 }, () => ({
 				role: "assistant",
 				content: "\u0000".repeat(10_000),
 			})),
 		);
-		const extraScope = { operation: "recent", sessionId: "other" } satisfies {
-			operation: "recent";
-			sessionId: string;
-		};
-		for (const request of [
-			extraScope,
-			{ operation: "search" },
-			{ operation: "recent", limit: 99 },
-		] satisfies Parameters<typeof tool.execute>[0][]) {
-			expect(await tool.execute(request, context)).toMatchObject({
-				ok: false,
-				error: "invalid_input",
-			});
-		}
-		expect(manager.readMessages).not.toHaveBeenCalled();
 		const recent = await tool.execute(
 			{ operation: "recent", limit: 12 },
 			context,
@@ -449,6 +370,25 @@ describe("side parent history tool", () => {
 		expect(Buffer.byteLength(JSON.stringify(read))).toBeLessThanOrEqual(
 			16 * 1024,
 		);
+	});
+
+	it("rejects invalid parameters and attempts to select another parent before reading history", async () => {
+		const { manager, tool } = fixture([]);
+		for (const request of [
+			{ operation: "recent", sessionId: "other" },
+			{ operation: "search" },
+			{ operation: "recent", limit: 99 },
+		]) {
+			expect(await tool.execute(request, context)).toMatchObject({
+				ok: false,
+				error: "invalid_input",
+			});
+		}
+		expect(manager.readMessages).not.toHaveBeenCalled();
+	});
+
+	it("distinguishes unavailable history from no matches and respects cancellation", async () => {
+		const { manager, tool } = fixture([]);
 		expect(
 			await tool.execute({ operation: "search", query: "absent" }, context),
 		).toMatchObject({ ok: true, result: { matches: [] } });

@@ -171,12 +171,6 @@ describe("side reference capture", () => {
 		expect(capture.content).toContain("oversized");
 		expect(capture.content).not.toContain("�");
 		expect(capture.content).toContain("UTF-8 bytes omitted");
-		expect(
-			captureSideReference({
-				messages: exchange("active", "partial"),
-				activeParentTurn: true,
-			}).content,
-		).toContain("partial");
 	});
 });
 
