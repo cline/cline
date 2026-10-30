@@ -10,16 +10,25 @@
 
 :root {
 	/* Brand extensions for artwork; components should prefer semantic tokens. */
-	--brand-violet: oklch(0.55 0.22 293);
-	/* Filled brand surface (user chat bubbles): deep enough in both themes to
-	 * carry near-white text at readable contrast. */
-	--brand-violet-surface: oklch(0.55 0.22 293);
-	--brand-violet-surface-foreground: oklch(0.985 0.005 293);
+	--brand-violet: var(--accent-9);
+	/* Filled brand artwork surface, paired with a readable white foreground. */
+	--brand-violet-surface: var(--accent-9);
+	--brand-violet-surface-foreground: #fff;
 	--brand-lilac: oklch(0.88 0.09 315);
 	--brand-magenta: oklch(0.75 0.15 330);
 	--brand-periwinkle: oklch(0.69 0.14 275);
 	--brand-cyan: oklch(0.87 0.07 210);
 	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
+	/* Solid roles choose brand steps that support white labels. */
+	--primary: var(--accent-9);
+	--success-solid: var(--success-10);
+	--error-solid: var(--error-9);
+	/* Amber and Sky step 9 use white labels on the light ramp. */
+	--warning-contrast: #fff;
+	--info-contrast: #fff;
+	/* Small status text needs deeper steps on light surfaces. */
+	--success-text: var(--success-10);
+	--error-text: var(--error-10);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Inter Variable", sans-serif;
@@ -70,14 +79,26 @@
 }
 
 .dark {
-	--brand-violet: oklch(0.7 0.17 293);
-	--brand-violet-surface: oklch(0.48 0.18 293);
-	--brand-violet-surface-foreground: oklch(0.97 0.01 293);
+	--brand-violet: var(--accent-9);
+	--brand-violet-surface: color-mix(
+		in srgb,
+		var(--accent-8) 60%,
+		var(--accent-7)
+	);
+	--brand-violet-surface-foreground: #fff;
 	--brand-lilac: oklch(0.68 0.13 315);
 	--brand-magenta: oklch(0.64 0.17 330);
 	--brand-periwinkle: oklch(0.63 0.16 275);
 	--brand-cyan: oklch(0.72 0.09 210);
 	--card-surface: var(--neutral-3);
+	/* Blend the adjacent accent steps to keep white labels above 4.5:1. */
+	--primary: color-mix(in srgb, var(--accent-8) 60%, var(--accent-7));
+	--success-solid: var(--success-6);
+	--error-solid: var(--error-6);
+	--warning-contrast: #1c2024;
+	--info-contrast: #1c2024;
+	--success-text: var(--success-9);
+	--error-text: var(--error-9);
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
@@ -100,27 +121,21 @@
 	--border-2: var(--neutral-5);
 	--focus-ring: var(--accent-8);
 
-	/* Status roles. Alpha surfaces stay composable over any host surface. */
-	--success-surface: var(--success-a3);
-	--success-border: var(--success-a7);
-	--success-solid: var(--success-9);
-	--success-text: var(--success-11);
+	/* Status roles. Solid surfaces and translucent borders share each status hue. */
+	--success-surface: var(--success-2);
+	--success-border: var(--success-a4);
 	--success-contrast: #fff;
-	--warning-surface: var(--warning-a3);
-	--warning-border: var(--warning-a7);
+	--warning-surface: var(--warning-2);
+	--warning-border: var(--warning-a4);
 	--warning-solid: var(--warning-9);
-	--warning-text: var(--warning-11);
-	--warning-contrast: #1c2024;
-	--error-surface: var(--error-a3);
-	--error-border: var(--error-a7);
-	--error-solid: var(--error-9);
-	--error-text: var(--error-11);
+	--warning-text: var(--warning-10);
+	--error-surface: var(--error-2);
+	--error-border: var(--error-a3);
 	--error-contrast: #fff;
-	--info-surface: var(--info-a3);
-	--info-border: var(--info-a7);
+	--info-surface: var(--info-2);
+	--info-border: var(--info-a3);
 	--info-solid: var(--info-9);
 	--info-text: var(--info-11);
-	--info-contrast: #1c2024;
 
 	/* Global browser affordances. */
 	--scrollbar-thumb: var(--neutral-8);
@@ -134,9 +149,8 @@
 	--card-foreground: var(--text-1);
 	--popover: var(--surface-2);
 	--popover-foreground: var(--text-1);
-	--primary: var(--accent-9);
 	--primary-foreground: #fff;
-	--primary-emphasis: var(--accent-10);
+	--primary-emphasis: color-mix(in srgb, var(--primary) 90%, #000);
 	--secondary: var(--surface-3);
 	--secondary-foreground: var(--text-1);
 	--muted: var(--surface-3);
@@ -148,7 +162,7 @@
 	--border: var(--border-1);
 	--input: var(--border-2);
 	--ring: var(--focus-ring);
-	--chart-1: var(--accent-9);
+	--chart-1: var(--primary);
 	--chart-2: var(--success-9);
 	--chart-3: var(--info-9);
 	--chart-4: var(--warning-9);
@@ -160,10 +174,10 @@
 	--radius-xl: calc(var(--radius) + 4px);
 	--sidebar: var(--surface-2);
 	--sidebar-foreground: var(--text-1);
-	--sidebar-primary: var(--accent-9);
-	--sidebar-primary-foreground: #fff;
-	--sidebar-accent: var(--accent-3);
-	--sidebar-accent-foreground: var(--accent-11);
+	--sidebar-primary: var(--primary);
+	--sidebar-primary-foreground: var(--primary-foreground);
+	--sidebar-accent: var(--accent);
+	--sidebar-accent-foreground: var(--accent-foreground);
 	--sidebar-border: var(--border-1);
-	--sidebar-ring: var(--focus-ring);
+	--sidebar-ring: var(--ring);
 }
