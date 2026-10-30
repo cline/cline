@@ -399,6 +399,123 @@ describe("useMessageHandlers — send routing", () => {
 	})
 
 	it.each([
+		["followup", "edit"],
+		["newTask", "edit"],
+		["followup", "clear"],
+		["followup", "unchanged"],
+		["newTask", "unchanged"],
+	] as const)("preserves the current draft after a failed %s with %s", async (request, action) => {
+		const starting = request === "newTask"
+		mockTurnState = { phase: starting ? "idle" : "completed", seq: 7 }
+		mockCurrentCloudTask = starting ? undefined : { sessionId: "ses-current", status: "idle" }
+		const messages = starting ? [] : completedConversation
+		let rejectRequest: (error: Error) => void = () => {}
+		const rpc = starting ? newTask : askResponse
+		rpc.mockImplementationOnce(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectRequest = reject
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(messages)
+			return { chatState, handlers: useMessageHandlers(messages, chatState) }
+		})
+		const files = starting ? ["old.ts"] : []
+		act(() => {
+			result.current.chatState.setInputValue("submitted draft")
+			result.current.chatState.setActiveQuote("old quote")
+			result.current.chatState.setSelectedImages(["old.png"])
+			result.current.chatState.setSelectedFiles(files)
+			result.current.chatState.setEnableButtons(true)
+		})
+		let pending: Promise<void> = Promise.resolve()
+		await act(async () => {
+			pending = result.current.handlers.handleSendMessage("submitted draft", ["old.png"], files)
+			await Promise.resolve()
+		})
+		expect(rpc).toHaveBeenCalledOnce()
+		if (action !== "unchanged")
+			act(() => {
+				result.current.chatState.setInputValue("newer draft")
+				result.current.chatState.setActiveQuote("new quote")
+				result.current.chatState.setSelectedImages(["new.png"])
+				result.current.chatState.setSelectedFiles(starting ? ["new.ts"] : [])
+				if (action === "clear") result.current.chatState.resetState()
+			})
+		const edited = result.current.chatState.getDraftSnapshot()
+		await act(async () => {
+			rejectRequest(new Error("preparation failed"))
+			await expect(pending).rejects.toThrow("preparation failed")
+		})
+		if (action === "unchanged") {
+			expect(result.current.chatState.getDraftSnapshot()).toMatchObject({
+				text: "submitted draft",
+				activeQuote: "old quote",
+				images: ["old.png"],
+				files,
+			})
+		} else {
+			expect(result.current.chatState.getDraftSnapshot()).toEqual(edited)
+		}
+		expect(result.current.chatState.sendingDisabled).toBe(false)
+		expect(result.current.chatState.enableButtons).toBe(true)
+	})
+
+	it("does not restore an older send's flags while a newer send is pending", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		let rejectFirst: (error: Error) => void = () => {}
+		let resolveSecond: () => void = () => {}
+		askResponse
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						rejectFirst = reject
+					}),
+			)
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve) => {
+						resolveSecond = resolve
+					}),
+			)
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("first")
+			result.current.chatState.setEnableButtons(true)
+		})
+		let first: Promise<void> = Promise.resolve()
+		await act(async () => {
+			first = result.current.handlers.handleSendMessage("first", [], [])
+			await Promise.resolve()
+		})
+		act(() => {
+			mockTurnState = { phase: "streaming", seq: 8 }
+			result.current.chatState.setInputValue("second")
+			rerender()
+		})
+		let second: Promise<void> = Promise.resolve()
+		await act(async () => {
+			second = result.current.handlers.handleSendMessage("second", [], [])
+			await Promise.resolve()
+		})
+		await act(async () => {
+			rejectFirst(new Error("first failed"))
+			await expect(first).rejects.toThrow("first failed")
+		})
+		expect(result.current.chatState.inputValue).toBe("")
+		expect(result.current.chatState.sendingDisabled).toBe(true)
+		expect(result.current.chatState.enableButtons).toBe(false)
+		await act(async () => {
+			resolveSecond()
+			await second
+		})
+	})
+
+	it.each([
 		false,
 		true,
 	])("does not restore a rejected cloud follow-up draft after a cloud task switch (back to origin: %s)", async (switchBackToOrigin) => {

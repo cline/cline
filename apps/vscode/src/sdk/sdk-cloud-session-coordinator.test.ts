@@ -15,10 +15,12 @@ import {
 } from "@/services/cloud/CloudSessionsService"
 import { ClineError } from "@/services/error/ClineError"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { applyStateSnapshot, createReplicaState } from "../../webview-ui/src/components/chat/chat-view/messageReducer"
 import { getButtonConfigFromState } from "../../webview-ui/src/components/chat/chat-view/shared/buttonConfig"
 import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
+import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
@@ -1236,6 +1238,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			const endActiveSessionIfHost = vi.fn(async () => undefined)
 			const { coordinator, cloudSessions } = makeCoordinator({
 				sessions: {
+					getActiveSession: () => undefined,
 					attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost),
 					endActiveSessionIfHost,
 				} as never,
@@ -1563,6 +1566,85 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		newList.resolve([record])
 		expect(await second).toEqual(await third)
 		expect(cloudSessions.listSessions).toHaveBeenCalledTimes(2)
+	})
+
+	it.each([
+		["suspended", "read", "suspended"],
+		["failed", "read", "failed"],
+		["expired", "attach", "expired"],
+		["suspended", "read", "expired"],
+		["suspended", "read", "session_not_found"],
+		["suspended", "read", "unavailable"],
+		["suspended", "read", "suspended", "session_failed"],
+	] as const)("does not install a host retired as %s during History %s with probe %s", async (status, stage, probe, readError?: "session_failed") => {
+		const entered = deferred<void>()
+		const release = deferred<void>()
+		const sessions = new SdkSessionLifecycle({
+			mcpHub: {} as never,
+			requestToolApproval: vi.fn(),
+			askQuestion: vi.fn(),
+			onSessionEvent: vi.fn(),
+			onSendComplete: vi.fn(),
+			onSendError: vi.fn(),
+		})
+		const host = {
+			status: "running",
+			readMessages: async () => {
+				if (stage === "read") {
+					entered.resolve()
+					await release.promise
+				}
+				if (readError) throw new CloudSessionError(readError, "sandbox failed")
+				return []
+			},
+			subscribe: () => () => {},
+			stop: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as CloudSessionHost
+		if (stage === "attach") {
+			const attach = sessions.attachExistingSession.bind(sessions)
+			vi.spyOn(sessions, "attachExistingSession").mockImplementation(async (input) => {
+				const active = await attach(input)
+				entered.resolve()
+				await release.promise
+				return active
+			})
+		}
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions })
+		const minter = new MessageIdMinter()
+		minter.bumpEpoch()
+		options.getMinter = () => minter
+		options.messages = new SdkMessageCoordinator({ getTask: options.getTask, getMinter: () => minter })
+		cloudSessions.listSessions.mockResolvedValue([record])
+		const opening = coordinator.openCloudTask(record.id)
+		await entered.promise
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, status }])
+		if (probe === "session_not_found") {
+			cloudSessions.getStatus.mockRejectedValue(new CloudSessionError(probe, "deleted"))
+		} else if (probe === "unavailable") {
+			cloudSessions.getStatus.mockRejectedValue(new Error("status unavailable"))
+		} else {
+			cloudSessions.getStatus.mockResolvedValue({ status: probe })
+		}
+		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		release.resolve()
+		await opening
+
+		expect(host.dispose).toHaveBeenCalledOnce()
+		expect(sessions.getActiveSession()).toBeUndefined()
+		expect(options.getTask()?.taskId).toBe(record.id)
+		expect(options.getTask()?.messageStateHandler.getClineMessages().length).toBeGreaterThan(0)
+		if (status === "suspended" && probe === "suspended" && !readError) {
+			const messages = options.getTask()!.messageStateHandler.getClineMessages()
+			const shown = applyStateSnapshot(createReplicaState(), messages, minter.epoch, minter.nextSeq())
+			expect(shown.messages.at(-1)).toMatchObject({ type: "ask", ask: "resume_task" })
+			expect(options.setTurnPhase).toHaveBeenLastCalledWith("resumable", messages.at(-1)!.ts)
+		} else {
+			expect(options.setTurnPhase).toHaveBeenLastCalledWith("idle")
+		}
+		expect(coordinator.canPrepareFollowup(record.id)).toBe(status === "suspended" && probe !== "session_not_found")
+		await coordinator.dispose()
 	})
 
 	it("preserves a newer selection when real lifecycle attachment is superseded during teardown", async () => {
@@ -2127,7 +2209,59 @@ describe("cloud follow-up preparation", () => {
 		expect(f.host.dispose).toHaveBeenCalledOnce()
 		expect(f.options.getTask()).toBe(f.task)
 		expect(f.task.messageStateHandler.getClineMessages()[0].text).toBe("prior answer")
+		expect(f.options.setTurnPhase).not.toHaveBeenCalled()
 		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
+		await f.coordinator.dispose()
+	})
+
+	it.each([
+		{ status: "suspended", phase: "streaming", displayed: true, expected: "resumable" },
+		{ status: "failed", phase: "awaiting_approval", displayed: true, expected: "idle" },
+		{ status: "expired", phase: "awaiting_followup", displayed: true, expected: "idle" },
+		{ status: "suspended", expiredAt: new Date(0).toISOString(), phase: "streaming", displayed: true, expected: "idle" },
+		{ status: "suspended", phase: "resumable", displayed: true, expected: undefined },
+		{ status: "failed", phase: "completed", displayed: true, expected: undefined },
+		{ status: "suspended", phase: "streaming", displayed: false, expected: undefined },
+	] as const)("settles only the displayed active turn on retirement: $status/$phase/$displayed", async (scenario) => {
+		const f = await idleFollowup()
+		f.options.getTurnPhase = () => scenario.phase
+		const minter = new MessageIdMinter()
+		minter.bumpEpoch()
+		f.options.getMinter = () => minter
+		f.options.messages = new SdkMessageCoordinator({ getTask: f.options.getTask, getMinter: () => minter })
+		f.sessions.setActiveSession({ sessionId: record.id, sdkHost: f.host, isRunning: true })
+		f.options.messages.appendMessages([
+			{ ts: minter.nextId(), type: "say", say: "command_output", text: "done", partial: false },
+		])
+		const replica = applyStateSnapshot(
+			createReplicaState(),
+			f.task.messageStateHandler.getClineMessages(),
+			minter.epoch,
+			minter.nextSeq(),
+		)
+		if (!scenario.displayed) f.options.setTask(createTaskProxy("newer-task", vi.fn(), vi.fn()))
+		const before = f.options.getTask()
+		const count = f.task.messageStateHandler.getClineMessages().length
+		f.cloudSessions.listSessions.mockResolvedValue([
+			{ ...record, status: scenario.status, expiredAt: "expiredAt" in scenario ? scenario.expiredAt : undefined },
+		])
+		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+
+		expect(f.sessions.getActiveSession()).toBeUndefined()
+		expect(f.options.getTask()).toBe(before)
+		const messages = f.task.messageStateHandler.getClineMessages()
+		if (scenario.expected === "resumable") {
+			const shown = applyStateSnapshot(replica, messages, minter.epoch, minter.nextSeq())
+			expect(shown.messages.at(-1)).toMatchObject({ type: "ask", ask: "resume_task" })
+			expect(messages.at(-1)).toMatchObject({ type: "ask", ask: "resume_task" })
+			expect(messages.at(-1)!.ts).toBeGreaterThan(messages[0].ts)
+			expect(f.options.setTurnPhase).toHaveBeenCalledWith("resumable", messages.at(-1)!.ts)
+		} else {
+			expect(messages).toHaveLength(count)
+			if (scenario.expected) expect(f.options.setTurnPhase).toHaveBeenCalledWith(scenario.expected)
+			else expect(f.options.setTurnPhase).not.toHaveBeenCalled()
+		}
+		if (scenario.expected) expect(f.options.postStateToWebview).toHaveBeenCalled()
 		await f.coordinator.dispose()
 	})
 

@@ -182,6 +182,7 @@ export interface SdkCloudSessionCoordinatorOptions {
 	isSignedIn: () => boolean
 	isEnabled: () => boolean
 	resetMessageTranslator: () => void
+	getTurnPhase: () => TurnPhase
 	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
 	clearTurnOutcome: () => void
@@ -785,10 +786,31 @@ export class SdkCloudSessionCoordinator {
 		entry.connection = undefined
 		entry.transportGeneration++
 		if (host) {
+			const active = this.options.sessions.getActiveSession()
+			const task = this.options.getTask()
+			const settlesDisplayedTurn =
+				active?.sdkHost === host &&
+				active.isRunning &&
+				task?.taskId === entry.record.id &&
+				["streaming", "awaiting_approval", "awaiting_followup"].includes(this.options.getTurnPhase())
+			if (settlesDisplayedTurn) {
+				if (entry.record.status?.toLowerCase() === "suspended" && !isCloudSessionExpired(entry.record)) {
+					this.offerResumeTask()
+				} else {
+					this.options.setTurnPhase("idle")
+				}
+			}
 			// Both owners are cleared synchronously; captured callers see a closed wrapper.
 			void this.options.sessions.endActiveSessionIfHost(host, "sandboxUnavailable").catch(() => undefined)
 			void host.dispose("sandboxUnavailable").catch(() => undefined)
+			if (settlesDisplayedTurn) void this.options.postStateToWebview().catch(() => undefined)
 		}
+	}
+
+	private offerResumeTask(): void {
+		const ts = this.options.getMinter().nextId()
+		this.options.messages.appendMessages([{ ts, type: "ask", ask: "resume_task", text: "", partial: false }])
+		this.options.setTurnPhase("resumable", ts)
 	}
 
 	private assertSandboxNotTerminated(entry: CloudSessionEntry): void {
@@ -1543,8 +1565,7 @@ export class SdkCloudSessionCoordinator {
 			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
 		if (isStale()) return historyItem
 
-		// Pin the host so a concurrent status resolution or idle sweep does not
-		// close it between connecting and installing the task that owns it.
+		// Pin against idle cleanup; confirmed sandbox unavailability still retires the host.
 		entry.pinned++
 		// The resume notice is posted as its own render. Whatever replaces it must
 		// start a new epoch right before it is installed, with no await between, or
@@ -1585,8 +1606,10 @@ export class SdkCloudSessionCoordinator {
 				if (isStale()) {
 					return historyItem
 				}
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				const transcript = (await host.readMessages(sessionId)) as SdkMessage[]
 				if (isStale()) return historyItem
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				attachedRunning = host.status === "running"
 				messages = this.renderTranscript(transcript, host.status === "completed")
 				await this.options.sessions.attachExistingSession({
@@ -1594,8 +1617,9 @@ export class SdkCloudSessionCoordinator {
 					sessionId,
 					startConfig: { providerId: "cline", modelId: host.sessionModelId ?? record.model ?? "" },
 					isRunning: attachedRunning,
-					shouldContinue: () => !isStale(),
+					shouldContinue: () => !isStale() && entry.host === host,
 				})
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				observedStatus = host.status
 				attachedRunning = observedStatus === "running"
 			}
@@ -1630,11 +1654,15 @@ export class SdkCloudSessionCoordinator {
 			// The task-view claim guards error rendering as well as successful attachment.
 			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
-			const { messages, deleted } = await this.explainConnectFailure(entry, error)
+			const { messages, deleted, resumable } = await this.explainConnectFailure(entry, error)
 			if (isStale()) return historyItem
 			const task = installReplacingNotice()
 			task.messageStateHandler.addMessages(messages)
-			this.options.setTurnPhase("idle")
+			if (resumable && entry.record.status?.toLowerCase() === "suspended" && !isCloudSessionExpired(entry.record)) {
+				this.offerResumeTask()
+			} else {
+				this.options.setTurnPhase("idle")
+			}
 			if (deleted) {
 				// A retained host from an earlier observation has nothing left to watch.
 				const retained = entry.host
@@ -1757,13 +1785,13 @@ export class SdkCloudSessionCoordinator {
 	private async explainConnectFailure(
 		entry: CloudSessionEntry,
 		error: unknown,
-	): Promise<{ messages: ClineMessage[]; deleted: boolean }> {
+	): Promise<{ messages: ClineMessage[]; deleted: boolean; resumable: boolean }> {
 		const probe = await this.options.cloudSessions.getStatus(entry.record.id).then(
-			(status) => (status.status?.toLowerCase() === "expired" ? ("session_expired" as const) : undefined),
+			(status) => (status.status?.toLowerCase() === "expired" ? "session_expired" : status.status?.toLowerCase()),
 			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
 		)
 		if (probe === "session_expired") {
-			return { messages: await this.renderExpired(entry), deleted: false }
+			return { messages: await this.renderExpired(entry), deleted: false, resumable: false }
 		}
 		const notice = (say: "info" | "error", text: string): ClineMessage[] => [
 			{ ts: Date.now(), type: "say", say, text, partial: false },
@@ -1775,6 +1803,7 @@ export class SdkCloudSessionCoordinator {
 					"This cloud session was deleted, so it can no longer be opened. It has been removed from History.",
 				),
 				deleted: true,
+				resumable: false,
 			}
 		}
 		return {
@@ -1783,6 +1812,12 @@ export class SdkCloudSessionCoordinator {
 				`Could not connect to this cloud session: ${error instanceof Error ? error.message : String(error)}`,
 			),
 			deleted: false,
+			resumable:
+				probe === "suspended" &&
+				!(
+					error instanceof CloudSessionError &&
+					["session_expired", "session_not_found", "session_failed"].includes(error.code)
+				),
 		}
 	}
 

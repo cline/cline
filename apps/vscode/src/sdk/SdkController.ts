@@ -723,6 +723,7 @@ export class Controller {
 			isSignedIn: () => !!this.authService.getInfo().user?.uid,
 			isEnabled: () => isCloudSessionsFeatureEnabled(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),

@@ -158,15 +158,20 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages([])
 					setSelectedFiles([])
 					setEnableButtons(false)
+					return chatState.getDraftSnapshot().revision
 				}
-				const restorePendingMessageState = () => {
+				const restorePendingMessageState = (clearedRevision: number, responseId: number) => {
 					if (submittedCloudTask.sessionId && cloudTaskRef.current !== submittedCloudTask) return
-					setInputValue(text)
-					setActiveQuote(activeQuote)
-					setSendingDisabled(sendingDisabled)
-					setSelectedImages(images)
-					setSelectedFiles(files)
-					setEnableButtons(enableButtons)
+					if (chatState.getDraftSnapshot().revision === clearedRevision) {
+						setInputValue(text)
+						setActiveQuote(activeQuote)
+						setSelectedImages(images)
+						setSelectedFiles(files)
+					}
+					if (pendingResponseIdRef.current === responseId) {
+						setSendingDisabled(sendingDisabled)
+						setEnableButtons(enableButtons)
+					}
 				}
 				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
 					const id = ++pendingResponseIdRef.current
@@ -205,7 +210,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					const { id, optimisticMessage } = beginPendingResponse(
 						options.showPendingMessage
 							? {
@@ -223,7 +228,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 				}
@@ -286,7 +291,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								}
 							: {}),
 					})
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					trackPromptSubmitted(false)
 					const { id, optimisticMessage } = beginPendingResponse({
 						ts: Date.now(),
@@ -301,7 +306,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 					messageSent = true
