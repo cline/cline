@@ -578,7 +578,7 @@ export function SettingsView({
 		</div>
 	) : providerCatalogError ? (
 		<div className="flex h-full items-center justify-center">
-			<p className="max-w-xl px-4 text-center text-sm text-destructive">
+			<p className="max-w-xl px-4 text-center text-sm text-error-text">
 				Failed to load providers: {providerCatalogError}
 			</p>
 		</div>
@@ -945,7 +945,7 @@ function GeneralSettingsContent() {
 							Pick the icon Cline shows in the {appIconLocation}.
 						</p>
 						{appIconError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
+							<p className="mt-2 text-xs text-error-text" role="alert">
 								Failed to change app icon: {appIconError}
 							</p>
 						) : null}
@@ -997,7 +997,7 @@ function GeneralSettingsContent() {
 							separately.
 						</p>
 						{autoUpdateError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
+							<p className="mt-2 text-xs text-error-text" role="alert">
 								Failed to update CLI auto-update setting: {autoUpdateError}
 							</p>
 						) : null}
@@ -1016,7 +1016,7 @@ function GeneralSettingsContent() {
 							Enable error and usage reports to help improve Cline.
 						</p>
 						{telemetryError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
+							<p className="mt-2 text-xs text-error-text" role="alert">
 								Failed to update telemetry setting: {telemetryError}
 							</p>
 						) : null}

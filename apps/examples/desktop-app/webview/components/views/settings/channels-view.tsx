@@ -265,7 +265,7 @@ function CredentialField({
 				<label className="text-sm font-medium text-foreground" htmlFor={id}>
 					{label}
 					{required ? (
-						<span aria-hidden="true" className="text-destructive">
+						<span aria-hidden="true" className="text-error-text">
 							{" "}
 							*
 						</span>
@@ -619,7 +619,7 @@ export function ChannelsContent({
 
 			{catalogError ? (
 				<div
-					className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+					className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text"
 					role="alert"
 				>
 					Failed to load channels: {catalogError}
@@ -742,7 +742,7 @@ export function ChannelsContent({
 								>
 									{channelErrors[channel.id] ? (
 										<div
-											className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+											className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text"
 											role="alert"
 										>
 											{channelErrors[channel.id]}
@@ -873,7 +873,7 @@ export function ChannelsContent({
 												className={cn(
 													"rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
 													isConnected
-														? "border-destructive/40 text-destructive hover:bg-destructive/10"
+														? "border-destructive/40 text-error-text hover:bg-destructive/10"
 														: "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 												)}
 												onClick={() => {

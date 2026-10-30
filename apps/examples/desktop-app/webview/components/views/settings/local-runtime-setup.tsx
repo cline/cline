@@ -254,7 +254,7 @@ export function LocalRuntimeSetup({
 					</Button>
 				</div>
 				{startError ? (
-					<p className="text-xs text-destructive" role="alert">
+					<p className="text-xs text-error-text" role="alert">
 						{startError}
 					</p>
 				) : null}

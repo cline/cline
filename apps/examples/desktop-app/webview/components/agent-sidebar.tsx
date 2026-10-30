@@ -956,7 +956,7 @@ export function AgentSidebar({
 										</span>
 									</div>
 									{hubStatus && !hubStatus.connected && (
-										<p className="mt-1 text-[11px] text-destructive">
+										<p className="mt-1 text-[11px] text-error-text">
 											{hubStatus.error ?? "Cline Hub is not connected."}
 										</p>
 									)}
@@ -1667,7 +1667,7 @@ function ThreadItem({
 							action={
 								<Button
 									aria-label={`Delete ${title}`}
-									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-error-text focus-visible:opacity-100"
 									disabled={pending}
 									onClick={(event) => {
 										event.stopPropagation();

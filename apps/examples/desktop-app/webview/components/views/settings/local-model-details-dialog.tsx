@@ -204,7 +204,7 @@ export function LocalModelDetailsDialog({
 				</DialogHeader>
 
 				{error ? (
-					<p className="text-sm text-destructive" role="alert">
+					<p className="text-sm text-error-text" role="alert">
 						{error}
 					</p>
 				) : !details ? (

@@ -50,7 +50,7 @@ export function PublishedArtifacts({
 					>
 						<span className="break-all">{name}</span>
 						{file.error ? (
-							<span className="text-destructive">{file.error.message}</span>
+							<span className="text-error-text">{file.error.message}</span>
 						) : (
 							<>
 								<DownloadArtifact
@@ -113,7 +113,7 @@ function DownloadArtifact({
 				{busy ? "Preparing…" : failed ? "Retry download" : "Download"}
 			</Button>
 			{failed && (
-				<output className="text-destructive">
+				<output className="text-error-text">
 					Could not download this file.
 				</output>
 			)}

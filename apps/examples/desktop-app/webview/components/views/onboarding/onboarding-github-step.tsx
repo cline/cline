@@ -213,7 +213,7 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 				) : null}
 
 				{connectError ? (
-					<p className="mt-2 text-xs text-destructive" role="alert">
+					<p className="mt-2 text-xs text-error-text" role="alert">
 						{connectError}
 					</p>
 				) : null}

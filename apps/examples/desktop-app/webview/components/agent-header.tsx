@@ -176,7 +176,7 @@ function AgentHeaderImpl({
 								<FileDiff className="size-4" />
 								<span className="flex items-center gap-1 font-mono text-xs">
 									<span className="text-chart-2">+{additions}</span>
-									<span className="text-destructive">-{deletions}</span>
+									<span className="text-error-text">-{deletions}</span>
 								</span>
 							</Button>
 						) : null}
@@ -325,7 +325,7 @@ function AgentHeaderImpl({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-44">
 					<DropdownMenuItem
-						className="text-destructive focus:text-destructive"
+						className="text-error-text focus:text-error-text"
 						disabled={!canDeleteSession || deletingSession}
 						onClick={triggerDeleteSession}
 					>
@@ -447,7 +447,7 @@ function AgentActivityStatus({
 						</span>
 					) : null}
 					{activity.failed > 0 ? (
-						<span className="flex items-center gap-0.5 text-destructive">
+						<span className="flex items-center gap-0.5 text-error-text">
 							<AlertCircle aria-hidden="true" className="size-3" />
 							{activity.failed}
 						</span>
@@ -566,7 +566,7 @@ const AGENT_STATE_ICON: Record<SessionAgentRunState, typeof Check> = {
 const AGENT_STATE_CLASS: Record<SessionAgentRunState, string> = {
 	running: "text-foreground",
 	completed: "text-chart-2",
-	failed: "text-destructive",
+	failed: "text-error-text",
 	cancelled: "text-muted-foreground",
 	unresolved: "text-muted-foreground",
 };

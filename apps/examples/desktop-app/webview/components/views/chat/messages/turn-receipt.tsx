@@ -38,7 +38,7 @@ export function TurnReceipt({
 				</span>
 				<span className="font-mono text-[11px]">
 					<span className="text-chart-2">+{additions}</span>{" "}
-					<span className="text-destructive">-{deletions}</span>
+					<span className="text-error-text">-{deletions}</span>
 				</span>
 				<span className="ml-auto text-[11px] text-muted-foreground">
 					Review
@@ -61,7 +61,7 @@ export function TurnReceipt({
 					</span>
 					<span className="ml-auto shrink-0 font-mono text-[10.5px]">
 						<span className="text-chart-2">+{file.additions ?? 0}</span>{" "}
-						<span className="text-destructive">-{file.deletions ?? 0}</span>
+						<span className="text-error-text">-{file.deletions ?? 0}</span>
 					</span>
 				</button>
 			))}
