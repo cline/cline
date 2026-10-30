@@ -1588,7 +1588,7 @@ function ChatInputBarImpl({
 					</AgentComposerField>
 				</div>
 				{unsupportedDraftImageCount > 0 && (
-					<output className="block px-2 text-sm text-destructive">
+					<output className="block px-2 text-sm text-error-text">
 						This model doesn’t support the attached images. Remove them or
 						choose a model that supports images before sending.
 					</output>
@@ -2438,7 +2438,7 @@ const ModelSelector = memo(function ModelSelector({
 	) {
 		return (
 			<button
-				className="text-xs text-destructive"
+				className="text-xs text-error-text"
 				onClick={refreshActiveProviderModels}
 				type="button"
 			>

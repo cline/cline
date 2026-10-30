@@ -307,7 +307,7 @@ export function LocalModelIndicator({
 				) : null}
 
 				{error ? (
-					<p className="break-words text-xs text-destructive" role="alert">
+					<p className="break-words text-xs text-error-text" role="alert">
 						{error}
 					</p>
 				) : null}

@@ -450,7 +450,7 @@ export function WorkspaceSelector({
 										</div>
 									) : null}
 									{workspaceError && (
-										<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+										<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-error-text">
 											{workspaceError}
 										</div>
 									)}

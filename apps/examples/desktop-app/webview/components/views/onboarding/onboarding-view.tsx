@@ -612,7 +612,7 @@ function ConnectStep({
 					) : null}
 					{signInError ? (
 						<p
-							className="mt-6 ml-12 text-xs text-destructive max-[720px]:ml-0"
+							className="mt-6 ml-12 text-xs text-error-text max-[720px]:ml-0"
 							role="alert"
 						>
 							Sign in failed: {signInError}
@@ -692,7 +692,7 @@ function ConnectStep({
 										<ExternalLink className="size-3" />
 									</Button>
 									{clineKeyError ? (
-										<p className="text-xs text-destructive" role="alert">
+										<p className="text-xs text-error-text" role="alert">
 											Failed to save API key: {clineKeyError}
 										</p>
 									) : null}
@@ -721,7 +721,7 @@ function ConnectStep({
 					>
 						<div className="flex flex-col gap-3 pt-6">
 							{providersError ? (
-								<p className="text-xs text-destructive" role="alert">
+								<p className="text-xs text-error-text" role="alert">
 									Failed to load providers: {providersError}
 								</p>
 							) : (
@@ -800,7 +800,7 @@ function ConnectStep({
 								</Button>
 							</div>
 							{saveError ? (
-								<p className="text-xs text-destructive" role="alert">
+								<p className="text-xs text-error-text" role="alert">
 									Failed to save provider: {saveError}
 								</p>
 							) : null}

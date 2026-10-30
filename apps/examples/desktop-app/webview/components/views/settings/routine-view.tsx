@@ -1235,7 +1235,7 @@ export function RoutineSchedulesContent({
 			/>
 
 			{errorMessage && (
-				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text">
 					{errorMessage}
 				</div>
 			)}
@@ -1443,7 +1443,7 @@ export function RoutineSchedulesContent({
 										</p>
 									)}
 									{lastExecution?.errorMessage && (
-										<p className="whitespace-pre-wrap break-words text-destructive">
+										<p className="whitespace-pre-wrap break-words text-error-text">
 											<span className="text-muted-foreground/70">
 												Last error:
 											</span>{" "}
@@ -1597,7 +1597,7 @@ export function RoutineSchedulesContent({
 												{succeeded ? (
 													<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
 												) : failed ? (
-													<XCircle className="size-4 shrink-0 text-destructive" />
+													<XCircle className="size-4 shrink-0 text-error-text" />
 												) : (
 													<Clock3 className="size-4 shrink-0 text-muted-foreground" />
 												)}
@@ -1606,7 +1606,7 @@ export function RoutineSchedulesContent({
 														{execution.status || "Unknown result"}
 													</span>
 													{execution.errorMessage && (
-														<span className="block whitespace-pre-wrap break-words text-xs text-destructive">
+														<span className="block whitespace-pre-wrap break-words text-xs text-error-text">
 															{execution.errorMessage}
 														</span>
 													)}
@@ -2026,7 +2026,7 @@ export function RoutineSchedulesContent({
 					</div>
 
 					{createFormError && (
-						<div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+						<div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-error-text">
 							{createFormError}
 						</div>
 					)}
