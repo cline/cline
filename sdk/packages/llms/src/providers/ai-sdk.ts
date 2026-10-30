@@ -1375,6 +1375,37 @@ export function normalizeUsage(
 	};
 }
 
+function sumStepUsage(
+	steps: readonly GatewayNormalizedUsage[],
+): GatewayNormalizedUsage {
+	const total = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+	};
+	let reasoningTokenCount = 0;
+	let totalCost: number | undefined = 0;
+	for (const step of steps) {
+		total.inputTokens += step.inputTokens;
+		total.outputTokens += step.outputTokens;
+		total.cacheReadTokens += step.cacheReadTokens;
+		total.cacheWriteTokens += step.cacheWriteTokens;
+		reasoningTokenCount += step.reasoningTokenCount ?? 0;
+		// A known charge of zero counts; an unknown step must not turn a
+		// partial sum into an apparently complete total.
+		totalCost =
+			totalCost !== undefined && step.totalCost !== undefined
+				? totalCost + step.totalCost
+				: undefined;
+	}
+	return {
+		...total,
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
+		...(totalCost !== undefined ? { totalCost } : {}),
+	};
+}
+
 /**
  * Suppress unhandled rejections from AI SDK stream promises (usage, finishReason, etc.)
  * that reject with NoOutputGeneratedError when the stream encounters an error.
@@ -1527,6 +1558,7 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	const stepUsages: GatewayNormalizedUsage[] = [];
 	let streamAborted = false;
 	let sawVisibleContent = false;
 	const mediaBudget = createMediaBudgetState();
@@ -1554,6 +1586,16 @@ async function* emitAiSdkEvents(
 				}
 				if (part.type === "finish-step") {
 					requestId = findRequestIdHeader(part.response?.headers);
+					if (part.usage) {
+						stepUsages.push(
+							normalizeUsage(
+								part.usage as AiSdkStreamUsage,
+								part.providerMetadata,
+								pricingValue,
+								request,
+							),
+						);
+					}
 					continue;
 				}
 				if (part.type === "text-delta") {
@@ -2006,7 +2048,8 @@ async function* emitAiSdkEvents(
 		}
 	}
 
-	// Prefer stream.usage (has raw cost data) over finish part usage.
+	// Single-step stream.usage retains raw cost data; AI SDK drops raw when
+	// combining multiple steps, so normalize those before aggregation instead.
 	// stream.usage may be undefined in mocked/test scenarios, fall back to finish part + its providerMetadata.
 	let usageToEmit: unknown;
 	let metadataToUse: unknown;
@@ -2029,10 +2072,16 @@ async function* emitAiSdkEvents(
 		metadataToUse = finishProviderMetadata;
 	}
 
-	if (usageToEmit) {
+	const normalizedUsage =
+		stepUsages.length > 1
+			? sumStepUsage(stepUsages)
+			: usageToEmit
+				? normalizeUsage(usageToEmit, metadataToUse, pricingValue, request)
+				: undefined;
+	if (normalizedUsage) {
 		yield {
 			type: "usage",
-			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
+			usage: normalizedUsage,
 		};
 	}
 
