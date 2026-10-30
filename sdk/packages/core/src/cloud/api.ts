@@ -4,6 +4,14 @@ import {
 	decodeJwtPayload,
 	type MessageWithMetadata,
 } from "@cline/shared";
+import {
+	ArtifactDownloadSchema,
+	artifactDownloadPath,
+	type CloudArtifactDownload,
+} from "../artifacts/cloud/download-url";
+
+export type { CloudArtifactDownload } from "../artifacts/cloud/download-url";
+
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -982,6 +990,16 @@ export class CloudSessionApi {
 				body: JSON.stringify({ title }),
 			},
 		);
+	}
+
+	async getArtifactDownloadUrl(
+		sessionId: string,
+		artifactId: string,
+	): Promise<CloudArtifactDownload> {
+		const result = await this.request<unknown>(
+			artifactDownloadPath(sessionId, artifactId),
+		);
+		return ArtifactDownloadSchema.parse(result);
 	}
 
 	/** Raw archived snapshot; null distinguishes a missing archive from []. */

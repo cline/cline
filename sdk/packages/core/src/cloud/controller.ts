@@ -275,6 +275,7 @@ export type CloudSessionControllerOptions = {
 		| "status"
 		| "waitUntilReady"
 		| "history"
+		| "getArtifactDownloadUrl"
 		| "updateTitle"
 		| "listRepositories"
 		| "listBranches"
@@ -2106,6 +2107,10 @@ export class CloudSessionController {
 		}
 		this.publishSnapshot(outerSessionId, false, "queue");
 		return mapped;
+	}
+
+	getArtifactDownloadUrl(outerSessionId: string, artifactId: string) {
+		return this.options.api.getArtifactDownloadUrl(outerSessionId, artifactId);
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
