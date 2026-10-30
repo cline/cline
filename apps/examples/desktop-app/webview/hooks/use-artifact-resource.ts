@@ -95,10 +95,6 @@ export function useArtifactResource({
 					if (!popup) throw new Error("Download popup was blocked");
 					pendingWindow.current = popup;
 					popup.opener = null;
-					const policy = popup.document.createElement("meta");
-					policy.name = "referrer";
-					policy.content = "no-referrer";
-					popup.document.head.append(policy);
 				}
 				const resource =
 					!force && fresh
@@ -119,7 +115,10 @@ export function useArtifactResource({
 				cache.current = ready;
 				if (popup) {
 					if (popup.closed) throw new Error("Download tab was closed");
-					popup.location.replace(resource.url);
+					const link = popup.document.createElement("a");
+					link.href = resource.url;
+					link.referrerPolicy = "no-referrer";
+					link.click();
 					pendingWindow.current = null;
 					popup = null;
 				} else if (open) await openExternalUrl(resource.url);

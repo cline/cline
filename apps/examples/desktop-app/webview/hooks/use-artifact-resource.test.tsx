@@ -248,10 +248,12 @@ function browserWindow() {
 	const popup = {
 		opener: window,
 		document: document.implementation.createHTMLDocument(),
-		location: { replace: vi.fn() },
+		link: document.createElement("a"),
 		closed: false,
 		close: vi.fn(),
 	};
+	popup.link.click = vi.fn();
+	vi.spyOn(popup.document, "createElement").mockReturnValue(popup.link);
 	const open = vi.fn(() => popup);
 	vi.stubGlobal("open", open);
 	return { popup, open };
@@ -270,21 +272,17 @@ it("reserves a browser tab before URL resolution and navigates it afterward", as
 		mocks.invoke.mock.invocationCallOrder[0],
 	);
 	expect(popup.opener).toBeNull();
-	expect(
-		popup.document
-			.querySelector('meta[name="referrer"]')
-			?.getAttribute("content"),
-	).toBe("no-referrer");
-	expect(popup.location.replace).not.toHaveBeenCalled();
+
+	expect(popup.link.click).not.toHaveBeenCalled();
 	await act(async () =>
 		pending.resolve({
 			url: "https://storage.example/ready",
 			expiresAt: "2030-01-01T00:01:00Z",
 		}),
 	);
-	expect(popup.location.replace).toHaveBeenCalledWith(
-		"https://storage.example/ready",
-	);
+	expect(popup.link.click).toHaveBeenCalledOnce();
+	expect(popup.link.href).toBe("https://storage.example/ready");
+	expect(popup.link.referrerPolicy).toBe("no-referrer");
 	expect(mocks.open).not.toHaveBeenCalled();
 	await act(async () => root.render(null));
 	expect(popup.close).not.toHaveBeenCalled();
@@ -327,7 +325,7 @@ it.each([
 			expiresAt: "2030-01-01T00:01:00Z",
 		}),
 	);
-	expect(popup.location.replace).not.toHaveBeenCalled();
+	expect(popup.link.click).not.toHaveBeenCalled();
 });
 
 it("does not let stale completion close a newer browser tab", async () => {
@@ -351,17 +349,16 @@ it("does not let stale completion close a newer browser tab", async () => {
 			expiresAt: "2030-01-01T00:01:00Z",
 		}),
 	);
-	expect(first.location.replace).not.toHaveBeenCalled();
+	expect(first.link.click).not.toHaveBeenCalled();
 	expect(second.close).not.toHaveBeenCalled();
-	expect(second.location.replace).not.toHaveBeenCalled();
+	expect(second.link.click).not.toHaveBeenCalled();
 	await act(async () =>
 		newer.resolve({
 			url: "https://storage.example/first",
 			expiresAt: "2030-01-01T00:01:00Z",
 		}),
 	);
-	expect(second.location.replace).toHaveBeenCalledWith(
-		"https://storage.example/first",
-	);
+	expect(second.link.click).toHaveBeenCalledOnce();
+	expect(second.link.href).toBe("https://storage.example/first");
 	expect(second.close).not.toHaveBeenCalled();
 });
