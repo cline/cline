@@ -990,6 +990,7 @@ export {
 	type ArtifactPublisher,
 	createPublishArtifactsTool,
 } from "./artifacts/publish";
+export { createUxVerificationReportTool } from "./artifacts/ux-verification";
 export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
 export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
