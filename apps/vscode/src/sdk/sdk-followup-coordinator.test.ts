@@ -111,6 +111,29 @@ describe("SdkFollowupCoordinator", () => {
 		expect(prepare).not.toHaveBeenCalled()
 	})
 
+	it.each([
+		false,
+		true,
+	])("rejects a cloud queued prompt if its host is retired during mention resolution (replacement: %s)", async (replacement) => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const prepare = vi.fn()
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task: makeTask(activeSession.sessionId),
+			beginCloudFollowup: () => ({ prepare, isCurrent: () => true }),
+		})
+		options.resolveContextMentions.mockImplementation(async () => {
+			options.sessions.getActiveSession.mockReturnValue(replacement ? makeActiveSession({ isRunning: true }) : undefined)
+			return "resolved prompt"
+		})
+
+		await expect(coordinator.askResponse("keep queued draft")).rejects.toThrow("connection was superseded")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledTimes(replacement ? 0 : 1)
+		expect(prepare).not.toHaveBeenCalled()
+	})
+
 	it("prepares an idle cloud follow-up before echoing and dispatches its original input once", async () => {
 		const task = makeTask("ses-cloud")
 		const preparedSession = makeActiveSession()

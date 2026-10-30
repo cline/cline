@@ -51,7 +51,7 @@ function trimTrailingSlash(value: string): string {
 }
 
 export function isCloudSessionExpired(record: Pick<CloudSessionRecord, "expiredAt" | "status">): boolean {
-	if (record.status === "expired") {
+	if (record.status?.toLowerCase() === "expired") {
 		return true
 	}
 	const expiredAt = record.expiredAt ? Date.parse(record.expiredAt) : Number.NaN

@@ -213,7 +213,7 @@ interface CloudSessionEntry {
 	transportGeneration: number
 	wake?: Promise<void>
 	/**
-	 * Number of openCloudTask calls currently reading from or attaching to the
+	 * Number of task-open and follow-up calls currently reading from or attaching to the
 	 * host. Status resolution and the idle sweep leave a pinned host open.
 	 */
 	pinned: number
@@ -675,7 +675,8 @@ export class SdkCloudSessionCoordinator {
 		const existing = this.entries.get(record.id)
 		if (existing) {
 			existing.record = record
-			if (record.status?.toLowerCase() === "suspended") this.retireTransport(existing)
+			const status = record.status?.toLowerCase()
+			if (status === "suspended" || status === "failed" || isCloudSessionExpired(record)) this.retireTransport(existing)
 			// A retained host is not proof of continuous observation. Revalidate
 			// settled outcomes against the record just as we do after restart.
 			if (existing.agentStatus && isSettled(existing.agentStatus)) {
@@ -785,12 +786,20 @@ export class SdkCloudSessionCoordinator {
 		entry.transportGeneration++
 		if (host) {
 			// Both owners are cleared synchronously; captured callers see a closed wrapper.
-			void this.options.sessions.endActiveSessionIfHost(host, "suspended").catch(() => undefined)
-			void host.dispose("suspended").catch(() => undefined)
+			void this.options.sessions.endActiveSessionIfHost(host, "sandboxUnavailable").catch(() => undefined)
+			void host.dispose("sandboxUnavailable").catch(() => undefined)
 		}
 	}
 
+	private assertSandboxNotTerminated(entry: CloudSessionEntry): void {
+		const expired = isCloudSessionExpired(entry.record)
+		if (!expired && entry.record.status?.toLowerCase() !== "failed") return
+		this.retireTransport(entry)
+		throw new Error(`This cloud sandbox ${expired ? "has expired" : "has failed"}. Start a new cloud task to continue.`)
+	}
+
 	private async connect(entry: CloudSessionEntry): Promise<CloudSessionHost> {
+		this.assertSandboxNotTerminated(entry)
 		if (entry.connection) {
 			return entry.connection
 		}
@@ -1408,6 +1417,39 @@ export class SdkCloudSessionCoordinator {
 				this.waitForFollowup(signal, async () => {
 					assertCurrent()
 					if (!entry) throw new Error("This cloud session is no longer available.")
+					this.assertSandboxNotTerminated(entry)
+					if (!entry.wake && entry.record.status?.toLowerCase() !== "suspended") {
+						// Fence lists already in flight before asking for a fresher observation.
+						const checkedRecord = { ...entry.record }
+						entry.record = checkedRecord
+						let live: Awaited<ReturnType<CloudSessionsService["getStatus"]>>
+						try {
+							live = await this.options.cloudSessions.getStatus(
+								task.taskId,
+								AbortSignal.any([signal, this.scopeAbort.signal]),
+							)
+						} catch (error) {
+							assertCurrent()
+							if (entry.record === checkedRecord && error instanceof CloudSessionError) {
+								if (error.code === "session_expired") {
+									this.upsertRecord({ ...checkedRecord, status: "expired" })
+								} else if (error.code === "session_not_found") {
+									this.retireTransport(entry)
+								}
+							}
+							throw error
+						}
+						assertCurrent()
+						if (entry.record !== checkedRecord)
+							throw new Error("Cloud sandbox status changed. Send your message again.")
+						const status = live.status?.toLowerCase()
+						if (!status) throw new Error("Could not confirm the cloud sandbox's status. Send your message again.")
+						this.upsertRecord({ ...checkedRecord, status })
+						this.assertSandboxNotTerminated(entry)
+						if (status !== "active" && status !== "ready" && status !== "suspended") {
+							throw new Error("The cloud sandbox is not ready. Send your message again once it is running.")
+						}
+					}
 					const active = this.options.sessions.getActiveSession()
 					if (
 						active?.sessionId === task.taskId &&
@@ -1521,14 +1563,14 @@ export class SdkCloudSessionCoordinator {
 			if (status === "expired") {
 				messages = await this.renderExpired(entry)
 				if (isStale()) return historyItem
-			} else if (entry.record.status?.toLowerCase() === "failed" && !entry.host) {
+			} else if (entry.record.status?.toLowerCase() === "failed") {
 				// Only the control plane's record says the sandbox failed; a remembered
 				// "failed" is the last agent turn's outcome, and that conversation can continue.
 				messages.push({
 					ts: Date.now(),
 					type: "say",
 					say: "error",
-					text: `The cloud sandbox failed to start${entry.record.metadata.statusReason ? `: ${entry.record.metadata.statusReason}` : "."}`,
+					text: `The cloud sandbox failed${entry.record.metadata.statusReason ? `: ${entry.record.metadata.statusReason}` : "."}`,
 					partial: false,
 				})
 			} else {
@@ -1643,6 +1685,7 @@ export class SdkCloudSessionCoordinator {
 
 	private async wake(entry: CloudSessionEntry): Promise<void> {
 		if (entry.wake) return entry.wake
+		this.assertSandboxNotTerminated(entry)
 		const suspended = entry.record
 		const resuming = { ...suspended, status: "provisioning" }
 		entry.record = resuming
@@ -1657,6 +1700,7 @@ export class SdkCloudSessionCoordinator {
 				throw error
 			}
 			if (!this.disposed && generation === this.scopeGeneration && this.entries.get(suspended.id) === entry) {
+				this.assertSandboxNotTerminated(entry)
 				entry.record = { ...entry.record, status: "ready" }
 			}
 		})

@@ -102,7 +102,7 @@ export class SdkFollowupCoordinator {
 			// Still recheck logical identity because navigation may have completed
 			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
-			// and the user's follow-up should survive that.
+			// and a local follow-up should survive that; cloud identity is checked above.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
 				await this.abandonFollowUp(
 					`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`,
@@ -194,6 +194,10 @@ export class SdkFollowupCoordinator {
 		}
 
 		const currentSession = this.options.sessions.getActiveSession()
+		if (isCurrent && currentSession !== activeSession) {
+			if (!currentSession) await this.abandonFollowUp("Cloud connection ended before the follow-up could be queued")
+			throw new Error("Cloud session connection was superseded")
+		}
 		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
 			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
 			return

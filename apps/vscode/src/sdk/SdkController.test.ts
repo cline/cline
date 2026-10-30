@@ -445,7 +445,7 @@ describe("SDK remote-config coordination", () => {
 				text: new ClineError({ message, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
 			}
 			const { controller, errorTask } = controllerShowingCloudStartError(ask)
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(errorTask.handleWebviewAskResponse("yesButtonClicked")).rejects.toThrow(message)
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledWith(
@@ -497,14 +497,21 @@ describe("SDK remote-config coordination", () => {
 			)
 		})
 
-		it("advances the turn phase when it refuses a response to a session that is gone", async () => {
+		it.each([
+			"failed",
+			"expired",
+		])("rejects an unsent draft and settles the phase for a detached %s sandbox", async (status) => {
 			const { controller, errorTask } = controllerShowingCloudStartError()
 			// The retry is consumed by the first response; a second one finds no session to send to.
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
+			controller.cloud.getCurrentTaskInfo = () => ({ status })
 
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(
+				errorTask.handleWebviewAskResponse("messageResponse", "keep this draft", ["image"], ["file"]),
+			).rejects.toThrow("This cloud session is no longer running")
 
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledOnce()
 			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error")
