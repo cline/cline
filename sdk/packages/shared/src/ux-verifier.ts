@@ -1,25 +1,18 @@
 import { z } from "zod";
+import {
+	GeneratedMediaSchema,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+} from "./llms/media";
 
 export const UxCheckStatusSchema = z.enum(["passed", "failed", "blocked"]);
 const text = z.string().trim().min(1).max(2000);
 
-export const UxScreenshotSchema = z
-	.object({
-		type: z.literal("image"),
-		mediaType: z.enum(["image/png", "image/jpeg", "image/webp"]),
-		data: z.string().min(1).optional(),
-		url: z
-			.string()
-			.refine(
-				(value) => /^(https?:\/\/|cline-asset:|\/(?!\/))/.test(value),
-				"Unsupported screenshot URL",
-			)
-			.optional(),
-	})
-	.refine(
-		(image) => Boolean(image.data) !== Boolean(image.url),
-		"Provide image data or a URL",
-	);
+/** Screenshot evidence is canonical generated image media. Hosts resolve URL
+ * and artifact sources; inline bytes use the shared media renderer. */
+export const UxScreenshotSchema = GeneratedMediaSchema.safeExtend({
+	modality: z.literal("image"),
+	mediaType: z.enum(SUPPORTED_IMAGE_MEDIA_TYPES),
+});
 
 export const UxVerificationCheckSchema = z
 	.object({

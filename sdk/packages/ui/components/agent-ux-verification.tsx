@@ -26,35 +26,36 @@ import {
 	type CarouselApi,
 } from "./carousel.js";
 
+export type UxScreenshotPresentation = "slide" | "thumbnail";
 export type UxScreenshotRenderer = (
 	check: UxVerificationCheck,
-	className?: string,
+	className: string | undefined,
+	presentation: UxScreenshotPresentation,
 ) => ReactNode;
 
 function EvidenceImage({
 	check,
 	className,
 	renderScreenshot,
+	presentation,
 }: {
 	check: UxVerificationCheck;
 	className?: string;
 	renderScreenshot?: UxScreenshotRenderer;
+	presentation: UxScreenshotPresentation;
 }) {
 	const image = check.screenshot;
 	const [failedImage, setFailedImage] = useState<typeof image>();
-	if (image && renderScreenshot) return renderScreenshot(check, className);
-	if (image?.data && failedImage !== image)
+	if (image && renderScreenshot) {
+		const rendered = renderScreenshot(check, className, presentation);
+		if (rendered !== undefined) return rendered;
+	}
+	if (image?.source.type === "base64" && failedImage !== image)
 		return (
 			<div className={className} onErrorCapture={() => setFailedImage(image)}>
 				<GeneratedMediaContent
 					className={className}
-					media={{
-						id: check.id,
-						modality: "image",
-						mediaType: image.mediaType,
-						name: check.title,
-						source: { type: "base64", data: image.data },
-					}}
+					media={{ ...image, name: image.name ?? check.title }}
 				/>
 			</div>
 		);
@@ -64,7 +65,7 @@ function EvidenceImage({
 			<span>
 				{failedImage && failedImage === image
 					? "Screenshot could not be loaded"
-					: image?.url
+					: image
 						? "Screenshot requires a host image resolver"
 						: "No screenshot available"}
 			</span>
@@ -76,7 +77,8 @@ export interface AgentUxVerificationProps {
 	output: unknown;
 	state: "running" | "completed" | "error";
 	error?: string;
-	/** Host-owned rendering for authenticated asset references or remote URLs. */
+	/** Thumbnail renderers must not contain interactive controls. Return undefined
+	 * to use the default renderer (including its inline image error handling). */
 	renderScreenshot?: UxScreenshotRenderer;
 	/** The host owns its focus-managed image viewer. */
 	onExpandScreenshot?: (check: UxVerificationCheck) => void;
@@ -220,6 +222,7 @@ export function AgentUxVerification({
 						>
 							<figure className="cline-ui-ux-evidence-slide">
 								<EvidenceImage
+									presentation="slide"
 									renderScreenshot={renderScreenshot}
 									check={check}
 									className="cline-ui-ux-evidence-image"
@@ -287,6 +290,7 @@ export function AgentUxVerification({
 							onClick={() => select(index)}
 						>
 							<EvidenceImage
+								presentation="thumbnail"
 								renderScreenshot={renderScreenshot}
 								check={check}
 							/>
