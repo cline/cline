@@ -290,3 +290,22 @@ it("uses the default inline renderer when the host declines a source", async () 
 	});
 	expect(container.textContent).toContain("Screenshot could not be loaded");
 });
+it("tells host renderers whether evidence is a slide or a non-interactive thumbnail", async () => {
+	const renderer = vi.fn<UxScreenshotRenderer>(
+		(_check, _className, presentation) => <span>{presentation}</span>,
+	);
+	await act(async () =>
+		root.render(
+			<AgentUxVerification
+				output={report}
+				state="completed"
+				renderScreenshot={renderer}
+			/>,
+		),
+	);
+	expect(new Set(renderer.mock.calls.map((call) => call[2]))).toEqual(
+		new Set(["slide", "thumbnail"]),
+	);
+	const thumbnail = container.querySelector('[aria-label^="Show check"]')!;
+	expect(thumbnail.textContent).toContain("thumbnail");
+});

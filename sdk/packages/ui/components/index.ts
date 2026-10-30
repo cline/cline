@@ -134,5 +134,17 @@ export {
 } from "./session-status.js";
 export { Switch, type SwitchProps } from "./switch.js";
 
-export { AgentUxVerification, type AgentUxVerificationProps, type UxScreenshotRenderer } from "./agent-ux-verification.js";
-export { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "./carousel.js";
+export {
+	AgentUxVerification,
+	type AgentUxVerificationProps,
+	type UxScreenshotRenderer,
+	type UxScreenshotPresentation,
+} from "./agent-ux-verification.js";
+export {
+	Carousel,
+	CarouselContent,
+	CarouselItem,
+	CarouselPrevious,
+	CarouselNext,
+	type CarouselApi,
+} from "./carousel.js";

@@ -270,3 +270,5 @@ bun run dev           # Both concurrently
 Desktop recognizes semantic `ux_verification` tool results independently of the producer's tool name. The webview renders them with `AgentUxVerification` and passes each canonical screenshot directly to `ArtifactImage`. Both carousel images and the focus-managed expanded view therefore use `useArtifactResource` and the existing `resolve_artifact` command, reaching `HubCloudSessionClient.getArtifactDownloadUrl` without another uploader, resolver, or refresh timer. Stable artifact references remain in the transcript; signed URLs remain transient viewer state.
 
 This integration preserves existing work disclosures. Lifting reports out of completed work summaries, producing reports, and other product integrations remain separate changes.
+
+UX image callbacks distinguish full slides from non-interactive thumbnails. Desktop suppresses artifact recovery controls inside thumbnail selection buttons. Inline image decode failures are handled by the shared media renderer in both the carousel and expanded dialog.

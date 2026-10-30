@@ -267,3 +267,69 @@ it("renders the report from the main chat using its existing work disclosure", a
 		"https://storage.example/image.png?signature=",
 	);
 });
+it("keeps failed thumbnails non-interactive while retaining Retry in the main image", async () => {
+	mocks.invoke.mockRejectedValue(new Error("Artifact access denied"));
+	await render();
+	await revealImages();
+	const thumbnail = container.querySelector<HTMLButtonElement>(
+		'[aria-label^="Show check"]',
+	)!;
+	expect(thumbnail).not.toBeNull();
+	expect(
+		thumbnail.querySelector(
+			"button, a[href], input, select, textarea, [tabindex]",
+		),
+	).toBeNull();
+	expect(container.querySelector("button button")).toBeNull();
+	const main = container.querySelector(".cline-ui-ux-evidence-slide")!;
+	expect(main.textContent).toContain("Image unavailable");
+	const retry = Array.from(main.querySelectorAll("button")).find(
+		(button) => button.textContent === "Retry",
+	);
+	expect(retry).toBeDefined();
+	mocks.invoke.mockResolvedValue({
+		url: "https://storage.example/recovered.png",
+		expiresAt: "2030-01-01T00:00:00Z",
+	});
+	await act(async () => retry!.click());
+	expect(mainImage()?.src).toBe("https://storage.example/recovered.png");
+	expect(thumbnail.querySelector("button")).toBeNull();
+});
+it("shows a fallback when expanded inline image bytes cannot be decoded", async () => {
+	let id = 0;
+	vi.stubGlobal(
+		"URL",
+		class extends URL {
+			static createObjectURL() {
+				return `blob:corrupt-inline-${id++}`;
+			}
+			static revokeObjectURL() {}
+		},
+	);
+	const screenshot = {
+		id: "inline",
+		modality: "image",
+		mediaType: "image/png",
+		source: { type: "base64", data: "aGVsbG8=" },
+	};
+	await render(
+		message({ ...report, checks: [{ ...report.checks[0], screenshot }] }),
+	);
+	const expand = container.querySelector<HTMLButtonElement>(
+		'[aria-label="Expand screenshot"]',
+	)!;
+	expand.focus();
+	await act(async () => expand.click());
+	const dialog = document.querySelector('[role="dialog"]')!;
+	const image = dialog.querySelector("img")!;
+	expect(image).not.toBeNull();
+	await act(async () => image.dispatchEvent(new Event("error")));
+	expect(dialog.querySelector("img")).toBeNull();
+	expect(dialog.textContent).toContain(
+		"Generated image could not be rendered.",
+	);
+	expect(
+		dialog.querySelector('[data-testid="generated-media-unavailable"]'),
+	).not.toBeNull();
+	expect(mocks.invoke).not.toHaveBeenCalled();
+});

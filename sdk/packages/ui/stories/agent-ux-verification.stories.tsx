@@ -46,7 +46,7 @@ const meta: Meta<typeof AgentUxVerification> = {
 	args: {
 		output: report,
 		state: "completed",
-		renderScreenshot: (check, className) => (
+		renderScreenshot: (check, className, _presentation) => (
 			<img
 				alt={check.title}
 				className={className}

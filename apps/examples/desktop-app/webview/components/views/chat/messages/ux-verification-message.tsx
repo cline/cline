@@ -41,12 +41,13 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 						? "The UX verification report could not be completed."
 						: undefined
 				}
-				renderScreenshot={(check, className) =>
+				renderScreenshot={(check, className, presentation) =>
 					check.screenshot?.source.type === "artifact" ? (
 						<ArtifactImage
 							media={check.screenshot}
 							sessionId={message.sessionId}
 							className={className}
+							interactive={presentation !== "thumbnail"}
 						/>
 					) : undefined
 				}
