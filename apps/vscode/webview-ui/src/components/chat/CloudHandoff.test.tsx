@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CloudHandoff } from "./CloudHandoff"
-import { useChatState } from "./chat-view/hooks/useChatState"
 
 const clients = vi.hoisted(() => ({
 	showTaskWithId: vi.fn(),
@@ -12,10 +11,10 @@ const clients = vi.hoisted(() => ({
 	discardHandoff: vi.fn(),
 }))
 let view: CloudHandoffView
-let currentCloudTask: { sessionId: string } | undefined
+let viewingSource = true
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ cloudHandoff: view, currentCloudTask }),
+	useExtensionState: () => ({ cloudHandoff: viewingSource ? view : undefined }),
 }))
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: { showTaskWithId: clients.showTaskWithId },
@@ -30,7 +29,7 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 describe("cloud handoff navigation", () => {
 	beforeEach(() => {
 		vi.resetAllMocks()
-		currentCloudTask = undefined
+		viewingSource = true
 		clients.showTaskWithId.mockResolvedValue({})
 		clients.openCloudSessionDashboard.mockResolvedValue({})
 		view = {
@@ -133,46 +132,19 @@ describe("cloud handoff navigation", () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 	})
 
-	it("keeps failed return navigation in the cloud without offering a browser", async () => {
-		currentCloudTask = { sessionId: "ses-cloud-task" }
-		clients.showTaskWithId.mockRejectedValue(new Error("Local task unavailable"))
-		render(<CloudHandoff />)
-		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
-		expect(await screen.findByRole("alert")).toHaveTextContent("Local task unavailable")
-		expect(screen.getAllByRole("button")).toHaveLength(1)
-		expect(screen.getByRole("button", { name: "Back to local" })).toBeEnabled()
-		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
-	})
-	it.each(["sent", "unsent", "unconfirmed"] as const)("preserves a local draft through a %s cloud roundtrip", (delivery) => {
-		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery }
-		function Conversation() {
-			const draft = useChatState([{ ts: currentCloudTask ? 2 : 1, type: "say", say: "task", text: "Example conversation" }])
-			return (
-				<>
-					<input
-						aria-label="Draft"
-						onChange={(event) => draft.setInputValue(event.target.value)}
-						value={draft.inputValue}
-					/>
-					<CloudHandoff />
-				</>
-			)
-		}
-		const { rerender } = render(<Conversation />)
-		fireEvent.change(screen.getByRole("textbox"), { target: { value: "/cloud continue the task" } })
+	it("removes the notice away from the source and restores its recovery controls on return", () => {
+		view = { id: "handoff", sourceTaskId: "local-task", phase: "complete", sessionId: "ses-cloud-task", delivery: "unsent" }
+		const { rerender } = render(<CloudHandoff />)
 		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
-		expect(clients.showTaskWithId).toHaveBeenNthCalledWith(1, expect.objectContaining({ value: "ses-cloud-task" }))
-		currentCloudTask = { sessionId: "ses-cloud-task" }
-		rerender(<Conversation />)
-		expect(screen.getByRole("textbox")).toHaveValue("/cloud continue the task")
-		expect(screen.getAllByRole("button")).toHaveLength(1)
-		fireEvent.click(screen.getByRole("button", { name: "Back to local" }))
-		expect(clients.showTaskWithId).toHaveBeenNthCalledWith(2, expect.objectContaining({ value: "local-task" }))
-		currentCloudTask = undefined
-		rerender(<Conversation />)
-		expect(screen.getByRole("textbox")).toHaveValue("/cloud continue the task")
-		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+		expect(clients.showTaskWithId).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "ses-cloud-task" }))
+		viewingSource = false
+		rerender(<CloudHandoff />)
+		expect(screen.queryByRole("region", { name: "Cloud handoff" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("button", { name: "Back to local" })).not.toBeInTheDocument()
+		viewingSource = true
+		rerender(<CloudHandoff />)
+		fireEvent.click(screen.getByRole("button", { name: "Retry continuation" }))
+		expect(clients.retryHandoffMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
 		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
-		expect(clients.retryHandoffMessage).not.toHaveBeenCalled()
 	})
 })

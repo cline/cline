@@ -28,28 +28,18 @@ function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): str
 }
 
 export function CloudHandoff({ error: preparationError }: { error?: string }) {
-	const { cloudHandoff: view, currentCloudTask } = useExtensionState()
+	const { cloudHandoff: view } = useExtensionState()
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
-	const insideCloud = !!sessionId && currentCloudTask?.sessionId === sessionId
 	return (
 		<CloudHandoffNotice
-			insideCloud={insideCloud}
-			key={JSON.stringify([view?.id, view?.phase, sessionId, insideCloud])}
+			key={JSON.stringify([view?.id, view?.phase, sessionId])}
 			preparationError={preparationError}
 			view={view}
 		/>
 	)
 }
 
-function CloudHandoffNotice({
-	view,
-	preparationError,
-	insideCloud,
-}: {
-	view?: CloudHandoffView
-	preparationError?: string
-	insideCloud: boolean
-}) {
+function CloudHandoffNotice({ view, preparationError }: { view?: CloudHandoffView; preparationError?: string }) {
 	const [error, setError] = useState<string>()
 	const [nativeOpenFailed, setNativeOpenFailed] = useState(false)
 	const [confirming, setConfirming] = useState(false)
@@ -76,31 +66,6 @@ function CloudHandoffNotice({
 				<div role="alert">{errorText}</div>
 			</section>
 		) : null
-
-	if (insideCloud) {
-		return (
-			<section
-				aria-label="Cloud handoff"
-				className="m-2 p-3 max-h-[min(35vh,14rem)] overflow-y-auto border border-input-border rounded text-sm focus-visible:ring-1 focus-visible:ring-ring"
-				// biome-ignore lint/a11y/noNoninteractiveTabindex: Long navigation errors need keyboard scrolling.
-				tabIndex={0}>
-				<div className="flex flex-wrap items-center gap-2">
-					<span className="min-w-0 flex-1">Cloud task</span>
-					<VSCodeButton
-						onClick={() =>
-							void run(() => TaskServiceClient.showTaskWithId(StringRequest.create({ value: view.sourceTaskId })))
-						}>
-						Back to local
-					</VSCodeButton>
-				</div>
-				{error && (
-					<div className="text-error mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
-						{error}
-					</div>
-				)}
-			</section>
-		)
-	}
 
 	return (
 		<>

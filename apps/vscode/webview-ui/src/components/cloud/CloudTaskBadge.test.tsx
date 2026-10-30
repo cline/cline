@@ -88,11 +88,4 @@ describe("CloudTaskBadge", () => {
 		expect(container.querySelector(".animate-spin")).not.toBeInTheDocument()
 		expect(screen.getByText(/status could not be confirmed/)).toBeInTheDocument()
 	})
-	it("shows a static cloud marker when dashboard navigation is disabled", () => {
-		render(<CloudTaskBadge cloudTask={{ sessionId: "ses-ready", status: "running" }} dashboardLink={false} />)
-		expect(screen.queryByRole("button")).not.toBeInTheDocument()
-		expect(screen.getByText("Running in Cline Cloud.")).toBeInTheDocument()
-		fireEvent.click(screen.getByText("Cloud"))
-		expect(mocks.openCloudSessionDashboard).not.toHaveBeenCalled()
-	})
 })

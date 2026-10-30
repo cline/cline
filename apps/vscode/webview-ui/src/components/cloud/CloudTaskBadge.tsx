@@ -5,14 +5,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useResolvedCloudStatuses } from "@/hooks/useResolvedCloudStatuses"
 import { CloudServiceClient } from "@/services/grpc-client"
 
-/** Task-header marker for a task running in Cline Cloud. */
-export function CloudTaskBadge({
-	cloudTask,
-	dashboardLink = true,
-}: {
-	cloudTask: CurrentCloudTaskInfo
-	dashboardLink?: boolean
-}) {
+/** Task-header marker for a task running in Cline Cloud; click opens the session in the dashboard. */
+export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo }) {
 	const resolvedStatuses = useResolvedCloudStatuses([
 		{ id: cloudTask.sessionId, executionTarget: "cloud", cloudStatus: cloudTask.status },
 	])
@@ -22,42 +16,34 @@ export function CloudTaskBadge({
 	const canOpenDashboard = isPersistedCloudSessionId(cloudTask.sessionId)
 	const repo = formatRepoLabel(cloudTask.repoUrl)
 	const where = repo ? ` on ${repo}${cloudTask.branch ? ` (${cloudTask.branch})` : ""}` : ""
-	const content = (
-		<>
-			{active ? <LoaderCircleIcon className="size-3 shrink-0 animate-spin" /> : <CloudIcon className="size-3 shrink-0" />}
-			<span className="truncate">{repo || "Cloud"}</span>
-			{dashboardLink && canOpenDashboard && <ExternalLinkIcon className="size-2.5 shrink-0 opacity-70" />}
-		</>
-	)
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				{dashboardLink ? (
-					<button
-						className="mx-1 inline-flex max-w-40 min-w-0 items-center gap-1 rounded-full border-0 bg-badge-background px-1.5 py-0.5 text-xs text-badge-foreground enabled:cursor-pointer enabled:hover:opacity-90"
-						disabled={!canOpenDashboard}
-						onClick={(event) => {
-							event.stopPropagation()
-							CloudServiceClient.openCloudSessionDashboard(
-								StringRequest.create({ value: cloudTask.sessionId }),
-							).catch((error) => console.error("Failed to open dashboard:", error))
-						}}
-						type="button">
-						{content}
-					</button>
-				) : (
-					<span className="mx-1 inline-flex max-w-40 min-w-0 items-center gap-1 rounded-full bg-badge-background px-1.5 py-0.5 text-xs text-badge-foreground">
-						{content}
-					</span>
-				)}
+				<button
+					className="mx-1 inline-flex max-w-40 min-w-0 items-center gap-1 rounded-full border-0 bg-badge-background px-1.5 py-0.5 text-xs text-badge-foreground enabled:cursor-pointer enabled:hover:opacity-90"
+					disabled={!canOpenDashboard}
+					onClick={(event) => {
+						event.stopPropagation()
+						CloudServiceClient.openCloudSessionDashboard(StringRequest.create({ value: cloudTask.sessionId })).catch(
+							(error) => console.error("Failed to open dashboard:", error),
+						)
+					}}
+					type="button">
+					{active ? (
+						<LoaderCircleIcon className="size-3 shrink-0 animate-spin" />
+					) : (
+						<CloudIcon className="size-3 shrink-0" />
+					)}
+					<span className="truncate">{repo || "Cloud"}</span>
+					{canOpenDashboard && <ExternalLinkIcon className="size-2.5 shrink-0 opacity-70" />}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent className="text-xs" side="bottom">
 				{unconfirmed ? "Cline Cloud status could not be confirmed" : "Running in Cline Cloud"}
 				{where}.
-				{dashboardLink &&
-					(canOpenDashboard
-						? " Click to open in the dashboard."
-						: " The dashboard link will be available when provisioning finishes.")}
+				{canOpenDashboard
+					? " Click to open in the dashboard."
+					: " The dashboard link will be available when provisioning finishes."}
 			</TooltipContent>
 		</Tooltip>
 	)
