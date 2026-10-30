@@ -19,16 +19,22 @@ import {
 	getThoughtDurationMilliseconds,
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
+import type { ChatTransportState } from "./chat-session/types";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
 
-const { invokeMock, subscribeMock } = vi.hoisted(() => ({
-	invokeMock: vi.fn(),
-	subscribeMock: vi.fn(
-		(_eventName: string, _handler: (payload: unknown) => void) => () =>
-			undefined,
-	),
-}));
+const { invokeMock, subscribeMock, subscribeTransportMock } = vi.hoisted(
+	() => ({
+		subscribeTransportMock: vi.fn(
+			(_handler: (state: ChatTransportState) => void) => () => undefined,
+		),
+		invokeMock: vi.fn(),
+		subscribeMock: vi.fn(
+			(_eventName: string, _handler: (payload: unknown) => void) => () =>
+				undefined,
+		),
+	}),
+);
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
@@ -36,7 +42,7 @@ vi.mock("@/lib/desktop-client", () => ({
 		getTransportState: vi.fn(() => "connected"),
 		invoke: invokeMock,
 		subscribe: subscribeMock,
-		subscribeTransportState: vi.fn(() => () => undefined),
+		subscribeTransportState: subscribeTransportMock,
 	},
 }));
 
@@ -412,6 +418,7 @@ beforeEach(async () => {
 	root = createRoot(container);
 	invokeMock.mockReset();
 	subscribeMock.mockClear();
+	subscribeTransportMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
 			return {
@@ -433,6 +440,202 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("reconciles pending interactions without reviving resolved requests or mixing environments", async () => {
+		const snapshot = deferred<unknown[]>();
+		const old = {
+			sessionId: "side",
+			requestId: "old",
+			question: "Old?",
+			options: [],
+		};
+		const next = { ...old, requestId: "new", question: "New?" };
+		let first = true;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "chat_session_command")
+				return {
+					sessionId: "side",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				};
+			if (command === "poll_ask_questions") {
+				if (first) {
+					first = false;
+					return snapshot.promise;
+				}
+				return [next];
+			}
+			return [];
+		});
+		await act(async () => {
+			await current.start(current.config);
+		});
+		await act(async () => {
+			handlerFor("ask_question_answered")({ requestId: "old" });
+			handlerFor("ask_question_requested")(next);
+			handlerFor("ask_question_requested")({ ...old, sessionId: "other" });
+			handlerFor("ask_question_answered")({
+				requestId: "new",
+				environmentId: "remote",
+			});
+		});
+		await act(async () => snapshot.resolve([old]));
+		expect(current.pendingAskQuestions).toEqual([next]);
+		expect(current.interactionsKnown).toBe(true);
+		await act(async () =>
+			handlerFor("ask_question_answered")({ requestId: "new" }),
+		);
+		expect(current.pendingAskQuestions).toEqual([]);
+		const late = deferred<unknown[]>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) =>
+				command === "poll_ask_questions" && args?.environmentId === "local"
+					? late.promise
+					: [],
+		);
+		const transport = subscribeTransportMock.mock.calls[0][0];
+		await act(async () => transport("reconnecting"));
+		await act(async () => transport("connected"));
+		await act(async () => root.render(<HookHarness environmentId="remote" />));
+		await act(async () => late.resolve([old]));
+		expect(current.pendingAskQuestions).toEqual([]);
+	});
+
+	it("retains observed interactions after failed reads and reconciles them on reconnect", async () => {
+		const approval = {
+			sessionId: "side",
+			requestId: "approve",
+			toolName: "read_files",
+			toolCallId: "call",
+		};
+		const question = {
+			sessionId: "side",
+			requestId: "question",
+			question: "Continue?",
+			options: [],
+		};
+		let connected = false;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "chat_session_command")
+				return {
+					sessionId: "side",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				};
+			if (command === "poll_tool_approvals") {
+				if (!connected) throw new Error("Disconnected");
+				return [approval];
+			}
+			if (command === "poll_ask_questions") return [question];
+			return [];
+		});
+		await act(async () => {
+			await current.start(current.config);
+		});
+		expect(current.interactionsKnown).toBe(false);
+		expect(current.pendingAskQuestions).toEqual([question]);
+		await act(async () =>
+			handlerFor("tool_approval_state")({
+				sessionId: "side",
+				items: [approval],
+			}),
+		);
+		expect(current.pendingToolApprovals).toEqual([approval]);
+		const transport = subscribeTransportMock.mock.calls[0][0];
+		await act(async () => transport("reconnecting"));
+		connected = true;
+		await act(async () => transport("connected"));
+		expect(current.interactionsKnown).toBe(true);
+		expect(current.pendingToolApprovals).toEqual([approval]);
+	});
+
+	it.each([
+		{ change: "none", snapshotStatus: "completed", settles: true },
+		{ change: "none", snapshotStatus: "idle", settles: true },
+		{ change: "abort", snapshotStatus: "running", settles: false },
+		{ change: "new-turn", snapshotStatus: "completed", settles: false },
+		{ change: "event", snapshotStatus: "completed", settles: false },
+	])("reconciles $snapshotStatus after reconnect with $change", async ({
+		change,
+		snapshotStatus,
+		settles,
+	}) => {
+		const snapshot = deferred<unknown>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_discovered_session") return snapshot.promise;
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "saved-answer",
+							sessionId: "side",
+							role: "assistant",
+							content: "Complete answer",
+							createdAt: 1,
+						},
+					];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start")
+						return {
+							sessionId: "side",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					if (request.action === "send")
+						return { ok: true, queued: true, promptsInQueue: [] };
+					return { ok: true, promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		await act(async () => {
+			await current.sendPrompt("First queued question");
+		});
+		expect(current.status).toBe("running");
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId: "side",
+				stream: "chat_text",
+				chunk: "Partial",
+				index: 1,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(current.activeAssistantMessageId).not.toBeNull();
+		const transport = subscribeTransportMock.mock.calls[0][0];
+		await act(async () => transport("reconnecting"));
+		await act(async () => transport("connected"));
+		if (change === "abort") await act(async () => current.abort());
+		if (change === "new-turn")
+			await act(async () => {
+				await current.sendPrompt("New question");
+			});
+		if (change === "event")
+			await act(async () =>
+				handlerFor("chat_session_status")({
+					sessionId: "side",
+					status: "failed",
+				}),
+			);
+		const before = current.status;
+		await act(async () =>
+			snapshot.resolve({
+				sessionId: "side",
+				status: snapshotStatus,
+			}),
+		);
+		expect(current.status).toBe(settles ? snapshotStatus : before);
+		if (settles) {
+			expect(current.activeAssistantMessageId).toBeNull();
+			await act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 300));
+			});
+			expect(current.messages).toEqual([
+				expect.objectContaining({ content: "Complete answer" }),
+			]);
+		}
+	});
+
 	it("keeps flushing streamed text after the app is hidden and restored", async () => {
 		vi.useFakeTimers();
 		try {

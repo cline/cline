@@ -56,6 +56,7 @@ import {
 	type ChatSessionConfig,
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
+	ChatSessionStatusSchema,
 } from "@/lib/chat-schema";
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
@@ -623,12 +624,28 @@ export function useChatSession(environmentId: string) {
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
-	const [pendingToolApprovals, setPendingToolApprovals] = useState<
+	const [pendingToolApprovals, storeToolApprovals] = useState<
 		ToolApprovalRequestItem[]
 	>([]);
-	const [pendingAskQuestions, setPendingAskQuestions] = useState<
+	const [pendingAskQuestions, storeAskQuestions] = useState<
 		AskQuestionRequestItem[]
 	>([]);
+	const interactionRevision = useRef({ approvals: 0, questions: 0 });
+	const [interactionsKnown, setInteractionsKnown] = useState(false);
+	const setPendingToolApprovals = useCallback(
+		(value: React.SetStateAction<ToolApprovalRequestItem[]>) => {
+			interactionRevision.current.approvals++;
+			storeToolApprovals(value);
+		},
+		[],
+	);
+	const setPendingAskQuestions = useCallback(
+		(value: React.SetStateAction<AskQuestionRequestItem[]>) => {
+			interactionRevision.current.questions++;
+			storeAskQuestions(value);
+		},
+		[],
+	);
 	const [promptsInQueue, setPromptsInQueueState] = useState<PromptInQueue[]>(
 		[],
 	);
@@ -1513,6 +1530,8 @@ export function useChatSession(environmentId: string) {
 		refreshSessionDiffSummary,
 		sessionId,
 		setPromptsInQueue,
+		setPendingAskQuestions,
+		setPendingToolApprovals,
 	]);
 
 	// Fallback for sessions with no tool events in the hook log (e.g. sessions
@@ -1559,40 +1578,63 @@ export function useChatSession(environmentId: string) {
 		setDiffSummary(diffState.summary);
 	}, [sessionId, messages, fileDiffs.length, sessionDiffCwd]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Session identity scopes requests; reconnects retain them.
 	useEffect(() => {
-		const activeSessionId = sessionId;
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
-		if (!activeSessionId) {
-			return;
-		}
+	}, [
+		environmentId,
+		sessionId,
+		setPendingToolApprovals,
+		setPendingAskQuestions,
+	]);
+
+	useEffect(() => {
+		setInteractionsKnown(false);
+		if (!sessionId || chatTransportState !== "connected") return;
 		let cancelled = false;
+		const refresh = async (): Promise<void> => {
+			const revision = { ...interactionRevision.current };
+			const [approvals, questions] = await Promise.allSettled([
+				desktopClient.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
+					environmentId,
+					sessionId,
+					limit: 20,
+				}),
+				desktopClient.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+					environmentId,
+					sessionId,
+				}),
+			]);
+			if (cancelled) return;
+			// A resolution or new request supersedes an in-flight snapshot.
+			if (
+				revision.approvals !== interactionRevision.current.approvals ||
+				revision.questions !== interactionRevision.current.questions
+			) {
+				void refresh();
+				return;
+			}
+			if (approvals.status === "fulfilled")
+				storeToolApprovals(
+					approvals.value.filter((item) => item.sessionId === sessionId),
+				);
+			if (questions.status === "fulfilled")
+				storeAskQuestions(
+					questions.value.filter((item) => item.sessionId === sessionId),
+				);
+			setInteractionsKnown(
+				approvals.status === "fulfilled" && questions.status === "fulfilled",
+			);
+		};
+		void refresh();
+		return () => {
+			cancelled = true;
+		};
+	}, [environmentId, sessionId, chatTransportState]);
 
-		void desktopClient
-			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
-				environmentId,
-				sessionId: activeSessionId,
-				limit: 20,
-			})
-			.then((pending) => {
-				if (!cancelled) {
-					setPendingToolApprovals(pending);
-				}
-			})
-			.catch(() => {});
-
-		void desktopClient
-			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
-				environmentId,
-				sessionId: activeSessionId,
-			})
-			.then((pending) => {
-				if (!cancelled) {
-					setPendingAskQuestions(pending);
-				}
-			})
-			.catch(() => {});
-
+	useEffect(() => {
+		if (!sessionId) return;
 		const unsubscribe = subscribeToEnvironment(
 			"tool_approval_state",
 			(payload) => {
@@ -1601,18 +1643,15 @@ export function useChatSession(environmentId: string) {
 					sessionId?: string;
 					items?: ToolApprovalRequestItem[];
 				};
-				if (record.sessionId !== activeSessionId) return;
+				if (record.sessionId !== sessionId) return;
 				setPendingToolApprovals(
 					Array.isArray(record.items) ? record.items : [],
 				);
 			},
 		);
 
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, [environmentId, sessionId, subscribeToEnvironment]);
+		return unsubscribe;
+	}, [sessionId, subscribeToEnvironment, setPendingToolApprovals]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_requested", (payload) => {
@@ -1633,7 +1672,7 @@ export function useChatSession(environmentId: string) {
 				return [...prev, item];
 			});
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_answered", (payload) => {
@@ -1646,7 +1685,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_cancelled", (payload) => {
@@ -1659,7 +1698,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("prompts_in_queue_state", (payload) => {
@@ -2286,6 +2325,93 @@ export function useChatSession(environmentId: string) {
 		};
 	}, [handleIncomingChunk, subscribeToEnvironment]);
 
+	const applySessionStatus = useCallback(
+		(rawStatus: string): ChatSessionStatus | null => {
+			const parsed = ChatSessionStatusSchema.safeParse(
+				rawStatus === "provisioning"
+					? "starting"
+					: rawStatus === "aborted"
+						? "cancelled"
+						: rawStatus,
+			);
+			if (!parsed.success) return null;
+			const next = parsed.data;
+			// A delayed running/idle snapshot must not reopen a settled turn or hide a new submission.
+			if (
+				next === "running" &&
+				(abortedRef.current ||
+					turnEpochRef.current === turnSettledEpochRef.current)
+			)
+				return null;
+			if (next === "idle" && activePromptSubmissionsRef.current > 0)
+				return null;
+			authoritativeStatusRevisionRef.current++;
+			setStatus(next);
+			return next;
+		},
+		[],
+	);
+	const previousTransport = useRef(chatTransportState);
+	useEffect(() => {
+		const reconnected =
+			previousTransport.current !== "connected" &&
+			chatTransportState === "connected";
+		previousTransport.current = chatTransportState;
+		if (
+			!reconnected ||
+			!sessionId ||
+			environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID ||
+			config.executionTarget === "cloud"
+		)
+			return;
+		let cancelled = false;
+		const revision = authoritativeStatusRevisionRef.current;
+		const epoch = turnEpochRef.current;
+		const aborted = abortedRef.current;
+		void desktopClient
+			.invoke<SessionHistoryItem | null>("get_discovered_session", {
+				environmentId,
+				sessionId,
+			})
+			.then((record) => {
+				if (
+					cancelled ||
+					record?.sessionId !== sessionId ||
+					revision !== authoritativeStatusRevisionRef.current ||
+					epoch !== turnEpochRef.current ||
+					aborted !== abortedRef.current ||
+					activePromptSubmissionsRef.current > 0
+				)
+					return;
+				const next = applySessionStatus(record.status);
+				if (
+					next &&
+					!BUSY_STATUSES.has(next) &&
+					epoch !== turnSettledEpochRef.current
+				) {
+					outstandingOptimisticUserIdsRef.current.clear();
+					delete lastCoreErrorBySessionRef.current[sessionId];
+					turnSettledEpochRef.current = turnEpochRef.current;
+					clearLiveToolRefs();
+					finalizeSettledTurn(sessionId);
+				}
+			})
+			.catch(() => {
+				/* Live events retain ownership if recovery is unavailable. */
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		chatTransportState,
+		sessionId,
+		environmentId,
+		config.executionTarget,
+		applySessionStatus,
+		clearLiveToolRefs,
+		finalizeSettledTurn,
+	]);
+
 	useEffect(() => {
 		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
@@ -2308,41 +2434,7 @@ export function useChatSession(environmentId: string) {
 				if (!nextStatus) {
 					return;
 				}
-				// Status events are projected asynchronously from the hub's
-				// session record and can deliver a stale "running" after the
-				// stream's chat_done already settled the turn. A genuinely new
-				// turn always bumps the epoch (chat_queued_prompt_start) or
-				// goes through the local submit paths, so while the epoch still
-				// equals the settled epoch a "running" here can only be stale.
-				if (
-					nextStatus === "running" &&
-					(abortedRef.current ||
-						turnEpochRef.current === turnSettledEpochRef.current)
-				) {
-					return;
-				}
-				// The reverse case: the hub publishes the session record's status
-				// as soon as the session is created, before the first prompt's
-				// run starts, so an "idle" that lands while a local submission is
-				// still in flight predates the run it is about to start. Applying
-				// it flipped the composer and the request indicator from
-				// "starting" to idle and back for a frame on every new task. The
-				// submission owns status until it hands off (the queued-start
-				// event, or its own completion for a blocking send). Only "idle"
-				// is held back: a terminal status (failed, aborted) during a
-				// submission is real and must still unstick the UI even if the
-				// send response never arrives.
-				if (nextStatus === "idle" && activePromptSubmissionsRef.current > 0) {
-					return;
-				}
-				authoritativeStatusRevisionRef.current += 1;
-				setStatus(
-					(nextStatus === "provisioning"
-						? "starting"
-						: nextStatus === "aborted"
-							? "cancelled"
-							: nextStatus) as ChatSessionStatus,
-				);
+				applySessionStatus(nextStatus);
 			},
 		);
 		const unsubscribeEnded = subscribeToEnvironment(
@@ -2488,6 +2580,7 @@ export function useChatSession(environmentId: string) {
 	}, [
 		appendTurnFailureMessage,
 		applyCloudSnapshotMessages,
+		applySessionStatus,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
 		subscribeToEnvironment,
@@ -3685,7 +3778,7 @@ export function useChatSession(environmentId: string) {
 				setError(errorMessage(error));
 			}
 		},
-		[environmentId],
+		[environmentId, setPendingToolApprovals],
 	);
 
 	const approveToolApproval = useCallback(
@@ -3709,7 +3802,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		},
-		[environmentId],
+		[environmentId, setPendingAskQuestions],
 	);
 
 	const restoreCheckpoint = useCallback(
@@ -3774,6 +3867,8 @@ export function useChatSession(environmentId: string) {
 			resetCounters,
 			status,
 			setPromptsInQueue,
+			setPendingAskQuestions,
+			setPendingToolApprovals,
 		],
 	);
 
@@ -3911,6 +4006,8 @@ export function useChatSession(environmentId: string) {
 		resetCounters,
 		clearLiveToolRefs,
 		setPromptsInQueue,
+		setPendingAskQuestions,
+		setPendingToolApprovals,
 	]);
 
 	const hydrateSession = useCallback(
@@ -4159,6 +4256,8 @@ export function useChatSession(environmentId: string) {
 			resetStreamDedupe,
 			resetCounters,
 			setPromptsInQueue,
+			setPendingAskQuestions,
+			setPendingToolApprovals,
 		],
 	);
 
@@ -4337,6 +4436,7 @@ export function useChatSession(environmentId: string) {
 		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
+		interactionsKnown,
 		setConfig,
 		setWorkspacePath,
 		start,
