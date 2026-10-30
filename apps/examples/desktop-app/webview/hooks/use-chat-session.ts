@@ -679,6 +679,7 @@ export function useChatSession(environmentId: string) {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
+	const manualCompactionSessionIdRef = useRef<string | null>(null);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -2777,7 +2778,18 @@ export function useChatSession(environmentId: string) {
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
+			const isManualCompaction = /^\/compact(?:\s|$)/i.test(trimmed);
 			if (!trimmed && attachedFiles.length === 0) return true;
+			if (
+				manualCompactionSessionIdRef.current &&
+				manualCompactionSessionIdRef.current === activeSessionIdRef.current
+			) {
+				toast({
+					title:
+						"Compaction is in progress. Stop it before sending another message.",
+				});
+				return false;
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -3099,7 +3111,11 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
-					setStatus("starting");
+					// Manual compaction has no run-start event to enable Stop.
+					if (isManualCompaction) {
+						manualCompactionSessionIdRef.current = activeSessionId;
+					}
+					setStatus(isManualCompaction ? "running" : "starting");
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
@@ -3152,7 +3168,11 @@ export function useChatSession(environmentId: string) {
 						);
 					}
 					withdrawPrompt();
-					if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
+					if (
+						!shouldQueue &&
+						!settleAbortedSend() &&
+						turnEpochRef.current === turnEpochAtDispatch
+					) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus(status);
 					}
@@ -3609,6 +3629,12 @@ export function useChatSession(environmentId: string) {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
+				if (
+					manualCompactionSessionIdRef.current === activeSessionId &&
+					!shouldQueue
+				) {
+					manualCompactionSessionIdRef.current = null;
+				}
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
 				}
