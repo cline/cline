@@ -2365,40 +2365,47 @@ export function useChatSession(environmentId: string) {
 		)
 			return;
 		let cancelled = false;
-		const revision = authoritativeStatusRevisionRef.current;
 		const epoch = turnEpochRef.current;
 		const aborted = abortedRef.current;
-		void desktopClient
-			.invoke<SessionHistoryItem | null>("get_discovered_session", {
-				environmentId,
-				sessionId,
-			})
-			.then((record) => {
-				if (
-					cancelled ||
-					record?.sessionId !== sessionId ||
-					revision !== authoritativeStatusRevisionRef.current ||
-					epoch !== turnEpochRef.current ||
-					aborted !== abortedRef.current ||
-					activePromptSubmissionsRef.current > 0
-				)
-					return;
-				const next = applySessionStatus(record.status);
-				if (
-					next &&
-					!BUSY_STATUSES.has(next) &&
-					epoch !== turnSettledEpochRef.current
-				) {
-					outstandingOptimisticUserIdsRef.current.clear();
-					delete lastCoreErrorBySessionRef.current[sessionId];
-					turnSettledEpochRef.current = turnEpochRef.current;
-					clearLiveToolRefs();
-					finalizeSettledTurn(sessionId);
-				}
-			})
-			.catch(() => {
-				/* Live events retain ownership if recovery is unavailable. */
-			});
+		const recover = (): Promise<void> => {
+			const revision = authoritativeStatusRevisionRef.current;
+			return desktopClient
+				.invoke<SessionHistoryItem | null>("get_discovered_session", {
+					environmentId,
+					sessionId,
+				})
+				.then((record) => {
+					if (
+						cancelled ||
+						record?.sessionId !== sessionId ||
+						epoch !== turnEpochRef.current ||
+						aborted !== abortedRef.current ||
+						activePromptSubmissionsRef.current > 0
+					)
+						return;
+					if (revision !== authoritativeStatusRevisionRef.current) {
+						// Status-only events can supersede the read without settling the turn.
+						if (epoch !== turnSettledEpochRef.current) void recover();
+						return;
+					}
+					const next = applySessionStatus(record.status);
+					if (
+						next &&
+						!BUSY_STATUSES.has(next) &&
+						epoch !== turnSettledEpochRef.current
+					) {
+						outstandingOptimisticUserIdsRef.current.clear();
+						delete lastCoreErrorBySessionRef.current[sessionId];
+						turnSettledEpochRef.current = turnEpochRef.current;
+						clearLiveToolRefs();
+						finalizeSettledTurn(sessionId);
+					}
+				})
+				.catch(() => {
+					/* Live events retain ownership if recovery is unavailable. */
+				});
+		};
+		void recover();
 		return () => {
 			cancelled = true;
 		};
