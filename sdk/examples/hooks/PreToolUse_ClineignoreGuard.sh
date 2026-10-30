@@ -13,7 +13,7 @@
 #   mkdir -p .clinerules/hooks
 #   cp PreToolUse_ClineignoreGuard.sh .clinerules/hooks/PreToolUse
 #   chmod +x .clinerules/hooks/PreToolUse
-#   ...and check "Enable Hooks" in Cline's feature settings.
+#   Hooks are on by default (Settings > Features > Hooks).
 #
 # Install (CLI):
 #   mkdir -p .cline/hooks
