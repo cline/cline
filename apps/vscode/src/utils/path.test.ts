@@ -30,6 +30,24 @@ describe("Path Utilities", () => {
 			isLocatedInPath(dirPath, filePath).should.be.true()
 		})
 
+		it("should not treat a sibling as inside when both paths are long paths", () => {
+			const dirPath = "\\\\?\\C:\\repo\\project"
+			const filePath = "\\\\?\\C:\\repo\\project_backup\\index.js"
+			isLocatedInPath(dirPath, filePath).should.be.false()
+		})
+
+		it("should match a long path workspace with a plain path inside it", () => {
+			const dirPath = "\\\\?\\C:\\repo\\project"
+			const filePath = "C:\\repo\\project\\src\\index.js"
+			isLocatedInPath(dirPath, filePath).should.be.true()
+		})
+
+		it("should match a UNC long path with its plain form", () => {
+			const dirPath = "\\\\?\\UNC\\server\\share\\project"
+			const filePath = "\\\\server\\share\\project\\src\\index.js"
+			isLocatedInPath(dirPath, filePath).should.be.true()
+		})
+
 		it("should return false when the directory is similarly named", () => {
 			const dirPath = "/home/user/project"
 			const filePath = "/home/user/project_backup/index.js"
