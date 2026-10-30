@@ -1520,6 +1520,31 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
+	it("forwards offset pages and rejects mixed range modes without calling the executor", async () => {
+		const execute = vi.fn(async () => "page");
+		const tool = createReadFilesTool(execute);
+		const context = { agentId: "agent", iteration: 1 };
+		const request = {
+			path: "/tmp/minified.js",
+			start_offset: 6000,
+		};
+		const results = await tool.execute({ files: [request] }, context);
+		expect(results[0]).toEqual({
+			path: "/tmp/minified.js",
+			start_offset: 6000,
+			query: "/tmp/minified.js@6000",
+			result: "page",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(request, context);
+		execute.mockClear();
+		const invalid = await tool.execute(
+			{ files: [{ ...request, start_line: 1 }] },
+			context,
+		);
+		expect(invalid[0].success).toBe(false);
+		expect(execute).not.toHaveBeenCalled();
+	});
 	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
@@ -1543,6 +1568,9 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/example.ts",
+				start_line: 3,
+				end_line: 5,
 				query: "/tmp/example.ts:3-5",
 				result: "selected lines",
 				success: true,
@@ -1779,6 +1807,9 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/example.ts",
+				start_line: null,
+				end_line: null,
 				query: "/tmp/example.ts",
 				result: "full file",
 				success: true,
@@ -1831,11 +1862,17 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/valid-a.ts",
+				start_line: 1,
+				end_line: 2,
 				query: "/tmp/valid-a.ts:1-2",
 				result: "content for /tmp/valid-a.ts",
 				success: true,
 			},
 			{
+				path: "/tmp/reversed.ts",
+				start_line: 5,
+				end_line: 3,
 				query: "/tmp/reversed.ts:5-3",
 				result: "",
 				error:
@@ -1843,6 +1880,7 @@ describe("default read_files tool", () => {
 				success: false,
 			},
 			{
+				path: "/tmp/valid-b.ts",
 				query: "/tmp/valid-b.ts",
 				result: "content for /tmp/valid-b.ts",
 				success: true,
@@ -1922,7 +1960,7 @@ describe("zod schema conversion", () => {
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Files to read. Each entry must include path and any bounds in the same object; never provide bounds as a separate entry.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

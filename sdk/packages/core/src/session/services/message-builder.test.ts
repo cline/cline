@@ -1835,6 +1835,7 @@ function structuredReadToolResult(
 				// text/image/file `type` discriminator.
 				content: [
 					{
+						path,
 						query: path,
 						result: content,
 						success: true,

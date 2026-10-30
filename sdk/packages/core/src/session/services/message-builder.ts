@@ -62,6 +62,7 @@ const TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER = (n: number) =>
 	`\n\n...[assistant text truncated: omitted ${n} chars due to repeated tool-call markup]...\n\n`;
 
 interface ReadLocator {
+	startOffset: number | null;
 	path: string;
 	startLine: number | null;
 	endLine: number | null;
@@ -122,6 +123,7 @@ export class MessageBuilder {
 		ReadLocator[]
 	>();
 	private readonly latestReadToolUseByLocatorCache = new Map<string, string>();
+	private readonly contentOrderByOwnerCache = new Map<string, number>();
 	private readonly latestFullContentOwnerByPathCache = new Map<
 		string,
 		string
@@ -272,7 +274,7 @@ export class MessageBuilder {
 				if (recovery.uri) {
 					const notice: TextContent = {
 						type: "text",
-						text: `Full result is temporarily saved to ${recovery.uri}. Only read_files can access this cache URI. Use read_files with specific line ranges if omitted content is needed.`,
+						text: `Full result is temporarily saved to ${recovery.uri}. Only read_files can access this cache URI. Use read_files with specific line ranges if omitted content is needed. For long escaped or minified lines, use start_offset: 0 and follow next_offset while has_more is true.`,
 					};
 					const bytes = utf8ByteLength(notice.text);
 					if (this.recoveryNoticeBytes + bytes <= this.maxTotalTextBytes / 2) {
@@ -329,6 +331,10 @@ export class MessageBuilder {
 			for (let j = 0; j < message.content.length; j++) {
 				const block = message.content[j];
 				if (block.type === "file") {
+					this.contentOrderByOwnerCache.set(
+						`file:${i}:${j}`,
+						i + j / message.content.length,
+					);
 					this.latestFullContentOwnerByPathCache.set(
 						block.path,
 						`file:${i}:${j}`,
@@ -343,6 +349,10 @@ export class MessageBuilder {
 						}
 					}
 				} else if (block.type === "tool_result") {
+					this.contentOrderByOwnerCache.set(
+						block.tool_use_id,
+						i + j / message.content.length,
+					);
 					const toolName = this.resolveToolName(block);
 					if (!this.isReadTool(toolName) || block.is_error === true) {
 						continue;
@@ -518,6 +528,7 @@ export class MessageBuilder {
 					outdatedKeys.has(
 						this.toReadLocatorKey({
 							path: entry.path,
+							startOffset: null,
 							startLine: null,
 							endLine: null,
 						}),
@@ -752,6 +763,7 @@ export class MessageBuilder {
 		this.toolNameByIdCache.clear();
 		this.readLocatorsByToolUseIdCache.clear();
 		this.latestReadToolUseByLocatorCache.clear();
+		this.contentOrderByOwnerCache.clear();
 		this.latestFullContentOwnerByPathCache.clear();
 		this.readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	}
@@ -793,7 +805,12 @@ export class MessageBuilder {
 		if (Array.isArray(record.file_paths)) {
 			for (const value of record.file_paths) {
 				if (typeof value === "string" && value.length > 0) {
-					locators.push({ path: value, startLine: null, endLine: null });
+					locators.push({
+						path: value,
+						startOffset: null,
+						startLine: null,
+						endLine: null,
+					});
 				}
 			}
 		}
@@ -859,6 +876,7 @@ export class MessageBuilder {
 		}
 		return {
 			path,
+			startOffset: this.extractLineNumber(record.start_offset),
 			startLine: this.extractLineNumber(record.start_line),
 			endLine: this.extractLineNumber(record.end_line),
 		};
@@ -875,12 +893,10 @@ export class MessageBuilder {
 		if (path) {
 			return {
 				path,
+				startOffset: this.extractLineNumber(record.start_offset),
 				startLine: this.extractLineNumber(record.start_line),
 				endLine: this.extractLineNumber(record.end_line),
 			};
-		}
-		if (typeof record.query === "string" && record.query.length > 0) {
-			return this.parseReadQuery(record.query);
 		}
 		return undefined;
 	}
@@ -899,18 +915,6 @@ export class MessageBuilder {
 		return typeof value === "number" && Number.isInteger(value) ? value : null;
 	}
 
-	private parseReadQuery(query: string): ReadLocator {
-		const match = /^(.*):(\d+)-(EOF|\d+)$/.exec(query);
-		if (!match) {
-			return { path: query, startLine: null, endLine: null };
-		}
-		return {
-			path: match[1],
-			startLine: Number(match[2]),
-			endLine: match[3] === "EOF" ? null : Number(match[3]),
-		};
-	}
-
 	private dedupeReadLocators(locators: ReadLocator[]): ReadLocator[] {
 		const unique = new Map<string, ReadLocator>();
 		for (const locator of locators) {
@@ -920,14 +924,24 @@ export class MessageBuilder {
 	}
 
 	private toReadLocatorKey(locator: ReadLocator): string {
-		if (this.isFullFileRead(locator)) {
-			return locator.path;
-		}
-		return `${locator.path}:${locator.startLine ?? 1}-${locator.endLine ?? "EOF"}`;
+		if (locator.startOffset != null)
+			return JSON.stringify([locator.path, "offset", locator.startOffset]);
+		if (this.isFullFileRead(locator))
+			return JSON.stringify([locator.path, "full"]);
+		return JSON.stringify([
+			locator.path,
+			"lines",
+			locator.startLine ?? 1,
+			locator.endLine ?? "EOF",
+		]);
 	}
 
 	private isFullFileRead(locator: ReadLocator): boolean {
-		return locator.startLine == null && locator.endLine == null;
+		return (
+			locator.startOffset == null &&
+			locator.startLine == null &&
+			locator.endLine == null
+		);
 	}
 
 	private isOutdatedReadLocator(
@@ -935,7 +949,12 @@ export class MessageBuilder {
 		toolUseId: string,
 	): boolean {
 		const fullOwner = this.latestFullContentOwnerByPathCache.get(locator.path);
-		if (fullOwner && fullOwner !== toolUseId) {
+		if (
+			fullOwner &&
+			fullOwner !== toolUseId &&
+			(this.contentOrderByOwnerCache.get(fullOwner) ?? -1) >
+				(this.contentOrderByOwnerCache.get(toolUseId) ?? -1)
+		) {
 			return true;
 		}
 		return (
