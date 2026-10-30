@@ -455,6 +455,14 @@
 	--border-1: var(--neutral-4);
 	--border-2: var(--neutral-5);
 	--focus-ring: var(--accent-8);
+	/* High-emphasis neutral controls invert with the theme. */
+	--neutral-solid: var(--neutral-12);
+	--neutral-contrast: var(--neutral-1);
+	--neutral-solid-hover: color-mix(
+		in srgb,
+		var(--neutral-solid) 90%,
+		var(--neutral-contrast)
+	);
 
 	/* Recompute status aliases in each theme, including nested dark roots. */
 	--success-surface: var(--success-a2);
@@ -494,6 +502,8 @@
 	--muted-foreground: var(--text-2);
 	--accent: var(--accent-3);
 	--accent-foreground: var(--accent-11);
+	--accent-hover: var(--accent-4);
+	--accent-border: var(--accent-a4);
 	--destructive: var(--error-solid);
 	--destructive-foreground: var(--error-contrast);
 	--border: var(--border-1);

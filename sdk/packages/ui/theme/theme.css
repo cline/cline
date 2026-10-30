@@ -31,6 +31,9 @@
 	--color-border-1: var(--border-1);
 	--color-border-2: var(--border-2);
 	--color-focus-ring: var(--focus-ring);
+	--color-neutral-solid: var(--neutral-solid);
+	--color-neutral-contrast: var(--neutral-contrast);
+	--color-neutral-solid-hover: var(--neutral-solid-hover);
 	--color-success-surface: var(--success-surface);
 	--color-success-border: var(--success-border);
 	--color-success-solid: var(--success-solid);
@@ -64,6 +67,8 @@
 	--color-muted-foreground: var(--muted-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-border: var(--accent-border);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);

@@ -1,0 +1,269 @@
+/* Preserve native visibility even when a control has host layout utilities. */
+.cline-ui-button[hidden]:not([hidden="until-found"]) {
+	display: none;
+}
+
+/* Keep defaults below host utilities; icon geometry is owned by the button size. */
+@layer components {
+	.cline-ui-button {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
+		box-sizing: border-box;
+		appearance: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		margin: 0;
+		border: 0 solid transparent;
+		padding: 0;
+		padding-inline: var(--cline-ui-button-padding-inline, 0);
+		border-radius: var(--radius-md);
+		background-color: transparent;
+		color: inherit;
+		font: inherit;
+		font-weight: var(--font-weight-normal);
+		text-align: center;
+		text-decoration: none;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.cline-ui-button:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	.cline-ui-button:is(:disabled, [data-disabled], [aria-disabled="true"]) {
+		pointer-events: none;
+		opacity: 0.5;
+	}
+
+	.cline-ui-button > .cline-ui-button__icon {
+		width: var(--cline-ui-button-icon-size);
+		height: var(--cline-ui-button-icon-size);
+		pointer-events: none;
+		flex-shrink: 0;
+	}
+
+	/* Legacy child icons keep size-based defaults and explicit size overrides. */
+	.cline-ui-button-legacy-icons svg {
+		pointer-events: none;
+		flex-shrink: 0;
+	}
+
+	.cline-ui-button-legacy-icons svg:not([class*="size-"]) {
+		width: var(--cline-ui-button-icon-size);
+		height: var(--cline-ui-button-icon-size);
+	}
+
+	/* Tighten only the marked edge; logical properties also handle RTL. */
+	.cline-ui-button:not(.cline-ui-icon-button):has(
+			> .cline-ui-button__icon[data-icon="leading"]
+		) {
+		padding-inline-start: var(
+			--cline-ui-button-leading-padding,
+			var(--cline-ui-button-padding-inline, 0)
+		);
+	}
+
+	.cline-ui-button:not(.cline-ui-icon-button):has(
+			> .cline-ui-button__icon[data-icon="trailing"]
+		) {
+		padding-inline-end: var(
+			--cline-ui-button-trailing-padding,
+			var(--cline-ui-button-padding-inline, 0)
+		);
+	}
+
+	.cline-ui-button-xs {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 3);
+		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 2.5);
+		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 1.5);
+		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 1.5);
+		height: calc(var(--spacing, 0.25rem) * 7);
+		gap: calc(var(--spacing, 0.25rem) * 1.5);
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+
+	.cline-ui-icon-button.cline-ui-button-xs {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 3.5);
+		width: calc(var(--spacing, 0.25rem) * 7);
+	}
+
+	.cline-ui-button-sm {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 3.5);
+		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 3);
+		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 1.8);
+		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 1.8);
+		height: calc(var(--spacing, 0.25rem) * 8);
+		gap: calc(var(--spacing, 0.25rem) * 1.5);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	.cline-ui-icon-button.cline-ui-button-sm {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
+		width: calc(var(--spacing, 0.25rem) * 8);
+	}
+
+	.cline-ui-button-md {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
+		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 3.5);
+		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 2);
+		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 2);
+		height: calc(var(--spacing, 0.25rem) * 9);
+		gap: calc(var(--spacing, 0.25rem) * 2);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	.cline-ui-icon-button.cline-ui-button-md {
+		width: calc(var(--spacing, 0.25rem) * 9);
+	}
+
+	.cline-ui-button-lg {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
+		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 4);
+		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 2.5);
+		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 3);
+		height: calc(var(--spacing, 0.25rem) * 10);
+		gap: calc(var(--spacing, 0.25rem) * 2.5);
+		font-size: var(--text-md);
+		line-height: var(--text-md--line-height);
+		letter-spacing: var(--text-md--letter-spacing);
+	}
+
+	.cline-ui-icon-button.cline-ui-button-lg {
+		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 5);
+		width: calc(var(--spacing, 0.25rem) * 10);
+	}
+
+	.cline-ui-icon-button {
+		padding: 0;
+		gap: 0;
+	}
+
+	.cline-ui-button-primary.cline-ui-button-accent {
+		background-color: var(--primary);
+		color: var(--primary-foreground);
+	}
+
+	.cline-ui-button-primary.cline-ui-button-neutral {
+		background-color: var(--neutral-solid);
+		color: var(--neutral-contrast);
+	}
+
+	:where(.dark) .cline-ui-button-primary.cline-ui-button-neutral,
+	.cline-ui-button-primary.cline-ui-button-neutral.dark {
+		font-weight: var(--font-weight-medium);
+	}
+
+	.cline-ui-button-primary.cline-ui-button-destructive {
+		background-color: var(--destructive);
+		color: var(--destructive-foreground);
+	}
+
+	.cline-ui-button-secondary,
+	.cline-ui-button-ghost {
+		font-weight: var(--font-weight-medium);
+	}
+
+	/* Tinted surfaces need stronger text than the shared solid-fill colors. */
+	.cline-ui-button-secondary.cline-ui-button-accent {
+		background-color: var(--accent);
+		color: var(--accent-foreground);
+		box-shadow: 0 0 0 1px var(--accent-border);
+	}
+
+	.cline-ui-button-secondary.cline-ui-button-neutral {
+		background-color: var(--neutral-a2);
+		color: var(--foreground);
+		box-shadow: 0 0 0 1px var(--neutral-a5);
+	}
+
+	.cline-ui-button-secondary.cline-ui-button-destructive {
+		background-color: var(--error-surface);
+		color: var(--error-text);
+		box-shadow: 0 0 0 1px var(--error-border);
+	}
+
+	.cline-ui-button-ghost.cline-ui-button-accent {
+		color: var(--accent-foreground);
+	}
+
+	.cline-ui-button-ghost.cline-ui-button-neutral {
+		color: var(--muted-foreground);
+	}
+
+	.cline-ui-button-ghost.cline-ui-button-destructive {
+		color: var(--error-text);
+	}
+
+	@media (hover: hover) {
+		.cline-ui-button-primary.cline-ui-button-accent:hover {
+			background-color: var(--primary-emphasis);
+		}
+
+		.cline-ui-button-primary.cline-ui-button-neutral:hover {
+			background-color: var(--neutral-solid-hover);
+		}
+
+		.cline-ui-button-primary.cline-ui-button-destructive:hover {
+			background-color: color-mix(in srgb, var(--destructive) 90%, #000);
+		}
+
+		.cline-ui-button-secondary.cline-ui-button-accent:hover {
+			background-color: var(--accent-hover);
+		}
+
+		.cline-ui-button-secondary.cline-ui-button-neutral:hover {
+			background-color: var(--neutral-3);
+		}
+
+		.cline-ui-button-secondary.cline-ui-button-destructive:hover {
+			background-color: color-mix(
+				in srgb,
+				var(--error-surface),
+				var(--error-text) 6%
+			);
+		}
+
+		.cline-ui-button-ghost.cline-ui-button-accent:hover {
+			background-color: color-mix(in srgb, var(--primary) 12%, transparent);
+		}
+
+		.cline-ui-button-ghost.cline-ui-button-neutral:hover {
+			background-color: var(--surface-hover);
+			color: var(--foreground);
+		}
+
+		.cline-ui-button-ghost.cline-ui-button-destructive:hover {
+			background-color: color-mix(in srgb, var(--error-text) 6%, transparent);
+		}
+	}
+
+	@media (forced-colors: active) {
+		.cline-ui-button:focus-visible {
+			outline-color: Highlight;
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.cline-ui-button:not([data-press-scale="false"]) {
+			transition: scale 40ms ease-out;
+		}
+
+		.cline-ui-button:active:not(
+				:disabled,
+				[data-disabled],
+				[aria-disabled="true"],
+				[data-press-scale="false"]
+			) {
+			scale: var(--cline-ui-button-press-scale, 0.98);
+		}
+	}
+}

@@ -1,4 +1,5 @@
 @import "./theme/component-theme.css";
+@import "./components/button.css";
 @import "./components/agent-changes.css";
 @import "./components/agent-pull-request-bar.css";
 @import "./components/agent-approval-card.css";
@@ -10,7 +11,6 @@
 @import "./components/agent-quick-actions.css";
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
-@import "./components/switch.css";
 @import "./components/message-scroller.css";
 @import "./components/agent-ux-verification.css";
 

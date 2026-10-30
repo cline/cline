@@ -105,6 +105,7 @@ export {
 export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
+	type ButtonIcon,
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonTone,

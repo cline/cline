@@ -23,6 +23,9 @@
 	--color-cline-ui-border-1: var(--border-1);
 	--color-cline-ui-border-2: var(--border-2);
 	--color-cline-ui-focus-ring: var(--focus-ring);
+	--color-cline-ui-neutral-solid: var(--neutral-solid);
+	--color-cline-ui-neutral-contrast: var(--neutral-contrast);
+	--color-cline-ui-neutral-solid-hover: var(--neutral-solid-hover);
 	--color-cline-ui-success-surface: var(--success-surface);
 	--color-cline-ui-success-border: var(--success-border);
 	--color-cline-ui-success-solid: var(--success-solid);
@@ -56,6 +59,8 @@
 	--color-cline-ui-muted-foreground: var(--muted-foreground);
 	--color-cline-ui-accent: var(--accent);
 	--color-cline-ui-accent-foreground: var(--accent-foreground);
+	--color-cline-ui-accent-hover: var(--accent-hover);
+	--color-cline-ui-accent-border: var(--accent-border);
 	--color-cline-ui-destructive: var(--destructive);
 	--color-cline-ui-destructive-foreground: var(--destructive-foreground);
 	--color-cline-ui-border: var(--border);
