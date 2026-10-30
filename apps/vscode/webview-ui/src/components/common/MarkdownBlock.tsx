@@ -4,7 +4,7 @@ import { SquareArrowOutUpRightIcon } from "lucide-react"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import remarkGfm from "remark-gfm"
 import type { Node } from "unist"
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { localFileLink } from "@/utils/localFileLink"
 import { WithCopyButton } from "./CopyButton"
 import UnsafeImage from "./UnsafeImage"
 
@@ -24,6 +25,59 @@ function parseMarkdownIntoBlocks(markdown: string): string[] {
 	} catch {
 		return [markdown]
 	}
+}
+
+// react-markdown drops an href with a scheme it does not know, which includes `file:` and a `C:` drive.
+function keepLocalFileHref(url: string, key: string): string {
+	return key === "href" && localFileLink(url) ? url : defaultUrlTransform(url)
+}
+
+// A markdown escape is a backslash before ASCII punctuation; a backslash before anything else is a path separator.
+const BACKSLASH_SEPARATED_PATH = /^(?:[a-z]:\\|\\\\)|\\[^\s!-/:-@[-`{-~]/i
+
+/**
+ * Keeps a Windows path link destination as written. Markdown reads `\` as an escape, so
+ * `C:\Users\jay\.cline\x.md` would otherwise parse as `C:\Users\jay.cline\x.md` and a UNC path would
+ * lose its leading `\\`. A destination whose backslashes all precede punctuation, such as
+ * `docs/my\(draft\).md`, is an escaped path and keeps its parsed form.
+ */
+const remarkKeepBackslashDestinations = () => {
+	return (tree: Node, file: { value: unknown }) => {
+		const source = String(file.value)
+		visit(tree, "link", (node: any) => {
+			const start = node.position?.start?.offset
+			const end = node.position?.end?.offset
+			if (start == null || end == null) {
+				return
+			}
+			const destination = rawLinkDestination(source.slice(start, end))
+			if (destination && BACKSLASH_SEPARATED_PATH.test(destination)) {
+				node.url = destination
+			}
+		})
+	}
+}
+
+/** The destination of `[text](destination "title")` or `[text](<destination> "title")`, as written. */
+function rawLinkDestination(link: string): string | undefined {
+	const open = link.lastIndexOf("](")
+	if (open < 0 || !link.endsWith(")")) {
+		return undefined
+	}
+	const inside = link.slice(open + 2, -1).trim()
+	if (inside.startsWith("<")) {
+		const close = inside.indexOf(">")
+		return close < 0 ? undefined : inside.slice(1, close)
+	}
+	const title = inside.search(/\s/)
+	return title < 0 ? inside : inside.slice(0, title)
+}
+
+function openLocalFile(link: NonNullable<ReturnType<typeof localFileLink>>) {
+	const request = StringRequest.create({ value: link.path })
+	const opened =
+		link.kind === "absolute" ? FileServiceClient.openFile(request) : FileServiceClient.openFileRelativePath(request)
+	opened.catch((err) => console.error(`Failed to open ${link.path}:`, err))
 }
 
 const MemoizedMarkdownBlock = memo(
@@ -75,6 +129,28 @@ const MemoizedMarkdownBlock = memo(
 						return <strong {...props} />
 					},
 					img: (props) => <UnsafeImage {...props} />,
+					a: ({ href, children, node: _node, ...props }: ComponentProps<"a"> & { node?: unknown }) => {
+						const link = href ? localFileLink(href) : undefined
+						if (!link) {
+							return (
+								<a href={href} {...props}>
+									{children}
+								</a>
+							)
+						}
+						return (
+							<a
+								href={href}
+								{...props}
+								onClick={(event) => {
+									event.preventDefault()
+									openLocalFile(link)
+								}}
+								title={`Open ${link.path} in editor`}>
+								{children}
+							</a>
+						)
+					},
 				}}
 				rehypePlugins={[[rehypeHighlight as any, {} as Options]]}
 				remarkPlugins={[
@@ -83,6 +159,7 @@ const MemoizedMarkdownBlock = memo(
 					remarkUrlToLink,
 					remarkHighlightActMode,
 					remarkMarkPotentialFilePaths,
+					remarkKeepBackslashDestinations,
 					() => {
 						return (tree: any) => {
 							visit(tree, "code", (node: any) => {
@@ -94,7 +171,8 @@ const MemoizedMarkdownBlock = memo(
 							})
 						}
 					},
-				]}>
+				]}
+				urlTransform={keepLocalFileHref}>
 				{content}
 			</ReactMarkdown>
 		)
