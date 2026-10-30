@@ -636,14 +636,14 @@ describe("@cline/ui theme contract", () => {
 		expect(componentCss).not.toContain("var(--chart-2)");
 	});
 
-	it("preserves the switch accent blend and semantic interaction colors", () => {
+	it("uses the switch accent fill and semantic interaction colors", () => {
 		const css = readComponent("switch.css");
 		const states = block(css, "@media (forced-colors: none)");
 		const track = ".cline-ui-switch__track";
 		const input = ".cline-ui-switch__input";
 
 		expect(block(states, `${input}:checked + ${track}`)).toContain(
-			"background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);",
+			"background: var(--primary);",
 		);
 		expect(
 			block(states, `${input}:enabled:checked:hover + ${track}`),

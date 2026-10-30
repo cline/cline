@@ -104,7 +104,7 @@
 	inset-block-start: var(--cline-ui-switch-padding);
 	height: var(--cline-ui-switch-thumb-size);
 	border-radius: calc(2.2rem / 15);
-	/* Host accent palettes may tint --primary-foreground; the thumb stays neutral. */
+	/* The unchecked track keeps a neutral thumb in both themes. */
 	background: #fff;
 	box-shadow:
 		0 0 0 1px var(--neutral-a3),
@@ -135,7 +135,13 @@
 @media (forced-colors: none) {
 	.cline-ui-switch__input:checked + .cline-ui-switch__track {
 		border-color: var(--neutral-a5);
-		background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);
+		background: var(--primary);
+	}
+
+	.cline-ui-switch__input:checked
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: var(--primary-foreground);
 	}
 
 	.cline-ui-switch__input:enabled:hover + .cline-ui-switch__track {
@@ -153,6 +159,31 @@
 	.cline-ui-switch__input:enabled:checked:active + .cline-ui-switch__track {
 		background: var(--primary);
 		opacity: 0.92;
+	}
+
+	.cline-ui-switch-neutral
+		.cline-ui-switch__input:enabled:checked
+		+ .cline-ui-switch__track {
+		background: var(--neutral-solid);
+	}
+
+	.cline-ui-switch-neutral
+		.cline-ui-switch__input:enabled:checked:hover
+		+ .cline-ui-switch__track {
+		background: var(--neutral-solid-hover);
+	}
+
+	.cline-ui-switch-neutral
+		.cline-ui-switch__input:enabled:checked:active
+		+ .cline-ui-switch__track {
+		background: var(--neutral-solid);
+	}
+
+	.cline-ui-switch-neutral
+		.cline-ui-switch__input:enabled:checked
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: var(--neutral-contrast);
 	}
 
 	.cline-ui-switch__input:focus-visible + .cline-ui-switch__track {
