@@ -877,6 +877,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "wally",
+		name: "Wally",
+		description: "Fast inference for open-weight models from RunAnywhere",
+		family: "openai-compatible",
+		defaultModelId: "deepseek-v4.1-flash",
+		apiKeyEnv: ["WALLY_API_KEY"],
+		defaults: { baseUrl: "https://inference.runanywhere.ai/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
