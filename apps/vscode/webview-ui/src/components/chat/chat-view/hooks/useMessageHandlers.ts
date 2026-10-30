@@ -32,7 +32,12 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { prepare: prepareHandoff, error: handoffError, restoreDraft: restoreHandoffDraft } = useCloudHandoff(chatState)
+	const {
+		prepare: prepareHandoff,
+		error: handoffError,
+		restoreDraft: restoreHandoffDraft,
+		discardDraft: discardHandoffDraft,
+	} = useCloudHandoff(chatState)
 	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
@@ -629,6 +634,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	return {
 		handoffError,
 		restoreHandoffDraft,
+		discardHandoffDraft,
 		errorRecoveryAvailable,
 		recoveryActionInFlight,
 		compactTask,

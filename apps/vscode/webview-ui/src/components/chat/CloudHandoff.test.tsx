@@ -12,9 +12,10 @@ const clients = vi.hoisted(() => ({
 }))
 let view: CloudHandoffView
 let viewingSource = true
+let taskId = "local-task"
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ cloudHandoff: viewingSource ? view : undefined }),
+	useExtensionState: () => ({ cloudHandoff: viewingSource ? view : undefined, currentTaskItem: { id: taskId } }),
 }))
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: { showTaskWithId: clients.showTaskWithId },
@@ -30,6 +31,7 @@ describe("cloud handoff navigation", () => {
 	beforeEach(() => {
 		vi.resetAllMocks()
 		viewingSource = true
+		taskId = "local-task"
 		clients.showTaskWithId.mockResolvedValue({})
 		clients.openCloudSessionDashboard.mockResolvedValue({})
 		view = {
@@ -76,8 +78,11 @@ describe("cloud handoff navigation", () => {
 	it("protects recovery until restored and exposes a failed discard for retry", async () => {
 		view = { id: "handoff", sourceTaskId: "local-task", phase: "failed", message: "Launch failed" }
 		const restore = vi.fn().mockRejectedValue(new Error("Discard unavailable"))
-		const { rerender } = render(<CloudHandoff onRestoreDraft={restore} />)
+		const discard = vi.fn().mockResolvedValue(undefined)
+		const { rerender } = render(<CloudHandoff onDiscardDraft={discard} onRestoreDraft={restore} />)
 		expect(screen.queryByRole("button", { name: "Dismiss handoff" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Discard saved draft" }))
+		expect(discard).toHaveBeenCalledOnce()
 		fireEvent.click(screen.getByRole("button", { name: "Restore draft" }))
 		await screen.findByText("Discard unavailable")
 		expect(restore).toHaveBeenCalledOnce()
@@ -85,6 +90,32 @@ describe("cloud handoff navigation", () => {
 		expect(screen.queryByRole("button", { name: "Restore draft" })).not.toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Dismiss handoff" }))
 		expect(clients.discardHandoff).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
+	})
+
+	it("renders only local recovery when the account-bound handoff is gone", () => {
+		viewingSource = false
+		const restore = vi.fn().mockResolvedValue(undefined)
+		const discard = vi.fn().mockResolvedValue(undefined)
+		const { rerender } = render(<CloudHandoff onDiscardDraft={discard} onRestoreDraft={restore} />)
+		expect(screen.getByRole("status")).toHaveTextContent("saved locally")
+		expect(screen.queryByRole("button", { name: "Open cloud task" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("button", { name: "Retry continuation" })).not.toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Discard saved draft" }))
+		expect(discard).toHaveBeenCalledOnce()
+		rerender(<CloudHandoff />)
+		expect(screen.queryByRole("region", { name: "Cloud handoff" })).not.toBeInTheDocument()
+		expect(clients.discardHandoff).not.toHaveBeenCalled()
+	})
+
+	it("does not carry local recovery errors into another conversation", async () => {
+		viewingSource = false
+		const restore = vi.fn().mockRejectedValue(new Error("Move or clear your current draft"))
+		const { rerender } = render(<CloudHandoff onRestoreDraft={restore} />)
+		fireEvent.click(screen.getByRole("button", { name: "Restore draft" }))
+		await screen.findByRole("alert")
+		taskId = "other-task"
+		rerender(<CloudHandoff />)
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 	})
 
 	it("shows a failed in-panel open without silently launching a browser", async () => {

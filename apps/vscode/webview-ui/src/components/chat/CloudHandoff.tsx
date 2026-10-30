@@ -30,14 +30,16 @@ function handoffStatus(view: Exclude<CloudHandoffView, { phase: "ready" }>): str
 interface CloudHandoffProps {
 	error?: string
 	onRestoreDraft?: () => Promise<void>
+	onDiscardDraft?: () => Promise<void>
 }
 
-export function CloudHandoff({ error: preparationError, onRestoreDraft }: CloudHandoffProps) {
-	const { cloudHandoff: view } = useExtensionState()
+export function CloudHandoff({ error: preparationError, onRestoreDraft, onDiscardDraft }: CloudHandoffProps) {
+	const { cloudHandoff: view, currentTaskItem } = useExtensionState()
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	return (
 		<CloudHandoffNotice
-			key={JSON.stringify([view?.id, view?.phase, sessionId])}
+			key={JSON.stringify([currentTaskItem?.id, view?.id, view?.phase, sessionId])}
+			onDiscardDraft={onDiscardDraft}
 			onRestoreDraft={onRestoreDraft}
 			preparationError={preparationError}
 			view={view}
@@ -49,10 +51,12 @@ function CloudHandoffNotice({
 	view,
 	preparationError,
 	onRestoreDraft,
+	onDiscardDraft,
 }: {
 	view?: CloudHandoffView
 	preparationError?: string
 	onRestoreDraft?: CloudHandoffProps["onRestoreDraft"]
+	onDiscardDraft?: CloudHandoffProps["onDiscardDraft"]
 }) {
 	const [error, setError] = useState<string>()
 	const [nativeOpenFailed, setNativeOpenFailed] = useState(false)
@@ -70,7 +74,7 @@ function CloudHandoffNotice({
 	const dismissLabel = view?.phase === "preparing" ? "Cancel handoff" : "Dismiss handoff"
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	const errorText = error ?? preparationError
-	if (!view)
+	if (!view && !onRestoreDraft)
 		return errorText ? (
 			<section
 				aria-label="Cloud handoff error"
@@ -83,7 +87,7 @@ function CloudHandoffNotice({
 
 	return (
 		<>
-			{view.phase === "ready" && (
+			{view?.phase === "ready" && (
 				<Dialog
 					onOpenChange={(open) => {
 						if (!open && !confirming) void dismiss()
@@ -161,7 +165,7 @@ function CloudHandoffNotice({
 					</DialogContent>
 				</Dialog>
 			)}
-			{view.phase !== "ready" && (
+			{view?.phase !== "ready" && (
 				<section
 					aria-label="Cloud handoff"
 					className="m-2 p-3 max-h-[min(35vh,14rem)] overflow-y-auto border border-input-border rounded text-sm focus-visible:ring-1 focus-visible:ring-ring"
@@ -171,10 +175,12 @@ function CloudHandoffNotice({
 						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
 							<div
 								className="min-w-0 flex-[1_1_16rem] whitespace-pre-wrap [overflow-wrap:anywhere]"
-								role={view.phase === "failed" ? "alert" : "status"}>
-								{handoffStatus(view)}
+								role={view?.phase === "failed" ? "alert" : "status"}>
+								{view
+									? handoffStatus(view)
+									: "Cloud handoff ended. Your original draft is saved locally. Check Cline Cloud before resending."}
 							</div>
-							{view.phase === "failed" && view.recovery === "connect_github" && (
+							{view?.phase === "failed" && view.recovery === "connect_github" && (
 								<VSCodeButton
 									appearance="secondary"
 									onClick={() => void run(() => CloudServiceClient.connectGitHub(EmptyRequest.create()))}>
@@ -184,7 +190,7 @@ function CloudHandoffNotice({
 							{sessionId && (
 								<div className="flex max-w-full flex-wrap gap-2">
 									<VSCodeButton
-										disabled={view.phase === "launching"}
+										disabled={view?.phase === "launching"}
 										onClick={() =>
 											void run(
 												() =>
@@ -200,7 +206,7 @@ function CloudHandoffNotice({
 										}>
 										{nativeOpenFailed ? "Open in browser" : "Open cloud task"}
 									</VSCodeButton>
-									{view.phase === "complete" && view.delivery === "unsent" && (
+									{view?.phase === "complete" && view.delivery === "unsent" && (
 										<VSCodeButton
 											onClick={() =>
 												void run(() =>
@@ -219,13 +225,19 @@ function CloudHandoffNotice({
 									Restore draft
 								</VSCodeButton>
 							)}
+							{onDiscardDraft && (
+								<VSCodeButton appearance="secondary" onClick={() => void run(onDiscardDraft)}>
+									Discard saved draft
+								</VSCodeButton>
+							)}
 							{errorText && (
 								<div className="w-full text-error whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
 									{errorText}
 								</div>
 							)}
 						</div>
-						{!onRestoreDraft &&
+						{view &&
+							!onRestoreDraft &&
 							view.phase !== "launching" &&
 							!(view.phase === "complete" && view.delivery === "unsent") && (
 								<Button

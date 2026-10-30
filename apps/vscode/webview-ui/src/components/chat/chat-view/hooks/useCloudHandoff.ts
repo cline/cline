@@ -5,36 +5,50 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CloudServiceClient } from "@/services/grpc-client"
 import type { ChatState, DraftSnapshot } from "../types/chatTypes"
 
+type SavedHandoffDraft = { draft: DraftSnapshot; attemptId?: string; cleared?: boolean }
+
 export function useCloudHandoff(chatState: ChatState) {
 	const { currentTaskItem, currentCloudTask, cloudSessionsEnabled, cloudHandoff } = useExtensionState()
-	const drafts = useRef(new Map<string, { draft: DraftSnapshot; attemptId?: string; cleared?: boolean }>())
+	const [drafts, setDrafts] = useState(() => new Map<string, SavedHandoffDraft>())
 	const preparing = useRef(new Set<string>())
 	const [failure, setFailure] = useState<{ sourceTaskId?: string; message: string }>()
 	const sourceTaskId = currentTaskItem?.id
+
+	const removeDraft = useCallback((taskId: string, expected: SavedHandoffDraft) => {
+		setDrafts((current) => {
+			if (current.get(taskId) !== expected) return current
+			const next = new Map(current)
+			next.delete(taskId)
+			return next
+		})
+	}, [])
 
 	useEffect(() => {
 		setFailure(undefined)
 	}, [sourceTaskId, cloudHandoff?.id])
 	useEffect(() => {
 		if (!sourceTaskId) return
-		const submitted = drafts.current.get(sourceTaskId)
+		const submitted = drafts.get(sourceTaskId)
 		if (!submitted) return
 		if (!cloudHandoff) {
-			if (submitted.attemptId) drafts.current.delete(sourceTaskId)
+			if (submitted.attemptId && !submitted.cleared) removeDraft(sourceTaskId, submitted)
 			return
 		}
 		if (cloudHandoff.sourceTaskId !== sourceTaskId) return
-		if (cloudHandoff.phase === "preparing" || cloudHandoff.phase === "ready") submitted.attemptId ??= cloudHandoff.id
+		if ((cloudHandoff.phase === "preparing" || cloudHandoff.phase === "ready") && !submitted.attemptId) {
+			setDrafts((current) => new Map(current).set(sourceTaskId, { ...submitted, attemptId: cloudHandoff.id }))
+			return
+		}
 		if (submitted.attemptId !== cloudHandoff.id) return
 		const sent = cloudHandoff.phase === "complete" && cloudHandoff.delivery === "sent"
 		if (cloudHandoff.phase === "launching" || sent) {
 			if (!submitted.cleared && chatState.getDraftSnapshot().revision === submitted.draft.revision) {
-				submitted.cleared = true
 				chatState.consumeDraftSnapshot(submitted.draft)
+				if (!sent) setDrafts((current) => new Map(current).set(sourceTaskId, { ...submitted, cleared: true }))
 			}
-			if (sent) drafts.current.delete(sourceTaskId)
+			if (sent) removeDraft(sourceTaskId, submitted)
 		}
-	}, [cloudHandoff, sourceTaskId, chatState.consumeDraftSnapshot, chatState.getDraftSnapshot])
+	}, [cloudHandoff, sourceTaskId, drafts, removeDraft, chatState.consumeDraftSnapshot, chatState.getDraftSnapshot])
 
 	const prepare = useCallback(
 		async (instruction: string, draft: DraftSnapshot) => {
@@ -47,13 +61,18 @@ export function useCloudHandoff(chatState: ChatState) {
 				setFailure({ sourceTaskId, message: "Start a local conversation before using /cloud." })
 				return
 			}
-			if (cloudHandoff) {
-				setFailure({ sourceTaskId, message: "Review or dismiss the existing cloud handoff before starting another." })
+			if (cloudHandoff || drafts.get(sourceTaskId)?.cleared) {
+				setFailure({
+					sourceTaskId,
+					message:
+						"Review or dismiss the existing cloud handoff, or restore or discard its saved draft before starting another.",
+				})
 				return
 			}
 			if (preparing.current.has(sourceTaskId)) return
 			preparing.current.add(sourceTaskId)
-			drafts.current.set(sourceTaskId, { draft })
+			const submitted = { draft }
+			setDrafts((current) => new Map(current).set(sourceTaskId, submitted))
 			try {
 				await CloudServiceClient.prepareHandoff(
 					PrepareCloudHandoffRequest.create({
@@ -64,21 +83,24 @@ export function useCloudHandoff(chatState: ChatState) {
 					}),
 				)
 			} catch (err) {
-				drafts.current.delete(sourceTaskId)
+				removeDraft(sourceTaskId, submitted)
 				setFailure({ sourceTaskId, message: err instanceof Error ? err.message : "Unable to prepare cloud handoff." })
 			} finally {
 				preparing.current.delete(sourceTaskId)
 			}
 		},
-		[cloudSessionsEnabled, sourceTaskId, currentCloudTask, cloudHandoff],
+		[cloudSessionsEnabled, sourceTaskId, currentCloudTask, cloudHandoff, drafts, removeDraft],
 	)
-	const submitted = sourceTaskId ? drafts.current.get(sourceTaskId) : undefined
-	const restoreDraft =
+	const submitted = sourceTaskId ? drafts.get(sourceTaskId) : undefined
+	const recoverable =
 		submitted?.cleared &&
-		cloudHandoff &&
-		cloudHandoff.id === submitted.attemptId &&
-		cloudHandoff.sourceTaskId === sourceTaskId &&
-		(cloudHandoff.phase === "failed" || (cloudHandoff.phase === "complete" && cloudHandoff.delivery === "unconfirmed"))
+		(!cloudHandoff ||
+			(cloudHandoff.id === submitted.attemptId &&
+				cloudHandoff.sourceTaskId === sourceTaskId &&
+				(cloudHandoff.phase === "failed" ||
+					(cloudHandoff.phase === "complete" && cloudHandoff.delivery === "unconfirmed"))))
+	const restoreDraft =
+		recoverable && sourceTaskId
 			? async () => {
 					const current = chatState.getDraftSnapshot()
 					if (current.text || current.activeQuote !== null || current.images.length || current.files.length)
@@ -87,10 +109,19 @@ export function useCloudHandoff(chatState: ChatState) {
 					chatState.setActiveQuote(submitted.draft.activeQuote)
 					chatState.setSelectedImages(submitted.draft.images)
 					chatState.setSelectedFiles(submitted.draft.files)
-					drafts.current.delete(cloudHandoff.sourceTaskId)
-					if (cloudHandoff.phase === "failed")
+					removeDraft(sourceTaskId, submitted)
+					setFailure(undefined)
+					if (cloudHandoff?.phase === "failed")
 						await CloudServiceClient.discardHandoff(StringRequest.create({ value: cloudHandoff.id }))
 				}
 			: undefined
-	return { prepare, restoreDraft, error: failure?.sourceTaskId === sourceTaskId ? failure?.message : undefined }
+	const discardDraft =
+		recoverable && sourceTaskId
+			? async () => {
+					setFailure(undefined)
+					if (cloudHandoff) await CloudServiceClient.discardHandoff(StringRequest.create({ value: cloudHandoff.id }))
+					removeDraft(sourceTaskId, submitted)
+				}
+			: undefined
+	return { prepare, restoreDraft, discardDraft, error: failure?.sourceTaskId === sourceTaskId ? failure?.message : undefined }
 }
