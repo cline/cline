@@ -22,7 +22,6 @@ import {
 } from "@/lib/session-history";
 import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
-import { readSideConversation } from "../../shared/side-conversation";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -145,10 +144,6 @@ const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
 const HISTORY_FAST_REFRESH_DELAY_MS = 50;
 const HISTORY_TERMINAL_REFRESH_DELAY_MS = 250;
 
-function isSideSession(session: SessionHistoryItem): boolean {
-	return Boolean(readSideConversation(session.metadata));
-}
-
 export function parseTimestamp(value?: string): number {
 	if (!value) return Number.NEGATIVE_INFINITY;
 	const trimmed = value.trim();
@@ -217,25 +212,6 @@ export function normalizeDiscoveredStatus(
 	}
 	if (normalized === "idle") return "idle";
 	return "idle";
-}
-
-function normalizeDiscoveredSession(
-	session: CliDiscoveredSession,
-): SessionHistoryItem {
-	return {
-		...session,
-		sessionId: String(session.sessionId ?? "").trim(),
-		status: normalizeDiscoveredStatus(session.status, session.prompt),
-		provider: session.provider || "",
-		model: session.model || "",
-		cwd: session.cwd || "",
-		workspaceRoot: session.workspaceRoot || session.cwd || "",
-		startedAt: String(session.startedAt ?? ""),
-		metadata:
-			session.metadata && typeof session.metadata === "object"
-				? session.metadata
-				: undefined,
-	};
 }
 
 function isTerminalHistoryStatus(status: SessionHistoryStatus): boolean {
@@ -471,8 +447,6 @@ function areSessionsEquivalent(
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
 			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
-			JSON.stringify(readSideConversation(a.metadata)) !==
-				JSON.stringify(readSideConversation(b.metadata)) ||
 			!areScheduleInfosEqual(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
@@ -841,19 +815,34 @@ export function useSessionHistory({
 				const hasMoreSessions = discovered.length >= limit;
 				mayHaveMoreSessionsRef.current = hasMoreSessions;
 				setMayHaveMoreSessions(hasMoreSessions);
-				const discoveredSessions = discovered
-					.map(normalizeDiscoveredSession)
+				const topLevelSessions = discovered
+					.map((session) => {
+						const normalized: SessionHistoryItem = {
+							...session,
+							sessionId: String(session.sessionId ?? "").trim(),
+							status: normalizeDiscoveredStatus(session.status, session.prompt),
+							provider: session.provider || "",
+							model: session.model || "",
+							cwd: session.cwd || "",
+							workspaceRoot: session.workspaceRoot || session.cwd || "",
+							startedAt: String(session.startedAt ?? ""),
+							metadata:
+								session.metadata && typeof session.metadata === "object"
+									? (session.metadata as SessionMetadata)
+									: undefined,
+						};
+						return normalized;
+					})
 					.filter((session) => Boolean(session.sessionId))
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
 					.sort(compareSessionsByActivityDesc);
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
-					discoveredSessions,
+					topLevelSessions,
 					sessionsBeforeRefresh,
 				);
 
-				sessionsRef.current = mergedSessions;
 				setSessions((current) =>
 					areSessionsEquivalent(current, mergedSessions)
 						? current
@@ -1009,9 +998,7 @@ export function useSessionHistory({
 			(session) =>
 				sessionKey(session) !== activeSessionId && session.origin !== "cloud",
 		);
-		const targets = inactiveSessions
-			.filter((session) => !isSideSession(session))
-			.slice(0, USAGE_HYDRATION_WINDOW);
+		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
 		if (requestedUsageIds.size > 0) {
 			const queued = new Set(targets.map(sessionKey));
 			for (const session of inactiveSessions) {
@@ -1887,19 +1874,6 @@ export function useSessionHistory({
 		});
 	}, [scheduledSessionLinks, threads]);
 
-	const rootSessions = useMemo(
-		() => sessions.filter((session) => !isSideSession(session)),
-		[sessions],
-	);
-	const sideKeys = useMemo(
-		() => new Set(sessions.filter(isSideSession).map(sessionKey)),
-		[sessions],
-	);
-	const rootThreads = useMemo(
-		() => threadsWithScheduled.filter((thread) => !sideKeys.has(thread.id)),
-		[threadsWithScheduled, sideKeys],
-	);
-
 	return {
 		getSessionByThreadId,
 		hasLoadedHistory,
@@ -1917,9 +1891,8 @@ export function useSessionHistory({
 		deleteThread,
 		forkThread,
 		sessionById,
-		allSessions: sessions,
-		sessions: rootSessions,
-		threads: rootThreads,
+		sessions,
+		threads: threadsWithScheduled,
 		unreadSessionIds,
 	};
 }

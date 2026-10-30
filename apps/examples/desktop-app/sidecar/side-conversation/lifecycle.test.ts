@@ -66,11 +66,6 @@ it("cleans dead and reused process owners without deleting another live app's si
 						version: 1,
 						owner,
 						parentSessionId: "main",
-						capturedAt: new Date().toISOString(),
-						sourceMessageCount: 0,
-						includedMessageCount: 0,
-						omittedMessageCount: 0,
-						omittedMediaCount: 0,
 					},
 				},
 			});

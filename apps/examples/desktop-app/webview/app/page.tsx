@@ -112,7 +112,6 @@ import {
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
 import {
-	appendSideAnswerToMainDraft,
 	createDesktopAppState,
 	type DesktopAppAction,
 	type DesktopAppLocation,
@@ -989,39 +988,6 @@ function App() {
 		[promptDrafts, dispatchApp],
 	);
 
-	const handleReturnFromSide = useCallback(
-		async (parentSessionId: string, environmentId: string, answer?: string) => {
-			const intent = ++navigationIntentRef.current;
-			const parent = await desktopClient.invoke<SessionHistoryItem | null>(
-				"get_discovered_session",
-				{ sessionId: parentSessionId, environmentId },
-			);
-			if (navigationIntentRef.current !== intent) return false;
-			if (!parent || parent.environmentId !== environmentId)
-				throw new Error("The main conversation is no longer available.");
-			let draft: string | undefined;
-			if (answer?.trim()) {
-				draft = appendSideAnswerToMainDraft({
-					threads,
-					drafts: promptDrafts,
-					parent,
-					answer,
-				});
-			}
-			await handleOpenSession(parent, draft);
-			const parentThread = threads.find(
-				(thread) =>
-					thread.environmentId === environmentId &&
-					(thread.sessionId === parentSessionId ||
-						thread.historySession?.sessionId === parentSessionId),
-			);
-			requestPromptInputFocus(
-				parentThread?.id ?? `session_${sessionKey(parent)}`,
-			);
-			return true;
-		},
-		[handleOpenSession, promptDrafts, threads],
-	);
 	const handleInitialSideSubmissionConsumed = useCallback(
 		(threadId: string, submission: InitialSideSubmission) => {
 			dispatchApp({
@@ -1187,10 +1153,10 @@ function App() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
-	const sessionHistoryRef = useRef(sessionHistory.allSessions);
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
-		sessionHistoryRef.current = sessionHistory.allSessions;
-	}, [sessionHistory.allSessions]);
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
@@ -1455,7 +1421,6 @@ function App() {
 		initialPromptDraft: thread.initialPromptDraft,
 		pendingSideSubmissions: thread.pendingSideSubmissions,
 		onInitialSideSubmissionConsumed: handleInitialSideSubmissionConsumed,
-		onReturnFromSide: handleReturnFromSide,
 		promptDrafts,
 		knownWorkspacePaths: historyWorkspacePaths,
 		onInitialPromptDraftConsumed: handleInitialPromptDraftConsumed,
@@ -1667,11 +1632,7 @@ type ThreadPaneProps = {
 		threadId: string,
 		submission: InitialSideSubmission,
 	) => void;
-	onReturnFromSide: (
-		parentSessionId: string,
-		environmentId: string,
-		answer?: string,
-	) => Promise<boolean>;
+	onAddToMainDraft?: (answer: string) => void;
 	handoffLifecycle: Omit<HandoffLifecycle, "onEvent">;
 	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
@@ -1754,7 +1715,7 @@ function ChatThreadPane({
 	initialPromptDraft,
 	pendingSideSubmissions,
 	onInitialSideSubmissionConsumed,
-	onReturnFromSide,
+	onAddToMainDraft,
 	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -2585,9 +2546,7 @@ function ChatThreadPane({
 			if (!preserveComposer) {
 				setPromptInput(initialPromptDraft ?? "");
 				setPendingAttachments(
-					initialAttachments
-						? [...initialAttachments]
-						: draftRef.current.attachments,
+					initialAttachments ? [...initialAttachments] : [],
 				);
 			}
 			onInitialPromptDraftConsumed?.(threadId);
@@ -3758,28 +3717,7 @@ function ChatThreadPane({
 									sideEmpty={
 										Boolean(sideRelation) && hydrationSucceeded === true
 									}
-									onAddToMainDraft={
-										sideRelation &&
-										presentation === "side" &&
-										workspace.mainThreadId !== threadId
-											? (answer) => {
-													void onReturnFromSide(
-														sideRelation.parentSessionId,
-														environmentId,
-														answer,
-													)
-														.then((added) => {
-															if (added) workspace.showMain();
-														})
-														.catch((error) =>
-															toast({
-																title: "Could not add to main draft",
-																description: String(error),
-															}),
-														);
-												}
-											: undefined
-									}
+									onAddToMainDraft={onAddToMainDraft}
 									onAnswerAskQuestion={handleAnswerAskQuestion}
 									onApproveToolApproval={handleApproveToolApproval}
 									onRejectToolApproval={handleRejectToolApproval}
@@ -4002,6 +3940,13 @@ function ChatThreadPane({
 								mainConfig={config}
 								interactive={interactive && side.openingState.kind === "idle"}
 								onAttentionChange={reportSideAttention}
+								onAddToMainDraft={(answer) => {
+									const existing = draftRef.current.text;
+									setPromptInput(
+										`${existing}${existing ? "\n\n" : ""}From side conversation:\n\n${answer.trim()}`,
+									);
+									workspace.showMain();
+								}}
 							/>
 						)}
 					</div>

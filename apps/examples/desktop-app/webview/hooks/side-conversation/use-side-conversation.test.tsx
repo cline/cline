@@ -77,6 +77,7 @@ function QueuedHarness({ hydrated }: { hydrated: boolean | null }) {
 	const child = state.threads.find(
 		(thread) => thread.historySession?.sessionId === "side",
 	);
+	const draft = usePromptDraft(props.drafts, child?.id ?? "unopened");
 	useSideConversation({
 		...props,
 		threadId: child?.id ?? "unopened",
@@ -91,7 +92,7 @@ function QueuedHarness({ hydrated }: { hydrated: boolean | null }) {
 			});
 		},
 	});
-	return null;
+	return <div>{draft.promptDraft.value}</div>;
 }
 async function renderQueued(hydrated: boolean | null) {
 	await act(async () =>
@@ -139,9 +140,13 @@ describe("side conversation submission", () => {
 		"/btw explain",
 		"/side explain",
 	])("intercepts %s without sending or queuing on the parent", async (command) => {
+		await render(true);
+		await act(async () => editDraft(command));
 		await act(async () => {
 			expect(await current.intercept(command)).toBe(true);
 		});
+		expect(props.drafts.get("thread")?.text).toBe("");
+		expect(props.open).toHaveBeenCalledTimes(1);
 		expect(props.create).toHaveBeenCalledTimes(1);
 		expect(vi.mocked(props.create).mock.calls[0][0]).not.toBe(result.sessionId);
 		expect(props.send).not.toHaveBeenCalled();
@@ -177,15 +182,6 @@ describe("side conversation submission", () => {
 		expect(props.send).not.toHaveBeenCalled();
 		expect(toast).not.toHaveBeenCalled();
 		expect(props.drafts.get("thread")?.text).toBe("/btw explain");
-	});
-
-	it("clears the real parent draft and opens the side while the pane still owns creation", async () => {
-		await render(true);
-		await act(async () => {
-			await current.intercept("/btw explain");
-		});
-		expect(props.drafts.get("thread")?.text).toBe("");
-		expect(props.open).toHaveBeenCalledTimes(1);
 	});
 
 	it("retains accepted creation while a Hub reconnect hides the pane", async () => {
@@ -253,7 +249,10 @@ describe("side conversation submission", () => {
 		expect(props.open).toHaveBeenCalledWith(props.existingSession, undefined);
 		expect(props.drafts.get("thread")?.text).toBe("Keep this draft");
 	});
-	it("does not clear newer parent typing when opening finishes", async () => {
+
+	it("preserves newer typing and keeps creation hidden when the rail closes during opening", async () => {
+		let revision = 0;
+		props.getCloseRevision = () => revision;
 		const creation = Promise.withResolvers<typeof result>();
 		props.create = vi.fn(() => creation.promise);
 		await render(true);
@@ -262,30 +261,13 @@ describe("side conversation submission", () => {
 			pending = current.intercept("/btw explain");
 		});
 		await act(async () => editDraft("New parent draft"));
-		await act(async () => {
-			creation.resolve(result);
-			await pending;
-		});
-		expect(props.drafts.get("thread")?.text).toBe("New parent draft");
-		expect(props.open).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps an accepted creation hidden when the rail was closed during opening", async () => {
-		let revision = 0;
-		props.getCloseRevision = () => revision;
-		const creation = Promise.withResolvers<typeof result>();
-		props.create = vi.fn(() => creation.promise);
-		await render();
-		let pending: Promise<boolean> | undefined;
-		await act(async () => {
-			pending = current.intercept("/btw explain");
-		});
 		revision++;
 		await act(async () => {
 			creation.resolve(result);
 			await pending;
 		});
-		expect(props.open).toHaveBeenCalledWith(
+		expect(props.drafts.get("thread")?.text).toBe("New parent draft");
+		expect(props.open).toHaveBeenCalledExactlyOnceWith(
 			expect.objectContaining({ sessionId: "side" }),
 			{ question: "explain" },
 			false,
@@ -312,20 +294,7 @@ describe("side conversation submission", () => {
 		expect(props.create).not.toHaveBeenCalled();
 		expect(props.send).not.toHaveBeenCalled();
 	});
-	it("keeps a question as a side draft when attach fails, without sending", async () => {
-		props.pendingSubmissions = [{ question: "why?" }];
-		props.hydrationSucceeded = false;
-		const attachment = new File(["draft"], "draft.txt");
-		props.drafts.set("thread", { text: "", attachments: [attachment] });
-		await render(true);
-		expect(props.send).not.toHaveBeenCalled();
-		expect(container.textContent).toBe("why?");
-		expect(props.drafts.get("thread")).toEqual({
-			text: "why?",
-			attachments: [attachment],
-		});
-		expect(props.consumeSubmission).toHaveBeenCalledTimes(1);
-	});
+
 	it("does not show a dispatched question as a draft while the turn is pending", async () => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = true;
@@ -378,7 +347,8 @@ describe("pending side submissions with the actual app reducer", () => {
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		await renderQueued(true);
-		expect(props.drafts.has(queuedState.threads[1].id)).toBe(false);
+		expect(container.textContent).toBe("");
+		expect(props.drafts.get(queuedState.threads[1].id)?.text).toBe("");
 		expect(props.send).toHaveBeenCalledTimes(2);
 		expect(
 			queuedState.threads[1].pendingSideSubmissions?.map(
@@ -402,7 +372,10 @@ describe("pending side submissions with the actual app reducer", () => {
 		expect(props.send).toHaveBeenCalledTimes(3);
 		expect(props.consumeSubmission).toHaveBeenCalledTimes(3);
 	});
-	it("restores every pending question in order after hydration fails without replacing an existing draft", async () => {
+	it.each([
+		["", "first\n\nsecond"],
+		["Unsent draft", "Unsent draft\n\nfirst\n\nsecond"],
+	])("restores pending questions and attachments into draft %j after hydration fails", async (existing, restored) => {
 		await renderQueued(null);
 		await act(async () => {
 			enqueue("first");
@@ -410,12 +383,16 @@ describe("pending side submissions with the actual app reducer", () => {
 			enqueue();
 		});
 		const childId = queuedState.threads[1].id;
-		props.drafts.set(childId, { text: "Unsent draft", attachments: [] });
+		const attachment = new File(["draft"], "draft.txt");
+		props.drafts.set(childId, { text: existing, attachments: [attachment] });
 		await renderQueued(false);
 		expect(props.send).not.toHaveBeenCalled();
-		expect(props.drafts.get(childId)?.text).toBe(
-			"Unsent draft\n\nfirst\n\nsecond",
-		);
+		expect(container.textContent).toBe(restored);
+		expect(props.drafts.get(childId)).toEqual({
+			text: restored,
+			attachments: [attachment],
+		});
+		expect(props.consumeSubmission).toHaveBeenCalledTimes(2);
 		expect(queuedState.threads[1].pendingSideSubmissions).toEqual([]);
 		await renderQueued(true);
 		expect(props.send).not.toHaveBeenCalled();
@@ -447,49 +424,37 @@ describe("side pane opening", () => {
 		expect(current.openingState.kind).toBe("idle");
 	});
 
-	it("retries an uncertain toolbar creation with the original identity and no model request", async () => {
+	it.each([
+		undefined,
+		"original question",
+	])("retries creation with its original identity and submission %j", async (question) => {
 		props.create = vi
 			.fn()
 			.mockRejectedValueOnce(new Error("Timed out"))
 			.mockResolvedValue(result);
-		await render();
+		await render(true);
 		await act(async () => {
-			await current.openSide();
+			if (question) await current.intercept(`/btw ${question}`);
+			else await current.openSide();
 		});
-		expect(current.openingState.kind).toBe("error");
+		expect(current.openingState).toEqual({
+			kind: "error",
+			message: "Timed out",
+		});
+		await act(async () => editDraft("New main draft"));
 		await act(async () => {
 			await current.retry();
 		});
+		expect(props.create).toHaveBeenCalledTimes(2);
 		expect(vi.mocked(props.create).mock.calls[1][0]).toBe(
 			vi.mocked(props.create).mock.calls[0][0],
 		);
+		expect(current.openingState.kind).toBe("idle");
 		expect(props.send).not.toHaveBeenCalled();
-		expect(props.open).toHaveBeenCalledWith(expect.anything(), undefined);
-	});
-});
-
-it("inline retry submits the original question without replacing newer parent typing", async () => {
-	props.create = vi
-		.fn()
-		.mockRejectedValueOnce(new Error("Timed out"))
-		.mockResolvedValue(result);
-	await render(true);
-	await act(async () => {
-		await current.intercept("/btw original question");
-	});
-	expect(current.openingState).toEqual({ kind: "error", message: "Timed out" });
-	await act(async () => editDraft("New main draft"));
-	await act(async () => {
-		await current.retry();
-	});
-	expect(props.create).toHaveBeenCalledTimes(2);
-	expect(vi.mocked(props.create).mock.calls[1][0]).toBe(
-		vi.mocked(props.create).mock.calls[0][0],
-	);
-	expect(current.openingState.kind).toBe("idle");
-	expect(props.send).not.toHaveBeenCalled();
-	expect(props.drafts.get("thread")?.text).toBe("New main draft");
-	expect(props.open).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-		question: "original question",
+		expect(props.drafts.get("thread")?.text).toBe("New main draft");
+		expect(props.open).toHaveBeenCalledExactlyOnceWith(
+			expect.anything(),
+			question ? { question } : undefined,
+		);
 	});
 });

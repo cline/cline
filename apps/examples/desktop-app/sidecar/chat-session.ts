@@ -1231,7 +1231,6 @@ async function createSideConversation(
 			desktopSideConfig: sideConfig,
 		};
 		assertSideConversationAvailable(ctx, request.sessionId);
-		assertSideConversationAvailable(ctx, request.newSessionId);
 		await handleStart(
 			ctx,
 			{ action: "start", config },
@@ -2201,7 +2200,6 @@ async function handleSendOnce(
 		});
 		let result: Awaited<ReturnType<ClineCore["send"]>>;
 		try {
-			assertSideConversationAvailable(ctx, sessionId, sideIdentityMetadata);
 			result = await manager.send({
 				sessionId,
 				prompt: runtimePrompt,

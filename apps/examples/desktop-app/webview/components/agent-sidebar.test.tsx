@@ -66,7 +66,6 @@ function makeSessionHistory(
 		pendingAction: null,
 		renameThread: vi.fn(),
 		threads,
-		allSessions: [],
 		unreadSessionIds: new Set<string>(),
 	} as unknown as UseSessionHistoryResult;
 }

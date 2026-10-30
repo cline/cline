@@ -1,4 +1,3 @@
-import type { PromptDraft } from "../hooks/use-prompt-draft";
 import {
 	createNavigationHistory,
 	type NavigationHistory,
@@ -24,28 +23,6 @@ export type DesktopThread = {
 	pendingSideSubmissions?: InitialSideSubmission[];
 	initialAttachments?: File[];
 };
-
-export function appendSideAnswerToMainDraft({
-	threads,
-	drafts,
-	parent,
-	answer,
-}: {
-	threads: DesktopThread[];
-	drafts: ReadonlyMap<string, PromptDraft>;
-	parent: SessionHistoryItem;
-	answer: string;
-}): string {
-	const parentThread = threads.find(
-		(thread) =>
-			thread.environmentId === parent.environmentId &&
-			(thread.sessionId === parent.sessionId ||
-				thread.historySession?.sessionId === parent.sessionId),
-	);
-	const threadId = parentThread?.id ?? `session_${sessionKey(parent)}`;
-	const existing = drafts.get(threadId)?.text ?? "";
-	return `${existing}${existing ? "\n\n" : ""}From side conversation:\n\n${answer.trim()}`;
-}
 
 export type DesktopAppLocation<SettingsSection extends string> = {
 	activeThreadId: string;

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	appendSideAnswerToMainDraft,
-	createDesktopAppState,
-	desktopAppReducer,
-} from "./desktop-app-state";
+import { createDesktopAppState, desktopAppReducer } from "./desktop-app-state";
 import type { SessionHistoryItem } from "./session-history";
 import { sessionKey } from "./session-identity";
 
@@ -524,25 +520,5 @@ describe("desktopAppReducer", () => {
 			id: "fresh-local-draft",
 			environmentId: "local",
 		});
-	});
-});
-
-describe("side answer draft handoff", () => {
-	it("appends to the actual parent thread draft, preserving another environment", () => {
-		const drafts = new Map([
-			["original-thread", { text: "Keep my draft", attachments: [] }],
-			["remote-thread", { text: "Remote draft", attachments: [] }],
-		]);
-		const next = appendSideAnswerToMainDraft({
-			drafts,
-			answer: " Answer ",
-			parent: createSession("parent"),
-			threads: [
-				{ id: "remote-thread", environmentId: "remote", sessionId: "parent" },
-				{ id: "original-thread", environmentId: "local", sessionId: "parent" },
-			],
-		});
-		expect(next).toBe("Keep my draft\n\nFrom side conversation:\n\nAnswer");
-		expect(drafts.get("remote-thread")?.text).toBe("Remote draft");
 	});
 });

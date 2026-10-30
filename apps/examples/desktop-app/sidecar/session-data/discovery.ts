@@ -194,7 +194,6 @@ export function mergeDiscoveredSessionLists(
 			continue;
 		}
 		const normalized = item as JsonRecord;
-		if (readSideConversation(normalized.metadata)) continue;
 		merged.set(key, {
 			...normalized,
 			sessionId,
