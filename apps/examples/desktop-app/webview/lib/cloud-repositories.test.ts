@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	isGitHubRepositoryUrl,
 	normalizeCloudRepositoryUrl,
@@ -27,12 +27,37 @@ describe("cloud repository selection", () => {
 						};
 			},
 		);
-		expect(branch).toBe(exists ? "feature" : "main");
+		expect(branch).toBe(exists ? "feature" : "");
 		expect(calls).toEqual([
 			{ id: 7, query: "feature", cursor: undefined },
 			{ id: 7, query: "feature", cursor: "page-2" },
 		]);
 	});
+	it.each([
+		"",
+		"main",
+	])("restores %j as the default preference without a lookup", async (branch) => {
+		const list = vi.fn();
+		expect(await resolveRememberedCloudBranch(7, branch, "main", list)).toBe(
+			"",
+		);
+		expect(list).not.toHaveBeenCalled();
+	});
+
+	it("preserves an explicit branch when lookup is unavailable and propagates errors", async () => {
+		expect(
+			await resolveRememberedCloudBranch(7, "feature", "main", async () => ({
+				available: false,
+				branches: [],
+			})),
+		).toBe("feature");
+		await expect(
+			resolveRememberedCloudBranch(7, "feature", "main", async () => {
+				throw new Error("lookup failed");
+			}),
+		).rejects.toThrow("lookup failed");
+	});
+
 	it("accepts GitHub repository URLs but not arbitrary URLs", () => {
 		expect(isGitHubRepositoryUrl("https://github.com/cline/cline")).toBe(true);
 		expect(isGitHubRepositoryUrl("git@github.com:cline/cline.git")).toBe(false);

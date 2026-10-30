@@ -258,10 +258,13 @@ function CloudBranchPicker({
 	branchRef.current = branch;
 	const reconcileBranch = useCallback(
 		(availableBranches: string[], complete: boolean) => {
-			if (availableBranches.length === 0) return;
-			const selected = branchRef.current;
-			if (selected && (!complete || availableBranches.includes(selected)))
+			if (!complete) return;
+			if (availableBranches.length === 0) {
+				onBranchChange("");
 				return;
+			}
+			const selected = branchRef.current;
+			if (selected && availableBranches.includes(selected)) return;
 			onBranchChange(preferredCloudBranch(availableBranches, defaultBranch));
 		},
 		[defaultBranch, onBranchChange],
@@ -291,7 +294,6 @@ function CloudBranchPicker({
 				if (cancelled || requestKeyRef.current !== requestKey) return;
 				if (!result.available) {
 					setBranches([]);
-					onBranchChange(defaultBranch);
 					setStatus("unavailable");
 					return;
 				}
@@ -313,8 +315,6 @@ function CloudBranchPicker({
 		};
 	}, [
 		debouncedQuery,
-		defaultBranch,
-		onBranchChange,
 		onListBranches,
 		reconcileBranch,
 		reloadKey,
@@ -405,24 +405,14 @@ function CloudBranchPicker({
 				className={cn(TRIGGER_CLASS, "min-w-0 max-w-full")}
 				disabled={!repositoryId || status === "unavailable"}
 				onClick={onToggle}
-				title={
-					status === "unavailable"
-						? `Using the repository default branch${branch ? `: ${branch}` : ""}`
-						: branch || "Select a branch"
-				}
+				title={branch || "Default branch"}
 				type="button"
 			>
 				<GitBranch
 					aria-hidden="true"
 					className="size-4 shrink-0 text-muted-foreground"
 				/>
-				<span className="max-w-48 truncate">
-					{status === "unavailable"
-						? branch
-							? `${branch} (default)`
-							: "Default branch"
-						: branch || "Select branch…"}
-				</span>
+				<span className="max-w-48 truncate">{branch || "Default branch"}</span>
 			</button>
 
 			{open && repositoryId && status !== "unavailable" ? (
@@ -1110,7 +1100,7 @@ export function WelcomeWorkspaceControls({
 								setCloudRepositoryId(repository.id);
 								setCloudDefaultBranch(repository.defaultBranch);
 								onRepoUrlChange(normalizeCloudRepositoryUrl(repository.url));
-								onCloudBranchChange(repository.defaultBranch);
+								onCloudBranchChange("");
 							}}
 							onToggle={() =>
 								setOpenMenu((current) =>

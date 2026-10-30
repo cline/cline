@@ -56,15 +56,15 @@ export async function resolveRememberedCloudBranch(
 		options: CloudBranchListOptions,
 	) => Promise<CloudBranchListResult>,
 ): Promise<string> {
-	if (!branch || branch === defaultBranch) return defaultBranch;
+	if (!branch || branch === defaultBranch) return "";
 	let cursor: string | undefined;
 	do {
 		const result = await listBranches(repositoryId, { query: branch, cursor });
-		if (!result.available) return defaultBranch;
+		if (!result.available) return branch;
 		if (result.branches.includes(branch)) return branch;
 		cursor = result.nextToken;
 	} while (cursor);
-	return defaultBranch;
+	return "";
 }
 
 export function normalizeCloudRepositoryUrl(value: string): string {
