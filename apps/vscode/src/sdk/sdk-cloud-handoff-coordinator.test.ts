@@ -416,8 +416,13 @@ describe("cloud conversation handoff", () => {
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({ phase: "complete", delivery: "sent" })
 	})
 
-	it("does not retry an unsent continuation after the Hub scope changes", async () => {
-		const { coordinator, cloud, id } = setup()
+	it.each([
+		["serviceId", "before publication"],
+		["scopeGeneration", "before publication"],
+		["serviceId", "during publication"],
+		["scopeGeneration", "during publication"],
+	])("allows local recovery without resending when %s changes %s", async (field, timing) => {
+		const { coordinator, cloud, changed, id } = setup()
 		cloud.create.mockResolvedValue({
 			sessionId: "ses_example",
 			status: "idle",
@@ -425,8 +430,26 @@ describe("cloud conversation handoff", () => {
 		})
 		await coordinator.prepare(input)
 		await coordinator.confirm(id())
-		cloud.scope = { ...cloud.scope, scopeGeneration: cloud.scope.scopeGeneration + 1 }
-		await expect(coordinator.retryMessage(id())).rejects.toThrow("account changed")
+		const handoffId = id()
+		const changeScope = async () => {
+			cloud.scope =
+				field === "serviceId"
+					? { ...cloud.scope, serviceId: "restarted-service" }
+					: { ...cloud.scope, scopeGeneration: cloud.scope.scopeGeneration + 1 }
+		}
+		if (timing === "during publication") changed.mockImplementationOnce(changeScope)
+		else await changeScope()
+		await expect(coordinator.retryMessage(handoffId)).rejects.toThrow("cloud connection changed")
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			id: handoffId,
+			phase: "complete",
+			sessionId: "ses_example",
+			delivery: "unconfirmed",
+		})
+		await coordinator.retryMessage(handoffId)
 		expect(cloud.send).not.toHaveBeenCalled()
+		expect(cloud.create).toHaveBeenCalledTimes(1)
+		await coordinator.discard(handoffId)
+		expect(coordinator.viewFor(input.sourceTaskId)).toBeUndefined()
 	})
 })

@@ -293,8 +293,6 @@ export class SdkCloudHandoffCoordinator {
 		this.options.assertEnabled()
 		this.assertCurrent(attempt)
 		const { cloud, scope, modelId, initialMessage } = attempt.unsent
-		if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
-			throw new Error("The cloud account changed. Check the cloud task before resending.")
 		const base = { id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey, sessionId: attempt.sessionId }
 		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching" }
 		this.attempts.set(attempt.sourceTaskId, launching)
@@ -302,8 +300,10 @@ export class SdkCloudHandoffCoordinator {
 		try {
 			await this.options.changed()
 			this.assertCurrent(launching)
-			if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration)
-				throw new Error("Cloud account changed")
+			if (cloud.scope?.serviceId !== scope.serviceId || cloud.scope.scopeGeneration !== scope.scopeGeneration) {
+				settled = { ...base, phase: "complete", delivery: "unconfirmed" }
+				throw new Error("The cloud connection changed. Check the cloud task before resending.")
+			}
 			let delivery: "sent" | "unconfirmed" = "unconfirmed"
 			try {
 				const result = await cloud.send(attempt.sessionId, initialMessage.text, "queue", modelId, initialMessage.images)
