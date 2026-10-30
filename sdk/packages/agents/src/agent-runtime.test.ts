@@ -521,6 +521,31 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(3);
 	});
 
+	it("treats a tool-calls finish without tool calls as unknown", async () => {
+		const lost = () => [
+			{ type: "text-delta" as const, text: "Let me check." },
+			{ type: "finish" as const, reason: "tool-calls" as const },
+		];
+		const model = new ScriptedModel([
+			lost,
+			() => [
+				{ type: "text-delta", text: "Checked" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Checked");
+		expect(model.requests).toHaveLength(2);
+
+		const repeated = new ScriptedModel([lost, lost]);
+		const failed = await new AgentRuntime({ model: repeated }).run("Hi");
+		expect(failed.status).toBe("failed");
+		expect(failed.error?.message).toContain(
+			"without a recognized finish reason",
+		);
+	});
+
 	it("bounds repeated unknown completions and preserves their usage and partial responses", async () => {
 		const cutoff = () => [
 			{ type: "text-delta" as const, text: "Partial" },

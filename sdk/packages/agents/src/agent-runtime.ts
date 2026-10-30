@@ -1207,10 +1207,20 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
-		const issue = () =>
-			this.withProviderErrorRetry(() =>
+		const issue = async () => {
+			const turn = await this.withProviderErrorRetry(() =>
 				this.generateAssistantMessageWithOverflowRecovery(),
 			);
+			// A tool-calls finish with no tool activity means the calls were lost
+			// (e.g. unparseable arguments); treat it as unknown rather than done.
+			if (
+				turn.finishReason === "tool-calls" &&
+				!turn.message.content.some((part) => part.type === "tool-call") &&
+				!this.hasModelToolActivity(turn.message)
+			)
+				return { ...turn, finishReason: "unknown" as const };
+			return turn;
+		};
 		const first = await issue();
 		if (first.finishReason !== "unknown" || first.interrupted) return first;
 
