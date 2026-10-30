@@ -1,7 +1,5 @@
 "use client";
 
-import { UxVerificationMessage } from "./ux-verification-message";
-
 import { AgentCommandOutput, GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
@@ -29,7 +27,6 @@ import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
-	isUxVerificationMessage,
 	extractRunCommandOutput,
 	extractSubmitSummaryText,
 	formatToolValue,
@@ -360,24 +357,15 @@ export const ToolMessageBlock = memo(
 		if (messages.length === 0) return null;
 		return (
 			<div className="flex flex-col gap-1">
-				{messages.map((message) =>
-					isUxVerificationMessage(message) ? (
-						<UxVerificationMessage
-							key={message.id}
-							message={message}
-							isRunActive={isRunActive}
-							onExpandImage={onExpandImage}
-						/>
-					) : (
-						<ToolCallRow
-							isRunActive={isRunActive}
-							key={message.id}
-							message={message}
-							onExpandImage={onExpandImage}
-							onProceedWhileRunning={onProceedWhileRunning}
-						/>
-					),
-				)}
+				{messages.map((message) => (
+					<ToolCallRow
+						isRunActive={isRunActive}
+						key={message.id}
+						message={message}
+						onExpandImage={onExpandImage}
+						onProceedWhileRunning={onProceedWhileRunning}
+					/>
+				))}
 			</div>
 		);
 	},

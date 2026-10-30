@@ -103,11 +103,6 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		headlessToolNames: ["spawn_agent"],
 	},
 	{
-		id: "ux_verifier",
-		description: "Delegate a UX checklist and return screenshot evidence for every check.",
-		headlessToolNames: ["ux_verifier"],
-	},
-	{
 		id: "teams",
 		description:
 			"Enable team collaboration tools for teammate management, task coordination, mailbox messaging, mission logs, and outcomes.",
@@ -216,7 +211,7 @@ function isEntryEnabledByDefault(
 	}
 
 	const { flags } = resolvePresetFlags(context);
-	if (entryId === "spawn_agent" || entryId === "ux_verifier") {
+	if (entryId === "spawn_agent") {
 		return flags.enableSpawnAgent === true;
 	}
 	if (entryId === "teams") {

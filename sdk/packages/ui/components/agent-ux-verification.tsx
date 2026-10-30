@@ -41,27 +41,32 @@ function EvidenceImage({
 	renderScreenshot?: UxScreenshotRenderer;
 }) {
 	const image = check.screenshot;
+	const [failedImage, setFailedImage] = useState<typeof image>();
 	if (image && renderScreenshot) return renderScreenshot(check, className);
-	if (image?.data)
+	if (image?.data && failedImage !== image)
 		return (
-			<GeneratedMediaContent
-				className={className}
-				media={{
-					id: check.id,
-					modality: "image",
-					mediaType: image.mediaType,
-					name: check.title,
-					source: { type: "base64", data: image.data },
-				}}
-			/>
+			<div className={className} onErrorCapture={() => setFailedImage(image)}>
+				<GeneratedMediaContent
+					className={className}
+					media={{
+						id: check.id,
+						modality: "image",
+						mediaType: image.mediaType,
+						name: check.title,
+						source: { type: "base64", data: image.data },
+					}}
+				/>
+			</div>
 		);
 	return (
 		<div className={cn("cline-ui-ux-evidence-missing", className)}>
 			<CircleAlert className="size-7" />
 			<span>
-				{image?.url
-					? "Screenshot requires a host image resolver"
-					: "No screenshot available"}
+				{failedImage && failedImage === image
+					? "Screenshot could not be loaded"
+					: image?.url
+						? "Screenshot requires a host image resolver"
+						: "No screenshot available"}
 			</span>
 		</div>
 	);
@@ -189,7 +194,23 @@ export function AgentUxVerification({
 				aria-label="UX verification evidence"
 				className="cline-ui-ux-evidence-carousel"
 				onPointerDown={() => setPlaying(false)}
-				onKeyDownCapture={() => setPlaying(false)}
+				aria-keyshortcuts="ArrowLeft ArrowRight Space"
+				onKeyDownCapture={(event) => {
+					if (event.altKey || event.ctrlKey || event.metaKey) return;
+					if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+						setPlaying(false);
+					}
+					// Buttons keep their native Space activation; the focused carousel
+					// uses Space to toggle playback without scrolling the page.
+					if (
+						event.key === " " &&
+						event.target === event.currentTarget &&
+						report.checks.length > 1
+					) {
+						event.preventDefault();
+						if (!event.repeat) setPlaying((value) => !value);
+					}
+				}}
 			>
 				<CarouselContent>
 					{report.checks.map((check, index) => (

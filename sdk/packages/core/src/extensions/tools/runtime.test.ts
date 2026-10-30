@@ -10,7 +10,6 @@ describe("builtin tool catalog", () => {
 	it("includes spawn and teams entries", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.some((entry) => entry.id === "spawn_agent")).toBe(true);
-		expect(catalog.some((entry) => entry.id === "ux_verifier")).toBe(true);
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
 	});
 
@@ -59,9 +58,6 @@ describe("builtin tool catalog", () => {
 		expect(
 			catalog.find((entry) => entry.id === "spawn_agent")?.defaultEnabled,
 		).toBe(false);
-		expect(
-			catalog.find((entry) => entry.id === "ux_verifier")?.defaultEnabled,
-		).toBe(false);
 	});
 
 	it("expands grouped headless tool names for selected entries", () => {
@@ -100,7 +96,6 @@ describe("builtin tool catalog", () => {
 		});
 		expect(selected.has("teams")).toBe(true);
 		expect(selected.has("spawn_agent")).toBe(true);
-		expect(selected.has("ux_verifier")).toBe(true);
 		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).toContain("teams");
 	});
 

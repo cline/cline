@@ -1,4 +1,3 @@
-import { stringifyToolResultData } from "@cline/shared";
 import type {
 	ContentBlock,
 	MessageWithMetadata,
@@ -346,10 +345,6 @@ function truncateToolResultContent(
 	if (typeof content === "string") {
 		return truncateText(content, maxChars);
 	}
-	if (!Array.isArray(content)) {
-		const text = stringifyToolResultData(content);
-		return text.length <= maxChars ? content : truncateText(text, maxChars);
-	}
 	let remaining = maxChars;
 	return content.map((block) => {
 		if (remaining <= 0) {
@@ -379,7 +374,6 @@ function toolResultTextLength(content: ToolResultContent["content"]): number {
 	if (typeof content === "string") {
 		return content.length;
 	}
-	if (!Array.isArray(content)) return stringifyToolResultData(content).length;
 	return content.reduce((total, block) => {
 		if (block.type === "text") {
 			return total + block.text.length;

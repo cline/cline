@@ -1,30 +1,7 @@
 import { z } from "zod";
 
-export const UX_VERIFIER_TOOL_NAME = "ux_verifier";
 export const UxCheckStatusSchema = z.enum(["passed", "failed", "blocked"]);
 const text = z.string().trim().min(1).max(2000);
-
-export const UxVerifierInputSchema = z.object({
-	title: text.describe("Name of the UX verification task"),
-	task: text.describe("Context and scope for the verifier"),
-	url: z.url().refine((url) => /^https?:/.test(url), "Use an http(s) URL"),
-	checklist: z
-		.array(
-			z.object({
-				id: z.string().trim().min(1).max(80),
-				title: text,
-				steps: z.array(text).min(1).max(20),
-				expected: text,
-			}),
-		)
-		.min(1)
-		.max(24)
-		.refine(
-			(checks) =>
-				new Set(checks.map((check) => check.id)).size === checks.length,
-			"Checklist IDs must be unique",
-		),
-});
 
 export const UxScreenshotSchema = z
 	.object({
@@ -73,6 +50,7 @@ export const UxVerificationReportSchema = z
 		"Result IDs must be unique",
 	);
 
-export type UxVerifierInput = z.infer<typeof UxVerifierInputSchema>;
 export type UxVerificationReport = z.infer<typeof UxVerificationReportSchema>;
 export type UxVerificationCheck = z.infer<typeof UxVerificationCheckSchema>;
+export type UxScreenshot = z.infer<typeof UxScreenshotSchema>;
+export type UxCheckStatus = z.infer<typeof UxCheckStatusSchema>;

@@ -537,5 +537,3 @@ export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export type { VcrRecording } from "./types/vcr";
 
 export * from "./ux-verifier";
-
-export { stringifyToolResultData } from "./tools/result";

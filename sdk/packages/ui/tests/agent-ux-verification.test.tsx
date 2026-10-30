@@ -31,14 +31,12 @@ let container: HTMLDivElement;
 const revoke = vi.fn();
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	window.matchMedia = vi
-		.fn()
-		.mockImplementation((query: string) => ({
-			matches: false,
-			media: query,
-			addEventListener() {},
-			removeEventListener() {},
-		}));
+	window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+		matches: false,
+		media: query,
+		addEventListener() {},
+		removeEventListener() {},
+	}));
 	vi.stubGlobal(
 		"ResizeObserver",
 		class {
@@ -143,4 +141,56 @@ it("requires screenshot evidence for a passed check", async () => {
 		),
 	);
 	expect(container.textContent).toContain("could not be completed");
+});
+it("toggles playback with Space on the carousel and pauses on arrow navigation", async () => {
+	await act(async () =>
+		root.render(<AgentUxVerification output={report} state="completed" />),
+	);
+	const carousel = container.querySelector(
+		'[aria-roledescription="carousel"]',
+	) as HTMLElement;
+	const key = async (target: HTMLElement, value: string, repeat = false) => {
+		const event = new KeyboardEvent("keydown", {
+			key: value,
+			bubbles: true,
+			cancelable: true,
+			repeat,
+		});
+		await act(async () => {
+			target.dispatchEvent(event);
+		});
+		return event;
+	};
+	carousel.focus();
+	expect((await key(carousel, " ")).defaultPrevented).toBe(true);
+	expect(
+		container.querySelector('[aria-label="Pause slideshow"]'),
+	).not.toBeNull();
+	await key(carousel, " ", true);
+	expect(
+		container.querySelector('[aria-label="Pause slideshow"]'),
+	).not.toBeNull();
+	await key(carousel, " ");
+	expect(
+		container.querySelector('[aria-label="Play slideshow"]'),
+	).not.toBeNull();
+	await key(carousel, " ");
+	await key(carousel, "ArrowRight");
+	expect(
+		container.querySelector('[aria-label="Play slideshow"]'),
+	).not.toBeNull();
+	const next = container.querySelector(
+		'[aria-label="Next screenshot"]',
+	) as HTMLButtonElement;
+	expect((await key(next, " ")).defaultPrevented).toBe(false);
+});
+it("shows an unavailable state when native screenshot loading fails", async () => {
+	await act(async () =>
+		root.render(<AgentUxVerification output={report} state="completed" />),
+	);
+	const image = container.querySelector("img")!;
+	await act(async () => {
+		image.dispatchEvent(new Event("error"));
+	});
+	expect(container.textContent).toContain("Screenshot could not be loaded");
 });

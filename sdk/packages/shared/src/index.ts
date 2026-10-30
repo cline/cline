@@ -639,5 +639,3 @@ export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export { initVcr } from "./vcr";
 
 export * from "./ux-verifier";
-
-export { stringifyToolResultData } from "./tools/result";

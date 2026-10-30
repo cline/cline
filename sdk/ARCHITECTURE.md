@@ -1323,8 +1323,8 @@ and teammates. The parent’s `subagent_<name>` delegation call still follows th
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
 
-### UX verifier and evidence presentation
+### UX verification presentation boundary
 
-The `ux_verifier` default tool belongs to Core and delegates through the same spawn executor as `spawn_agent`. Shared schemas own its checklist/report contract; Core validates complete checklist coverage and reads bounded screenshot files. No additional agent runtime or browser automation implementation is introduced. A host must provide browser/computer tools to the delegated agent; without them, checks are blocked.
+The reusable `@cline/ui` UX verification carousel consumes a report contract owned by `@cline/shared`. It handles report validation, screenshot presentation, native inline image load failures and navigation. It does not depend on a verification tool, subagent executor, transcript grouping, persistence changes or a particular host. Web, Desktop and IDE consumers can supply image renderers and expanded-image callbacks.
 
-The reusable `@cline/ui` evidence carousel owns presentation, native inline image materialization, and navigation. Hosts own remote-image authorization and expanded-image dialogs. Desktop chat recognizes the tool as a deliverable, splits it from routine tool groups, and preserves it outside collapsed work summaries. Native JSON tool records survive persistence and model message preparation without encoding image bytes into text; text-only projections and media budgets retain separate responsibilities.
+Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.

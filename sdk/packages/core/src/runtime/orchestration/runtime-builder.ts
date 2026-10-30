@@ -1,4 +1,3 @@
-import { createUxVerifierTool } from "../../extensions/tools/team/ux-verifier-tool";
 import { supportsModelTool } from "@cline/llms";
 import type {
 	AgentTool,
@@ -837,14 +836,13 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		if (normalized.enableSpawnAgent && createSpawnTool) {
 			const spawnTool = createSpawnTool();
-			const delegate: typeof spawnTool = {
+			tools.push({
 				...spawnTool,
 				execute: async (spawnInput, context) => {
 					ensureTeamRuntime();
 					return spawnTool.execute(spawnInput, context);
 				},
-			};
-			tools.push(delegate, createUxVerifierTool(delegate));
+			});
 		}
 
 		if (normalized.enableAgentTeams) {

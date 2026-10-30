@@ -9,7 +9,6 @@ import {
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
-	stringifyToolResultData,
 	type MessageWithMetadata,
 	type ToolResultContent,
 } from "@cline/shared";
@@ -169,7 +168,6 @@ function flattenToolResultContent(
 	if (typeof content === "string") {
 		return content;
 	}
-	if (!Array.isArray(content)) return stringifyToolResultData(content);
 	return content
 		.map((part) => {
 			switch (part.type) {
