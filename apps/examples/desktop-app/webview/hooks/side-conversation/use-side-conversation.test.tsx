@@ -9,14 +9,10 @@ import {
 	type DesktopAppState,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { PromptDraftCache, usePromptDraft } from "../use-prompt-draft";
 import { useSideConversation } from "./use-side-conversation";
 
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
-vi.mock("@/lib/prompt-input-focus", () => ({
-	requestPromptInputFocus: vi.fn(),
-}));
 type Props = Parameters<typeof useSideConversation>[0];
 let root: Root;
 let container: HTMLDivElement;
@@ -31,7 +27,7 @@ function DraftHarness() {
 	const draft = usePromptDraft(props.drafts, props.threadId);
 	editDraft = draft.handlePromptInputChange;
 	current = useSideConversation({ ...props, setDraft: draft.setPromptInput });
-	return null;
+	return <div>{draft.promptDraft.value}</div>;
 }
 async function render(realDraft = false) {
 	await act(async () =>
@@ -184,7 +180,6 @@ describe("side conversation submission", () => {
 		});
 		expect(props.open).not.toHaveBeenCalled();
 		expect(props.send).not.toHaveBeenCalled();
-		expect(requestPromptInputFocus).not.toHaveBeenCalled();
 		expect(toast).not.toHaveBeenCalled();
 		expect(props.drafts.get("thread")?.text).toBe("/btw explain");
 	});
@@ -196,7 +191,6 @@ describe("side conversation submission", () => {
 		});
 		expect(props.drafts.get("thread")?.text).toBe("");
 		expect(props.open).toHaveBeenCalledTimes(1);
-		expect(requestPromptInputFocus).not.toHaveBeenCalled();
 	});
 
 	it("retains accepted creation while a Hub reconnect hides the pane", async () => {
@@ -377,9 +371,9 @@ describe("side conversation submission", () => {
 		props.hydrationSucceeded = false;
 		const attachment = new File(["draft"], "draft.txt");
 		props.drafts.set("thread", { text: "", attachments: [attachment] });
-		await render();
+		await render(true);
 		expect(props.send).not.toHaveBeenCalled();
-		expect(props.setDraft).toHaveBeenCalledWith("why?");
+		expect(container.textContent).toBe("why?");
 		expect(props.drafts.get("thread")).toEqual({
 			text: "why?",
 			attachments: [attachment],
@@ -396,20 +390,23 @@ describe("side conversation submission", () => {
 					rejectSend = reject;
 				}),
 		);
-		await render();
-		expect(props.drafts.has("thread")).toBe(false);
+		await render(true);
+		expect(props.drafts.get("thread")?.text).toBe("");
 		await act(async () => root.unmount());
 		root = createRoot(container);
+		props.pendingSubmissions = undefined;
+		await render(true);
 		await act(async () => rejectSend(new Error("Not sent")));
 		expect(props.drafts.get("thread")?.text).toBe("why?");
+		expect(container.textContent).toBe("why?");
 	});
 
 	it("restores rejected first sends without recreating a side", async () => {
 		props.pendingSubmissions = [{ question: "why?" }];
 		props.hydrationSucceeded = true;
 		props.send = vi.fn(async () => false);
-		await render();
-		expect(props.setDraft).toHaveBeenCalledWith("why?");
+		await render(true);
+		expect(container.textContent).toBe("why?");
 		expect(props.create).not.toHaveBeenCalled();
 	});
 });

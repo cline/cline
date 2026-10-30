@@ -2,6 +2,7 @@
 
 import type { HandoffGitPreview } from "@cline/core/cloud";
 import type { ProviderAuthInfo } from "@cline/shared/browser";
+import { SIDE_REFERENCE_KIND } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -45,13 +46,13 @@ import { normalizeTitle } from "@/components/utils";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import {
-	ConversationWorkspace,
-	type ConversationWorkspaceControls,
-} from "@/components/views/chat/conversation-workspace";
-import {
 	CloudHandoffGitConfirmation,
 	CloudHandoffStatus,
 } from "@/components/views/chat/cloud-handoff";
+import {
+	ConversationWorkspace,
+	type ConversationWorkspaceControls,
+} from "@/components/views/chat/conversation-workspace";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { SideConversationMenu } from "@/components/views/chat/side-conversation-menu";
@@ -74,6 +75,8 @@ import {
 	getInitialChatConfig,
 	getInitialCloudModel,
 } from "@/hooks/chat-session/constants";
+import { useSideChatAttention } from "@/hooks/side-conversation/use-side-chat-attention";
+import { useSideConversation } from "@/hooks/side-conversation/use-side-conversation";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -81,8 +84,6 @@ import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
-import { useSideChatAttention } from "@/hooks/side-conversation/use-side-chat-attention";
-import { useSideConversation } from "@/hooks/side-conversation/use-side-conversation";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -215,7 +216,6 @@ import {
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
 import { readSideConversation } from "../../shared/side-conversation";
-import { SIDE_REFERENCE_KIND } from "@cline/shared/browser";
 import type {
 	HandoffResponse,
 	PrepareHandoffResult,
@@ -3329,14 +3329,6 @@ function ChatThreadPane({
 		},
 		[setConfig],
 	);
-	const handleModeToggle = useCallback(
-		() =>
-			setConfig((prev) => ({
-				...prev,
-				mode: prev.mode === "plan" ? "act" : "plan",
-			})),
-		[setConfig],
-	);
 	const handleProviderChange = useCallback(
 		(nextProvider: string) =>
 			setConfig((prev) => {
@@ -3630,7 +3622,6 @@ function ChatThreadPane({
 					presentation === "side" ? updateSideSettings : undefined
 				}
 				onModelChange={handleModelChange}
-				onModeToggle={handleModeToggle}
 				onPromptInputChange={handlePromptInputChange}
 				onOpenModelSettings={onOpenModelSettings}
 				onOpenLocalModels={onOpenLocalModels}
@@ -3647,7 +3638,6 @@ function ChatThreadPane({
 				repoUrl={config.repoUrl}
 				model={config.model}
 				modelContextWindow={modelContextWindow}
-				mode={config.mode === "plan" ? "plan" : "act"}
 				promptsInQueue={promptsInQueue}
 				promptDraft={promptDraft}
 				provider={config.provider}

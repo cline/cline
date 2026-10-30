@@ -5,7 +5,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { PromptDraftCache } from "../use-prompt-draft";
 import { toast } from "@/hooks/use-toast";
 import type { InitialSideSubmission } from "@/lib/desktop-app-state";
 import type { SessionHistoryItem } from "@/lib/session-history";
@@ -13,6 +12,7 @@ import {
 	type CreateSideConversationResult,
 	parseSideCommand,
 } from "../../../shared/side-conversation";
+import type { PromptDraftCache } from "../use-prompt-draft";
 
 export type SideOpeningState =
 	| { kind: "idle" }
@@ -96,11 +96,10 @@ export function useSideConversation({
 			const draft = drafts.get(threadId);
 			const existing = draft?.text ?? "";
 			const restored = existing ? `${existing}\n\n${question}` : question;
-			drafts.set(threadId, {
+			drafts.restore(threadId, draft, {
 				text: restored,
 				attachments: draft?.attachments ?? [],
 			});
-			setDraft(restored);
 		};
 		if (!hydrationSucceeded) {
 			restoreQuestion();
@@ -117,7 +116,6 @@ export function useSideConversation({
 		consumeSubmission,
 		threadId,
 		send,
-		setDraft,
 		drafts,
 	]);
 

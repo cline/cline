@@ -352,7 +352,6 @@ type ChatInputBarProps = {
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
-	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
@@ -366,7 +365,6 @@ type ChatInputBarProps = {
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onSideSettingsChange?: (patch: Partial<SideConfig>) => void;
-	onModeToggle: () => void;
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
@@ -415,7 +413,6 @@ function ChatInputBarImpl({
 	provider,
 	model,
 	modelContextWindow,
-	mode,
 	thinking,
 	reasoningEffort,
 	gitBranch,
@@ -428,7 +425,6 @@ function ChatInputBarImpl({
 	onProviderChange,
 	onModelChange,
 	onSideSettingsChange,
-	onModeToggle,
 	onReasoningChange,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -1723,45 +1719,6 @@ function ChatInputBarImpl({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
-						<button
-							aria-pressed={mode === "plan"}
-							disabled={isSideConversation && isBusy}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "plan"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode === "plan") return;
-								if (onSideSettingsChange)
-									onSideSettingsChange({ mode: "plan" });
-								else onModeToggle();
-							}}
-							type="button"
-						>
-							Plan
-						</button>
-						<button
-							aria-pressed={mode === "act"}
-							disabled={isSideConversation && isBusy}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "act"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode === "act") return;
-								if (onSideSettingsChange) onSideSettingsChange({ mode: "act" });
-								else onModeToggle();
-							}}
-							type="button"
-						>
-							Act
-						</button>
-					</div>
 					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
 							composerId={composerId}
