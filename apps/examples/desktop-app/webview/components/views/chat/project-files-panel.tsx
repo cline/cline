@@ -737,7 +737,7 @@ export function ProjectFilesPanel({
 				</div>
 			) : state?.error ? (
 				<div
-					className="py-1 text-[11px] text-destructive"
+					className="py-1 text-[11px] text-error-text"
 					style={{ paddingLeft: 8 + depth * 12 + 16 }}
 				>
 					{state.error}
@@ -989,7 +989,7 @@ export function ProjectFilesPanel({
 							{activeStat ? (
 								<span className="shrink-0 font-mono">
 									<span className="text-chart-2">+{activeStat.additions}</span>{" "}
-									<span className="text-destructive">
+									<span className="text-error-text">
 										-{activeStat.deletions}
 									</span>
 								</span>
@@ -1220,7 +1220,7 @@ function Spinner() {
 }
 
 function ErrorText({ children }: { children: React.ReactNode }) {
-	return <div className="p-4 text-xs text-destructive">{children}</div>;
+	return <div className="p-4 text-xs text-error-text">{children}</div>;
 }
 
 function Centered({

@@ -266,7 +266,7 @@ function WorkspacePullRequestMenu({ cwd }: { cwd: string }) {
 										<span className="text-chart-2">
 											+{pr.additions.toLocaleString()}
 										</span>{" "}
-										<span className="text-destructive">
+										<span className="text-error-text">
 											-{pr.deletions.toLocaleString()}
 										</span>
 									</span>

@@ -33,7 +33,7 @@ export function PublishedArtifacts({
 			<div className="flex flex-wrap items-center gap-2">
 				<span className="break-all">{name}</span>
 				{file.error ? (
-					<span className="text-destructive">{file.error.message}</span>
+					<span className="text-error-text">{file.error.message}</span>
 				) : (
 					<DownloadArtifact
 						sessionId={sessionId}
@@ -116,7 +116,7 @@ function DownloadArtifact({
 				{busy ? "Preparing…" : failed ? "Retry download" : "Download"}
 			</Button>
 			{failed && (
-				<output className="text-destructive">
+				<output className="text-error-text">
 					Could not download this file.
 				</output>
 			)}
