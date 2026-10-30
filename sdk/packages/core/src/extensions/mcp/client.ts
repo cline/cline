@@ -366,6 +366,7 @@ class StdioMcpClient implements McpServerClient {
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
 		const tools: Partial<McpToolDescriptor>[] = [];
+		const seenCursors = new Set<string>();
 		let cursor: string | undefined;
 		do {
 			const result = (await this.request(
@@ -375,11 +376,12 @@ class StdioMcpClient implements McpServerClient {
 			tools.push(...(result.tools ?? []));
 			const nextCursor =
 				typeof result.nextCursor === "string" ? result.nextCursor : undefined;
-			if (nextCursor !== undefined && nextCursor === cursor) {
+			if (nextCursor !== undefined && seenCursors.has(nextCursor)) {
 				throw new Error(
 					`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
 				);
 			}
+			if (nextCursor !== undefined) seenCursors.add(nextCursor);
 			cursor = nextCursor;
 		} while (cursor !== undefined);
 		return tools
@@ -865,6 +867,7 @@ class SdkUrlMcpClient implements McpServerClient {
 		const client = await this.ensureConnectedClient();
 		try {
 			const tools: Tool[] = [];
+			const seenCursors = new Set<string>();
 			let cursor: string | undefined;
 			do {
 				const result = await client.listTools(
@@ -873,11 +876,12 @@ class SdkUrlMcpClient implements McpServerClient {
 				);
 				tools.push(...result.tools);
 				const nextCursor = result.nextCursor;
-				if (nextCursor !== undefined && nextCursor === cursor) {
+				if (nextCursor !== undefined && seenCursors.has(nextCursor)) {
 					throw new Error(
 						`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
 					);
 				}
+				if (nextCursor !== undefined) seenCursors.add(nextCursor);
 				cursor = nextCursor;
 			} while (cursor !== undefined);
 			return tools.map((tool) => ({

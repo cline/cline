@@ -254,6 +254,29 @@ input.on('close', () => process.exit(0));
 		expect((await readServerState(client)).cursors).toEqual([null, cursor]);
 	});
 
+	it.each([
+		{ name: "two-cursor", cycle: [cursor, finalCursor, cursor] },
+		{
+			name: "three-cursor",
+			cycle: [cursor, finalCursor, "opaque:/page+4", cursor],
+		},
+	])("rejects a $name pagination cycle", async ({ cycle }) => {
+		const client = await createClient({
+			pages: cycle.map((nextCursor, index) => ({
+				tools: [index === 0 ? first : last],
+				nextCursor,
+			})),
+			maxListRequests: cycle.length,
+		});
+		await expect(client.listTools()).rejects.toThrow(
+			"repeated tools/list cursor",
+		);
+		expect((await readServerState(client)).cursors).toEqual([
+			null,
+			...cycle.slice(0, -1),
+		]);
+	});
+
 	it("starts a new discovery from the first page", async () => {
 		const client = await createClient({
 			pages: [{ tools: [first], nextCursor: cursor }, { tools: [last] }],
