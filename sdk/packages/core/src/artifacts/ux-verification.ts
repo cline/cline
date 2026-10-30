@@ -4,6 +4,8 @@ import {
 	UxVerificationCheckSchema,
 	type UxVerificationReport,
 	UxVerificationReportSchema,
+	validateWithZod,
+	zodToJsonSchema,
 } from "@cline/shared";
 import { z } from "zod";
 
@@ -38,12 +40,12 @@ export function createUxVerificationReportTool() {
 			"Report observed visual checks with captions and passed, failed, or blocked results. " +
 			"Use subtitle for each screenshot's caption and action for the input that produced it. " +
 			"Passed and failed checks require screenshot evidence from successful publish_artifacts results in this session. " +
-			"An artifactId accompanied by an error is not published evidence. If evidence could not be published, report blocked without a screenshot. " +
-			"Status describes what you observed, not whether uploading succeeded. This tool records your report; it does not run checks or upload files.",
-		inputSchema: z.toJSONSchema(inputSchema),
+			"An artifactId accompanied by an error is not published evidence. " +
+			"Upload success is not a pass. Without published evidence, report blocked and state what you observed in the subtitle. This tool records your report; it does not run checks or upload files.",
+		inputSchema: zodToJsonSchema(inputSchema),
 		async execute(input) {
-			const { checks, ...metadata } = inputSchema.parse(input);
-			return UxVerificationReportSchema.parse({
+			const { checks, ...metadata } = validateWithZod(inputSchema, input);
+			return validateWithZod(UxVerificationReportSchema, {
 				kind: "ux_verification",
 				version: 1,
 				...metadata,

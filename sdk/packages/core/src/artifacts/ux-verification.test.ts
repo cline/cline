@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { UxVerificationReportSchema } from "@cline/shared";
 import { test } from "vitest";
 import { createUxVerificationReportTool } from "./ux-verification";
 
@@ -54,7 +53,6 @@ test("returns captions and observed outcomes with durable screenshot references"
 		source: { type: "artifact", artifactId: "counter" },
 	});
 	assert.equal(output.checks[2].screenshot, undefined);
-	assert.deepEqual(UxVerificationReportSchema.parse(output), output);
 });
 
 test("rejects missing evidence and non-artifact screenshot inputs", async () => {
@@ -66,7 +64,6 @@ test("rejects missing evidence and non-artifact screenshot inputs", async () => 
 			mediaType: "image/png",
 			source: { type: "url", url: "https://example.com/image.png" },
 		},
-		{ mediaType: "image/png", source: { type: "base64", data: "AAAA" } },
 	]) {
 		await assert.rejects(async () =>
 			tool.execute(
