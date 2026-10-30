@@ -2289,6 +2289,32 @@ const ModelSelector = memo(function ModelSelector({
 		[includeCloudModels],
 	);
 
+	const applySelection = useCallback(
+		(selection: { provider?: string; model?: string }) => {
+			if (onSideSettingsChange) {
+				onSideSettingsChange({
+					provider:
+						selection.provider ??
+						(includeCloudModels ? provider : resolvedProvider),
+					model: selection.model ?? model,
+				});
+			} else {
+				if (selection.provider !== undefined)
+					onProviderChange(selection.provider);
+				if (selection.model !== undefined) onModelChange(selection.model);
+			}
+		},
+		[
+			includeCloudModels,
+			model,
+			onModelChange,
+			onProviderChange,
+			onSideSettingsChange,
+			provider,
+			resolvedProvider,
+		],
+	);
+
 	// A selection made mid-turn waits for the turn to end.
 	const [pendingSelection, setPendingSelection] =
 		useState<ModelSelectionChangedDetail | null>(null);
@@ -2315,23 +2341,11 @@ const ModelSelector = memo(function ModelSelector({
 		if (isBusy || !pendingSelection) return;
 		setPendingSelection(null);
 		if (pendingSelection.composerId !== composerId) return;
-		if (onSideSettingsChange) {
-			onSideSettingsChange({
-				provider: pendingSelection.providerId,
-				model: pendingSelection.modelId,
-			});
-		} else {
-			onProviderChange(pendingSelection.providerId);
-			onModelChange(pendingSelection.modelId);
-		}
-	}, [
-		composerId,
-		isBusy,
-		pendingSelection,
-		onModelChange,
-		onProviderChange,
-		onSideSettingsChange,
-	]);
+		applySelection({
+			provider: pendingSelection.providerId,
+			model: pendingSelection.modelId,
+		});
+	}, [composerId, isBusy, pendingSelection, applySelection]);
 
 	useEffect(() => {
 		if (!active || providers.length === 0) {
@@ -2397,7 +2411,6 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			if (!includeCloudModels && !onSideSettingsChange) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2413,24 +2426,17 @@ const ModelSelector = memo(function ModelSelector({
 					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
 						providerModelIds[0]);
 			rememberSelection(value, nextModel);
-			if (onSideSettingsChange) {
-				onSideSettingsChange({
-					provider: includeCloudModels ? provider : value,
-					model: nextModel ?? model,
-				});
-			} else if (nextModel && nextModel !== model) {
-				onModelChange(nextModel);
-			}
+			applySelection({
+				provider: includeCloudModels ? undefined : value,
+				model: nextModel !== model ? nextModel : undefined,
+			});
 		},
 		[
 			includeCloudModels,
-			provider,
 			lastSelection.lastModelByProvider,
 			model,
-			onModelChange,
-			onSideSettingsChange,
+			applySelection,
 			onOpenModelSettings,
-			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
@@ -2439,21 +2445,9 @@ const ModelSelector = memo(function ModelSelector({
 	const handleModelSelect = useCallback(
 		(value: string) => {
 			rememberSelection(resolvedProvider, value);
-			if (onSideSettingsChange) {
-				onSideSettingsChange({
-					provider: includeCloudModels ? provider : resolvedProvider,
-					model: value,
-				});
-			} else onModelChange(value);
+			applySelection({ model: value });
 		},
-		[
-			includeCloudModels,
-			provider,
-			onModelChange,
-			onSideSettingsChange,
-			rememberSelection,
-			resolvedProvider,
-		],
+		[applySelection, rememberSelection, resolvedProvider],
 	);
 	// The picker only lists providers with saved settings, so it is also the
 	// natural place to reach the rest of the catalog.

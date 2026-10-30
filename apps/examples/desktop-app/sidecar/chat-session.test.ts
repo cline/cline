@@ -3401,19 +3401,17 @@ describe("side conversation lifecycle", () => {
 			const record: SessionRecord = {
 				...parent,
 				sessionId: id,
-				source: "desktop",
 				status: "idle",
 				provider: input.config?.providerId ?? "cline",
 				model: input.config?.modelId ?? "test-model",
-				cwd: directory,
-				workspaceRoot: directory,
 				metadata: input.sessionMetadata ?? existing?.metadata,
 			};
 			records.set(id, record);
 			if (!store.get(id)) store.create(record);
 			writeSessionManifest(id, { ...record, workspace_root: directory });
-			transcripts.set(id, input.initialMessages ?? transcripts.get(id) ?? []);
-			persistSessionMessages(id, transcripts.get(id) ?? []);
+			const messages = input.initialMessages ?? transcripts.get(id) ?? [];
+			transcripts.set(id, messages);
+			persistSessionMessages(id, messages);
 			return {
 				sessionId: id,
 				manifest: {
@@ -3425,7 +3423,6 @@ describe("side conversation lifecycle", () => {
 				},
 			};
 		});
-		const get = vi.fn(async (id: string) => records.get(id));
 		const readMessages = vi.fn(async (id: string) => transcripts.get(id) ?? []);
 		const send = vi.fn(async (_input?: unknown) => ({
 			text: "Side answer",
@@ -3433,7 +3430,6 @@ describe("side conversation lifecycle", () => {
 			messages: transcripts.get(sideId) ?? [],
 		}));
 		const stop = vi.fn(async () => {});
-		const abort = vi.fn(async () => {});
 		const restore = vi.fn(async () => {
 			throw new Error("restore should not run");
 		});
@@ -3490,11 +3486,11 @@ describe("side conversation lifecycle", () => {
 			...localRuntimeContext(
 				{
 					start,
-					get,
+					get: vi.fn(async (id: string) => records.get(id)),
 					readMessages,
 					send,
 					stop,
-					abort,
+					abort: vi.fn(async () => {}),
 					restore,
 					readSessionCompactionState,
 					updateSessionConnection,
@@ -3529,11 +3525,9 @@ describe("side conversation lifecycle", () => {
 		return {
 			ctx,
 			start,
-			get,
 			readMessages,
 			send,
 			stop,
-			abort,
 			restore,
 			records,
 			transcripts,
@@ -3639,25 +3633,25 @@ describe("side conversation lifecycle", () => {
 		const { ctx, create, start } = setup(false);
 		const originalStart = start.getMockImplementation();
 		if (!originalStart) throw new Error("start fixture missing");
-		let finishStart!: () => void;
+		const startingRuntime = Promise.withResolvers<void>();
+		const finishStart = Promise.withResolvers<void>();
 		start.mockImplementation(async (input) => {
 			const result = await originalStart(input);
-			await new Promise<void>((resolve) => {
-				finishStart = resolve;
-			});
+			startingRuntime.resolve();
+			await finishStart.promise;
 			return result;
 		});
 		const creating = create();
 		const rejection = expect(creating).rejects.toThrow(
 			"temporary side chat has ended",
 		);
-		await vi.waitFor(() => expect(finishStart).toBeTypeOf("function"));
+		await startingRuntime.promise;
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "delete_chat_session", {
 			sessionId: sideId,
 			environmentId: "local",
 		});
-		finishStart();
+		finishStart.resolve();
 		await rejection;
 		expect(store.get(sideId)).toBeUndefined();
 		expect(ctx.liveSessions.has(sideId)).toBe(false);
@@ -3681,11 +3675,11 @@ describe("side conversation lifecycle", () => {
 		const live = ctx.liveSessions.get(sideId);
 		if (!live) throw new Error("side fixture missing");
 		live.attachedViaHub = true;
-		let finishPreparation!: () => void;
+		const preparing = Promise.withResolvers<void>();
+		const finishPreparation = Promise.withResolvers<void>();
 		updateSessionConnection.mockImplementationOnce(async () => {
-			await new Promise<void>((resolve) => {
-				finishPreparation = resolve;
-			});
+			preparing.resolve();
+			await finishPreparation.promise;
 		});
 		const sending = handleChatSessionCommand(ctx, {
 			action: "send",
@@ -3694,13 +3688,13 @@ describe("side conversation lifecycle", () => {
 			delivery,
 			config: { environmentId: "local" },
 		});
-		await vi.waitFor(() => expect(finishPreparation).toBeTypeOf("function"));
+		await preparing.promise;
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "delete_chat_session", {
 			sessionId: sideId,
 			environmentId: "local",
 		});
-		finishPreparation();
+		finishPreparation.resolve();
 		await sending;
 		expect(send).not.toHaveBeenCalled();
 		expect(ctx.liveSessions.has(sideId)).toBe(false);
@@ -4356,11 +4350,9 @@ describe("side conversation lifecycle", () => {
 
 	it("reserves side capture and session startup against workspace restores", async () => {
 		const { ctx, create, start, readMessages, restore } = setup(false);
-		let finishRead!: () => void;
+		const finishRead = Promise.withResolvers<void>();
 		readMessages.mockImplementationOnce(async () => {
-			await new Promise<void>((resolve) => {
-				finishRead = resolve;
-			});
+			await finishRead.promise;
 			return [];
 		});
 		const creating = create();
@@ -4375,16 +4367,16 @@ describe("side conversation lifecycle", () => {
 				config: { environmentId: "local", cwd: directory },
 			}),
 		).rejects.toThrow("Wait for all turns");
-		finishRead();
+		finishRead.resolve();
 		await creating;
 		expect(restore).not.toHaveBeenCalled();
 		const originalStart = start.getMockImplementation();
 		if (!originalStart) throw new Error("start fixture missing");
-		let finishStart!: () => void;
+		const startingRuntime = Promise.withResolvers<void>();
+		const finishStart = Promise.withResolvers<void>();
 		start.mockImplementationOnce(async (input) => {
-			await new Promise<void>((resolve) => {
-				finishStart = resolve;
-			});
+			startingRuntime.resolve();
+			await finishStart.promise;
 			return originalStart(input);
 		});
 		const starting = handleChatSessionCommand(ctx, {
@@ -4397,7 +4389,7 @@ describe("side conversation lifecycle", () => {
 				environmentId: "local",
 			},
 		});
-		await vi.waitFor(() => expect(finishStart).toBeTypeOf("function"));
+		await startingRuntime.promise;
 		await expect(
 			handleChatSessionCommand(ctx, {
 				action: "restore_checkpoint",
@@ -4406,7 +4398,7 @@ describe("side conversation lifecycle", () => {
 				config: { environmentId: "local", cwd: directory },
 			}),
 		).rejects.toThrow("Wait for all turns");
-		finishStart();
+		finishStart.resolve();
 		await starting;
 		expect(restore).not.toHaveBeenCalled();
 		ctx.restoringWorkspacePaths.add(directory);

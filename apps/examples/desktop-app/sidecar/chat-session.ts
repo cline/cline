@@ -49,6 +49,7 @@ import {
 	parseSideCommand,
 	readSideConfig,
 	readSideConversation,
+	type SideConfig,
 	SideConfigSchema,
 } from "../shared/side-conversation";
 import {
@@ -855,6 +856,32 @@ function recoverSideConfig(
 		: config;
 }
 
+function withSideConfig(
+	metadata: JsonRecord | undefined,
+	config: JsonRecord,
+): JsonRecord {
+	return {
+		...metadata,
+		desktopSideConfig: SideConfigSchema.parse(
+			mergeSessionConfig(readSideConfig(metadata) ?? {}, config),
+		),
+	};
+}
+
+async function saveSideConfig(
+	manager: ClineCore,
+	sessionId: string,
+	previous: SideConfig,
+	metadata: JsonRecord,
+): Promise<void> {
+	if (isDeepStrictEqual(previous, readSideConfig(metadata))) return;
+	const { updated } = await manager.update(sessionId, { metadata });
+	if (!updated)
+		throw new Error(
+			"The side conversation settings could not be saved. Reopen the conversation before sending.",
+		);
+}
+
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
@@ -1057,9 +1084,16 @@ async function handleCreateSide(
 	if (pending) return pending.promise;
 	const existingId = state.byParent.get(parsed.sessionId);
 	if (existingId) assertSideConversationAvailable(ctx, existingId);
+	if (
+		request.attachments?.userImages?.length ||
+		request.attachments?.userFiles?.length
+	)
+		throw new Error(
+			"Remove attachments before opening a side conversation; attach them after it opens.",
+		);
 	const effectiveRequest = existingId
-		? { ...request, newSessionId: existingId }
-		: request;
+		? { ...parsed, newSessionId: existingId }
+		: parsed;
 	const promise = createSideConversation(ctx, effectiveRequest);
 	state.pending.set(parsed.sessionId, {
 		sessionId: existingId ?? parsed.newSessionId,
@@ -1074,13 +1108,8 @@ async function handleCreateSide(
 
 async function createSideConversation(
 	ctx: SidecarContext,
-	raw: ChatSessionCommandRequest,
+	request: ReturnType<typeof CreateSideConversationRequestSchema.parse>,
 ): Promise<unknown> {
-	if (raw.attachments?.userImages?.length || raw.attachments?.userFiles?.length)
-		throw new Error(
-			"Remove attachments before opening a side conversation; attach them after it opens.",
-		);
-	const request = CreateSideConversationRequestSchema.parse(raw);
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		request.sessionId,
@@ -1287,12 +1316,7 @@ async function handleStartUnlocked(
 		? readSideConfig(metadata)
 		: undefined;
 	if (persistedSideConfig && !side) {
-		metadata = {
-			...metadata,
-			desktopSideConfig: SideConfigSchema.parse(
-				mergeSessionConfig(persistedSideConfig, request.config),
-			),
-		};
+		metadata = withSideConfig(metadata, request.config);
 	}
 	const requestedConfig = recoverSideConfig(request.config, metadata);
 	const config =
@@ -1363,16 +1387,8 @@ async function handleStartUnlocked(
 					: undefined,
 	});
 	const sessionId = startResult.sessionId;
-	if (
-		persistedSideConfig &&
-		!side &&
-		!isDeepStrictEqual(persistedSideConfig, readSideConfig(metadata))
-	) {
-		const { updated } = await manager.update(sessionId, { metadata });
-		if (!updated)
-			throw new Error(
-				"The side conversation settings could not be saved. Reopen the conversation before sending.",
-			);
+	if (persistedSideConfig && !side && metadata) {
+		await saveSideConfig(manager, sessionId, persistedSideConfig, metadata);
 	}
 	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
@@ -1533,12 +1549,7 @@ async function startRebuiltSession(
 	);
 	assertSideConversationAvailable(ctx, sessionId, metadata);
 	if (readSideConversation(metadata)) {
-		metadata = {
-			...metadata,
-			desktopSideConfig: SideConfigSchema.parse(
-				mergeSessionConfig(readSideConfig(metadata) ?? {}, config),
-			),
-		};
+		metadata = withSideConfig(metadata, config);
 		config = recoverSideConfig({ ...config, sessionId }, metadata);
 		systemPrompt = await resolveSystemPrompt(config);
 	}
@@ -2097,18 +2108,12 @@ async function handleSendOnce(
 			nextConfig && readSideSessionMetadata(binding, sessionId);
 		const savedSideConfig = readSideConfig(sideMetadata);
 		if (nextConfig && savedSideConfig) {
-			const sideConfig = SideConfigSchema.parse(
-				mergeSessionConfig(savedSideConfig, nextConfig),
+			await saveSideConfig(
+				manager,
+				sessionId,
+				savedSideConfig,
+				withSideConfig(sideMetadata, nextConfig),
 			);
-			if (!isDeepStrictEqual(savedSideConfig, sideConfig)) {
-				const { updated } = await manager.update(sessionId, {
-					metadata: { ...sideMetadata, desktopSideConfig: sideConfig },
-				});
-				if (!updated)
-					throw new Error(
-						"The side conversation settings could not be saved. Reopen the conversation before sending.",
-					);
-			}
 		}
 
 		if (
