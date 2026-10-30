@@ -559,16 +559,27 @@ describe("useChatSession", () => {
 		{ change: "none", snapshotStatus: "idle", settles: true },
 		{ change: "abort", snapshotStatus: "running", settles: false },
 		{ change: "new-turn", snapshotStatus: "completed", settles: false },
-		{ change: "event", snapshotStatus: "completed", settles: false },
+		{ change: "failed-event", snapshotStatus: "completed", settles: true },
+		{ change: "completed-event", snapshotStatus: "running", settles: true },
 	])("reconciles $snapshotStatus after reconnect with $change", async ({
 		change,
 		snapshotStatus,
 		settles,
 	}) => {
 		const snapshot = deferred<unknown>();
+		const eventStatus =
+			change === "failed-event"
+				? "failed"
+				: change === "completed-event"
+					? "completed"
+					: undefined;
+		let discoveryReads = 0;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_discovered_session") return snapshot.promise;
+				if (command === "get_discovered_session")
+					return discoveryReads++ === 0
+						? snapshot.promise
+						: { sessionId: "side", status: eventStatus };
 				if (command === "read_session_messages")
 					return [
 						{
@@ -616,11 +627,11 @@ describe("useChatSession", () => {
 			await act(async () => {
 				await current.sendPrompt("New question");
 			});
-		if (change === "event")
+		if (eventStatus)
 			await act(async () =>
 				handlerFor("chat_session_status")({
 					sessionId: "side",
-					status: "failed",
+					status: eventStatus,
 				}),
 			);
 		const before = current.status;
@@ -630,7 +641,9 @@ describe("useChatSession", () => {
 				status: snapshotStatus,
 			}),
 		);
-		expect(current.status).toBe(settles ? snapshotStatus : before);
+		expect(current.status).toBe(
+			eventStatus ?? (settles ? snapshotStatus : before),
+		);
 		if (settles) {
 			expect(current.activeAssistantMessageId).toBeNull();
 			await act(async () => {
