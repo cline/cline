@@ -345,17 +345,6 @@ export class CloudSessionHost implements SdkSessionHost {
 		this.innerSessionLive = true
 	}
 
-	/** Validate connectivity and restore the runtime before accepting an idle follow-up. */
-	async prepareForSend(sessionId: string): Promise<void> {
-		const innerId = this.toInner(sessionId)
-		if (this.options.restoreConfig) {
-			await this.ensureInnerSessionLive(innerId, this.options.restoreConfig)
-		} else {
-			await this.host.updateSessionConnection(innerId, {})
-		}
-		this.assertOpen()
-	}
-
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const sessionId = this.toInner(input.sessionId)
 		const { restoreConfig } = this.options

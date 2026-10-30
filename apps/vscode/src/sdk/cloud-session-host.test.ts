@@ -63,7 +63,6 @@ describe("CloudSessionHost status", () => {
 			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model", systemPrompt: "guidance" }) as never,
 		})
 
-		await host.prepareForSend("ses-outer")
 		await host.send({ sessionId: "ses-outer", prompt: "follow-up" })
 		await host.send({ sessionId: "ses-outer", prompt: "another" })
 
@@ -83,28 +82,6 @@ describe("CloudSessionHost status", () => {
 		)
 	})
 
-	it("probes a healthy runtime before send and does not rebuild it", async () => {
-		const host = await CloudSessionHost.connect({
-			outerSessionId: "ses-outer",
-			taskId: "inner-session",
-			socketUrl: "ws://127.0.0.1:1/session",
-			getAuthToken: async () => "token",
-			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model" }) as never,
-		})
-
-		await host.prepareForSend("ses-outer")
-		expect(runtime.updateSessionConnection).toHaveBeenCalledWith("inner-session", {})
-		expect(runtime.startSession).not.toHaveBeenCalled()
-		expect(runtime.runTurn).not.toHaveBeenCalled()
-
-		await host.send({ sessionId: "ses-outer", prompt: "the original follow-up" })
-		expect(runtime.updateSessionConnection).toHaveBeenCalledOnce()
-		expect(runtime.runTurn).toHaveBeenCalledOnce()
-		expect(runtime.runTurn).toHaveBeenCalledWith(
-			expect.objectContaining({ sessionId: "inner-session", prompt: "the original follow-up" }),
-		)
-	})
-
 	it("rejects captured calls after disposal without reopening the Hub connection", async () => {
 		const host = await CloudSessionHost.connect({
 			outerSessionId: "ses-outer",
@@ -121,7 +98,6 @@ describe("CloudSessionHost status", () => {
 
 		await expect(host.pendingPrompts("list", { sessionId: "ses-outer" })).rejects.toThrow("connection is closed")
 		await expect(host.getAccumulatedUsage("ses-outer")).rejects.toThrow("connection is closed")
-		await expect(host.prepareForSend("ses-outer")).rejects.toThrow("connection is closed")
 		await expect(host.refreshStatus()).rejects.toThrow("connection is closed")
 		await expect(host.send({ sessionId: "ses-outer", prompt: "stale follow-up" })).rejects.toThrow("connection is closed")
 

@@ -1408,35 +1408,25 @@ export class SdkCloudSessionCoordinator {
 				this.waitForFollowup(signal, async () => {
 					assertCurrent()
 					if (!entry) throw new Error("This cloud session is no longer available.")
+					const active = this.options.sessions.getActiveSession()
+					if (
+						active?.sessionId === task.taskId &&
+						active.sdkHost === entry.host &&
+						!entry.wake &&
+						entry.record.status?.toLowerCase() !== "suspended"
+					)
+						return active
 					entry.pinned++
 					try {
-						const needsWake = !!entry.wake || entry.record.status?.toLowerCase() === "suspended"
-						if (needsWake) {
-							await this.wake(entry)
-							assertCurrent()
-						}
-						let host: CloudSessionHost
-						try {
-							host = await this.connect(entry)
-							assertCurrent()
-							await host.prepareForSend(task.taskId)
-						} catch (error) {
-							assertCurrent()
-							if (needsWake) throw error
-							const live = await this.options.cloudSessions.getStatus(task.taskId).catch(() => undefined)
-							assertCurrent()
-							if (live?.status?.toLowerCase() !== "suspended") throw error
-							entry.record = { ...entry.record, status: "suspended" }
+						let host = await this.connectUnlessSuspended(entry)
+						assertCurrent()
+						if (!host) {
 							await this.wake(entry)
 							assertCurrent()
 							host = await this.connect(entry)
-							assertCurrent()
-							await host.prepareForSend(task.taskId)
 						}
 						assertCurrent()
 						if (entry.host !== host) throw new Error("Cloud session connection was superseded")
-						// A successful preflight is newer evidence than any outstanding list.
-						entry.record = { ...entry.record }
 						const active = this.options.sessions.getActiveSession()
 						const prepared =
 							active?.sdkHost === host
