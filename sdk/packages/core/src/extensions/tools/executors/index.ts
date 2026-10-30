@@ -44,6 +44,17 @@ export {
 	type FileReadExecutorOptions,
 } from "./file-read";
 export {
+	formatMonitorNotification,
+	MonitorError,
+	type MonitorNotification,
+	type MonitorNotifier,
+	type MonitorRecord,
+	MonitorRegistry,
+	type MonitorRegistryOptions,
+	type MonitorStartInput,
+	type MonitorStatus,
+} from "./monitor";
+export {
 	RunCommandExecutionController,
 	type RunningCommandRegistration,
 } from "./run-command-execution-controller";

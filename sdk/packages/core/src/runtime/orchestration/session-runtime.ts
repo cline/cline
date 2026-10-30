@@ -18,6 +18,7 @@ import type {
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type { McpAppsRuntime } from "../../extensions/mcp";
 import type {
+	MonitorNotifier,
 	RunCommandExecutionController,
 	ToolExecutors,
 } from "../../extensions/tools";
@@ -89,6 +90,12 @@ export interface RuntimeBuilderInput {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	/**
+	 * Delivers background monitor output to the session. Supplied only by
+	 * interactive hosts: monitors report between turns, so a host without a way
+	 * to interject has nowhere to put the output and gets no monitor tool.
+	 */
+	monitorNotifier?: MonitorNotifier;
 }
 
 export interface RuntimeBuilder {
