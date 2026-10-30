@@ -181,12 +181,6 @@ const standaloneConfig = {
 	external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
 }
 
-const cloudHubConfig = {
-	...baseConfig,
-	entryPoints: ["src/sdk/cloud-hub-daemon.ts"],
-	outfile: `${destDir}/cloud-hub-daemon.js`,
-}
-
 // E2E build script configuration
 const e2eBuildConfig = {
 	...baseConfig,
@@ -211,12 +205,12 @@ function copyPluginRuntime() {
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
 	if (!e2eBuild) copyPluginRuntime()
-	const contexts = await Promise.all([config, ...(!e2eBuild ? [cloudHubConfig] : [])].map((entry) => esbuild.context(entry)))
+	const extensionCtx = await esbuild.context(config)
 	if (watch) {
-		await Promise.all(contexts.map((context) => context.watch()))
+		await extensionCtx.watch()
 	} else {
-		await Promise.all(contexts.map((context) => context.rebuild()))
-		await Promise.all(contexts.map((context) => context.dispose()))
+		await extensionCtx.rebuild()
+		await extensionCtx.dispose()
 	}
 }
 

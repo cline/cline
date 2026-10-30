@@ -98,7 +98,7 @@ function CloudHandoffNotice({
 							<DialogTitle>Continue in cloud</DialogTitle>
 							<DialogDescription>
 								Publish this Git snapshot and start a separate cloud conversation from a summary. Your local task
-								stays open.
+								stays open. Keep VS Code open until the cloud task starts.
 							</DialogDescription>
 						</DialogHeader>
 						<dl className="m-0 text-sm break-all space-y-1">

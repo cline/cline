@@ -22,7 +22,7 @@ import {
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
-import { inspectHandoffGit, loadCloudModels } from "@cline/core/cloud"
+import { CloudSessionApi, CloudSessionController, inspectHandoffGit, loadCloudModels } from "@cline/core/cloud"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -64,7 +64,6 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
-import { VscodeCloudHub } from "./cloud-hub"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -206,7 +205,7 @@ interface CloudTarget {
 
 export class Controller {
 	readonly cloudHandoff: SdkCloudHandoffCoordinator
-	private handoffHub?: VscodeCloudHub
+	private handoffCloud?: CloudSessionController
 	private handoffAccountChanges = 0
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
@@ -752,7 +751,7 @@ export class Controller {
 		this.accountService.onAccountChange((change) => this.changeHandoffAccount(() => this.cloud.reset(change)))
 		this.cloudHandoff = new SdkCloudHandoffCoordinator({
 			capture: (sourceTaskId, signal) => this.captureCloudHandoffSource(sourceTaskId, signal),
-			getCloud: (cwd) => (this.handoffHub ??= new VscodeCloudHub(cwd)).cloud,
+			getCloud: () => this.getHandoffCloud(),
 			getAccount: () => {
 				if (this.handoffAccountChanges > 0) return undefined
 				const user = this.authService.getInfo().user
@@ -1061,7 +1060,9 @@ export class Controller {
 
 	async dispose(): Promise<void> {
 		this.cloudHandoff.reset()
-		await this.handoffHub?.dispose()
+		const handoffCloud = this.handoffCloud
+		this.handoffCloud = undefined
+		await handoffCloud?.dispose()
 		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
 		if (this.remoteConfigTimer) {
@@ -1679,6 +1680,57 @@ export class Controller {
 	 */
 	async compactTask(): Promise<void> {
 		await this.compaction.compactTask()
+	}
+
+	private getHandoffCloud(): CloudSessionController {
+		if (this.handoffCloud) return this.handoffCloud
+		const accountId = this.authService.getInfo().user?.uid
+		const organizationId = this.authService.getActiveOrganizationId()
+		const assertCurrent = () => {
+			if (
+				!accountId ||
+				this.handoffCloud !== cloud ||
+				this.handoffAccountChanges > 0 ||
+				this.authService.getInfo().user?.uid !== accountId ||
+				this.authService.getActiveOrganizationId() !== organizationId
+			)
+				throw new Error("The cloud account or organization changed. Run /cloud again.")
+		}
+		const getAuthToken = async () => {
+			assertCurrent()
+			const token = await this.authService.getAuthToken()
+			assertCurrent()
+			return token ?? undefined
+		}
+		const cloud = new CloudSessionController({
+			api: new CloudSessionApi({
+				apiBaseUrl: this.cloudSessions.apiBaseUrl,
+				appBaseUrl: this.cloudSessions.appBaseUrl,
+				getAuthToken,
+				fetch,
+			}),
+			apiBaseUrl: this.cloudSessions.apiBaseUrl,
+			getAuthToken,
+			getActiveOrganizationId: async () => {
+				assertCurrent()
+				const organizations = await this.accountService.fetchUserOrganizationsRPC()
+				assertCurrent()
+				if (!organizations) throw new Error("Could not verify the cloud organization. Try again.")
+				const activeId = organizations.find((organization) => organization.active)?.organizationId
+				if ((activeId ?? null) !== organizationId) throw new Error("The cloud organization changed. Run /cloud again.")
+				return activeId
+			},
+			clientIdentity: {
+				prefix: "vscode-cloud-handoff",
+				type: "vscode-cloud-handoff",
+				displayName: "Cline for VS Code",
+				source: "vscode",
+			},
+			lateCreateDisposition: "preserve",
+			logger: Logger,
+		})
+		this.handoffCloud = cloud
+		return cloud
 	}
 
 	private async captureCloudHandoffSource(sourceTaskId: string, signal: AbortSignal): Promise<CapturedHandoffSource> {
@@ -2360,10 +2412,10 @@ export class Controller {
 	private async changeHandoffAccount(change: () => Promise<void>): Promise<void> {
 		this.handoffAccountChanges++
 		this.cloudHandoff.reset()
-		const hub = this.handoffHub
-		this.handoffHub = undefined
+		const cloud = this.handoffCloud
+		this.handoffCloud = undefined
 		try {
-			await hub?.dispose()
+			await cloud?.dispose()
 			await change()
 		} finally {
 			this.handoffAccountChanges--

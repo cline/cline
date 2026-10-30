@@ -5,6 +5,7 @@ import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
+import { mockFetchForTesting } from "@/shared/net"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
@@ -151,9 +152,9 @@ describe("SDK remote-config coordination", () => {
 			authService: { handleAuthCallback: vi.fn(async () => events.push("auth")) },
 			handoffAccountChanges: 0,
 			cloudHandoff: { reset: vi.fn(() => events.push("invalidate handoff")) },
-			handoffHub: {
+			handoffCloud: {
 				dispose: vi.fn(async () => {
-					events.push("disconnect viewer")
+					events.push("dispose handoff")
 				}),
 			},
 			cloud: { reset: async (change: () => Promise<void>) => change() },
@@ -167,7 +168,7 @@ describe("SDK remote-config coordination", () => {
 
 		await SdkController.prototype.handleAuthCallback.call(controller as never, "token", "cline")
 
-		expect(events).toEqual(["invalidate handoff", "disconnect viewer", "auth", "refresh", "post"])
+		expect(events).toEqual(["invalidate handoff", "dispose handoff", "auth", "refresh", "post"])
 		expect(controller.handoffAccountChanges).toBe(0)
 	})
 
@@ -1022,5 +1023,111 @@ describe("cloud handoff source capture", () => {
 		expect(controller.sessionHistory.loadInitialMessages).toHaveBeenCalledWith(host, "local-task")
 		expect(host.readLiveMessages).not.toHaveBeenCalled()
 		expect(host.dispose).toHaveBeenCalledWith("cloudHandoffCapture")
+	})
+})
+
+describe("cloud handoff controller", () => {
+	const repoUrl = "https://github.com/example/project"
+
+	function setup(organizationId: string | null = null) {
+		const identity = { accountId: "user-1", organizationId }
+		const controller = {
+			handoffCloud: undefined,
+			handoffAccountChanges: 0,
+			authService: {
+				getInfo: () => ({ user: { uid: identity.accountId } }),
+				getActiveOrganizationId: () => identity.organizationId,
+				getAuthToken: vi.fn(async () => "workos:extension-token"),
+			},
+			accountService: {
+				fetchUserOrganizationsRPC: vi.fn<() => Promise<Array<{ active: boolean; organizationId: string }> | undefined>>(
+					async () => (organizationId ? [{ active: true, organizationId }] : []),
+				),
+			},
+			cloudSessions: { apiBaseUrl: "https://api.example.test", appBaseUrl: "https://app.example.test" },
+			cloudHandoff: { reset: vi.fn() },
+			postStateToWebview: vi.fn(async () => {}),
+			providerConfigStoreSubscription: { dispose: vi.fn() },
+			setRemoteConfigCoreIntegration: vi.fn(async () => {}),
+			statePostDebouncer: { dispose: vi.fn(async () => {}) },
+			invalidateUserInstructionService: vi.fn(async () => {}),
+			messages: { cancelPendingSave: vi.fn(), dispose: vi.fn() },
+			diffEdits: { discardAllPreviews: vi.fn(async () => {}) },
+			clearTask: vi.fn(async () => {}),
+			cloud: { dispose: vi.fn(async () => {}) },
+			sessions: { dispose: vi.fn(async () => {}) },
+			taskHistory: { dispose: vi.fn(async () => {}) },
+			sdkTelemetry: { dispose: vi.fn(async () => {}) },
+		}
+		const cloud = SdkController.prototype["getHandoffCloud"].call(controller as never)
+		const fetch = vi.fn<Parameters<typeof mockFetchForTesting>[0]>(async () =>
+			Response.json({ data: [{ id: 1, name: "project", html_url: repoUrl }] }),
+		)
+		return { controller, cloud, identity, fetch }
+	}
+
+	it.each([
+		null,
+		"org-1",
+	])("uses the extension token and verified organization %s for repository access", async (organizationId) => {
+		const { controller, cloud, fetch } = setup(organizationId)
+		await mockFetchForTesting(fetch, async () => {
+			expect(await cloud.prepareHandoffRepository(repoUrl)).toEqual(organizationId ? { organizationId } : {})
+		})
+		expect(controller.accountService.fetchUserOrganizationsRPC).toHaveBeenCalledOnce()
+		expect(fetch).toHaveBeenCalledWith(
+			`https://api.example.test/api/v1/${organizationId ? `organizations/${organizationId}/` : ""}integrations/github/repositories`,
+			expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer workos:extension-token" }) }),
+		)
+		await cloud.dispose()
+	})
+
+	it.each([
+		{ organizations: undefined, message: "Could not verify the cloud organization" },
+		{ organizations: [{ active: true, organizationId: "org-other" }], message: "cloud organization changed" },
+	])("does not fall back to Personal when $message", async ({ organizations, message }) => {
+		const { controller, cloud, fetch } = setup()
+		controller.accountService.fetchUserOrganizationsRPC.mockResolvedValueOnce(organizations)
+		await mockFetchForTesting(fetch, async () => {
+			await expect(cloud.prepareHandoffRepository(repoUrl)).rejects.toThrow(message)
+		})
+		expect(fetch).not.toHaveBeenCalled()
+		expect(controller.authService.getAuthToken).not.toHaveBeenCalled()
+		await cloud.dispose()
+	})
+
+	it("rejects a credential returned after the signed-in account changes", async () => {
+		const { controller, cloud, identity, fetch } = setup()
+		const token = Promise.withResolvers<string>()
+		controller.authService.getAuthToken.mockReturnValueOnce(token.promise)
+		await mockFetchForTesting(fetch, async () => {
+			const preparing = cloud.prepareHandoffRepository(repoUrl)
+			await vi.waitFor(() => expect(controller.authService.getAuthToken).toHaveBeenCalledOnce())
+			identity.accountId = "user-2"
+			token.resolve("workos:stale-token")
+			await expect(preparing).rejects.toThrow("account or organization changed")
+		})
+		expect(fetch).not.toHaveBeenCalled()
+		await cloud.dispose()
+	})
+
+	it.each(["account change", "disposal"])("invalidates an organization lookup during %s", async (reason) => {
+		const { controller, cloud, fetch } = setup()
+		const organizations = Promise.withResolvers<Array<{ active: boolean; organizationId: string }>>()
+		controller.accountService.fetchUserOrganizationsRPC.mockReturnValueOnce(organizations.promise)
+		await mockFetchForTesting(fetch, async () => {
+			const preparing = cloud.prepareHandoffRepository(repoUrl)
+			await vi.waitFor(() => expect(controller.accountService.fetchUserOrganizationsRPC).toHaveBeenCalledOnce())
+			if (reason === "account change") {
+				await SdkController.prototype["changeHandoffAccount"].call(controller as never, async () => {})
+			} else {
+				await SdkController.prototype.dispose.call(controller as never)
+			}
+			organizations.resolve([])
+			await expect(preparing).rejects.toThrow("account or organization changed")
+		})
+		expect(controller.cloudHandoff.reset).toHaveBeenCalledOnce()
+		expect(fetch).not.toHaveBeenCalled()
+		expect(controller.authService.getAuthToken).not.toHaveBeenCalled()
 	})
 })
