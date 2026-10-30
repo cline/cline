@@ -820,6 +820,23 @@ export class HubServerTransport implements NativeHubTransport {
 		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope> {
 		try {
+			if (envelope.command === "client.unregister" && authority !== undefined) {
+				if (!authority) {
+					return errorReply(
+						envelope,
+						"client_not_registered",
+						"Register before unregistering a client",
+					);
+				}
+				if (envelope.clientId?.trim() !== authority.clientId) {
+					return errorReply(
+						envelope,
+						"client_authority_mismatch",
+						"Command clientId does not belong to this connection",
+					);
+				}
+			}
+
 			if (
 				authority === null &&
 				(envelope.command === "cloud.command" ||
@@ -1037,7 +1054,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return reply;
 			}
 			case "client.unregister": {
-				if (envelope.clientId) this.providerAuth.cancelOwner(envelope.clientId);
+				const owner = authority?.clientId ?? envelope.clientId;
+				if (owner) this.providerAuth.cancelOwner(owner);
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);

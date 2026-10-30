@@ -1,9 +1,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HubCommandEnvelope } from "@cline/shared";
+import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import WebSocket from "ws";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
@@ -124,9 +125,10 @@ describe("Hub-owned provider OAuth", () => {
 		).toBe("workos:secret-access");
 	});
 	it("runs OAuth over the authenticated wire protocol without exposing stored tokens", async () => {
+		const pending = deferred<typeof credentials>();
 		vi.spyOn(handler, "login").mockImplementation(async ({ callbacks }) => {
 			callbacks.onAuth({ url: "https://example.test/login" });
-			return credentials;
+			return pending.promise;
 		});
 		const server = await startHubWebSocketServer({
 			host: "127.0.0.1",
@@ -149,14 +151,49 @@ describe("Hub-owned provider OAuth", () => {
 			url: server.url,
 			authToken: server.authToken,
 			clientType: "oauth-test",
+			clientId: "oauth-owner",
 		});
 		try {
 			await client.connect();
 			const onAuth = vi.fn();
-			const result = await createHubProviderAuthApi(client).login("cline", {
+			const login = createHubProviderAuthApi(client).login("cline", {
 				onAuth,
 				onPrompt: async () => "",
 			});
+			await vi.waitFor(() => expect(onAuth).toHaveBeenCalled());
+			const attacker = new WebSocket(server.url, {
+				origin: "http://localhost:3125",
+			});
+			try {
+				await new Promise<void>((resolve, reject) => {
+					attacker.once("open", resolve);
+					attacker.once("error", reject);
+				});
+				const reply = new Promise<HubReplyEnvelope>((resolve) => {
+					attacker.once("message", (data) =>
+						resolve(JSON.parse(String(data)).envelope),
+					);
+				});
+				attacker.send(
+					JSON.stringify({
+						kind: "command",
+						envelope: {
+							version: "v1",
+							requestId: "spoof-unregister",
+							clientId: "oauth-owner",
+							command: "client.unregister",
+						},
+					}),
+				);
+				expect(await reply).toMatchObject({
+					ok: false,
+					error: { code: "client_not_registered" },
+				});
+			} finally {
+				attacker.close();
+			}
+			pending.resolve(credentials);
+			const result = await login;
 			expect(result).toMatchObject({
 				provider: "cline",
 				accountId: "account-1",
@@ -199,6 +236,17 @@ describe("Hub-owned provider OAuth", () => {
 			).rejects.toThrow("does not belong");
 		}
 	});
+	it("rejects unregistering a different connection's owner", async () => {
+		const reply = await transport.handleCommand(
+			{ version: "v1", command: "client.unregister", clientId: "victim" },
+			{ clientId: "attacker", tokenAuthenticated: true },
+		);
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "client_authority_mismatch" },
+		});
+	});
+
 	it("cancels on client abort and discards credentials from a late completion", async () => {
 		const pending = deferred<typeof credentials>();
 		let signal: AbortSignal | undefined;
