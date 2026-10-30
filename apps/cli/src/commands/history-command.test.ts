@@ -80,6 +80,15 @@ describe("registerHistoryCommand", () => {
 		expect(setExitCode).toHaveBeenCalledWith(0);
 	});
 
+	it("rejects a malformed --limit instead of reading its numeric prefix", async () => {
+		const { program } = createHarness(false);
+
+		await expect(
+			program.parseAsync(["history", "--limit", "12x"], { from: "user" }),
+		).rejects.toThrow('invalid integer value "12x" (expected integer >= 1)');
+		expect(historyMocks.runHistoryList).not.toHaveBeenCalled();
+	});
+
 	it("rejects --page instead of listing history", async () => {
 		const { program } = createHarness(false);
 

@@ -1,4 +1,6 @@
 import type { Command } from "commander";
+import { InvalidArgumentError } from "commander";
+import { parsePositiveInteger } from "../../utils/common";
 import type { CommandIo } from "./types";
 
 export function parseList(raw: string | undefined): string[] | undefined {
@@ -29,9 +31,14 @@ export function toPositiveInt(
 	value: string | undefined,
 	fallback: number,
 ): number {
-	const parsed = Number.parseInt(value ?? "", 10);
-	if (!Number.isFinite(parsed) || parsed <= 0) {
+	if (value === undefined) {
 		return fallback;
+	}
+	const parsed = parsePositiveInteger(value);
+	if (parsed === undefined) {
+		throw new InvalidArgumentError(
+			`invalid integer value "${value.trim()}" (expected integer >= 1)`,
+		);
 	}
 	return parsed;
 }

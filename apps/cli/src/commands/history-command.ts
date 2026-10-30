@@ -1,5 +1,6 @@
-import type { Command } from "commander";
+import { type Command, InvalidArgumentError } from "commander";
 import type { TuiStartupTarget } from "../tui/types";
+import { parsePositiveInteger } from "../utils/common";
 import type { CliOutputMode } from "../utils/types";
 import {
 	runHistoryDelete,
@@ -45,7 +46,12 @@ export function registerHistoryCommand({
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();
-			const limit = Number.parseInt(opts.limit, 10);
+			const limit = parsePositiveInteger(opts.limit);
+			if (limit === undefined) {
+				throw new InvalidArgumentError(
+					`invalid integer value "${opts.limit.trim()}" (expected integer >= 1)`,
+				);
+			}
 			const outputMode = resolveHistoryOutputMode(program, historyCmd);
 			if (outputMode === "text" && isInteractiveTTY()) {
 				setStartupTarget("history");
