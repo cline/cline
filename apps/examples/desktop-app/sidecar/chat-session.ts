@@ -1076,11 +1076,12 @@ async function handleStart(
 			: undefined);
 	// A local transcript read unmodified from the session store can be loaded by
 	// the Hub itself. Sending a long one inline can exceed the Hub's inbound
-	// frame limit, which makes the chat impossible to reopen.
+	// frame limit, which makes the chat impossible to reopen. The Hub refuses to
+	// resume an empty history, so a saved chat with no messages starts as before.
 	const resumeFromStore =
 		binding.kind === "local" &&
 		callerInitialMessages === undefined &&
-		initialMessages !== undefined;
+		(initialMessages?.length ?? 0) > 0;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
 	const coreConfig: JsonRecord = {

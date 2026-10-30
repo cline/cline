@@ -332,6 +332,24 @@ describe("starting local sessions from a saved transcript", () => {
 		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("initialMessages");
 		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
 	});
+
+	it("starts the chat as before when the saved file has no messages", async () => {
+		const { ctx, config, start } = setup();
+		writeFileSync(
+			sharedSessionMessagesPath(sessionId),
+			JSON.stringify({ messages: [] }),
+		);
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, sessionId },
+		});
+
+		// The Hub answers an empty history with session_messages_not_found, so
+		// asking it to resume would fail where this used to start an empty chat.
+		expect(start).toHaveBeenCalledOnce();
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
+	});
 });
 
 describe("buildSessionConnectionUpdate", () => {
