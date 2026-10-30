@@ -152,6 +152,7 @@ function makeManager() {
 		dispose: vi.fn(),
 		get: vi.fn(),
 		readMessages: vi.fn(async (): Promise<Message[]> => []),
+		readLiveMessages: vi.fn(async (): Promise<Message[]> => []),
 		readSessionCompactionState: vi.fn().mockResolvedValue(undefined),
 		updateSessionCompactionState: vi.fn(),
 		readTranscript: vi.fn(),
@@ -160,6 +161,7 @@ function makeManager() {
 		updateSessionModel: vi.fn(),
 		updateSessionConnection: vi.fn(async () => {}),
 		pendingPrompts: {
+			list: vi.fn().mockResolvedValue([]),
 			update: vi.fn(),
 		},
 		restore: vi.fn(),
@@ -1037,5 +1039,49 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(sendError).toBeInstanceOf(SessionNotFoundError);
 		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
+	});
+});
+
+describe("cloud handoff source capture", () => {
+	it("reads the live conversation without stopping or replacing the local session", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		manager.get.mockResolvedValue({
+			cwd: "/tmp/project/subdir",
+			status: "idle",
+		});
+		manager.readLiveMessages.mockResolvedValue([
+			{ role: "user", content: "Continue the example task" },
+		]);
+		const source = await runtime.readCloudHandoffSource();
+		expect(source).toEqual({
+			sessionId: runtime.getActiveSessionId(),
+			cwd: "/tmp/project/subdir",
+			messages: [{ role: "user", content: "Continue the example task" }],
+		});
+		expect(manager.readMessages).not.toHaveBeenCalled();
+		expect(manager.stop).not.toHaveBeenCalled();
+	});
+
+	it.each(["running", "pending"])("refuses a %s session", async (status) => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		manager.get.mockResolvedValue({ cwd: "/tmp/project", status });
+		await expect(runtime.readCloudHandoffSource()).rejects.toThrow(
+			"Wait for the current run",
+		);
+	});
+
+	it("refuses idle sessions with queued work", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		manager.get.mockResolvedValue({ cwd: "/tmp/project", status: "idle" });
+		manager.pendingPrompts.list.mockResolvedValue([{ id: "queued" }]);
+		await expect(runtime.readCloudHandoffSource()).rejects.toThrow(
+			"queued prompts",
+		);
 	});
 });

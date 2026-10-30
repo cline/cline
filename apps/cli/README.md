@@ -350,6 +350,16 @@ Approve tool "<tool_name>" with input <preview>? [y/N]
 
 Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_APPROVAL_MODE=desktop` and `CLINE_TOOL_APPROVAL_DIR=<path>`). In desktop mode, CLI writes a request JSON file and waits for a matching decision JSON file.
 
+## Continue a local conversation in Cloud
+
+With `CLINE_CLOUD_SESSIONS=1`, enter `/cloud` or `/cloud <next instruction>` in an idle local conversation. You can include up to five pasted images. The selected model must be available to your signed-in Cline Cloud account.
+
+Review the repository, proposed branch, changed files, and unpublished commits, then choose **Push and continue**. Cline summarizes the captured conversation and asks the shared Hub to publish the approved Git snapshot and start the cloud task. Creating the snapshot leaves your local branch, files, and staging unchanged. Pre-push hooks run locally and may modify them. Cancel keeps the input and its images.
+
+The cloud task receives the summary, optional instruction, and attached images. Progress appears below the chat while you keep working locally. Later local messages and edits are not sent to that task. After the handoff finishes, use `Ctrl+O` or **Open cloud task** to continue in the cloud task. If opening fails, **Open in browser** replaces that action. Opening in the TUI requires an idle local conversation and an empty draft. From that cloud task, `Ctrl+O` or **Back to local** returns to the original local conversation while cloud work continues. Send or clear a draft before switching in either direction. Returning locally also waits for submitted cloud messages to be accepted. `/history` can open other local conversations. If the cloud task needs tool approval, use **Open cloud task in browser** in `Ctrl+P` to respond. Use `Ctrl+P` to find cloud actions, including restoring a failed draft, retrying a confirmed unsent prompt, connecting GitHub, and hiding the notice. **Hide** removes only the notice; `Ctrl+P` and `Ctrl+O` still open the linked task. Notices with an unsent draft or a saved prompt to retry cannot be hidden. These actions are also clickable in the footer. Restoring a draft does not overwrite newer input. A retry sends to the existing task; uncertain delivery requires checking that task before resending.
+
+Summary preparation requires Cline to stay open. Once the launch request reaches the shared Hub, publication and cloud launch can finish after the TUI closes. Unsent drafts and retry actions are kept in memory and are lost when the TUI exits. Snapshot commits are unsigned and skip commit and checkout hooks.
+
 ## Environment variables
 
 - `ANTHROPIC_API_KEY` - API key for Anthropic

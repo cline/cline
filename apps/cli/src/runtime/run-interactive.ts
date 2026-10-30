@@ -52,10 +52,12 @@ import {
 } from "./active-runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
+import { prepareCloudHandoff } from "./interactive/cloud-handoff";
 import {
 	createCliCloudSessions,
 	isCloudSessionsEnabled,
 } from "./interactive/cloud-sessions";
+import { resolveCompactionProviderConfig } from "./interactive/compaction";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
 import {
 	formatInteractiveExitSummary,
@@ -233,10 +235,8 @@ export async function runInteractive(
 			instructions: "",
 		}));
 	};
-	// Session commands come from the active session's plugins, so a session
-	// change can change the catalog.
 	const activeSessionListeners = new Set<() => void>();
-	const subscribeAdditionalSlashCommands = (listener: () => void) => {
+	const subscribeActiveSession = (listener: () => void) => {
 		activeSessionListeners.add(listener);
 		return () => {
 			activeSessionListeners.delete(listener);
@@ -528,7 +528,44 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
+		activeSession: {
+			getId: sessionRuntime.getActiveSessionId,
+			subscribe: subscribeActiveSession,
+		},
 		cloudSessions: cloudSessions?.client,
+		onPrepareCloudHandoff: cloudSessions
+			? async (draft) => {
+					await sessionRuntime.ensureReady();
+					return prepareCloudHandoff({
+						readSource: sessionRuntime.readCloudHandoffSource,
+						cloud: cloudSessions.client,
+						draft,
+						creationOptions: {
+							mode: config.mode,
+							autoApproveTools: autoApproveAllRef.current,
+							thinking: config.thinking,
+							reasoningEffort:
+								config.reasoningEffort === "minimal" ||
+								config.reasoningEffort === "max"
+									? undefined
+									: config.reasoningEffort,
+						},
+						connection: {
+							...resolveCompactionProviderConfig(
+								config,
+								providerSettingsManager,
+							),
+							// ClinePass uses the shared Cline login, not its saved model settings' auth.
+							...((config.providerId === "cline" ||
+								config.providerId === "cline-pass") && {
+								accountId:
+									providerSettingsManager.getProviderSettings("cline")?.auth
+										?.accountId,
+							}),
+						},
+					});
+				}
+			: undefined,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
@@ -537,7 +574,7 @@ export async function runInteractive(
 		initialRepoStatus,
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
-		subscribeAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands: subscribeActiveSession,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({
 				config,

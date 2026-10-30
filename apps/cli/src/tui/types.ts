@@ -13,6 +13,10 @@ import type {
 } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import type {
+	CloudHandoffDraft,
+	PreparedCloudHandoff,
+} from "../runtime/interactive/cloud-handoff";
+import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
@@ -133,6 +137,8 @@ export interface PendingPromptMutationResult {
 
 export type CloudSessionsClient = Pick<
 	HubCloudSessionClient,
+	| "attach"
+	| "scope"
 	| "listRepositories"
 	| "listBranches"
 	| "listModels"
@@ -263,6 +269,13 @@ export interface TuiProps {
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
 	/** Omitted when cloud sessions are unavailable. */
 	cloudSessions?: CloudSessionsClient;
+	activeSession?: {
+		getId: () => string;
+		subscribe: (listener: () => void) => () => void;
+	};
+	onPrepareCloudHandoff?: (
+		draft: CloudHandoffDraft,
+	) => Promise<PreparedCloudHandoff>;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;

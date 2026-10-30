@@ -6,12 +6,14 @@ on:
             - main
         paths:
             - "sdk/**"
+            - "apps/cli/**"
             - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
         paths:
             - "sdk/**"
+            - "apps/cli/**"
             - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_call:
@@ -124,6 +126,10 @@ jobs:
             - name: Run TUI e2e tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun -F @cline/cli test:e2e:cli:tui
+
+            - name: Run cloud handoff TUI regression tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
+              run: bun -F @cline/cli test:e2e:tuistory src/cloud-handoff.tuistory.e2e.test.ts
 
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}

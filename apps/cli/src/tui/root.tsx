@@ -20,6 +20,8 @@ import {
 	shouldSuppressClineCliMigrationNoticeForActiveProvider,
 } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
+import type { CloudHandoffDraft } from "../runtime/interactive/cloud-handoff";
+import open from "../utils/open";
 import {
 	isSameRepoStatus,
 	type RepoStatus,
@@ -28,6 +30,7 @@ import {
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import { resolveSlashCommand } from "./commands/slash-command-registry";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
+import { CloudHandoffStatusBar } from "./components/cloud-handoff-status";
 import { DialogThemeSync } from "./components/dialog-theme-sync";
 import {
 	CheckpointConfirmContent,
@@ -50,6 +53,7 @@ import {
 	HubUpdateRequiredContent,
 } from "./components/dialogs/hub-update-required";
 import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
+import { withLoadingDialog } from "./components/dialogs/loading-dialog";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -63,6 +67,7 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudHandoff } from "./hooks/use-cloud-handoff";
 import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
@@ -126,6 +131,18 @@ function App(props: TuiProps) {
 	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
+	const invalidatePendingSubmissionsRef = useRef(() => {});
+	const localHandoffViewRef = useRef<
+		| (Pick<
+				ReturnType<typeof useSession>,
+				| "entries"
+				| "hasSubmitted"
+				| "uiMode"
+				| "lastTotalTokens"
+				| "lastTotalCost"
+		  > & { sourceId: string; targetSessionId: string; appView: AppView })
+		| undefined
+	>(undefined);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
@@ -153,6 +170,11 @@ function App(props: TuiProps) {
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		subscribeAdditionalSlashCommands: props.subscribeAdditionalSlashCommands,
 		canFork: canForkSession,
+		cloudEnabled:
+			!!props.cloudSessions &&
+			!!props.onPrepareCloudHandoff &&
+			(props.config.providerId === "cline" ||
+				props.config.providerId === "cline-pass"),
 	});
 
 	const autocomplete = useAutocomplete({
@@ -314,7 +336,7 @@ function App(props: TuiProps) {
 		termHeight,
 		loadAccount: props.loadClineAccount,
 		switchAccount: props.switchClineAccount,
-		onAccountChange: props.onAccountChange,
+		onAccountChange: handleAccountChange,
 		openModelSelector,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
@@ -332,22 +354,59 @@ function App(props: TuiProps) {
 			if (session.uiMode === "plan") toggleMode();
 		},
 		loadClineAccount: props.loadClineAccount,
-		onAccountChange: props.onAccountChange,
+		onAccountChange: handleAccountChange,
 		replaceEntries: session.replaceEntries,
 		setIsRunning: session.setIsRunning,
 		showToast,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+	const handoff = useCloudHandoff({
+		prepare: props.onPrepareCloudHandoff,
+		activeSession: props.activeSession,
+		cloudActive: cloud.active,
+		isLocalBusy: session.isRunning || queuedPrompts.length > 0,
+		dialog,
+		termHeight,
+		showError: (message) => showToast(message, "error"),
+	});
+	async function handleAccountChange() {
+		invalidatePendingSubmissionsRef.current();
+		localHandoffViewRef.current = undefined;
+		const sourceId = props.activeSession?.getId();
+		const wasCloudActive = cloud.active;
+		handoff.reset();
+		cloud.reset();
+		if (wasCloudActive) {
+			session.closeInlineStream();
+			session.clearEntries();
+			session.setHasSubmitted(false);
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
+		}
+		await props.onAccountChange();
+		if (wasCloudActive && sourceId) {
+			const result = await resumeSession(sourceId);
+			const entries = hydrateSessionMessages(result.messages);
+			session.replaceEntries(entries);
+			session.setHasSubmitted(entries.length > 0);
+			session.setIsRunning(false);
+		}
+	}
 	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
 	const propsOnResumeSession = props.onResumeSession;
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
 			const result = await propsOnResumeSession(sessionId);
+			invalidatePendingSubmissionsRef.current();
+			localHandoffViewRef.current = undefined;
 			// A resumed chat is local, so it must not keep sending to Cloud.
 			detachCloudSession();
+			session.closeInlineStream();
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
 			return result;
 		},
-		[detachCloudSession, propsOnResumeSession],
+		[detachCloudSession, propsOnResumeSession, session],
 	);
 	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
 	const openTargetModelSelector = useCallback(
@@ -359,8 +418,15 @@ function App(props: TuiProps) {
 	);
 
 	const clearConversation = useCallback(async () => {
+		invalidatePendingSubmissionsRef.current();
+		localHandoffViewRef.current = undefined;
 		const shouldRestartSession = session.hasSubmitted;
 		resetCloudSession();
+		if (cloudActive) {
+			session.closeInlineStream();
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
+		}
 		session.clearEntries();
 		session.setHasSubmitted(false);
 		if (!shouldRestartSession) {
@@ -380,9 +446,13 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [props, resetCloudSession, session]);
+	}, [cloudActive, props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
+		if (cloudActive) {
+			showToast("Return to a local conversation to restore a checkpoint.");
+			return;
+		}
 		if (checkpointRestoreInFlightRef.current) {
 			showToast("Checkpoint restore already in progress", "info");
 			return;
@@ -483,7 +553,7 @@ function App(props: TuiProps) {
 			checkpointRestoreInFlightRef.current = false;
 			refocusTextareaRef.current();
 		}
-	}, [dialog, props, session, showToast, termHeight]);
+	}, [cloudActive, dialog, props, session, showToast, termHeight]);
 
 	const exitCline = useCallback(() => {
 		session.requestExit();
@@ -848,67 +918,6 @@ function App(props: TuiProps) {
 		}
 	}, [props.startupTarget]);
 
-	const runCommandPaletteResult = useCallback(
-		async (result: CommandPaletteResult) => {
-			if (result.action === "change-provider") {
-				await openModelSelector({ startWithProviderChange: true });
-				return;
-			}
-			if (result.action === "change-model") {
-				await openTargetModelSelector();
-				return;
-			}
-
-			await Promise.resolve(handleSlashCommand(result.action));
-		},
-		[handleSlashCommand, openModelSelector, openTargetModelSelector],
-	);
-
-	const commandPaletteOpenRef = useRef(false);
-	const globalPaletteItems = useMemo(
-		() => buildCommandPaletteItems({ canForkSession }),
-		[canForkSession],
-	);
-	const openCommandPalette = useCallback(async () => {
-		if (commandPaletteOpenRef.current) return;
-		commandPaletteOpenRef.current = true;
-		const dialogWidth = Math.min(
-			64,
-			Math.max(48, Math.floor(termWidth * 0.58)),
-			Math.max(42, termWidth - 8),
-		);
-		try {
-			const result = await dialog.choice<CommandPaletteResult>({
-				style: { width: dialogWidth, maxHeight: termHeight - 2 },
-				content: (ctx: ChoiceContext<CommandPaletteResult>) => (
-					<CommandPaletteContent
-						{...ctx}
-						canForkSession={canForkSession}
-						contentWidth={dialogWidth - 2}
-					/>
-				),
-			});
-			if (result) {
-				await runCommandPaletteResult(result);
-				return;
-			}
-			refocusTextareaRef.current();
-		} finally {
-			commandPaletteOpenRef.current = false;
-		}
-	}, [canForkSession, dialog, runCommandPaletteResult, termHeight, termWidth]);
-
-	const runCommandPaletteShortcut = useCallback(
-		(key: KeyEvent) => {
-			const shortcut = findCommandPaletteShortcut(globalPaletteItems, key);
-			if (!shortcut) return false;
-			key.preventDefault();
-			void runCommandPaletteResult(shortcut.result);
-			return true;
-		},
-		[globalPaletteItems, runCommandPaletteResult],
-	);
-
 	const agentHandlers = useAgentEventHandlers({
 		appendEntry: session.appendEntry,
 		updateLastEntry: session.updateLastEntry,
@@ -928,6 +937,7 @@ function App(props: TuiProps) {
 		slashCommandRegistry,
 		handleSlashCommand,
 		onSubmit: cloud.active ? cloud.submit : props.onSubmit,
+		onCloudCommand: handoff.run,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
@@ -936,6 +946,8 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	invalidatePendingSubmissionsRef.current =
+		promptInput.invalidatePendingSubmissions;
 	const focusPromptTextarea = promptInput.focusTextarea;
 	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;
@@ -957,6 +969,254 @@ function App(props: TuiProps) {
 	});
 	const runtimeInteraction = runtimeBridge.interaction;
 	const isRuntimeInteractionOpen = runtimeInteraction !== null;
+	const openCloudHandoff = useCallback(async () => {
+		const status = handoff.status;
+		if (
+			status?.kind !== "complete" ||
+			localHandoffViewRef.current !== undefined ||
+			props.activeSession?.getId() !== handoff.sourceId
+		)
+			return;
+		if (session.isRunning || queuedPrompts.length > 0) {
+			showToast(
+				"Wait for the local run and queued prompts before opening the cloud task.",
+			);
+			return;
+		}
+		if (promptInput.getCurrentInputText().trim()) {
+			showToast(
+				"Send or clear the current draft before opening the cloud task.",
+			);
+			return;
+		}
+		const localView = {
+			sourceId: handoff.sourceId,
+			targetSessionId: status.result.sessionId,
+			appView,
+			entries: session.entries,
+			hasSubmitted: session.hasSubmitted,
+			uiMode: session.uiMode,
+			lastTotalTokens: session.lastTotalTokens,
+			lastTotalCost: session.lastTotalCost,
+		};
+		localHandoffViewRef.current = localView;
+		try {
+			await withLoadingDialog(dialog, "Opening cloud task…", () =>
+				cloud.openExisting(status.result.sessionId),
+			);
+			handoff.setNativeOpenFailed(status.result, false);
+		} catch (error) {
+			handoff.setNativeOpenFailed(status.result, true);
+			if (localHandoffViewRef.current === localView)
+				localHandoffViewRef.current = undefined;
+			showToast(
+				error instanceof Error ? error.message : String(error),
+				"error",
+			);
+		} finally {
+			promptInput.refocusTextarea();
+		}
+	}, [
+		appView,
+		cloud,
+		dialog,
+		handoff.setNativeOpenFailed,
+		handoff.sourceId,
+		handoff.status,
+		promptInput,
+		props.activeSession,
+		queuedPrompts.length,
+		session,
+		showToast,
+	]);
+	const localHandoffView = localHandoffViewRef.current;
+	const canReturnToLocal =
+		cloud.active &&
+		!!localHandoffView &&
+		localHandoffView.sourceId === handoff.sourceId &&
+		localHandoffView.targetSessionId === handoff.targetSessionId &&
+		(cloud.sessionId === localHandoffView.targetSessionId || !cloud.hasSession);
+	const returnToLocal = useCallback(() => {
+		const localView = localHandoffViewRef.current;
+		if (
+			!canReturnToLocal ||
+			!localView ||
+			props.activeSession?.getId() !== localView.sourceId ||
+			isDialogOpen ||
+			isRuntimeInteractionOpen
+		)
+			return;
+		if (promptInput.getCurrentInputText().trim()) {
+			showToast(
+				"Send or clear the current draft before returning to the local conversation.",
+			);
+			return;
+		}
+		if (cloud.hasUnacceptedPrompts()) {
+			showToast(
+				"Wait for cloud to accept your message before returning locally.",
+			);
+			return;
+		}
+		promptInput.invalidatePendingSubmissions();
+		cloud.detach();
+		localHandoffViewRef.current = undefined;
+		session.closeInlineStream();
+		session.replaceEntries(localView.entries);
+		session.setHasSubmitted(localView.hasSubmitted);
+		session.setUiMode(localView.uiMode);
+		session.setLastTotalTokens(localView.lastTotalTokens);
+		session.setLastTotalCost(localView.lastTotalCost);
+		session.setIsRunning(false);
+		session.setIsStreaming(false);
+		setAppView(localView.appView);
+		promptInput.refocusTextarea();
+	}, [
+		canReturnToLocal,
+		cloud,
+		isDialogOpen,
+		isRuntimeInteractionOpen,
+		promptInput,
+		props.activeSession,
+		session,
+		showToast,
+	]);
+	const restoreCloudDraft = useCallback(
+		(draft: CloudHandoffDraft) => {
+			if (props.activeSession?.getId() !== handoff.sourceId) return;
+			if (!promptInput.restoreCloudDraft(draft))
+				showToast(
+					"The input already has a draft. Clear or send it before restoring this one.",
+				);
+		},
+		[handoff.sourceId, promptInput, props.activeSession, showToast],
+	);
+	const runCommandPaletteResult = useCallback(
+		async (result: CommandPaletteResult) => {
+			const status = handoff.status;
+			switch (result.action) {
+				case "cloud-local":
+					returnToLocal();
+					return;
+				case "cloud-open":
+					await openCloudHandoff();
+					return;
+				case "cloud-browser": {
+					const url =
+						cloud.statusBar?.dashboardUrl ??
+						(status?.kind === "complete" && status.nativeOpenFailed
+							? status.result.dashboardUrl
+							: undefined);
+					if (url)
+						await open(url, { wait: false }).catch(() =>
+							showToast("Unable to open the browser.", "error"),
+						);
+					return;
+				}
+				case "cloud-connect-github":
+					if (status?.kind === "failed" && status.connectUrl)
+						await open(status.connectUrl, { wait: false }).catch(() =>
+							showToast("Unable to open the browser.", "error"),
+						);
+					return;
+				case "cloud-restore":
+					if (status?.kind === "failed") restoreCloudDraft(status.draft);
+					return;
+				case "cloud-retry":
+					await handoff.retry();
+					return;
+				case "cloud-hide":
+					handoff.hide();
+					return;
+			}
+			if (result.action === "change-provider") {
+				await openModelSelector({ startWithProviderChange: true });
+				return;
+			}
+			if (result.action === "change-model") {
+				await openTargetModelSelector();
+				return;
+			}
+
+			await Promise.resolve(handleSlashCommand(result.action));
+		},
+		[
+			cloud.statusBar?.dashboardUrl,
+			handoff,
+			handleSlashCommand,
+			openCloudHandoff,
+			openModelSelector,
+			openTargetModelSelector,
+			restoreCloudDraft,
+			returnToLocal,
+			showToast,
+		],
+	);
+
+	const commandPaletteOpenRef = useRef(false);
+	const globalPaletteItems = useMemo(
+		() =>
+			buildCommandPaletteItems({
+				canForkSession,
+				handoff: handoff.status,
+				cloudSessionUrl: cloud.statusBar?.dashboardUrl,
+				canHideHandoff: handoff.canHide,
+				canReturnToLocal,
+			}),
+		[
+			canForkSession,
+			cloud.statusBar?.dashboardUrl,
+			handoff.status,
+			handoff.canHide,
+			canReturnToLocal,
+		],
+	);
+	const openCommandPalette = useCallback(async () => {
+		if (commandPaletteOpenRef.current) return;
+		commandPaletteOpenRef.current = true;
+		const dialogWidth = Math.min(
+			64,
+			Math.max(48, Math.floor(termWidth * 0.58)),
+			Math.max(42, termWidth - 8),
+		);
+		try {
+			const result = await dialog.choice<CommandPaletteResult>({
+				style: { width: dialogWidth, maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<CommandPaletteResult>) => (
+					<CommandPaletteContent
+						{...ctx}
+						items={globalPaletteItems}
+						contentWidth={dialogWidth - 2}
+					/>
+				),
+			});
+			if (result) {
+				await runCommandPaletteResult(result);
+				return;
+			}
+			refocusTextareaRef.current();
+		} finally {
+			commandPaletteOpenRef.current = false;
+		}
+	}, [
+		globalPaletteItems,
+		dialog,
+		runCommandPaletteResult,
+		termHeight,
+		termWidth,
+	]);
+
+	const runCommandPaletteShortcut = useCallback(
+		(key: KeyEvent) => {
+			const shortcut = findCommandPaletteShortcut(globalPaletteItems, key);
+			if (!shortcut) return false;
+			key.preventDefault();
+			void runCommandPaletteResult(shortcut.result);
+			return true;
+		},
+		[globalPaletteItems, runCommandPaletteResult],
+	);
+
 	const saveQueuedPromptEdit = useCallback(
 		async (promptId: string, text: string) => {
 			if (!promptId) return;
@@ -1059,7 +1319,13 @@ function App(props: TuiProps) {
 		onExit: exitCline,
 		onToggleMode: toggleMode,
 		isCloudTarget: cloud.active,
-		onToggleCloudTarget: cloud.toggleTarget,
+		onToggleCloudTarget: canReturnToLocal
+			? returnToLocal
+			: handoff.status?.kind === "complete"
+				? () => {
+						void openCloudHandoff();
+					}
+				: cloud.toggleTarget,
 		onChangeCloudRepo:
 			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,
 		onClearConversation: clearConversation,
@@ -1091,6 +1357,7 @@ function App(props: TuiProps) {
 		onInputFocusRequest: focusPromptInput,
 		repoStatus,
 		cloud: cloud.statusBar,
+		onReturnToLocal: canReturnToLocal ? returnToLocal : undefined,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
 		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
@@ -1153,6 +1420,17 @@ function App(props: TuiProps) {
 	return wrapWithBridge(
 		<box flexDirection="column" width="100%" height="100%">
 			{content}
+			{handoff.notice && (
+				<CloudHandoffStatusBar
+					status={handoff.notice}
+					disabled={isDialogOpen || isRuntimeInteractionOpen}
+					onOpen={openCloudHandoff}
+					canHide={handoff.canHide}
+					onHide={handoff.hide}
+					onRetry={handoff.retry}
+					onRestore={restoreCloudDraft}
+				/>
+			)}
 			<Toast toast={toast} />
 		</box>,
 	);

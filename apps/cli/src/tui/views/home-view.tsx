@@ -43,6 +43,7 @@ export function HomeView(props: {
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 	autocomplete?: AutocompleteDropdownProps;
 	onToggleMode: () => void;
+	onReturnToLocal?: () => void;
 	cloud?: StatusBarCloud;
 }) {
 	const {
@@ -154,6 +155,7 @@ export function HomeView(props: {
 								gitBranch={repoStatus.branch}
 								gitDiffStats={repoStatus.diffStats}
 								onToggleMode={props.onToggleMode}
+								onReturnToLocal={props.onReturnToLocal}
 								variant="home"
 								cloud={props.cloud}
 							/>
