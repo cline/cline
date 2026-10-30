@@ -463,7 +463,7 @@ function DetailPane({
 								className={cn(
 									"mt-2 block text-xs",
 									state?.status === "failed"
-										? "text-destructive"
+										? "text-error-text"
 										: "text-muted-foreground",
 								)}
 							>
@@ -829,7 +829,7 @@ export function MarketplaceExplorerView({
 							</p>
 						) : null}
 						{typeFilter !== "connector" && directory.errorMessage ? (
-							<p className="p-4 text-sm text-destructive" role="alert">
+							<p className="p-4 text-sm text-error-text" role="alert">
 								{directory.errorMessage}
 							</p>
 						) : null}

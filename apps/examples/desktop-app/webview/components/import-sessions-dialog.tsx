@@ -248,7 +248,7 @@ export function ImportSessionsDialog({
 				{phase === "pick" ? (
 					<div className="flex min-h-0 flex-col gap-3">
 						{scanError ? (
-							<p className="text-sm text-destructive" role="alert">
+							<p className="text-sm text-error-text" role="alert">
 								Couldn't scan for sessions: {scanError}
 							</p>
 						) : null}
@@ -481,7 +481,7 @@ export function ImportSessionsDialog({
 									{result.ok ? (
 										<CheckCircle2 className="size-4 shrink-0 text-muted-foreground" />
 									) : (
-										<AlertCircle className="size-4 shrink-0 text-destructive" />
+										<AlertCircle className="size-4 shrink-0 text-error-text" />
 									)}
 									<span className="min-w-0 truncate text-muted-foreground">
 										{result.title ?? result.sourceId}
@@ -511,7 +511,7 @@ export function ImportSessionsDialog({
 										className="flex items-start gap-2"
 										key={importSelectionKey(failure.tool, failure.sourceId)}
 									>
-										<AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+										<AlertCircle className="mt-0.5 size-4 shrink-0 text-error-text" />
 										<span className="min-w-0">
 											<span className="block truncate text-foreground">
 												{failure.title ?? failure.sourceId}
