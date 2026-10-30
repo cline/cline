@@ -5,6 +5,7 @@ import {
 	type ToolResultContent,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { MAX_READ_OUTPUT_CHARS } from "../../extensions/tools/executors/output-limits";
 import {
 	agentMessagesToMessages,
 	messagesToAgentMessages,
@@ -1884,7 +1885,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		// First build: t1 is outdated (~8KB provider-bound reclaimable),
+		// First build: t1 is outdated (~50KB provider-bound reclaimable),
 		// so the rewrite commits immediately.
 		const reqA = builder.buildForApi(base);
 		expect(serializedBlockAt(reqA, 2)).toContain(
@@ -2019,7 +2020,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("uses provider-bound stale bytes after per-result truncation", () => {
-		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 20_000 });
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 60_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2031,7 +2032,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const result = builder.buildForApi(messages);
 
 		// Raw t1 history is ~140KB, but the provider-bound stale entry is capped
-		// near 8KB before threshold accounting. A 20KB threshold must defer.
+		// near 50KB before threshold accounting. A 60KB threshold must defer.
 		expect(JSON.stringify(result[2])).not.toContain("outdated");
 		expect(JSON.stringify(result[2])).toContain("...[truncated");
 	});
@@ -2070,7 +2071,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2", "src/big.ts"),
 			readToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
 		];
-		// Request A: t1 (~8KB provider-bound stale) crosses the test threshold and commits.
+		// Request A: t1 (~50KB provider-bound stale) crosses the test threshold and commits.
 		const reqA = builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
@@ -2249,5 +2250,132 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const result = builder.buildForApi(messages);
 		expect(serializedBlockAt(result, 2)).not.toContain("outdated");
 		expect(serializedBlockAt(result, 2)).toContain("export const x = 1;");
+	});
+});
+
+describe("MessageBuilder read-result cap", () => {
+	const READ_PATH = "/repo/README.md";
+	const READ_FOOTER =
+		"\n\n[Showing lines 1-900 of 2400. Use start_line/end_line to read other sections.]";
+	// Exactly what the file-read executor hands back for a capped window: a
+	// body that fills its character cap, plus the paging footer.
+	const TOOL_CAPPED_READ = `${"r".repeat(MAX_READ_OUTPUT_CHARS - READ_FOOTER.length)}${READ_FOOTER}`;
+	// Twice the file-content cap around a sentinel that only survives when
+	// nothing cuts the middle.
+	const MIDDLE_SENTINEL = "__MIDDLE__";
+	const OVERSIZED_READ = `${"a".repeat(DEFAULT_MAX_FILE_CONTENT_CHARS)}${MIDDLE_SENTINEL}${"b".repeat(DEFAULT_MAX_FILE_CONTENT_CHARS)}`;
+	// Below the default tool-result cap, so an override that is ignored
+	// cannot pass by accident.
+	const EXPLICIT_CAP = DEFAULT_MAX_TOOL_RESULT_CHARS / 2;
+	const TRUNCATION_MARKER = "...[truncated";
+
+	function toolMessages(
+		name: string,
+		input: Record<string, unknown>,
+		content: ToolResultContent["content"],
+	): Message[] {
+		return [
+			{ role: "user", content: "task" },
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call_1", name, input }],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "call_1", name, content },
+				],
+			},
+		];
+	}
+
+	function structured(result: string): ToolResultContent["content"] {
+		return [
+			{ query: READ_PATH, result, success: true },
+		] as unknown as ToolResultContent["content"];
+	}
+
+	/** The read payload as the provider request carries it. */
+	function sentResult(result: Message[]): string {
+		const block = (result[2].content as ToolResultContent[])[0];
+		if (typeof block.content === "string") {
+			return block.content;
+		}
+		return (block.content[0] as unknown as { result: string }).result;
+	}
+
+	function sendRead(
+		builder: MessageBuilder,
+		content: ToolResultContent["content"],
+		name = "read_files",
+	): string {
+		return sentResult(
+			builder.buildForApi(
+				toolMessages(name, { files: [{ path: READ_PATH }] }, content),
+			),
+		);
+	}
+
+	it.each([
+		[
+			"structured read_files output",
+			"read_files",
+			structured(TOOL_CAPPED_READ),
+		],
+		["string output of the read tool", "read", TOOL_CAPPED_READ],
+	])("sends %s that the tool already capped without cutting it again", (_label, name, content) => {
+		expect(sendRead(new MessageBuilder(), content, name)).toBe(
+			TOOL_CAPPED_READ,
+		);
+	});
+
+	it("still cuts a read result that exceeds the file-content cap", () => {
+		const sent = sendRead(new MessageBuilder(), structured(OVERSIZED_READ));
+
+		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_FILE_CONTENT_CHARS);
+		expect(sent).toContain(TRUNCATION_MARKER);
+		expect(sent).not.toContain(MIDDLE_SENTINEL);
+	});
+
+	it("keeps the tool-result cap for tools that do not bound their own output", () => {
+		const sent = sentResult(
+			new MessageBuilder().buildForApi(
+				toolMessages(
+					"run_commands",
+					{ commands: ["cat big.log"] },
+					structured(TOOL_CAPPED_READ),
+				),
+			),
+		);
+
+		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
+		expect(sent).toContain(TRUNCATION_MARKER);
+	});
+
+	it.each([
+		["the maxToolResultChars option", { maxToolResultChars: EXPLICIT_CAP }],
+		[
+			"the environment override",
+			getMessageBuilderOptionsFromEnv({
+				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: String(EXPLICIT_CAP),
+			}),
+		],
+	])("lets a tool-result cap set through %s bound reads too", (_label, options) => {
+		const sent = sendRead(
+			new MessageBuilder(options),
+			structured(TOOL_CAPPED_READ),
+		);
+
+		expect(sent.length).toBeLessThanOrEqual(EXPLICIT_CAP);
+		expect(sent).toContain(TRUNCATION_MARKER);
+	});
+
+	it("keeps the file-content cap for reads when the environment sets no override", () => {
+		const sent = sendRead(
+			new MessageBuilder(getMessageBuilderOptionsFromEnv({})),
+			structured(TOOL_CAPPED_READ),
+		);
+
+		expect(sent).toBe(TOOL_CAPPED_READ);
 	});
 });
