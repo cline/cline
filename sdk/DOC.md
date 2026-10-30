@@ -1,3 +1,49 @@
+## Side-conversation context and history
+
+Import `captureSideReference`, `createSideHistoryTool`, and
+`SIDE_SCOPE_INSTRUCTIONS` from `@cline/core` to compose a side conversation with
+an existing core instance:
+
+```ts
+const parent = await core.get(parentSessionId);
+if (!parent) throw new Error("Parent conversation unavailable");
+const reference = captureSideReference({
+  messages: await core.readMessages(parentSessionId),
+  activeParentTurn: parent.status === "running" || parent.status === "pending",
+  parentTitle: "Main conversation",
+});
+const historyTool = createSideHistoryTool({ manager: core, parentSessionId });
+```
+
+Use the reference as an initial message and opt into `historyTool` through the
+existing extra-tools configuration. `SIDE_SCOPE_INSTRUCTIONS` provides the
+reference-only prompt rules. Configure tool permissions separately; prompt
+instructions do not enforce them. These helpers neither create a session nor
+change the default tool catalog.
+
+The initial reference is capped at 16 KiB and each excerpt at 4 KiB. A supplied
+`visibleContext` must satisfy `SideVisibleContextSchema` from `@cline/shared`
+(or `@cline/shared/browser`), including its 24 KiB total limit. Hosts capture
+this optional supplement from their visible conversation at creation time;
+there is no continuous synchronization.
+
+`read_parent_history` supports `recent`, `search`, and `read`, using the parent
+bound when the tool is created. Results include saved-history limitations and
+separately read parent status. Stale read references are rejected. Neither
+history reads nor the starting reference replay parent tool calls or copy
+parent usage into the side conversation. The existing stored reference marker
+is preserved for transcript compatibility.
+
+Text attachments and tool failure status remain available in references;
+binary media, provider reasoning, and parent cache handles are omitted.
+`read` offsets use UTF-16 code units and cannot split a surrogate pair. Follow
+the returned `nextOffset` to paginate without splitting a character.
+
+Hosts remain responsible for current model/settings selection, session
+creation, retention, discovery visibility, and UI. Desktop is the first client
+using these shared helpers; other clients do not gain a side-chat command or
+UI automatically.
+
 ## Plugin slash commands
 
 Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
