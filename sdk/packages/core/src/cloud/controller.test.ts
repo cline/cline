@@ -4,12 +4,14 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { HubCommandError } from "../hub/client/index";
 import { toHubSessionRecord } from "../hub/server/hub-session-records";
 import {
 	CloudSessionError,
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
 } from "./api";
+import { CLOUD_COMPUTER_USE_PROMPT } from "./computer-use-prompt";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
@@ -82,6 +84,12 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 			},
 		) => {
 			opts?.beforeDispatch?.();
+			if (name === "session.resume")
+				throw new HubCommandError(
+					name,
+					"unsupported_command",
+					"Resume unsupported",
+				);
 			opts?.onDispatch?.(`request-${commands.length}`);
 			commands.push({ command: name, payload, sessionId });
 			let result: Record<string, unknown> = {};
@@ -588,30 +596,35 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it.each([
-		{
-			savedApproval: true,
-			code: "command_failed",
-			savedThinking: { thinking: true, reasoningEffort: "medium" },
-			cold: true,
-		},
-		{
-			savedApproval: false,
-			savedThinking: { thinking: false, reasoningEffort: null },
-		},
-		{
-			savedApproval: false,
-			savedThinking: { thinking: null, reasoningEffort: null },
-		},
-		{
-			savedApproval: undefined,
-			savedThinking: undefined,
-		},
-	])("restores history and saved preferences with legacy host fallback: %j", async ({
+	it.each(
+		[
+			{
+				savedApproval: true,
+				code: "command_failed",
+				savedThinking: { thinking: true, reasoningEffort: "medium" },
+				cold: true,
+			},
+			{
+				savedApproval: false,
+				savedThinking: { thinking: false, reasoningEffort: null },
+			},
+			{
+				savedApproval: false,
+				savedThinking: { thinking: null, reasoningEffort: null },
+			},
+			{
+				savedApproval: undefined,
+				savedThinking: undefined,
+			},
+		].flatMap((options) =>
+			[false, true].map((supportsResume) => ({ ...options, supportsResume })),
+		),
+	)("restores history and saved preferences: %j", async ({
 		savedApproval,
 		code = "session_not_found",
 		savedThinking,
 		cold = false,
+		supportsResume,
 	}) => {
 		const f = resumableFixture();
 		if (!cold)
@@ -655,13 +668,35 @@ describe("CloudSessionController neutral host contract", () => {
 			if (args[0] === "session.get") {
 				return { version: "v1", ok: true, payload: { session: saved } };
 			}
+			if (args[0] === "session.resume" && supportsResume)
+				return { version: "v1", ok: true, payload: { session: saved } };
 			return original(...args);
 		});
 		await f.controller.attach(record.id);
-		const restored = f.commands.find((c) => c.command === "session.create")
-			?.payload as { sessionConfig: Record<string, unknown> };
+		const restored = f.command.mock.calls.find(
+			([command]) =>
+				command === (supportsResume ? "session.resume" : "session.create"),
+		)?.[1] as {
+			sessionConfig: Record<string, unknown>;
+			initialMessages?: unknown;
+		};
+		expect(restored.initialMessages).toEqual(
+			supportsResume ? undefined : messages,
+		);
+		if (supportsResume) {
+			const calls = f.command.mock.calls;
+			const resumeIndex = calls.findIndex(
+				([name]) => name === "session.resume",
+			);
+			expect(restored).not.toHaveProperty("initialMessages");
+			expect(calls.some(([name]) => name === "session.create")).toBe(false);
+			expect(
+				calls
+					.slice(0, resumeIndex)
+					.some(([name]) => name === "session.messages"),
+			).toBe(false);
+		}
 		expect(restored).toMatchObject({
-			initialMessages: messages,
 			sessionConfig: {
 				sessionId: "inner",
 				modelId: "model",
@@ -686,7 +721,40 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when the runtime reports a concurrent restore conflict", async () => {
+	it.each([
+		"hub_command_timeout",
+		"forbidden",
+		"command_failed",
+		"session_messages_not_found",
+	])("does not replay history after resume fails with %s", async (code) => {
+		const f = resumableFixture();
+		const original = f.command.getMockImplementation()!;
+		const failure = new HubCommandError(
+			"session.resume",
+			code,
+			"Resume failed",
+		);
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection")
+				throw Object.assign(new Error("Missing runtime"), {
+					code: "session_not_found",
+				});
+			if (args[0] === "session.resume") throw failure;
+			return original(...args);
+		});
+		await expect(f.controller.attach(record.id)).rejects.toBe(failure);
+		expect(
+			f.command.mock.calls.some(
+				([name]) => name === "session.messages" || name === "session.create",
+			),
+		).toBe(false);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"session.create",
+		"session.resume",
+	])("attaches after a concurrent restore conflict from %s", async (command) => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -697,7 +765,7 @@ describe("CloudSessionController neutral host contract", () => {
 					code: "session_not_found",
 				});
 			}
-			if (args[0] === "session.create") {
+			if (args[0] === command) {
 				throw Object.assign(new Error("Already restored"), {
 					code: "session_already_exists",
 				});
@@ -1516,6 +1584,62 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it.each([
+		["flag on, image model", true, "anthropic/claude-sonnet-4.5", true],
+		["flag off", false, "anthropic/claude-sonnet-4.5", false],
+		["model not in the catalog", true, "model", false],
+	] as const)("gates the computer-use prompt section: %s", async (_label, enabled, modelId, expected) => {
+		const isComputerUseEnabled = vi.fn(async () => enabled);
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled,
+		});
+		f.api.list.mockResolvedValue([
+			{ ...record, metadata: { ...record.metadata, modelId } },
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).toContain("branch `cline/inner`");
+			expect(
+				sessionConfig.systemPrompt.includes(CLOUD_COMPUTER_USE_PROMPT),
+			).toBe(expected);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("omits the computer-use prompt section when the gate throws", async () => {
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled: async () => {
+				throw new Error("flag service down");
+			},
+		});
+		f.api.list.mockResolvedValue([
+			{
+				...record,
+				metadata: {
+					...record.metadata,
+					modelId: "anthropic/claude-sonnet-4.5",
+				},
+			},
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).not.toContain(
+				"Verify your work visually",
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not recreate a missing established session with manual creation options", async () => {
 		const f = fixture();
 		f.setHasInner(false);
@@ -1692,7 +1816,12 @@ describe("seeded cloud handoff controller", () => {
 			reasoningEffort: "high",
 		},
 	};
-	function fixture(taskId?: string) {
+	function fixture(
+		taskId?: string,
+		options: Pick<CloudSessionControllerOptions, "isComputerUseEnabled"> & {
+			modelId?: string;
+		} = {},
+	) {
 		let rows: Record<string, unknown>[] = [];
 		let transcript: MessageWithMetadata[] = [];
 		let failure: "none" | "timeout" | "malformed" | "send-timeout" | "connect" =
@@ -1774,7 +1903,11 @@ describe("seeded cloud handoff controller", () => {
 			list: vi.fn(async () => [
 				{
 					...structuredClone(record),
-					metadata: { ...record.metadata, taskId },
+					metadata: {
+						...record.metadata,
+						...(options.modelId ? { modelId: options.modelId } : {}),
+						taskId,
+					},
 				},
 			]),
 			status: vi.fn(async () => ({ status: "ready" })),
@@ -1805,6 +1938,7 @@ describe("seeded cloud handoff controller", () => {
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "token",
 			getActiveOrganizationId: async () => "active-org",
+			isComputerUseEnabled: options.isComputerUseEnabled,
 			createHubClient: () => ({
 				command: command as never,
 				connect: async () => {},
@@ -1858,6 +1992,21 @@ describe("seeded cloud handoff controller", () => {
 		} finally {
 			await f.controller.dispose();
 		}
+	});
+	it("adds the computer-use prompt section to gated handoffs", async () => {
+		const f = fixture(undefined, {
+			modelId: "anthropic/claude-sonnet-4.5",
+			isComputerUseEnabled: async () => true,
+		});
+		await f.controller.seedHandoff(record.id, seed);
+		const prompt = (
+			f.calls.find((call) => call.name === "session.create")?.payload
+				?.sessionConfig as Record<string, unknown>
+		).systemPrompt as string;
+		expect(prompt).toContain("fresh Linux clone");
+		expect(prompt).toContain("subdirectory at /workspace/packages/app");
+		expect(prompt).toContain(CLOUD_COMPUTER_USE_PROMPT);
+		await f.controller.dispose();
 	});
 	it("does not use old identical seeded text to confirm a new ambiguous send", async () => {
 		const f = fixture();

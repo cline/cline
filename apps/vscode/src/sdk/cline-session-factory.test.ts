@@ -479,6 +479,17 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
 	})
 
+	it("resolves the LM Studio API key from provider settings, not the Anthropic key", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "lmstudio") {
+				return undefined
+			}
+			return { provider: "lmstudio", apiKey: "lmstudio-key" } as any
+		})
+
+		expect(resolveApiKey("lmstudio", { apiKey: "anthropic-key" } as any)).toBe("lmstudio-key")
+	})
+
 	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai-compatible",
