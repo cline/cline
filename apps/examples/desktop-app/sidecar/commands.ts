@@ -3271,10 +3271,12 @@ export async function handleCommand(
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
 		if (clineCredentialsChanged) {
+			// Reset also notifies viewers; ordinary preference changes keep the view.
 			await resetCloudSessionManager(ctx);
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			// Sign-out clears auth through this command rather than an account action.
+			// Update identity immediately instead of waiting for the next account fetch.
 			syncAccountContextFromSettings(ctx, new ProviderSettingsManager());
 		}
 		return saved;

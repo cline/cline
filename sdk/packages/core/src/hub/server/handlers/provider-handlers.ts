@@ -172,14 +172,20 @@ export async function handleProviderCommand(
 				}
 				const saved = await saveLocalProviderSettings(manager, input);
 				if (!saved.enabled) {
+					// Cline Pass stores its credentials under "cline"; removing just the
+					// visible provider would leave the shared account signed in.
 					if (storageProviderId !== saved.providerId) {
 						await saveLocalProviderSettings(manager, {
 							providerId: storageProviderId,
 							enabled: false,
 						});
 					}
+					// ProviderSettingsManager imports missing providers from legacy secrets.
+					// Remove those too so the next read cannot undo this sign-out.
 					clearLegacyProviderCredentials(storageProviderId);
 				}
+				// Ordinary preferences must not reset cloud views. Compare credentials
+				// so hosts can react specifically to sign-in, sign-out, or a key change.
 				const current =
 					storageProviderId === "cline"
 						? manager.getProviderSettings("cline")

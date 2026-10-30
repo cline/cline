@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +17,6 @@ import {
 	NodeHubClient,
 } from "../client";
 import { createHubProvidersApi } from "../client/providers";
-import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { createInMemoryHubOwnerContext } from "../discovery";
 import { HubServerTransport } from "./hub-server-transport";
 import { startHubWebSocketServer } from "./hub-websocket-server";
@@ -26,6 +26,22 @@ let transport: HubServerTransport;
 let transportStopped: boolean;
 let api: ReturnType<typeof createHubProvidersApi>;
 const send = vi.fn();
+
+// Provider tests exercise transport and storage without running scheduled sessions.
+// The production scheduler factory owns a separate SQLite runtime, so avoid it here.
+function createTestRuntimeOptions() {
+	return {
+		sessionHost: new LocalRuntimeHost({
+			sessionService: new FileSessionService(join(root, "sessions")),
+		}),
+		runtimeHandlers: {
+			startSession: vi.fn(),
+			sendSession: vi.fn(),
+			abortSession: vi.fn(),
+			stopSession: vi.fn(),
+		},
+	};
+}
 
 beforeEach(async () => {
 	transportStopped = false;
@@ -39,11 +55,8 @@ beforeEach(async () => {
 		vi.fn(async () => Response.json({})),
 	);
 	transport = new HubServerTransport({
-		sessionHost: new LocalRuntimeHost({
-			sessionService: new FileSessionService(join(root, "sessions")),
-		}),
+		...createTestRuntimeOptions(),
 		workspaceRoot: root,
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		eventLog: false,
 		runQueue: false,
 		sessionSearchOptions: { dbPath: ":memory:" },
@@ -62,13 +75,19 @@ beforeEach(async () => {
 	>);
 });
 afterEach(async () => {
-	if (!transportStopped) await transport?.stop();
-	vi.restoreAllMocks();
-	clearLiveModelsCatalogCache();
-	resetClineRecommendedModelsCacheForTests();
-	vi.unstubAllGlobals();
-	vi.unstubAllEnvs();
-	await rm(root, { recursive: true, force: true });
+	try {
+		if (!transportStopped) await transport?.stop();
+		// Catch accidental SQLite fixture construction on every OS, including those
+		// that allow deleting an open database and would hide Windows' EBUSY failure.
+		expect(existsSync(join(root, "db", "sessions.db"))).toBe(false);
+	} finally {
+		vi.restoreAllMocks();
+		clearLiveModelsCatalogCache();
+		resetClineRecommendedModelsCacheForTests();
+		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
+		await rm(root, { recursive: true, force: true });
+	}
 });
 
 describe("hub provider management", () => {
@@ -284,7 +303,7 @@ describe("hub provider management", () => {
 			port: 0,
 			owner: createInMemoryHubOwnerContext("provider-origin-test"),
 			workspaceRoot: root,
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			...createTestRuntimeOptions(),
 			eventLog: false,
 			runQueue: false,
 			sessionSearchOptions: { dbPath: ":memory:" },
@@ -367,7 +386,7 @@ describe("hub provider management", () => {
 			host: "127.0.0.1",
 			port: 0,
 			owner: createInMemoryHubOwnerContext("provider-rpc-test"),
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			...createTestRuntimeOptions(),
 			eventLog: false,
 			runQueue: false,
 			sessionSearchOptions: { dbPath: ":memory:" },

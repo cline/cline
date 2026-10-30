@@ -169,6 +169,8 @@ describe("provider settings cloud session lifecycle", () => {
 		{ enabled: false },
 	])("resets the cloud manager when credentials change: %j", async (update) => {
 		const { ctx } = createContext();
+		const send = vi.fn();
+		ctx.wsClients.add({ send });
 		const dispose = vi.fn().mockResolvedValue(undefined);
 		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
 			SidecarContext["cloudSessionManager"]
@@ -200,6 +202,9 @@ describe("provider settings cloud session lifecycle", () => {
 			provider: "cline",
 			...update,
 		});
+		expect(
+			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
+		).toEqual(["cloud_sessions_changed"]);
 		expect(ctx.cloudSessionManager).toBeNull();
 		expect(dispose).toHaveBeenCalledOnce();
 	});
