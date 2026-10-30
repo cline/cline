@@ -397,7 +397,7 @@ export function buildAnthropicProviderOptions(
 		...(effort ? { effort } : {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
-			? createEphemeralCacheControl()
+			? createEphemeralCacheControl("cacheControl")
 			: {}),
 	};
 }
