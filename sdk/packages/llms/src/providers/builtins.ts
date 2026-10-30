@@ -1366,7 +1366,7 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "sap-ai-core",
 		client: "ai-sdk-community",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
-		defaultModelId: "anthropic--claude-3.5-sonnet",
+		defaultModelId: "anthropic--claude-4.6-sonnet",
 		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
 		modelsProviderId: "sapaicore",
 		metadata: ANTHROPIC_ROUTING_METADATA,
