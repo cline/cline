@@ -4552,12 +4552,12 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				messages: [
-					expect.objectContaining({
+					// The cache breakpoint has advanced past the opening prompt, so
+					// it no longer carries the marker.
+					{
 						role: "user",
-						content: expect.arrayContaining([
-							expect.objectContaining({ type: "text", text: "hey" }),
-						]),
-					}),
+						content: [{ type: "text", text: "hey" }],
+					},
 					{
 						role: "assistant",
 						content: [
@@ -4578,6 +4578,9 @@ describe("sdk-gateway", () => {
 								toolCallId: "call_1",
 								toolName: "run_commands",
 								output: { type: "json", value: { ok: true } },
+								providerOptions: expect.objectContaining({
+									anthropic: { cache_control: { type: "ephemeral" } },
+								}),
 							},
 						],
 					},
@@ -4589,6 +4592,111 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it.each([
+		{
+			label: "Vertex Claude advances onto the newest tool result",
+			providerConfig: {
+				providerId: "vertex",
+				options: { project: "test-project", location: "global" },
+			},
+			modelId: "claude-sonnet-4-5@20250929",
+			expectToolResultMarker: true,
+		},
+		{
+			label:
+				"OpenAI-compatible Claude routes keep the marker on the last user text",
+			providerConfig: { providerId: "openrouter", apiKey: "openrouter-key" },
+			modelId: "anthropic/claude-sonnet-4.5",
+			expectToolResultMarker: false,
+		},
+	])("prompt cache in tool continuations: $label", async ({
+		providerConfig,
+		modelId,
+		expectToolResultMarker,
+	}) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({ providerConfigs: [providerConfig] });
+
+		await collect(
+			await gateway.stream({
+				providerId: providerConfig.providerId,
+				modelId,
+				messages: [
+					{
+						id: "user_1",
+						role: "user",
+						content: [{ type: "text", text: "hey" }],
+						createdAt: Date.now(),
+					},
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "call_1",
+								toolName: "run_commands",
+								input: { commands: ["pwd"] },
+							},
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "tool_1",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "call_1",
+								toolName: "run_commands",
+								output: { ok: true },
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					messages?: Array<{
+						role: string;
+						content: Array<Record<string, unknown>>;
+					}>;
+			  }
+			| undefined;
+		const userText = call?.messages
+			?.find((message) => message.role === "user")
+			?.content.find((part) => part.type === "text");
+		const toolResult = call?.messages
+			?.find((message) => message.role === "tool")
+			?.content.find((part) => part.type === "tool-result");
+		const marker = expect.objectContaining({
+			anthropic: { cache_control: { type: "ephemeral" } },
+		});
+
+		if (expectToolResultMarker) {
+			expect(toolResult?.providerOptions).toEqual(marker);
+			expect(userText).not.toHaveProperty("providerOptions");
+		} else {
+			expect(toolResult).not.toHaveProperty("providerOptions");
+			expect(userText?.providerOptions).toEqual(marker);
+		}
 	});
 
 	it("preserves Vertex thought signatures on tool calls and replays them", async () => {
