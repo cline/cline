@@ -1005,7 +1005,7 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
-			`reports a failed final native command through ${shell}`,
+			`preserves a failed final native command's exit code through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });
 				let error: unknown;
@@ -1015,8 +1015,7 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 					error = caught;
 				}
 				expect(error).toBeInstanceOf(CommandExitError);
-				// Direct PowerShell -Command normalizes a failed final command to 1.
-				expect((error as CommandExitError).exitCode).toBe(1);
+				expect((error as CommandExitError).exitCode).toBe(5);
 			},
 		);
 
