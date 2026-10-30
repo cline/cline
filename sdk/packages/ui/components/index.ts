@@ -123,11 +123,23 @@ export {
 export { GitHubIcon } from "./github-icon.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
+	PillSelector,
+	PillSelectorItem,
+	type PillSelectorItemProps,
+	type PillSelectorProps,
+} from "./pill-selector.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
 	type SearchComboboxSection,
 } from "./search-combobox.js";
+export {
+	SegmentedControl,
+	type SegmentedControlOption,
+	type SegmentedControlProps,
+	type SegmentedControlSize,
+} from "./segmented-control.js";
 export {
 	SessionStatus,
 	type SessionStatusProps,

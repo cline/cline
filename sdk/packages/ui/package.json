@@ -115,7 +115,11 @@
 		"components/agent-ux-verification.tsx",
 		"components/agent-ux-verification.css",
 		"components/button-control.tsx",
-		"components/button.css"
+		"components/button.css",
+		"components/segmented-control.tsx",
+		"components/segmented-control.css",
+		"components/pill-selector.tsx",
+		"components/pill-selector.css"
 	],
 	"sideEffects": [
 		"./components.css",
@@ -150,7 +154,8 @@
 		"mermaid": ">=11.16.0 <12",
 		"shiki": ">=4.0.0 <5",
 		"streamdown": "^2.5.0",
-		"tailwindcss": ">=4.0.0 <5"
+		"tailwindcss": ">=4.0.0 <5",
+		"react-dom": ">=18.3.0 <20"
 	},
 	"peerDependenciesMeta": {
 		"@pierre/diffs": {
@@ -175,6 +180,9 @@
 			"optional": true
 		},
 		"tailwindcss": {
+			"optional": true
+		},
+		"react-dom": {
 			"optional": true
 		}
 	},
@@ -211,6 +219,7 @@
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"lucide-react": "^0.564.0",
-		"embla-carousel-react": "^8.6.0"
+		"embla-carousel-react": "^8.6.0",
+		"@radix-ui/react-toggle-group": "1.1.11"
 	}
 }

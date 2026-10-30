@@ -1,0 +1,276 @@
+/* Preserve native visibility even when a control has host layout utilities. */
+.cline-ui-segmented-control[hidden]:not([hidden="until-found"]) {
+	display: none;
+}
+
+@layer components {
+	.cline-ui-segmented-control {
+		color-scheme: light;
+		--cline-ui-segmented-height: 2.5rem;
+		--cline-ui-segmented-icon-size: 1rem;
+		--cline-ui-segmented-gap: var(--spacing, 0.25rem);
+		--cline-ui-segmented-padding: var(--spacing, 0.25rem);
+		--cline-ui-segmented-content-gap: calc(2 * var(--spacing, 0.25rem));
+		--cline-ui-segmented-content-padding: calc(2.75 * var(--spacing, 0.25rem));
+		--cline-ui-segmented-foreground: var(--neutral-11);
+		--cline-ui-segmented-active-foreground: var(--foreground);
+		--cline-ui-segmented-hover-foreground: var(--foreground);
+		--cline-ui-segmented-position: var(--cline-ui-segmented-index);
+		--cline-ui-segmented-size: calc(
+			(
+				100% -
+				(var(--cline-ui-segmented-count) - 1) *
+				var(--cline-ui-segmented-gap)
+			) /
+			var(--cline-ui-segmented-count)
+		);
+		--cline-ui-segmented-start: calc(
+			var(--cline-ui-segmented-position) *
+			(var(--cline-ui-segmented-size) + var(--cline-ui-segmented-gap))
+		);
+		position: relative;
+		isolation: isolate;
+		box-sizing: border-box;
+		display: inline-grid;
+		grid-template-columns: repeat(
+				var(--cline-ui-segmented-count),
+				minmax(var(--cline-ui-segmented-height), 1fr)
+			);
+		gap: var(--cline-ui-segmented-gap);
+		/* Keep the native and clipped rows aligned in constrained containers. */
+		min-width: max-content;
+		margin: 0;
+		border: 0;
+		border-radius: calc(var(--radius-md) + var(--cline-ui-segmented-padding));
+		padding: var(--cline-ui-segmented-padding);
+		background: var(--neutral-a2);
+		box-shadow:
+			0 0 0 1px var(--neutral-a3),
+			inset 0 0 6px color-mix(in srgb, #000000aa 12%, transparent);
+		font: inherit;
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	.cline-ui-segmented-control[data-size="xs"] {
+		--cline-ui-segmented-height: 2rem;
+		--cline-ui-segmented-icon-size: 0.875rem;
+		--cline-ui-segmented-gap: calc(0.5 * var(--spacing, 0.25rem));
+		--cline-ui-segmented-padding: calc(0.5 * var(--spacing, 0.25rem));
+		--cline-ui-segmented-content-gap: calc(1.5 * var(--spacing, 0.25rem));
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+
+	.cline-ui-segmented-control[data-size="sm"] {
+		--cline-ui-segmented-height: 2.25rem;
+		--cline-ui-segmented-icon-size: 1rem;
+		--cline-ui-segmented-gap: calc(0.75 * var(--spacing, 0.25rem));
+		--cline-ui-segmented-padding: calc(0.75 * var(--spacing, 0.25rem));
+
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+
+	.cline-ui-segmented-control[data-size="lg"] {
+		/* Keep the medium height while increasing text and icon sizes. */
+		--cline-ui-segmented-icon-size: 1.25rem;
+
+		font-size: var(--text-md);
+		line-height: var(--text-md--line-height);
+		letter-spacing: var(--text-md--letter-spacing);
+	}
+
+	.cline-ui-segmented-control:dir(rtl) {
+		--cline-ui-segmented-position: calc(
+			var(--cline-ui-segmented-count) -
+			1 -
+			var(--cline-ui-segmented-index)
+		);
+	}
+
+	.cline-ui-segmented-control[data-icon-only] {
+		--cline-ui-segmented-foreground: var(--neutral-9);
+		--cline-ui-segmented-active-foreground: var(--neutral-11);
+		--cline-ui-segmented-hover-foreground: var(--neutral-10);
+	}
+
+	.dark .cline-ui-segmented-control,
+	.cline-ui-segmented-control.dark {
+		color-scheme: dark;
+	}
+
+	.cline-ui-segmented-control__option {
+		position: relative;
+		z-index: 1;
+		display: block;
+		min-width: 0;
+		cursor: pointer;
+	}
+
+	.cline-ui-segmented-control__input {
+		/* Include the vertical inset in each native radio's hit target. */
+		position: absolute;
+		inset: calc(-1 * var(--cline-ui-segmented-padding)) 0;
+		z-index: 1;
+		box-sizing: border-box;
+		width: 100%;
+		height: calc(100% + 2 * var(--cline-ui-segmented-padding));
+		margin: 0;
+		opacity: 0;
+		cursor: inherit;
+	}
+
+	.cline-ui-segmented-control__segment {
+		box-sizing: border-box;
+		display: flex;
+		width: 100%;
+		height: 100%;
+		min-height: calc(
+			var(--cline-ui-segmented-height) -
+			2 *
+			var(--cline-ui-segmented-padding)
+		);
+		align-items: center;
+		justify-content: center;
+		gap: var(--cline-ui-segmented-content-gap);
+		border-radius: calc(var(--radius-md) - var(--cline-ui-segmented-padding));
+		padding-inline: var(--cline-ui-segmented-content-padding);
+		color: var(--cline-ui-segmented-foreground);
+		white-space: nowrap;
+	}
+
+	.cline-ui-segmented-control[data-icon-only]
+		.cline-ui-segmented-control__segment {
+		padding-inline: 0;
+	}
+
+	.cline-ui-segmented-control__icon,
+	.cline-ui-segmented-control__icon > svg {
+		display: block;
+		width: var(--cline-ui-segmented-icon-size);
+		height: var(--cline-ui-segmented-icon-size);
+		flex-shrink: 0;
+	}
+
+	.cline-ui-segmented-control__sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		border: 0;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	/* The content stays stationary; only its rounded clipping window moves. */
+	.cline-ui-segmented-control__active {
+		position: absolute;
+		inset: var(--cline-ui-segmented-padding);
+		z-index: 2;
+		pointer-events: none;
+		filter: drop-shadow(0 0 0.5px var(--neutral-a4))
+			drop-shadow(0 1px 1.5px color-mix(in srgb, black 7%, transparent))
+			drop-shadow(0 1px 6px color-mix(in srgb, black 7%, transparent));
+	}
+
+	.cline-ui-segmented-control__active::after {
+		content: "";
+		position: absolute;
+		inset: 0 auto 0 var(--cline-ui-segmented-start);
+		width: var(--cline-ui-segmented-size);
+		border-radius: var(--radius-md);
+		box-shadow: inset 0 0 0.5rem 0
+			light-dark(
+				color-mix(in srgb, var(--neutral-1) 54%, transparent),
+				var(--neutral-a3)
+			);
+	}
+
+	.cline-ui-segmented-control__active-row {
+		display: grid;
+		grid-template-columns: repeat(
+				var(--cline-ui-segmented-count),
+				minmax(0, 1fr)
+			);
+		gap: var(--cline-ui-segmented-gap);
+		height: 100%;
+		background: light-dark(var(--neutral-2), var(--neutral-4));
+		clip-path: inset(
+			0
+				calc(
+					100% -
+					var(--cline-ui-segmented-start) -
+					var(--cline-ui-segmented-size)
+				)
+				0 var(--cline-ui-segmented-start) round var(--radius-md)
+		);
+	}
+
+	.cline-ui-segmented-control__active-row .cline-ui-segmented-control__segment {
+		color: var(--cline-ui-segmented-active-foreground);
+	}
+
+	.cline-ui-segmented-control__input:focus-visible
+		+ .cline-ui-segmented-control__segment {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	.cline-ui-segmented-control:disabled,
+	.cline-ui-segmented-control [data-disabled] {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	@media (hover: hover) {
+		.cline-ui-segmented-control__input:not(:checked, :disabled):hover
+			+ .cline-ui-segmented-control__segment {
+			color: var(--cline-ui-segmented-hover-foreground);
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.cline-ui-segmented-control__active::after {
+			transition: left 220ms cubic-bezier(0.22, 1, 0.36, 1);
+		}
+		.cline-ui-segmented-control__active-row {
+			transition: clip-path 220ms cubic-bezier(0.22, 1, 0.36, 1);
+		}
+	}
+
+	@media (forced-colors: active) {
+		.cline-ui-segmented-control {
+			forced-color-adjust: none;
+			background: Canvas;
+			box-shadow: none;
+			outline: 1px solid ButtonText;
+			outline-offset: -1px;
+		}
+		.cline-ui-segmented-control__active {
+			filter: none;
+		}
+		.cline-ui-segmented-control__active::after {
+			box-shadow: none;
+		}
+		.cline-ui-segmented-control__active-row {
+			background: Highlight;
+		}
+		.cline-ui-segmented-control .cline-ui-segmented-control__segment {
+			color: ButtonText;
+		}
+		.cline-ui-segmented-control__active-row
+			.cline-ui-segmented-control__segment {
+			color: HighlightText;
+		}
+		.cline-ui-segmented-control__input:focus-visible
+			+ .cline-ui-segmented-control__segment {
+			outline-color: Highlight;
+		}
+	}
+}
