@@ -606,6 +606,12 @@ export interface HubRuntimeHostOptions {
 	telemetry?: ITelemetryService;
 }
 
+function isUnsupportedCommandError(error: unknown): boolean {
+	return (
+		(error as { code?: unknown } | undefined)?.code === "unsupported_command"
+	);
+}
+
 function mapStatus(
 	status: HubSessionRecord["status"] | undefined,
 ): SessionStatus {
@@ -897,8 +903,8 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
-		const sendCreateCommand = () =>
-			this.client.command("session.create", {
+		const sendStartCommand = (command: "session.create" | "session.resume") =>
+			this.client.command(command, {
 				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
 				cwd: input.config.cwd,
 				sessionConfig: toJsonRecord(
@@ -923,11 +929,29 @@ export class HubRuntimeHost implements RuntimeHost {
 							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
 						}
 					: {}),
-				initialMessages: input.initialMessages,
+				// `session.resume` makes the Hub read the history from its own store.
+				...(command === "session.create"
+					? { initialMessages: input.initialMessages }
+					: {}),
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
 					: {}),
 			});
+		const sendCreateCommand = async () => {
+			// A saved transcript can exceed the Hub's inbound frame limit, which made
+			// the chat impossible to reopen, so resume it by ID instead of sending it.
+			// Only a Hub that predates the command may fall back to sending it.
+			if (input.resumeFromStore) {
+				try {
+					return await sendStartCommand("session.resume");
+				} catch (error) {
+					if (!isUnsupportedCommandError(error)) {
+						throw error;
+					}
+				}
+			}
+			return await sendStartCommand("session.create");
+		};
 		this.registerPlannedSession(
 			plannedSessionId,
 			capabilities,
