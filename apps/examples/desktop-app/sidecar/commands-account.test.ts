@@ -12,7 +12,6 @@ const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
-const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
 const runProviderOAuthLoginMock = vi.hoisted(() => vi.fn());
 let testDataDir: string;
 
@@ -21,8 +20,9 @@ vi.mock("./oauth-login", () => ({
 	cancelProviderOAuthLogin: vi.fn(),
 }));
 
-vi.mock("./legacy-provider-credentials", () => ({
-	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+vi.mock("./context", async () => ({
+	...(await vi.importActual<typeof import("./context")>("./context")),
+	ensureSharedHubClient: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -40,7 +40,7 @@ vi.mock("@cline/core", async () => {
 			getProviderSettings = getProviderSettingsMock;
 			saveProviderSettings = persistProviderSettingsMock;
 		},
-		saveLocalProviderSettings: saveProviderSettingsMock,
+		createHubProvidersApi: () => ({ saveSettings: saveProviderSettingsMock }),
 		RuntimeOAuthTokenManager: class {
 			resolveProviderApiKey = resolveProviderApiKeyMock;
 		},
@@ -86,7 +86,6 @@ beforeEach(() => {
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
-	clearLegacyProviderCredentialsMock.mockReset();
 	runProviderOAuthLoginMock
 		.mockReset()
 		.mockResolvedValue({ accessToken: "token" });
@@ -148,7 +147,11 @@ describe("provider settings cloud session lifecycle", () => {
 				...update,
 				auth: { accessToken: "token", accountId: "acct-1" },
 			});
-			return { providerId: "cline", enabled: true };
+			return {
+				providerId: "cline",
+				enabled: true,
+				clineCredentialsChanged: false,
+			};
 		});
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
@@ -166,6 +169,8 @@ describe("provider settings cloud session lifecycle", () => {
 		{ enabled: false },
 	])("resets the cloud manager when credentials change: %j", async (update) => {
 		const { ctx } = createContext();
+		const send = vi.fn();
+		ctx.wsClients.add({ send });
 		const dispose = vi.fn().mockResolvedValue(undefined);
 		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
 			SidecarContext["cloudSessionManager"]
@@ -186,82 +191,22 @@ describe("provider settings cloud session lifecycle", () => {
 							},
 						},
 			);
-			return { providerId: "cline", enabled: update.enabled !== false };
+			return {
+				providerId: "cline",
+				enabled: update.enabled !== false,
+				clineCredentialsChanged: true,
+			};
 		});
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline",
 			...update,
 		});
+		expect(
+			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
+		).toEqual(["cloud_sessions_changed"]);
 		expect(ctx.cloudSessionManager).toBeNull();
 		expect(dispose).toHaveBeenCalledOnce();
-	});
-
-	it.each([
-		["cline", ["cline"]],
-		["cline-pass", ["cline", "cline-pass"]],
-	] as const)("clears stored OAuth tokens and identity when a %s API key is pasted", async (provider, savedProviderIds) => {
-		const { ctx } = createContext();
-		getProviderSettingsMock.mockReturnValue({
-			auth: {
-				accessToken: "token",
-				refreshToken: "refresh",
-				accountId: "acct-1",
-			},
-		});
-		saveProviderSettingsMock.mockReturnValue({
-			providerId: provider,
-			enabled: true,
-		});
-		const { handleCommand } = await import("./commands");
-		await handleCommand(ctx, "save_provider_settings", {
-			provider,
-			api_key: "manual-key",
-		});
-		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual(
-			savedProviderIds.map((providerId) =>
-				expect.objectContaining({
-					providerId,
-					apiKey: "manual-key",
-					auth: {
-						accessToken: "",
-						refreshToken: "",
-						apiKey: "",
-						accountId: "",
-					},
-				}),
-			),
-		);
-	});
-
-	it("leaves auth alone for API-key-only providers, empty keys, and keys saved without a sign-in", async () => {
-		const { ctx } = createContext();
-		saveProviderSettingsMock.mockReturnValue({
-			providerId: "anthropic",
-			enabled: true,
-		});
-		const { handleCommand } = await import("./commands");
-		await handleCommand(ctx, "save_provider_settings", {
-			provider: "anthropic",
-			api_key: "sk-test",
-		});
-		await handleCommand(ctx, "save_provider_settings", {
-			provider: "cline",
-			api_key: "",
-		});
-		// Re-committing an unchanged key (e.g. blurring the field) must keep
-		// the account identity that fetchMe stored for a key-only user.
-		getProviderSettingsMock.mockReturnValue({
-			apiKey: "manual-key",
-			auth: { accountId: "acct-1" },
-		});
-		await handleCommand(ctx, "save_provider_settings", {
-			provider: "cline",
-			api_key: "manual-key",
-		});
-		for (const [, request] of saveProviderSettingsMock.mock.calls) {
-			expect(request).not.toHaveProperty("auth");
-		}
 	});
 });
 
@@ -642,40 +587,28 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		);
 	});
 
-	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+	it("forwards Cline Pass sign-out to the hub and updates the cloud view", async () => {
 		const { ctx } = createContext();
 		const dispose = vi.fn().mockResolvedValue(undefined);
 		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
 			SidecarContext["cloudSessionManager"]
 		>;
-		getProviderSettingsMock.mockReturnValue({
-			auth: { accessToken: "token", accountId: "acct-1" },
+		getProviderSettingsMock.mockReturnValue(undefined);
+		saveProviderSettingsMock.mockResolvedValue({
+			providerId: "cline-pass",
+			enabled: false,
+			settingsPath: "/tmp/settings.json",
+			clineCredentialsChanged: true,
 		});
-		saveProviderSettingsMock.mockImplementation(
-			(_manager: unknown, request: { providerId: string }) => {
-				if (request.providerId === "cline") {
-					getProviderSettingsMock.mockReturnValue(undefined);
-				}
-				return {
-					providerId: request.providerId,
-					enabled: false,
-					settingsPath: "/tmp/settings.json",
-				};
-			},
-		);
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline-pass",
 			enabled: false,
 		});
-
-		// Cline Pass stores its credentials under "cline", so both entries go,
-		// and the legacy secrets are cleared for the storage provider.
-		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+		expect(saveProviderSettingsMock).toHaveBeenCalledOnce();
+		expect(saveProviderSettingsMock).toHaveBeenCalledWith(
 			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
-			{ providerId: "cline", enabled: false },
-		]);
-		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
+		);
 		expect(dispose).toHaveBeenCalledOnce();
 		expect(ctx.cloudSessionManager).toBeNull();
 	});

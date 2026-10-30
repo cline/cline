@@ -1,6 +1,12 @@
 import type { AgentMessage } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
+import type {
+	AddProviderActionRequest,
+	ProviderCatalogResponse,
+	ProviderModelsResponse,
+	SaveProviderSettingsActionRequest,
+} from "./rpc/runtime";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 import type {
 	AgendaAutomationPolicy,
@@ -18,6 +24,7 @@ export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 
 export type HubCapabilityName =
+	| HubProviderCommandName
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -51,6 +58,12 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"providers.list",
+	"providers.models.list",
+	"providers.models.recommended",
+	"providers.settings.save",
+	"providers.add",
+	"providers.models.update",
 	"client.register",
 	"client.list",
 	"session.create",
@@ -576,12 +589,50 @@ export interface HubPluginsReloadInput {
 	plugin: string;
 }
 
-/**
- * Strongly typed task command payloads. This map is intentionally extensible so
- * other Hub command families can adopt typed payloads without changing the wire
- * envelope.
- */
+export interface ClineRecommendedModel {
+	id: string;
+	/** Display-ready model name resolved against the model catalog. */
+	name: string;
+	description: string;
+	tags: string[];
+}
+
+export interface ClineRecommendedModelsData {
+	recommended: ClineRecommendedModel[];
+	free: ClineRecommendedModel[];
+	clinePass: ClineRecommendedModel[];
+	/** Free models offered only to cloud sessions (ClineFree). */
+	clineCloud?: ClineRecommendedModel[];
+}
+
+export interface HubProviderSaveResult {
+	providerId: string;
+	enabled: boolean;
+	settingsPath: string;
+	/** Whether the shared Cline account credentials changed during this write. */
+	clineCredentialsChanged: boolean;
+}
+
+export interface HubProviderModelsUpdateInput {
+	providerId: string;
+	models?: string[];
+}
+
+export interface HubProviderMutationResult {
+	providerId: string;
+	settingsPath: string;
+	modelsPath: string;
+	modelsCount: number;
+}
+
+/** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"providers.list": { isClinePassEnabled?: boolean };
+	"providers.models.list": { providerId: string; includeCloudModels?: boolean };
+	"providers.models.recommended": Record<string, never>;
+	"providers.settings.save": Omit<SaveProviderSettingsActionRequest, "action">;
+	"providers.add": Omit<AddProviderActionRequest, "action">;
+	"providers.models.update": HubProviderModelsUpdateInput;
 	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
 	"task.list": AgendaTaskListInput;
@@ -597,8 +648,14 @@ export interface HubCommandInputMap {
 	"plugins.reload": HubPluginsReloadInput;
 }
 
-/** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
+/** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"providers.list": ProviderCatalogResponse;
+	"providers.models.list": ProviderModelsResponse;
+	"providers.models.recommended": ClineRecommendedModelsData;
+	"providers.settings.save": HubProviderSaveResult;
+	"providers.add": HubProviderMutationResult;
+	"providers.models.update": HubProviderMutationResult;
 	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
@@ -620,7 +677,16 @@ export type HubCommandInput<TCommand extends HubTypedCommandName> =
 export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
+export type HubProviderCommandName =
+	| "providers.list"
+	| "providers.models.list"
+	| "providers.models.recommended"
+	| "providers.settings.save"
+	| "providers.add"
+	| "providers.models.update";
+
 export type HubCommandName =
+	| HubProviderCommandName
 	| "cloud.command"
 	| "cloud.watch"
 	| "client.register"

@@ -1057,6 +1057,7 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";

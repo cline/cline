@@ -365,6 +365,36 @@ take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
+### Hub provider and model management
+
+Use `createHubProvidersApi(client)` from `@cline/core` or `@cline/core/hub`
+with an existing registered `NodeHubClient`. Provider settings belong to the
+machine running that Hub; Desktop uses its local connection even while viewing
+an SSH environment.
+
+| Method | Hub command |
+| --- | --- |
+| `list({ isClinePassEnabled })` | `providers.list` |
+| `listModels({ providerId, includeCloudModels })` | `providers.models.list` |
+| `recommendedModels()` | `providers.models.recommended` |
+| `saveSettings({ providerId, ...settings })` | `providers.settings.save` |
+| `add({ providerId, name, baseUrl, ...options })` | `providers.add` |
+| `updateModels({ providerId, models })` | `providers.models.update` |
+
+The network-free catalog includes saved voice selection and authentication
+metadata. Model discovery uses current provider credentials and omits bundled
+known-model overrides; Cline cloud models are included only when explicitly
+requested. Recommended models retain the bundled offline fallback.
+
+Settings writes merge nested configuration. Null or empty-string nested values
+remove individual fields. Disabling Cline Pass also removes its shared Cline
+credentials, and disabling a provider clears applicable legacy secrets so they
+cannot restore the removed credentials. `saveSettings` returns
+`clineCredentialsChanged` alongside the saved provider id, enabled state, and
+settings path, allowing hosts to update account and cloud views. Provider API
+calls do not automatically resend dispatched requests after a connection loss.
+OAuth login and audio transcription remain separate APIs.
+
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,

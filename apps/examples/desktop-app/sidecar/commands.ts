@@ -20,7 +20,7 @@ import {
 	posix,
 	sep,
 } from "node:path";
-import { isDeepStrictEqual, promisify } from "node:util";
+import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
 	CoreSettingsSnapshot,
@@ -33,23 +33,19 @@ import type {
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
-	addLocalProvider,
 	ClineAccountService,
 	type ClineAccountUser,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
+	createHubProvidersApi,
 	createUserInstructionConfigService,
-	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
-	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
-	getLocalProviderModels,
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
 	isModelToolEnabledGlobally,
 	listHookConfigFiles,
-	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
@@ -67,13 +63,11 @@ import {
 	SessionImportService,
 	type SessionImportTool,
 	SqliteSessionStore,
-	saveLocalProviderSettings,
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
-	updateLocalProvider,
 	updateMcpSettingsFileSync,
 	upgradeManagedHub,
 } from "@cline/core";
@@ -148,7 +142,6 @@ import {
 	resolveKeybindingsPath,
 	writeKeybindings,
 } from "./keybindings";
-import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	handleLocalModelsCommand,
 	LOCAL_MODELS_COMMANDS,
@@ -3111,9 +3104,8 @@ export async function handleCommand(
 
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
-		const manager = new ProviderSettingsManager();
-		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager, { isClinePassEnabled: true });
+		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
+		return await providers.list({ isClinePassEnabled: true });
 	}
 	if (command === "list_transcription_models") {
 		const manager = new ProviderSettingsManager();
@@ -3124,17 +3116,15 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_provider_models") {
-		const manager = new ProviderSettingsManager();
-		const providerId = String(args?.provider ?? "").trim();
-		return await getLocalProviderModels(
-			providerId,
-			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-		);
+		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
+		return await providers.listModels({
+			providerId: String(args?.provider ?? "").trim(),
+		});
 	}
 	if (command === "list_cline_recommended_models") {
-		// Tiered picker data (recommended / free / clinePass) with
-		// display-ready names; falls back to a bundled list offline.
-		return await fetchClineRecommendedModels();
+		return await createHubProvidersApi(
+			await ensureSharedHubClient(ctx),
+		).recommendedModels();
 	}
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();
@@ -3272,86 +3262,28 @@ export async function handleCommand(
 		return result;
 	}
 	if (command === "save_provider_settings") {
-		const manager = new ProviderSettingsManager();
-		const providerId = String(args?.provider ?? "").trim();
-		const storageProviderId =
-			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
-		const stored = manager.getProviderSettings(storageProviderId);
-		const previous = storageProviderId === "cline" ? stored : undefined;
-		const update = readProviderSettingsUpdate(args);
-		const apiKey = typeof args?.api_key === "string" ? args.api_key : undefined;
-		// A pasted key must replace a browser sign-in: credential resolution
-		// prefers OAuth tokens when both are stored, so leftover tokens would
-		// silently win over the new key and the panel would keep reporting
-		// "Signed in via browser" (mirrors the CLI's saveManualProviderApiKey).
-		// The account identity goes too; the key may belong to a different
-		// account, and the follow-up fetchMe re-establishes it. Re-saving a
-		// key with no sign-in to replace leaves the stored identity alone.
-		if (
-			apiKey?.trim() &&
-			getProviderAuthHandler(providerId) &&
-			update.auth === undefined &&
-			stored?.auth?.accessToken
-		) {
-			update.auth = {
-				accessToken: "",
-				refreshToken: "",
-				apiKey: "",
-				accountId: "",
-			};
-			if (storageProviderId !== providerId) {
-				await saveLocalProviderSettings(manager, {
-					providerId: storageProviderId,
-					apiKey,
-					auth: update.auth,
-				});
-			}
-		}
-		const saved = await saveLocalProviderSettings(manager, {
-			...update,
-			providerId,
+		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
+		const { clineCredentialsChanged, ...saved } = await providers.saveSettings({
+			...readProviderSettingsUpdate(args),
+			providerId: String(args?.provider ?? "").trim(),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
-			apiKey,
+			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
-		if (!saved.enabled) {
-			// Cline Pass keeps its credentials under "cline", so removing only
-			// its own entry would leave the account signed in.
-			if (storageProviderId !== saved.providerId) {
-				await saveLocalProviderSettings(manager, {
-					providerId: storageProviderId,
-					enabled: false,
-				});
-			}
-			// Removing a providers.json entry lets the legacy import restore it
-			// from the extension's secrets.json on the next command unless those
-			// credentials go too. A failed write throws so the webview reports
-			// the sign-out as failed and resyncs.
-			clearLegacyProviderCredentials(storageProviderId);
+		if (clineCredentialsChanged) {
+			// Reset also notifies viewers; ordinary preference changes keep the view.
+			await resetCloudSessionManager(ctx);
 		}
-		if (storageProviderId === "cline") {
-			const current = manager.getProviderSettings(storageProviderId);
-			// Ordinary provider preferences must not interrupt cloud sessions.
-			if (
-				previous?.apiKey !== current?.apiKey ||
-				!isDeepStrictEqual(previous?.auth, current?.auth)
-			) {
-				await resetCloudSessionManager(ctx);
-			}
-		}
-		// Sign-out is a `save_provider_settings` that blanks the cline auth block
-		// (see signOut in webview settings/account-view.tsx), so this is the
-		// authoritative signal — it fires the moment credentials are cleared
-		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			syncAccountContextFromSettings(ctx, manager);
+			// Sign-out clears auth through this command rather than an account action.
+			// Update identity immediately instead of waiting for the next account fetch.
+			syncAccountContextFromSettings(ctx, new ProviderSettingsManager());
 		}
 		return saved;
 	}
 	if (command === "add_provider") {
-		const manager = new ProviderSettingsManager();
-		await ensureCustomProvidersLoaded(manager);
-		return await addLocalProvider(manager, {
+		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
+		return await providers.add({
 			providerId: String(args?.provider_id ?? ""),
 			name: String(args?.name ?? ""),
 			baseUrl: String(args?.base_url ?? ""),
@@ -3387,11 +3319,9 @@ export async function handleCommand(
 		});
 	}
 	if (command === "update_provider_models") {
-		const providerId = String(args?.provider ?? "").trim();
-		const manager = new ProviderSettingsManager();
-		await ensureCustomProvidersLoaded(manager);
-		return await updateLocalProvider(manager, {
-			providerId,
+		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
+		return await providers.updateModels({
+			providerId: String(args?.provider ?? "").trim(),
 			models: Array.isArray(args?.models)
 				? (args.models as string[])
 				: undefined,
