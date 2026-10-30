@@ -664,22 +664,22 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	MermaidThemeTokens
 > = {
 	dark: {
-		background: "#18191b",
-		border: "#2f2f37",
-		error: "#e54666",
-		foreground: "#fcfcfd",
-		muted: "#212225",
-		mutedForeground: "#b0b4ba",
-		primary: "#6e56cf",
+		background: "#1a1a1f",
+		border: "#282830",
+		error: "#c5372f",
+		foreground: "#fcfcfc",
+		muted: "#212127",
+		mutedForeground: "#c0c0c7",
+		primary: "#6464ec",
 	},
 	light: {
-		background: "#f9f9fb",
-		border: "#e8e8ec",
-		error: "#e54666",
-		foreground: "#1c2024",
-		muted: "#f0f0f3",
-		mutedForeground: "#60646c",
-		primary: "#6e56cf",
+		background: "#f3f3fa",
+		border: "#e3e3ee",
+		error: "#df3322",
+		foreground: "#1f1f25",
+		muted: "#ececf5",
+		mutedForeground: "#3c3c44",
+		primary: "#5e55ed",
 	},
 };
 
