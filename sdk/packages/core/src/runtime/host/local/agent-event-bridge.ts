@@ -215,6 +215,14 @@ export class AgentEventBridge {
 			event.name !== "queue_message" &&
 			event.name !== "pending_prompt"
 		) {
+			this.deps.emit({
+				type: "plugin_event",
+				payload: {
+					sessionId: rootSessionId,
+					name: event.name,
+					payload: event.payload,
+				},
+			});
 			return;
 		}
 		const payload =

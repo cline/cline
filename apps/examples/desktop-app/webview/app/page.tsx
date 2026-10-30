@@ -66,6 +66,7 @@ import {
 	getInitialChatConfig,
 	getInitialCloudModel,
 } from "@/hooks/chat-session/constants";
+import { useNextTurnSuggestions } from "@/hooks/next-turn-suggestions";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -1563,6 +1564,7 @@ function ChatThreadPane({
 	const {
 		sessionId,
 		status,
+		turnEpoch,
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
@@ -1610,6 +1612,12 @@ function ChatThreadPane({
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
+	const nextTurn = useNextTurnSuggestions({
+		sessionId,
+		status,
+		turnEpoch,
+		setPromptInput,
+	});
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -3276,6 +3284,9 @@ function ChatThreadPane({
 			onSwitchGitBranch={switchGitBranch}
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
+			nextTurnSuggestion={nextTurn.suggestion}
+			onAcceptNextTurnSuggestion={nextTurn.accept}
+			onNavigateNextTurnSuggestion={nextTurn.navigate}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
 			onOpenLocalModels={onOpenLocalModels}

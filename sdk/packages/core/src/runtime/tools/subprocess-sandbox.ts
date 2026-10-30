@@ -4,6 +4,7 @@ import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
+import { withHostClineDirEnv } from "@cline/shared/storage";
 import {
 	MAX_NODE_TIMER_DELAY_MS,
 	normalizeIdleTimeoutMs,
@@ -305,7 +306,9 @@ export class SubprocessSandbox {
 		});
 		const executable =
 			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
-		const env = { ...withResolvedClineBuildEnv(process.env) };
+		const env = withHostClineDirEnv({
+			...withResolvedClineBuildEnv(process.env),
+		});
 		if (this.options.launcher) delete env.BUN_BE_BUN;
 		else if (isCompiledBunExecutable(executable)) env.BUN_BE_BUN = "1";
 		const child = spawn(executable, command.slice(1), {

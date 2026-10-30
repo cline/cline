@@ -338,6 +338,9 @@ type ChatInputBarProps = {
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
+	nextTurnSuggestion?: string;
+	onAcceptNextTurnSuggestion?: () => void;
+	onNavigateNextTurnSuggestion?: (direction: "next" | "previous") => void;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
@@ -395,6 +398,9 @@ function ChatInputBarImpl({
 	cloudBranch,
 	hasActiveSession = false,
 	promptDraft,
+	nextTurnSuggestion,
+	onAcceptNextTurnSuggestion,
+	onNavigateNextTurnSuggestion,
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
@@ -1471,6 +1477,30 @@ function ChatInputBarImpl({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
+								if (
+									promptInput === "" &&
+									nextTurnSuggestion &&
+									!readOnly &&
+									!speechInputActive &&
+									!e.shiftKey &&
+									!e.altKey &&
+									!e.ctrlKey &&
+									!e.metaKey
+								) {
+									if (e.key === "Tab" || e.key === "ArrowRight") {
+										e.preventDefault();
+										setPromptInput(nextTurnSuggestion);
+										onAcceptNextTurnSuggestion?.();
+										return;
+									}
+									if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+										e.preventDefault();
+										onNavigateNextTurnSuggestion?.(
+											e.key === "ArrowDown" ? "next" : "previous",
+										);
+										return;
+									}
+								}
 								if (e.key === "Escape" && canAbort) {
 									e.preventDefault();
 									onAbort();
@@ -1500,17 +1530,19 @@ function ChatInputBarImpl({
 							placeholder={
 								speechInputProcessing
 									? "Transcribing voice input…"
-									: needsCloudRepository
-										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+									: promptInput === "" && nextTurnSuggestion
+										? nextTurnSuggestion
+										: needsCloudRepository
+											? "Choose a repository"
+											: isBusy && variant !== "welcome"
+												? promptsInQueue.length > 0
+													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+													: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}

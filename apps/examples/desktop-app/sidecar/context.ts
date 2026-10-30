@@ -647,6 +647,28 @@ export function handleCoreSessionEvent(
 			sendEvent(ctx, "team_progress", event.payload);
 			break;
 		}
+		case "session_snapshot": {
+			// The webview hydrates history itself and does not subscribe to snapshots.
+			break;
+		}
+		case "plugin_event": {
+			if (event.payload.name !== "next_turn.suggestions") break;
+			const pluginPayload =
+				event.payload.payload &&
+				typeof event.payload.payload === "object" &&
+				!Array.isArray(event.payload.payload)
+					? event.payload.payload
+					: {};
+			sendEvent(ctx, "next_turn_suggestions", {
+				...pluginPayload,
+				sessionId: event.payload.sessionId,
+			});
+			break;
+		}
+		default: {
+			const _exhaustive: never = event;
+			break;
+		}
 	}
 }
 

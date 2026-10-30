@@ -686,6 +686,7 @@ export function useChatSession(environmentId: string) {
 	// Bumped whenever a new turn begins; lets async queue checks detect that
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
+	const [turnEpoch, setTurnEpoch] = useState(0);
 	// Epoch at which the current turn reached a terminal status. Hub-projected
 	// chat_session_status events are asynchronous and a stale "running" can
 	// trail chat_done; when no new turn has started since the turn settled
@@ -1868,6 +1869,7 @@ export function useChatSession(environmentId: string) {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				setTurnEpoch(turnEpochRef.current);
 				failureTurnGenerationRef.current += 1;
 				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
@@ -2909,6 +2911,7 @@ export function useChatSession(environmentId: string) {
 					createdAt: now,
 				});
 				turnEpochRef.current += 1;
+				setTurnEpoch(turnEpochRef.current);
 				// Fresh turn: forget any error remembered from a previous turn so
 				// a detail-less failure of this turn cannot pick it up.
 				delete lastCoreErrorBySessionRef.current[plannedSessionId];
@@ -2922,6 +2925,7 @@ export function useChatSession(environmentId: string) {
 				// predates this prompt and must not wipe the optimistic queue
 				// entry or flip the session to completed.
 				turnEpochRef.current += 1;
+				setTurnEpoch(turnEpochRef.current);
 				setPromptsInQueue((prev) => [
 					...prev,
 					{
@@ -4322,6 +4326,7 @@ export function useChatSession(environmentId: string) {
 	return {
 		sessionId,
 		status,
+		turnEpoch,
 		isCloudSessionExpired,
 		chatTransportState,
 		chatTransportError,

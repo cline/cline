@@ -2043,6 +2043,19 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "plugin.event": {
+				if (typeof event.payload?.name === "string") {
+					this.events.emit({
+						type: "plugin_event",
+						payload: {
+							sessionId,
+							name: event.payload.name,
+							payload: event.payload.payload,
+						},
+					});
+				}
+				return;
+			}
 			case "session.created":
 			case "session.updated":
 			case "session.attached":

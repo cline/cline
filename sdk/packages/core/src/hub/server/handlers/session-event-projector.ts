@@ -106,6 +106,15 @@ export async function projectSessionEvent(
 				),
 			);
 			return;
+		case "plugin_event":
+			ctx.publish(
+				ctx.buildEvent(
+					"plugin.event",
+					{ name: event.payload.name, payload: event.payload.payload },
+					event.payload.sessionId,
+				),
+			);
+			return;
 		case "status": {
 			const [session, snapshot] = await Promise.all([
 				readHubSessionRecord(ctx, event.payload.sessionId),

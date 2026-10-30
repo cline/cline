@@ -67,6 +67,12 @@ export interface SessionSnapshotEvent {
 	snapshot: CoreSessionSnapshot;
 }
 
+export interface CorePluginEvent {
+	sessionId: string;
+	name: string;
+	payload?: unknown;
+}
+
 export type CoreSessionEvent =
 	| { type: "chunk"; payload: SessionChunkEvent }
 	| {
@@ -89,4 +95,5 @@ export type CoreSessionEvent =
 	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
-	| { type: "status"; payload: { sessionId: string; status: string } };
+	| { type: "status"; payload: { sessionId: string; status: string } }
+	| { type: "plugin_event"; payload: CorePluginEvent };
