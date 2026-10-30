@@ -34,6 +34,11 @@ history reads nor the starting reference replay parent tool calls or copy
 parent usage into the side conversation. The existing stored reference marker
 is preserved for transcript compatibility.
 
+Text attachments and tool failure status remain available in references;
+binary media, provider reasoning, and parent cache handles are omitted.
+`read` offsets use UTF-16 code units and cannot split a surrogate pair. Follow
+the returned `nextOffset` to paginate without splitting a character.
+
 Hosts remain responsible for current model/settings selection, session
 creation, retention, discovery visibility, and UI. Desktop is the first client
 using these shared helpers; other clients do not gain a side-chat command or

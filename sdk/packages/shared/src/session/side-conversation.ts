@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { formatFileContentBlock } from "../prompt/format";
+
+const TextFileSchema = z.object({ path: z.string(), content: z.string() });
 
 // Preserve the stored marker used by existing conversation transcripts.
 export const SIDE_REFERENCE_KIND = "desktop_side_reference";
@@ -45,6 +48,11 @@ export function serializeReferenceData(
 	return sanitizeReferenceText(
 		JSON.stringify(value, (_key, item: unknown) => {
 			if (item && typeof item === "object" && "type" in item) {
+				if (item.type === "file") {
+					const file = TextFileSchema.safeParse(item);
+					if (file.success)
+						return formatFileContentBlock(file.data.path, file.data.content);
+				}
 				if (
 					["image", "audio", "media", "file"].includes(String(item.type)) ||
 					(item.type === "resource" &&
