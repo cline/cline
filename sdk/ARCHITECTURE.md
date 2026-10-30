@@ -1331,5 +1331,3 @@ The reusable `@cline/ui` UX verification carousel consumes a report contract own
 Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.
 
 UX screenshot evidence specializes the existing `GeneratedMediaSchema` to supported raster images rather than introducing another transport shape. Reports can retain artifact IDs while Desktop/IDE/web consumers reuse their existing media-access lifecycle through the renderer callback. The shared UI performs no artifact lookup, upload, signed-URL refresh or transcript mutation.
-
-The Desktop host now supplies `ArtifactImage` to the UX report renderer, reusing `useArtifactResource` → `resolve_artifact` → `HubCloudSessionClient.getArtifactDownloadUrl` for cloud evidence. A semantic report result is sufficient; no dedicated producer tool or storage interface is introduced. Product transcript grouping remains an independent concern.

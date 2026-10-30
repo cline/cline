@@ -411,6 +411,6 @@ A Desktop consumer can pass `check.screenshot` directly to its existing `Artifac
 
 `ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.
 
-A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. Desktop does this for inline screenshots so the shared Blob rendering and image-load fallback stay active.
+A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. For example, an artifact renderer returns `undefined` for inline screenshots so the shared Blob rendering and image-load fallback stay active.
 
 `presentation` is `"slide"` or `"thumbnail"`. Thumbnail content lives inside the selection button and must not render buttons, links or other interactive controls. Hosts should disable retry controls in that context while keeping recovery available in the main view. `GeneratedMediaContent` shows its unavailable fallback if inline image bytes fail to decode, including in expanded host viewers.
