@@ -142,7 +142,7 @@ const schemas = {
 	getArtifactDownloadUrl: z.tuple([
 		id,
 		z.string().min(1),
-		z.string().min(1).optional(),
+		z.string().min(1).nullish(),
 	]),
 	updateTitle: z.tuple([id, z.string()]),
 	delete: z.tuple([id]),

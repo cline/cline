@@ -2269,9 +2269,7 @@ export async function handleCommand(
 				"Artifact access is not available for local sessions yet.",
 			);
 		}
-		return downloadFilename
-			? cloud.getArtifactDownloadUrl(sessionId, artifactId, downloadFilename)
-			: cloud.getArtifactDownloadUrl(sessionId, artifactId);
+		return cloud.getArtifactDownloadUrl(sessionId, artifactId, downloadFilename);
 	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
