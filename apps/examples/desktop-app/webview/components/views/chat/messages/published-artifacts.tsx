@@ -1,90 +1,90 @@
 "use client";
 
 import { SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared/browser";
-import { z } from "zod";
+import {
+	Carousel,
+	CarouselContent,
+	CarouselItem,
+	CarouselNext,
+	CarouselPrevious,
+} from "@cline/ui";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useArtifactResource } from "@/hooks/use-artifact-resource";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import { ArtifactImage } from "./artifact-image";
-import { normalizeDisplayValue } from "./tool-summaries";
-
-const PublicationSchema = z.object({
-	files: z
-		.array(
-			z.union([
-				z.object({
-					path: z.string(),
-					error: z.object({ code: z.string(), message: z.string() }),
-				}),
-				z.object({
-					path: z.string(),
-					artifactId: z.string().min(1),
-					error: z.never().optional(),
-				}),
-			]),
-		)
-		.nonempty(),
-});
-
-export function parsePublishedArtifacts(value: unknown) {
-	const parsed = PublicationSchema.safeParse(normalizeDisplayValue(value));
-	return parsed.success ? parsed.data.files : undefined;
-}
+import type { PublishedFile } from "./tool-summaries";
 
 export function PublishedArtifacts({
 	files,
 	sessionId,
 }: {
-	files: z.infer<typeof PublicationSchema>["files"];
+	files: PublishedFile[];
 	sessionId: string;
 }) {
+	const images: ReactNode[] = [];
+	const otherFiles: ReactNode[] = [];
+	for (const [index, file] of files.entries()) {
+		const name = file.path.split(/[\\/]/).pop() || file.path;
+		const mediaType = imageAttachmentMediaType({ name, type: "" });
+		const details = (
+			<div className="flex flex-wrap items-center gap-2">
+				<span className="break-all">{name}</span>
+				{file.error ? (
+					<span className="text-destructive">{file.error.message}</span>
+				) : (
+					<DownloadArtifact
+						sessionId={sessionId}
+						artifactId={file.artifactId}
+					/>
+				)}
+			</div>
+		);
+		const key = `${index}:${file.path}`;
+		if (
+			!file.error &&
+			mediaType &&
+			SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === mediaType)
+		) {
+			images.push(
+				<CarouselItem key={key} aria-label={name} className="space-y-2">
+					{details}
+					<ArtifactImage
+						sessionId={sessionId}
+						media={{
+							id: file.artifactId,
+							name,
+							modality: "image",
+							mediaType,
+							source: { type: "artifact", artifactId: file.artifactId },
+						}}
+						className="flex min-h-48 items-center justify-center rounded-lg border border-border bg-muted/30"
+						classNames={{ image: "max-h-96 max-w-full object-contain" }}
+					/>
+				</CarouselItem>,
+			);
+		} else {
+			otherFiles.push(<li key={key}>{details}</li>);
+		}
+	}
 	return (
-		<ul className="space-y-2 py-1 text-sm">
-			{files.map((file, index) => {
-				const name = file.path.split(/[\\/]/).pop() || file.path;
-				const mediaType = imageAttachmentMediaType({ name, type: "" });
-				return (
-					<li
-						key={`${index}:${file.path}`}
-						className="flex flex-wrap items-center gap-2"
-					>
-						<span className="break-all">{name}</span>
-						{file.error ? (
-							<span className="text-destructive">{file.error.message}</span>
-						) : (
-							<>
-								<DownloadArtifact
-									sessionId={sessionId}
-									artifactId={file.artifactId}
-								/>
-								{mediaType &&
-									SUPPORTED_IMAGE_MEDIA_TYPES.some(
-										(type) => type === mediaType,
-									) && (
-										<ArtifactImage
-											sessionId={sessionId}
-											media={{
-												id: file.artifactId,
-												name,
-												modality: "image",
-												mediaType,
-												source: {
-													type: "artifact",
-													artifactId: file.artifactId,
-												},
-											}}
-											classNames={{
-												image:
-													"max-h-96 max-w-full rounded-lg border border-border object-contain",
-											}}
-										/>
-									)}
-							</>
-						)}
-					</li>
-				);
-			})}
-		</ul>
+		<div className="min-w-0 space-y-2 py-1 text-sm">
+			{images.length > 0 && (
+				<Carousel aria-label="Published images" opts={{ loop: true }}>
+					<CarouselContent>{images}</CarouselContent>
+					{images.length > 1 && (
+						<div className="mt-2 flex items-center justify-end gap-2">
+							<span className="mr-auto text-muted-foreground">
+								{images.length} images
+							</span>
+							<CarouselPrevious className="rounded-md border border-border p-2 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" />
+							<CarouselNext className="rounded-md border border-border p-2 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" />
+						</div>
+					)}
+				</Carousel>
+			)}
+			{otherFiles.length > 0 && <ul className="space-y-2">{otherFiles}</ul>}
+		</div>
 	);
 }
 

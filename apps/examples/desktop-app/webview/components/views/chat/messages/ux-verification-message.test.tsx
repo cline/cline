@@ -3,9 +3,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { ToolMessageBlock } from "./tool-message-block";
 import { ChatMessages } from "../chat-messages";
-import { isUxVerificationMessage } from "./ux-verification-message";
+import { ToolMessageBlock } from "./tool-message-block";
+import { isUxVerificationMessage } from "./tool-summaries";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -222,7 +222,7 @@ it("recognizes report semantics without requiring a particular tool name", () =>
 		false,
 	);
 });
-it("renders the report from the main chat using its existing work disclosure", async () => {
+it("keeps the report visible in completed chat without an empty work disclosure", async () => {
 	const input = message();
 	await act(async () =>
 		root.render(
@@ -254,15 +254,9 @@ it("renders the report from the main chat using its existing work disclosure", a
 			/>,
 		),
 	);
-	const work = container.querySelector<HTMLButtonElement>(
-		"button.cline-chat-work-trigger",
-	)!;
-	expect(work).not.toBeNull();
-	expect(container.textContent).toContain("Completed checks");
-	expect(mocks.invoke).not.toHaveBeenCalled();
-	await act(async () => work.click());
-	await revealImages();
+	expect(container.querySelector("button.cline-chat-work-trigger")).toBeNull();
 	expect(container.textContent).toContain("Verified navigation");
+	await revealImages();
 	expect(mainImage()?.src).toContain(
 		"https://storage.example/image.png?signature=",
 	);

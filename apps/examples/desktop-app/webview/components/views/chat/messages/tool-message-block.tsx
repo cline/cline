@@ -24,21 +24,17 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
-import {
-	isUxVerificationMessage,
-	UxVerificationMessage,
-} from "./ux-verification-message";
-import {
-	PublishedArtifacts,
-	parsePublishedArtifacts,
-} from "./published-artifacts";
+import { PublishedArtifacts } from "./published-artifacts";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
 	extractSubmitSummaryText,
 	formatToolValue,
+	getPublishedArtifacts,
+	isUxVerificationMessage,
 } from "./tool-summaries";
+import { UxVerificationMessage } from "./ux-verification-message";
 
 type ProceedWhileRunningHandler = (
 	sessionId: string,
@@ -161,13 +157,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const otherOutputMedia = summary.outputMedia.filter(
 		(media) => media.modality !== "image",
 	);
-	const publishedFiles =
-		toolName === "publish_artifacts" &&
-		!inProgress &&
-		!payload?.isError &&
-		message.sessionId
-			? parsePublishedArtifacts(payload?.result)
-			: undefined;
+	const publishedFiles = getPublishedArtifacts(message);
 	const shouldAutoOpen =
 		Boolean(publishedFiles) ||
 		hasFileDiffs ||

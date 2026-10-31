@@ -2,6 +2,7 @@ import {
 	buildToolSummary,
 	type ToolSummary,
 } from "@cline/ui/components/agent-chat/tool-summary";
+import { z } from "zod";
 import type { ChatMessage } from "@/lib/chat-schema";
 
 /**
@@ -120,7 +121,7 @@ export type ToolPresentation = {
 	summary: ToolSummary;
 };
 
-export function buildToolPresentation(message: ChatMessage): ToolPresentation {
+function parseToolMessage(message: ChatMessage) {
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
@@ -128,6 +129,11 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		hookEventName === "tool_call_start" ||
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
+	return { payload, toolName, inProgress };
+}
+
+export function buildToolPresentation(message: ChatMessage): ToolPresentation {
+	const { payload, toolName, inProgress } = parseToolMessage(message);
 	const summary = buildToolSummary({
 		toolName,
 		input: payload?.input,
@@ -136,4 +142,59 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		inProgress,
 	});
 	return { message, payload, toolName, inProgress, summary };
+}
+
+const PublicationSchema = z.object({
+	files: z
+		.array(
+			z.union([
+				z.object({
+					path: z.string(),
+					error: z.object({ code: z.string(), message: z.string() }),
+				}),
+				z.object({
+					path: z.string(),
+					artifactId: z.string().min(1),
+					error: z.never().optional(),
+				}),
+			]),
+		)
+		.nonempty(),
+});
+
+export function parsePublishedArtifacts(value: unknown) {
+	const parsed = PublicationSchema.safeParse(normalizeDisplayValue(value));
+	return parsed.success ? parsed.data.files : undefined;
+}
+
+export type PublishedFile = z.infer<typeof PublicationSchema>["files"][number];
+
+export function getPublishedArtifacts(message: ChatMessage) {
+	// Runs over every settled tool row on each stream flush; skip the parse for
+	// unrelated rows.
+	if (
+		message.role !== "tool" ||
+		!message.sessionId ||
+		!message.content.includes("publish_artifacts")
+	)
+		return undefined;
+	const { payload, toolName, inProgress } = parseToolMessage(message);
+	return toolName === "publish_artifacts" && !inProgress && !payload?.isError
+		? parsePublishedArtifacts(payload?.result)
+		: undefined;
+}
+
+/** Recognize the semantic result, independently of the tool or agent producing it. */
+export function isUxVerificationMessage(message: ChatMessage): boolean {
+	if (message.role !== "tool" || !message.content.includes("ux_verification"))
+		return false;
+	const output = normalizeDisplayValue(
+		parseToolPayload(message.content)?.result,
+	);
+	return Boolean(
+		output &&
+			typeof output === "object" &&
+			"kind" in output &&
+			output.kind === "ux_verification",
+	);
 }
