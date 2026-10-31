@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAccount } from "@/contexts/account-context";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { fetchComposioToolkitCatalog } from "@/lib/composio";
 import {
@@ -40,7 +41,6 @@ import type {
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
 import { openExternalUrl } from "@/lib/desktop-client";
-import { runProviderOAuthLogin } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 import { cn } from "@/lib/utils";
@@ -756,23 +756,15 @@ function ConnectorsUnavailable({
 	refreshing: boolean;
 }) {
 	const { user, accountReady, refreshAccount } = useAccount();
-	const [signingIn, setSigningIn] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const { signIn, cancelSignIn, signingIn, cancelling, error } = useClineSignIn(
+		{
+			onSuccess: async () => {
+				invalidateProviderCatalogCache();
+				await Promise.all([refreshAccount(), onRefresh()]);
+			},
+		},
+	);
 	const deviceUserCode = useOAuthUserCode(signingIn);
-
-	const signIn = async () => {
-		setSigningIn(true);
-		setError(null);
-		try {
-			await runProviderOAuthLogin("cline");
-			invalidateProviderCatalogCache();
-			await Promise.all([refreshAccount(), onRefresh()]);
-		} catch (err) {
-			setError(err instanceof Error ? err.message : String(err));
-		} finally {
-			setSigningIn(false);
-		}
-	};
 
 	const signedIn = user !== null;
 	// A cached identity renders immediately; otherwise wait for the lookup
@@ -839,13 +831,18 @@ function ConnectorsUnavailable({
 							{signingIn ? "Waiting for browser…" : "Sign in"}
 						</Button>
 						<Button
-							onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+							disabled={cancelling}
+							onClick={() =>
+								void (signingIn
+									? cancelSignIn()
+									: openExternalUrl(CREATE_ACCOUNT_URL))
+							}
 							size="sm"
 							type="button"
 							variant="outline"
 						>
-							Create account
-							<ExternalLink className="size-4" />
+							{signingIn ? "Cancel" : "Create account"}
+							{!signingIn && <ExternalLink className="size-4" />}
 						</Button>
 					</div>
 				)}
