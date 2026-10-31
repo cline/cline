@@ -28,12 +28,14 @@ import {
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
 import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
+import type { HubConnectionAuthority } from "../command-transport";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
+import { authorizeSessionWorkspace } from "../session-authority";
 import {
 	CAPABILITY_OWNER_GONE_MESSAGE,
 	cancelPendingCapabilityRequests,
@@ -286,6 +288,7 @@ export async function handleSessionResume(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	authority?: HubConnectionAuthority | null,
 ): Promise<HubReplyEnvelope> {
 	const sessionConfig = asPlainRecord(envelope.payload?.sessionConfig);
 	const sessionId =
@@ -299,7 +302,18 @@ export async function handleSessionResume(
 			"sessionConfig.sessionId is required",
 		);
 	}
-	if (!(await ctx.sessionHost.getSession(sessionId))) {
+	const sourceSession = await ctx.sessionHost.getSession(sessionId);
+	// Resuming copies the saved session's transcript into a new session, so,
+	// as with session.restore, the caller needs authority over the saved
+	// session's workspace; handleSessionCreate checks the new one.
+	const workspaceDenial = authorizeSessionWorkspace(authority, {
+		workspaceRoot: sourceSession?.workspaceRoot,
+		cwd: sourceSession?.cwd,
+	});
+	if (workspaceDenial) {
+		return errorReply(envelope, "workspace_not_authorized", workspaceDenial);
+	}
+	if (!sourceSession) {
 		return errorReply(
 			envelope,
 			"session_not_found",
@@ -320,6 +334,7 @@ export async function handleSessionResume(
 		ctx,
 		{ ...envelope, payload: { ...envelope.payload, initialMessages } },
 		requestToolApproval,
+		authority,
 	);
 }
 
@@ -329,6 +344,7 @@ export async function handleSessionCreate(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	authority?: HubConnectionAuthority | null,
 ): Promise<HubReplyEnvelope> {
 	const startedAt = performance.now();
 	const baseLogContext = {
@@ -390,6 +406,20 @@ export async function handleSessionCreate(
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
 				: undefined;
+	const sessionCwd =
+		sessionConfig?.cwd ??
+		(typeof payload.cwd === "string" && payload.cwd.trim()
+			? payload.cwd.trim()
+			: workspaceRoot);
+	const sessionWorkspaceRoot = sessionConfig?.workspaceRoot ?? workspaceRoot;
+	const workspaceDenial = authorizeSessionWorkspace(authority, {
+		workspaceRoot: sessionWorkspaceRoot,
+		cwd: sessionCwd,
+	});
+	if (workspaceDenial) {
+		logHubMessage("warn", "session.create.workspace_denied", baseLogContext);
+		return errorReply(envelope, "workspace_not_authorized", workspaceDenial);
+	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
@@ -513,12 +543,8 @@ export async function handleSessionCreate(
 				(typeof modelSelection.apiKey === "string"
 					? modelSelection.apiKey
 					: undefined),
-			cwd:
-				sessionConfig?.cwd ??
-				(typeof payload.cwd === "string" && payload.cwd.trim()
-					? payload.cwd.trim()
-					: workspaceRoot),
-			workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
+			cwd: sessionCwd,
+			workspaceRoot: sessionWorkspaceRoot,
 			systemPrompt:
 				sessionConfig?.systemPrompt ??
 				(typeof runtimeOptions.systemPrompt === "string"
@@ -631,6 +657,7 @@ export async function handleSessionRestore(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	authority?: HubConnectionAuthority | null,
 ): Promise<HubReplyEnvelope> {
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
@@ -674,6 +701,30 @@ export async function handleSessionRestore(
 				"invalid_restore",
 				"sessionConfig is required when restore.messages is true",
 			);
+		}
+		// Restoring rewinds the source session's workspace and then starts a
+		// session in the requested one, so the caller needs authority over both.
+		const sourceSession = await ctx.sessionHost.getSession(sourceSessionId);
+		const requestedWorkspaceRoot =
+			typeof payload.workspaceRoot === "string" && payload.workspaceRoot.trim()
+				? payload.workspaceRoot.trim()
+				: typeof payload.cwd === "string" && payload.cwd.trim()
+					? payload.cwd.trim()
+					: undefined;
+		const workspaceDenial =
+			authorizeSessionWorkspace(authority, {
+				workspaceRoot: sourceSession?.workspaceRoot,
+				cwd: sourceSession?.cwd,
+			}) ??
+			authorizeSessionWorkspace(authority, {
+				workspaceRoot:
+					sessionConfig?.workspaceRoot ??
+					requestedWorkspaceRoot ??
+					sourceSession?.workspaceRoot,
+				cwd: sessionConfig?.cwd ?? sourceSession?.cwd,
+			});
+		if (workspaceDenial) {
+			return errorReply(envelope, "workspace_not_authorized", workspaceDenial);
 		}
 		const runtimeOptions =
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"

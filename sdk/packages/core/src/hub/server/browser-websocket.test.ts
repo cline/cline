@@ -324,6 +324,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command).toHaveBeenCalledWith(
 			expect.objectContaining({ command: "schedule.list" }),
 			null,
+			{ tokenAuthenticated: false },
 		);
 	});
 
