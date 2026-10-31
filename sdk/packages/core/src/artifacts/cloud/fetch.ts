@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
+import type { ArtifactFetcher } from "../fetch";
 import {
 	ArtifactDownloadSchema,
 	artifactDownloadPath,
@@ -20,7 +21,7 @@ export function createArtifactFetcher({
 }: {
 	request: ConnectorsRequest;
 	cloudSessionId: string;
-}) {
+}): ArtifactFetcher {
 	const urls = new Map<string, CloudArtifactDownload>();
 	return async function fetchArtifact({
 		artifactId,

@@ -143,6 +143,20 @@ consumes or cancels the response body and applies any read size limit. The optio
 signal cancels the download, including while reading its body. This helper does not
 register an agent tool or attach files to messages.
 
+For local storage, `createLocalArtifactPublisher({ directory })` and
+`createLocalArtifactFetcher({ directory })` are exported from `@cline/core`.
+Bind both to the same absolute, host-owned directory, using a distinct directory
+for each session. The publisher copies files there, so their IDs remain usable
+after the source is removed or the store is reopened. Reusing an ID replaces its
+file atomically. Each publication stores a separate version and updates a small
+reference, so ongoing reads keep their original bytes on every platform. Old
+versions remain until the host removes the session directory. The fetcher
+implements the same streaming `ArtifactFetcher` contract as the cloud fetcher;
+callers consume or cancel the returned `Response`.
+Constructing either adapter has no filesystem side effects. Hosts own directory
+retention, access policy, and explicit tool registration; Hub protocols, default
+tools, and client rendering are unchanged.
+
 `HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
 an existing artifact through the authenticated Hub without starting its sandbox.
 It returns a signed HTTPS URL and expiry for clients that download directly.

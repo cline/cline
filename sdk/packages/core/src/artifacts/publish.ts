@@ -31,6 +31,20 @@ export class ArtifactPublicationError extends Error {
 	}
 }
 
+export async function checkUnchanged(file: ArtifactPublicationFile) {
+	const current = await stat(file.path).catch(() => {
+		throw new ArtifactPublicationError(
+			"FILE_READ_FAILED",
+			"Could not read the local file",
+		);
+	});
+	if (current.size !== file.size || current.mtimeMs !== file.modifiedAt)
+		throw new ArtifactPublicationError(
+			"FILE_CHANGED",
+			"Local file changed after it was selected",
+		);
+}
+
 function object(value: unknown): Record<string, unknown> {
 	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw new ArtifactPublicationError(
