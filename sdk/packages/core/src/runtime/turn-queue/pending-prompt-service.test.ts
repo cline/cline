@@ -244,6 +244,78 @@ describe("PendingPromptService", () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 
+	it("does not requeue a drained prompt onto a session whose teardown started mid-send", async () => {
+		const sessionId = "sess-drain-failure-during-teardown";
+		const session = {
+			sessionId,
+			pendingPrompts: [
+				{ id: "pending-1", prompt: "in flight", delivery: "queue" },
+			],
+			aborting: false,
+			shuttingDown: false,
+			drainingPendingPrompts: false,
+			status: "idle",
+			agent: { canStartRun: () => true },
+		} as unknown as ActiveSession;
+		const events: CoreSessionEvent[] = [];
+		let failSend: ((error: Error) => void) | undefined;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: (event) => events.push(event),
+			send: vi.fn(
+				() =>
+					new Promise((_resolve, reject) => {
+						failSend = reject;
+					}),
+			),
+		});
+
+		const draining = controller.drain(sessionId);
+		expect(session.pendingPrompts).toEqual([]);
+		// Teardown starts while the send is out, clears the queue, and the
+		// send then fails for its own reason.
+		session.shuttingDown = true;
+		controller.takeQueue(session);
+		failSend?.(new Error("send failed"));
+		await draining;
+
+		expect(session.pendingPrompts).toEqual([]);
+		expect(
+			events.filter(
+				(event) =>
+					event.type === "pending_prompts" && event.payload.prompts.length > 0,
+			),
+		).toEqual([]);
+	});
+
+	it("does not drain a session whose teardown has started", async () => {
+		const sessionId = "sess-drain-during-teardown";
+		const send = vi.fn();
+		const session = {
+			sessionId,
+			pendingPrompts: [
+				{ id: "pending-1", prompt: "leftover", delivery: "queue" },
+			],
+			aborting: false,
+			shuttingDown: true,
+			drainingPendingPrompts: false,
+			status: "idle",
+			agent: { canStartRun: () => true },
+		} as unknown as ActiveSession;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: vi.fn(),
+			send,
+		});
+
+		controller.scheduleDrain(sessionId, session);
+		await controller.drain(sessionId);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(send).not.toHaveBeenCalled();
+		expect(session.pendingPrompts).toHaveLength(1);
+	});
+
 	it("requeues a drained prompt when send fails", async () => {
 		const sessionId = "sess-drain-failure";
 		const session = {

@@ -27,10 +27,17 @@ export type ActiveSession = {
 	aborting: boolean;
 	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
 	lastTurnEndedAt?: number;
+	/** Set when teardown starts; the host drops the session once it finishes. */
+	shuttingDown: boolean;
+	/** Turns between their first await and settling, including the pre-run work before the agent has a run. */
+	turnsInFlight: number;
+	/** The session row being created for the first turn, so teardown and reattach can wait for it. */
+	persistInFlight?: Promise<void>;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
 	compactionStateWriteQueue?: Promise<void>;
+	statusWriteQueue?: Promise<void>;
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;
