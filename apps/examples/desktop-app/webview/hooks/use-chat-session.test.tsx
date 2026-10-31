@@ -480,6 +480,11 @@ describe("useChatSession", () => {
 		});
 
 		it("previews a discovered suspended session before replacing it with live history", async () => {
+			expect(invokeMock).toHaveBeenCalledWith(
+				"read_session_messages",
+				expect.objectContaining({ sessionId: session.sessionId }),
+				{ timeoutMs: null },
+			);
 			await act(async () => archive.resolve(saved));
 			expect(current.historyPreview).toEqual(saved);
 			expect(current.messages).toEqual([]);
@@ -4660,11 +4665,15 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
-		expect(invokeMock).toHaveBeenCalledWith("read_session_messages", {
-			environmentId: "local",
-			sessionId: hydratedSessionId,
-			maxMessages: 800,
-		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"read_session_messages",
+			{
+				environmentId: "local",
+				sessionId: hydratedSessionId,
+				maxMessages: 800,
+			},
+			undefined,
+		);
 		expect(invokeMock).toHaveBeenCalledWith(
 			"chat_session_command",
 			expect.objectContaining({

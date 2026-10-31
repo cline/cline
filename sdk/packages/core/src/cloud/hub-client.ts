@@ -155,7 +155,9 @@ export class HubCloudSessionClient {
 		let dispatched = false;
 		const reply = await client
 			.command("cloud.command", { operation, args, scope }, undefined, {
-				timeoutMs: ["create", "send", "attach"].includes(operation)
+				timeoutMs: ["create", "send", "attach", "readMessages"].includes(
+					operation,
+				)
 					? null
 					: undefined,
 				beforeDispatch: () => {

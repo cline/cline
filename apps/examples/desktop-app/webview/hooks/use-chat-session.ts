@@ -4041,6 +4041,7 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						maxMessages: MAX_MESSAGES,
 					},
+					session.origin === "cloud" ? { timeoutMs: null } : undefined,
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
 				historyPreviewRequestRef.current = undefined;
