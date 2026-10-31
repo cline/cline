@@ -170,7 +170,14 @@ export function parsePublishedArtifacts(value: unknown) {
 export type PublishedFile = z.infer<typeof PublicationSchema>["files"][number];
 
 export function getPublishedArtifacts(message: ChatMessage) {
-	if (message.role !== "tool" || !message.sessionId) return undefined;
+	// Runs over every settled tool row on each stream flush; skip the parse for
+	// unrelated rows.
+	if (
+		message.role !== "tool" ||
+		!message.sessionId ||
+		!message.content.includes("publish_artifacts")
+	)
+		return undefined;
 	const { payload, toolName, inProgress } = parseToolMessage(message);
 	return toolName === "publish_artifacts" && !inProgress && !payload?.isError
 		? parsePublishedArtifacts(payload?.result)
@@ -179,7 +186,8 @@ export function getPublishedArtifacts(message: ChatMessage) {
 
 /** Recognize the semantic result, independently of the tool or agent producing it. */
 export function isUxVerificationMessage(message: ChatMessage): boolean {
-	if (message.role !== "tool") return false;
+	if (message.role !== "tool" || !message.content.includes("ux_verification"))
+		return false;
 	const output = normalizeDisplayValue(
 		parseToolPayload(message.content)?.result,
 	);
