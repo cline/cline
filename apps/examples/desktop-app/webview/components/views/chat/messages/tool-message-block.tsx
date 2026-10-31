@@ -24,6 +24,14 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
+import {
+	isUxVerificationMessage,
+	UxVerificationMessage,
+} from "./ux-verification-message";
+import {
+	PublishedArtifacts,
+	parsePublishedArtifacts,
+} from "./published-artifacts";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
@@ -153,7 +161,15 @@ const ToolCallRow = memo(function ToolCallRow({
 	const otherOutputMedia = summary.outputMedia.filter(
 		(media) => media.modality !== "image",
 	);
+	const publishedFiles =
+		toolName === "publish_artifacts" &&
+		!inProgress &&
+		!payload?.isError &&
+		message.sessionId
+			? parsePublishedArtifacts(payload?.result)
+			: undefined;
 	const shouldAutoOpen =
+		Boolean(publishedFiles) ||
 		hasFileDiffs ||
 		Boolean(submitText) ||
 		summary.outputMedia.length > 0 ||
@@ -195,6 +211,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const inputPreview =
 		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
 	const hasExpandedSections =
+		Boolean(publishedFiles) ||
 		details.length > 0 ||
 		fileDiffs.length > 0 ||
 		Boolean(submitText) ||
@@ -257,7 +274,12 @@ const ToolCallRow = memo(function ToolCallRow({
 						</ToolActivityCode>
 					),
 				)}
-				{commandOutput ? (
+				{publishedFiles && message.sessionId ? (
+					<PublishedArtifacts
+						files={publishedFiles}
+						sessionId={message.sessionId}
+					/>
+				) : commandOutput ? (
 					<AgentCommandOutput isRunning={isRunning} output={commandOutput}>
 						<Ansi>{commandOutput}</Ansi>
 					</AgentCommandOutput>
@@ -357,15 +379,19 @@ export const ToolMessageBlock = memo(
 		if (messages.length === 0) return null;
 		return (
 			<div className="flex flex-col gap-1">
-				{messages.map((message) => (
-					<ToolCallRow
-						isRunActive={isRunActive}
-						key={message.id}
-						message={message}
-						onExpandImage={onExpandImage}
-						onProceedWhileRunning={onProceedWhileRunning}
-					/>
-				))}
+				{messages.map((message) =>
+					isUxVerificationMessage(message) ? (
+						<UxVerificationMessage key={message.id} message={message} />
+					) : (
+						<ToolCallRow
+							isRunActive={isRunActive}
+							key={message.id}
+							message={message}
+							onExpandImage={onExpandImage}
+							onProceedWhileRunning={onProceedWhileRunning}
+						/>
+					),
+				)}
 			</div>
 		);
 	},

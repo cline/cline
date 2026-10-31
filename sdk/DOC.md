@@ -143,6 +143,10 @@ consumes or cancels the response body and applies any read size limit. The optio
 signal cancels the download, including while reading its body. This helper does not
 register an agent tool or attach files to messages.
 
+`HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
+an existing artifact through the authenticated Hub without starting its sandbox.
+It returns a signed HTTPS URL and expiry for clients that download directly.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
@@ -651,3 +655,15 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+### UX verification report renderer
+
+`@cline/shared/browser` exports `UxVerificationReportSchema`, `UxVerificationCheckSchema`, `UxScreenshotSchema` and their types. A report contains a title, environment subtitle and ordered checks with unique IDs, passed/failed/blocked statuses, observations and optional action labels. Passed/failed checks require screenshot evidence. This contract describes presentation independently of how checks are run.
+
+`@cline/ui` exports `AgentUxVerification` with `output` and `state` (`running`, `completed`, `error`). It validates the report and renders screenshot evidence, derived status counts, titles, observations, thumbnails and optional slideshow. Left/Right switch slides and pause playback; Space toggles playback while the carousel itself has focus. Import `@cline/ui/components.css` for styling.
+
+Native inline screenshots use validated browser-owned Blob URLs and show a fallback on load errors. Hosts supply `renderScreenshot(check, className, presentation)` for trusted remote or authenticated asset references, including retrying signed URLs only after a fetch error; the renderer performs no URL refresh or transport. Hosts supply `onExpandScreenshot(check)` to open their own image viewer. No producer tool, subagent lifecycle, storage format, CLI projection or product transcript policy is part of this component.
+
+UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
+
+UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.

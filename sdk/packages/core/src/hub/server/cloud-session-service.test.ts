@@ -108,6 +108,10 @@ function fixture() {
 			})),
 			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
+			getArtifactDownloadUrl: vi.fn(async () => ({
+				url: "https://storage.example/image.png",
+				expiresAt: "2030-01-01T00:00:00Z",
+			})),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
 		};
@@ -208,6 +212,18 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("resolves artifact URLs through the viewer without trimming artifact IDs", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		await expect(
+			viewer.getArtifactDownloadUrl("ses-one", " frame "),
+		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
+		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
+		expect(resolver).toHaveBeenCalledWith("ses-one", " frame ");
+		await viewer.dispose();
+	});
+
 	it("requires an approved organization before starting Git publication", async () => {
 		const f = fixture();
 		await expect(
