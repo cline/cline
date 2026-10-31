@@ -264,6 +264,18 @@ function recordSessionAutoApproveTools(
 	}
 }
 
+// A resumed session keeps its saved metadata underneath the new values, so a
+// stale approval setting has to be removed from the stored record itself.
+async function clearSavedAutoApproveTools(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<void> {
+	const saved = (await ctx.sessionHost.getSession(sessionId))?.metadata;
+	if (!saved || !Object.hasOwn(saved, "autoApproveTools")) return;
+	const { autoApproveTools: _, ...metadata } = saved;
+	await ctx.sessionHost.updateSession(sessionId, { metadata });
+}
+
 function authorizeSessionCompactionAccess(input: {
 	sessionId: string;
 	ctx: HubTransportContext;
@@ -597,6 +609,9 @@ export async function handleSessionCreate(
 		elapsedMs: Math.round(performance.now() - startedAt),
 		hasImmediateResult: !!started.result,
 	});
+	if (!Object.hasOwn(metadata, "autoApproveTools")) {
+		await clearSavedAutoApproveTools(ctx, started.sessionId);
+	}
 	ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 		interactive: metadata.interactive !== false,
 	});
