@@ -457,6 +457,15 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("registers RodiumAi as an OpenAI-compatible gateway", async () => {
+		await expect(getProvider("rodiumai")).resolves.toMatchObject({
+			id: "rodiumai",
+			name: "RodiumAi",
+			baseUrl: "https://api.rodiumai.io/v1",
+			defaultModelId: "openai/gpt-4o",
+		});
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
