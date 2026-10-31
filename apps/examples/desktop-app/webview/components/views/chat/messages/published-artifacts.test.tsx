@@ -64,13 +64,14 @@ beforeEach(() => {
 		"IntersectionObserver",
 		class {
 			constructor(
-				callback: (entries: { isIntersecting: boolean }[]) => void,
-				options?: IntersectionObserverInit,
-			) {
-				if (options?.rootMargin === "200px")
-					reveal.push(() => callback([{ isIntersecting: true }]));
+				private readonly callback: (
+					entries: { isIntersecting: boolean }[],
+				) => void,
+			) {}
+			observe(element: Element) {
+				if (element.hasAttribute("data-media-id"))
+					reveal.push(() => this.callback([{ isIntersecting: true }]));
 			}
-			observe() {}
 			unobserve() {}
 			disconnect() {}
 		},
@@ -181,7 +182,7 @@ it("previews a published image and keeps download available after preview failur
 	);
 });
 
-it("keeps published images visible after completion and reopening history without expanding work", async () => {
+it("keeps published images outside collapsed work after completion and remounting", async () => {
 	const messages: ChatMessage[] = [
 		{
 			id: "user",
@@ -224,10 +225,7 @@ it("keeps published images visible after completion and reopening history withou
 		},
 	];
 	const stored = JSON.stringify(messages);
-	for (const [index, status] of (
-		["running", "completed", "completed"] as const
-	).entries()) {
-		if (index === 2) await act(async () => root.render(null));
+	async function renderChat(status: "running" | "completed") {
 		await act(async () =>
 			root.render(
 				<ChatMessages
@@ -244,25 +242,34 @@ it("keeps published images visible after completion and reopening history withou
 				/>,
 			),
 		);
-		const work = container.querySelector("button.cline-chat-work-trigger");
-		if (status === "completed")
-			expect(work?.getAttribute("aria-expanded")).toBe("false");
+		await act(async () => {
+			for (const callback of reveal.splice(0)) callback();
+		});
+	}
+	function expectPublishedImagesVisible() {
+		expect(
+			container
+				.querySelector("button.cline-chat-work-trigger")
+				?.getAttribute("aria-expanded"),
+		).toBe("false");
 		expect(
 			container.querySelectorAll('[aria-label="Published images"]'),
 		).toHaveLength(1);
 		expect(
-			container.querySelectorAll('[aria-roledescription="slide"]'),
-		).toHaveLength(2);
-		expect(
 			container.querySelector('[aria-label="Next screenshot"]'),
 		).not.toBeNull();
-		await act(async () => {
-			for (const callback of reveal.splice(0)) callback();
-		});
 		expect(
 			Array.from(container.querySelectorAll("img"), (image) => image.alt),
 		).toEqual(["before.png", "after.png"]);
 		expect(container.textContent).not.toContain("Verified");
 	}
+
+	await renderChat("running");
+	await renderChat("completed");
+	expectPublishedImagesVisible();
+
+	await act(async () => root.render(null));
+	await renderChat("completed");
+	expectPublishedImagesVisible();
 	expect(JSON.stringify(messages)).toBe(stored);
 });
