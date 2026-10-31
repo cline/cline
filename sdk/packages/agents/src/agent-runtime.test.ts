@@ -2518,6 +2518,8 @@ describe("AgentRuntime", () => {
 					),
 				).toBe(true);
 				expect(reminder?.metadata?.userRunSpan).toBe(0);
+				// Runtime reminders are not user prompts.
+				expect(reminder?.metadata?.displayRole).toBe("system");
 				return [
 					{
 						type: "tool-call-delta",
@@ -3132,6 +3134,40 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("tells beforeRun hooks whether the prompt was seeded and how the run was entered", async () => {
+		const beforeRun = vi.fn();
+		const makeRuntime = () =>
+			new AgentRuntime({
+				model: new ScriptedModel([
+					() => [
+						{ type: "text-delta", text: "ok" },
+						{ type: "finish", reason: "stop" },
+					],
+				]),
+				initialMessages: [
+					{
+						id: "seed",
+						role: "user",
+						content: [{ type: "text", text: "seeded prompt" }],
+						createdAt: 0,
+					},
+				],
+				hooks: { beforeRun },
+			});
+
+		await makeRuntime().run("");
+		await makeRuntime().continue();
+
+		expect(beforeRun.mock.calls[0]?.[0]).toMatchObject({
+			entry: "run",
+			promptSeeded: true,
+		});
+		expect(beforeRun.mock.calls[1]?.[0]).toMatchObject({
+			entry: "continue",
+			promptSeeded: false,
+		});
+	});
+
 	it("supports plugin-contributed tools and hooks", async () => {
 		const beforeRun = vi.fn();
 		const plugin: AgentRuntimePlugin = {
@@ -3178,6 +3214,8 @@ describe("AgentRuntime", () => {
 			snapshot: expect.objectContaining({
 				conversationId: "conversation_plugin",
 			}),
+			entry: "run",
+			promptSeeded: false,
 		});
 		expect(result.status).toBe("completed");
 		expect(result.outputText).toBe("plugin complete");
