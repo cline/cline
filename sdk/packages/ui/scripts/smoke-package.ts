@@ -21,6 +21,7 @@ import {
 	AgentChangesPanel,
 	AgentPullRequestBar,
 	AgentCommandOutput,
+	AgentUxVerification,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
 	AgentContextUsage,
@@ -66,6 +67,8 @@ if (
 	throw new Error("packed message-scroller exports are missing");
 }
 
+if (typeof AgentUxVerification !== "function") throw new Error("packed UX verifier export is missing");
+
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
@@ -79,7 +82,7 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
 	}
@@ -189,11 +192,34 @@ async function run(command: string[], cwd: string): Promise<void> {
 	}
 }
 
-function createConsumer(root: string): void {
+async function pack(cwd: string, destination: string): Promise<string> {
+	mkdirSync(destination, { recursive: true });
+	await run(
+		[
+			process.execPath,
+			"pm",
+			"pack",
+			"--ignore-scripts",
+			"--destination",
+			destination,
+		],
+		cwd,
+	);
+	const archiveName = readdirSync(destination).find((name) =>
+		name.endsWith(".tgz"),
+	);
+	if (!archiveName) throw new Error("bun pm pack did not create an archive");
+	return join(destination, archiveName);
+}
+
+function createConsumer(
+	root: string,
+	overrides: Record<string, string> = {},
+): void {
 	mkdirSync(root, { recursive: true });
 	writeFileSync(
 		join(root, "package.json"),
-		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module" }, null, 2)}\n`,
+		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module", overrides }, null, 2)}\n`,
 	);
 }
 
@@ -356,36 +382,26 @@ async function verifyTailwindContract(
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
 
 try {
-	let archive = process.argv[2] ? resolve(process.argv[2]) : undefined;
-	if (!archive) {
-		const packDirectory = join(temporaryRoot, "pack");
-		mkdirSync(packDirectory, { recursive: true });
-		await run(
-			[
-				process.execPath,
-				"pm",
-				"pack",
-				"--ignore-scripts",
-				"--destination",
-				packDirectory,
-			],
-			packageRoot,
-		);
-		const archiveName = readdirSync(packDirectory).find((name) =>
-			name.endsWith(".tgz"),
-		);
-		if (!archiveName) throw new Error("bun pm pack did not create an archive");
-		archive = join(packDirectory, archiveName);
-	}
+	const archive = process.argv[2]
+		? resolve(process.argv[2])
+		: await pack(packageRoot, join(temporaryRoot, "pack"));
+	// The packed UI pins @cline/shared to the workspace version, which is not on
+	// npm yet during a release, so both consumers install the local pack. npm
+	// dedupes onto it directly; Bun only resolves it through an override.
+	const sharedArchive = await pack(
+		join(packageRoot, "../shared"),
+		join(temporaryRoot, "shared-pack"),
+	);
 
 	const bunConsumer = join(temporaryRoot, "bun-consumer");
-	createConsumer(bunConsumer);
+	createConsumer(bunConsumer, { "@cline/shared": `file:${sharedArchive}` });
 	await run(
 		[
 			process.execPath,
 			"add",
 			"--ignore-scripts",
 			archive,
+			sharedArchive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.4.0",
@@ -415,6 +431,7 @@ try {
 			"--no-audit",
 			"--no-fund",
 			archive,
+			sharedArchive,
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",

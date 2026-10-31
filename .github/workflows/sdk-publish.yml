@@ -1,5 +1,7 @@
 name: sdk-publish
 
+# Manual dispatch only. Every publish (nightly included) waits for approval on
+# the PublishNPM environment, so a cron run would just sit waiting every day.
 on:
   workflow_dispatch:
     inputs:
@@ -20,9 +22,6 @@ on:
         description: 'Required when channel=latest. Type "publish" to confirm release publish.'
         required: false
         type: string
-  schedule:
-    # Run nightly at 2:00 AM UTC
-    - cron: "0 2 * * *"
 
 defaults:
   run:
@@ -51,6 +50,9 @@ jobs:
           !endsWith(github.actor, '[bot]')
         )
       )
+    # npm trusted publishing for the SDK packages requires this environment,
+    # so a publish only happens after a PublishNPM reviewer approves the run.
+    environment: PublishNPM
     runs-on: ubuntu-latest
 
     steps:
@@ -60,15 +62,8 @@ jobs:
       - name: Determine publish channel
         id: channel
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_CHANNEL: ${{ inputs.channel }}
-        run: |
-          # Default to nightly for scheduled runs
-          if [ "$EVENT_NAME" = "schedule" ]; then
-            echo "channel=nightly" >> $GITHUB_OUTPUT
-          else
-            echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
-          fi
+        run: echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
 
       - name: Check for recent commits
         id: check_commits
@@ -178,7 +173,7 @@ jobs:
 
       # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
       # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
-      # Publish sequentially in dependency order: shared → llms → agents → core → sdk
+      # Publish sequentially in dependency order: shared → llms → agents → core → sdk → ui
       - name: Publish @cline/shared
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -239,6 +234,18 @@ jobs:
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
+      - name: Publish @cline/ui
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Publishing @cline/ui@${VERSION} with tag '${CHANNEL}'..."
+          cd sdk/packages/ui
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
         env:
@@ -247,7 +254,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in shared llms agents core sdk; do
+          for PKG in shared llms agents core sdk ui; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
@@ -334,6 +341,7 @@ jobs:
           echo "  - @cline/agents@${VERSION}"
           echo "  - @cline/core@${VERSION}"
           echo "  - @cline/sdk@${VERSION}"
+          echo "  - @cline/ui@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "Created git tags:"
             echo "  - sdk/shared/v${VERSION}"
@@ -341,6 +349,7 @@ jobs:
             echo "  - sdk/agents/v${VERSION}"
             echo "  - sdk/core/v${VERSION}"
             echo "  - sdk/sdk/v${VERSION}"
+            echo "  - sdk/ui/v${VERSION}"
           fi
 
       - name: Post release to Slack

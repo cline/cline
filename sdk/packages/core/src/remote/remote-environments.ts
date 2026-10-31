@@ -15,6 +15,12 @@ import {
 import { createConnection, createServer } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import {
+	CLINE_HUB_LAUNCHER_CLIENT_ENV,
+	CLINE_HUB_LAUNCHER_TRANSPORT_ENV,
+	CLINE_HUB_LAUNCHER_VERSION_ENV,
+	getClineClientIdentity,
+} from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
 
@@ -166,10 +172,12 @@ interface ManagedConnection {
 }
 
 const PROFILE_FILE_VERSION = 1;
-const DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
-const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+// ConnectTimeout also bounds the banner exchange, so behind a ProxyJump the
+// whole bastion hop has to finish within it.
+const DEFAULT_CONNECT_TIMEOUT_SECONDS = 30;
+const DEFAULT_COMMAND_TIMEOUT_MS = 60_000;
 const DEFAULT_UPLOAD_TIMEOUT_MS = 5 * 60_000;
-const DEFAULT_TUNNEL_TIMEOUT_MS = 10_000;
+const DEFAULT_TUNNEL_TIMEOUT_MS = 40_000;
 const DEFAULT_HUB_SHUTDOWN_TIMEOUT_MS = 2_000;
 const REMOTE_HELPER_DIRECTORY = ".cline/remote";
 const REMOTE_DISCOVERY_DIRECTORY = ".cline/data/remote";
@@ -576,7 +584,7 @@ export class RemoteEnvironmentService {
 		const uploadCommand = `umask 077; cat > ${shellQuote(temporaryPath)}`;
 		const upload = await this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), uploadCommand],
+			[...this.buildCommandArgs(profile), uploadCommand],
 			{ timeoutMs: this.uploadTimeoutMs, inputFile: localHelper },
 		);
 		if (upload.exitCode !== 0) {
@@ -685,9 +693,21 @@ export class RemoteEnvironmentService {
 		const command = buildRemoteCommand(input.command, input.args, input.cwd);
 		return this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), command],
+			[...this.buildCommandArgs(profile), command],
 			{ timeoutMs: this.commandTimeoutMs },
 		);
+	}
+
+	// Like scp and sftp, one-shot commands skip the LocalForward/RemoteForward
+	// an ssh_config alias declares; binding them would collide with the user's
+	// own sessions to that alias.
+	private buildCommandArgs(profile: RemoteEnvironmentProfile): string[] {
+		return [
+			...this.buildSshArgs(profile),
+			"-o",
+			"ClearAllForwardings=yes",
+			this.destination(profile),
+		];
 	}
 
 	private buildSshArgs(profile: RemoteEnvironmentProfile): string[] {
@@ -716,11 +736,12 @@ export class RemoteEnvironmentService {
 		localPort: number,
 		remotePort: number,
 	): string[] {
+		// ClearAllForwardings would also drop our -L, so the alias forwardings
+		// stay. Without ExitOnForwardFailure a collision on one of them is only a
+		// warning; waitForTunnel still verifies our own forward.
 		return [
 			...this.buildSshArgs(profile),
 			"-N",
-			"-o",
-			"ExitOnForwardFailure=yes",
 			"-o",
 			"ServerAliveInterval=15",
 			"-o",
@@ -999,10 +1020,18 @@ function remoteHubEnsureCommand(
 	cwd: string,
 	discoveryPath: string,
 ): RemoteCommandInput {
+	const launcher = getClineClientIdentity();
 	return {
 		command: "env",
 		args: [
 			"CLINE_NO_AUTO_UPDATE=1",
+			// The remote daemon's telemetry records who started it; the staged
+			// CLI would otherwise report itself.
+			`${CLINE_HUB_LAUNCHER_CLIENT_ENV}=${launcher?.name?.trim() || "cline"}`,
+			...(launcher?.version?.trim()
+				? [`${CLINE_HUB_LAUNCHER_VERSION_ENV}=${launcher.version.trim()}`]
+				: []),
+			`${CLINE_HUB_LAUNCHER_TRANSPORT_ENV}=ssh`,
 			cli,
 			"hub",
 			"ensure",
@@ -1104,6 +1133,12 @@ export async function runRemoteProcess(
 			child.stdout?.destroy();
 			child.stderr?.destroy();
 			if (error) reject(error);
+			else if (
+				code === 0 &&
+				options.inputFile &&
+				!child.stdin?.writableFinished
+			)
+				reject(new Error(`${executable} exited before the upload completed`));
 			else
 				resolve({
 					stdout: Buffer.concat(stdout).toString("utf8"),
@@ -1155,7 +1190,9 @@ export async function runRemoteProcess(
 		);
 		if (options.inputFile && child.stdin) {
 			input = createReadStream(options.inputFile);
-			child.stdin.once("error", terminate);
+			// ssh exiting mid-upload surfaces here as EPIPE; its exit code and
+			// stderr explain why, so stop writing and let it close.
+			child.stdin.on("error", stopInput);
 			input.once("error", terminate);
 			input.pipe(child.stdin);
 		}

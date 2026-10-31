@@ -34,7 +34,10 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
-import { cancelPendingCapabilityRequests } from "./capability-handlers";
+import {
+	CAPABILITY_OWNER_GONE_MESSAGE,
+	cancelPendingCapabilityRequests,
+} from "./capability-handlers";
 import {
 	asPlainRecord,
 	ensureSessionParticipant,
@@ -277,6 +280,49 @@ export function parsePluginPolicies(
 	return Object.keys(policies).length > 0 ? policies : undefined;
 }
 
+export async function handleSessionResume(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const sessionConfig = asPlainRecord(envelope.payload?.sessionConfig);
+	const sessionId =
+		typeof sessionConfig?.sessionId === "string"
+			? sessionConfig.sessionId.trim()
+			: "";
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_resume",
+			"sessionConfig.sessionId is required",
+		);
+	}
+	if (!(await ctx.sessionHost.getSession(sessionId))) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			"The saved session was not found.",
+		);
+	}
+	const initialMessages = await (ctx.sessionHost.readLiveSessionMessages
+		? ctx.sessionHost.readLiveSessionMessages(sessionId)
+		: ctx.sessionHost.readSessionMessages(sessionId));
+	if (initialMessages.length === 0) {
+		return errorReply(
+			envelope,
+			"session_messages_not_found",
+			"The saved conversation is empty or unavailable.",
+		);
+	}
+	return handleSessionCreate(
+		ctx,
+		{ ...envelope, payload: { ...envelope.payload, initialMessages } },
+		requestToolApproval,
+	);
+}
+
 export async function handleSessionCreate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -368,6 +414,9 @@ export async function handleSessionCreate(
 		sessionId,
 		configExtensionCount: configExtensions?.length ?? 0,
 	});
+	// Re-creating after a detach makes this client the owner again, including
+	// for callbacks raised while the session starts.
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
@@ -675,6 +724,7 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
+		ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 		const clientContributionRuntime = createHubClientContributionRuntime({
 			sessionId,
 			targetClientId: clientId,
@@ -942,6 +992,13 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
+	// ponytail: entries live as long as the hub process; prune on session delete if it grows.
+	let detached = ctx.detachedClientsBySession?.get(sessionId);
+	if (!detached && ctx.detachedClientsBySession) {
+		detached = new Set();
+		ctx.detachedClientsBySession.set(sessionId, detached);
+	}
+	detached?.add(clientId);
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
@@ -956,7 +1013,7 @@ export async function handleSessionDetach(
 		ctx,
 		(request) =>
 			request.sessionId === sessionId && request.targetClientId === clientId,
-		`Capability owner client ${clientId} detached before request was resolved.`,
+		CAPABILITY_OWNER_GONE_MESSAGE,
 	);
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),

@@ -901,8 +901,10 @@ describe("remote environment command routing", () => {
 		]);
 		const update = vi.fn(async () => ({ updated: true }));
 		const deleteSession = vi.fn(async () => true);
+		const getSession = vi.fn(async () => ({ workspaceRoot: "/remote/repo" }));
 		const sessionManager = {
 			readMessages,
+			get: getSession,
 			update,
 			delete: deleteSession,
 			dispose: vi.fn(async () => undefined),
@@ -920,6 +922,7 @@ describe("remote environment command routing", () => {
 			}),
 		).resolves.toHaveLength(1);
 		expect(readMessages).toHaveBeenCalledWith("remote-session");
+		expect(getSession).toHaveBeenCalledWith("remote-session");
 
 		ctx.liveSessions.set("same-id", {
 			environmentId: "local",

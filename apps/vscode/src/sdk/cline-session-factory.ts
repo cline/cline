@@ -90,6 +90,12 @@ export interface ActiveSession {
 	sessionId: string
 	/** The config used to start the active session. */
 	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
+	/**
+	 * The mode the session's tools were built for. It can differ from the
+	 * persisted mode setting while a start or rebuild is in flight, so mode
+	 * switches compare against this rather than the setting.
+	 */
+	mode?: Mode
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
@@ -394,7 +400,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
-	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	fireworks: "fireworksApiKey",

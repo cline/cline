@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.2.0-next.12",
+	"version": "0.2.0",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
@@ -8,7 +8,6 @@
 		"directory": "sdk/packages/ui"
 	},
 	"private": false,
-	"internal": true,
 	"publishConfig": {
 		"access": "public"
 	},
@@ -93,6 +92,7 @@
 		"components/agent-quick-actions.tsx",
 		"components/agent-session-row.tsx",
 		"components/github-icon.tsx",
+		"components/kbd.tsx",
 		"components/markdown.css",
 		"components/markdown.ts",
 		"components/mermaid-block.tsx",
@@ -112,7 +112,10 @@
 		"RADIX-COLORS-LICENSE",
 		"components/agent-composer.tsx",
 		"components/message-scroller.tsx",
-		"components/message-scroller.css"
+		"components/message-scroller.css",
+		"components/carousel.tsx",
+		"components/agent-ux-verification.tsx",
+		"components/agent-ux-verification.css"
 	],
 	"sideEffects": [
 		"./components.css",
@@ -207,6 +210,7 @@
 		"@shadcn/react": "0.3.1",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"lucide-react": "^0.564.0"
+		"lucide-react": "^0.564.0",
+		"embla-carousel-react": "^8.6.0"
 	}
 }

@@ -19,9 +19,8 @@ sidecar/
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
-├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cloud-sessions.ts     # Desktop projection of hub-owned cloud sessions
 ├── cline-auth.ts         # Refresh-aware Cline auth token resolution
-├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
 ├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
@@ -88,6 +87,11 @@ Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
 
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
+
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
 that context across the Hub transport and scopes the daemon-owned telemetry
@@ -113,9 +117,18 @@ const pendingApprovals = new Map<string, {
 // When frontend responds → resolve promise
 ```
 
-Cloud sessions route approvals the same way, but the resolver forwards the
-response to the sandbox Hub (`approval.respond`), which is why `resolve` may
-be async.
+Cloud sessions project approval snapshots from the shared Hub. Their async
+resolvers send `respondApproval` through the cloud RPC facade; the daemon forwards
+the response to the sandbox Hub. Desktop owns no cloud lifecycle controller or sandbox connection.
+Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
+are owned by the daemon.
+
+Published artifact previews and downloads share `useArtifactResource`. The sidecar
+resolves signed URLs through the account-scoped Hub without resuming the sandbox.
+If an older Hub rejects the operation as unknown, the sidecar uses `CloudSessionApi`
+with refreshed, account-bound credentials. Other failures do not trigger fallback.
+Artifact IDs remain in history; signed URLs stay transient and bytes load directly
+from storage.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -196,7 +209,7 @@ Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
 | `list_transcription_models` | `getLocalTranscriptionModels` |
@@ -206,15 +219,18 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
+| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
+| `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
+| `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |
+| `pull_local_model` / `cancel_local_model_pull` | `ollama` SDK `pull`, or LM Studio `POST /api/v1/models/download` polled until done (not cancellable); progress is broadcast as `local_model_pull_progress` events and survives closing the page |
+| `load_local_model` / `unload_local_model` / `delete_local_model` | Ollama: `generate` (`keep_alive` -1 / 0) and `delete`. LM Studio: `POST /api/v1/models/load` / `unload`, and deleting a Hub model's files listed in its manifest |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
-| `get_desktop_settings` | `readDesktopSettings()` |
-| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
@@ -227,6 +243,8 @@ Supported commands:
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
+| `get_session_changes` | `session-changes.ts`: the first and latest checkpoints (each tree plus its untracked-files parent) and the working tree (via a temp copy of the index) become git trees; `diff-tree` against the working tree gives the session's and the last turn's files and line counts. Local only |
+| `read_session_change` | `session-changes.ts`: both sides of one change by blob id, capped at 1 MiB, binary-aware |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
@@ -246,3 +264,11 @@ bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
 bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```
+
+### UX verification reports
+
+Desktop recognizes semantic `ux_verification` tool results independently of the producer's tool name. The webview renders them with `AgentUxVerification` and passes each canonical screenshot directly to `ArtifactImage`. Both carousel images and the focus-managed expanded view therefore use `useArtifactResource` and the existing `resolve_artifact` command, reaching `HubCloudSessionClient.getArtifactDownloadUrl` without another uploader, resolver, or refresh timer. Stable artifact references remain in the transcript; signed URLs remain transient viewer state.
+
+This integration preserves existing work disclosures. Lifting reports out of completed work summaries, producing reports, and other product integrations remain separate changes.
+
+UX image callbacks distinguish full slides from non-interactive thumbnails. Desktop suppresses artifact recovery controls inside thumbnail selection buttons. Inline image decode failures are handled by the shared media renderer in both the carousel and expanded dialog.

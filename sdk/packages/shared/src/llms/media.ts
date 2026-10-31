@@ -28,10 +28,12 @@ export const GeneratedMediaSourceSchema = z.discriminatedUnion("type", [
 		url: z
 			.string()
 			.url()
-			.refine((value) => {
-				const protocol = new URL(value).protocol;
-				return protocol === "http:" || protocol === "https:";
-			}, "Generated media URLs must use HTTP or HTTPS"),
+			.pipe(
+				z.string().refine((value) => {
+					const protocol = new URL(value).protocol;
+					return protocol === "http:" || protocol === "https:";
+				}, "Generated media URLs must use HTTP or HTTPS"),
+			),
 	}),
 	z.object({ type: z.literal("artifact"), artifactId: z.string().min(1) }),
 ]);

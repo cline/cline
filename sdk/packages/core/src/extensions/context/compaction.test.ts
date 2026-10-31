@@ -19,6 +19,7 @@ import {
 import {
 	COMPACTION_TRIGGER_RATIO,
 	createTokenEstimator,
+	DEFAULT_MAX_INPUT_TOKENS,
 	estimateTokens,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
@@ -385,6 +386,114 @@ function expectNoOrphanedToolPairs(messages: LlmsProviders.Message[]): void {
 describe("createContextCompactionPrepareTurn", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it.each([
+		undefined,
+		{ id: "custom-model" },
+		{ id: "custom-model", maxInputTokens: 0, contextWindow: Number.NaN },
+	])("does not auto-compact an unknown input budget (%j)", async (info) => {
+		const compact = vi.fn();
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			compaction: { enabled: true, compact },
+		});
+		const messages: MessageWithMetadata[] = [{ role: "user", content: "hi" }];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			// Reproduce a startup request exceeding the old guessed threshold.
+			systemPrompt: "x".repeat(DEFAULT_MAX_INPUT_TOKENS * 3),
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: { id: "custom-model", provider: "openai-compatible", info },
+			emitStatusNotice,
+		});
+
+		expect(result).toBeUndefined();
+		expect(compact).not.toHaveBeenCalled();
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"manual",
+		"overflow_recovery",
+	] as const)("keeps %s compaction available without model limits", async (mode) => {
+		const messages = overflowRecoveryTranscript();
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				compaction: { enabled: true, compact },
+			},
+			{ mode: mode === "manual" ? "manual" : "auto" },
+		);
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: mode === "overflow_recovery",
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: { id: "custom-model", provider: "openai-compatible" },
+		});
+
+		expect(result?.messages).toEqual([{ role: "user", content: "Compacted" }]);
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(compact.mock.calls[0]?.[0]).toMatchObject({
+			mode,
+			budget: { request: { maxInputTokens: DEFAULT_MAX_INPUT_TOKENS } },
+		});
+	});
+
+	it.each([
+		{ maxInputTokens: 1_000 },
+		{ contextWindow: 1_000 },
+	])("auto-compacts a custom model with configured limits (%j)", async (limits) => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			compaction: { enabled: true, compact },
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "x".repeat(3_000) },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "custom-model",
+				provider: "openai-compatible",
+				info: { id: "custom-model", ...limits },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(result?.messages).toEqual([{ role: "user", content: "Compacted" }]);
 	});
 
 	it("truncates text-block tool results when serializing compaction input", () => {
@@ -4600,6 +4709,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact: undefined,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4631,6 +4741,66 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(saveState).not.toHaveBeenCalled();
 	});
 
+	it("runs the projected transcript through prepareApiMessages before re-compaction estimates it", async () => {
+		const originalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original request" },
+			{ role: "assistant", content: "original answer" },
+		];
+		const existingState = createSessionCompactionState({
+			sourceMessages: originalMessages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const prepareApiMessages = vi.fn(
+			async (messages: LlmsProviders.Message[]) =>
+				messages.map((message) =>
+					typeof message.content === "string"
+						? { ...message, content: message.content.slice(0, 8_000) }
+						: message,
+				),
+		);
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => existingState,
+			prepareApiMessages,
+		});
+		const tail: LlmsProviders.Message[] = [
+			{ role: "user", content: "x".repeat(50_000) },
+		];
+		const currentMessages: LlmsProviders.Message[] = [
+			...originalMessages,
+			...tail,
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: await prepareApiMessages(currentMessages),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		const projected = [{ role: "user", content: "summary" }, ...tail];
+		expect(prepareApiMessages).toHaveBeenLastCalledWith(projected);
+		expect(compact).toHaveBeenCalledTimes(1);
+		const compactContext = compact.mock.calls[0][0];
+		expect(compactContext.messages).toEqual(projected);
+		expect(compactContext.apiMessages).toEqual([
+			{ role: "user", content: "summary" },
+			{ role: "user", content: "x".repeat(8_000) },
+		]);
+	});
+
 	it("keeps stale sidecar state when replacement compaction returns no result", async () => {
 		const originalMessages: LlmsProviders.Message[] = [
 			{ role: "user", content: "original" },
@@ -4645,6 +4815,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4689,6 +4860,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => undefined,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [

@@ -6,7 +6,7 @@ import type {
 	MessageWithMetadata,
 	ToolApprovalResult,
 } from "@cline/shared";
-import { NodeHubClient } from "../hub/client/index";
+import { HubCommandError, NodeHubClient } from "../hub/client/index";
 import { isSessionNotFoundError } from "../runtime/host/runtime-host";
 import {
 	CloudHandoffTranscriptMismatchError,
@@ -20,6 +20,10 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import {
+	CLOUD_COMPUTER_USE_PROMPT,
+	cloudModelSupportsImages,
+} from "./computer-use-prompt";
 import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
@@ -45,12 +49,19 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
 	CloudSessionState,
 	JsonRecord,
 } from "./types";
+
+type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
 
 function isHubReconnectableTransportError(error: unknown): boolean {
 	return (
@@ -89,6 +100,7 @@ export const CLOUD_SESSION_SYSTEM_PROMPT =
 /** The prompt a new cloud task starts with: GitHub access plus its work-branch rules. */
 export function buildCloudSessionSystemPrompt(
 	record: Pick<CloudSessionRecord, "id" | "sandboxType" | "metadata">,
+	options: { computerUse?: boolean } = {},
 ): string {
 	const branch = `cline/${(record.metadata.taskId?.trim() || record.id).slice(-8).toLowerCase()}`;
 	const resumable =
@@ -104,7 +116,8 @@ export function buildCloudSessionSystemPrompt(
 				`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
 				"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
 				`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-		"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
+		"Do not force-push or amend commits that are already pushed unless the user explicitly asks." +
+		(options.computerUse ? `\n\n${CLOUD_COMPUTER_USE_PROMPT}` : "")
 	);
 }
 
@@ -250,6 +263,8 @@ export type CloudSessionControllerOptions = {
 	lateCreateDisposition?: "preserve" | "delete";
 	/** Host-owned first-task policy survives controller replacement; established tasks never qualify. */
 	pendingInitialTasks?: Map<string, CloudCreationOptions>;
+	/** Rollout gate for the computer-use prompt section; omitted means off. */
+	isComputerUseEnabled?: () => Promise<boolean>;
 
 	api: Pick<
 		CloudSessionApi,
@@ -260,6 +275,7 @@ export type CloudSessionControllerOptions = {
 		| "status"
 		| "waitUntilReady"
 		| "history"
+		| "getArtifactDownloadUrl"
 		| "updateTitle"
 		| "listRepositories"
 		| "listBranches"
@@ -434,14 +450,28 @@ export class CloudSessionController {
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	// Retain new sessions until discovery has observed them at least once.
-	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
+	private readonly unlistedSessions = new Map<
+		string,
+		{ record: CloudSessionRecord; organizationId: string | undefined }
+	>();
 	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
-	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
+	private lastListedOrganizationId?: string;
+	private discoveryRefresh?: {
+		organizationId: string | undefined;
+		promise: Promise<CloudSessionRecord[]>;
+	};
 	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
 		string,
-		Promise<CloudSessionAttachment>
+		ReturnType<CloudSessionController["create"]>
+	>();
+	private readonly initialSends = new Map<
+		string,
+		{
+			lifecycle: CloudSendLifecycle;
+			settled: Promise<CloudSendFailure | undefined>;
+		}
 	>();
 	private readonly provisioningControllers = new Map<
 		string,
@@ -699,6 +729,14 @@ export class CloudSessionController {
 	}
 
 	async list(): Promise<CloudSessionRecord[]> {
+		return await this.listInOrganization(
+			await this.resolveActiveOrganizationId(),
+		);
+	}
+
+	private async listInOrganization(
+		organizationId: string | undefined,
+	): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		const currentTitle = (id: string) =>
 			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
@@ -718,12 +756,12 @@ export class CloudSessionController {
 				session.title = title ?? session.title;
 			}
 		};
-		const organizationId = await this.resolveActiveOrganizationId();
 		const listed = (await this.options.api.list(organizationId)).map(
 			(session) => this.preserveConnectedRuntimeModel(session),
 		);
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		// Keep canonical rows available while their status checks run.
+		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = listed;
 		for (const session of listed) {
 			preserveLocalTitle(session);
@@ -732,9 +770,9 @@ export class CloudSessionController {
 		}
 		// Omission can be a listing race; only a definitive status error drops a fallback.
 		await Promise.all(
-			Array.from(this.unlistedSessions.keys(), (sessionId) =>
-				this.getCrossScopeDiscoveryRecord(sessionId),
-			),
+			Array.from(this.unlistedSessions.entries())
+				.filter(([, pending]) => pending.organizationId === organizationId)
+				.map(([sessionId]) => this.getCrossScopeDiscoveryRecord(sessionId)),
 		);
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
@@ -800,6 +838,7 @@ export class CloudSessionController {
 				}
 			}
 		}
+		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = scoped;
 		for (const record of scoped)
 			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
@@ -835,6 +874,10 @@ export class CloudSessionController {
 				...(cwd ? { cwd } : {}),
 			},
 		};
+	}
+
+	async refreshOrganization(): Promise<void> {
+		await this.resolveActiveOrganizationId({ fresh: true });
 	}
 
 	private async resolveActiveOrganizationId(options?: {
@@ -908,24 +951,42 @@ export class CloudSessionController {
 	async listForDiscovery(
 		options: { timeoutMs?: number } = {},
 	): Promise<JsonRecord[]> {
-		const refresh =
-			this.discoveryRefresh ??
-			this.list().finally(() => {
-				if (this.discoveryRefresh === refresh) {
-					this.discoveryRefresh = undefined;
-				}
-			});
-		this.discoveryRefresh = refresh;
-
-		let records = this.lastListedSessions;
+		let resolvedScope: { organizationId: string | undefined } | undefined;
+		const refresh = (async () => {
+			const organizationId = await this.resolveActiveOrganizationId();
+			resolvedScope = { organizationId };
+			let listing =
+				this.discoveryRefresh?.organizationId === organizationId
+					? this.discoveryRefresh?.promise
+					: undefined;
+			if (!listing) {
+				const promise = this.listInOrganization(organizationId).finally(() => {
+					if (this.discoveryRefresh?.promise === promise)
+						this.discoveryRefresh = undefined;
+				});
+				this.discoveryRefresh = { organizationId, promise };
+				listing = promise;
+			}
+			return { organizationId, records: await listing };
+		})();
+		const cachedResult = () =>
+			resolvedScope
+				? {
+						organizationId: resolvedScope.organizationId,
+						records:
+							this.lastListedOrganizationId === resolvedScope.organizationId
+								? this.lastListedSessions
+								: [],
+					}
+				: undefined;
+		let result: Awaited<typeof refresh> | undefined;
 		if (options.timeoutMs === undefined) {
-			records = await refresh;
+			result = await refresh;
 		} else {
 			let timeout: ReturnType<typeof setTimeout> | undefined;
-			const result = await Promise.race([
-				refresh.then(
-					(value) => ({ value }),
-					(error) => {
+			try {
+				result = await Promise.race([
+					refresh.catch((error) => {
 						if (
 							!(
 								error instanceof CloudSessionError &&
@@ -936,25 +997,30 @@ export class CloudSessionController {
 								error,
 							});
 						}
-						return { value: this.lastListedSessions };
-					},
-				),
-				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
-					timeout = setTimeout(
-						() => resolve({ value: this.lastListedSessions }),
-						Math.max(0, options.timeoutMs ?? 0),
-					);
-				}),
-			]);
-			if (timeout) clearTimeout(timeout);
-			records = result.value;
+						return cachedResult();
+					}),
+					new Promise<ReturnType<typeof cachedResult>>((resolve) => {
+						timeout = setTimeout(
+							() => resolve(cachedResult()),
+							Math.max(0, options.timeoutMs ?? 0),
+						);
+					}),
+				]);
+			} finally {
+				if (timeout !== undefined) clearTimeout(timeout);
+			}
 		}
+		// Personal is a known scope with an undefined id; an unresolved scope is not.
+		if (!result) return [];
+		const { organizationId, records } = result;
 
 		const recordsById = new Map(
-			[...this.unlistedSessions.values(), ...records].map((record) => [
-				record.id,
-				record,
-			]),
+			[
+				...Array.from(this.unlistedSessions.values())
+					.filter((pending) => pending.organizationId === organizationId)
+					.map((pending) => pending.record),
+				...records,
+			].map((record) => [record.id, record]),
 		);
 		const listed = [...recordsById.values()].map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
@@ -986,19 +1052,87 @@ export class CloudSessionController {
 	}
 
 	async create(
-		input: CreateCloudSessionInput,
-	): Promise<CloudSessionAttachment> {
+		input: CreateCloudSessionInput & {
+			initialMessage?: { text: string; images?: string[] };
+		},
+	): Promise<
+		CloudSessionAttachment & {
+			initialSend?:
+				| Awaited<ReturnType<CloudSessionController["send"]>>
+				| CloudSendFailure;
+		}
+	> {
 		const key = input.requestId?.trim();
-		if (!key) return await this.createOnce(input);
+		if (!key) return this.createSession(input);
 		const existing = this.createRequests.get(key);
-		if (existing) return await existing;
-		const creating = this.createOnce(input).finally(() => {
+		if (existing) return existing;
+		const creating = this.createSession(input).finally(() => {
 			if (this.createRequests.get(key) === creating) {
 				this.createRequests.delete(key);
 			}
 		});
 		this.createRequests.set(key, creating);
-		return await creating;
+		return creating;
+	}
+
+	private async createSession(
+		input: Parameters<CloudSessionController["create"]>[0],
+	): ReturnType<CloudSessionController["create"]> {
+		const { initialMessage, ...creation } = input;
+		if (!initialMessage) return this.createOnce(creation);
+		let dispatched = false;
+		let settle!: (failure?: CloudSendFailure) => void;
+		const initial = {
+			lifecycle: {
+				beforeDispatch: () => {
+					dispatched = true;
+				},
+			},
+			settled: new Promise<CloudSendFailure | undefined>((resolve) => {
+				settle = resolve;
+			}),
+		};
+		let target: CloudSessionAttachment | undefined;
+		let reservedSessionId: string | undefined;
+		try {
+			target = await this.createOnce(
+				{ ...creation, initialPrompt: initialMessage.text },
+				(sessionId) => {
+					reservedSessionId = sessionId;
+					if (!this.initialSends.has(sessionId))
+						this.initialSends.set(sessionId, initial);
+				},
+			);
+			const send = await this.send(
+				target.sessionId,
+				initialMessage.text,
+				"queue",
+				input.modelId,
+				initialMessage.images,
+				initial.lifecycle,
+			);
+			settle();
+			return { ...target, initialSend: send };
+		} catch (error) {
+			const send: CloudSendFailure = {
+				dispatched,
+				message: error instanceof Error ? error.message : String(error),
+				...(error instanceof Error &&
+				"detail" in error &&
+				typeof error.detail === "string"
+					? { detail: error.detail }
+					: {}),
+			};
+			settle(send);
+			if (!target) throw error;
+			return { ...target, initialSend: send };
+		} finally {
+			if (
+				reservedSessionId &&
+				this.initialSends.get(reservedSessionId) === initial
+			)
+				this.initialSends.delete(reservedSessionId);
+		}
 	}
 
 	private trackProvisioningController(
@@ -1117,6 +1251,7 @@ export class CloudSessionController {
 
 	private async createOnce(
 		input: CreateCloudSessionInput,
+		reserveInitialSend?: (sessionId: string) => void,
 	): Promise<CloudSessionAttachment> {
 		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const cwd = cloudWorkspaceCwd(input.workspaceRelativePath);
@@ -1173,14 +1308,23 @@ export class CloudSessionController {
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
+		reserveInitialSend?.(record.id);
 		this.knownSessions.set(record.id, record);
-		this.unlistedSessions.set(record.id, record);
+		this.unlistedSessions.set(record.id, { record, organizationId });
 		// REST does not round-trip these client-side first-task preferences.
-		const { autoApproveTools, thinking, reasoningEffort } = input;
+		const {
+			autoApproveTools,
+			thinking,
+			reasoningEffort,
+			mode,
+			workspaceRelativePath,
+		} = input;
 		this.pendingInitialTasks.set(record.id, {
 			autoApproveTools,
 			thinking,
 			reasoningEffort,
+			mode: mode ?? "act",
+			workspaceRelativePath,
 		});
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1315,6 +1459,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1324,6 +1469,16 @@ export class CloudSessionController {
 		result?: unknown;
 	}> {
 		const abortToken = this.sendAbortTokens.get(outerSessionId);
+		const initial = this.initialSends.get(outerSessionId);
+		// Only the initial send may bypass its own reservation.
+		if (initial && lifecycle !== initial.lifecycle) {
+			if (await initial.settled) {
+				throw new CloudSessionError(
+					"request_failed",
+					"The initial cloud prompt was not confirmed. Check the cloud task before sending another message.",
+				);
+			}
+		}
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(
@@ -1390,32 +1545,7 @@ export class CloudSessionController {
 			const statusChanged = live.status !== "running";
 			live.busy = true;
 			live.status = "running";
-			live.prompt ||= prompt;
 			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
-		}
-		const record = this.knownSessions.get(outerSessionId);
-		if (
-			record &&
-			!record.title?.trim() &&
-			!this.titleWrites.has(outerSessionId)
-		) {
-			const title = deriveCloudSessionTitle(prompt);
-			if (title) {
-				record.title = title;
-				if (live) {
-					live.title = title;
-				}
-				const write = this.options.api
-					.updateTitle?.(outerSessionId, title)
-					.then(() => {})
-					.catch(() => {})
-					.finally(() => {
-						if (this.titleWrites.get(outerSessionId) === write) {
-							this.titleWrites.delete(outerSessionId);
-						}
-					});
-				if (write) this.titleWrites.set(outerSessionId, write);
-			}
 		}
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
@@ -1455,6 +1585,32 @@ export class CloudSessionController {
 							throw new Error(
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
+						}
+						lifecycle?.beforeDispatch?.();
+						if (live && ownsBusyState) live.prompt ||= prompt;
+						const record = this.knownSessions.get(outerSessionId);
+						if (
+							record &&
+							!record.title?.trim() &&
+							!this.titleWrites.has(outerSessionId)
+						) {
+							const title = deriveCloudSessionTitle(prompt);
+							if (title) {
+								record.title = title;
+								if (live) {
+									live.title = title;
+								}
+								const write = this.options.api
+									.updateTitle?.(outerSessionId, title)
+									.then(() => {})
+									.catch(() => {})
+									.finally(() => {
+										if (this.titleWrites.get(outerSessionId) === write) {
+											this.titleWrites.delete(outerSessionId);
+										}
+									});
+								if (write) this.titleWrites.set(outerSessionId, write);
+							}
 						}
 					},
 				},
@@ -1951,6 +2107,10 @@ export class CloudSessionController {
 		}
 		this.publishSnapshot(outerSessionId, false, "queue");
 		return mapped;
+	}
+
+	getArtifactDownloadUrl(outerSessionId: string, artifactId: string) {
+		return this.options.api.getArtifactDownloadUrl(outerSessionId, artifactId);
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
@@ -2597,16 +2757,6 @@ export class CloudSessionController {
 			if (!missing) throw error;
 		}
 		this.assertSessionActive(connection.remote.id, connection);
-		const history = await connection.client.command(
-			"session.messages",
-			{},
-			sessionId,
-		);
-		this.assertSessionActive(connection.remote.id, connection);
-		const initialMessages = history.payload?.messages;
-		if (!Array.isArray(initialMessages) || initialMessages.length === 0) {
-			throw new Error("The saved conversation is empty or unavailable.");
-		}
 		const metadata = (saved.metadata ?? {}) as JsonRecord;
 		const runtimeOptions = (saved.runtimeOptions ?? {}) as JsonRecord;
 		const config = this.sessions.get(connection.remote.id)?.config;
@@ -2623,10 +2773,9 @@ export class CloudSessionController {
 		const cwd = saved.cwd ?? saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
 		const workspaceRoot = saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
 		try {
-			const reply = await connection.client.command("session.create", {
+			const payload = {
 				workspaceRoot,
 				cwd,
-				initialMessages,
 				metadata: { ...metadata, interactive: true },
 				sessionConfig: {
 					sessionId,
@@ -2650,7 +2799,31 @@ export class CloudSessionController {
 				...(typeof autoApproveTools === "boolean"
 					? { toolPolicies: { "*": { autoApprove: autoApproveTools } } }
 					: {}),
-			});
+			};
+			const reply = await connection.client
+				.command("session.resume", payload)
+				.catch(async (error: unknown) => {
+					if (
+						!(error instanceof HubCommandError) ||
+						error.code !== "unsupported_command"
+					)
+						throw error;
+					this.assertSessionActive(connection.remote.id, connection);
+					const history = await connection.client.command(
+						"session.messages",
+						{},
+						sessionId,
+					);
+					this.assertSessionActive(connection.remote.id, connection);
+					const initialMessages = history.payload?.messages;
+					if (!Array.isArray(initialMessages) || initialMessages.length === 0) {
+						throw new Error("The saved conversation is empty or unavailable.");
+					}
+					return connection.client.command("session.create", {
+						...payload,
+						initialMessages,
+					});
+				});
 			this.assertSessionActive(connection.remote.id, connection);
 			const restored = reply.payload?.session as JsonRecord | undefined;
 			if ((restored?.sessionId ?? reply.payload?.sessionId) !== sessionId) {
@@ -2756,6 +2929,18 @@ export class CloudSessionController {
 		return true;
 	}
 
+	private async resolveComputerUse(modelId: string): Promise<boolean> {
+		if (!cloudModelSupportsImages(modelId)) return false;
+		try {
+			return (await this.options.isComputerUseEnabled?.()) === true;
+		} catch (error) {
+			this.options.logger?.debug("Cloud computer-use gate failed", {
+				error,
+			});
+			return false;
+		}
+	}
+
 	private async createInnerSessionOnce(
 		connection: CloudConnection,
 		handoffSeed?: CloudHandoffSeed,
@@ -2765,8 +2950,13 @@ export class CloudSessionController {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.sessions.get(connection.remote.id);
-		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
-		const mode = handoffSeed?.mode ?? "act";
+		const preferences =
+			this.pendingInitialTasks.get(connection.remote.id) ??
+			this.restoredOptions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(
+			handoffSeed?.workspaceRelativePath ?? preferences?.workspaceRelativePath,
+		);
+		const mode = handoffSeed?.mode ?? preferences?.mode ?? "act";
 		try {
 			await handoffSeed?.onSeeding?.();
 			this.assertSessionActive(connection.remote.id, connection);
@@ -2774,7 +2964,10 @@ export class CloudSessionController {
 			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
 			throw error;
 		}
-		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote);
+		const computerUse = await this.resolveComputerUse(modelId);
+		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote, {
+			computerUse,
+		});
 		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
 		const reasoningEffort =
 			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
@@ -2799,7 +2992,8 @@ export class CloudSessionController {
 							"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
 							(cwd === CLOUD_WORKSPACE_ROOT
 								? ""
-								: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
+								: `\n\nContinue from the original repository subdirectory at ${cwd}.`) +
+							(computerUse ? `\n\n${CLOUD_COMPUTER_USE_PROMPT}` : "")
 						: systemPrompt,
 					mode,
 					enableTools: true,

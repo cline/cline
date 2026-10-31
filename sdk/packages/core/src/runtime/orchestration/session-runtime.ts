@@ -16,6 +16,7 @@ import type {
 	AgentPluginPackageSkill,
 } from "../../extensions/agent-plugin";
 import type { UserInstructionConfigService } from "../../extensions/config";
+import type { McpAppsRuntime } from "../../extensions/mcp";
 import type {
 	RunCommandExecutionController,
 	ToolExecutors,
@@ -55,6 +56,7 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	mcpApps?: McpAppsRuntime;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

@@ -1,5 +1,54 @@
 # Changelog
 
+## [4.1.26]
+
+### Added
+
+- Cloud tasks: Settings > API Configuration has a Local | Cloud toggle when cloud sessions are on. Cloud picks the Cline model new cloud tasks run on, saved separately from your local models. Clicking the model label in a cloud session's composer opens it there.
+- Starting or resuming a cloud sandbox shows a progress card with the repo, branch and steps (start sandbox, clone repository, start agent). It collapses once the agent starts.
+
+### Changed
+
+- Cloud sessions hide the Plan/Act toggle and the auto-approve bar instead of showing them disabled.
+- With no model chosen, the Cline provider uses Claude Sonnet 5.5 again, which is back at the top of Cline's recommended list.
+- Model requests retry at most 3 times instead of 5.
+- Kimi K3 now gets `max` reasoning for Extra High and Max, instead of an `xhigh` setting it rejects.
+- Refreshed the model catalog. Adds the CommandCode, Reflection, Liquid Inference and Munito AI providers and drops CrofAI, iFlow and Llama. The Cline free list adds Reflection Beam, Nemotron 3.5 Lightning and Laguna S 2.1 and drops Mimo V2.6 Flash and Muse Spark 1.3 Contributor. ClinePass now defaults to Kimi K3.1 Pro and adds MiniMax M3.1 Flash and DeepSeek V4.1 Flash 1017. Default models change for most other providers, mostly to Kimi K3.1 Pro, MiniMax M3.1 Flash or DeepSeek V4.1 Flash 1017. If you use a provider without pinning a model, expect a different default.
+
+### Fixed
+
+- GPT-6 models (such as `gpt-6-sol` and `gpt-6.1-sol`) work on OpenAI and Azure OpenAI-compatible endpoints, and SAP AI Core no longer rejects requests with "Unsupported parameter: 'max_tokens'". Both now get `max_completion_tokens`.
+- Gemini API keys (the `gemini` provider) no longer send native Google Search. Free-tier keys failed every turn with a 429 quota error on Gemini 3+, and on Gemini 2.x every Cline tool was dropped.
+- Toggling Plan/Act while a task is starting no longer drops your first prompt, and the session no longer keeps running with the other mode's tools.
+- Disabled rules stay disabled.
+- Starting a command no longer moves keyboard focus into the terminal, so text you're typing in the chat no longer lands in the shell.
+- Cancelling a task or opening another one while Cline is asking a question no longer lets your next message get taken as the answer to the old question.
+- A turn whose connection drops after the model has streamed only reasoning is now retried instead of ending the task.
+- Auto-compaction no longer runs for models with an unknown context limit, and it no longer runs again every few tool calls after the first compaction.
+- `ask_question`: the model keeps going after you pick an option, and empty answers are rejected.
+- `run_commands` with an empty command list now returns an error instead of a silent success. On PowerShell, the tool tells the model how quote escaping works and to confirm recursive deletes first.
+- Task header badges wrap instead of hiding the close button, the GitHub connection check no longer flashes a loading indicator, and the Local/Cloud toggle's padding is fixed.
+
+## [4.1.25]
+
+### Added
+
+- Cline Cloud sessions, rolling out gradually: run a task in a hosted sandbox on a GitHub repo and branch you pick. Turn it on in Settings. Cloud tasks show in Recent and History with their status, notify you when they finish, and keep running after you close your editor.
+
+### Changed
+
+- With no model chosen, the Cline provider now uses Gemini 4 Argon, the new first model in Cline's recommended list. OpenRouter stays on Claude Sonnet 5.5.
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- Long requests to local models (LM Studio, Ollama) no longer fail after 5 minutes of silence with `terminated: BodyTimeoutError` while the server is still processing a large prompt.
+- OpenAI Compatible base URLs are used exactly as entered. A host-only URL like `https://abc.com` used to get `/v1` added silently. Host-only URLs saved by earlier versions get `/v1` added once, so existing setups keep working.
+- Images and files attached to an answer to one of Cline's questions now reach the model instead of being dropped.
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn.
+- In JetBrains, the Run task card stays above the Auto-approve bar.
+- Auto Compact and its strategy setting sit together again in Feature settings.
+
 ## [4.1.24]
 
 ### Changed

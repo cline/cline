@@ -2,9 +2,12 @@ import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
+import { HubCloudSessionService } from "@cline/core/hub";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
-import { CloudSessionManager, type CloudSessionRecord } from "./cloud-sessions";
+import * as clineAuth from "./cline-auth";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
+import type { CloudSessionManager, CloudSessionRecord } from "./cloud-sessions";
 import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
@@ -60,16 +63,17 @@ function readEvents(ctx: SidecarContext): Array<{
 	);
 }
 
-function createSearchCloudManager(
+async function createSearchCloudManager(
 	ctx: SidecarContext,
 	list: () => Promise<CloudSessionRecord[]>,
-): CloudSessionManager {
+): Promise<CloudSessionManager> {
 	vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
-	return new CloudSessionManager(ctx, {
+	await createCloudSessionTestRuntime(ctx, {
 		api: { list } as never,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "token",
 	});
+	return ctx.cloudSessionManager as CloudSessionManager;
 }
 
 function cloudSearchRecord(
@@ -90,7 +94,11 @@ function cloudSearchRecord(
 }
 
 describe("Code sidecar runtime capabilities", () => {
-	afterEach(() => vi.unstubAllEnvs());
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
 
 	beforeEach(() => {
 		createCoreMock.mockReset();
@@ -156,6 +164,23 @@ describe("Code sidecar runtime capabilities", () => {
 				displayName: "Cline Desktop observer",
 			}),
 		);
+	});
+
+	it("reuses the installed session manager when a retried startup only failed its readiness sync", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		updateCapabilitiesMock.mockRejectedValueOnce(new Error("hub busy"));
+
+		await expect(initializeSessionManager(ctx)).rejects.toThrow("hub busy");
+		const installed = ctx.runtimeBindings.get("local");
+		expect(installed).toBeDefined();
+
+		await initializeSessionManager(ctx);
+		expect(createCoreMock).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.get("local")).toBe(installed);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("wires the desktop logger and telemetry through the shared Hub client", async () => {
@@ -242,6 +267,181 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("records only local observer events, excluding cloud events projected through a local context", async () => {
+		const { createSidecarContext, ensureSharedHubClient, handleHubLiveEvent } =
+			await import("./context");
+		const { getHubStatus } = await import("./hub-admin");
+		const ctx = createSidecarContext("/workspace/project");
+		const client = await ensureSharedHubClient(ctx);
+		const observer = subscribeMock.mock.calls[0][0];
+		observer({
+			event: "hub.client.registered",
+			payload: { displayName: "Local client" },
+		});
+		// CloudSessionManager projects cloud hub events through this same handler
+		// with a local environment context; context identity is not event origin.
+		for (let i = 0; i < 105; i++) {
+			handleHubLiveEvent(ctx, {
+				event: "ui.notify",
+				payload: { title: "Cloud run", body: "Cloud content" },
+			});
+		}
+		const status = await getHubStatus(ctx, client);
+		expect(status.events).toHaveLength(1);
+		expect(status.events[0]).toMatchObject({
+			title: "Client connected",
+			detail: "Local client",
+		});
+	});
+
+	it("preserves the artifact ID when resolving a cloud download", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const download = {
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const resolve = vi
+			.spyOn(manager, "getArtifactDownloadUrl")
+			.mockResolvedValue(download);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: " frame ",
+			}),
+		).resolves.toEqual(download);
+		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
+	});
+
+	it.each([
+		"https://api.example",
+		"https://api.example/api/v1",
+		"https://api.example/api/v1/",
+	])("resolves artifacts with an older Hub and API base %s", async (baseUrl) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		await createSearchCloudManager(ctx, async () => []);
+		vi.spyOn(HubCloudSessionService.prototype, "command").mockRejectedValue(
+			new Error("Unknown cloud operation: getArtifactDownloadUrl"),
+		);
+		vi.spyOn(clineAuth, "getClineAccountId").mockReturnValue("account-one");
+		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(baseUrl);
+		const refresh = vi
+			.spyOn(clineAuth, "resolveFreshClineAuthToken")
+			.mockResolvedValue("fresh-token");
+		const download = {
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const fetch = vi
+			.fn()
+			.mockResolvedValue(Response.json({ success: true, data: download }));
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: " frame/雪 ",
+			}),
+		).resolves.toEqual(download);
+		expect(refresh).toHaveBeenCalledOnce();
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			"https://api.example/api/v1/session/ses-one/artifacts/download-url?name=%20frame%2F%E9%9B%AA%20",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer fresh-token",
+				}),
+			}),
+		);
+	});
+
+	it.each([
+		"authentication required",
+		"Cline account changed during cloud operation",
+		"network unavailable",
+	])("does not bypass a Hub failure: %s", async (message) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const error = new Error(message);
+		vi.spyOn(manager, "getArtifactDownloadUrl").mockRejectedValue(error);
+		const fetch = vi.fn();
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: "frame",
+			}),
+		).rejects.toBe(error);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"hub",
+		"refresh",
+		"download",
+	])("discards old-Hub artifact access if the account changes during %s", async (phase) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		let accountId = "account-one";
+		vi.spyOn(clineAuth, "getClineAccountId").mockImplementation(
+			() => accountId,
+		);
+		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(
+			"https://api.example",
+		);
+		vi.spyOn(manager, "getArtifactDownloadUrl").mockImplementation(async () => {
+			if (phase === "hub") accountId = "account-two";
+			throw new Error("Unknown cloud operation: getArtifactDownloadUrl");
+		});
+		vi.spyOn(clineAuth, "resolveFreshClineAuthToken").mockImplementation(
+			async () => {
+				if (phase === "refresh") accountId = "account-two";
+				return "fresh-token";
+			},
+		);
+		const fetch = vi.fn().mockImplementation(async () => {
+			accountId = "account-two";
+			return Response.json({
+				success: true,
+				data: {
+					url: "https://storage.example/frame.png",
+					expiresAt: "2030-01-01T00:00:00Z",
+				},
+			});
+		});
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: "frame",
+			}),
+		).rejects.toThrow("Cline account changed");
+		expect(fetch).toHaveBeenCalledTimes(phase === "download" ? 1 : 0);
+	});
+
+	it("does not send local artifact references to cloud storage", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const resolve = vi.spyOn(manager, "getArtifactDownloadUrl");
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "local-one",
+				artifactId: "frame",
+			}),
+		).rejects.toThrow(
+			"Artifact access is not available for local sessions yet.",
+		);
+		expect(resolve).not.toHaveBeenCalled();
+	});
+
 	it("returns indexed search results without listing every session", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
@@ -270,7 +470,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -323,7 +526,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
 		]);
 
@@ -368,7 +571,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -410,7 +616,10 @@ describe("Code sidecar runtime capabilities", () => {
 				sessionManager: { list } as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+			ctx.cloudSessionManager = await createSearchCloudManager(
+				ctx,
+				async () => [],
+			);
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -448,7 +657,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, list);
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, list);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "UNIQUE-CLOUD-TITLE",
@@ -500,7 +709,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("shared", "match"),
 			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
 			cloudSearchRecord("cloud-3", "match third", "2026-01-02T00:00:00.000Z"),
@@ -546,7 +755,7 @@ describe("Code sidecar runtime capabilities", () => {
 				} as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(
+			ctx.cloudSessionManager = await createSearchCloudManager(
 				ctx,
 				async () => await new Promise<CloudSessionRecord[]>(() => {}),
 			);
@@ -578,7 +787,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(
+		ctx.cloudSessionManager = await createSearchCloudManager(
 			ctx,
 			() =>
 				new Promise((resolve) => {
@@ -1545,6 +1754,31 @@ describe("Code sidecar runtime capabilities", () => {
 						status: "pending_approval",
 					},
 				},
+			},
+		]);
+	});
+
+	it.each([
+		"schedule.execution_failed",
+		"schedule.execution_completed",
+	])("forwards %s without requiring an attached session", async (event) => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+		const payload = {
+			scheduleId: "schedule-1",
+			executionId: "execution-1",
+			errorMessage: "getaddrinfo ENOTFOUND api.cline.bot",
+		};
+
+		handleHubLiveEvent(ctx, { event, payload });
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: { name: event, payload: { environmentId: "local", ...payload } },
 			},
 		]);
 	});

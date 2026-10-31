@@ -124,6 +124,32 @@ describe("fetchClineRecommendedModels", () => {
 		]);
 	});
 
+	it("keeps the cloud-only ClineFree models", async () => {
+		const data = await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: jsonResponse({
+				...ENDPOINT_PAYLOAD,
+				clineCloud: [
+					{
+						id: "cline-cloud/deepseek-v4.1-flash",
+						name: "cline-cloud/deepseek-v4.1-flash",
+						description: "",
+					},
+				],
+			}),
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(data.clineCloud).toEqual([
+			{
+				id: "cline-cloud/deepseek-v4.1-flash",
+				name: "deepseek-v4.1-flash",
+				description: "",
+				tags: [],
+			},
+		]);
+	});
+
 	it("identifies the client on the feed request", async () => {
 		setClineClientIdentity({ name: "VSCode Extension", version: "3.40.0" });
 		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
