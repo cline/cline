@@ -3311,6 +3311,7 @@ function ChatThreadPane({
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
+			isOpeningSession={displayedIsSwitching}
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}

@@ -324,6 +324,7 @@ type ChatInputBarProps = {
 	readOnly?: boolean;
 	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
+	isOpeningSession?: boolean;
 	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
@@ -382,6 +383,7 @@ function ChatInputBarImpl({
 	readOnly = false,
 	cloudHandoffAvailable = false,
 	status,
+	isOpeningSession = false,
 	hasRunningAgents = false,
 	provider,
 	model,
@@ -1502,7 +1504,7 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
-										: status === "starting"
+										: isOpeningSession
 											? "Getting session ready…"
 											: isBusy && variant !== "welcome"
 												? promptsInQueue.length > 0
