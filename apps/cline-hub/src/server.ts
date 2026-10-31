@@ -202,8 +202,13 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							session?.metadata && typeof session.metadata === "object"
 								? (session.metadata as Record<string, unknown>)
 								: {};
+						const { title, ...restMetadata } = frame.metadata ?? {};
 						await ctx.cline.update(frame.sessionId, {
-							metadata: { ...metadata, ...frame.metadata },
+							metadata: { ...metadata, ...restMetadata },
+							// The persistence layer only treats an explicit `title` as a
+							// rename. Folding it into `metadata.title` gets overwritten by
+							// the stored title, so renames must travel as their own field.
+							...(typeof title === "string" ? { title } : {}),
 						});
 						await syncHubClientsAndSessions(ctx);
 						broadcastHubState(ctx);
