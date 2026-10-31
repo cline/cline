@@ -18,7 +18,6 @@ import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 import { FileIcon } from "./file-icons";
 import { CodeDiff } from "./highlighted-code";
 import { ChangeRow } from "./source-control-column";
-import { WorkspacePanelFrame } from "./workspace-panel-frame";
 
 type ChangesPanelProps = {
 	environmentId: string;
@@ -178,7 +177,10 @@ export function ChangesPanel({
 			: "in the last turn";
 
 	return (
-		<WorkspacePanelFrame id="changes-panel">
+		<div
+			id="changes-panel"
+			className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+		>
 			<div
 				className="flex shrink-0 flex-col border-r border-border bg-sidebar/40"
 				style={{ width: COLUMN_WIDTH }}
@@ -360,7 +362,7 @@ export function ChangesPanel({
 					)}
 				</div>
 			</div>
-		</WorkspacePanelFrame>
+		</div>
 	);
 }
 

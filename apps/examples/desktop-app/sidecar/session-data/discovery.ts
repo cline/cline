@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { SqliteSessionStore } from "@cline/core";
+import { readSideConversation } from "../../shared/side-conversation";
 import { readSessionManifest, sharedSessionDataDir } from "../paths";
 import type { JsonRecord } from "../types";
 import {
@@ -49,7 +50,12 @@ export function discoverChatSessions(
 	const out: JsonRecord[] = [];
 	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		if (session.config.executionTarget === "cloud") {
+		const persistedMetadata = store.get(sessionId)?.metadata;
+		if (
+			session.config.executionTarget === "cloud" ||
+			session.config.desktopSideParentSessionId ||
+			readSideConversation(persistedMetadata)
+		) {
 			continue;
 		}
 		const prompt =
@@ -64,7 +70,6 @@ export function discoverChatSessions(
 			prompt,
 			messages: session.messages,
 		});
-		const persistedMetadata = store.get(sessionId)?.metadata;
 		out.push({
 			sessionId,
 			status: session.status,
@@ -106,6 +111,12 @@ export function discoverChatSessions(
 				continue;
 			}
 			const manifest = readSessionManifest(sessionId) ?? {};
+			if (
+				readSideConversation(
+					store.get(sessionId)?.metadata ?? manifest.metadata,
+				)
+			)
+				continue;
 			// Skip sessions explicitly marked as subagent.
 			if (manifest.source === "subagent") {
 				continue;

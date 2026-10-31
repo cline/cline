@@ -1,7 +1,6 @@
 "use client";
 
 import type { PluginCommandCatalog } from "@cline/core";
-
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
@@ -31,7 +30,16 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
@@ -85,6 +93,10 @@ import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
+import {
+	parseSideCommand,
+	type SideConfig,
+} from "../../../../shared/side-conversation";
 import { LocalModelIndicator } from "./local-model-indicator";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -121,6 +133,14 @@ type UserInstructionConfigResponse = {
 };
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "btw",
+		description: "Ask in a side conversation with a snapshot of this chat",
+	},
+	{
+		name: "side",
+		description: "Open a side conversation in the shared workspace",
+	},
 	{
 		name: "compact",
 		description: "Summarize the conversation to free up context",
@@ -318,17 +338,20 @@ export function buildWorkspaceFileSearchKey(
 }
 
 type ChatInputBarProps = {
+	sessionActions?: ReactNode;
+	composerId: string;
+	active?: boolean;
 	sessionId?: string | null;
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
+	isSideConversation?: boolean;
 	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
-	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
@@ -341,7 +364,7 @@ type ChatInputBarProps = {
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
-	onModeToggle: () => void;
+	onSideSettingsChange?: (patch: Partial<SideConfig>) => void;
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
@@ -376,17 +399,20 @@ type ChatInputBarProps = {
 const COMPACT_COMPOSER_WIDTH = 512;
 
 function ChatInputBarImpl({
+	sessionActions,
+	composerId,
+	active = true,
 	sessionId,
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
+	isSideConversation = false,
 	cloudHandoffAvailable = false,
 	status,
 	hasRunningAgents = false,
 	provider,
 	model,
 	modelContextWindow,
-	mode,
 	thinking,
 	reasoningEffort,
 	gitBranch,
@@ -398,7 +424,7 @@ function ChatInputBarImpl({
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
-	onModeToggle,
+	onSideSettingsChange,
 	onReasoningChange,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -420,6 +446,9 @@ function ChatInputBarImpl({
 	// query would turn the settings row into the containing block for the
 	// compact menu's full-screen click-away layer.
 	const composerRef = useRef<HTMLDivElement | null>(null);
+	const activeRef = useRef(active);
+	activeRef.current = active;
+	const suggestionId = useId();
 	const [compact, setCompact] = useState(false);
 	useEffect(() => {
 		const element = composerRef.current;
@@ -449,10 +478,10 @@ function ChatInputBarImpl({
 	// window event (see lib/prompt-input-focus.ts).
 	useEffect(
 		() =>
-			subscribeToPromptInputFocus(() => {
-				promptInputRef.current?.focus();
+			subscribeToPromptInputFocus(composerId, () => {
+				if (activeRef.current) promptInputRef.current?.focus();
 			}),
-		[],
+		[composerId],
 	);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
@@ -462,6 +491,15 @@ function ChatInputBarImpl({
 		generation: number;
 	} | null>(null);
 	const transcriptionGenerationRef = useRef(0);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: changing composer identity invalidates any in-flight recording.
+	useEffect(() => {
+		transcriptionGenerationRef.current += 1;
+		streamingTranscriptRangeRef.current = null;
+		if (!active) {
+			setSpeechInputActive(false);
+			setSpeechInputProcessing(false);
+		}
+	}, [active, composerId]);
 	const transcriptionTargetIdentityRef = useRef("unconfigured");
 	const setPromptInput = useCallback(
 		(value: string) => {
@@ -580,11 +618,11 @@ function ChatInputBarImpl({
 	const unsupportedDraftImageCount = imagesUnsupported
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
+	const isSideCommand = parseSideCommand(promptInput) !== undefined;
 	const canSend =
 		hasDraft &&
 		!speechInputActive &&
-		!needsCloudRepository &&
-		!needsCloudModel &&
+		(isSideCommand || (!needsCloudRepository && !needsCloudModel)) &&
 		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
@@ -609,11 +647,11 @@ function ChatInputBarImpl({
 	};
 	const handleSend = useCallback(() => {
 		if (speechInputActive || readOnly) return;
-		if (unsupportedDraftImageCount > 0) {
+		if (!isSideCommand && unsupportedDraftImageCount > 0) {
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository || needsCloudModel) return;
+		if (!isSideCommand && (needsCloudRepository || needsCloudModel)) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -626,6 +664,7 @@ function ChatInputBarImpl({
 		setPromptInput("");
 		onSend(prompt);
 	}, [
+		isSideCommand,
 		needsCloudRepository,
 		needsCloudModel,
 		readOnly,
@@ -718,7 +757,11 @@ function ChatInputBarImpl({
 				? target
 				: undefined;
 		return [
-			...BUILTIN_SLASH_COMMANDS,
+			...BUILTIN_SLASH_COMMANDS.filter(
+				(command) =>
+					!isSideConversation ||
+					(command.name !== "fork" && command.name !== "team"),
+			),
 			...buildUserInstructionSlashCommands(
 				current(instructionResponse)?.response ?? {},
 				// A session's plugins can differ from the workspace catalog.
@@ -728,6 +771,7 @@ function ChatInputBarImpl({
 			),
 		];
 	}, [
+		isSideConversation,
 		instructionResponse,
 		pluginResponse,
 		workspaceRoot,
@@ -806,7 +850,7 @@ function ChatInputBarImpl({
 		(transcript: string) => {
 			const text = transcript.trim();
 			const range = streamingTranscriptRangeRef.current;
-			if (!text || !range) return;
+			if (!activeRef.current || !text || !range) return;
 
 			const current = promptInputValueRef.current;
 			// A live transcript range is only valid for the exact draft produced by
@@ -837,9 +881,12 @@ function ChatInputBarImpl({
 			setPromptInput(next);
 
 			requestAnimationFrame(() => {
+				if (!activeRef.current) return;
 				const textarea = promptInputRef.current;
-				textarea?.focus();
-				textarea?.setSelectionRange(nextEnd, nextEnd);
+				if (composerRef.current?.contains(document.activeElement)) {
+					textarea?.focus();
+					textarea?.setSelectionRange(nextEnd, nextEnd);
+				}
 				setCursorIndex(nextEnd);
 			});
 		},
@@ -917,7 +964,9 @@ function ChatInputBarImpl({
 			}
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
-				onReasoningChange(buildReasoningConfig(nextOption));
+				const patch = buildReasoningConfig(nextOption);
+				if (onSideSettingsChange) onSideSettingsChange(patch);
+				else onReasoningChange(patch);
 				try {
 					writeReasoningSelectionToWindow(
 						normalizeProviderId(provider),
@@ -928,22 +977,25 @@ function ChatInputBarImpl({
 				}
 			}
 		},
-		[modelSupportsReasoning, onReasoningChange, provider],
+		[modelSupportsReasoning, onReasoningChange, onSideSettingsChange, provider],
 	);
 
 	const seededReasoningProviderRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (modelSupportsReasoning !== true) {
+		if (!active || modelSupportsReasoning !== true) {
 			return;
 		}
 		const normalizedId = normalizeProviderId(provider);
 		const unset = thinking === undefined && reasoningEffort === undefined;
-		if (!unset && seededReasoningProviderRef.current === normalizedId) {
+		if (
+			!unset &&
+			(isSideConversation ||
+				seededReasoningProviderRef.current === normalizedId)
+		) {
 			return;
 		}
 		seededReasoningProviderRef.current = normalizedId;
-		// The thread's config is rebuilt on every mount (and session hydration
-		// only restores provider/model), so seed the effort from the last value
+		// Main chats restore provider/model, so seed effort from the last value
 		// the user picked for this provider before falling back to the default.
 		// A provider switch re-seeds too, but only when that provider has a
 		// remembered value; otherwise the current choice carries over.
@@ -959,6 +1011,8 @@ function ChatInputBarImpl({
 			buildReasoningConfig(remembered ?? DEFAULT_REASONING_EFFORT),
 		);
 	}, [
+		active,
+		isSideConversation,
 		modelSupportsReasoning,
 		onReasoningChange,
 		provider,
@@ -966,13 +1020,12 @@ function ChatInputBarImpl({
 		thinking,
 	]);
 
-	// Focus the composer on mount/variant change and when text is injected
-	// from outside (quick actions, queue undo). Deliberately NOT on every
-	// keystroke: refocusing an already-focused textarea per keypress causes
-	// caret flicker and forced layout while typing.
+	// Visibility changes use addressed focus requests so resizing panes does
+	// not steal focus. Mounting a visible conversation still focuses its input.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input || document.activeElement === input) return;
+		if (!activeRef.current || !input || document.activeElement === input)
+			return;
 		// The textarea is controlled, so its live value mirrors promptInput;
 		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
@@ -1100,16 +1153,20 @@ function ChatInputBarImpl({
 	useEffect(() => {
 		if (!slashOpen) return;
 		document
-			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			.getElementById(
+				`${suggestionId}-slash-command-option-${slashSelectedIndex}`,
+			)
 			?.scrollIntoView({ block: "nearest" });
-	}, [slashOpen, slashSelectedIndex]);
+	}, [slashOpen, slashSelectedIndex, suggestionId]);
 
 	useEffect(() => {
 		if (!mentionOpen) return;
 		document
-			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			.getElementById(
+				`${suggestionId}-mention-file-option-${mentionSelectedIndex}`,
+			)
 			?.scrollIntoView({ block: "nearest" });
-	}, [mentionOpen, mentionSelectedIndex]);
+	}, [mentionOpen, mentionSelectedIndex, suggestionId]);
 
 	// Load commands once per workspace/session up front (sent messages chip
 	// them too), then refresh whenever the slash menu opens, keeping the last
@@ -1256,7 +1313,7 @@ function ChatInputBarImpl({
 					{slashOpen && (
 						<div
 							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
-							id="slash-command-suggestions"
+							id={`${suggestionId}-slash-command-suggestions`}
 							role="listbox"
 						>
 							{filteredSlashCommands.length === 0 ? (
@@ -1277,7 +1334,7 @@ function ChatInputBarImpl({
 													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={cmd.name}
-											id={`slash-command-option-${index}`}
+											id={`${suggestionId}-slash-command-option-${index}`}
 											onClick={() => insertSlashCommandItem(cmd.name)}
 											role="option"
 											type="button"
@@ -1302,7 +1359,7 @@ function ChatInputBarImpl({
 					{mentionOpen && (
 						<div
 							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
-							id="mention-file-suggestions"
+							id={`${suggestionId}-mention-file-suggestions`}
 							role="listbox"
 						>
 							{mentionFiles.length === 0 ? (
@@ -1321,7 +1378,7 @@ function ChatInputBarImpl({
 													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={filePath}
-											id={`mention-file-option-${index}`}
+											id={`${suggestionId}-mention-file-option-${index}`}
 											onClick={() => insertMentionFile(filePath)}
 											role="option"
 											type="button"
@@ -1365,17 +1422,17 @@ function ChatInputBarImpl({
 						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
-									? `slash-command-option-${slashSelectedIndex}`
+									? `${suggestionId}-slash-command-option-${slashSelectedIndex}`
 									: mentionOpen && mentionFiles.length > 0
-										? `mention-file-option-${mentionSelectedIndex}`
+										? `${suggestionId}-mention-file-option-${mentionSelectedIndex}`
 										: undefined
 							}
 							aria-autocomplete="list"
 							aria-controls={
 								slashOpen
-									? "slash-command-suggestions"
+									? `${suggestionId}-slash-command-suggestions`
 									: mentionOpen
-										? "mention-file-suggestions"
+										? `${suggestionId}-mention-file-suggestions`
 										: undefined
 							}
 							aria-expanded={slashOpen || mentionOpen}
@@ -1411,7 +1468,13 @@ function ChatInputBarImpl({
 								// so leave those keys to the IME. WebKit can fire the committing
 								// Enter after compositionend with isComposing already false but
 								// the legacy keyCode 229, hence the second check.
-								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+								if (
+									e.defaultPrevented ||
+									!active ||
+									e.nativeEvent.isComposing ||
+									e.keyCode === 229
+								)
+									return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1441,6 +1504,7 @@ function ChatInputBarImpl({
 								}
 								if (slashOpen && e.key === "Escape") {
 									e.preventDefault();
+									e.stopPropagation();
 									setDismissedSlashKey(slashKey);
 									return;
 								}
@@ -1468,11 +1532,17 @@ function ChatInputBarImpl({
 								}
 								if (mentionOpen && e.key === "Escape") {
 									e.preventDefault();
+									e.stopPropagation();
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
-								if (e.key === "Escape" && canAbort) {
+								if (
+									e.key === "Escape" &&
+									canAbort &&
+									document.activeElement === e.currentTarget
+								) {
 									e.preventDefault();
+									e.stopPropagation();
 									onAbort();
 									return;
 								}
@@ -1506,11 +1576,13 @@ function ChatInputBarImpl({
 											? promptsInQueue.length > 0
 												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
 												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+											: isSideConversation
+												? "Ask a side question…"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
@@ -1546,7 +1618,7 @@ function ChatInputBarImpl({
 							    configured in Settings → Voice; unconfigured users
 							    don't get a dead control. Start with the configured provider;
 							    browser recognition is only a fallback for network failures. */}
-							{transcriptionTarget ? (
+							{active && transcriptionTarget ? (
 								<SpeechInput
 									fallbackOnNetworkError
 									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
@@ -1647,40 +1719,10 @@ function ChatInputBarImpl({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
-						<button
-							aria-pressed={mode === "plan"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "plan"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "plan") onModeToggle();
-							}}
-							type="button"
-						>
-							Plan
-						</button>
-						<button
-							aria-pressed={mode === "act"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "act"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "act") onModeToggle();
-							}}
-							type="button"
-						>
-							Act
-						</button>
-					</div>
 					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
+							composerId={composerId}
+							active={active}
 							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
 							includeCloudModels={executionTarget === "cloud"}
@@ -1688,6 +1730,7 @@ function ChatInputBarImpl({
 							model={model}
 							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
+							onSideSettingsChange={onSideSettingsChange}
 							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
@@ -1699,38 +1742,45 @@ function ChatInputBarImpl({
 							provider={provider}
 						/>
 					</div>
-					<Select
-						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
-							size="sm"
-							title={
-								cloudSettingsLocked
-									? "Thinking level is fixed when a cloud session starts"
-									: modelSupportsReasoning === false
-										? "The selected model does not report reasoning support"
-										: undefined
+					{active && (
+						<Select
+							disabled={
+								cloudSettingsLocked ||
+								modelSupportsReasoning !== true ||
+								(isSideConversation && isBusy)
 							}
+							onValueChange={handleEffortChange}
+							value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 						>
-							<Brain className="size-3" />
-							<span className="group-data-[compact]/composer:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+							<SelectTrigger
+								aria-label="Thinking level"
+								className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
+								size="sm"
+								title={
+									cloudSettingsLocked
+										? "Thinking level is fixed when a cloud session starts"
+										: modelSupportsReasoning === false
+											? "The selected model does not report reasoning support"
+											: undefined
+								}
+							>
+								<Brain className="size-3" />
+								<span className="group-data-[compact]/composer:sr-only">
+									<SelectValue>{effortLabel}</SelectValue>
+								</span>
+							</SelectTrigger>
+							<SelectContent align="start">
+								{EFFORT_LEVELS.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 					{/* The chip controls this computer's runtime, which SSH sessions don't use. */}
-					{executionTarget !== "cloud" &&
+					{active &&
+					executionTarget !== "cloud" &&
 					environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
 					isLocalRuntime(localRuntime) ? (
 						<LocalModelIndicator
@@ -1747,29 +1797,32 @@ function ChatInputBarImpl({
 				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] group-data-[compact]/composer:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
-							<div className="min-w-0 overflow-visible">
-								{executionTarget === "cloud" ? (
-									<span
-										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
-										title={cloudContextLabel}
-									>
-										<Cloud className="size-3 shrink-0" />
-										<span className="truncate">{cloudContextLabel}</span>
-									</span>
-								) : (
-									<WorkspaceSelector
-										currentBranch={gitBranch}
-										disabled
-										onListGitBranches={onListGitBranches}
-										onRefreshWorkspaces={onRefreshWorkspaces}
-										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-										onSwitchGitBranch={onSwitchGitBranch}
-										onSwitchWorkspace={onSwitchWorkspace}
-										workspaces={workspaces}
-										workspaceRoot={workspaceRoot}
-									/>
-								)}
-							</div>
+							{active && !isSideConversation && (
+								<div className="min-w-0 overflow-visible">
+									{executionTarget === "cloud" ? (
+										<span
+											className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+											title={cloudContextLabel}
+										>
+											<Cloud className="size-3 shrink-0" />
+											<span className="truncate">{cloudContextLabel}</span>
+										</span>
+									) : (
+										<WorkspaceSelector
+											currentBranch={gitBranch}
+											disabled
+											onListGitBranches={onListGitBranches}
+											onRefreshWorkspaces={onRefreshWorkspaces}
+											onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+											onSwitchGitBranch={onSwitchGitBranch}
+											onSwitchWorkspace={onSwitchWorkspace}
+											workspaces={workspaces}
+											workspaceRoot={workspaceRoot}
+										/>
+									)}
+								</div>
+							)}
+							{active && sessionActions}
 							<TokenUsageRing
 								usage={{
 									contextWindow: modelContextWindow,
@@ -1798,6 +1851,8 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
+	composerId,
+	active,
 	allowedProviderIds,
 	autoCorrectModel = true,
 	includeCloudModels = false,
@@ -1806,11 +1861,14 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onSideSettingsChange,
 	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
 }: {
+	composerId: string;
+	active: boolean;
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
@@ -1819,6 +1877,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onSideSettingsChange?: (patch: Partial<SideConfig>) => void;
 	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
@@ -1856,6 +1915,9 @@ const ModelSelector = memo(function ModelSelector({
 			) === "cline-pass",
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	useEffect(() => {
+		if (!active) setMobileOpen(false);
+	}, [active]);
 	const normalizedProvider = includeCloudModels
 		? (Object.keys(providerModels).find((id) =>
 				providerModels[id]?.includes(model),
@@ -2210,35 +2272,48 @@ const ModelSelector = memo(function ModelSelector({
 			if (!normalizedId) {
 				return;
 			}
-			setLastSelection((prev) => {
-				if (
-					prev.lastProvider === normalizedId &&
-					(!modelId || prev.lastModelByProvider[normalizedId] === modelId)
-				) {
-					return prev;
-				}
-				return {
-					lastProvider: normalizedId,
-					lastModelByProvider: modelId
-						? {
-								...prev.lastModelByProvider,
-								[normalizedId]: modelId,
-							}
-						: prev.lastModelByProvider,
-				};
-			});
+			const previous = readModelSelectionStorageFromWindow();
+			const next = {
+				lastProvider: normalizedId,
+				lastModelByProvider: modelId
+					? { ...previous.lastModelByProvider, [normalizedId]: modelId }
+					: previous.lastModelByProvider,
+			};
+			setLastSelection(next);
+			try {
+				writeModelSelectionStorageToWindow(next);
+			} catch {
+				// Ignore localStorage persistence failures.
+			}
 		},
 		[includeCloudModels],
 	);
 
-	useEffect(() => {
-		if (includeCloudModels) return;
-		try {
-			writeModelSelectionStorageToWindow(lastSelection);
-		} catch {
-			// Ignore localStorage persistence failures.
-		}
-	}, [includeCloudModels, lastSelection]);
+	const applySelection = useCallback(
+		(selection: { provider?: string; model?: string }) => {
+			if (onSideSettingsChange) {
+				onSideSettingsChange({
+					provider:
+						selection.provider ??
+						(includeCloudModels ? provider : resolvedProvider),
+					model: selection.model ?? model,
+				});
+			} else {
+				if (selection.provider !== undefined)
+					onProviderChange(selection.provider);
+				if (selection.model !== undefined) onModelChange(selection.model);
+			}
+		},
+		[
+			includeCloudModels,
+			model,
+			onModelChange,
+			onProviderChange,
+			onSideSettingsChange,
+			provider,
+			resolvedProvider,
+		],
+	);
 
 	// A selection made mid-turn waits for the turn to end.
 	const [pendingSelection, setPendingSelection] =
@@ -2246,9 +2321,10 @@ const ModelSelector = memo(function ModelSelector({
 	useEffect(() => {
 		if (includeCloudModels) return;
 		const handleSelectionChanged = (event: Event) => {
-			setPendingSelection(
-				(event as CustomEvent<ModelSelectionChangedDetail>).detail,
-			);
+			if (!(event instanceof CustomEvent)) return;
+			const detail: ModelSelectionChangedDetail = event.detail;
+			if (detail.composerId !== composerId) return;
+			setPendingSelection(detail);
 			setLastSelection(readModelSelectionStorageFromWindow());
 		};
 		window.addEventListener(
@@ -2260,16 +2336,19 @@ const ModelSelector = memo(function ModelSelector({
 				MODEL_SELECTION_CHANGED_EVENT,
 				handleSelectionChanged,
 			);
-	}, [includeCloudModels]);
+	}, [composerId, includeCloudModels]);
 	useEffect(() => {
 		if (isBusy || !pendingSelection) return;
 		setPendingSelection(null);
-		onProviderChange(pendingSelection.providerId);
-		onModelChange(pendingSelection.modelId);
-	}, [isBusy, pendingSelection, onModelChange, onProviderChange]);
+		if (pendingSelection.composerId !== composerId) return;
+		applySelection({
+			provider: pendingSelection.providerId,
+			model: pendingSelection.modelId,
+		});
+	}, [composerId, isBusy, pendingSelection, applySelection]);
 
 	useEffect(() => {
-		if (providers.length === 0) {
+		if (!active || providers.length === 0) {
 			return;
 		}
 		if (isBusy) {
@@ -2286,6 +2365,7 @@ const ModelSelector = memo(function ModelSelector({
 			onModelChange(resolvedModel);
 		}
 	}, [
+		active,
 		autoCorrectModel,
 		includeCloudModels,
 		isBusy,
@@ -2331,7 +2411,6 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			if (!includeCloudModels) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2347,17 +2426,17 @@ const ModelSelector = memo(function ModelSelector({
 					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
 						providerModelIds[0]);
 			rememberSelection(value, nextModel);
-			if (nextModel && nextModel !== model) {
-				onModelChange(nextModel);
-			}
+			applySelection({
+				provider: includeCloudModels ? undefined : value,
+				model: nextModel !== model ? nextModel : undefined,
+			});
 		},
 		[
 			includeCloudModels,
 			lastSelection.lastModelByProvider,
 			model,
-			onModelChange,
+			applySelection,
 			onOpenModelSettings,
-			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
@@ -2366,9 +2445,9 @@ const ModelSelector = memo(function ModelSelector({
 	const handleModelSelect = useCallback(
 		(value: string) => {
 			rememberSelection(resolvedProvider, value);
-			onModelChange(value);
+			applySelection({ model: value });
 		},
-		[onModelChange, rememberSelection, resolvedProvider],
+		[applySelection, rememberSelection, resolvedProvider],
 	);
 	// The picker only lists providers with saved settings, so it is also the
 	// natural place to reach the rest of the catalog.
@@ -2430,6 +2509,8 @@ const ModelSelector = memo(function ModelSelector({
 			value={resolvedModel}
 		/>
 	);
+
+	if (!active) return null;
 
 	if (
 		includeCloudModels &&

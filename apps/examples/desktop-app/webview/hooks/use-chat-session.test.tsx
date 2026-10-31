@@ -383,8 +383,14 @@ let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
 
-function HookHarness({ environmentId = "local" }: { environmentId?: string }) {
-	current = useChatSession(environmentId);
+function HookHarness({
+	environmentId = "local",
+	mainConfig,
+}: {
+	environmentId?: string;
+	mainConfig?: ChatSessionHook["config"];
+}) {
+	current = useChatSession(environmentId, mainConfig);
 	return null;
 }
 
@@ -649,6 +655,527 @@ describe("useChatSession", () => {
 		}
 	});
 
+	it("uses current main choices for a legacy side and freezes them only during its turn", async () => {
+		const main = {
+			...current.config,
+			provider: "cline-pass",
+			model: "cline-pass/test-model",
+			apiKey: "synthetic",
+			thinking: true,
+			reasoningEffort: "high" as const,
+		};
+		const oldSide = {
+			sessionId: "legacy-side",
+			environmentId: "local",
+			status: "idle" as const,
+			provider: "cline",
+			model: "old-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-10-29T00:00:00Z",
+		};
+		const turn = deferred<Record<string, unknown>>();
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages") return [];
+			if (args?.request?.action === "attach") return oldSide;
+			if (args?.request?.action === "start") return oldSide;
+			if (args?.request?.action === "send") return turn.promise;
+			return [];
+		});
+		await act(async () => root.render(<HookHarness mainConfig={main} />));
+		await act(async () => {
+			await current.hydrateSession(oldSide);
+		});
+		expect(current.config).toMatchObject({
+			provider: main.provider,
+			model: main.model,
+			reasoningEffort: "high",
+			selectionSource: "main",
+		});
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "cline",
+				model: "catalog-default",
+			})),
+		);
+		expect(current.config.provider).toBe("cline-pass");
+		let sent!: Promise<boolean>;
+		await act(async () => {
+			sent = current.sendPrompt("A side question");
+		});
+		await vi.waitFor(() =>
+			expect(
+				invokeMock.mock.calls.some(
+					([, args]) => args?.request?.action === "send",
+				),
+			).toBe(true),
+		);
+		const request = invokeMock.mock.calls.find(
+			([, args]) => args?.request?.action === "send",
+		)?.[1]?.request;
+		expect(request?.config).toMatchObject({
+			provider: "cline-pass",
+			model: main.model,
+			selectionSource: "main",
+		});
+		const changedMain = {
+			...main,
+			model: "cline-pass/next-model",
+			reasoningEffort: "low" as const,
+		};
+		await act(async () =>
+			root.render(<HookHarness mainConfig={changedMain} />),
+		);
+		expect(current.config.model).toBe(main.model);
+		await act(async () => {
+			turn.resolve({ text: "Done", messages: [], finishReason: "completed" });
+			await sent;
+		});
+		expect(current.config).toMatchObject({
+			model: changedMain.model,
+			reasoningEffort: "low",
+		});
+	});
+
+	it("saves explicit side choices in order before sending and restores them independently", async () => {
+		const main = {
+			...current.config,
+			provider: "cline-pass",
+			model: "cline-pass/main-model",
+			apiKey: "synthetic",
+		};
+		const side = {
+			sessionId: "saved-side",
+			environmentId: "local",
+			status: "idle" as const,
+			provider: "cline",
+			model: "old-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-10-29T00:00:00Z",
+		};
+		const firstSave = deferred<unknown>();
+		let saved: Record<string, unknown> | undefined;
+		let saves = 0;
+		let failNextSave = false;
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages") return [];
+			if (args?.request?.action === "attach")
+				return { ...side, metadata: { desktopSideConfig: saved } };
+			if (args?.request?.action === "start") return side;
+			if (command === "update_chat_session_metadata") {
+				if (failNextSave) {
+					failNextSave = false;
+					throw new Error("Settings save disconnected");
+				}
+				if (++saves === 1) await firstSave.promise;
+				saved = args?.metadata.desktopSideConfig;
+				return { updated: true };
+			}
+			return [];
+		});
+		await act(async () => root.render(<HookHarness mainConfig={main} />));
+		await act(async () => {
+			await current.hydrateSession(side);
+		});
+		await act(async () =>
+			current.updateSideSettings({ model: "cline-pass/first-choice" }),
+		);
+		await act(async () =>
+			current.updateSideSettings({
+				model: "cline-pass/final-choice",
+				thinking: false,
+			}),
+		);
+		expect(saves).toBe(1);
+		let started!: Promise<void>;
+		await act(async () => {
+			started = current.start(current.config);
+		});
+		expect(
+			invokeMock.mock.calls.some(
+				([, args]) => args?.request?.action === "start",
+			),
+		).toBe(false);
+		await act(async () => {
+			firstSave.resolve({});
+			await started;
+		});
+		expect(saved).toMatchObject({
+			provider: "cline-pass",
+			model: "cline-pass/final-choice",
+			selectionSource: "side",
+			thinking: false,
+		});
+		await act(async () =>
+			root.render(
+				<HookHarness
+					key="restored"
+					mainConfig={{ ...main, model: "cline-pass/changed-main" }}
+				/>,
+			),
+		);
+		await act(async () => {
+			await current.hydrateSession(side);
+		});
+		expect(current.config).toMatchObject({
+			model: "cline-pass/final-choice",
+			selectionSource: "side",
+			thinking: false,
+		});
+		failNextSave = true;
+		await act(async () =>
+			current.updateSideSettings({ model: "cline-pass/recovered-choice" }),
+		);
+		await vi.waitFor(() =>
+			expect(current.error).toBe("Settings save disconnected"),
+		);
+		await act(async () => {
+			await current.start(current.config);
+		});
+		expect(saved).toMatchObject({
+			model: "cline-pass/recovered-choice",
+			selectionSource: "side",
+		});
+		expect(
+			invokeMock.mock.calls
+				.filter(([, args]) => args?.request?.action === "start")
+				.at(-1)?.[1]?.request.config.model,
+		).toBe("cline-pass/recovered-choice");
+	});
+
+	it("reports failed attachment despite readable history, and preserves side policy on success", async () => {
+		const session = {
+			sessionId: "side",
+			environmentId: "local",
+			status: "idle" as const,
+			provider: "test",
+			model: "test",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-10-28T00:00:00Z",
+			metadata: {
+				desktopSideConfig: {
+					provider: "chosen-provider",
+					model: "chosen-model",
+					mode: "yolo",
+					thinking: true,
+					autoApproveTools: true,
+					enableTools: true,
+				},
+			},
+		};
+		let fail = true;
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages")
+				return [
+					{
+						id: "reference",
+						sessionId: "side",
+						role: "status",
+						content: "Reference",
+						createdAt: 1,
+						meta: { messageKind: "desktop_side_reference" },
+					},
+				];
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "attach"
+			) {
+				if (fail) throw new Error("Attach failed");
+				return {
+					sessionId: "side",
+					environmentId: "local",
+					provider: "chosen-provider",
+					model: "chosen-model",
+					metadata: {
+						desktopSideConfig: {
+							provider: "attached-provider",
+							model: "attached-model",
+							selectionSource: "side",
+							mode: "plan",
+							thinking: false,
+							reasoningEffort: "xhigh",
+							autoApproveTools: false,
+							enableTools: false,
+						},
+					},
+				};
+			}
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "start"
+			)
+				return { sessionId: "side" };
+			return [];
+		});
+		await act(async () => {
+			expect(await current.hydrateSession(session)).toBe(false);
+		});
+		expect(current.error).toBe("Attach failed");
+		expect(current.config).toMatchObject({
+			provider: "chosen-provider",
+			model: "chosen-model",
+			mode: "yolo",
+			thinking: true,
+			autoApproveTools: true,
+			enableTools: true,
+		});
+		fail = false;
+		await act(async () => {
+			expect(await current.hydrateSession(session)).toBe(true);
+		});
+		expect(current.config).toMatchObject({
+			provider: "attached-provider",
+			model: "attached-model",
+			selectionSource: "side",
+			mode: "plan",
+			thinking: false,
+			reasoningEffort: "xhigh",
+			autoApproveTools: false,
+			enableTools: false,
+		});
+		await act(async () =>
+			current.setConfig((config) => ({
+				...config,
+				mode: "plan",
+				apiKey: "test-key",
+			})),
+		);
+		await act(async () => {
+			await current.start(current.config);
+		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.objectContaining({
+				request: expect.objectContaining({
+					action: "start",
+					config: expect.objectContaining({
+						mode: "plan",
+						autoApproveTools: false,
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("creates an idle side while preserving the running parent hook state", async () => {
+		const parent = {
+			sessionId: "parent",
+			environmentId: "local",
+			status: "running" as const,
+			provider: "test",
+			model: "test",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-10-28T00:00:00Z",
+		};
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages")
+				return [
+					{
+						id: "parent-answer",
+						sessionId: "parent",
+						role: "assistant",
+						content: "Still working",
+						createdAt: 1,
+					},
+				];
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "attach"
+			)
+				return { sessionId: "parent", status: "running" };
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "create_side"
+			)
+				return {
+					...parent,
+					sessionId: args.request.newSessionId,
+					mode: "act",
+					autoApproveTools: false,
+					enableTools: true,
+					metadata: {
+						title: "Side: Parent",
+						desktopSideConfig: {
+							mode: "act",
+							autoApproveTools: false,
+							enableTools: true,
+						},
+						desktopSideConversation: {
+							version: 2,
+							parentSessionId: "parent",
+							owner: {
+								runId: "test-desktop-run",
+								pid: 1,
+								startToken: "test-start",
+							},
+						},
+					},
+				};
+			return [];
+		});
+		await act(async () => {
+			await current.hydrateSession(parent);
+		});
+		const before = {
+			sessionId: current.sessionId,
+			status: current.status,
+			messages: current.messages,
+			config: current.config,
+		};
+		await act(async () => {
+			const side = await current.createSideConversation(
+				"b5d39340-f78a-4667-9506-104f204abc95",
+			);
+			expect(side.metadata.desktopSideConversation.parentSessionId).toBe(
+				"parent",
+			);
+		});
+		expect({
+			sessionId: current.sessionId,
+			status: current.status,
+			messages: current.messages,
+			config: current.config,
+		}).toEqual(before);
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.objectContaining({
+				request: expect.objectContaining({
+					action: "create_side",
+					visibleContext: expect.objectContaining({
+						sessionId: "parent",
+						environmentId: "local",
+						excerpts: [
+							expect.objectContaining({
+								text: "Still working",
+								role: "assistant",
+							}),
+						],
+					}),
+				}),
+			}),
+		);
+		expect(
+			invokeMock.mock.calls.some(
+				([command, args]) =>
+					command === "chat_session_command" &&
+					args?.request?.action === "send",
+			),
+		).toBe(false);
+	});
+
+	it("excludes a preparing prompt but retains its submission-unconfirmed text after dispatch", async () => {
+		const startReply = deferred<unknown>();
+		const sendReply = deferred<unknown>();
+		const captures: unknown[] = [];
+		const parent = {
+			sessionId: "parent",
+			environmentId: "local",
+			status: "idle" as const,
+			provider: "test",
+			model: "test",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-10-28T00:00:00Z",
+		};
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages") return [];
+			if (command !== "chat_session_command") return [];
+			if (args?.request?.action === "attach")
+				return { sessionId: "parent", status: "idle" };
+			if (args?.request?.action === "start") return startReply.promise;
+			if (args?.request?.action === "send")
+				return sendReply.promise.then(() => {
+					throw new Error("Acknowledgement unavailable");
+				});
+			if (args?.request?.action === "create_side") {
+				captures.push(args.request.visibleContext);
+				return {
+					...parent,
+					sessionId: args.request.newSessionId,
+					mode: "act",
+					autoApproveTools: false,
+					enableTools: true,
+					metadata: {
+						title: "Side chat",
+						desktopSideConfig: {
+							mode: "act",
+							autoApproveTools: false,
+							enableTools: true,
+						},
+						desktopSideConversation: {
+							version: 2,
+							parentSessionId: "parent",
+							owner: {
+								runId: "test-desktop-run",
+								pid: 1,
+								startToken: "test-start",
+							},
+						},
+					},
+				};
+			}
+			return [];
+		});
+		await act(async () => {
+			await current.hydrateSession(parent);
+		});
+		let pending: Promise<boolean> | undefined;
+		await act(async () => {
+			pending = current.sendPrompt("Review synthetic PR 42");
+		});
+		await act(async () => {
+			await current.createSideConversation(
+				"b5d39340-f78a-4667-9506-104f204abc95",
+			);
+		});
+		expect(captures[0]).toMatchObject({ excerpts: [] });
+		await act(async () => {
+			startReply.resolve({ sessionId: "parent" });
+		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.objectContaining({
+				request: expect.objectContaining({ action: "send" }),
+			}),
+			expect.anything(),
+		);
+		await act(async () => {
+			await current.createSideConversation(
+				"c4ad49b7-6ac0-4290-8a65-30b76187f1a7",
+			);
+		});
+		expect(captures[1]).toMatchObject({
+			excerpts: [
+				{
+					role: "user",
+					text: "Review synthetic PR 42",
+					submission: "unconfirmed",
+				},
+			],
+		});
+		await act(async () => {
+			sendReply.resolve(undefined);
+			await pending;
+		});
+		await act(async () => {
+			await current.createSideConversation(
+				"c4ad49b7-6ac0-4290-8a65-30b76187f1a7",
+			);
+		});
+		expect(captures[2]).toMatchObject({
+			excerpts: [
+				expect.objectContaining({
+					text: "Review synthetic PR 42",
+					submission: "unconfirmed",
+				}),
+			],
+		});
+	});
+
 	it("keeps flushing streamed text after the app is hidden and restored", async () => {
 		vi.useFakeTimers();
 		try {
@@ -890,7 +1417,7 @@ describe("useChatSession", () => {
 				return { promptsInQueue: [] };
 			},
 		);
-		let hydration!: Promise<void>;
+		let hydration!: ReturnType<ChatSessionHook["hydrateSession"]>;
 		await act(async () => {
 			hydration = current.hydrateSession({
 				sessionId: "old-cloud",
@@ -1546,17 +2073,28 @@ describe("useChatSession", () => {
 		}
 	});
 
-	it("reconciles a running tool row after an aborted send settles", async () => {
+	it.each([
+		{ endedFirst: false, priorAssistant: true },
+		{ endedFirst: true, priorAssistant: true },
+		{ endedFirst: true, priorAssistant: false },
+	])("reconciles an aborted tool after send settles ($endedFirst, prior assistant: $priorAssistant)", async ({
+		endedFirst,
+		priorAssistant,
+	}) => {
 		const sessionId = "session-aborted-tool";
 		const sendResponse = deferred<unknown>();
 		const canonicalMessages = [
-			{
-				id: "history-assistant",
-				sessionId,
-				role: "assistant",
-				content: "",
-				createdAt: 2,
-			},
+			...(priorAssistant
+				? [
+						{
+							id: "history-assistant",
+							sessionId,
+							role: "assistant",
+							content: "Earlier answer",
+							createdAt: 2,
+						},
+					]
+				: []),
 			{
 				id: "history-tool",
 				sessionId,
@@ -1617,6 +2155,11 @@ describe("useChatSession", () => {
 		).toBe("tool_call_start");
 
 		await act(async () => current.abort());
+		if (endedFirst) {
+			await act(async () =>
+				handlerFor("chat_session_ended")({ sessionId, reason: "aborted" }),
+			);
+		}
 		await act(async () => {
 			sendResponse.resolve({
 				ok: true,
@@ -3155,7 +3698,7 @@ describe("useChatSession", () => {
 			return [];
 		});
 
-		let hydration!: Promise<void>;
+		let hydration!: ReturnType<ChatSessionHook["hydrateSession"]>;
 		await act(async () => {
 			hydration = current.hydrateSession({
 				sessionId: "ses-cloud",
@@ -7398,6 +7941,9 @@ describe("coerced-queue first turn vs stale send response", () => {
 		const { sendPromise } = await dispatchPrompt("First turn");
 		const sid = current.sessionId;
 		await act(async () => current.abort());
+		await act(async () =>
+			handlerFor("chat_session_ended")({ sessionId: sid, reason: "aborted" }),
+		);
 		const chatEventHandler = getChatEventHandler();
 		await act(async () => {
 			emitTurnEvents(chatEventHandler, sid, [
@@ -7428,6 +7974,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 				result: { text: "Old answer", finishReason: "aborted" },
 			});
 			await sendPromise;
+			await new Promise((resolve) => setTimeout(resolve, 300));
 		});
 		expect(current.status).toBe("running");
 		expect(current.activeAssistantMessageId).toBe(nextAssistantId);
@@ -7738,6 +8285,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 describe("cloud snapshot replay", () => {
 	it("retains a second identical prompt when React replays snapshot reconciliation", async () => {
 		subscribeMock.mockClear();
+		subscribeTransportMock.mockClear();
 		await act(async () =>
 			root.render(
 				<StrictMode>

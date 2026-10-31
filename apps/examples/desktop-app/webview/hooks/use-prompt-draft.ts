@@ -25,7 +25,7 @@ export class PromptDraftCache extends Map<string, PromptDraft> {
 
 	restore(
 		threadId: string,
-		expected: PromptDraft,
+		expected: PromptDraft | undefined,
 		draft: PromptDraft,
 	): boolean {
 		if (this.get(threadId) !== expected) return false;

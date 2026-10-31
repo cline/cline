@@ -650,11 +650,16 @@ describe("Code sidecar runtime capabilities", () => {
 		await expect(pending).resolves.toEqual([]);
 	});
 
-	it("forwards raw hub tool updates to attached desktop sessions", async () => {
-		const { createSidecarContext, handleHubLiveEvent } = await import(
-			"./context"
-		);
-		const ctx = createSidecarContext("/workspace/project");
+	it.each([
+		"local",
+		"ssh-test",
+	])("forwards raw hub tool updates in %s independently of other environments", async (environmentId) => {
+		const { createSidecarContext, getEnvironmentContext, handleHubLiveEvent } =
+			await import("./context");
+		const owner = createSidecarContext("/workspace/project");
+		if (environmentId !== "local")
+			owner.temporarySideConversations.closed.add("session-1");
+		const ctx = getEnvironmentContext(owner, environmentId);
 		ctx.wsClients.add({ send: vi.fn() });
 		ctx.liveSessions.set("session-1", {
 			config: {},
@@ -684,6 +689,7 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 		expect(forwarded?.event.payload).toMatchObject({
 			sessionId: "session-1",
+			environmentId,
 			stream: "chat_tool_call_update",
 		});
 		expect(

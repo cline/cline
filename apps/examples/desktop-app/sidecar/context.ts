@@ -32,6 +32,13 @@ import {
 } from "./feature-flags";
 import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
+import {
+	cleanupStaleSideConversations,
+	createTemporarySideState,
+	deleteTemporarySideConversation,
+	isTemporarySideClosed,
+	listTemporarySideConversations,
+} from "./side-conversation/lifecycle";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -170,6 +177,38 @@ export function sendEventToClient(
 	}
 }
 
+export async function cancelSidecarSessionInteractions(
+	ctx: SidecarContext,
+	sessionId: string,
+	reason: string,
+): Promise<void> {
+	const approvals: Promise<unknown>[] = [];
+	for (const [requestId, pending] of ctx.pendingApprovals) {
+		if (pending.item.sessionId !== sessionId) continue;
+		ctx.pendingApprovals.delete(requestId);
+		approvals.push(
+			Promise.resolve().then(() =>
+				pending.resolve({ approved: false, reason }),
+			),
+		);
+	}
+	for (const [requestId, pending] of ctx.pendingQuestions) {
+		if (pending.item.sessionId !== sessionId) continue;
+		ctx.pendingQuestions.delete(requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+		sendEvent(ctx, "ask_question_cancelled", { requestId, reason });
+	}
+	const results = await Promise.allSettled(approvals);
+	for (const result of results) {
+		if (result.status === "rejected")
+			ctx.logger?.error?.("Failed to cancel a side chat approval", {
+				error: result.reason,
+			});
+	}
+	await sessionLogWriteTails.get(sessionId);
+}
+
 export function cancelSidecarToolApprovalsForOwner(
 	ctx: SidecarContext,
 	owner: SidecarWebSocketClient,
@@ -253,6 +292,7 @@ function emitChunk(
 	stream: string,
 	chunk: string,
 ): void {
+	if (isTemporarySideClosed(ctx, sessionId)) return;
 	const ts = nowMs();
 	if (ctx.activeEnvironmentId === LOCAL_ENVIRONMENT_ID)
 		appendSessionChunk(sessionId, stream, chunk, ts);
@@ -542,6 +582,7 @@ export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
+	if (isTemporarySideClosed(ctx, event.payload.sessionId)) return;
 	switch (event.type) {
 		case "chunk": {
 			const { sessionId, stream, chunk } = event.payload;
@@ -667,6 +708,7 @@ export function createSidecarContext(
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		bootId: randomUUID(),
+		temporarySideConversations: createTemporarySideState(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -687,7 +729,26 @@ export async function disposeSidecarContext(
 	ctx: SidecarContext,
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
+	const sides = ctx.temporarySideConversations;
+	sides.closing = true;
+	await Promise.allSettled(
+		[...sides.pending.values()].map(({ promise }) => promise),
+	);
 	const cleanup: Array<Promise<unknown>> = [];
+	let sideCleanupResults: PromiseSettledResult<unknown>[] = [];
+	const localManager =
+		ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.sessionManager;
+	if (localManager) {
+		sideCleanupResults = await Promise.allSettled(
+			listTemporarySideConversations()
+				.filter(({ side }) => side.owner.runId === ctx.bootId)
+				.map(async ({ sessionId }) => {
+					sides.closed.add(sessionId);
+					await cancelSidecarSessionInteractions(ctx, sessionId, reason);
+					await deleteTemporarySideConversation(localManager, sessionId);
+				}),
+		);
+	}
 	const approvalCleanup: Array<Promise<unknown>> = [];
 
 	for (const scoped of getEnvironmentContexts(ctx)) {
@@ -740,7 +801,11 @@ export async function disposeSidecarContext(
 	// any pending $feature_flag_called events.
 	cleanup.push(disposeDesktopFeatureFlagsService());
 
-	const results = [...approvalResults, ...(await Promise.allSettled(cleanup))];
+	const results = [
+		...sideCleanupResults,
+		...approvalResults,
+		...(await Promise.allSettled(cleanup)),
+	];
 	const firstFailure = results.find(
 		(result): result is PromiseRejectedResult => result.status === "rejected",
 	);
@@ -771,6 +836,9 @@ export function requestSidecarAskQuestion(
 		return Promise.reject(
 			new Error("ask_question requires an active session ID"),
 		);
+	}
+	if (isTemporarySideClosed(ctx, sessionId)) {
+		return Promise.reject(new Error("This side chat has been deleted."));
 	}
 	const choices = options
 		.map((option) => option.trim())
@@ -865,6 +933,12 @@ function requestSidecarToolApproval(
 	ctx: SidecarContext,
 	request: ToolApprovalRequest,
 ): Promise<ToolApprovalResult> {
+	if (isTemporarySideClosed(ctx, request.sessionId)) {
+		return Promise.resolve({
+			approved: false,
+			reason: "This side chat has been deleted.",
+		});
+	}
 	const owner = [...ctx.wsClients].find(
 		(client) => client.data?.canApproveTools === true,
 	);
@@ -1335,6 +1409,11 @@ export async function initializeSessionManager(
 	let hubClient: NodeHubClient;
 	try {
 		hubClient = await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+		await cleanupStaleSideConversations(sessionManager, (error) => {
+			ctx.logger?.error?.("Failed to clean up an old temporary side chat", {
+				error,
+			});
+		});
 	} catch (error) {
 		unsubscribe();
 		await sessionManager.dispose("code_sidecar_hub_initialization_failed");

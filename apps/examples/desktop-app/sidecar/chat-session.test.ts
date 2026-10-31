@@ -8,9 +8,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SessionNotFoundError } from "@cline/core";
+import {
+	type ClineCore,
+	createSessionCompactionState,
+	SessionNotFoundError,
+	type SessionRecord,
+	SIDE_SCOPE_INSTRUCTIONS,
+	SqliteSessionStore,
+} from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
+import type { SideVisibleContext } from "@cline/shared";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CreateSideConversationResultSchema } from "../shared/side-conversation";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -27,13 +37,20 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	disposeSidecarContext,
 	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
 import * as sessionPaths from "./paths";
+import { writeSessionManifest } from "./paths";
 import * as pluginCommands from "./plugin-commands";
+import { discoverChatSessions } from "./session-data/discovery";
+import {
+	persistSessionMessages,
+	readPersistedChatMessages,
+} from "./session-data/messages";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -2361,6 +2378,37 @@ Follow the desktop send workflow instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
+	it("rechecks the workspace restore guard after asynchronous command expansion", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		binding.hubClient.command = vi.fn<typeof binding.hubClient.command>(
+			async () => {
+				ctx.restoringWorkspacePaths.add(workspace);
+				return {
+					version: "v1",
+					ok: true,
+					payload: {
+						catalog: {
+							workspacePath: workspace,
+							status: "ready",
+							commands: [],
+						},
+					},
+				};
+			},
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "/desktop-send-workflow check",
+			}),
+		).rejects.toThrow("being restored");
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
@@ -3284,5 +3332,1140 @@ describe("queue steering routing", () => {
 			});
 			expect(steerFirst).not.toHaveBeenCalled();
 		}
+	});
+});
+
+describe("side conversation lifecycle", () => {
+	const parentId = "parent-side-test";
+	const sideId = "3757c861-c10c-4df4-9ec1-72867dc01101";
+	let directory: string;
+	let previousClineDir: string;
+	let store: SqliteSessionStore;
+	beforeEach(() => {
+		directory = mkdtempSync(join(tmpdir(), "desktop-side-test-"));
+		previousClineDir = resolveClineDir();
+		setClineDir(directory);
+		vi.stubEnv("CLINE_SESSION_DATA_DIR", join(directory, "sessions"));
+		store = new SqliteSessionStore();
+	});
+	afterEach(() => {
+		store.close();
+		setClineDir(previousClineDir);
+		vi.unstubAllEnvs();
+		rmSync(directory, { recursive: true, force: true });
+	});
+
+	function setup(running = true) {
+		const records = new Map<string, SessionRecord>();
+		const parent: SessionRecord = {
+			pid: process.pid,
+			isSubagent: false,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+			interactive: true,
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: true,
+			sessionId: parentId,
+			source: "desktop",
+			status: running ? "running" : "idle",
+			provider: "cline",
+			model: "test-model",
+			cwd: directory,
+			workspaceRoot: directory,
+			metadata: { title: "Inspect fixture", totalCost: 42 },
+		};
+		records.set(parentId, parent);
+		const transcripts = new Map<string, MessageWithMetadata[]>([
+			[
+				parentId,
+				[
+					{ role: "user", content: "Inspect fixture" },
+					{
+						role: "assistant",
+						content: "Earlier answer",
+						metrics: { cost: 42 },
+					},
+					...(running
+						? [
+								{ role: "user" as const, content: "Current parent turn" },
+								{ role: "assistant" as const, content: "still running" },
+							]
+						: []),
+				],
+			],
+		]);
+		const start = vi.fn(async (input: Parameters<ClineCore["start"]>[0]) => {
+			const id = input.config?.sessionId ?? sideId;
+			const existing = records.get(id);
+			const record: SessionRecord = {
+				...parent,
+				sessionId: id,
+				status: "idle",
+				provider: input.config?.providerId ?? "cline",
+				model: input.config?.modelId ?? "test-model",
+				metadata: input.sessionMetadata ?? existing?.metadata,
+			};
+			records.set(id, record);
+			if (!store.get(id)) store.create(record);
+			writeSessionManifest(id, { ...record, workspace_root: directory });
+			const messages = input.initialMessages ?? transcripts.get(id) ?? [];
+			transcripts.set(id, messages);
+			persistSessionMessages(id, messages);
+			return {
+				sessionId: id,
+				manifest: {
+					cwd: directory,
+					workspace_root: directory,
+					provider: record.provider,
+					model: record.model,
+					status: record.status,
+				},
+			};
+		});
+		const readMessages = vi.fn(async (id: string) => transcripts.get(id) ?? []);
+		const send = vi.fn(async (_input?: unknown) => ({
+			text: "Side answer",
+			finishReason: "completed",
+			messages: transcripts.get(sideId) ?? [],
+		}));
+		const stop = vi.fn(async () => {});
+		const restore = vi.fn(async () => {
+			throw new Error("restore should not run");
+		});
+		const readSessionCompactionState = vi.fn<
+			() => Promise<ReturnType<typeof createSessionCompactionState> | undefined>
+		>(async () => undefined);
+		const updateSessionConnection = vi.fn(async () => undefined);
+		const updateSession = vi.fn(
+			async (
+				id: string,
+				updates: { metadata?: Record<string, unknown>; title?: string },
+			) => {
+				const record = records.get(id);
+				if (!record) return { updated: false };
+				record.metadata = {
+					...record.metadata,
+					...updates.metadata,
+					...(updates.title ? { title: updates.title } : {}),
+				};
+				writeSessionManifest(id, { ...record, workspace_root: directory });
+				return { updated: true };
+			},
+		);
+		const ctx = {
+			bootId: "test-desktop-run",
+			liveSessions: new Map([
+				[
+					parentId,
+					{
+						config: {
+							provider: "cline",
+							model: "test-model",
+							cwd: directory,
+							workspaceRoot: directory,
+							mode: "plan",
+							autoApproveTools: false,
+							enableTools: true,
+						},
+						messages: transcripts.get(parentId),
+						promptsInQueue: [
+							{ id: "parent-queued", prompt: "later", steer: false },
+						],
+						busy: running,
+						status: parent.status,
+						startedAt: Date.now(),
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			pendingQuestions: new Map(),
+			pendingApprovals: new Map(),
+			...localRuntimeContext(
+				{
+					start,
+					get: vi.fn(async (id: string) => records.get(id)),
+					readMessages,
+					send,
+					stop,
+					abort: vi.fn(async () => {}),
+					restore,
+					readSessionCompactionState,
+					updateSessionConnection,
+					update: updateSession,
+					delete: vi.fn(async (id: string) => {
+						store.delete(id, true);
+						rmSync(join(directory, "sessions", id), {
+							force: true,
+							recursive: true,
+						});
+						return records.delete(id);
+					}),
+					list: vi.fn(async () => [...records.values()]),
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ workspaceRoot: directory, sessionIds: [parentId, sideId] },
+			),
+		} as unknown as SidecarContext;
+		const create = (visibleContext?: SideVisibleContext) =>
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				visibleContext,
+				sessionId: parentId,
+				newSessionId: sideId,
+				config: {
+					environmentId: "local",
+					cwd: "/unrelated-client-workspace",
+					mode: "plan",
+					autoApproveTools: false,
+				},
+			});
+		const coldAttach = (
+			config: Parameters<typeof handleChatSessionCommand>[1]["config"] = {},
+		) => {
+			ctx.liveSessions.delete(sideId);
+			return handleChatSessionCommand(ctx, {
+				action: "attach",
+				sessionId: sideId,
+				config: { environmentId: "local", ...config },
+			});
+		};
+		const deleteSession = async (sessionId: string) => {
+			const { handleCommand } = await import("./commands");
+			return handleCommand(ctx, "delete_chat_session", {
+				sessionId,
+				environmentId: "local",
+			});
+		};
+		return {
+			deleteSession,
+			coldAttach,
+			ctx,
+			start,
+			readMessages,
+			send,
+			stop,
+			restore,
+			records,
+			transcripts,
+			readSessionCompactionState,
+			updateSessionConnection,
+			create,
+		};
+	}
+
+	it("reuses simultaneous and completed openings and rejects resume from another app run", async () => {
+		const { ctx, create, start, readMessages } = setup(false);
+		const [first, second] = await Promise.all([
+			create(),
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId: "3757c861-c10c-4df4-9ec1-72867dc01102",
+				config: { environmentId: "local" },
+			}),
+		]);
+		expect(first).toEqual(second);
+		readMessages.mockClear();
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId: "3757c861-c10c-4df4-9ec1-72867dc01103",
+				config: { environmentId: "local" },
+			}),
+		).resolves.toEqual(first);
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledTimes(1);
+		ctx.bootId = "another-app-run";
+		for (const action of ["attach", "send"] as const) {
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action,
+					sessionId: sideId,
+					prompt: "hello",
+					config: { environmentId: "local" },
+				}),
+			).rejects.toThrow("temporary side chat has ended");
+		}
+		expect(store.get(sideId)).toBeDefined();
+	});
+
+	it("allows a fresh opening after runtime creation fails", async () => {
+		const { ctx, create, start } = setup(false);
+		start.mockRejectedValueOnce(new Error("Runtime unavailable"));
+		await expect(create()).rejects.toThrow("Runtime unavailable");
+		const newSessionId = "3757c861-c10c-4df4-9ec1-72867dc01104";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId,
+				config: { environmentId: "local" },
+			}),
+		).resolves.toMatchObject({ sessionId: newSessionId });
+	});
+
+	it("does not resurrect a side deleted while runtime creation is finishing", async () => {
+		const { ctx, create, deleteSession, start } = setup(false);
+		const originalStart = start.getMockImplementation();
+		if (!originalStart) throw new Error("start fixture missing");
+		const startingRuntime = Promise.withResolvers<void>();
+		const finishStart = Promise.withResolvers<void>();
+		start.mockImplementation(async (input) => {
+			const result = await originalStart(input);
+			startingRuntime.resolve();
+			await finishStart.promise;
+			return result;
+		});
+		const creating = create();
+		const rejection = expect(creating).rejects.toThrow(
+			"temporary side chat has ended",
+		);
+		await startingRuntime.promise;
+		await deleteSession(sideId);
+		finishStart.resolve();
+		await rejection;
+		expect(store.get(sideId)).toBeUndefined();
+		expect(ctx.liveSessions.has(sideId)).toBe(false);
+		expect(ctx.liveSessions.has(parentId)).toBe(true);
+		await expect(
+			requestSidecarAskQuestion(ctx, "late request", ["Yes"], {
+				agentId: "side",
+				iteration: 1,
+				sessionId: sideId,
+			}),
+		).rejects.toThrow("deleted");
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it.each([
+		"queue",
+		"steer",
+	] as const)("does not dispatch a %s prompt after deletion interrupts preparation", async (delivery) => {
+		const { ctx, create, deleteSession, send, updateSessionConnection } =
+			setup(false);
+		await create();
+		const live = ctx.liveSessions.get(sideId);
+		if (!live) throw new Error("side fixture missing");
+		live.attachedViaHub = true;
+		const preparing = Promise.withResolvers<void>();
+		const finishPreparation = Promise.withResolvers<void>();
+		updateSessionConnection.mockImplementationOnce(async () => {
+			preparing.resolve();
+			await finishPreparation.promise;
+		});
+		const sending = handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "question",
+			delivery,
+			config: { environmentId: "local" },
+		});
+		await preparing.promise;
+		await deleteSession(sideId);
+		finishPreparation.resolve();
+		await sending;
+		expect(send).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.has(sideId)).toBe(false);
+		expect(store.get(sideId)).toBeUndefined();
+	});
+
+	it("finishes temporary deletion before disposing runtime clients on quit", async () => {
+		const { ctx, create } = setup(false);
+		await create();
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("runtime fixture missing");
+		const order: string[] = [];
+		const originalDelete = binding.sessionManager.delete;
+		binding.sessionManager.delete = async (id) => {
+			const result = await originalDelete(id);
+			order.push("delete");
+			return result;
+		};
+		binding.sessionManager.dispose = vi.fn(async () => {
+			order.push("manager dispose");
+		});
+		binding.hubClient.dispose = vi.fn(async () => {
+			order.push("client dispose");
+		});
+		await disposeSidecarContext(ctx);
+		expect(order).toEqual(["delete", "client dispose", "manager dispose"]);
+		expect(store.get(sideId)).toBeUndefined();
+		await expect(create()).rejects.toThrow("temporary side chat has ended");
+	});
+
+	it("copies current composer choices instead of the parent's older runtime settings", async () => {
+		const { ctx, start, coldAttach } = setup();
+		const result = CreateSideConversationResultSchema.parse(
+			await handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId: sideId,
+				config: {
+					environmentId: "local",
+					provider: "openai",
+					model: "selected-model",
+					thinking: true,
+					reasoningEffort: "high",
+					mode: "act",
+					autoApproveTools: true,
+					enableTools: true,
+				},
+			}),
+		);
+		expect(result).toMatchObject({
+			provider: "openai",
+			model: "selected-model",
+			mode: "act",
+			autoApproveTools: true,
+			metadata: {
+				desktopSideConfig: { thinking: true, reasoningEffort: "high" },
+			},
+		});
+		expect(start.mock.calls[0][0]).toMatchObject({
+			config: {
+				providerId: "openai",
+				modelId: "selected-model",
+				thinking: true,
+				reasoningEffort: "high",
+			},
+		});
+		expect(ctx.liveSessions.get(parentId)?.config).toMatchObject({
+			provider: "cline",
+			model: "test-model",
+			mode: "plan",
+			autoApproveTools: false,
+		});
+		await expect(coldAttach()).resolves.toMatchObject({
+			metadata: {
+				desktopSideConfig: { thinking: true, reasoningEffort: "high" },
+			},
+		});
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "Use my new side choices",
+			config: {
+				environmentId: "local",
+				provider: "cline",
+				model: "side-model",
+				thinking: true,
+				reasoningEffort: "low",
+			},
+		});
+		expect(start.mock.calls.at(-1)?.[0].config).toMatchObject({
+			providerId: "cline",
+			modelId: "side-model",
+			thinking: true,
+			reasoningEffort: "low",
+		});
+		await expect(coldAttach()).resolves.toMatchObject({
+			metadata: {
+				desktopSideConfig: { thinking: true, reasoningEffort: "low" },
+			},
+		});
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "Disable side thinking",
+			config: { environmentId: "local", thinking: false },
+		});
+		await expect(coldAttach()).resolves.toMatchObject({
+			metadata: { desktopSideConfig: { thinking: false } },
+		});
+	});
+
+	it("restores side choices when runtime history keeps older provider and model labels", async () => {
+		const { ctx, create, records, coldAttach } = setup(false);
+		await create();
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId: sideId,
+				environmentId: "local",
+				providerId: "openai",
+				modelId: "chosen-model",
+				thinking: true,
+				reasoningEffort: "low",
+				cwd: directory,
+			},
+		});
+		const record = records.get(sideId);
+		if (!record) throw new Error("Missing side record");
+		// Stale-session reconciliation rebuilds these labels from the history row.
+		record.provider = "cline";
+		record.model = "test-model";
+		writeSessionManifest(sideId, { ...record, workspace_root: directory });
+		await expect(
+			coldAttach({
+				provider: "cline",
+				providerId: "cline",
+				modelId: "test-model",
+				apiKey: "old-provider-key",
+			}),
+		).resolves.toMatchObject({
+			metadata: {
+				desktopSideConfig: {
+					provider: "openai",
+					model: "chosen-model",
+					reasoningEffort: "low",
+				},
+			},
+		});
+		expect(ctx.liveSessions.get(sideId)?.config).toMatchObject({
+			provider: "openai",
+			providerId: "openai",
+			model: "chosen-model",
+			modelId: "chosen-model",
+		});
+		expect(ctx.liveSessions.get(sideId)?.config.apiKey).toBeUndefined();
+		await expect(create()).resolves.toMatchObject({
+			provider: "openai",
+			model: "chosen-model",
+		});
+	});
+
+	it("creates an idle temporary side without touching the running parent or inheriting cost", async () => {
+		const { ctx, create, start, send, stop, readMessages } = setup();
+		const parent = ctx.liveSessions.get(parentId);
+		const result = CreateSideConversationResultSchema.parse(await create());
+		expect(result).toMatchObject({
+			sessionId: sideId,
+			cwd: directory,
+			mode: "plan",
+			autoApproveTools: false,
+			metadata: {
+				title: "Side chat",
+				desktopSideConversation: {
+					parentSessionId: parentId,
+					version: 2,
+					owner: { runId: ctx.bootId },
+				},
+			},
+		});
+		expect(ctx.liveSessions.get(parentId)).toBe(parent);
+		expect(parent).toMatchObject({
+			busy: true,
+			status: "running",
+			promptsInQueue: [{ id: "parent-queued" }],
+		});
+		expect(send).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+		expect(start.mock.calls[0][0]).toMatchObject({
+			config: {
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				enableTools: true,
+				mode: "plan",
+			},
+			toolPolicies: { "*": { autoApprove: false }, tasks: { enabled: false } },
+			initialMessages: [
+				{
+					role: "user",
+					metadata: {
+						kind: "desktop_side_reference",
+						userRunSpan: 0,
+						displayRole: "status",
+					},
+				},
+			],
+		});
+		expect(start.mock.calls[0][0].config?.systemPrompt).toContain(
+			SIDE_SCOPE_INSTRUCTIONS,
+		);
+		const initial = start.mock.calls[0][0];
+		expect(initial.localRuntime?.onConsecutiveMistakeLimitReached).toBeTypeOf(
+			"function",
+		);
+		const historyTool = initial.localRuntime?.extraTools?.find(
+			(tool) => tool.name === "read_parent_history",
+		);
+		if (!historyTool) throw new Error("side parent history tool missing");
+		readMessages.mockClear();
+		const history = await historyTool.execute(
+			{ operation: "recent" },
+			{ agentId: "side", iteration: 0 },
+		);
+		expect(history).toMatchObject({ ok: true, parentStatus: "running" });
+		expect(readMessages).toHaveBeenCalledExactlyOnceWith(parentId);
+		expect(result.metadata).not.toHaveProperty("totalCost");
+		expect(JSON.stringify(result.metadata)).not.toContain("Earlier answer");
+		expect(readPersistedChatMessages(sideId)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					content: expect.stringContaining("Earlier answer"),
+					metadata: expect.objectContaining({ kind: "desktop_side_reference" }),
+				}),
+			]),
+		);
+		expect(discoverChatSessions({ liveSessions: new Map() })).toEqual([]);
+	});
+
+	it("validates visible source identity and keeps a lagging first-turn snapshot immutable across retry and follow-up", async () => {
+		const { ctx, create, transcripts, start } = setup();
+		transcripts.set(parentId, []);
+		const visible: SideVisibleContext = {
+			sessionId: parentId,
+			environmentId: "local",
+			capturedAt: "2026-10-28T12:00:00Z",
+			omittedExcerptCount: 0,
+			omittedMediaCount: 0,
+			excerpts: [
+				{
+					messageId: "current",
+					role: "user",
+					text: "Review synthetic PR 42",
+					submission: "unconfirmed",
+					omittedBytes: 0,
+				},
+				{
+					messageId: "answer",
+					role: "assistant",
+					text: "The PR adds bounded retries",
+					submission: "observed",
+					omittedBytes: 0,
+				},
+			],
+		};
+		await expect(create({ ...visible, sessionId: "other" })).rejects.toThrow(
+			"different main conversation or environment",
+		);
+		await expect(
+			create({ ...visible, environmentId: "other" }),
+		).rejects.toThrow("different main conversation or environment");
+		expect(start).not.toHaveBeenCalled();
+		const created = CreateSideConversationResultSchema.parse(
+			await create(visible),
+		);
+		expect(created.metadata.desktopSideConversation).toMatchObject({
+			version: 2,
+			parentSessionId: parentId,
+			owner: { runId: ctx.bootId },
+		});
+		const originalSeed = structuredClone(transcripts.get(sideId));
+		expect(originalSeed?.[0].content).toContain("The PR adds bounded retries");
+		expect(originalSeed?.[0].content).toContain("submission unconfirmed");
+		transcripts.set(parentId, [{ role: "user", content: "NEW PARENT WORK" }]);
+		await create({
+			...visible,
+			excerpts: [{ ...visible.excerpts[0], text: "NEW VISIBLE WORK" }],
+		});
+		expect(start).toHaveBeenCalledTimes(1);
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "What is this PR doing?",
+			config: { environmentId: "local" },
+		});
+		expect(transcripts.get(sideId)).toEqual(originalSeed);
+		expect(transcripts.get(parentId)).toEqual([
+			{ role: "user", content: "NEW PARENT WORK" },
+		]);
+		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
+	});
+
+	it("recovers policy and boundary on cold attach, start and provider rebuild after compaction", async () => {
+		const {
+			ctx,
+			create,
+			start,
+			transcripts,
+			readSessionCompactionState,
+			coldAttach,
+		} = setup(false);
+		await create();
+		const attached = await coldAttach({ mode: "act", autoApproveTools: true });
+		expect(attached).toMatchObject({
+			metadata: {
+				desktopSideConfig: { mode: "plan", autoApproveTools: false },
+			},
+		});
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId: sideId,
+				provider: "cline",
+				model: "test-model",
+				cwd: directory,
+				environmentId: "local",
+			},
+		});
+		expect(start.mock.calls.at(-1)?.[0]).toMatchObject({
+			config: {
+				mode: "plan",
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+			toolPolicies: { "*": { autoApprove: false }, tasks: { enabled: false } },
+		});
+		const messages = transcripts.get(sideId) ?? [];
+		const compaction = createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: [
+				{
+					role: "user",
+					content: "summary",
+					metadata: { kind: "compaction_summary", userRunSpan: 0 },
+				},
+			],
+		});
+		readSessionCompactionState.mockResolvedValueOnce(compaction);
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "actual question",
+			config: {
+				provider: "openai",
+				model: "other-model",
+				environmentId: "local",
+			},
+		});
+		const rebuilt = start.mock.calls.at(-1)?.[0];
+		expect(rebuilt).toMatchObject({
+			config: {
+				providerId: "openai",
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				mode: "plan",
+			},
+			sessionMetadata: {
+				desktopSideConversation: { parentSessionId: parentId },
+			},
+			initialCompactionState: expect.any(Object),
+		});
+		expect(rebuilt?.localRuntime?.onConsecutiveMistakeLimitReached).toBeTypeOf(
+			"function",
+		);
+		expect(
+			rebuilt?.localRuntime?.extraTools?.map((tool) => tool.name),
+		).toContain("read_parent_history");
+		expect(rebuilt?.toolPolicies).toMatchObject({ tasks: { enabled: false } });
+		expect(rebuilt?.config?.systemPrompt).toContain(SIDE_SCOPE_INSTRUCTIONS);
+		expect(rebuilt?.initialCompactionState?.system_prompt).toBeUndefined();
+	});
+
+	it("rebuilds a side after Hub loss with its reference, scope and permissions intact", async () => {
+		const { ctx, create, start, send, updateSessionConnection } = setup();
+		await create();
+		start.mockClear();
+		const missing = Object.assign(new Error(`session not found: ${sideId}`), {
+			code: "command_failed",
+		});
+		send.mockRejectedValueOnce(missing);
+		updateSessionConnection.mockRejectedValueOnce(missing);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: sideId,
+				prompt: "side follow up",
+				config: { environmentId: "local" },
+			}),
+		).resolves.toMatchObject({
+			result: { finishReason: "aborted", hubInterrupted: true },
+		});
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(start.mock.calls[0][0]).toMatchObject({
+			config: {
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				systemPrompt: expect.stringContaining(SIDE_SCOPE_INSTRUCTIONS),
+			},
+			toolPolicies: { "*": { autoApprove: false }, tasks: { enabled: false } },
+			initialMessages: [
+				{ metadata: { kind: "desktop_side_reference", userRunSpan: 0 } },
+			],
+		});
+		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
+	});
+
+	it("retains side history and live state when runtime deletion fails", async () => {
+		const { ctx, create, deleteSession, send: modelSend } = setup();
+		await create();
+		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
+		if (!manager) throw new Error("local manager fixture missing");
+		vi.mocked(manager.delete).mockRejectedValueOnce(
+			new Error("runtime stop failed"),
+		);
+		const side = ctx.liveSessions.get(sideId);
+		const history = readPersistedChatMessages(sideId);
+		const send = vi.fn();
+		ctx.wsClients.add({ send });
+		await expect(deleteSession(sideId)).rejects.toThrow("runtime stop failed");
+		expect(store.get(sideId)).toBeDefined();
+		expect(ctx.liveSessions.get(sideId)).toBe(side);
+		expect(readPersistedChatMessages(sideId)).toEqual(history);
+		expect(send).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: sideId,
+			prompt: "continue side",
+			config: { environmentId: "local" },
+		});
+		expect(modelSend).toHaveBeenCalled();
+	});
+
+	it("keeps the parent usable if deleting its side fails", async () => {
+		const { ctx, create, deleteSession, records, send } = setup(false);
+		await create();
+		const parent = records.get(parentId);
+		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
+		if (!parent || !manager) throw new Error("parent fixture missing");
+		store.create(parent);
+		vi.mocked(manager.delete).mockRejectedValueOnce(
+			new Error("runtime stop failed"),
+		);
+		await expect(deleteSession(parentId)).rejects.toThrow(
+			"runtime stop failed",
+		);
+		for (const sessionId of [parentId, sideId]) {
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue",
+				config: { environmentId: "local" },
+			});
+		}
+		expect(send).toHaveBeenCalledTimes(2);
+		expect(store.get(parentId)).toBeDefined();
+		expect(store.get(sideId)).toBeDefined();
+	});
+
+	it("keeps sides out of discovery while renderer reload can recover them, and parent deletion discards them", async () => {
+		const { handleCommand } = await import("./commands");
+		const { ctx, create, deleteSession, records } = setup(false);
+		await create();
+		ctx.liveSessions.clear();
+		await expect(
+			handleCommand(ctx, "list_discovered_sessions", {
+				environmentId: "local",
+			}),
+		).resolves.toEqual([]);
+		await expect(
+			handleCommand(ctx, "get_discovered_session", {
+				sessionId: sideId,
+				environmentId: "local",
+			}),
+		).resolves.toMatchObject({
+			sessionId: sideId,
+			prompt: "Side chat",
+		});
+		const parent = records.get(parentId);
+		if (!parent) throw new Error("parent fixture missing");
+		store.create(parent);
+		const sideApproval = vi.fn();
+		ctx.pendingApprovals.set("side-approval", {
+			item: {
+				sessionId: sideId,
+				requestId: "side-approval",
+				createdAt: new Date().toISOString(),
+				toolCallId: "edit",
+				toolName: "edit_file",
+			},
+			resolve: sideApproval,
+		});
+		await deleteSession(parentId);
+		expect(store.get(sideId)).toBeUndefined();
+		expect(readPersistedChatMessages(sideId)).toBeNull();
+		expect(sideApproval).toHaveBeenCalledWith(
+			expect.objectContaining({ approved: false, reason: "Session deleted" }),
+		);
+		expect(ctx.pendingApprovals.size).toBe(0);
+	});
+
+	it("persists deliberate side mode and permission changes for the next cold attach", async () => {
+		const { ctx, create, start, coldAttach } = setup(false);
+		await create();
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId: sideId,
+				provider: "cline",
+				model: "test-model",
+				cwd: directory,
+				environmentId: "local",
+				mode: "act",
+				autoApproveTools: true,
+			},
+		});
+		expect(start.mock.calls.at(-1)?.[0]).toMatchObject({
+			config: { mode: "act", enableSpawnAgent: false, enableAgentTeams: false },
+			toolPolicies: { "*": { autoApprove: true }, tasks: { enabled: false } },
+		});
+		await expect(
+			coldAttach({ mode: "plan", autoApproveTools: false }),
+		).resolves.toMatchObject({
+			metadata: { desktopSideConfig: { mode: "act", autoApproveTools: true } },
+		});
+	});
+
+	it("does not recover same-ID local side metadata when starting SSH", async () => {
+		const { ctx, create, start } = setup(false);
+		await create();
+		const local = ctx.runtimeBindings.get("local");
+		if (!local) throw new Error("local fixture missing");
+		const remoteStart = vi.fn(async (_input: unknown) => ({
+			sessionId: sideId,
+			manifest: { cwd: "/remote", workspace_root: "/remote" },
+		}));
+		const remoteManager = {
+			start: remoteStart,
+			readMessages: vi.fn(async () => []),
+		} as unknown as ClineCore;
+		ctx.runtimeBindings.set("ssh-side-test", {
+			...local,
+			environmentId: "ssh-side-test",
+			kind: "ssh",
+			sessionManager: remoteManager,
+		});
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId: sideId,
+				environmentId: "ssh-side-test",
+				cwd: "/remote",
+				provider: "openai",
+				model: "remote-model",
+				mode: "act",
+				autoApproveTools: true,
+				systemPrompt: "remote prompt",
+			},
+		});
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(remoteStart.mock.calls[0]?.[0]).toMatchObject({
+			config: { mode: "act", systemPrompt: "remote prompt" },
+			toolPolicies: { "*": { autoApprove: true } },
+		});
+		expect(remoteStart.mock.calls[0]?.[0]).not.toHaveProperty(
+			"config.enableSpawnAgent",
+		);
+		expect(remoteStart.mock.calls[0]?.[0]).not.toHaveProperty(
+			"sessionMetadata.desktopSideConversation",
+		);
+	});
+
+	it("rejects nesting, ID collisions, raw aliases, fork and restore without replacing the parent", async () => {
+		const { ctx, create, records, start } = setup(false);
+		await create();
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: sideId,
+				newSessionId: "c4ad49b7-6ac0-4290-8a65-30b76187f1a7",
+				config: { environmentId: "local" },
+			}),
+		).rejects.toThrow("Nested");
+		for (const action of ["fork", "restore_checkpoint"] as const)
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action,
+					sessionId: sideId,
+					checkpointRunCount: 1,
+					config: { environmentId: "local", cwd: directory },
+				}),
+			).rejects.toThrow("unavailable in side conversations");
+		for (const operation of ["prepare", "discard", "launch"] as const)
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "handoff",
+					operation,
+					sessionId: sideId,
+					config: { environmentId: "local" },
+				}),
+			).rejects.toThrow("unavailable in side conversations");
+		for (const action of ["send", "update_pending_prompt"] as const)
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action,
+					sessionId: parentId,
+					prompt: "/btw explain",
+					config: { environmentId: "local" },
+				}),
+			).rejects.toThrow("composer");
+		await expect(create()).resolves.toMatchObject({ sessionId: sideId });
+		expect(start).toHaveBeenCalledTimes(1);
+		records.set(sideId, { ...records.get(parentId)!, sessionId: sideId });
+		await expect(create()).rejects.toThrow("already in use");
+	});
+
+	it("reserves side capture and session startup against workspace restores", async () => {
+		const { ctx, create, start, readMessages, restore } = setup(false);
+		const restoreParent = () =>
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: parentId,
+				checkpointRunCount: 1,
+				config: { environmentId: "local", cwd: directory },
+			});
+		const finishRead = Promise.withResolvers<void>();
+		readMessages.mockImplementationOnce(async () => {
+			await finishRead.promise;
+			return [];
+		});
+		const creating = create();
+		await vi.waitFor(() =>
+			expect(ctx.liveSessions.get(sideId)?.status).toBe("starting"),
+		);
+		await expect(restoreParent()).rejects.toThrow("Wait for all turns");
+		finishRead.resolve();
+		await creating;
+		expect(restore).not.toHaveBeenCalled();
+		const originalStart = start.getMockImplementation();
+		if (!originalStart) throw new Error("start fixture missing");
+		const startingRuntime = Promise.withResolvers<void>();
+		const finishStart = Promise.withResolvers<void>();
+		start.mockImplementationOnce(async (input) => {
+			startingRuntime.resolve();
+			await finishStart.promise;
+			return originalStart(input);
+		});
+		const starting = handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId: "3757c861-c10c-4df4-9ec1-72867dc01104",
+				provider: "cline",
+				model: "test-model",
+				cwd: directory,
+				environmentId: "local",
+			},
+		});
+		await startingRuntime.promise;
+		await expect(restoreParent()).rejects.toThrow("Wait for all turns");
+		finishStart.resolve();
+		await starting;
+		expect(restore).not.toHaveBeenCalled();
+		const parent = ctx.liveSessions.get(parentId);
+		if (!parent) throw new Error("parent fixture missing");
+		for (const newerStatus of [undefined, "running"]) {
+			const restarting = Promise.withResolvers<void>();
+			const failStart = Promise.withResolvers<void>();
+			start.mockImplementationOnce(async () => {
+				restarting.resolve();
+				await failStart.promise;
+				throw new Error("restart failed");
+			});
+			const previousQueue = [...parent.promptsInQueue];
+			const previousMessages = [...parent.messages];
+			const restart = handleChatSessionCommand(ctx, {
+				action: "start",
+				config: {
+					...parent.config,
+					sessionId: parentId,
+					environmentId: "local",
+				},
+			});
+			const rejection = expect(restart).rejects.toThrow("restart failed");
+			await restarting.promise;
+			expect(ctx.liveSessions.get(parentId)).toBe(parent);
+			expect(parent).toMatchObject({
+				status: "starting",
+				promptsInQueue: previousQueue,
+				messages: previousMessages,
+			});
+			await expect(restoreParent()).rejects.toThrow("Wait for all turns");
+			handleCoreSessionEvent(ctx, {
+				type: "pending_prompts",
+				payload: {
+					sessionId: parentId,
+					prompts: [
+						{
+							id: "during-restart",
+							prompt: "later update",
+							delivery: "queue",
+							attachmentCount: 0,
+						},
+					],
+				},
+			});
+			if (newerStatus) {
+				handleCoreSessionEvent(ctx, {
+					type: "status",
+					payload: { sessionId: parentId, status: newerStatus },
+				});
+			}
+			failStart.resolve();
+			await rejection;
+			expect(ctx.liveSessions.get(parentId)).toBe(parent);
+			expect(parent.promptsInQueue).toMatchObject([
+				{ id: "during-restart", prompt: "later update", steer: false },
+			]);
+			expect(parent.messages).toEqual(previousMessages);
+			expect(parent.status).toBe(newerStatus ?? "idle");
+		}
+		expect(restore).not.toHaveBeenCalled();
+		ctx.restoringWorkspacePaths.add(directory);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { sessionId: sideId, cwd: directory, environmentId: "local" },
+			}),
+		).rejects.toThrow("being restored");
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "create_side",
+				sessionId: parentId,
+				newSessionId: "c4ad49b7-6ac0-4290-8a65-30b76187f1a7",
+				config: { environmentId: "local" },
+			}),
+		).rejects.toThrow("being restored");
+	});
+
+	it.each([
+		"abort",
+		"stop",
+	] as const)("%s cancels only side approvals and questions", async (action) => {
+		const { ctx, create } = setup();
+		await create();
+		const parentQuestion = requestSidecarAskQuestion(
+			ctx,
+			"Parent question?",
+			["continue", "stop"],
+			{ sessionId: parentId, agentId: "parent", iteration: 1 },
+		);
+		const sideQuestion = requestSidecarAskQuestion(
+			ctx,
+			"Side question?",
+			["continue", "stop"],
+			{ sessionId: sideId, agentId: "side", iteration: 1 },
+		);
+		const rejection = expect(sideQuestion).rejects.toThrow(
+			action === "abort" ? "Run aborted" : "Session stopped",
+		);
+		const parentResolve = vi.fn();
+		const sideResolve = vi.fn();
+		for (const [id, resolveApproval] of [
+			[parentId, parentResolve],
+			[sideId, sideResolve],
+		] as const)
+			ctx.pendingApprovals.set(id, {
+				item: {
+					sessionId: id,
+					requestId: id,
+					createdAt: new Date().toISOString(),
+					toolCallId: id,
+					toolName: "edit_file",
+				},
+				resolve: resolveApproval,
+			});
+		await handleChatSessionCommand(ctx, {
+			action,
+			sessionId: sideId,
+			config: { environmentId: "local" },
+		});
+		await rejection;
+		expect(parentResolve).not.toHaveBeenCalled();
+		expect(sideResolve).toHaveBeenCalledWith(
+			expect.objectContaining({ approved: false }),
+		);
+		expect(ctx.pendingQuestions.size).toBe(1);
+		expect(ctx.pendingApprovals.has(parentId)).toBe(true);
+		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
+		const parentPending = [...ctx.pendingQuestions.values()][0];
+		resolveSidecarAskQuestion(ctx, parentPending.item.requestId, "continue");
+		await expect(parentQuestion).resolves.toBe("continue");
 	});
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createTemporarySideState } from "./side-conversation/lifecycle";
 import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
 import {
 	type CloudSessionApi,
@@ -22,6 +23,7 @@ const REMOTE_SESSION: CloudSessionRecord = {
 function createContext(): { ctx: SidecarContext } {
 	const ctx = {
 		liveSessions: new Map(),
+		temporarySideConversations: createTemporarySideState(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		coreStreamActivity: new Map(),
