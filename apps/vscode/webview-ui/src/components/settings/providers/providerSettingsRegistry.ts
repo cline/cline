@@ -110,6 +110,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	aiand: {
 		signupUrl: "https://console.aiand.com/",
 	},
+	"umans-ai": {
+		signupUrl: "https://app.umans.ai/billing",
+	},
 	"zai-coding-plan": {},
 }
 
@@ -173,6 +176,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
 	aiand: "ai&",
+	"umans-ai": "Umans AI",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 
