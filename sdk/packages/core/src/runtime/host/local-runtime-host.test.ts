@@ -5160,6 +5160,7 @@ describe("LocalRuntimeHost", () => {
 			ended_at: "2026-01-01T00:03:00.000Z",
 			metadata: {
 				title: "saved title",
+				autoApproveTools: true,
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
 				checkpoint: {
@@ -5252,6 +5253,7 @@ describe("LocalRuntimeHost", () => {
 			sessionMetadata: {
 				title: "updated title",
 				modelId: "anthropic/claude-haiku-4.5",
+				autoApproveTools: false,
 			},
 		});
 
@@ -5272,6 +5274,7 @@ describe("LocalRuntimeHost", () => {
 				title: "updated title",
 				modelId: "anthropic/claude-haiku-4.5",
 				checkpoint: manifest.metadata.checkpoint,
+				autoApproveTools: true,
 			}),
 		);
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({

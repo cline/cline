@@ -230,18 +230,6 @@ function stripServerOwnedSessionMetadata(
 	return sanitized;
 }
 
-export function resolveSessionAutoApproveTools(
-	toolPolicies: unknown,
-	runtimeOptions: Record<string, unknown>,
-): boolean {
-	const policies = asPlainRecord(toolPolicies);
-	const globalPolicy = asPlainRecord(policies?.["*"]);
-	if (typeof globalPolicy?.autoApprove === "boolean") {
-		return globalPolicy.autoApprove;
-	}
-	return runtimeOptions.autoApproveTools === true;
-}
-
 function authorizeSessionCompactionAccess(input: {
 	sessionId: string;
 	ctx: HubTransportContext;
@@ -376,10 +364,7 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
-	metadata.autoApproveTools = resolveSessionAutoApproveTools(
-		payload.toolPolicies,
-		runtimeOptions,
-	);
+	delete metadata.autoApproveTools;
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -703,10 +688,7 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
-		metadata.autoApproveTools = resolveSessionAutoApproveTools(
-			payload.toolPolicies,
-			runtimeOptions,
-		);
+		delete metadata.autoApproveTools;
 
 		const modelSelection =
 			payload.modelSelection && typeof payload.modelSelection === "object"

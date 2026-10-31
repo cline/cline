@@ -777,11 +777,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
+		const persistApprovalPolicy =
+			!resumedArtifacts ||
+			typeof (startInput.toolPolicies ?? startInput.config.toolPolicies)?.["*"]
+				?.autoApprove === "boolean";
+		const autoApproveTools = persistApprovalPolicy
+			? bootstrap.toolPolicies?.["*"]?.autoApprove !== false
+			: resumedArtifacts?.manifest.metadata?.autoApproveTools;
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
 					...(resumedArtifacts?.manifest.metadata ?? {}),
 					...(startInput.sessionMetadata ?? {}),
+					autoApproveTools,
 				},
 				bootstrap.gitState,
 			),
@@ -1136,6 +1144,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
+			if (
+				persistApprovalPolicy &&
+				resumedArtifacts.manifest.metadata?.autoApproveTools !==
+					autoApproveTools
+			) {
+				await this.persistSessionMetadata(sessionId, (metadata) => ({
+					...metadata,
+					autoApproveTools,
+				}));
+			}
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
 		// session recovery) must be durable immediately. Lazy persistence
