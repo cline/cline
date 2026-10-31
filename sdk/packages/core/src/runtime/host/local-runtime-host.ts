@@ -380,33 +380,34 @@ export class LocalRuntimeHost implements RuntimeHost {
 					),
 				}));
 			},
-			run: async (input) => {
-				if (!input.sessionId) return this.pluginCommandManager.run(input);
-				const session = this.sessions.get(input.sessionId);
-				if (!session) return this.pluginCommandManager.run(input);
-				if (
-					resolve(input.workspacePath) !==
-					resolve(resolveWorkspacePath(session.config))
-				)
-					throw new Error(
-						"Plugin command workspace does not match the session",
+			run: (input) =>
+				this.observeActivity(async () => {
+					if (!input.sessionId) return this.pluginCommandManager.run(input);
+					const session = this.sessions.get(input.sessionId);
+					if (!session) return this.pluginCommandManager.run(input);
+					if (
+						resolve(input.workspacePath) !==
+						resolve(resolveWorkspacePath(session.config))
+					)
+						throw new Error(
+							"Plugin command workspace does not match the session",
+						);
+					return this.withSessionPluginCommands(session, () =>
+						executePluginCommand(
+							session.agent
+								.getExtensionRegistry()
+								.commands.filter(isPluginCommand),
+							input.prompt,
+							{
+								telemetry: session.config.telemetry ?? this.defaultTelemetry,
+								sessionId: session.sessionId,
+								modelId: session.config.modelId,
+								provider: session.config.providerId,
+								agentIdentity: this.getSessionAgentTelemetryIdentity(session),
+							},
+						),
 					);
-				return this.withSessionPluginCommands(session, () =>
-					executePluginCommand(
-						session.agent
-							.getExtensionRegistry()
-							.commands.filter(isPluginCommand),
-						input.prompt,
-						{
-							telemetry: session.config.telemetry ?? this.defaultTelemetry,
-							sessionId: session.sessionId,
-							modelId: session.config.modelId,
-							provider: session.config.providerId,
-							agentIdentity: this.getSessionAgentTelemetryIdentity(session),
-						},
-					),
-				);
-			},
+				}),
 		};
 		// A caller-owned telemetry service may already be identified to an
 		// authenticated account (the long-lived Hub daemon is one example).
@@ -1480,7 +1481,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const config = this.getSessionOrThrow(sessionId).config;
 		let success = false;
 		try {
-			const result = await mcpApps.callTool(request);
+			const result = await this.observeActivity(() =>
+				mcpApps.callTool(request),
+			);
 			success = true;
 			return result;
 		} finally {

@@ -669,6 +669,7 @@ describe("LocalRuntimeHost", () => {
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
+			hasActiveRun: vi.fn().mockReturnValue(false),
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
 		const telemetry = { capture: vi.fn(), setDistinctId: vi.fn() };
@@ -708,14 +709,27 @@ describe("LocalRuntimeHost", () => {
 			await expect(
 				manager.resolveMcpAppTool(withApps.sessionId, "weather__show_weather"),
 			).resolves.toMatchObject({ resourceUri: "ui://weather/view.html" });
+			const beforeReads = manager.getActivity();
 			await manager.readMcpAppResource(withApps.sessionId, {
 				serverName: "weather",
 				uri: "ui://weather/view.html",
 			});
-			await manager.callMcpAppTool(withApps.sessionId, {
+			expect(manager.getActivity()).toEqual(beforeReads);
+			let finishTool!: () => void;
+			mcpApps.callTool.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishTool = () => resolve({ content: [] });
+					}),
+			);
+			const toolCall = manager.callMcpAppTool(withApps.sessionId, {
 				serverName: "weather",
 				toolName: "refresh_view",
 			});
+			expect(manager.getActivity().busy).toBe(true);
+			finishTool();
+			await expect(toolCall).resolves.toEqual({ content: [] });
+			expect(manager.getActivity().busy).toBe(false);
 			mcpApps.callTool.mockRejectedValueOnce(new Error("server failed"));
 			await expect(
 				manager.callMcpAppTool(withApps.sessionId, {
@@ -723,6 +737,7 @@ describe("LocalRuntimeHost", () => {
 					toolName: "refresh_view",
 				}),
 			).rejects.toThrow("server failed");
+			expect(manager.getActivity().busy).toBe(false);
 			expect(
 				telemetry.capture.mock.calls
 					.map(([event]) => event)
@@ -4284,6 +4299,7 @@ describe("LocalRuntimeHost", () => {
 			shutdown: vi.fn().mockResolvedValue(undefined),
 			getMessages: vi.fn().mockReturnValue([]),
 			canStartRun: vi.fn(() => !activeRun),
+			hasActiveRun: vi.fn(() => activeRun),
 		};
 
 		const manager = new RuntimeHostUnderTest({
@@ -4317,6 +4333,7 @@ describe("LocalRuntimeHost", () => {
 		// assert the queued prompt is still held and was never sent.
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(sentPrompts).toHaveLength(1);
+		expect(manager.getActivity().busy).toBe(true);
 		expect(
 			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
 				prompt: prompt.prompt,

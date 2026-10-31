@@ -104,6 +104,7 @@ describe("hub-owned plugin commands", () => {
 		await expect(
 			runtime.pluginCommands.run({ workspacePath: root, prompt: "/fail" }),
 		).rejects.toThrow("handler failed");
+		expect(runtime.getActivity().busy).toBe(false);
 		const events = capture.mock.calls
 			.map(([event]) => event)
 			.filter((event) => event.event === "task.tool_used");
@@ -113,6 +114,51 @@ describe("hub-owned plugin commands", () => {
 			success: false,
 		});
 	});
+	it("reports plugin execution as activity, but not catalog reads", async () => {
+		const releasePath = join(root, "release");
+		const startedPath = join(root, "started");
+		await writeFile(
+			join(root, ".cline", "plugins", "held.js"),
+			`
+import { existsSync, writeFileSync } from 'node:fs';
+export default {name:'held',manifest:{capabilities:['commands']},setup(api){
+ api.registerCommand({name:'hold',handler:async()=>{
+  writeFileSync(${JSON.stringify(startedPath)}, 'started');
+  while (!existsSync(${JSON.stringify(releasePath)})) await new Promise(r=>setTimeout(r, 5));
+  return 'finished';
+ }});
+}};`,
+		);
+		const before = runtime.getActivity();
+		await command("plugins.commands.list", { workspacePath: root });
+		expect(runtime.getActivity()).toEqual(before);
+		const pending = command("plugins.commands.run", {
+			workspacePath: root,
+			prompt: "/hold",
+		});
+		try {
+			await vi.waitFor(async () =>
+				expect(await readFile(startedPath, "utf8")).toBe("started"),
+			);
+			expect((await command("hub.status", {})).payload).toMatchObject({
+				idle: false,
+				activePluginRequests: 1,
+				activity: { busy: true },
+			});
+		} finally {
+			await writeFile(releasePath, "release");
+			await pending;
+		}
+		expect(await pending).toMatchObject({
+			ok: true,
+			payload: { result: { reply: "finished" } },
+		});
+		expect(runtime.getActivity().busy).toBe(false);
+		expect(runtime.getActivity().lastActivityAt).toBeGreaterThan(
+			before.lastActivityAt,
+		);
+	});
+
 	it("protects active commands from drain, replacement, and shutdown without a chat participant", async () => {
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {

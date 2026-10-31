@@ -398,6 +398,7 @@ export interface ListSessionsOptions {
 }
 
 export interface RuntimeActivity {
+	/** Outstanding execution or accepted in-memory work that must be retained. */
 	busy: boolean;
 	/** Unix milliseconds of the latest accepted work, execution output, or settlement. */
 	lastActivityAt: number;
