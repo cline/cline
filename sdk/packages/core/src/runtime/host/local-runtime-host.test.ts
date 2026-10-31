@@ -29,6 +29,7 @@ import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import {
@@ -37,6 +38,7 @@ import {
 } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
+import { CoreSessionService } from "../../session/services/session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
@@ -866,6 +868,7 @@ describe("LocalRuntimeHost", () => {
 			}),
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSessionModelSelection: vi.fn().mockResolvedValue(undefined),
 			writeSessionManifest: vi.fn(),
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
@@ -933,6 +936,154 @@ describe("LocalRuntimeHost", () => {
 		sessionService.writeSessionManifest.mockClear();
 		await manager.updateSessionConnection(sessionId, { thinking: true });
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"file",
+		"sqlite",
+	] as const)("preserves model selection after a %s-backed host restarts", async (backend) => {
+		const sessionsDir = join(isolatedHomeDir, "selection-sessions");
+		const store =
+			backend === "sqlite"
+				? new SqliteSessionStore({
+						sessionsDir: join(isolatedHomeDir, "database"),
+					})
+				: undefined;
+		const makeService = () =>
+			store
+				? new CoreSessionService(store, { sessionArtifactsDir: sessionsDir })
+				: new FileSessionService(sessionsDir);
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			restore: vi.fn(),
+			getAgentId: vi.fn().mockReturnValue("agent-selection"),
+			getConversationId: vi.fn().mockReturnValue("conversation-selection"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const makeManager = () =>
+			new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: makeService(),
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				} as never,
+				createAgent: () => agent as never,
+			});
+		const manager = makeManager();
+		let restored: RuntimeHostUnderTest | undefined;
+		try {
+			const sessionId = "persisted-selection";
+			const started = await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+						enableAgentTeams: false,
+					}),
+					prompt: "Keep this conversation",
+					interactive: true,
+					sessionMetadata: { custom: "retain-me" },
+				}),
+			);
+			await manager.updateSessionConnection(sessionId, {
+				providerId: "openai",
+				modelId: "selected-model",
+				apiKey: "test-secret-do-not-persist",
+			});
+			await manager.updateSessionConnection(sessionId, {
+				modelId: "final-model",
+			});
+			expect(await manager.getSession(sessionId)).toMatchObject({
+				provider: "openai",
+				model: "final-model",
+			});
+			await manager.stopSession(sessionId);
+			expect(await manager.getSession(sessionId)).toMatchObject({
+				provider: "openai",
+				model: "final-model",
+				metadata: { custom: "retain-me" },
+			});
+			await manager.dispose();
+			restored = makeManager();
+			expect(await restored.getSession(sessionId)).toMatchObject({
+				provider: "openai",
+				model: "final-model",
+				metadata: { custom: "retain-me" },
+			});
+			expect(await restored.listSessions()).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						sessionId,
+						provider: "openai",
+						model: "final-model",
+					}),
+				]),
+			);
+			const manifestText = readFileSync(started.manifestPath, "utf8");
+			expect(JSON.parse(manifestText)).toMatchObject({
+				provider: "openai",
+				model: "final-model",
+				metadata: { custom: "retain-me" },
+			});
+			expect(manifestText).not.toContain("test-secret-do-not-persist");
+			expect(
+				JSON.stringify(await restored.getSession(sessionId)),
+			).not.toContain("test-secret-do-not-persist");
+			const savedMessages = readFileSync(started.messagesPath, "utf8");
+			if (store)
+				store.run("DELETE FROM sessions WHERE session_id = ?", [sessionId]);
+			else rmSync(join(sessionsDir, "sessions.index.json"));
+			expect(await restored.listSessions()).toEqual([]);
+			await restored.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						providerId: "openai",
+						modelId: "final-model",
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+						enableAgentTeams: false,
+					}),
+					interactive: true,
+					initialMessages: [
+						{ role: "user", content: "Keep this conversation" },
+					],
+				}),
+			);
+			expect(await makeService().listSessions()).toEqual([]);
+			await restored.updateSessionConnection(sessionId, {
+				modelId: "resumed-model",
+				apiKey: "test-secret-do-not-persist",
+			});
+			await restored.stopSession(sessionId);
+			expect(await restored.getSession(sessionId)).toMatchObject({
+				provider: "openai",
+				model: "resumed-model",
+				metadata: { custom: "retain-me" },
+			});
+			expect(await restored.listSessions()).toEqual([
+				expect.objectContaining({
+					sessionId,
+					provider: "openai",
+					model: "resumed-model",
+				}),
+			]);
+			expect(readFileSync(started.messagesPath, "utf8")).toBe(savedMessages);
+			expect(readFileSync(started.manifestPath, "utf8")).not.toContain(
+				"test-secret-do-not-persist",
+			);
+		} finally {
+			await manager.dispose();
+			await restored?.dispose();
+			store?.close();
+		}
 	});
 
 	it("persists thinking budget token connection updates", async () => {

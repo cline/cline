@@ -75,6 +75,15 @@ describe("UnifiedSessionPersistenceService", () => {
 		).rejects.toThrow(
 			`Cannot persist messages for unknown session: ${sessionId}`,
 		);
+		await expect(
+			service.updateSessionModelSelection({
+				sessionId,
+				model: "selected-model",
+			}),
+		).rejects.toThrow(
+			`Cannot update model selection for unknown session: ${sessionId}`,
+		);
+
 		expect(await service.listSessions()).toEqual([]);
 		expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
 	});
