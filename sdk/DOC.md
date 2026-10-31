@@ -574,9 +574,10 @@ authentication. Omit it to retain local account authentication and rollout check
 
 ## Explicit MCP OAuth authorization
 
-`authorizeMcpServerOAuth` starts the SDK authorization flow before checking the MCP connection. Anonymous `initialize` and `tools/list` success does not establish account authorization. A redirect keeps the native callback listener open until the code arrives; state validation, PKCE exchange and reconnection stay in the existing flow. Saved credentials use the SDK refresh path without another consent when possible. A server without OAuth metadata reports an authorization error rather than treating public discovery as authorization.
+`authorizeMcpServerOAuth` first probes `initialize` and `tools/list` to check saved access tokens and capture OAuth metadata and scope from a 401 challenge. Anonymous discovery success does not establish account authorization. When authorization is needed, the SDK flow keeps the native callback listener open until the code arrives, validates state, exchanges the code with PKCE and reconnects. Saved credentials use the SDK refresh path without another consent when possible. A server without OAuth metadata reports an authorization error rather than treating public discovery as authorization.
 
 Interactive OAuth fetches use the server's request timeout and caller cancellation signal, including discovery and client registration. Ordinary MCP discovery and protected tool calls keep their existing behavior.
+
 ## MCP Apps (experimental)
 
 MCP Apps support is off by default.

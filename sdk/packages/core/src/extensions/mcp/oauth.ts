@@ -771,12 +771,12 @@ export async function authorizeMcpServerOAuth(
 				timeout: requestTimeoutMs,
 				signal: options.signal,
 			});
+			await probeClient.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
 			// Public discovery alone does not authorize a tokenless server.
 			if (tokens?.access_token) {
-				await probeClient.listTools(undefined, {
-					timeout: requestTimeoutMs,
-					signal: options.signal,
-				});
 				await oauthContext.clearError();
 				return {
 					serverName,

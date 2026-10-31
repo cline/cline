@@ -30,6 +30,7 @@ describe("explicit MCP OAuth authorization", () => {
 			accessOnly?: boolean;
 			resourceUrl?: string;
 			postChallengeOnly?: boolean;
+			listChallengeOnly?: boolean;
 			rejectStaleAccess?: boolean;
 		} = {},
 	) {
@@ -74,6 +75,7 @@ describe("explicit MCP OAuth authorization", () => {
 		let escaped = 0;
 		let gatewayRequests = 0;
 		let acceptedRequests = 0;
+		let anonymousListChallenges = 0;
 		const fetchFixture: FetchLike = async (input, init) => {
 			const url = new URL(
 				input instanceof Request ? input.url : input.toString(),
@@ -167,7 +169,7 @@ describe("explicit MCP OAuth authorization", () => {
 				});
 			}
 			if (url.href === resource && init?.method === "GET") {
-				if (config.postChallengeOnly)
+				if (config.postChallengeOnly || config.listChallengeOnly)
 					return new Response(null, { status: 405 });
 				if (new Headers(init.headers).has("authorization"))
 					return new Response(null, { status: 405 });
@@ -181,7 +183,14 @@ describe("explicit MCP OAuth authorization", () => {
 				});
 			}
 			if (url.href === resource && init?.method === "POST") {
+				const body = JSON.parse(requestBody);
+				const protectedList =
+					config.listChallengeOnly &&
+					body.method === "tools/list" &&
+					!headers.has("authorization");
+				if (protectedList) anonymousListChallenges++;
 				if (
+					protectedList ||
 					(config.postChallengeOnly && !headers.has("authorization")) ||
 					(config.rejectStaleAccess &&
 						headers.get("authorization") !== "Bearer fixture-access")
@@ -192,7 +201,6 @@ describe("explicit MCP OAuth authorization", () => {
 							"www-authenticate": `Bearer resource_metadata="https://mcp.example.test/tenant/protected-resource", scope="tenant:write"`,
 						},
 					});
-				const body = JSON.parse(requestBody);
 				if (body.id === undefined) return new Response(null, { status: 202 });
 				if (headers.get("authorization") === "Bearer fixture-access")
 					acceptedRequests++;
@@ -220,7 +228,12 @@ describe("explicit MCP OAuth authorization", () => {
 			releaseMetadata,
 			metadataRequested,
 			counts: () => ({ tokenExchanges, refreshes, opened, closed }),
-			headerCounts: () => ({ escaped, gatewayRequests, acceptedRequests }),
+			headerCounts: () => ({
+				escaped,
+				gatewayRequests,
+				acceptedRequests,
+				anonymousListChallenges,
+			}),
 			options: {
 				serverName: "remote",
 				filePath,
@@ -306,19 +319,19 @@ describe("explicit MCP OAuth authorization", () => {
 		expect(f.counts().refreshes).toBe(0);
 	});
 
-	it.each(["register", "token"] as const)(
-		"rejects cross-origin %s redirects without forwarding requests",
-		async (redirect) => {
-			const f = await fixture({
-				headers: { "X-Tenant": "fixture-tenant" },
-				redirect,
-			});
-			f.releaseMetadata();
-			await expect(authorizeMcpServerOAuth(f.options)).rejects.toThrow();
-			expect(f.headerCounts().escaped).toBe(0);
-			expect(f.counts().closed).toBe(1);
-		},
-	);
+	it.each([
+		"register",
+		"token",
+	] as const)("rejects cross-origin %s redirects without forwarding requests", async (redirect) => {
+		const f = await fixture({
+			headers: { "X-Tenant": "fixture-tenant" },
+			redirect,
+		});
+		f.releaseMetadata();
+		await expect(authorizeMcpServerOAuth(f.options)).rejects.toThrow();
+		expect(f.headerCounts().escaped).toBe(0);
+		expect(f.counts().closed).toBe(1);
+	});
 
 	it("uses challenge-only resource metadata and scope throughout code exchange", async () => {
 		const f = await fixture({ customChallenge: true, postChallengeOnly: true });
@@ -327,6 +340,21 @@ describe("explicit MCP OAuth authorization", () => {
 			authorized: true,
 		});
 		expect(f.counts()).toMatchObject({ opened: 1, tokenExchanges: 1 });
+	});
+
+	it("uses tools/list challenge metadata after anonymous initialization without a saved token", async () => {
+		const f = await fixture({ customChallenge: true, listChallengeOnly: true });
+		f.releaseMetadata();
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.headerCounts().anonymousListChallenges).toBe(1);
+		expect(f.counts()).toEqual({
+			opened: 1,
+			tokenExchanges: 1,
+			refreshes: 0,
+			closed: 1,
+		});
 	});
 
 	it("checks accepted owned access tokens without requiring a refresh token or browser", async () => {
@@ -465,33 +493,33 @@ describe("explicit MCP OAuth authorization", () => {
 		}
 	});
 
-	it.each(["manual", "error"] as const)(
-		"preserves the caller's %s redirect policy",
-		async (redirect) => {
-			let requests = 0;
-			const guardedFetch = createOriginBoundMcpHeadersFetch({
-				endpointUrl: "https://gateway.example.test/mcp",
-				configuredHeaders: { "X-Tenant": "fixture-tenant" },
-				baseFetch: async () => {
-					requests++;
-					return requests === 1
-						? new Response(null, {
-								status: 307,
-								headers: { location: "https://other.example.test/receive" },
-							})
-						: new Response(null);
-				},
-			});
-			const result = guardedFetch("https://gateway.example.test/token", {
-				method: "POST",
-				body: "fixture-body",
-				redirect,
-			});
-			if (redirect === "manual") expect((await result).status).toBe(307);
-			else await expect(result).rejects.toThrow("redirect");
-			expect(requests).toBe(1);
-		},
-	);
+	it.each([
+		"manual",
+		"error",
+	] as const)("preserves the caller's %s redirect policy", async (redirect) => {
+		let requests = 0;
+		const guardedFetch = createOriginBoundMcpHeadersFetch({
+			endpointUrl: "https://gateway.example.test/mcp",
+			configuredHeaders: { "X-Tenant": "fixture-tenant" },
+			baseFetch: async () => {
+				requests++;
+				return requests === 1
+					? new Response(null, {
+							status: 307,
+							headers: { location: "https://other.example.test/receive" },
+						})
+					: new Response(null);
+			},
+		});
+		const result = guardedFetch("https://gateway.example.test/token", {
+			method: "POST",
+			body: "fixture-body",
+			redirect,
+		});
+		if (redirect === "manual") expect((await result).status).toBe(307);
+		else await expect(result).rejects.toThrow("redirect");
+		expect(requests).toBe(1);
+	});
 
 	it("cancels delayed metadata discovery and closes the callback listener", async () => {
 		const f = await fixture();
