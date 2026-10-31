@@ -10,8 +10,9 @@
 import { cpSync, mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const TEST_SUITE_ROOT = new URL("../", import.meta.url).pathname;
+export const TEST_SUITE_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 let envCounter = 0;
 

@@ -1,4 +1,4 @@
-import type { Terminal } from "@microsoft/tui-test/lib/terminal/term";
+import type { TuiTest as Terminal } from "@microsoft/tui-test";
 import { expectVisible } from "../terminal.js";
 
 export async function waitForAuthScreen(terminal: Terminal): Promise<void> {
