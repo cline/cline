@@ -24,6 +24,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const AWS_REGIONS = BedrockData.regions
@@ -39,6 +40,12 @@ interface BedrockProviderProps {
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	// The base model belongs to the selected inference profile, not shared AWS authentication.
+	const configuredCustomBaseModelId =
+		currentMode === "plan"
+			? apiConfiguration?.planModeAwsBedrockCustomModelBaseId
+			: apiConfiguration?.actModeAwsBedrockCustomModelBaseId
 	const { models: bedrockModels, defaultModelId: bedrockDefaultModelId } = useProviderModels("bedrock")
 	const { config, write, commitSelection } = useProviderConfig("bedrock")
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection("bedrock", currentMode, {
@@ -47,7 +54,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		config,
 		commitSelection,
 		customModelInfo: (modelId) => ({
-			...(bedrockModels[config?.aws?.customModelBaseId ?? ""] ??
+			...(bedrockModels[configuredCustomBaseModelId ?? ""] ??
 				bedrockModels[bedrockDefaultModelId] ??
 				openAiModelInfoSafeDefaults),
 			name: modelId,
@@ -55,8 +62,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	})
 	const bedrockModelIds = useMemo(() => Object.keys(bedrockModels), [bedrockModels])
 	const bedrockFallbackModelId = bedrockDefaultModelId || bedrockModelIds[0] || ""
-	const customBaseModelId = config?.aws?.customModelBaseId || bedrockFallbackModelId
-	const isCustomModelSelected = Boolean(config?.aws?.customModelBaseId)
+	const customBaseModelId = configuredCustomBaseModelId || bedrockFallbackModelId
+	const isCustomModelSelected = Boolean(configuredCustomBaseModelId)
 	const customModelInputInitialValue = isCustomModelSelected && !bedrockModels[selectedModelId] ? selectedModelId : ""
 	const isAdaptiveThinkingModel =
 		isClaudeOpusAdaptiveThinkingModel(selectedModelId) || isClaudeOpusAdaptiveThinkingModel(customBaseModelId)
@@ -135,6 +142,22 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	}
 	const writeAws = (aws: NonNullable<Parameters<typeof write>[0]["aws"]>, label: string) => {
 		writeProviderConfig({ aws }, label)
+	}
+	const writeCustomBaseModel = (value: string) =>
+		handleModeFieldChange(
+			{ plan: "planModeAwsBedrockCustomModelBaseId", act: "actModeAwsBedrockCustomModelBaseId" },
+			value,
+			currentMode,
+		)
+	const handleModelChange = async (modelId: string) => {
+		if (modelId === "custom") {
+			await writeCustomBaseModel(customBaseModelId || bedrockFallbackModelId)
+			return
+		}
+		// Finish the full API-configuration update before committing a new model
+		// id, otherwise its previous model id can overwrite the selection.
+		await writeCustomBaseModel("")
+		await commitModelSelection({ modelId, modelInfo: bedrockModels[modelId] ?? selectedModelInfo })
 	}
 
 	const fuse = useMemo(() => {
@@ -523,19 +546,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							id="bedrock-model-dropdown"
 							key={`bedrock-model-${isCustomModelSelected ? "custom" : selectedModelId}-${bedrockModelIds.length}`}
 							onChange={(e: any) => {
-								const value = e.target.value
-								if (value === "custom") {
-									writeAws(
-										{ customModelBaseId: customBaseModelId || bedrockFallbackModelId },
-										"custom base model",
-									)
-									return
-								}
-								writeAws({ customModelBaseId: "" }, "custom base model")
-								void commitModelSelection({
-									modelId: value,
-									modelInfo: bedrockModels[value] ?? selectedModelInfo,
-								}).catch((err) => console.error("Failed to commit Bedrock model selection:", err))
+								void handleModelChange(e.target.value).catch((err) =>
+									console.error("Failed to update Bedrock model selection:", err),
+								)
 							}}
 							value={isCustomModelSelected ? "custom" : selectedModelId}>
 							<VSCodeOption value="">Select a model...</VSCodeOption>
@@ -582,7 +595,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									className="w-full"
 									id="bedrock-base-model-dropdown"
 									key={`bedrock-base-model-${customBaseModelId || bedrockFallbackModelId}-${bedrockModelIds.length}`}
-									onChange={(e: any) => writeAws({ customModelBaseId: e.target.value }, "custom base model")}
+									onChange={(e: any) => {
+										void writeCustomBaseModel(e.target.value).catch((err) =>
+											console.error("Failed to update Bedrock custom base model:", err),
+										)
+									}}
 									value={customBaseModelId || bedrockFallbackModelId}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>
 									{bedrockModelIds.map((modelId) => (
