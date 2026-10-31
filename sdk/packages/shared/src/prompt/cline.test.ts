@@ -112,6 +112,19 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(rulesIndex).toBeLessThan(prompt.indexOf(MODE_TAG_INSTRUCTIONS));
 	});
 
+	it("keeps $ replacement patterns in caller rules literal", () => {
+		const rules = "Use $$x$$ for math. Split with IFS=$'\\n'. Keep $& as-is.";
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			workspaceRoot: "/workspace/$$project",
+			rules,
+		});
+
+		expect(prompt).toContain(rules);
+		expect(prompt).toContain("/workspace/$$project");
+		expect(prompt).not.toContain("{{CLINE_RULES}}");
+	});
+
 	it("includes rich workspace metadata for the Cline backend parser", () => {
 		const metadata = JSON.stringify({
 			workspaces: {
