@@ -556,6 +556,21 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("skips the archived preview for cloud sessions that are not suspended", async () => {
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: "running-cloud",
+				origin: "cloud",
+				status: "running",
+				startedAt: "2026-01-01T00:00:00Z",
+			});
+		});
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"read_archived_cloud_messages",
+			expect.anything(),
+		);
+	});
+
 	it("keeps flushing streamed text after the app is hidden and restored", async () => {
 		vi.useFakeTimers();
 		try {
