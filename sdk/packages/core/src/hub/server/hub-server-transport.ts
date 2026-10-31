@@ -272,9 +272,9 @@ const hubPluginLogger = {
  * Commands that read, drive, or mutate an existing session. A remote
  * connection may only reach these for a session inside the workspace its
  * authority was granted over; `authorizeSessionWorkspace` enforces that using
- * the target session's own `workspaceRoot`/`cwd`. (`session.create` and
- * `session.restore` carry the requested directories in their payload and are
- * gated inside their own handlers instead.)
+ * the target session's own `workspaceRoot`/`cwd`. (`session.create`,
+ * `session.resume` and `session.restore` carry the requested directories in
+ * their payload and are gated inside their own handlers instead.)
  */
 const PER_SESSION_AUTHORITY_COMMANDS: ReadonlySet<string> = new Set([
 	"session.attach",
@@ -295,6 +295,7 @@ const PER_SESSION_AUTHORITY_COMMANDS: ReadonlySet<string> = new Set([
 	"session.delete",
 	"session.hook",
 	"run.start",
+	"run.enqueue",
 	"session.send_input",
 	"run.abort",
 	"run.proceed_while_running",
@@ -1084,6 +1085,7 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					connectionAuthority,
 				);
 			case "session.restore":
 				return await handleSessionRestore(

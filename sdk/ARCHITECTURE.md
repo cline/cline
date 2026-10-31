@@ -377,10 +377,15 @@ A loopback hub also accepts `/hub` upgrades without the token when the request
 carries a loopback `Origin`, so browser pages served from localhost can connect.
 Non-browser processes can forge that header, so these connections only get
 workspace-confined authority: registration pins them to the hub's workspace, and
-`session.create` / `session.restore` reject them until they register, then
-refuse any session or restore source whose directories fall outside that
-workspace (`authorizeSessionWorkspace`). Token connections keep full session
-authority whether or not they have registered.
+every session command rejects them until they register. After that,
+`session.create`, `session.resume` and `session.restore` refuse any new session,
+resume source or restore source whose directories fall outside that workspace,
+and commands that act on an existing session (`run.start`, `run.enqueue`,
+`session.send_input`, `approval.respond`, `session.get`, and the rest of
+`PER_SESSION_AUTHORITY_COMMANDS`) refuse sessions outside it
+(`authorizeSessionWorkspace`). `session.list` and `session.search` require
+registration. Token connections keep full session authority whether or not they
+have registered.
 
 Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
 headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every

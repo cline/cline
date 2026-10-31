@@ -288,6 +288,7 @@ export async function handleSessionResume(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	authority?: HubConnectionAuthority | null,
 ): Promise<HubReplyEnvelope> {
 	const sessionConfig = asPlainRecord(envelope.payload?.sessionConfig);
 	const sessionId =
@@ -301,7 +302,18 @@ export async function handleSessionResume(
 			"sessionConfig.sessionId is required",
 		);
 	}
-	if (!(await ctx.sessionHost.getSession(sessionId))) {
+	const sourceSession = await ctx.sessionHost.getSession(sessionId);
+	// Resuming copies the saved session's transcript into a new session, so,
+	// as with session.restore, the caller needs authority over the saved
+	// session's workspace; handleSessionCreate checks the new one.
+	const workspaceDenial = authorizeSessionWorkspace(authority, {
+		workspaceRoot: sourceSession?.workspaceRoot,
+		cwd: sourceSession?.cwd,
+	});
+	if (workspaceDenial) {
+		return errorReply(envelope, "workspace_not_authorized", workspaceDenial);
+	}
+	if (!sourceSession) {
 		return errorReply(
 			envelope,
 			"session_not_found",
@@ -322,6 +334,7 @@ export async function handleSessionResume(
 		ctx,
 		{ ...envelope, payload: { ...envelope.payload, initialMessages } },
 		requestToolApproval,
+		authority,
 	);
 }
 

@@ -4,9 +4,11 @@
 // connection's authorized workspace, but left the commands that drive, read,
 // or approve *existing* sessions ungated. An origin-only connection (no Hub
 // auth token, loopback `Origin`) could therefore inject prompts into a live
-// agent (`run.start` / `session.send_input`), approve pending tool approvals,
-// enumerate every session, and so on, across any workspace. These tests lock
-// in that those commands now honour the same workspace boundary.
+// agent (`run.start` / `run.enqueue` / `session.send_input`), approve pending
+// tool approvals, resume a saved session into another directory
+// (`session.resume`), enumerate every session, and so on, across any
+// workspace. These tests lock in that those commands now honour the same
+// workspace boundary.
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,6 +36,8 @@ describe("Hub session-command workspace authority", () => {
 		await mkdir(outside);
 
 		const getSessionCalls: string[] = [];
+		const messageReads: string[] = [];
+		const startedCwds: unknown[] = [];
 		// A session living inside the Hub's workspace and one living outside it.
 		// The gate only reads workspaceRoot/cwd, so a minimal record suffices.
 		const sessions: Record<string, { workspaceRoot: string; cwd: string }> = {
@@ -59,7 +63,12 @@ describe("Hub session-command workspace authority", () => {
 					getSessionCalls.push(sessionId);
 					return sessions[sessionId];
 				},
-				startSession: async () => {
+				readSessionMessages: async (sessionId: string) => {
+					messageReads.push(sessionId);
+					return [{ role: "user", content: "saved conversation" }];
+				},
+				startSession: async (input: { config?: { cwd?: unknown } }) => {
+					startedCwds.push(input.config?.cwd);
 					throw new Error("stop before the agent runs");
 				},
 			} as never,
@@ -125,6 +134,8 @@ describe("Hub session-command workspace authority", () => {
 			authorizedWorkspace,
 			outside,
 			getSessionCalls,
+			messageReads,
+			startedCwds,
 			socket,
 			command,
 			register,
@@ -200,5 +211,81 @@ describe("Hub session-command workspace authority", () => {
 		const reply = await hub.command("session.get", {}, "outside-session");
 		hub.socket.close();
 		expect(reply.error?.code).not.toBe("workspace_not_authorized");
+	});
+
+	it("rejects run.enqueue from an unregistered origin-only connection", async () => {
+		const hub = await startConfinedHub();
+		const reply = await hub.command(
+			"run.enqueue",
+			{ prompt: "queued work" },
+			"inside-session",
+		);
+		hub.socket.close();
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.code).toBe("workspace_not_authorized");
+	});
+
+	it("rejects run.enqueue on a session outside a confined connection's workspace", async () => {
+		const hub = await startConfinedHub();
+		expect((await hub.register()).ok).toBe(true);
+		const reply = await hub.command(
+			"run.enqueue",
+			{ prompt: "queued work" },
+			"outside-session",
+		);
+		hub.socket.close();
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.code).toBe("workspace_not_authorized");
+	});
+
+	it("rejects session.resume from an unregistered origin-only connection", async () => {
+		const hub = await startConfinedHub();
+		const reply = await hub.command("session.resume", {
+			sessionConfig: { sessionId: "inside-session" },
+			cwd: hub.authorizedWorkspace,
+		});
+		hub.socket.close();
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.code).toBe("workspace_not_authorized");
+		expect(hub.messageReads).toEqual([]);
+		expect(hub.startedCwds).toEqual([]);
+	});
+
+	it("rejects resuming a saved session from outside a confined connection's workspace", async () => {
+		const hub = await startConfinedHub();
+		expect((await hub.register()).ok).toBe(true);
+		const reply = await hub.command("session.resume", {
+			sessionConfig: { sessionId: "outside-session" },
+			cwd: hub.authorizedWorkspace,
+		});
+		hub.socket.close();
+		expect(reply.error?.code).toBe("workspace_not_authorized");
+		// The saved transcript is never read for an unauthorized source.
+		expect(hub.messageReads).toEqual([]);
+		expect(hub.startedCwds).toEqual([]);
+	});
+
+	it("rejects resuming into a directory outside a confined connection's workspace", async () => {
+		const hub = await startConfinedHub();
+		expect((await hub.register()).ok).toBe(true);
+		const reply = await hub.command("session.resume", {
+			sessionConfig: { sessionId: "inside-session" },
+			cwd: hub.outside,
+		});
+		hub.socket.close();
+		expect(reply.error?.code).toBe("workspace_not_authorized");
+		expect(hub.startedCwds).toEqual([]);
+	});
+
+	it("allows a confined connection to resume inside its workspace", async () => {
+		const hub = await startConfinedHub();
+		expect((await hub.register()).ok).toBe(true);
+		const reply = await hub.command("session.resume", {
+			sessionConfig: { sessionId: "inside-session" },
+			cwd: hub.authorizedWorkspace,
+		});
+		hub.socket.close();
+		expect(reply.error?.code).not.toBe("workspace_not_authorized");
+		expect(hub.startedCwds).toEqual([hub.authorizedWorkspace]);
 	});
 });
