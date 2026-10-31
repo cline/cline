@@ -1,24 +1,18 @@
 import { z } from "zod";
 import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import type { ArtifactFetcher } from "../fetch";
+import {
+	ArtifactDownloadSchema,
+	artifactDownloadPath,
+	type CloudArtifactDownload,
+} from "./download-url";
 
 const EXPIRY_MARGIN_MS = 30_000;
 const MAX_CACHED_URLS = 128;
 
 const DownloadResponseSchema = z.object({
 	success: z.literal(true),
-	data: z.object({
-		url: z
-			.string()
-			.url()
-			.pipe(
-				z.string().refine((value) => {
-					const url = new URL(value);
-					return url.protocol === "https:" && !url.username && !url.password;
-				}),
-			),
-		expiresAt: z.string().datetime({ offset: true }).transform(Date.parse),
-	}),
+	data: ArtifactDownloadSchema,
 });
 
 export function createArtifactFetcher({
@@ -28,10 +22,7 @@ export function createArtifactFetcher({
 	request: ConnectorsRequest;
 	cloudSessionId: string;
 }): ArtifactFetcher {
-	const urls = new Map<
-		string,
-		z.infer<typeof DownloadResponseSchema>["data"]
-	>();
+	const urls = new Map<string, CloudArtifactDownload>();
 	return async function fetchArtifact({
 		artifactId,
 		signal,
@@ -39,11 +30,14 @@ export function createArtifactFetcher({
 		artifactId: string;
 		signal?: AbortSignal;
 	}): Promise<Response> {
-		const path = `/api/v1/session/${encodeURIComponent(cloudSessionId)}/artifacts/download-url?name=${encodeURIComponent(artifactId)}`;
+		const path = artifactDownloadPath(cloudSessionId, artifactId);
 		for (let attempt = 0; ; attempt++) {
 			signal?.throwIfAborted();
 			let download = urls.get(artifactId);
-			if (!download || download.expiresAt <= Date.now() + EXPIRY_MARGIN_MS) {
+			if (
+				!download ||
+				Date.parse(download.expiresAt) <= Date.now() + EXPIRY_MARGIN_MS
+			) {
 				urls.delete(artifactId);
 				const authorization = await request(path, {
 					method: "GET",
@@ -76,7 +70,7 @@ export function createArtifactFetcher({
 				signal,
 			});
 			if (response.ok) {
-				if (download.expiresAt > Date.now() + EXPIRY_MARGIN_MS) {
+				if (Date.parse(download.expiresAt) > Date.now() + EXPIRY_MARGIN_MS) {
 					urls.delete(artifactId);
 					if (urls.size >= MAX_CACHED_URLS) {
 						const oldest = urls.keys().next();

@@ -77,6 +77,7 @@ import {
 	updateMcpSettingsFileSync,
 	upgradeManagedHub,
 } from "@cline/core";
+import { CloudSessionApi } from "@cline/core/cloud";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
@@ -90,11 +91,16 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
+import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
-import { resolveFreshClineAuthToken } from "./cline-auth";
+import {
+	getClineAccountId,
+	getClineApiBaseUrl,
+	resolveFreshClineAuthToken,
+} from "./cline-auth";
 import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
@@ -2254,6 +2260,52 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
+	if (command === "resolve_artifact") {
+		const { sessionId, artifactId } = z
+			.object({
+				sessionId: z.string().trim().min(1),
+				artifactId: z.string().min(1),
+			})
+			.parse(args);
+		const cloud = getCloudSessionManager(ctx);
+		if (!cloud.isCloudSession(sessionId)) {
+			throw new Error(
+				"Artifact access is not available for local sessions yet.",
+			);
+		}
+		const accountId = getClineAccountId();
+		try {
+			return await cloud.getArtifactDownloadUrl(sessionId, artifactId);
+		} catch (error) {
+			if (
+				!(error instanceof Error) ||
+				error.message !== "Unknown cloud operation: getArtifactDownloadUrl"
+			)
+				throw error;
+		}
+		// A busy older Hub stays running during upgrades; do not interrupt its sessions.
+		const checkAccount = () => {
+			if (!accountId || getClineAccountId() !== accountId) {
+				throw new Error("Cline account changed during artifact access");
+			}
+		};
+		checkAccount();
+		const api = new CloudSessionApi({
+			apiBaseUrl: getClineApiBaseUrl().replace(/\/api\/v1\/*$/, ""),
+			appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
+			getAuthToken: async () => {
+				const token = await resolveFreshClineAuthToken(
+					new ProviderSettingsManager(),
+					ctx,
+				);
+				checkAccount();
+				return token;
+			},
+		});
+		const download = await api.getArtifactDownloadUrl(sessionId, artifactId);
+		checkAccount();
+		return download;
+	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);

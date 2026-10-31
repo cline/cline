@@ -67,7 +67,16 @@ export function createLocalArtifactPublisher({
 				await checkUnchanged(file);
 				await mkdir(directory, { recursive: true, mode: 0o700 });
 				await pipeline(
-					createReadStream(file.path),
+					async function* ({ signal } = {}) {
+						try {
+							yield* createReadStream(file.path, { signal });
+						} catch {
+							throw new ArtifactPublicationError(
+								"FILE_READ_FAILED",
+								"Could not read the local file",
+							);
+						}
+					},
 					createWriteStream(payload, {
 						flags: "wx",
 						mode: 0o600,

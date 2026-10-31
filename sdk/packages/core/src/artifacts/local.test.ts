@@ -173,6 +173,42 @@ test("rejects changed sources and cancelled writes without replacing stored byte
 	assert.equal((await readdir(f.directory)).length, 2);
 });
 
+for (const side of ["source", "destination"] as const) {
+	test(`classifies ${side} stream failures without replacing stored bytes`, async (t) => {
+		const f = await fixture(t);
+		await writeFile(f.source, "original");
+		await f.publish();
+		await writeFile(f.source, "replacement");
+		const createReadStream = fs.createReadStream;
+		const createWriteStream = fs.createWriteStream;
+		const spy =
+			side === "source"
+				? vi.spyOn(fs, "createReadStream").mockImplementationOnce((...args) => {
+						fs.unlinkSync(f.source);
+						return createReadStream(...args);
+					})
+				: vi
+						.spyOn(fs, "createWriteStream")
+						.mockImplementationOnce(() => createWriteStream(f.directory));
+		try {
+			const result = await f.publish();
+			assert.ok("error" in result.files[0]);
+			assert.equal(
+				result.files[0].error.code,
+				side === "source" ? "FILE_READ_FAILED" : "WRITE_FAILED",
+			);
+			assert.equal(result.files[0].artifactId, "report");
+		} finally {
+			spy.mockRestore();
+		}
+		assert.equal(
+			await (await f.fetch({ artifactId: "report" })).text(),
+			"original",
+		);
+		assert.equal((await readdir(f.directory)).length, 2);
+	});
+}
+
 test("streams cancellable reads and supports a fresh read afterward", async (t) => {
 	const f = await fixture(t);
 	const bytes = Buffer.alloc(1024 * 1024, 42);
