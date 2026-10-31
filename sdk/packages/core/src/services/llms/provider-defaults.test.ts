@@ -647,6 +647,44 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("keeps context limits advertised by a modelsSourceUrl catalog", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "local-long-context",
+							context_length: 1_048_576,
+							max_completion_tokens: 32_768,
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://local-host:1234/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalled();
+		expect(resolved?.knownModels?.["local-long-context"]).toMatchObject({
+			contextWindow: 1_048_576,
+			maxInputTokens: 1_048_576,
+			maxTokens: 32_768,
+		});
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
