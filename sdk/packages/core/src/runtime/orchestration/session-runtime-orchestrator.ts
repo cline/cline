@@ -372,7 +372,7 @@ export class SessionRuntime {
 
 	/** Stable run id for the active run. */
 	private activeRunId: string | null = null;
-	/** True while the execution body is in flight. */
+	/** True while a run is in flight. `canStartRun()` is the negation. */
 	private running = false;
 	/** True once `abort()` has been requested for the active run. */
 	private abortRequested = false;
@@ -529,14 +529,9 @@ export class SessionRuntime {
 		return this.conversation.getMessages();
 	}
 
-	/** Remains true until execution settles, including abort and shutdown drain. */
-	hasActiveRun(): boolean {
-		return this.running || this.activeRunPromise !== null;
-	}
-
 	/** True when no run is currently active and the session is not shut down. */
 	canStartRun(): boolean {
-		return !this.hasActiveRun() && !this.shutdownCalled;
+		return !this.running && !this.activeRunPromise && !this.shutdownCalled;
 	}
 
 	/**
@@ -783,7 +778,7 @@ export class SessionRuntime {
 			return new Error(
 				`SessionRuntime.run called after shutdown (agentId=${this.agentId})`,
 			);
-		if (this.hasActiveRun())
+		if (this.running || this.activeRunPromise)
 			return new Error(
 				`SessionRuntime state is "running"; call canStartRun() first (agentId=${this.agentId})`,
 			);

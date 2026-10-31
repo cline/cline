@@ -669,7 +669,6 @@ describe("LocalRuntimeHost", () => {
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
-			hasActiveRun: vi.fn().mockReturnValue(false),
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
 		const telemetry = { capture: vi.fn(), setDistinctId: vi.fn() };
@@ -4299,7 +4298,6 @@ describe("LocalRuntimeHost", () => {
 			shutdown: vi.fn().mockResolvedValue(undefined),
 			getMessages: vi.fn().mockReturnValue([]),
 			canStartRun: vi.fn(() => !activeRun),
-			hasActiveRun: vi.fn(() => activeRun),
 		};
 
 		const manager = new RuntimeHostUnderTest({

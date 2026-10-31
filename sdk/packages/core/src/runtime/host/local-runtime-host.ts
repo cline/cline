@@ -511,7 +511,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				this.pendingActivityOperations > 0 ||
 				[...this.sessions.values()].some(
 					(session) =>
-						session.agent.hasActiveRun() ||
 						session.runtime.teamRuntime?.hasPendingWork() ||
 						hasPendingTeamRunWork(session) ||
 						session.pendingPrompts.length > 0 ||

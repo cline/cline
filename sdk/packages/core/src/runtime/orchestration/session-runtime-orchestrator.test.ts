@@ -1344,7 +1344,6 @@ describe("SessionRuntime.run", () => {
 		const first = session.run("one");
 		await Promise.resolve();
 		expect(session.canStartRun()).toBe(false);
-		expect(session.hasActiveRun()).toBe(true);
 		const before = session.getMessages();
 		const events: AgentEvent[] = [];
 		session.subscribeEvents((event) => events.push(event));
@@ -1360,7 +1359,6 @@ describe("SessionRuntime.run", () => {
 		release?.();
 		await first;
 		expect(session.canStartRun()).toBe(true);
-		expect(session.hasActiveRun()).toBe(false);
 	});
 });
 
@@ -2091,7 +2089,6 @@ describe("SessionRuntime.shutdown", () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		await expect(session.shutdown()).resolves.toBeUndefined();
 		expect(session.canStartRun()).toBe(false);
-		expect(session.hasActiveRun()).toBe(false);
 	});
 
 	it("is idempotent across repeat calls", async () => {
