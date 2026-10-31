@@ -307,10 +307,10 @@ mailboxes, task management, and outcome convergence.
 ## More Examples
 
 - Repo examples:
-  [examples/plugins](https://github.com/cline/sdk/tree/main/examples/plugins),
-  [examples/hooks](https://github.com/cline/sdk/tree/main/examples/hooks),
-  [examples/cron](https://github.com/cline/sdk/tree/main/examples/cron)
-- Workspace overview: [README.md](https://github.com/cline/sdk/blob/main/README.md)
+  [examples/plugins](https://github.com/cline/cline/tree/main/sdk/examples/plugins),
+  [examples/hooks](https://github.com/cline/cline/tree/main/sdk/examples/hooks),
+  [examples/cron](https://github.com/cline/cline/tree/main/sdk/examples/cron)
+- Workspace overview: [README.md](https://github.com/cline/cline/blob/main/sdk/README.md)
 - API and architecture references:
-  [DOC.md](https://github.com/cline/sdk/blob/main/DOC.md),
-  [ARCHITECTURE.md](https://github.com/cline/sdk/blob/main/ARCHITECTURE.md)
+  [DOC.md](https://github.com/cline/cline/blob/main/sdk/DOC.md),
+  [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/sdk/ARCHITECTURE.md)
