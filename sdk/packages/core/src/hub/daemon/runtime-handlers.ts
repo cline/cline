@@ -90,6 +90,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 	});
 
 	return {
+		getActivity: () => sessionHost.getActivity(),
 		async startSession(request, options) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
 			const started = await sessionHost.startSession({

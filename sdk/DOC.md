@@ -1,3 +1,13 @@
+## Hub activity
+
+`hub.status` and `hub.drain` include optional `activity: { busy: boolean, lastActivityAt: number }` when both the session and scheduler runtimes support runtime activity observations. The aggregate includes admitted due scheduler runs and their execution through cleanup, including startup before a scheduler session exists. Future schedules do not count as busy. An absent field means unknown activity. The existing `idle` field retains its RPC, cloud-command, plugin-request, and durable-queue meaning.
+
+`busy` covers in-process starts and turns, quiet provider and tool waits, runtime-managed prompt and teammate work, plugin command execution, direct MCP App tool calls, and approval waits within live runs across all resident roots. Hub combines session and scheduler observations with OR for `busy` and the latest `lastActivityAt`; its separate `pendingRuns` field reports durable Hub queue entries. Old persisted session status does not establish live work. For resident roots, cancellation remains busy until execution settles.
+
+Queued prompts and unconsumed teammate updates held only in memory also keep `busy` true until consumed or cleared because suspending the process could discard them. After a provider failure, this pending state can keep an otherwise idle runtime busy indefinitely. The observation adds neither a deadline for paused work nor durable recovery of that state. A tool that ignores cancellation can also remain busy indefinitely: `busy` reports outstanding work, not progress. Tool executors own their deadlines and resource cleanup. Detached and shell-backgrounded processes are not tracked after their tool call returns.
+
+`lastActivityAt` is a Unix-millisecond timestamp initialized when the runtime starts. Runtime accepted work, model and tool output, and runtime or claimed scheduler execution settlement advance it. Unclaimed durable scheduler admission and cancellation affect `busy` only. Status reads, plugin catalog and MCP App resource reads, metadata changes, connections, read-only hydration, and team heartbeats do not. Read-only hydration still reports busy while setup runs. The observation is in memory and does not prevent new work from arriving after a caller reads it.
+
 ## Plugin slash commands
 
 Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or

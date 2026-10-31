@@ -19,7 +19,6 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
-import type { HubTransportContext } from "./handlers/context";
 import { HubServerTransport } from "./hub-server-transport";
 
 function createStartedTransportOptions() {
@@ -109,7 +108,7 @@ function createStartedTransportOptions() {
 				readSessionMessages: vi.fn(async () => []),
 				dispatchHookEvent: vi.fn(async () => {}),
 				restoreSession: vi.fn(),
-			} as never,
+			},
 		},
 	};
 }
@@ -128,6 +127,81 @@ async function waitFor(
 }
 
 describe("Hub app-server upgrades", () => {
+	it.each([
+		"session",
+		"scheduler",
+	])("omits activity when the %s runtime cannot observe execution", async (missing) => {
+		const { options } = createStartedTransportOptions();
+		const transport = new HubServerTransport({
+			...options,
+			runtimeHandlers: {
+				...options.runtimeHandlers,
+				...(missing === "session"
+					? { getActivity: () => ({ busy: false, lastActivityAt: 1_000 }) }
+					: {}),
+			},
+			sessionHost: {
+				...options.sessionHost,
+				...(missing === "scheduler"
+					? { getActivity: () => ({ busy: false, lastActivityAt: 1_000 }) }
+					: {}),
+			},
+		} as never);
+		try {
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).not.toHaveProperty("activity");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("forwards runtime activity independently of RPC idle", async () => {
+		const { options } = createStartedTransportOptions();
+		const lastActivityAt = 1_000;
+		const activity = { busy: true, lastActivityAt };
+		const scheduledActivity = { busy: false, lastActivityAt: 500 };
+		const transport = new HubServerTransport({
+			...options,
+			runtimeHandlers: {
+				...options.runtimeHandlers,
+				getActivity: () => scheduledActivity,
+			},
+			sessionHost: { ...options.sessionHost, getActivity: () => activity },
+		} as never);
+		try {
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).toMatchObject({ idle: true, activity });
+			activity.busy = false;
+			scheduledActivity.busy = true;
+			scheduledActivity.lastActivityAt = 2_000;
+			expect(
+				(
+					await transport.handleCommand({
+						version: "v1",
+						command: "hub.status",
+					})
+				).payload?.activity,
+			).toEqual(scheduledActivity);
+			scheduledActivity.busy = false;
+			const drained = await transport.handleCommand({
+				version: "v1",
+				command: "hub.drain",
+			});
+			expect(drained.payload?.activity).toEqual({
+				busy: false,
+				lastActivityAt: 2_000,
+			});
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("stamps published events with durable sequences and replays from a cursor", async () => {
 		const { options } = createStartedTransportOptions();
 		const transport = new HubServerTransport(options as never);

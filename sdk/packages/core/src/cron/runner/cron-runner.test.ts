@@ -43,6 +43,7 @@ function fakeHandlers(): {
 		startOptions: [] as Array<HubScheduleStartSessionOptions | undefined>,
 	};
 	const handlers: HubScheduleRuntimeHandlers = {
+		getActivity: () => ({ busy: false, lastActivityAt: 1_000 }),
 		async startSession(req, options) {
 			calls.start += 1;
 			calls.startRequests.push(req);
@@ -97,6 +98,79 @@ describe("CronRunner", () => {
 	afterEach(() => {
 		store.close();
 		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("observes admitted work through startup and cleanup, excluding future runs", async () => {
+		const { handlers } = fakeHandlers();
+		const runtimeActivity = { busy: false, lastActivityAt: 1_000 };
+		handlers.getActivity = () => runtimeActivity;
+		let releaseStart!: () => void;
+		let releaseStop!: () => void;
+		const starting = new Promise<void>((resolve) => {
+			releaseStart = resolve;
+		});
+		const stopping = new Promise<void>((resolve) => {
+			releaseStop = resolve;
+		});
+		const start = handlers.startSession;
+		handlers.startSession = async (...args) => {
+			await starting;
+			return start(...args);
+		};
+		const stop = vi.fn(async () => {
+			await stopping;
+			return { applied: true };
+		});
+		handlers.stopSession = stop;
+		const spec = store.createHubSchedule({
+			name: "Activity",
+			cronPattern: "0 0 1 1 *",
+			prompt: "Synthetic work",
+			workspaceRoot,
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		const future = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+			scheduledFor: new Date(Date.now() + 86_400_000).toISOString(),
+		});
+		expect(runner.getActivity()).toEqual(runtimeActivity);
+		const run = store.enqueueHubScheduleRun(spec.externalId, "manual");
+		expect(run).toBeDefined();
+		expect(runner.getActivity()?.busy).toBe(true);
+		const tick = runner.tick();
+		try {
+			expect(runner.getActivity()?.busy).toBe(true);
+			expect(runner.getActiveRuns()[0]?.sessionId).toBeUndefined();
+			releaseStart();
+			await vi.waitFor(() => expect(stop).toHaveBeenCalledOnce());
+			expect(runner.getActivity()?.busy).toBe(true);
+			releaseStop();
+			await tick;
+			expect(store.getRun(future.runId)?.status).toBe("queued");
+			expect(runner.getActivity()?.busy).toBe(false);
+			expect(runner.getActivity()?.lastActivityAt).toBeGreaterThan(1_000);
+			runtimeActivity.busy = true;
+			expect(runner.getActivity()?.busy).toBe(true);
+			delete handlers.getActivity;
+			expect(runner.getActivity()).toBeUndefined();
+			runtimeActivity.busy = false;
+			handlers.getActivity = () => runtimeActivity;
+			await runner.dispose();
+			expect(runner.getActivity()).toBeUndefined();
+		} finally {
+			releaseStart();
+			releaseStop();
+			await tick;
+			await runner.dispose();
+		}
 	});
 
 	it.each([
@@ -155,6 +229,7 @@ describe("CronRunner", () => {
 					new Date(Date.now() - 1000).toISOString(),
 				);
 			}
+			expect(runner.getActivity()?.busy).toBe(true);
 			const sameSchedule = enqueue("blocked");
 			const otherSchedule = enqueue("other");
 			await runner.tick();
