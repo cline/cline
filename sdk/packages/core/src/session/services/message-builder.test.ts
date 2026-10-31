@@ -2,6 +2,7 @@ import {
 	type AiSdkFormatterMessage,
 	formatMessagesForAiSdk,
 	type Message,
+	sanitizeSurrogates,
 	type ToolResultContent,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
@@ -208,6 +209,62 @@ describe("MessageBuilder", () => {
 		}
 		expect(block.content.length).toBeLessThanOrEqual(100);
 		expect(block.content).toContain("...[truncated");
+	});
+
+	it("truncates a tool result without splitting a surrogate pair", () => {
+		// An emoji is one code point spread over two UTF-16 units, so a cut
+		// counted in chars can land between the halves and leave both unpaired;
+		// the payload then carried U+FFFD where the emoji had been. The ASCII
+		// ends slide the head and tail cuts across both parities as the budget
+		// moves, so some budget in this range puts a cut inside a pair.
+		const source = `a${"\u{1F3AE}".repeat(400)}b`;
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "search_codebase",
+						input: { queries: "needle" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "read",
+						content: source,
+					},
+				],
+			},
+		];
+
+		for (const maxToolResultChars of [197, 198, 199, 200, 201, 202, 203, 204]) {
+			const builder = new MessageBuilder({ maxToolResultChars });
+			const result = builder.buildForApi(messages);
+			const resultContent = result[1].content;
+			const block = Array.isArray(resultContent) ? resultContent[0] : undefined;
+			expect(block?.type).toBe("tool_result");
+			if (block?.type !== "tool_result") {
+				throw new Error("expected tool_result");
+			}
+			expect(typeof block.content).toBe("string");
+			if (typeof block.content !== "string") {
+				throw new Error("expected string content");
+			}
+			expect(block.content.length).toBeLessThanOrEqual(maxToolResultChars);
+			expect(block.content).toContain("...[truncated");
+			expect(sanitizeSurrogates(block.content)).toBe(block.content);
+			// A lone surrogate cannot survive UTF-8, which is where the mojibake
+			// users actually saw came from.
+			expect(Buffer.from(block.content, "utf8").toString("utf8")).toBe(
+				block.content,
+			);
+		}
 	});
 
 	it("uses an aggressive per-result cap and a loose aggregate budget", () => {

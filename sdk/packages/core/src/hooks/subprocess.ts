@@ -24,6 +24,7 @@ import {
 	parseHookEventPayload,
 	resolveHookSessionContext,
 	type SessionShutdownHookPayload,
+	sliceHeadAtCodePointBoundary,
 	type TaskCancelData,
 	type TaskCompleteData,
 	type TaskResumeData,
@@ -61,7 +62,7 @@ export function truncateHookContext(
 	if (context === undefined || context.length <= MAX_HOOK_CONTEXT_SIZE) {
 		return context;
 	}
-	return `${context.slice(0, MAX_HOOK_CONTEXT_SIZE)}\n[hook context truncated: exceeded ${MAX_HOOK_CONTEXT_SIZE} characters]`;
+	return `${sliceHeadAtCodePointBoundary(context, MAX_HOOK_CONTEXT_SIZE)}\n[hook context truncated: exceeded ${MAX_HOOK_CONTEXT_SIZE} characters]`;
 }
 
 export interface HookOutput {
