@@ -572,6 +572,12 @@ and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
 
+## Explicit MCP OAuth authorization
+
+`authorizeMcpServerOAuth` first probes `initialize` and `tools/list` to check saved access tokens and capture OAuth metadata and scope from a 401 challenge. Anonymous discovery success does not establish account authorization. When authorization is needed, the SDK flow keeps the native callback listener open until the code arrives, validates state, exchanges the code with PKCE and reconnects. Saved credentials use the SDK refresh path without another consent when possible. A server without OAuth metadata reports an authorization error rather than treating public discovery as authorization.
+
+Interactive OAuth fetches use the server's request timeout and caller cancellation signal, including discovery and client registration. Ordinary MCP discovery and protected tool calls keep their existing behavior.
+
 ## MCP Apps (experimental)
 
 MCP Apps support is off by default.
