@@ -2260,6 +2260,14 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
+	if (command === "read_archived_cloud_messages") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const messages =
+			await getCloudSessionManager(ctx).readArchivedMessages(sessionId);
+		return messages === null
+			? null
+			: readSessionMessages(ctx, sessionId, 800, messages);
+	}
 	if (command === "resolve_artifact") {
 		const { sessionId, artifactId } = z
 			.object({

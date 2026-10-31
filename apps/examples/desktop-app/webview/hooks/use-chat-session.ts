@@ -604,6 +604,7 @@ export function useChatSession(environmentId: string) {
 		getInitialChatConfig(environmentId),
 	);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [historyPreview, setHistoryPreview] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [toolCalls, setToolCalls] = useState(0);
@@ -674,6 +675,7 @@ export function useChatSession(environmentId: string) {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
+	const historyPreviewRequestRef = useRef<number | undefined>(undefined);
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -2402,6 +2404,10 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
+				if (record.transcriptKnown) {
+					historyPreviewRequestRef.current = undefined;
+					setHistoryPreview([]);
+				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -3926,12 +3932,14 @@ export function useChatSession(environmentId: string) {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
+			historyPreviewRequestRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
 			);
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			setHistoryPreview([]);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -4007,6 +4015,24 @@ export function useChatSession(environmentId: string) {
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
+			if (session.origin === "cloud" && session.status !== "expired") {
+				void desktopClient
+					.invoke<ChatMessage[] | null>("read_archived_cloud_messages", {
+						sessionId: session.sessionId,
+					})
+					.then((preview) => {
+						if (
+							hydrationRequestIdRef.current !== requestId ||
+							historyPreviewRequestRef.current !== requestId ||
+							!preview?.length
+						)
+							return;
+						setHistoryPreview(preview);
+					})
+					.catch(() => {
+						// Archives are optional; live history owns startup errors.
+					});
+			}
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
@@ -4015,8 +4041,11 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						maxMessages: MAX_MESSAGES,
 					},
+					session.origin === "cloud" ? { timeoutMs: null } : undefined,
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
+				historyPreviewRequestRef.current = undefined;
+				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
@@ -4144,6 +4173,7 @@ export function useChatSession(environmentId: string) {
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
 				if (hydrationRequestIdRef.current === requestId) {
+					historyPreviewRequestRef.current = undefined;
 					setIsHydratingSession(false);
 				}
 			}
@@ -4330,6 +4360,7 @@ export function useChatSession(environmentId: string) {
 		activityLabel,
 		config,
 		messages,
+		historyPreview: isHydratingSession ? historyPreview : [],
 		rawTranscript,
 		error,
 		summary,
