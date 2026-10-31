@@ -64,11 +64,22 @@ import {
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 
-export function stdinHasPipedInput(): boolean {
+/**
+ * Node/bun hosts that spawn the CLI hand it a socket on stdin, and often leave
+ * it open when they pass the prompt as an argument. Callers opt into sockets
+ * only when there's no prompt argument, so reading stdin can't hang those hosts.
+ */
+export function stdinHasPipedInput(
+	options: { allowSocket?: boolean } = {},
+): boolean {
 	if (process.stdin.isTTY) return false;
 	try {
 		const stats = fstatSync(0);
-		return stats.isFIFO() || stats.isFile();
+		return (
+			stats.isFIFO() ||
+			stats.isFile() ||
+			(options.allowSocket === true && stats.isSocket())
+		);
 	} catch {
 		return false;
 	}
@@ -823,7 +834,7 @@ export async function runCli(): Promise<void> {
 		if (
 			!args.prompt &&
 			!resumeSessionId &&
-			!stdinHasPipedInput() &&
+			!stdinHasPipedInput({ allowSocket: true }) &&
 			!isFullTTY
 		) {
 			writeErr("--worktree without a prompt requires an interactive terminal.");
@@ -1139,7 +1150,11 @@ export async function runCli(): Promise<void> {
 		// Guard `isTTY` first so we never block on fd 0 when stdin is a terminal (and avoid
 		// redundant fstat work). `stdinHasPipedInput` also checks `isTTY`, but callers may hit
 		// inconsistent state in tests or embedded hosts.
-		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive) {
+		if (
+			!process.stdin.isTTY &&
+			stdinHasPipedInput({ allowSocket: !args.prompt }) &&
+			!args.interactive
+		) {
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(chunk as Buffer);
