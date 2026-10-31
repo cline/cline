@@ -189,6 +189,26 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers DotHoosh as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("dothoosh");
+
+		// ASCII provider name; models come live from the gateway, so the spec
+		// carries no model list and no static default model.
+		await expect(getProvider("dothoosh")).resolves.toMatchObject({
+			id: "dothoosh",
+			name: "DotHoosh",
+			baseUrl: "https://gateway.dothoosh.com/v1",
+			client: "openai-compatible",
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "dothoosh",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		const provider = await getProvider("kilo");
 		expect(provider).toMatchObject({

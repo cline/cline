@@ -18,6 +18,7 @@ Use this page for providers that follow the same setup pattern.
   - [CoreWeave](#coreweave)
   - [Crusoe](#crusoe)
   - [Dify.ai](#difyai)
+  - [DotHoosh](#dothoosh)
   - [Doubao](#doubao)
   - [Fireworks AI](#fireworks-ai)
   - [GCP Vertex AI](#gcp-vertex-ai)
@@ -152,6 +153,19 @@ Dify.ai is a workflow-centric AI platform with app and pipeline capabilities.
 1. Create a Dify workspace and API credential.
 2. Confirm your Dify endpoint/provider settings are active.
 3. In Cline, select **Dify.ai** and paste your key.
+
+### DotHoosh
+DotHoosh is an Iranian AI gateway billed in Toman (IRT) from a prepaid wallet. One API key serves GPT, Gemini, DeepSeek and Kimi models through an OpenAI-compatible endpoint. Create a key at [https://gateway.dothoosh.com/api-keys](https://gateway.dothoosh.com/api-keys).
+
+**Website:** [https://gateway.dothoosh.com/](https://gateway.dothoosh.com/)
+
+#### Basic Setup
+
+1. Sign in at [https://gateway.dothoosh.com/](https://gateway.dothoosh.com/) and top up your wallet.
+2. Create an API key at [https://gateway.dothoosh.com/api-keys](https://gateway.dothoosh.com/api-keys).
+3. In Cline, select **DotHoosh** and paste the key. The base URL is `https://gateway.dothoosh.com/v1`.
+
+The model list, context windows and prices are read live from the gateway's `/v1/models` listing, and the first active model that supports tool calls becomes the default. Models that the gateway lists on the OpenAI Responses API are called through `/responses`; all others use chat completions.
 
 ### Doubao
 Doubao is ByteDance’s model family, typically accessed through Volcengine services.
