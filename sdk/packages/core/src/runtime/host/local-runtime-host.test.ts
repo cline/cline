@@ -4935,6 +4935,118 @@ describe("LocalRuntimeHost", () => {
 		expect(agent.continue).not.toHaveBeenCalled();
 	});
 
+	it("finishes teardown and frees the id when a subscriber throws on the discard notification", async () => {
+		const sessionId = "sess-discard-subscriber-throws";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const createAgent = vi.fn(() => ({
+			run: vi.fn(() => {
+				activeRun = true;
+				markRunStarted?.();
+				return new Promise<AgentResult>((_resolve, reject) => {
+					rejectRun = (error: Error) => {
+						activeRun = false;
+						reject(error);
+					};
+				});
+			}),
+			continue: vi.fn().mockResolvedValue(createResult({ text: "ok" })),
+			abort: vi.fn(() => {
+				rejectRun?.(new Error("aborted by stop"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		}));
+		const logError = vi.fn();
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: createAgent as never,
+		});
+		// The event bus does not isolate subscribers, so this throw lands in
+		// the host code that emitted the discard: `beginTeardown`.
+		manager.subscribe((event) => {
+			if (event.type === "pending_prompts" && event.payload.discarded?.length) {
+				throw new Error("subscriber failed on discarded prompts");
+			}
+		});
+		const config = createConfig({
+			sessionId,
+			logger: { error: logError } as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({ config, interactive: true }),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued before stop",
+			delivery: "queue",
+		});
+
+		await expect(manager.stopSession(sessionId)).resolves.toBeUndefined();
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(logError).toHaveBeenCalledWith(
+			"Discarded-prompt notification threw",
+			expect.objectContaining({ sessionId, reason: "session_teardown" }),
+		);
+		const statuses = sessionService.updateSessionStatus.mock.calls.map(
+			(call) => call[1],
+		);
+		expect(statuses).toEqual(["running", "cancelled"]);
+
+		// Teardown ran to its end, so a restart for the same id is not left
+		// waiting on a closing entry that nothing will settle.
+		const restarted = await Promise.race([
+			manager
+				.startSession(
+					normalizeStartInput({
+						config: createConfig({ sessionId }),
+						interactive: true,
+					}),
+				)
+				.then(() => "started" as const),
+			new Promise<"timed out">((resolve) =>
+				setTimeout(() => resolve("timed out"), 200),
+			),
+		]);
+		expect(restarted).toBe("started");
+		expect(createAgent).toHaveBeenCalledTimes(2);
+		await manager.stopSession(sessionId);
+	});
+
 	it("records cancelled for a resumed session whose follow-up settles while dispose() waits on plugin cleanup", async () => {
 		const sessionId = "sess-dispose-decides-before-waiting";
 		const f = createPreparingTurnFixture(sessionId, {
