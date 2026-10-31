@@ -13,7 +13,10 @@
 //      clean finish;
 //   3. an attachment-only user turn must serialize `content` as a string
 //      (Ollama declares `Message.content` as a string), never `[]`;
-//   4. tool results must carry the documented `tool_name` field.
+//   4. tool results must carry the documented `tool_name` field;
+//   5. the terminal `done: true` chunk (which carries `message.content: ""`)
+//      must not emit a trailing `text-delta` after `text-end`, which causes
+//      AI SDK `streamText` to fail with `text part <id> not found`.
 import type {
 	LanguageModelV4CallOptions,
 	LanguageModelV4Prompt,
@@ -23,6 +26,7 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import { streamText } from "ai";
 import { describe, expect, it } from "vitest";
 import { createOllamaProviderModule } from "./ollama";
 
@@ -245,5 +249,76 @@ describe("ollama wire contract (real provider package)", () => {
 		// `ai-sdk.ts`, outside this vendor module) must not mask the failure
 		// by re-issuing the request; error finishes are never retried.
 		expect(requests).toHaveLength(1);
+	});
+
+	it("does not emit text-delta after text-end on the terminal done chunk", async () => {
+		const { parts } = await streamThroughVendor({
+			responseLines: [textChunk("hello "), textChunk("world"), DONE_CHUNK],
+			prompt: userText("say hello"),
+		});
+
+		const textPartTypes = parts
+			.filter(
+				(part) =>
+					part.type === "text-start" ||
+					part.type === "text-delta" ||
+					part.type === "text-end",
+			)
+			.map((part) => part.type);
+		expect(textPartTypes).toEqual([
+			"text-start",
+			"text-delta",
+			"text-delta",
+			"text-end",
+		]);
+
+		// Also exercise full AI SDK `streamText` to ensure its internal part
+		// state machine does not emit `text part <id> not found`.
+		const fetchStub = (async () => {
+			const lines = [
+				{
+					model: "test-model",
+					created_at: "2024-01-01T00:00:00Z",
+					done: false,
+					message: { role: "assistant", content: "", thinking: "thinking..." },
+				},
+				textChunk("hello"),
+				DONE_CHUNK,
+			];
+			const body = `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
+			return new Response(body, {
+				status: 200,
+				headers: { "content-type": "application/x-ndjson" },
+			});
+		}) as typeof fetch;
+
+		const module = await createOllamaProviderModule(
+			{
+				providerId: "ollama",
+				fetch: fetchStub,
+			} as GatewayResolvedProviderConfig,
+			{
+				provider: {
+					id: "ollama",
+					name: "Ollama",
+					defaultModelId: "",
+					models: [],
+				},
+				model: { id: "test-model", name: "test-model", providerId: "ollama" },
+			} as unknown as GatewayProviderContext,
+		);
+
+		const result = streamText({
+			model: module.operations.language("test-model"),
+			prompt: "say hello",
+		});
+
+		const fullStreamParts: Array<{ type: string; error?: unknown }> = [];
+		for await (const part of result.fullStream) {
+			fullStreamParts.push(part);
+		}
+
+		expect(fullStreamParts.filter((p) => p.type === "error")).toEqual([]);
+		await expect(result.text).resolves.toBe("hello");
 	});
 });
