@@ -21,6 +21,7 @@ import {
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
+import { normalizeDiscoveredStatus } from "./use-session-history";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -434,10 +435,15 @@ afterEach(async () => {
 
 describe("useChatSession", () => {
 	describe("cloud history preview", () => {
-		const session = {
+		const session: Parameters<ChatSessionHook["hydrateSession"]>[0] = {
 			sessionId: "preview-cloud",
-			origin: "cloud" as const,
-			status: "suspended",
+			origin: "cloud",
+			status: normalizeDiscoveredStatus("suspended"),
+			provider: "anthropic",
+			model: "test-model",
+			cwd: "/workspace/cline",
+			workspaceRoot: "/workspace/cline",
+			environmentId: "local",
 			startedAt: "2026-01-01T00:00:00Z",
 		};
 		const saved: ChatSessionHook["messages"] = [
@@ -473,7 +479,7 @@ describe("useChatSession", () => {
 			});
 		});
 
-		it("shows saved messages before live history without treating them as live", async () => {
+		it("previews a discovered suspended session before replacing it with live history", async () => {
 			await act(async () => archive.resolve(saved));
 			expect(current.historyPreview).toEqual(saved);
 			expect(current.messages).toEqual([]);
@@ -554,21 +560,6 @@ describe("useChatSession", () => {
 			});
 			expect(current.messages).toEqual([]);
 		});
-	});
-
-	it("skips the archived preview for cloud sessions that are not suspended", async () => {
-		await act(async () => {
-			await current.hydrateSession({
-				sessionId: "running-cloud",
-				origin: "cloud",
-				status: "running",
-				startedAt: "2026-01-01T00:00:00Z",
-			});
-		});
-		expect(invokeMock).not.toHaveBeenCalledWith(
-			"read_archived_cloud_messages",
-			expect.anything(),
-		);
 	});
 
 	it("keeps flushing streamed text after the app is hidden and restored", async () => {

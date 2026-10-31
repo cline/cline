@@ -4015,7 +4015,7 @@ export function useChatSession(environmentId: string) {
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
-			if (session.origin === "cloud" && session.status === "suspended") {
+			if (session.origin === "cloud" && session.status !== "expired") {
 				void desktopClient
 					.invoke<ChatMessage[] | null>("read_archived_cloud_messages", {
 						sessionId: session.sessionId,
