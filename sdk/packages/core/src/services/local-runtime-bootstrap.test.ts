@@ -58,6 +58,48 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		}
 	});
 
+	it("discovers the session hook directory during execution-host bootstrap", async () => {
+		const root = mkdtempSync(join(tmpdir(), "session-hook-bootstrap-"));
+		const previousHome = process.env.HOME;
+		const previousClineDir = process.env.CLINE_DIR;
+		try {
+			setHomeDir(root);
+			process.env.CLINE_DIR = join(root, "cline");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "settings.json");
+			const hooksDir = join(root, "injected-hooks");
+			mkdirSync(hooksDir);
+			writeFileSync(join(hooksDir, "PreToolUse"), `echo '{"cancel":false}'\n`);
+			const { prepareLocalRuntimeBootstrap } = await import(
+				"./local-runtime-bootstrap"
+			);
+			const input = createStartInput();
+			const bootstrap = await prepareLocalRuntimeBootstrap({
+				input: {
+					...input,
+					config: { ...input.config, cwd: root, workspaceRoot: root, hooksDir },
+				},
+				localRuntime: { configExtensions: ["hooks"] },
+				sessionId: "session-hooks",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+			expect(
+				bootstrap.extensions?.find(
+					(extension) => extension.name === "core.hook_config_files",
+				)?.hooks?.beforeTool,
+			).toBeTypeOf("function");
+		} finally {
+			setHomeDir(previousHome ?? "~");
+			if (previousClineDir === undefined) delete process.env.CLINE_DIR;
+			else process.env.CLINE_DIR = previousClineDir;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("applies hub model catalog defaults during local runtime bootstrap", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"

@@ -261,6 +261,8 @@ export interface CoreSessionConfig
 	 */
 	sessionId?: string;
 	workspaceRoot?: string;
+	/** Additional hook directory for this session, alongside global and workspace hooks. */
+	hooksDir?: string;
 	systemPrompt: string;
 	teamName?: string;
 	missionLogIntervalSteps?: number;
