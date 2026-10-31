@@ -2878,7 +2878,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		reason: "queue_abort" | "session_teardown",
 	): void {
 		if (entries.length === 0) return;
-		this.pendingPromptsController.emitPrompts(session, entries);
+		// A subscriber that throws on the notification must not interrupt the
+		// operation that discarded the prompts. From `beginTeardown` the throw
+		// would leave the session flagged and registered as closing with no
+		// cleanup left to settle it, so a later start for the id would wait
+		// forever, and in `dispose()` it would skip every remaining session.
+		try {
+			this.pendingPromptsController.emitPrompts(session, entries);
+		} catch (error) {
+			session.config.logger?.error?.("Discarded-prompt notification threw", {
+				sessionId: session.sessionId,
+				reason,
+				error,
+			});
+		}
 		capturePendingPromptsDiscarded(session.config.telemetry, {
 			sessionId: session.sessionId,
 			count: entries.length,
