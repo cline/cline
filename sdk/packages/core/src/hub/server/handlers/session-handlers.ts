@@ -230,16 +230,50 @@ function stripServerOwnedSessionMetadata(
 	return sanitized;
 }
 
+/**
+ * The approval policy a session was started with, or undefined when the client
+ * sent none. Without a policy the runtime runs tools without asking, so
+ * recording `false` there would make the next resume start asking.
+ */
 export function resolveSessionAutoApproveTools(
 	toolPolicies: unknown,
 	runtimeOptions: Record<string, unknown>,
-): boolean {
+): boolean | undefined {
 	const policies = asPlainRecord(toolPolicies);
 	const globalPolicy = asPlainRecord(policies?.["*"]);
 	if (typeof globalPolicy?.autoApprove === "boolean") {
 		return globalPolicy.autoApprove;
 	}
-	return runtimeOptions.autoApproveTools === true;
+	return runtimeOptions.autoApproveTools === true ? true : undefined;
+}
+
+function recordSessionAutoApproveTools(
+	metadata: Record<string, unknown>,
+	toolPolicies: unknown,
+	runtimeOptions: Record<string, unknown>,
+): void {
+	const autoApproveTools = resolveSessionAutoApproveTools(
+		toolPolicies,
+		runtimeOptions,
+	);
+	if (autoApproveTools === undefined) {
+		// Clients echo saved metadata back, so drop a stale value too.
+		delete metadata.autoApproveTools;
+	} else {
+		metadata.autoApproveTools = autoApproveTools;
+	}
+}
+
+// A resumed session keeps its saved metadata underneath the new values, so a
+// stale approval setting has to be removed from the stored record itself.
+async function clearSavedAutoApproveTools(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<void> {
+	const saved = (await ctx.sessionHost.getSession(sessionId))?.metadata;
+	if (!saved || !Object.hasOwn(saved, "autoApproveTools")) return;
+	const { autoApproveTools: _, ...metadata } = saved;
+	await ctx.sessionHost.updateSession(sessionId, { metadata });
 }
 
 function authorizeSessionCompactionAccess(input: {
@@ -376,10 +410,7 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
-	metadata.autoApproveTools = resolveSessionAutoApproveTools(
-		payload.toolPolicies,
-		runtimeOptions,
-	);
+	recordSessionAutoApproveTools(metadata, payload.toolPolicies, runtimeOptions);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -578,6 +609,9 @@ export async function handleSessionCreate(
 		elapsedMs: Math.round(performance.now() - startedAt),
 		hasImmediateResult: !!started.result,
 	});
+	if (!Object.hasOwn(metadata, "autoApproveTools")) {
+		await clearSavedAutoApproveTools(ctx, started.sessionId);
+	}
 	ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 		interactive: metadata.interactive !== false,
 	});
@@ -703,7 +737,8 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
-		metadata.autoApproveTools = resolveSessionAutoApproveTools(
+		recordSessionAutoApproveTools(
+			metadata,
 			payload.toolPolicies,
 			runtimeOptions,
 		);

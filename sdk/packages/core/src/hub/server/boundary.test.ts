@@ -132,6 +132,60 @@ describe("HubServerTransport boundaries", () => {
 	});
 
 	it.each([
+		{ label: "without a policy", toolPolicies: undefined, cleared: true },
+		{
+			label: "with an explicit policy",
+			toolPolicies: { "*": { autoApprove: false } },
+			cleared: false,
+		},
+	])("clears a stale saved approval setting on resume $label", async ({
+		toolPolicies,
+		cleared,
+	}) => {
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const transport = createTransport({
+			sessionHost: {
+				startSession: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([{ role: "user", content: "saved" }]),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "completed",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+					metadata: { title: "Saved", autoApproveTools: false },
+				}),
+				updateSession,
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				clientId: "resume-client",
+				payload: {
+					sessionConfig: resumeConfig,
+					metadata: { autoApproveTools: false },
+					...(toolPolicies ? { toolPolicies } : {}),
+				},
+			});
+			expect(reply.ok).toBe(true);
+			if (cleared) {
+				expect(updateSession).toHaveBeenCalledWith("session-1", {
+					metadata: { title: "Saved" },
+				});
+			} else {
+				expect(updateSession).not.toHaveBeenCalled();
+			}
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
 		{ label: "new ID", exists: false, initialMessages: undefined, saved: [] },
 		{
 			label: "existing ID without history",

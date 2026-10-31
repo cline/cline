@@ -134,7 +134,11 @@ describe("resolveSessionAutoApproveTools", () => {
 	});
 
 	it("falls back to the runtime option", () => {
-		expect(resolveSessionAutoApproveTools(undefined, {})).toBe(false);
+		// No policy means the runtime runs tools without asking, so record nothing.
+		expect(resolveSessionAutoApproveTools(undefined, {})).toBeUndefined();
+		expect(
+			resolveSessionAutoApproveTools(undefined, { autoApproveTools: false }),
+		).toBeUndefined();
 		expect(
 			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
 		).toBe(true);
