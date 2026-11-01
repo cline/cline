@@ -32,6 +32,7 @@ import {
 } from "./feature-flags";
 import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
+import { listChildSessionSummaries } from "./session-data/agents";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -84,6 +85,7 @@ export function getEnvironmentContext(
 		activeEnvironmentId: environmentId,
 		liveSessions: local ? owner.liveSessions : new Map(),
 		streamIndices: local ? owner.streamIndices : new Map(),
+		teamChildByAgent: local ? owner.teamChildByAgent : new Map(),
 		sessionEnvironmentIds: local ? owner.sessionEnvironmentIds : new Map(),
 		restoringWorkspacePaths: local ? owner.restoringWorkspacePaths : new Set(),
 		pendingApprovals: local ? owner.pendingApprovals : new Map(),
@@ -104,6 +106,7 @@ function clearEnvironmentSessions(ctx: SidecarContext, reason: string): void {
 		discardAllTrackedAttachments(id, session);
 	ctx.liveSessions.clear();
 	ctx.streamIndices.clear();
+	ctx.teamChildByAgent.clear();
 	ctx.sessionEnvironmentIds.clear();
 	ctx.restoringWorkspacePaths.clear();
 	for (const pending of ctx.pendingApprovals.values())
@@ -502,6 +505,89 @@ function handleAgentEvent(
 }
 
 // ---------------------------------------------------------------------------
+// Teammate event re-addressing
+// ---------------------------------------------------------------------------
+
+// Teammate agent events reach the sidecar under the ROOT sessionId.
+// Re-address teammate events to the child session to keep the
+// lead transcript clean and feed the child transcript view properly.
+// Team-task child ids carry a random suffix and are not derivable, so the
+// session store is the source of truth. We cache the teamAgentId->sessionid
+// mapping to keep the hot path stays a pure cache read.
+const TEAM_CHILD_KEY_SEPARATOR = "\u0000";
+
+/**
+ * Resolve a teammate's sessionId from its teamAgentId.
+ *
+ * Only team-task children are eligible: a subagent run (no team-task marker in
+ * its id) is not a teammate, even if one is ever tagged teamRole: "teammate".
+ * Among matching children we prefer a currently-running one, then the most
+ * recently started (startedAt is an ISO string, so lexicographic order is
+ * chronological). Returns undefined when nothing matches — the caller degrades
+ * to emitting on the root so no events are lost.
+ */
+function resolveTeamChildSessionId(
+	ctx: SidecarContext,
+	rootSessionId: string,
+	teamAgentId: string,
+	refresh = false,
+): string | undefined {
+	const key = `${rootSessionId}${TEAM_CHILD_KEY_SEPARATOR}${teamAgentId}`;
+	if (!refresh) {
+		const cached = ctx.teamChildByAgent.get(key);
+		if (cached) {
+			return cached;
+		}
+	}
+	const candidates = listChildSessionSummaries(rootSessionId).filter(
+		(candidate) =>
+			candidate.agentId === teamAgentId &&
+			candidate.sessionId.includes("__teamtask__"),
+	);
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	const running = candidates.filter(
+		(candidate) => candidate.status === "running",
+	);
+	const pool = running.length > 0 ? running : candidates;
+	pool.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+	const best = pool[0];
+	ctx.teamChildByAgent.set(key, best.sessionId);
+	return best.sessionId;
+}
+
+/**
+ * Refresh the teammate→child mapping for a root session when a team lifecycle
+ * transition (team_progress) fires, so a teammate that starts a fresh child
+ * session for a new task re-resolves to it.
+ */
+function refreshTeamChildMappings(ctx: SidecarContext, payload: unknown): void {
+	if (!payload || typeof payload !== "object") {
+		return;
+	}
+	const rootSessionId = (payload as { sessionId?: unknown }).sessionId;
+	if (typeof rootSessionId !== "string" || !rootSessionId) {
+		return;
+	}
+	for (const key of [...ctx.teamChildByAgent.keys()]) {
+		const separator = key.indexOf(TEAM_CHILD_KEY_SEPARATOR);
+		if (separator < 0) {
+			continue;
+		}
+		if (key.slice(0, separator) !== rootSessionId) {
+			continue;
+		}
+		resolveTeamChildSessionId(
+			ctx,
+			rootSessionId,
+			key.slice(separator + 1),
+			/*refresh*/ true,
+		);
+	}
+}
+
+// ---------------------------------------------------------------------------
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
@@ -550,8 +636,31 @@ export function handleCoreSessionEvent(
 			break;
 		}
 		case "agent_event": {
-			const { sessionId, event: agentEvent } = event.payload;
-			handleAgentEvent(ctx, sessionId, agentEvent);
+			const {
+				sessionId,
+				event: agentEvent,
+				teamAgentId,
+				teamRole,
+			} = event.payload;
+			// Teammate events arrive under the ROOT sessionId with a teamAgentId
+			// tag. Re-address them to the teammate's child session
+			let targetSessionId = sessionId;
+			if (teamRole === "teammate" && teamAgentId) {
+				const childSessionId = resolveTeamChildSessionId(
+					ctx,
+					sessionId,
+					teamAgentId,
+				);
+				if (childSessionId) {
+					targetSessionId = childSessionId;
+				} else {
+					ctx.logger?.debug?.(
+						"No team-task child session resolved for teammate; forwarding to root",
+						{ rootSessionId: sessionId, teamAgentId },
+					);
+				}
+			}
+			handleAgentEvent(ctx, targetSessionId, agentEvent);
 			break;
 		}
 		case "pending_prompts": {
@@ -645,6 +754,8 @@ export function handleCoreSessionEvent(
 		}
 		case "team_progress": {
 			sendEvent(ctx, "team_progress", event.payload);
+			// Refresh teammate→child mappings on lifecycle transitions.
+			refreshTeamChildMappings(ctx, event.payload);
 			break;
 		}
 	}
@@ -666,6 +777,7 @@ export function createSidecarContext(
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		teamChildByAgent: new Map(),
 		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
