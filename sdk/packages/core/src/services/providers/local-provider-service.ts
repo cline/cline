@@ -1341,7 +1341,22 @@ async function saveLocalProviderSettingsUnlocked(
 
 	if (request.enabled === false) {
 		const state = manager.read();
-		delete state.providers[providerId];
+		const previous = state.providers[providerId];
+		// Disconnect keeps a user-configured endpoint so reconnecting restores
+		// the custom baseUrl instead of the catalog default. The preserved
+		// entry holds no credentials or model, so readiness still reports the
+		// provider as disconnected.
+		if (previous?.settings.baseUrl) {
+			state.providers[providerId] = {
+				...previous,
+				settings: {
+					provider: previous.settings.provider,
+					baseUrl: previous.settings.baseUrl,
+				},
+			};
+		} else {
+			delete state.providers[providerId];
+		}
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
 		if (state.modes.voiceInput?.providerId === providerId) {
 			delete state.modes.voiceInput;

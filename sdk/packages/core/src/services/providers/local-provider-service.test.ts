@@ -41,6 +41,7 @@ import {
 	transcribeLocalAudio,
 	updateLocalProvider,
 } from "./local-provider-service";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2383,8 +2384,34 @@ describe("saveLocalProviderSettings", () => {
 		});
 
 		expect(result.enabled).toBe(false);
-		expect(manager.getProviderSettings("test-provider")).toBeUndefined();
+		// Disconnect wipes credentials but keeps the user-configured endpoint,
+		// so reconnecting restores the custom baseUrl instead of the catalog
+		// default. The leftover entry is not usable, so the provider still
+		// reads as disconnected.
+		const preserved = manager.getProviderSettings("test-provider");
+		expect(preserved).toEqual({
+			provider: "test-provider",
+			baseUrl: "https://example.invalid/v1",
+		});
+		expect(isProviderSettingsUsable("test-provider", preserved)).toBe(false);
 		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("disabling a provider without a custom baseUrl removes it from settings", async () => {
+		// An entry with no baseUrl of its own (nothing user-configured to keep)
+		// is still removed outright on disconnect.
+		manager.saveProviderSettings(
+			{ provider: "bare-provider", model: "m1" },
+			{ setLastUsed: false },
+		);
+		expect(manager.getProviderSettings("bare-provider")).toBeDefined();
+
+		await saveLocalProviderSettings(manager, {
+			providerId: "bare-provider",
+			enabled: false,
+		});
+
+		expect(manager.getProviderSettings("bare-provider")).toBeUndefined();
 	});
 
 	it("updates apiKey", async () => {
