@@ -1,5 +1,6 @@
 import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/custom-model-ids"
+import { lookupCatalogModel } from "@/sdk/model-catalog/routing-variants"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
 import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"
@@ -152,7 +153,10 @@ function pickFromCatalog(
 	requestedModelId: string,
 	allowCustomModelIds: boolean,
 ) {
-	const matchedRequested = Boolean(requestedModelId) && result.models.has(requestedModelId)
+	// A routing variant (e.g. `:floor`) is not listed on its own; it resolves to
+	// the base model's metadata while keeping the requested id.
+	const requestedModelInfo = requestedModelId ? lookupCatalogModel(requestedModelId, (id) => result.models.get(id)) : undefined
+	const matchedRequested = requestedModelInfo !== undefined
 
 	// For custom-model-id providers, never substitute the catalog default for an
 	// unrecognized requested id — the user's id is authoritative.
@@ -161,7 +165,7 @@ function pickFromCatalog(
 	}
 
 	const modelId = matchedRequested ? requestedModelId : result.defaultModelId
-	const modelInfo = modelId ? result.models.get(modelId) : undefined
+	const modelInfo = requestedModelInfo ?? (modelId ? result.models.get(modelId) : undefined)
 	if (!modelId || !modelInfo) {
 		return undefined
 	}
