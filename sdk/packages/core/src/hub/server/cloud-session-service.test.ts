@@ -108,6 +108,10 @@ function fixture() {
 			})),
 			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
+			getArtifactDownloadUrl: vi.fn(async () => ({
+				url: "https://storage.example/image.png",
+				expiresAt: "2030-01-01T00:00:00Z",
+			})),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
 		};
@@ -208,6 +212,18 @@ function localGitInput(root = tmpdir()) {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("resolves artifact URLs through the viewer without trimming artifact IDs", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		await expect(
+			viewer.getArtifactDownloadUrl("ses-one", " frame "),
+		).resolves.toMatchObject({ url: "https://storage.example/image.png" });
+		const resolver = f.controllers[0].controller.getArtifactDownloadUrl;
+		expect(resolver).toHaveBeenCalledWith("ses-one", " frame ");
+		await viewer.dispose();
+	});
+
 	it("requires an approved organization before starting Git publication", async () => {
 		const f = fixture();
 		await expect(
@@ -425,8 +441,8 @@ describe("hub-owned cloud sessions", () => {
 		await expect(
 			viewer.create({ modelId: "model", repoUrl: "repo" }),
 		).rejects.toThrow("account changed");
-		expect(f.controllers).toHaveLength(1);
-		expect(f.controllers[0]?.controller.create).not.toHaveBeenCalled();
+		for (const { controller } of f.controllers)
+			expect(controller.create).not.toHaveBeenCalled();
 	});
 	it.each([
 		"plan",
@@ -1289,6 +1305,115 @@ describe("hub cloud credentials", () => {
 });
 
 describe("persisted cloud account scope", () => {
+	it("keeps the validated account pinned when persisted credentials change during controller creation", async () => {
+		vi.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue({
+				provider: "cline",
+				auth: { accountId: "account-two", accessToken: "second-token" },
+			})
+			.mockReturnValueOnce({
+				provider: "cline",
+				auth: { accountId: "account-one", accessToken: "first-token" },
+			});
+		const fetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("Unexpected remote request"));
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		await expect(
+			service.command(
+				"prepareHandoffRepository",
+				["https://github.com/example/project"],
+				{
+					...service.snapshot(),
+					expectedAccountId: "account-one",
+				},
+			),
+		).rejects.toThrow("account changed");
+		expect(fetch).not.toHaveBeenCalled();
+	});
+	it.each([
+		"account-one",
+		"account-two",
+		"credential-only",
+		"signed-out",
+	])("checks the expected account before Personal handoff operations (%s)", async (identity) => {
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue(
+			identity === "signed-out"
+				? undefined
+				: {
+						provider: "cline",
+						auth: {
+							accessToken: "synthetic-token",
+							...(identity === "credential-only"
+								? {}
+								: { accountId: identity }),
+						},
+					},
+		);
+		const f = fixture();
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			createController: f.cloudSessionOptions.createController,
+		});
+		services.push(service);
+		const scope = { ...service.snapshot(), expectedAccountId: "account-one" };
+		const requests = [
+			() =>
+				service.command(
+					"prepareHandoffRepository",
+					["https://github.com/example/project"],
+					scope,
+				),
+			() => service.command("listModels", [], scope),
+			() =>
+				service.command(
+					"create",
+					[
+						{
+							repoUrl: "https://github.com/example/project",
+							modelId: "model",
+							organizationId: null,
+						},
+					],
+					scope,
+				),
+		];
+		for (const request of requests) {
+			if (identity === "account-one")
+				await expect(request()).resolves.toHaveProperty("result");
+			else
+				await expect(request()).rejects.toThrow(
+					"does not match the signed-in account",
+				);
+		}
+		expect(f.controllers).toHaveLength(1);
+		if (identity !== "account-one") {
+			const { controller } = f.controllers[0]!;
+			expect(controller.prepareHandoffRepository).not.toHaveBeenCalled();
+			expect(controller.listModels).not.toHaveBeenCalled();
+			expect(controller.create).not.toHaveBeenCalled();
+		}
+	});
+	it("preserves the caller's expected account through the viewer request", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const scope = viewer.scope;
+		if (!scope) throw new Error("Missing cloud scope");
+		await expect(
+			viewer.prepareHandoffRepository("https://github.com/example/project", {
+				...scope,
+				expectedAccountId: "account-one",
+			}),
+		).rejects.toThrow("does not match the signed-in account");
+		expect(
+			f.controllers[0]!.controller.prepareHandoffRepository,
+		).not.toHaveBeenCalled();
+	});
 	it.each([
 		"key",
 		"account",

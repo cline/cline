@@ -77,6 +77,7 @@ import {
 	updateMcpSettingsFileSync,
 	upgradeManagedHub,
 } from "@cline/core";
+import { CloudSessionApi } from "@cline/core/cloud";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
@@ -90,11 +91,16 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
+import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
-import { resolveFreshClineAuthToken } from "./cline-auth";
+import {
+	getClineAccountId,
+	getClineApiBaseUrl,
+	resolveFreshClineAuthToken,
+} from "./cline-auth";
 import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
@@ -2215,12 +2221,15 @@ export async function handleCommand(
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
+		const request = (args?.request ?? args) as ChatSessionCommandRequest;
+		if (
+			request.action === "handoff" &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("Git preparation requires a trusted desktop connection");
+		}
 		const { handleChatSessionCommand } = await import("./chat-session");
-		return await handleChatSessionCommand(
-			ctx,
-			(args?.request as ChatSessionCommandRequest | undefined) ??
-				(args as ChatSessionCommandRequest),
-		);
+		return await handleChatSessionCommand(ctx, request);
 	}
 	if (command === "proceed_while_running") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -2251,6 +2260,52 @@ export async function handleCommand(
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
+	if (command === "resolve_artifact") {
+		const { sessionId, artifactId } = z
+			.object({
+				sessionId: z.string().trim().min(1),
+				artifactId: z.string().min(1),
+			})
+			.parse(args);
+		const cloud = getCloudSessionManager(ctx);
+		if (!cloud.isCloudSession(sessionId)) {
+			throw new Error(
+				"Artifact access is not available for local sessions yet.",
+			);
+		}
+		const accountId = getClineAccountId();
+		try {
+			return await cloud.getArtifactDownloadUrl(sessionId, artifactId);
+		} catch (error) {
+			if (
+				!(error instanceof Error) ||
+				error.message !== "Unknown cloud operation: getArtifactDownloadUrl"
+			)
+				throw error;
+		}
+		// A busy older Hub stays running during upgrades; do not interrupt its sessions.
+		const checkAccount = () => {
+			if (!accountId || getClineAccountId() !== accountId) {
+				throw new Error("Cline account changed during artifact access");
+			}
+		};
+		checkAccount();
+		const api = new CloudSessionApi({
+			apiBaseUrl: getClineApiBaseUrl().replace(/\/api\/v1\/*$/, ""),
+			appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
+			getAuthToken: async () => {
+				const token = await resolveFreshClineAuthToken(
+					new ProviderSettingsManager(),
+					ctx,
+				);
+				checkAccount();
+				return token;
+			},
+		});
+		const download = await api.getArtifactDownloadUrl(sessionId, artifactId);
+		checkAccount();
+		return download;
+	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);
@@ -2960,6 +3015,7 @@ export async function handleCommand(
 			accountService,
 		);
 		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
 			if (isCloudAgentsEnabled()) {
 				try {
 					await getCloudSessionManager(ctx).refreshOrganization();
@@ -2970,10 +3026,6 @@ export async function handleCommand(
 					);
 				}
 			}
-			await resetCloudSessionManager(ctx);
-			// The sidebar must re-scope immediately (personal ⇄ org), not on
-			// the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
@@ -3074,14 +3126,9 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const includeCloudModels =
-			providerId === "cline" &&
-			args?.includeCloudModels === true &&
-			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -3290,7 +3337,6 @@ export async function handleCommand(
 				!isDeepStrictEqual(previous?.auth, current?.auth)
 			) {
 				await resetCloudSessionManager(ctx);
-				broadcastEvent(ctx, "cloud_sessions_changed", {});
 			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
@@ -3382,7 +3428,6 @@ export async function handleCommand(
 		if (storageProviderId === "cline") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}

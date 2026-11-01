@@ -618,6 +618,7 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -629,6 +630,7 @@ export {
 	resolveDisabledToolNames,
 	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
@@ -982,6 +984,12 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
+export {
+	type ArtifactPublicationFile,
+	type ArtifactPublicationResult,
+	type ArtifactPublisher,
+	createPublishArtifactsTool,
+} from "./artifacts/publish";
 export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
 export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {

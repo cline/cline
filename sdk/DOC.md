@@ -117,6 +117,36 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+`createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
+`publish_artifacts` tool. It validates batches and local file paths, assigns missing
+IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
+receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+signal, and returns one result per file in input order. Storage-specific policy
+and persistence belong to the publisher; constructing the tool does not register
+it in default local tools. Hosts control tool approval and which local paths may
+be published; the tool itself does not restrict paths to a workspace.
+
+For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
+from `@cline/core/cloud`. The host provides authenticated transport and the owning
+session ID. The publisher uploads directly with one signed policy per batch,
+refreshes expired policies, and retries transient failures with the same IDs.
+The service remains responsible for upload authorization and limits.
+
+`createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
+returns `fetchArtifact({ artifactId, signal? })`, which downloads a streaming
+`Response`. Each fetcher caches up to 128 signed URLs, refreshing 30 seconds before
+expiry or once after a storage HTTP 403. Missing files and file bytes are not cached.
+Reuse one fetcher per authenticated account/session; discard it on sign-out or
+account changes. Cache hits do not recheck session permissions until URL renewal.
+Wait for a successful publication result before fetching a new artifact. The caller
+consumes or cancels the response body and applies any read size limit. The optional
+signal cancels the download, including while reading its body. This helper does not
+register an agent tool or attach files to messages.
+
+`HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
+an existing artifact through the authenticated Hub without starting its sandbox.
+It returns a signed HTTPS URL and expiry for clients that download directly.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
@@ -204,6 +234,10 @@ Dispatched actions are not automatically resent after an uncertain reply.
 Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
 features and cannot cross this RPC boundary. Hub-backed creation defaults to
 `"resumable"` sandboxes.
+
+Hosts with a separate signed-in account can include `expectedAccountId` in the
+scope passed to `prepareHandoffRepository`, `listModels`, and `create`. The Hub
+rejects a mismatch with its persisted account before running the operation.
 
 Discovery caches, pending listing requests, and newly created fallback rows are
 scoped to their organization; switching the sidebar preserves other organizations’
@@ -325,6 +359,9 @@ only manages SSH and forwards the authenticated hub connection.
 Clients whose own process cannot host the Hub daemon can call
 `setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
 start are launched through the Cline CLI.
+The launcher also accepts `args` and child-only `env` overrides. For an Electron
+executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon markers
+take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
@@ -619,6 +656,18 @@ No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
 
+### UX verification report renderer
+
+`@cline/shared/browser` exports `UxVerificationReportSchema`, `UxVerificationCheckSchema`, `UxScreenshotSchema` and their types. A report contains a title, environment subtitle and ordered checks with unique IDs, passed/failed/blocked statuses, observations and optional action labels. Passed/failed checks require screenshot evidence. This contract describes presentation independently of how checks are run.
+
+`@cline/ui` exports `AgentUxVerification` with `output` and `state` (`running`, `completed`, `error`). It validates the report and renders screenshot evidence, derived status counts, titles, observations, thumbnails and optional slideshow. Left/Right switch slides and pause playback; Space toggles playback while the carousel itself has focus. Import `@cline/ui/components.css` for styling.
+
+Native inline screenshots use validated browser-owned Blob URLs and show a fallback on load errors. Hosts supply `renderScreenshot(check, className, presentation)` for trusted remote or authenticated asset references, including retrying signed URLs only after a fetch error; the renderer performs no URL refresh or transport. Hosts supply `onExpandScreenshot(check)` to open their own image viewer. No producer tool, subagent lifecycle, storage format, CLI projection or product transcript policy is part of this component.
+
+UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
+
+UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.
+
 ## UTF-16 string truncation
 
 `@cline/shared` exports `sliceUtf16(text, start, end?)`, with `String.slice`
@@ -626,4 +675,3 @@ offset semantics. Cuts move inward by one code unit if they would split a
 surrogate pair. Existing unpaired surrogates are not repaired, and grapheme
 clusters are not preserved. `truncateStr`, `truncateSplit`, and command-output
 truncation use this helper while retaining UTF-16 budgets and existing notices.
-

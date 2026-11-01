@@ -240,8 +240,34 @@ export async function inspectHandoffGit(
 		.map((line) => line.split(/\s/)[0] ?? "")
 		.filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
 	let commits: string[] = [];
-	// An advertised branch at HEAD proves its entire ancestry is already published.
-	if (!knownHeads.includes(headSha)) {
+	let published = knownHeads.includes(headSha);
+	if (!published && knownHeads.length) {
+		try {
+			const env = { GIT_NO_LAZY_FETCH: "1" };
+			const objects = (
+				await git(
+					root,
+					["cat-file", "--batch-check=%(objectname) %(objecttype)"],
+					{
+						input: `${knownHeads.join("\n")}\n`,
+						env,
+					},
+				)
+			).split("\n");
+			const localHeads = knownHeads.filter(
+				(sha, i) => objects[i] === `${sha} commit`,
+			);
+			if (localHeads.length)
+				published =
+					(await git(root, ["rev-list", "--count", "--stdin"], {
+						input: `${[headSha, ...localHeads.map((sha) => `^${sha}`)].join("\n")}\n`,
+						env,
+					})) === "0";
+		} catch {
+			// Missing local history must fall through to fetching and validating it.
+		}
+	}
+	if (!published) {
 		if (knownHeads.length) {
 			await git(
 				root,

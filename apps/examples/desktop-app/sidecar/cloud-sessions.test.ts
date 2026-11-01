@@ -210,10 +210,17 @@ describe("Cloud sessions sidecar wiring", () => {
 		"local",
 		"ssh-remote",
 	])("shares cloud manager ownership with the %s context", async (environmentId) => {
-		const { ctx } = createContext();
+		const { ctx, events } = createContext();
 		const scoped = getEnvironmentContext(ctx, environmentId);
 		const manager = getCloudSessionManager(scoped);
-		const dispose = vi.spyOn(manager, "dispose");
+		const originalDispose = manager.dispose.bind(manager);
+		const dispose = vi
+			.spyOn(manager, "dispose")
+			.mockImplementation(async () => {
+				expect(ctx.cloudSessionManager).toBeNull();
+				expect(events.at(-1)?.name).toBe("cloud_sessions_changed");
+				await originalDispose();
+			});
 		expect(getCloudSessionManager(ctx)).toBe(manager);
 		await resetCloudSessionManager(ctx);
 		expect(dispose).toHaveBeenCalledOnce();
@@ -364,6 +371,32 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("waits for cloud preferences before sending (failure: %s)", async (failure) => {
+		const { ctx, hub, manager } = await createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const viewer = getCloudSessionManager(ctx);
+		const restoring = Promise.withResolvers<void>();
+		vi.spyOn(viewer, "restoreCreationOptions").mockReturnValueOnce(
+			restoring.promise,
+		);
+		const sending = viewer.send("ses-outer", "Next turn");
+		const outcome = failure
+			? expect(sending).rejects.toThrow("Preferences unavailable")
+			: expect(sending).resolves.toMatchObject({ ok: true });
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(false);
+		if (failure) restoring.reject(new Error("Preferences unavailable"));
+		else restoring.resolve();
+		await outcome;
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(!failure);
+	});
 	it("forwards image-only cloud messages and rejects file attachments", async () => {
 		const { ctx, hub, manager } = await createFixture();
 		await manager.list();
@@ -742,7 +775,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
-		const { ctx, events, hub, manager } = await createFixture();
+		const { events, hub, manager } = await createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 

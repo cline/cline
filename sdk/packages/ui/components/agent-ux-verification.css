@@ -1,0 +1,275 @@
+.cline-ui-ux-verifier {
+	width: 100%;
+	min-width: 0;
+	border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+	background: color-mix(in srgb, var(--foreground) 3%, transparent);
+	border-radius: 18px;
+	padding: 14px;
+	color: var(--foreground);
+}
+.cline-ui-ux-verifier-header {
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	margin: 1px 2px 14px;
+}
+.cline-ui-ux-verifier-mark {
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	flex-shrink: 0;
+	background: color-mix(in srgb, var(--primary) 16%, transparent);
+	border-radius: 10px;
+}
+.cline-ui-ux-verifier-header h3 {
+	font-size: 13px;
+	font-weight: 650;
+	line-height: 1.5;
+}
+.cline-ui-ux-verifier-header p {
+	font-size: 11px;
+	line-height: 1.6;
+	opacity: 0.6;
+}
+.cline-ui-ux-verifier-count {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 10px;
+	padding: 4px 8px;
+	border-radius: 99px;
+	background: color-mix(in srgb, var(--foreground) 7%, transparent);
+	white-space: nowrap;
+}
+.cline-ui-ux-verifier-count.all-passed {
+	color: light-dark(#167354, #86d9bb);
+	background: light-dark(#e4f2ec, #183b32);
+}
+.cline-ui-ux-evidence-carousel {
+	border-radius: 12px;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+	container-type: inline-size;
+}
+.cline-ui-ux-evidence-slide {
+	position: relative;
+	width: 100%;
+	background: color-mix(in srgb, var(--background) 90%, var(--primary));
+}
+.cline-ui-ux-evidence-image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 10;
+	max-height: min(54dvh, 560px);
+	object-fit: contain;
+}
+.cline-ui-ux-evidence-missing {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-direction: column;
+	gap: 12px;
+	font-size: 11px;
+	width: 100%;
+	height: 100%;
+	color: var(--foreground);
+}
+.cline-ui-ux-evidence-caption {
+	padding: 12px 18px 16px;
+	border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+	background: var(--background);
+}
+.cline-ui-ux-evidence-action {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-bottom: 8px;
+	font-size: 10px;
+}
+.cline-ui-ux-evidence-action > span + span {
+	padding: 2px 7px;
+	border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+	background: color-mix(in srgb, var(--foreground) 7%, transparent);
+	border-radius: 5px;
+}
+.cline-ui-ux-evidence-caption h4 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 14px;
+	font-weight: 550;
+}
+.cline-ui-ux-evidence-caption p {
+	font-size: 11px;
+	line-height: 1.5;
+	margin: 5px 0 0 28px;
+	opacity: 0.8;
+}
+.cline-ui-ux-status-icon {
+	width: 21px;
+	height: 21px;
+	display: inline-grid;
+	place-items: center;
+	flex-shrink: 0;
+	border-radius: 50%;
+	color: white;
+}
+.cline-ui-ux-status-passed {
+	background: #239f7e;
+}
+.cline-ui-ux-status-failed {
+	background: #bb424b;
+}
+.cline-ui-ux-status-blocked {
+	background: #8e7539;
+}
+.cline-ui-ux-evidence-expand,
+.cline-ui-ux-evidence-prev,
+.cline-ui-ux-evidence-next {
+	position: absolute;
+	display: grid;
+	place-items: center;
+	height: 34px;
+	width: 34px;
+	border-radius: 50%;
+	border: 1px solid #ffffff20;
+	color: white;
+	background: #191b28b3;
+	backdrop-filter: blur(8px);
+}
+.cline-ui-ux-evidence-expand {
+	right: 12px;
+	top: 12px;
+}
+.cline-ui-ux-evidence-expand:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+.cline-ui-ux-evidence-prev,
+.cline-ui-ux-evidence-next {
+	/* Centered on the 16:10 screenshot area, above the caption. */
+	top: calc(min(62.5cqw, 54dvh, 560px) / 2 - 17px);
+}
+.cline-ui-ux-evidence-prev {
+	left: 12px;
+}
+.cline-ui-ux-evidence-next {
+	right: 12px;
+}
+.cline-ui-ux-evidence-footer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding-top: 12px;
+}
+.cline-ui-ux-evidence-thumbnails {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	gap: 7px;
+	overflow-x: auto;
+	padding: 3px;
+}
+.cline-ui-ux-evidence-thumbnail {
+	position: relative;
+	flex-shrink: 0;
+	width: 80px;
+	height: 52px;
+	border: 2px solid transparent;
+	border-radius: 7px;
+	overflow: hidden;
+	opacity: 0.6;
+}
+.cline-ui-ux-evidence-thumbnail img {
+	height: 100%;
+	width: 100%;
+	object-fit: cover;
+}
+.cline-ui-ux-evidence-thumbnail.selected {
+	opacity: 1;
+	border-color: color-mix(in srgb, var(--primary) 55%, var(--foreground));
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.cline-ui-ux-evidence-thumbnail .cline-ui-ux-evidence-missing > span {
+	display: none;
+}
+.cline-ui-ux-thumbnail-status {
+	position: absolute;
+	bottom: 2px;
+	right: 2px;
+}
+.cline-ui-ux-thumbnail-status .cline-ui-ux-status-icon {
+	width: 13px;
+	height: 13px;
+}
+.cline-ui-ux-thumbnail-status svg {
+	width: 9px;
+	height: 9px;
+}
+.cline-ui-ux-evidence-play {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+.cline-ui-ux-verifier-pending {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	padding: 18px;
+}
+.cline-ui-ux-verifier-pending strong {
+	font-size: 13px;
+}
+.cline-ui-ux-verifier-pending p {
+	font-size: 11px;
+	opacity: 0.65;
+	margin-top: 4px;
+}
+@media (max-width: 560px) {
+	.cline-ui-ux-verifier-header {
+		flex-wrap: wrap;
+	}
+	.cline-ui-ux-verifier-count {
+		margin-left: 47px;
+	}
+	.cline-ui-ux-evidence-caption {
+		padding: 10px 12px 12px;
+	}
+	.cline-ui-ux-evidence-caption h4 {
+		font-size: 12px;
+	}
+	.cline-ui-ux-evidence-caption p {
+		font-size: 10px;
+	}
+	.cline-ui-ux-evidence-thumbnail {
+		width: 66px;
+		height: 43px;
+	}
+}
+
+.cline-ui-ux-verifier,
+.cline-ui-ux-verifier * {
+	box-sizing: border-box;
+}
+.cline-ui-ux-verifier figure,
+.cline-ui-ux-verifier h3,
+.cline-ui-ux-verifier h4,
+.cline-ui-ux-verifier header p {
+	margin: 0;
+}
+.cline-ui-ux-verifier button {
+	cursor: pointer;
+	font: inherit;
+}
+.cline-ui-ux-verifier button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+.cline-ui-ux-verifier button:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
