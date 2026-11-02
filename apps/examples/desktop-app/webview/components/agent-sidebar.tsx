@@ -1384,7 +1384,7 @@ export function AgentSidebar({
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-error-solid text-error-contrast hover:bg-error-solid/90"
 							disabled={
 								!deleteConfirmThread || pendingAction?.action === "delete"
 							}
