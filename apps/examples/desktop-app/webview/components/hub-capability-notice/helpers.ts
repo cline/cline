@@ -31,20 +31,37 @@ export type HubSessionActivity = {
 	participantClientCount?: number;
 	activePluginRequests?: number;
 	activeCloudCommands?: number;
+	activeProviderMutations?: number;
 };
+
+/** Work the Hub runs without an attached session, and how to name it. */
+const SESSIONLESS_WORK = [
+	["activePluginRequests", "a plugin command", "plugin commands"],
+	["activeCloudCommands", "a cloud session command", "cloud session commands"],
+	[
+		"activeProviderMutations",
+		"a provider settings change",
+		"provider settings changes",
+	],
+] as const;
 
 export function hubHasNothingToInterrupt(
 	activity: HubSessionActivity | null,
 ): boolean {
 	return (
 		activity?.activeSessionCount === 0 &&
-		!activity.activePluginRequests &&
-		!activity.activeCloudCommands
+		SESSIONLESS_WORK.every(([key]) => !activity[key])
 	);
 }
 
 function counted(count: number, one: string, many: string): string {
 	return count === 1 ? one : `${count} ${many}`;
+}
+
+function listed(items: string[]): string {
+	return items.length < 2
+		? items.join("")
+		: `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
 /** Said before any reading: the restart's cost does not depend on one. */
@@ -59,22 +76,13 @@ export function describeHubRestartInterruption(
 	activity: HubSessionActivity | null,
 ): string {
 	const sessions = activity?.activeSessionCount;
-	const pluginRequests = activity?.activePluginRequests ?? 0;
-	const cloudCommands = activity?.activeCloudCommands ?? 0;
-	if (sessions === 0 && pluginRequests + cloudCommands > 0) {
-		const running = [
-			pluginRequests > 0 &&
-				counted(pluginRequests, "a plugin command", "plugin commands"),
-			cloudCommands > 0 &&
-				counted(
-					cloudCommands,
-					"a cloud session command",
-					"cloud session commands",
-				),
-		]
-			.filter(Boolean)
-			.join(" and ");
-		return `The Hub is running ${running}. Restarting interrupts ${pluginRequests + cloudCommands === 1 ? "it" : "them"}.`;
+	const running = SESSIONLESS_WORK.flatMap(([key, one, many]) => {
+		const count = activity?.[key] ?? 0;
+		return count > 0 ? [{ count, named: counted(count, one, many) }] : [];
+	});
+	const total = running.reduce((sum, work) => sum + work.count, 0);
+	if (sessions === 0 && total > 0) {
+		return `The Hub is running ${listed(running.map((work) => work.named))}. Restarting interrupts ${total === 1 ? "it" : "them"}.`;
 	}
 	if (typeof sessions !== "number" || sessions <= 0) {
 		return `Cline couldn't check what the Hub is serving. ${HUB_RESTART_COST}`;

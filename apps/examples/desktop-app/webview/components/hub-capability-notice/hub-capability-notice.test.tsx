@@ -337,6 +337,27 @@ describe("HubCapabilityNotice", () => {
 		);
 	});
 
+	it("asks before interrupting a provider settings change the Hub is writing", async () => {
+		answerCommands({
+			activity: async () => ({
+				activeSessionCount: 0,
+				participantClientCount: 0,
+				activePluginRequests: 0,
+				activeCloudCommands: 0,
+				activeProviderMutations: 1,
+			}),
+		});
+		await render(<HubCapabilityNotice />);
+		await emit(missingPluginUi);
+
+		await click("Restart Hub");
+
+		expect(invokedCommands()).toEqual(["hub_session_activity"]);
+		expect(notice()?.textContent).toContain(
+			"The Hub is running a provider settings change. Restarting interrupts it.",
+		);
+	});
+
 	it("leaves the Hub running when the person cancels the confirmation", async () => {
 		answerCommands({ activity: async () => ({ activeSessionCount: 1 }) });
 		await render(<HubCapabilityNotice />);

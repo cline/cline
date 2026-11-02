@@ -119,6 +119,27 @@ describe("the plugin suggestions notice", () => {
 		);
 	});
 
+	it("words the interruption of provider settings changes the Hub is writing, alone or with other work", () => {
+		expect(
+			describeHubRestartInterruption({
+				activeSessionCount: 0,
+				activeProviderMutations: 1,
+			}),
+		).toBe(
+			"The Hub is running a provider settings change. Restarting interrupts it.",
+		);
+		expect(
+			describeHubRestartInterruption({
+				activeSessionCount: 0,
+				activePluginRequests: 2,
+				activeCloudCommands: 1,
+				activeProviderMutations: 1,
+			}),
+		).toBe(
+			"The Hub is running 2 plugin commands, a cloud session command and a provider settings change. Restarting interrupts them.",
+		);
+	});
+
 	it("still states the cost when the Hub could not be read", () => {
 		expect(describeHubRestartInterruption(null)).toBe(
 			"Cline couldn't check what the Hub is serving. Restarting interrupts any work in progress in Cline apps that use the Hub, including this one.",
