@@ -403,12 +403,16 @@ function buildAiSdkRequestMessages(
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
 		supportedInputModalities:
-			context.model.modalities?.input ??
-			(context.model.capabilities
-				? modelSupportsImageInput(context)
-					? ["text", "image"]
-					: ["text"]
-				: undefined),
+			context.model.capabilities && !modelSupportsImageInput(context)
+				? (context.model.modalities?.input ?? ["text"]).filter(
+						(m) => m !== "image",
+					)
+				: (context.model.modalities?.input ??
+					(context.model.capabilities
+						? modelSupportsImageInput(context)
+							? ["text", "image"]
+							: ["text"]
+						: undefined)),
 	}) as Array<Record<string, unknown>>;
 
 	if (shouldApplyBedrockCachePoint(request, context)) {

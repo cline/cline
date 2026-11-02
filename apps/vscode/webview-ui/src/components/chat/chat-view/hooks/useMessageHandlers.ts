@@ -4,6 +4,7 @@ import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
@@ -30,7 +31,9 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget, mode } = useExtensionState()
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
+	const modelSupportsImages = selectedModelInfo.supportsImages !== false
 	const {
 		setInputValue,
 		activeQuote,
@@ -99,10 +102,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
 			const submittedText = recoveryDraft?.text ?? text
 			const submittedImages = recoveryDraft?.images ?? images
+			const effectiveImages = modelSupportsImages ? submittedImages : []
 			const submittedFiles = recoveryDraft?.files ?? files
 			const submittedQuote = recoveryDraft?.activeQuote ?? activeQuote
 			let messageToSend = submittedText.trim()
-			const hasContent = messageToSend || submittedImages.length > 0 || submittedFiles.length > 0
+			const hasContent = messageToSend || effectiveImages.length > 0 || submittedFiles.length > 0
 
 			// Prepend the active quote if it exists
 			if (submittedQuote && hasContent) {
@@ -139,7 +143,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							action: "prompt_submitted",
 							source: "chat_submit",
 							hasText: messageToSend.length > 0,
-							hasImages: submittedImages.length > 0,
+							hasImages: effectiveImages.length > 0,
 							hasFiles: submittedFiles.length > 0,
 							hasActiveTask,
 							textLength: messageToSend.length,
@@ -228,7 +232,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					const request = AskResponseRequest.create({
 						responseType: "messageResponse",
 						text: messageToSend,
-						images: submittedImages,
+						images: effectiveImages,
 						files: submittedFiles,
 					})
 					trackPromptSubmitted(true)
@@ -268,7 +272,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					const runInCloud = !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud"
 					const request = NewTaskRequest.create({
 						text: messageToSend,
-						images,
+						images: effectiveImages,
 						// Local file paths cannot be read from a cloud sandbox; the composer
 						// refuses a cloud send while files are attached.
 						files: runInCloud ? [] : files,
@@ -357,7 +361,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 									AskResponseRequest.create({
 										responseType: "messageResponse",
 										text: messageToSend,
-										images,
+										images: effectiveImages,
 										files,
 									}),
 									{ showPendingMessage },
@@ -393,7 +397,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							AskResponseRequest.create({
 								responseType: "messageResponse",
 								text: messageToSend,
-								images,
+								images: effectiveImages,
 								files,
 							}),
 							{
@@ -438,6 +442,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
+			modelSupportsImages,
 		],
 	)
 
