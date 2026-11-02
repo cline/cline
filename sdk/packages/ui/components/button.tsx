@@ -57,7 +57,7 @@ export const buttonVariants = cva(BASE, {
 			variant: "fill",
 			tone: "destructive",
 			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
+				"bg-cline-ui-error-solid text-cline-ui-error-contrast hover:bg-[color-mix(in_srgb,var(--error-solid)_90%,#000)]",
 		},
 		// surface
 		{
@@ -226,7 +226,7 @@ export const iconButtonVariants = cva(BASE, {
 			variant: "fill",
 			tone: "destructive",
 			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
+				"bg-cline-ui-error-solid text-cline-ui-error-contrast hover:bg-[color-mix(in_srgb,var(--error-solid)_90%,#000)]",
 		},
 		// surface
 		{
