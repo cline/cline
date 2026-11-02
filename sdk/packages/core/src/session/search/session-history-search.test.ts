@@ -44,8 +44,6 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 describe("SessionHistorySearchService", () => {
 	it("excludes sessions before the bounded ranked candidate scan", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
-		tempDirs.push(dir);
 		const excluded = Array.from({ length: 201 }, (_, index) =>
 			session({
 				sessionId: `excluded-${index}`,
@@ -60,7 +58,7 @@ describe("SessionHistorySearchService", () => {
 				],
 				readSessionMessages: async () => [{ role: "user", content: "Needle" }],
 			},
-			{ dbPath: join(dir, "search.db") },
+			{ dbPath: ":memory:" },
 		);
 		try {
 			await service.refreshNow();
