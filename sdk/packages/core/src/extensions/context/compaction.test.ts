@@ -23,6 +23,7 @@ import {
 	estimateTokens,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
+	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeMessage,
 	TOOL_RESULT_CHAR_LIMIT,
@@ -253,6 +254,34 @@ describe("resolveEffectiveMaxInputTokens", () => {
 			maxTokens: 200_000,
 		};
 		expect(resolveEffectiveMaxInputTokens(modelInfo)).toBe(200_000);
+	});
+});
+
+describe("resolveProviderMaxInputTokens", () => {
+	it("resolves contextWindow configured on providerConfig when modelInfo is absent", () => {
+		expect(
+			resolveProviderMaxInputTokens({
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				contextWindow: 320_000,
+			}),
+		).toBe(288_000);
+	});
+
+	it("uses providerConfig.contextWindow over knownModels fallback", () => {
+		expect(
+			resolveProviderMaxInputTokens({
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				contextWindow: 262_144,
+				knownModels: {
+					"custom-model": {
+						id: "custom-model",
+						contextWindow: 128_000,
+					},
+				},
+			}),
+		).toBe(262_144 * 0.9);
 	});
 });
 
@@ -489,6 +518,44 @@ describe("createContextCompactionPrepareTurn", () => {
 				id: "custom-model",
 				provider: "openai-compatible",
 				info: { id: "custom-model", ...limits },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(result?.messages).toEqual([{ role: "user", content: "Compacted" }]);
+	});
+
+	it("auto-compacts a custom model with contextWindow on providerConfig when modelInfo has no limits", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				contextWindow: 1_000,
+			},
+			compaction: { enabled: true, compact },
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "x".repeat(3_000) },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "custom-model",
+				provider: "openai-compatible",
+				info: { id: "custom-model" },
 			},
 		});
 

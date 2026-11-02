@@ -117,7 +117,9 @@ export function resolveKnownModelsFromConfig(
 	//    `toProviderConfig` (the providers.json path used by CLI/Core hosts).
 	//  - `modelInfo` is an explicit per-model override (the VS Code path);
 	//    it wins over the generic limit.
-	const configuredContextWindow = readPositiveInteger(pc?.maxInputTokens);
+	const configuredContextWindow = readPositiveInteger(
+		pc?.contextWindow ?? pc?.maxInputTokens,
+	);
 	const modelInfo =
 		pc?.modelInfo && pc.modelInfo.id === config.modelId
 			? pc.modelInfo
