@@ -130,12 +130,13 @@ with refreshed, account-bound credentials. Other failures do not trigger fallbac
 Artifact IDs remain in history; signed URLs stay transient and bytes load directly
 from storage.
 
-### 3. Provider Management — Direct ProviderSettingsManager
+### 3. Provider Management — Shared Hub Commands
 
-```typescript
-import { ProviderSettingsManager, listLocalProviders, ... } from "@cline/core";
-const manager = new ProviderSettingsManager();
-```
+Provider catalog/model discovery, recommended models, provider settings, custom
+provider creation, and model overrides use `createHubProvidersApi` over the
+existing local Hub connection. Credential mutations and sign-out cleanup belong
+to the daemon. Desktop retains cloud-view and account-context reactions.
+Provider OAuth and voice operations still use their existing sidecar services.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 
@@ -175,11 +176,11 @@ OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
 Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
 discovery endpoints instead. Catalog and public endpoint requests time out after
 five seconds, and the initial picker remains usable while a refresh is pending.
-The sidecar omits bundled `knownModels` from the discovery config so they cannot
+The Hub omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
 The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
-command/docs) through the shared RPC contract. The sidecar resolves these facts
+command/docs) through the shared RPC contract. The Hub resolves these facts
 from the registered provider catalog; chat validation and credential-error UI use
 that data rather than importing the browser LLM registry. Error-message metadata
 retains the provider facts used for that message, so changing providers does not
@@ -210,14 +211,16 @@ Supported commands:
 | Command | Implementation |
 |---------|---------------|
 | `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
-| `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
-| `list_provider_models` | `getLocalProviderModels` |
+| `list_provider_catalog` | shared Hub `providers.list` |
+| `list_provider_models` | shared Hub `providers.models.list` |
+| `list_cline_recommended_models` | shared Hub `providers.models.recommended` |
+| `update_provider_models` | shared Hub `providers.models.update` |
 | `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
-| `save_provider_settings` | `saveLocalProviderSettings` |
-| `add_provider` | `addLocalProvider` |
+| `save_provider_settings` | shared Hub `providers.settings.save` |
+| `add_provider` | shared Hub `providers.add` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
 | `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
 | `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
