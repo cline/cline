@@ -67,7 +67,7 @@ export function createLocalArtifactPublisher({
 				await checkUnchanged(file);
 				await mkdir(directory, { recursive: true, mode: 0o700 });
 				await pipeline(
-					async function* ({ signal } = {}) {
+					async function* ({ signal }: { signal?: AbortSignal } = {}) {
 						try {
 							yield* createReadStream(file.path, { signal });
 						} catch {
