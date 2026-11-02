@@ -38,6 +38,7 @@ const DRAIN_REFUSED_COMMANDS = new Set<string>([
 	"plugins.commands.list",
 	"providers.settings.save",
 	"mcp.servers.upsert",
+	"mcp.oauth.start",
 	"mcp.servers.set_disabled",
 	"mcp.servers.delete",
 	"mcp.settings.ensure",
