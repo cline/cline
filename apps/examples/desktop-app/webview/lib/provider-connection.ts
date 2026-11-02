@@ -1,3 +1,4 @@
+import type { HubOAuthLoginResult } from "@cline/shared";
 import { desktopClient } from "@/lib/desktop-client";
 import type { Provider } from "@/lib/provider-schema";
 
@@ -47,7 +48,7 @@ export function cancelClineOAuthLogin(): Promise<unknown> {
 export async function runProviderOAuthLogin(
 	provider: string,
 	signal?: AbortSignal,
-): Promise<{ provider: string; accessToken: string }> {
+): Promise<HubOAuthLoginResult> {
 	if (provider === "cline" && pendingClineCancellation) {
 		await pendingClineCancellation.catch(() => undefined);
 	}

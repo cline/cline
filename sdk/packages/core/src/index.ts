@@ -1058,6 +1058,7 @@ export {
 } from "./extensions/tools";
 export { createHubMcpApi, type HubMcpApi } from "./hub/client/mcp";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export { createHubProviderAuthApi } from "./hub/client/provider-auth";
 export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";

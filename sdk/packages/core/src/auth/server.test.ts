@@ -393,3 +393,32 @@ describe("auth/server startLocalOAuthServer — onListening + onClose together",
 		},
 	);
 });
+
+socketIt(
+	"aborting a login releases its callback port for the next attempt",
+	async () => {
+		const port = await getFreePort();
+		const controller = new AbortController();
+		const server = await startLocalOAuthServer({
+			ports: [port],
+			callbackPath: "/callback",
+			signal: controller.signal,
+		});
+		try {
+			const pending = server.waitForCallback();
+			controller.abort();
+			await expect(pending).resolves.toBeNull();
+			const replacement = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+			});
+			try {
+				expect(replacement.callbackUrl).toContain(String(port));
+			} finally {
+				replacement.close();
+			}
+		} finally {
+			server.close();
+		}
+	},
+);

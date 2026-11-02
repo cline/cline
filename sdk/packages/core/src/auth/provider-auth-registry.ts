@@ -19,6 +19,7 @@ const WORKOS_TOKEN_PREFIX = "workos:";
 export type ProviderOAuthCredentials = OAuthCredentials;
 
 export interface ProviderAuthLoginInput {
+	signal?: AbortSignal;
 	settings?: ProviderSettings;
 	callbacks: OAuthLoginCallbacks;
 	telemetry?: ITelemetryService;
@@ -219,11 +220,13 @@ function createClineAuthHandler(input: {
 		storageProviderId: input.storageProviderId,
 		formatAccessToken: formatClineApiKey,
 		normalizeStoredAccessToken: stripClineApiKeyPrefix,
-		login: ({ settings, callbacks, telemetry }) =>
+		login: ({ settings, callbacks, telemetry, signal }) =>
 			loginClineOAuth({
+				provider: input.providerId,
 				apiBaseUrl:
 					settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 				useWorkOSDeviceAuth: true,
+				signal,
 				callbacks,
 				telemetry,
 			}),
@@ -248,8 +251,13 @@ const providerAuthHandlers = [
 	}),
 	createOAuthHandler({
 		providerId: "oca",
-		login: ({ settings, callbacks, telemetry }) =>
-			loginOcaOAuth({ mode: settings?.oca?.mode, callbacks, telemetry }),
+		login: ({ settings, callbacks, telemetry, signal }) =>
+			loginOcaOAuth({
+				mode: settings?.oca?.mode,
+				callbacks,
+				telemetry,
+				signal,
+			}),
 		refresh: ({ settings, credentials, forceRefresh, telemetry }) =>
 			getValidOcaCredentials(
 				credentials,
@@ -259,8 +267,9 @@ const providerAuthHandlers = [
 	}),
 	createOAuthHandler({
 		providerId: "openai-codex",
-		login: ({ callbacks, telemetry }) =>
+		login: ({ callbacks, telemetry, signal }) =>
 			loginOpenAICodex({
+				signal,
 				onAuth: callbacks.onAuth,
 				onPrompt: callbacks.onPrompt,
 				onProgress: callbacks.onProgress,

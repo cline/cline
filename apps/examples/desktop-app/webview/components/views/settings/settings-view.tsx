@@ -468,18 +468,7 @@ export function SettingsView({
 	const runOAuthProviderLogin = async (id: string) => {
 		setOauthSigningProviderId(id);
 		try {
-			const result = await runProviderOAuthLogin(id);
-			setProvidersWithCache((prev) =>
-				prev.map((provider) =>
-					provider.id === id
-						? {
-								...provider,
-								enabled: true,
-								oauthAccessTokenPresent: result.accessToken.trim().length > 0,
-							}
-						: provider,
-				),
-			);
+			await runProviderOAuthLogin(id);
 			// The shared catalog cache (composer selector, welcome setup notice)
 			// must learn about the new OAuth connection too, not just this
 			// view's local provider state.
@@ -488,7 +477,7 @@ export function SettingsView({
 			// new generation, so an older load or resync still in flight can't
 			// arrive late and overwrite the just-connected state, and its own
 			// response also covers any provider saved moments earlier.
-			void resyncProviderCatalog();
+			await resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

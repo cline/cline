@@ -17,6 +17,7 @@ import {
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
+import { z } from "zod";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
@@ -131,6 +132,8 @@ import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
+import { HubProviderAccountService } from "./provider-account-service";
+import { HubProviderAuthService } from "./provider-auth-service";
 import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
@@ -312,8 +315,12 @@ export class HubServerTransport implements NativeHubTransport {
 	private unsubscribePluginStatus?: () => void;
 
 	private readonly cloud: HubCloudSessionService;
+	private readonly providerAuth: HubProviderAuthService;
+	private readonly providerAccount: HubProviderAccountService;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.providerAuth = new HubProviderAuthService(options.telemetry);
+		this.providerAccount = new HubProviderAccountService(options.telemetry);
 		this.cloud = new HubCloudSessionService({
 			...options.cloudSessionOptions,
 			logger: options.logger,
@@ -772,6 +779,7 @@ export class HubServerTransport implements NativeHubTransport {
 	async stop(): Promise<void> {
 		this.draining = true;
 		await this.mcpManagement.dispose();
+		await this.providerAuth.dispose();
 		await Promise.allSettled([
 			...this.pendingPluginCommands,
 			...this.pendingProviderMutations,
@@ -974,6 +982,63 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 		}
 		switch (envelope.command) {
+			case "providers.oauth.start": {
+				const input = z
+					.object({
+						providerId: z.string().trim().min(1),
+						loginId: z.string().min(1),
+						manualCodeInput: z.boolean().optional(),
+					})
+					.strict()
+					.parse(envelope.payload);
+				return okReply(
+					envelope,
+					this.providerAuth.start(envelope.clientId ?? "in-process", input),
+				);
+			}
+			case "providers.oauth.next":
+			case "providers.oauth.cancel": {
+				const input = z
+					.object({ loginId: z.string().min(1) })
+					.strict()
+					.parse(envelope.payload);
+				const owner = envelope.clientId ?? "in-process";
+				return okReply(envelope, {
+					...(envelope.command === "providers.oauth.next"
+						? await this.providerAuth.next(owner, input.loginId)
+						: this.providerAuth.cancel(owner, input.loginId)),
+				});
+			}
+			case "providers.oauth.respond": {
+				const input = z
+					.object({
+						loginId: z.string().min(1),
+						promptId: z.string().min(1),
+						value: z.string(),
+					})
+					.strict()
+					.parse(envelope.payload);
+				return okReply(
+					envelope,
+					this.providerAuth.respond(
+						envelope.clientId ?? "in-process",
+						input.loginId,
+						input.promptId,
+						input.value,
+					),
+				);
+			}
+			case "providers.account.action": {
+				const request = this.providerAccount.execute(
+					envelope.payload as unknown as import("@cline/shared").ClineAccountActionRequest,
+				);
+				this.pendingProviderMutations.add(request);
+				try {
+					return okReply(envelope, { result: await request });
+				} finally {
+					this.pendingProviderMutations.delete(request);
+				}
+			}
 			case "providers.list":
 			case "providers.models.list":
 			case "providers.models.recommended":
@@ -981,6 +1046,17 @@ export class HubServerTransport implements NativeHubTransport {
 			case "providers.settings.save":
 			case "providers.add":
 			case "providers.models.update": {
+				if (
+					envelope.command === "providers.settings.save" &&
+					(envelope.payload?.enabled === false ||
+						envelope.payload?.apiKey !== undefined ||
+						envelope.payload?.auth !== undefined ||
+						envelope.payload?.baseUrl !== undefined)
+				) {
+					this.providerAuth.cancelProvider(
+						String(envelope.payload.providerId ?? ""),
+					);
+				}
 				const request = handleProviderCommand(envelope);
 				this.pendingProviderMutations.add(request);
 				try {
@@ -1002,6 +1078,7 @@ export class HubServerTransport implements NativeHubTransport {
 			case "client.unregister": {
 				const owner = authority?.clientId ?? envelope.clientId;
 				if (owner) this.mcpManagement.oauth.cancelOwner(owner);
+				if (owner) this.providerAuth.cancelOwner(owner);
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
@@ -1049,7 +1126,9 @@ export class HubServerTransport implements NativeHubTransport {
 					payload: {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
-						activeProviderMutations: this.pendingProviderMutations.size,
+						activeProviderMutations:
+							this.pendingProviderMutations.size +
+							this.providerAuth.activeCount,
 						activeMcpRequests:
 							this.pendingMcpRequests.size +
 							this.mcpManagement.oauth.activeCount,
@@ -1398,7 +1477,8 @@ export class HubServerTransport implements NativeHubTransport {
 			activeRpcTurns,
 			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
-			activeProviderMutations: this.pendingProviderMutations.size,
+			activeProviderMutations:
+				this.pendingProviderMutations.size + this.providerAuth.activeCount,
 			activeMcpRequests:
 				this.pendingMcpRequests.size + this.mcpManagement.oauth.activeCount,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
@@ -1413,6 +1493,7 @@ export class HubServerTransport implements NativeHubTransport {
 				this.pendingProviderMutations.size === 0 &&
 				this.pendingMcpRequests.size === 0 &&
 				this.mcpManagement.oauth.activeCount === 0 &&
+				this.providerAuth.activeCount === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
