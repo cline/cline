@@ -828,7 +828,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-error-solid text-error-contrast hover:bg-error-solid/90"
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							disabled={
 								!deleteCandidate || history.pendingAction?.action === "delete"
 							}
