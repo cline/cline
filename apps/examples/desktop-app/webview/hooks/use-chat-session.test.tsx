@@ -7688,3 +7688,52 @@ it("orders plugin preparation before a follow-up without waiting for the first a
 		await first;
 	});
 });
+
+it("lets a new prompt dispatch after Stop while the old plugin is still pending", async () => {
+	const plugin = deferred<{ submitPrompt: string }>();
+	pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+	pluginRunMock.mockReturnValue(plugin.promise);
+	const sends: string[] = [];
+	invokeMock.mockImplementation(
+		async (command: string, args?: Record<string, unknown>) => {
+			if (command !== "chat_session_command") return [];
+			const request = args?.request as {
+				action: string;
+				prompt: string;
+				runtimePrompt?: string;
+				config: { sessionId: string };
+			};
+			if (request.action === "start")
+				return { sessionId: request.config.sessionId };
+			if (request.action === "send") {
+				sends.push(request.prompt);
+				return {
+					ok: true,
+					result: { text: "done", finishReason: "completed" },
+				};
+			}
+			if (request.action === "abort") return { ok: true };
+			return [];
+		},
+	);
+	let first: Promise<boolean> | undefined;
+	await act(async () => {
+		first = current.sendPrompt("/goal");
+		await Promise.resolve();
+	});
+	await vi.waitFor(() => expect(pluginRunMock).toHaveBeenCalled());
+	await act(async () => {
+		await current.abort();
+		await first;
+	});
+	expect(sends).toEqual([]);
+	await act(async () => {
+		await current.sendPrompt("new prompt");
+	});
+	expect(sends).toEqual(["new prompt"]);
+	await act(async () => {
+		plugin.resolve({ submitPrompt: "late instructions" });
+		await Promise.resolve();
+	});
+	expect(sends).toEqual(["new prompt"]);
+});

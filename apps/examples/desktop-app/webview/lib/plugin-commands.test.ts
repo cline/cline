@@ -80,6 +80,53 @@ it("never dispatches a turn from plugin instructions completed after Stop", asyn
 	const rejected = expect(result).rejects.toMatchObject({ name: "AbortError" });
 	await vi.waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(1));
 	controller.abort();
-	finish({ submitPrompt: "late instructions" });
 	await rejected;
+	finish({ submitPrompt: "late instructions" });
+	await Promise.resolve();
+});
+
+it("aborts pending discovery without treating cancellation as a missing plugin", async () => {
+	mocks.hub.mockReturnValue(mocks);
+	let finish!: (value: unknown) => void;
+	mocks.list.mockImplementation(
+		() =>
+			new Promise((resolve) => {
+				finish = resolve;
+			}),
+	);
+	const controller = new AbortController();
+	const result = runPluginSlashCommand(
+		"local",
+		{ workspacePath: "/workspace", prompt: "/goal" },
+		controller.signal,
+	);
+	const rejected = expect(result).rejects.toMatchObject({ name: "AbortError" });
+	controller.abort();
+	await rejected;
+	finish({ commands: [{ name: "goal" }] });
+	await Promise.resolve();
+	expect(mocks.run).not.toHaveBeenCalled();
+});
+it("handles a plugin rejection after the cancelled viewer has stopped waiting", async () => {
+	mocks.hub.mockReturnValue(mocks);
+	mocks.list.mockResolvedValue({ commands: [{ name: "goal" }] });
+	let fail!: (error: Error) => void;
+	mocks.run.mockImplementation(
+		() =>
+			new Promise((_, reject) => {
+				fail = reject;
+			}),
+	);
+	const controller = new AbortController();
+	const result = runPluginSlashCommand(
+		"local",
+		{ workspacePath: "/workspace", prompt: "/goal" },
+		controller.signal,
+	);
+	const rejected = expect(result).rejects.toMatchObject({ name: "AbortError" });
+	await vi.waitFor(() => expect(mocks.run).toHaveBeenCalled());
+	controller.abort();
+	await rejected;
+	fail(new Error("late plugin failure"));
+	await Promise.resolve();
 });
