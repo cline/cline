@@ -407,6 +407,7 @@ export type {
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
+	ProviderSettingsObjectPatch,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
