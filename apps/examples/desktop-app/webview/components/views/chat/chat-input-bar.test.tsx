@@ -3014,6 +3014,49 @@ describe("ChatInputBar", () => {
 		it.each([
 			"success",
 			"failure",
+		])("keeps a restored side provider through catalog %s", async (outcome) => {
+			mockBundledCatalog();
+			const onProviderChange = vi.fn();
+			const onModelChange = vi.fn();
+			const onSideSettingsChange = vi.fn();
+			const callbacks = {
+				onProviderChange,
+				onModelChange,
+				onSideSettingsChange,
+			};
+			await renderComposer({
+				provider: "cline",
+				model: "test-model",
+				...callbacks,
+			});
+			const catalog = deferred<ReturnType<typeof providerCatalog>>();
+			loadProviderModelCatalogMock.mockReturnValue(
+				catalog.promise.then((payload) => {
+					if (outcome === "failure") throw new Error("offline");
+					return payload;
+				}),
+			);
+			onProviderChange.mockClear();
+			onModelChange.mockClear();
+			await renderComposer({
+				provider: "ollama",
+				model: "local-test:latest",
+				...callbacks,
+			});
+			expect(onProviderChange).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain("local-test:latest");
+			await act(async () => catalog.resolve(providerCatalog(null)));
+			expect(onProviderChange).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(onSideSettingsChange).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			"success",
+			"failure",
 		])("preserves the saved model through a delayed live catalog %s", async (outcome) => {
 			mockBundledCatalog();
 			const selection = {

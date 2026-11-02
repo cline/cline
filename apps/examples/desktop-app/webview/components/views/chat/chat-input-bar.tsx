@@ -1987,14 +1987,26 @@ const ModelSelector = memo(function ModelSelector({
 	}, [applyProviderModels, includeCloudModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
-		for (const providerId of enabledProviderIds) {
+		const providerIds = new Set(enabledProviderIds);
+		// Preserve complete local selections during refresh; empty models still need catalog defaults.
+		if (!includeCloudModels && normalizedProvider && model) {
+			providerIds.add(normalizedProvider);
+		}
+		for (const providerId of providerIds) {
 			if (allowedProviderIds && !allowedProviderIds.includes(providerId)) {
 				continue;
 			}
 			next[providerId] = providerModels[providerId] ?? [];
 		}
 		return next;
-	}, [allowedProviderIds, enabledProviderIds, providerModels]);
+	}, [
+		allowedProviderIds,
+		enabledProviderIds,
+		includeCloudModels,
+		model,
+		normalizedProvider,
+		providerModels,
+	]);
 	const providers = useMemo(
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
