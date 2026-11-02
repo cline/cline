@@ -1238,7 +1238,7 @@ async function createSideConversation(
 			title: "Side chat",
 			desktopSideConversation: {
 				version: 2,
-				owner: sideConversationOwner(ctx),
+				owner: await sideConversationOwner(ctx),
 				parentSessionId: request.sessionId,
 			},
 			desktopSideConfig: sideConfig,

@@ -1,4 +1,3 @@
-import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	referenceByteLength,
 	referenceExcerpt,
@@ -8,6 +7,7 @@ import {
 	sanitizeReferenceText,
 	serializeReferenceData,
 } from "@cline/shared/browser";
+import type { ChatMessage } from "@/lib/chat-schema";
 
 export function captureVisibleSideContext({
 	messages,
@@ -47,7 +47,7 @@ export function captureVisibleSideContext({
 	const selected = new Map<number, SideVisibleContext["excerpts"][number]>();
 	const include = (index: number) => {
 		const message = current[index];
-		if (!message || selected.has(index)) return;
+		if (!message || selected.has(index) || selected.size >= 12) return;
 		if (
 			message.role !== "user" &&
 			message.role !== "assistant" &&
@@ -89,9 +89,8 @@ export function captureVisibleSideContext({
 		};
 		const next = [...selected.values(), excerpt];
 		if (
-			next.length <= 12 &&
 			referenceByteLength(JSON.stringify({ ...capture, excerpts: next })) <=
-				SIDE_VISIBLE_BUDGET_BYTES - 128
+			SIDE_VISIBLE_BUDGET_BYTES - 128
 		)
 			selected.set(index, excerpt);
 	};

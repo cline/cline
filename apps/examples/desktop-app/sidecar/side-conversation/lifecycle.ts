@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import {
 	type ClineCore,
-	getProcessStartToken,
+	getProcessStartTokenAsync,
 	probeProcessStartTokenAsync,
 	SqliteSessionStore,
 } from "@cline/core";
@@ -21,11 +21,11 @@ export function createTemporarySideState(): SidecarContext["temporarySideConvers
 	};
 }
 
-export function sideConversationOwner(ctx: SidecarContext) {
+export async function sideConversationOwner(ctx: SidecarContext) {
 	return {
 		runId: ctx.bootId,
 		pid: process.pid,
-		startToken: getProcessStartToken(process.pid) ?? null,
+		startToken: (await getProcessStartTokenAsync(process.pid)) ?? null,
 	};
 }
 
@@ -59,12 +59,12 @@ export function listTemporarySideConversations() {
 	const store = new SqliteSessionStore();
 	try {
 		return store
-			.queryAll<{ session_id: string }>(
-				`SELECT session_id FROM sessions WHERE CASE WHEN json_valid(metadata_json)
+			.queryAll<{ session_id: string; metadata_json: string }>(
+				`SELECT session_id, metadata_json FROM sessions WHERE CASE WHEN json_valid(metadata_json)
 			 THEN json_extract(metadata_json, '$.desktopSideConversation.owner.runId') END IS NOT NULL`,
 			)
-			.flatMap(({ session_id: sessionId }) => {
-				const side = readSideConversation(store.get(sessionId)?.metadata);
+			.flatMap(({ session_id: sessionId, metadata_json: metadata }) => {
+				const side = readSideConversation(JSON.parse(metadata));
 				return side ? [{ sessionId, side }] : [];
 			});
 	} finally {

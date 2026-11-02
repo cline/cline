@@ -108,6 +108,7 @@ export function useConversationWorkspace({
 	}, [sideThreadId, sideVisible, onSideVisibilityChange]);
 	return {
 		surface,
+		openVersion,
 		target,
 		host,
 		setTarget,

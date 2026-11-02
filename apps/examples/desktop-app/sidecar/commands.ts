@@ -210,7 +210,10 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
-import { assertSideConversationAvailable } from "./side-conversation/lifecycle";
+import {
+	assertSideConversationAvailable,
+	listTemporarySideConversations,
+} from "./side-conversation/lifecycle";
 import {
 	getCommitDetails,
 	getCommitFileDiff,
@@ -727,6 +730,27 @@ function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
 	return typeof session.prompt === "string" && Boolean(session.prompt.trim());
 }
 
+async function listOrdinarySessionPage<T extends { metadata?: unknown }>(
+	readPage: (limit: number) => T[] | Promise<T[]>,
+	limit: number,
+	knownSideCount: number,
+): Promise<T[]> {
+	// Match persistence-service.ts's history scan bound without reducing larger requests.
+	const scanCeiling = Math.max(limit, 2_000);
+	let scanLimit = Math.min(limit + knownSideCount, scanCeiling);
+	for (;;) {
+		const rows = await readPage(scanLimit);
+		const ordinary = rows.filter((row) => !readSideConversation(row.metadata));
+		if (
+			ordinary.length >= limit ||
+			rows.length < scanLimit ||
+			scanLimit >= scanCeiling
+		)
+			return ordinary.slice(0, limit);
+		scanLimit = Math.min(scanLimit * 2, scanCeiling);
+	}
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -734,136 +758,156 @@ async function listSessionsFromSidecarManager(
 	const max = Math.max(1, Math.floor(limit));
 	const byId = new Map<string, JsonRecord>();
 	const store = new SqliteSessionStore();
-
-	for (const binding of ctx.runtimeBindings.values()) {
-		try {
-			const sessions = await binding.sessionManager.list(max, {
-				hydrate: false,
-			});
-			for (const item of sessions) {
-				if (!item || typeof item !== "object") continue;
-				const record = item as unknown as JsonRecord;
-				const sessionId = String(record.sessionId ?? "").trim();
-				if (!sessionId) continue;
-				getEnvironmentContext(
-					ctx,
-					binding.environmentId,
-				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
-				const merged = mergePersistedSessionRecord(
-					sessionId,
-					record,
+	try {
+		for (const binding of ctx.runtimeBindings.values()) {
+			try {
+				const sessions = await listOrdinarySessionPage(
+					async (scanLimit) => {
+						const page = await binding.sessionManager.list(scanLimit, {
+							hydrate: false,
+						});
+						return page.flatMap((item) => {
+							if (!item || typeof item !== "object") return [];
+							const record = item as unknown as JsonRecord;
+							const sessionId = String(record.sessionId ?? "").trim();
+							if (!sessionId) return [];
+							getEnvironmentContext(
+								ctx,
+								binding.environmentId,
+							).sessionEnvironmentIds.set(sessionId, binding.environmentId);
+							return [
+								mergePersistedSessionRecord(
+									sessionId,
+									record,
+									binding.kind === "local"
+										? (store.get(sessionId) as unknown as
+												| JsonRecord
+												| undefined)
+										: undefined,
+								),
+							];
+						});
+					},
+					max,
 					binding.kind === "local"
-						? (store.get(sessionId) as unknown as JsonRecord | undefined)
-						: undefined,
+						? ctx.temporarySideConversations.byParent.size
+						: 0,
 				);
-				if (readSideConversation(merged.metadata)) continue;
-				if (!isSidebarSessionWithPrompt(merged)) {
-					// Attachment-only sessions may have no textual prompt metadata.
-					const messages =
-						binding.kind === "local"
-							? readPersistedChatMessages(sessionId)
-							: await binding.sessionManager
-									.readMessages(sessionId)
-									.catch(() => []);
-					merged.prompt = derivePromptFromMessages(messages ?? []);
+				for (const merged of sessions) {
+					const sessionId = String(merged.sessionId);
+					if (!isSidebarSessionWithPrompt(merged)) {
+						// Attachment-only sessions may have no textual prompt metadata.
+						const messages =
+							binding.kind === "local"
+								? readPersistedChatMessages(sessionId)
+								: await binding.sessionManager
+										.readMessages(sessionId)
+										.catch(() => []);
+						merged.prompt = derivePromptFromMessages(messages ?? []);
+					}
+					if (!isSidebarSessionWithPrompt(merged)) continue;
+					byId.set(JSON.stringify([binding.environmentId, sessionId]), {
+						...merged,
+						environmentId: binding.environmentId,
+						remoteEnvironment:
+							binding.kind === "ssh"
+								? {
+										id: binding.environmentId,
+										name: binding.remote?.profile.name,
+										host: binding.remote?.profile.host,
+									}
+								: undefined,
+					});
 				}
-				if (!isSidebarSessionWithPrompt(merged)) continue;
-				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
-					...merged,
-					environmentId: binding.environmentId,
-					remoteEnvironment:
-						binding.kind === "ssh"
-							? {
-									id: binding.environmentId,
-									name: binding.remote?.profile.name,
-									host: binding.remote?.profile.host,
-								}
-							: undefined,
+			} catch {
+				// Keep history available from the other connected environments.
+			}
+		}
+
+		if (byId.size === 0) {
+			for (const session of await listOrdinarySessionPage(
+				(scanLimit) => store.list(scanLimit),
+				max,
+				ctx.temporarySideConversations.byParent.size,
+			)) {
+				session.prompt =
+					session.prompt?.trim() ||
+					derivePromptFromMessages(
+						readPersistedChatMessages(session.sessionId) ?? [],
+					);
+				if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
+					continue;
+				}
+				byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
+					...(session as unknown as JsonRecord),
+					environmentId: LOCAL_ENVIRONMENT_ID,
 				});
 			}
-		} catch {
-			// Keep history available from the other connected environments.
 		}
-	}
 
-	if (byId.size === 0) {
-		for (const session of store.list(max)) {
-			if (readSideConversation(session.metadata)) continue;
-			session.prompt =
-				session.prompt?.trim() ||
-				derivePromptFromMessages(
-					readPersistedChatMessages(session.sessionId) ?? [],
-				);
-			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
-				continue;
+		for (const scoped of getEnvironmentContexts(ctx)) {
+			for (const [sessionId, session] of scoped.liveSessions.entries()) {
+				if (
+					session.config.executionTarget === "cloud" ||
+					session.config.desktopSideParentSessionId ||
+					(scoped.activeEnvironmentId === LOCAL_ENVIRONMENT_ID &&
+						readSideConversation(
+							store.get(sessionId)?.metadata ??
+								readSessionManifest(sessionId)?.metadata,
+						))
+				)
+					continue;
+				const prompt =
+					session.prompt?.trim() || derivePromptFromMessages(session.messages);
+				if (!prompt) continue;
+				const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
+				const existing = byId.get(key);
+				byId.set(key, {
+					...(existing ?? {}),
+					sessionId,
+					environmentId: scoped.activeEnvironmentId,
+					status: session.status,
+					provider: session.config.provider ?? existing?.provider ?? "",
+					model: session.config.model ?? existing?.model ?? "",
+					cwd: session.config.cwd ?? existing?.cwd ?? "",
+					workspaceRoot:
+						session.config.workspaceRoot ??
+						existing?.workspaceRoot ??
+						existing?.cwd ??
+						"",
+					prompt,
+					startedAt:
+						existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+					endedAt:
+						session.endedAt !== undefined
+							? new Date(session.endedAt).toISOString()
+							: existing?.endedAt,
+					metadata: {
+						...((existing?.metadata && typeof existing.metadata === "object"
+							? existing.metadata
+							: {}) as JsonRecord),
+						...(session.title ? { title: session.title } : {}),
+					},
+				});
 			}
-			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
-				...(session as unknown as JsonRecord),
-				environmentId: LOCAL_ENVIRONMENT_ID,
-			});
 		}
+		return Array.from(byId.values())
+			.sort((left, right) => {
+				const leftTime = Date.parse(
+					String(left.updatedAt ?? left.startedAt ?? ""),
+				);
+				const rightTime = Date.parse(
+					String(right.updatedAt ?? right.startedAt ?? ""),
+				);
+				return (
+					(Number.isNaN(rightTime) ? 0 : rightTime) -
+					(Number.isNaN(leftTime) ? 0 : leftTime)
+				);
+			})
+			.slice(0, max);
+	} finally {
+		store.close();
 	}
-
-	for (const scoped of getEnvironmentContexts(ctx)) {
-		for (const [sessionId, session] of scoped.liveSessions.entries()) {
-			if (
-				session.config.executionTarget === "cloud" ||
-				session.config.desktopSideParentSessionId ||
-				(scoped.activeEnvironmentId === LOCAL_ENVIRONMENT_ID &&
-					readSideConversation(
-						store.get(sessionId)?.metadata ??
-							readSessionManifest(sessionId)?.metadata,
-					))
-			)
-				continue;
-			const prompt =
-				session.prompt?.trim() || derivePromptFromMessages(session.messages);
-			if (!prompt) continue;
-			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
-			const existing = byId.get(key);
-			byId.set(key, {
-				...(existing ?? {}),
-				sessionId,
-				environmentId: scoped.activeEnvironmentId,
-				status: session.status,
-				provider: session.config.provider ?? existing?.provider ?? "",
-				model: session.config.model ?? existing?.model ?? "",
-				cwd: session.config.cwd ?? existing?.cwd ?? "",
-				workspaceRoot:
-					session.config.workspaceRoot ??
-					existing?.workspaceRoot ??
-					existing?.cwd ??
-					"",
-				prompt,
-				startedAt:
-					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
-				endedAt:
-					session.endedAt !== undefined
-						? new Date(session.endedAt).toISOString()
-						: existing?.endedAt,
-				metadata: {
-					...((existing?.metadata && typeof existing.metadata === "object"
-						? existing.metadata
-						: {}) as JsonRecord),
-					...(session.title ? { title: session.title } : {}),
-				},
-			});
-		}
-	}
-	return Array.from(byId.values())
-		.sort((left, right) => {
-			const leftTime = Date.parse(
-				String(left.updatedAt ?? left.startedAt ?? ""),
-			);
-			const rightTime = Date.parse(
-				String(right.updatedAt ?? right.startedAt ?? ""),
-			);
-			return (
-				(Number.isNaN(rightTime) ? 0 : rightTime) -
-				(Number.isNaN(leftTime) ? 0 : leftTime)
-			);
-		})
-		.slice(0, max);
 }
 
 async function withSearchDeadline<T>(
@@ -2608,6 +2652,9 @@ export async function handleCommand(
 						query,
 						limit,
 						workspaceRoot,
+						excludeSessionIds: listTemporarySideConversations().map(
+							({ sessionId }) => sessionId,
+						),
 					}),
 					750,
 				);

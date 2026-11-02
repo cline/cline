@@ -338,6 +338,7 @@ describe("Code sidecar runtime capabilities", () => {
 			query: "generate",
 			limit: 50,
 			workspaceRoot: undefined,
+			excludeSessionIds: expect.any(Array),
 		});
 		expect(list).not.toHaveBeenCalled();
 	});

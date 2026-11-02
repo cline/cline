@@ -83,6 +83,7 @@ import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
+import { useSessionHydration } from "@/hooks/use-session-hydration";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -1151,11 +1152,14 @@ function App() {
 		!activeThread.hasStarted &&
 		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
-		(section: SettingsSection, composerId = activeThread?.id) => {
+		(
+			section: SettingsSection,
+			composerId = view === "settings" ? settingsComposerId : activeThread?.id,
+		) => {
 			setSettingsComposerId(composerId);
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
-		[activeThread?.id, navigateWith],
+		[activeThread?.id, navigateWith, settingsComposerId, view],
 	);
 	// App shortcuts come from keybindings.json (Settings → Keybindings).
 	const keybindings = useKeybindings();
@@ -1477,7 +1481,7 @@ function App() {
 		environmentId: thread.environmentId,
 		environmentProfiles: remoteEnvironmentProfiles,
 		environmentProfilesLoading: remoteEnvironmentProfilesLoading,
-		onAddSshHost: () => handleSettingsSectionChange("Remote"),
+		onAddSshHost: () => handleSettingsSectionChange("Remote", thread.id),
 		onPickRemoteWorkspaceDirectory: pickRemoteWorkspaceDirectory,
 		onSelectEnvironment: handleSelectEnvironment,
 		remoteEnvironment:
@@ -1506,10 +1510,12 @@ function App() {
 		onOpenSession: handleOpenSession,
 		onOpenSessionById: handleOpenSessionById,
 		onOpenSetup: handleOpenSetup,
-		onOpenModelSettings: () => handleSettingsSectionChange("Providers"),
+		onOpenModelSettings: () =>
+			handleSettingsSectionChange("Providers", thread.id),
 		onOpenLocalModels: () =>
 			handleSettingsSectionChange("Local Models", thread.id),
-		onOpenAccountSettings: () => handleSettingsSectionChange("Account"),
+		onOpenAccountSettings: () =>
+			handleSettingsSectionChange("Account", thread.id),
 		parentSession: activeParentSession,
 		onThreadStarted: handleThreadStarted,
 		terminal:
@@ -1779,6 +1785,7 @@ function MainConversation({
 function ChatThreadPane({
 	workspace,
 	mainConfig,
+	mainWorkspace,
 	sideThread,
 	onAttentionChange,
 	onSideVisibilityChange,
@@ -1823,6 +1830,11 @@ function ChatThreadPane({
 }: ThreadPaneProps & {
 	workspace: ConversationWorkspaceControls;
 	mainConfig?: ChatSessionConfig;
+	mainWorkspace?: {
+		cwd?: string;
+		branch: string | null;
+		refresh: () => Promise<void>;
+	};
 	sideThread?: ThreadPaneProps;
 	onAttentionChange?: (threadId: string, label: string) => void;
 }) {
@@ -1984,7 +1996,14 @@ function ChatThreadPane({
 	>(null);
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
-	const [gitBranch, setGitBranch] = useState<string | null>(null);
+	const [ownGitBranch, setGitBranch] = useState<string | null>(null);
+	const sharedWorkspace =
+		mainWorkspace?.cwd &&
+		mainWorkspace.cwd === (config.cwd || config.workspaceRoot)
+			? mainWorkspace
+			: undefined;
+	const gitBranch = sharedWorkspace ? sharedWorkspace.branch : ownGitBranch;
+	const refreshSharedBranch = sharedWorkspace?.refresh;
 	// Wait for the flag before falling back from remembered Cloud to Local.
 	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
 		boolean | null
@@ -2086,10 +2105,15 @@ function ChatThreadPane({
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(
 		() => workspacesLoadedOnce,
 	);
-	const hydratedSessionRef = useRef<string | null>(null);
-	const [hydrationSucceeded, setHydrationSucceeded] = useState<boolean | null>(
-		null,
-	);
+	const hydrationSucceeded = useSessionHydration({
+		historySession:
+			historySession?.sessionId === dismissedHistorySessionId
+				? undefined
+				: historySession,
+		sessionId,
+		hydrateSession,
+		retryVersion: isSide ? workspace.openVersion : 0,
+	});
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
@@ -2333,6 +2357,7 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		if (refreshSharedBranch) return refreshSharedBranch();
 		const requestId = gitBranchRequestGateRef.current.begin();
 		const cwd = getWorkspaceCwd();
 		if (!cwd) {
@@ -2357,7 +2382,7 @@ function ChatThreadPane({
 		} catch {
 			// Preserve the latest successful branch through transient failures.
 		}
-	}, [environmentId, getWorkspaceCwd]);
+	}, [environmentId, getWorkspaceCwd, refreshSharedBranch]);
 
 	const invalidateGitBranch = useCallback(() => {
 		gitBranchRequestGateRef.current.invalidate();
@@ -2556,6 +2581,7 @@ function ChatThreadPane({
 	);
 
 	useEffect(() => {
+		if (refreshSharedBranch) return;
 		void refreshGitBranch();
 		if (!activeWorkspaceCwd) {
 			return;
@@ -2579,7 +2605,12 @@ function ChatThreadPane({
 			window.removeEventListener("focus", refreshVisibleBranch);
 			document.removeEventListener("visibilitychange", refreshVisibleBranch);
 		};
-	}, [activeWorkspaceCwd, environmentId, refreshGitBranch]);
+	}, [
+		activeWorkspaceCwd,
+		environmentId,
+		refreshGitBranch,
+		refreshSharedBranch,
+	]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
@@ -2606,26 +2637,10 @@ function ChatThreadPane({
 			return;
 		}
 		resetThreadRef.current = threadId;
-		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
 		setManualTitle("");
 		void reset();
 	}, [historySession, manualTitle, reset, threadId]);
-
-	useEffect(() => {
-		if (!historySession) {
-			return;
-		}
-		if (hydratedSessionRef.current === historySession.sessionId) {
-			return;
-		}
-		hydratedSessionRef.current = historySession.sessionId;
-		// Opening the current live session's sidebar row reuses this pane.
-		if (historySession.sessionId === sessionId) return;
-		setManualTitle(getSessionMetadataTitle(historySession.metadata));
-		setHydrationSucceeded(null);
-		void hydrateSession(historySession).then(setHydrationSucceeded);
-	}, [historySession, hydrateSession, sessionId]);
 
 	useEffect(() => {
 		const hasInitialComposerState =
@@ -3185,7 +3200,6 @@ function ChatThreadPane({
 			}
 			setDismissedHistorySessionId(activeSessionToDelete);
 			setManualTitle("");
-			hydratedSessionRef.current = null;
 			manualTitleSessionRef.current = null;
 			window.dispatchEvent(
 				new CustomEvent("cline:session-deleted", {
@@ -3750,13 +3764,8 @@ function ChatThreadPane({
 									sideAvailable
 										? () => {
 												if (workspace.sideVisible) workspace.close();
-												else if (
-													workspace.sideThreadId ||
-													side.openingState.kind !== "idle"
-												) {
+												else if (side.openingState.kind !== "idle") {
 													workspace.open({ kind: "side" });
-													if (workspace.sideThreadId)
-														requestPromptInputFocus(workspace.sideThreadId);
 												} else void side.openSide();
 											}
 										: undefined
@@ -4014,6 +4023,11 @@ function ChatThreadPane({
 								key={`${sideThread.threadId}:${sideThread.environmentId}`}
 								workspace={workspace}
 								mainConfig={config}
+								mainWorkspace={{
+									cwd: config.cwd || config.workspaceRoot,
+									branch: gitBranch,
+									refresh: refreshGitBranch,
+								}}
 								interactive={interactive && side.openingState.kind === "idle"}
 								onAttentionChange={reportSideAttention}
 							/>

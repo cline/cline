@@ -10,6 +10,7 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { PromptDraftCache, usePromptDraft } from "../use-prompt-draft";
+import { useSessionHydration } from "../use-session-hydration";
 import { useSideConversation } from "./use-side-conversation";
 
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
@@ -64,7 +65,13 @@ const result = {
 let queuedState: DesktopAppState<"General">;
 let queuedDispatch: Dispatch<DesktopAppAction<"General">>;
 let restoredState: DesktopAppState<"General"> | undefined;
-function QueuedHarness({ hydrated }: { hydrated: boolean | null }) {
+function QueuedHarness({
+	hydrated,
+	attach,
+}: {
+	hydrated: boolean | null;
+	attach?: (session: NonNullable<Props["existingSession"]>) => Promise<boolean>;
+}) {
 	const [state, dispatch] = useReducer(
 		desktopAppReducer<"General">,
 		undefined,
@@ -78,11 +85,22 @@ function QueuedHarness({ hydrated }: { hydrated: boolean | null }) {
 		(thread) => thread.historySession?.sessionId === "side",
 	);
 	const draft = usePromptDraft(props.drafts, child?.id ?? "unopened");
-	useSideConversation({
+	const attachment = useSessionHydration({
+		historySession: attach ? child?.historySession : undefined,
+		sessionId: null,
+		hydrateSession: attach ?? (async () => false),
+		retryVersion: state.sideOpenVersion,
+	});
+	current = useSideConversation({
 		...props,
 		threadId: child?.id ?? "unopened",
+		existingSession: child?.historySession,
+		open: (session, submission, reveal) => {
+			props.open(session, submission, reveal);
+			dispatch({ type: "open-side", session, submission, reveal });
+		},
 		pendingSubmissions: child?.pendingSideSubmissions,
-		hydrationSucceeded: hydrated,
+		hydrationSucceeded: attach ? attachment : hydrated,
 		consumeSubmission: (threadId, submission) => {
 			props.consumeSubmission(threadId, submission);
 			dispatch({
@@ -136,6 +154,23 @@ afterEach(async () => {
 	container.remove();
 });
 describe("side conversation submission", () => {
+	it("sends the new question after reattachment without resending a restored draft", async () => {
+		const attach = vi.fn(async () => false);
+		await act(async () =>
+			root.render(<QueuedHarness hydrated={null} attach={attach} />),
+		);
+		await act(async () => enqueue("first question"));
+		expect(container.textContent).toBe("first question");
+		expect(props.send).not.toHaveBeenCalled();
+		attach.mockResolvedValue(true);
+		await act(async () => current.openSide());
+		expect(props.send).not.toHaveBeenCalled();
+		await act(async () => enqueue("new question"));
+		expect(attach).toHaveBeenCalledTimes(2);
+		expect(props.send).toHaveBeenCalledExactlyOnceWith("new question");
+		expect(container.textContent).toBe("first question");
+	});
+
 	it.each([
 		"/btw explain",
 		"/side explain",

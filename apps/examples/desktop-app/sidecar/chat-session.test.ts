@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as core from "@cline/core";
 import {
 	type ClineCore,
 	createSessionCompactionState,
@@ -3509,6 +3510,10 @@ describe("side conversation lifecycle", () => {
 				{ workspaceRoot: directory, sessionIds: [parentId, sideId] },
 			),
 		} as unknown as SidecarContext;
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("local runtime fixture missing");
+		binding.hubClient.dispose = vi.fn(async () => {});
+		binding.sessionManager.dispose = vi.fn(async () => {});
 		const create = (visibleContext?: SideVisibleContext) =>
 			handleChatSessionCommand(ctx, {
 				action: "create_side",
@@ -3695,6 +3700,75 @@ describe("side conversation lifecycle", () => {
 		expect(order).toEqual(["delete", "client dispose", "manager dispose"]);
 		expect(store.get(sideId)).toBeUndefined();
 		await expect(create()).rejects.toThrow("temporary side chat has ended");
+	});
+
+	it("cleans existing sides while another creation is pending and discards its late runtime", async () => {
+		const { ctx, create, start, records } = setup(false);
+		await create();
+		const parent = records.get(parentId);
+		const originalStart = start.getMockImplementation();
+		if (!parent || !originalStart) throw new Error("side fixture missing");
+		const secondParentId = "second-parent";
+		const secondSideId = "3757c861-c10c-4df4-9ec1-72867dc01105";
+		records.set(secondParentId, { ...parent, sessionId: secondParentId });
+		const starting = Promise.withResolvers<void>();
+		const finishStart = Promise.withResolvers<void>();
+		start.mockImplementationOnce(async (input) => {
+			starting.resolve();
+			await finishStart.promise;
+			return originalStart(input);
+		});
+		const creating = handleChatSessionCommand(ctx, {
+			action: "create_side",
+			sessionId: secondParentId,
+			newSessionId: secondSideId,
+			config: { environmentId: "local" },
+		});
+		const rejected = expect(creating).rejects.toThrow(
+			"temporary side chat has ended",
+		);
+		await starting.promise;
+		vi.useFakeTimers();
+		const disposing = disposeSidecarContext(ctx);
+		try {
+			await vi.waitFor(() => expect(store.get(sideId)).toBeUndefined());
+			await vi.advanceTimersByTimeAsync(5_001);
+			expect(ctx.runtimeBindings.has("local")).toBe(true);
+		} finally {
+			vi.useRealTimers();
+			finishStart.resolve();
+			await rejected;
+			await disposing;
+		}
+		expect(store.get(secondSideId)).toBeUndefined();
+		expect(records.has(parentId)).toBe(true);
+		expect(records.has(secondParentId)).toBe(true);
+	});
+
+	it("does not start a side when shutdown interrupts its async owner probe", async () => {
+		const { ctx, create, start } = setup(false);
+		const finishProbe = Promise.withResolvers<string | undefined>();
+		const probe = vi
+			.spyOn(core, "getProcessStartTokenAsync")
+			.mockImplementationOnce(() => finishProbe.promise);
+		const creating = create();
+		try {
+			await vi.waitFor(() => expect(probe).toHaveBeenCalledWith(process.pid));
+			expect(start).not.toHaveBeenCalled();
+			const rejected = expect(creating).rejects.toThrow(
+				"temporary side chat has ended",
+			);
+			const disposing = disposeSidecarContext(ctx);
+			finishProbe.resolve("synthetic-owner");
+			await rejected;
+			await disposing;
+			expect(start).not.toHaveBeenCalled();
+			expect(store.get(sideId)).toBeUndefined();
+		} finally {
+			finishProbe.resolve("synthetic-owner");
+			await creating.catch(() => undefined);
+			probe.mockRestore();
+		}
 	});
 
 	it("copies current composer choices instead of the parent's older runtime settings", async () => {
@@ -4133,6 +4207,131 @@ describe("side conversation lifecycle", () => {
 		expect(send).toHaveBeenCalledTimes(2);
 		expect(store.get(parentId)).toBeDefined();
 		expect(store.get(sideId)).toBeDefined();
+	});
+
+	it.each([
+		{ source: "runtime", count: 51 },
+		{ source: "runtime", count: 5_000 },
+		{ source: "persisted", count: 51 },
+	] as const)("fills discovery pages from $source with $count ordinary records", async ({
+		source,
+		count,
+	}) => {
+		const { handleCommand } = await import("./commands");
+		const { ctx, create, records } = setup(false);
+		await create();
+		ctx.liveSessions.clear();
+		const parent = records.get(parentId);
+		const side = records.get(sideId);
+		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
+		if (!parent || !side || !manager) throw new Error("side fixture missing");
+		const ordinary = Array.from({ length: count }, (_, index) => ({
+			...parent,
+			sessionId: `ordinary-${index}`,
+			prompt: `Question ${index}`,
+			startedAt: new Date(
+				Date.UTC(2026, 0, 1, 0, 0, count - index),
+			).toISOString(),
+			updatedAt: new Date(
+				Date.UTC(2026, 0, 1, 0, 0, count - index),
+			).toISOString(),
+		}));
+		if (source === "runtime") {
+			vi.mocked(manager.list).mockImplementation(async (limit = 200) =>
+				[side, ...ordinary].slice(0, limit),
+			);
+		} else {
+			ctx.runtimeBindings.clear();
+			for (const record of ordinary) store.create(record);
+		}
+		const close = vi.spyOn(SqliteSessionStore.prototype, "close");
+		for (let attempt = 0; attempt < 2; attempt++) {
+			close.mockClear();
+			vi.mocked(manager.list).mockClear();
+			const page = await handleCommand(ctx, "list_discovered_sessions", {
+				limit: 50,
+			});
+			expect(page).toHaveLength(50);
+			expect(close).toHaveBeenCalledOnce();
+			expect(page).toEqual(
+				expect.arrayContaining(
+					ordinary
+						.slice(0, 50)
+						.map((record) =>
+							expect.objectContaining({ sessionId: record.sessionId }),
+						),
+				),
+			);
+			if (source === "runtime") {
+				expect(manager.list).toHaveBeenCalledExactlyOnceWith(51, {
+					hydrate: false,
+				});
+			}
+		}
+	});
+
+	it("bounds discovery scans when many side records fill the prefix", async () => {
+		const { handleCommand } = await import("./commands");
+		const { ctx, create, records } = setup(false);
+		await create();
+		ctx.liveSessions.clear();
+		const side = records.get(sideId);
+		const parent = records.get(parentId);
+		const manager = ctx.runtimeBindings.get("local")?.sessionManager;
+		if (!side || !parent || !manager) throw new Error("side fixture missing");
+		const page = [
+			...Array.from({ length: 1_999 }, (_, index) => ({
+				...side,
+				sessionId: `side-${index}`,
+			})),
+			{ ...parent, prompt: "Ordinary question" },
+		];
+		vi.mocked(manager.list).mockImplementation(async (limit = 200) =>
+			page.slice(0, limit),
+		);
+		await expect(
+			handleCommand(ctx, "list_discovered_sessions", { limit: 50 }),
+		).resolves.toEqual([expect.objectContaining({ sessionId: parentId })]);
+		expect(vi.mocked(manager.list).mock.calls.map(([limit]) => limit)).toEqual([
+			51, 102, 204, 408, 816, 1_632, 2_000,
+		]);
+	});
+
+	it("excludes side IDs before the search result limit", async () => {
+		const { handleCommand } = await import("./commands");
+		const { ctx, create } = setup(false);
+		await create();
+		ctx.temporarySideConversations.byParent.clear();
+		const client = ctx.runtimeBindings.get("local")?.hubClient;
+		if (!client) throw new Error("local runtime fixture missing");
+		const hits = [sideId, parentId].map((sessionId) => ({
+			sessionId,
+			documentId: `${sessionId}:0`,
+			ordinal: 0,
+			role: "user",
+			startedAt: "2026-01-01T00:00:00.000Z",
+			workspaceRoot: directory,
+			title: "Saved chat",
+			snippet: "needle",
+			score: -1,
+		}));
+		vi.mocked(client.command).mockImplementation(async (_command, payload) => {
+			const excluded = Array.isArray(payload?.excludeSessionIds)
+				? payload.excludeSessionIds
+				: [];
+			return {
+				version: "v1",
+				ok: true,
+				payload: {
+					hits: hits
+						.filter((hit) => !excluded.includes(hit.sessionId))
+						.slice(0, 1),
+				},
+			};
+		});
+		await expect(
+			handleCommand(ctx, "search_sessions", { query: "needle", limit: 1 }),
+		).resolves.toEqual([expect.objectContaining({ sessionId: parentId })]);
 	});
 
 	it("keeps sides out of discovery while renderer reload can recover them, and parent deletion discards them", async () => {

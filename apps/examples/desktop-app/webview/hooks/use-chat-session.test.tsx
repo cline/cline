@@ -12,6 +12,7 @@ import {
 	writeExecutionTargetToWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
+import type { SessionHistoryItem } from "@/lib/session-history";
 import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
@@ -22,6 +23,7 @@ import { buildToolPresentation } from "../components/views/chat/messages/tool-su
 import type { ChatTransportState } from "./chat-session/types";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
+import { useSessionHydration } from "./use-session-hydration";
 
 const { invokeMock, subscribeMock, subscribeTransportMock } = vi.hoisted(
 	() => ({
@@ -382,15 +384,26 @@ describe("mergeCloudSnapshotWithLive", () => {
 let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
+let hydrationSucceeded: boolean | null;
 
 function HookHarness({
 	environmentId = "local",
 	mainConfig,
+	historySession,
+	retryVersion,
 }: {
 	environmentId?: string;
 	mainConfig?: ChatSessionHook["config"];
+	historySession?: SessionHistoryItem;
+	retryVersion?: number;
 }) {
 	current = useChatSession(environmentId, mainConfig);
+	hydrationSucceeded = useSessionHydration({
+		historySession,
+		sessionId: current.sessionId,
+		hydrateSession: current.hydrateSession,
+		retryVersion,
+	});
 	return null;
 }
 
@@ -446,6 +459,118 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("ignores an attachment result after navigation to a different session", async () => {
+		const oldHistory = deferred<unknown[]>();
+		const session: SessionHistoryItem = {
+			sessionId: "old-side",
+			environmentId: "local",
+			status: "idle",
+			provider: "test",
+			model: "test",
+			cwd: "/workspace/cline",
+			workspaceRoot: "/workspace/cline",
+			startedAt: "2026-01-01T00:00:00Z",
+		};
+		invokeMock.mockImplementation(
+			async (
+				command: string,
+				args?: {
+					sessionId?: string;
+					request?: { action?: string; sessionId?: string };
+				},
+			) => {
+				if (
+					command === "read_session_messages" &&
+					args?.sessionId === "old-side"
+				)
+					return oldHistory.promise;
+				if (
+					command === "chat_session_command" &&
+					args?.request?.action === "attach"
+				)
+					return { ...session, sessionId: args.request.sessionId };
+				return [];
+			},
+		);
+		await act(async () =>
+			root.render(<HookHarness historySession={session} />),
+		);
+		expect(hydrationSucceeded).toBe(null);
+		await act(async () =>
+			root.render(
+				<HookHarness historySession={{ ...session, sessionId: "new-side" }} />,
+			),
+		);
+		expect(hydrationSucceeded).toBe(true);
+		await act(async () => oldHistory.resolve([]));
+		expect(hydrationSucceeded).toBe(true);
+		expect(current.sessionId).toBe("new-side");
+	});
+
+	it.each([
+		false,
+		true,
+	])("retries failed attachment only on explicit reopen (cached history: %s)", async (cached) => {
+		const session: SessionHistoryItem = {
+			sessionId: "side-retry",
+			environmentId: "local",
+			status: "idle",
+			provider: "test",
+			model: "test",
+			cwd: "/workspace/cline",
+			workspaceRoot: "/workspace/cline",
+			startedAt: "2026-01-01T00:00:00Z",
+		};
+		let attempts = 0;
+		const recovery = deferred<SessionHistoryItem>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: { request?: { action?: string } }) => {
+				if (command === "read_session_messages")
+					return cached
+						? [
+								{
+									id: "saved",
+									sessionId: session.sessionId,
+									role: "user",
+									content: "saved question",
+									createdAt: 1,
+								},
+							]
+						: [];
+				if (
+					command === "chat_session_command" &&
+					args?.request?.action === "attach"
+				) {
+					if (++attempts === 1) throw new Error("Temporary attachment failure");
+					return recovery.promise;
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			root.render(<HookHarness historySession={session} retryVersion={1} />),
+		);
+		expect(hydrationSucceeded).toBe(false);
+		expect(current.sessionId).toBe(session.sessionId);
+		await act(async () =>
+			root.render(
+				<HookHarness historySession={{ ...session }} retryVersion={1} />,
+			),
+		);
+		expect(attempts).toBe(1);
+		await act(async () =>
+			root.render(<HookHarness historySession={session} retryVersion={2} />),
+		);
+		expect(hydrationSucceeded).toBe(null);
+		expect(attempts).toBe(2);
+		await act(async () => recovery.resolve(session));
+		expect(hydrationSucceeded).toBe(true);
+		await act(async () =>
+			root.render(<HookHarness historySession={session} retryVersion={3} />),
+		);
+		expect(attempts).toBe(2);
+	});
+
 	it("reconciles pending interactions without reviving resolved requests or mixing environments", async () => {
 		const snapshot = deferred<unknown[]>();
 		const old = {

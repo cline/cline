@@ -731,9 +731,6 @@ export async function disposeSidecarContext(
 ): Promise<void> {
 	const sides = ctx.temporarySideConversations;
 	sides.closing = true;
-	await Promise.allSettled(
-		[...sides.pending.values()].map(({ promise }) => promise),
-	);
 	const cleanup: Array<Promise<unknown>> = [];
 	let sideCleanupResults: PromiseSettledResult<unknown>[] = [];
 	const localManager =
@@ -749,6 +746,9 @@ export async function disposeSidecarContext(
 				}),
 		);
 	}
+	await Promise.allSettled(
+		[...sides.pending.values()].map(({ promise }) => promise),
+	);
 	const approvalCleanup: Array<Promise<unknown>> = [];
 
 	for (const scoped of getEnvironmentContexts(ctx)) {

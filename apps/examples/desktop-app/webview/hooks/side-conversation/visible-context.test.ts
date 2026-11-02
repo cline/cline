@@ -1,6 +1,6 @@
+import { SideVisibleContextSchema } from "@cline/shared/browser";
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { SideVisibleContextSchema } from "@cline/shared/browser";
 import { captureVisibleSideContext } from "./visible-context";
 
 const row = (
@@ -10,6 +10,36 @@ const row = (
 ): ChatMessage => ({ id, role, content, sessionId: "parent", createdAt: 1 });
 
 describe("visible side context", () => {
+	it.each([
+		8, 200,
+	])("reads only retained content once the excerpt cap is reached (%i messages)", (count) => {
+		let reads = 0;
+		const capture = captureVisibleSideContext({
+			messages: [
+				row("current", "user", "current question"),
+				...Array.from(
+					{ length: count },
+					(_, index): ChatMessage => ({
+						...row(`answer-${index}`, "assistant", ""),
+						get content() {
+							reads++;
+							return `answer ${index}`;
+						},
+					}),
+				),
+			],
+			sessionId: "parent",
+			environmentId: "local",
+			queuedIds: new Set(),
+			unconfirmedIds: new Set(),
+		});
+		expect(reads).toBe(Math.min(count, 11));
+		expect(capture.excerpts.at(-1)?.text).toBe(`answer ${count - 1}`);
+		expect(capture.excerpts[0].text).toBe("current question");
+		expect(capture.omittedExcerptCount).toBe(Math.max(0, count - 11));
+		expect(SideVisibleContextSchema.safeParse(capture).success).toBe(true);
+	});
+
 	it("captures only the current source run, excludes queued identities and labels uncertain submission", () => {
 		const capture = captureVisibleSideContext({
 			messages: [
