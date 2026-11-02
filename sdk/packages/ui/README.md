@@ -130,12 +130,13 @@ derived values. Consumers may import either public token entry point.
 
 ## Theme usage
 
-`text-destructive` uses the readable `--error-text` role in both color modes.
-Filled destructive controls should use `bg-error-solid text-error-contrast`;
-`--error-contrast` is white, paired with a darker fill in dark mode. When
-updating an existing consumer, migrate solid `bg-destructive` fills and their
-hover styles to `error-solid` together. Keep `text-destructive` for error text
-and destructive actions on neutral or tinted surfaces.
+Existing consumers can keep `text-destructive` for error text and
+`bg-destructive text-destructive-foreground` for filled actions. The Tailwind
+mapping uses `--error-text` for destructive text and `--destructive` (the
+`--error-solid` alias) for backgrounds, borders, and rings. The label stays
+white through `--destructive-foreground`. Opacity modifiers, interaction
+variants, and the namespaced `cline-ui` utilities follow the same mapping.
+Framework-neutral CSS should use `--error-text` for readable error text.
 
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
