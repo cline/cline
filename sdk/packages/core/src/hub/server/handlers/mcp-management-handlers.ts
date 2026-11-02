@@ -12,6 +12,8 @@ const name = z
 		(value) => !["__proto__", "prototype", "constructor"].includes(value),
 		"Invalid server name",
 	);
+// Deletion addresses a stored JSON key, including malformed or reserved names.
+const storedKey = z.string();
 const strings = z.record(z.string(), z.string());
 const common = {
 	name,
@@ -72,7 +74,7 @@ export async function handleMcpManagementCommand(
 				});
 			}
 			case "mcp.servers.delete": {
-				const input = z.object({ name }).strict().parse(payload);
+				const input = z.object({ name: storedKey }).strict().parse(payload);
 				return okReply(envelope, { ...(await service.delete(input.name)) });
 			}
 			case "mcp.servers.inspect": {

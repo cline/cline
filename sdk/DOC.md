@@ -413,7 +413,8 @@ await mcp.delete("local");
 `ensureSettings()` creates the settings file without rewriting an existing file;
 `install(args)` accepts marketplace MCP install arguments using the existing
 parser and registers the transport without opening a connection. Callers cannot choose a settings path. Invalid requests fail before
-writing. Catalog responses include invalid entries with configuration errors and
+writing. Deletion uses the exact stored key, including whitespace and reserved
+names, so malformed entries remain removable. Catalog responses include invalid entries with configuration errors and
 OAuth readiness, without OAuth token state. Static environment/header values are
 available only to authenticated clients for editing.
 
@@ -422,7 +423,8 @@ failed probes leave the server disabled and never open a browser. Same-endpoint
 edits retain OAuth credentials and metadata; endpoint changes discard those
 credentials. MCP requests are not replayed after dispatch. Mutations and probes
 are serialized, accepted work keeps the Hub busy, draining rejects new work, and
-shutdown waits for accepted operations. Inspection opens a temporary client and
+shutdown waits for accepted operations. Lock acquisition yields the event loop,
+and Desktop mutation calls wait for completion of queued work. Inspection opens a temporary client and
 always disconnects it. Interactive MCP OAuth remains a separate migration.
 
 ### Provider authentication metadata for host UIs

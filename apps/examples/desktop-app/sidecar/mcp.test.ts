@@ -57,6 +57,17 @@ describe("Desktop MCP Hub adapter", () => {
 			"/hub/settings.json",
 		);
 	});
+	it.each([
+		" foo ",
+		"constructor",
+		"prototype",
+		"__proto__",
+		"",
+	])("passes the exact deletion key %j to the Hub", async (name) => {
+		await handleCommand(ctx, "delete_mcp_server", { name });
+		expect(api.delete).toHaveBeenCalledWith(name);
+	});
+
 	it("propagates hub failures without a local settings fallback", async () => {
 		api.upsert.mockRejectedValue(new Error("Hub unavailable"));
 		await expect(

@@ -14,11 +14,10 @@ import {
 	getMcpServerOAuthStatus,
 	parseMcpServerRegistration,
 	resolveMcpServerRegistration,
-	setMcpServerDisabled,
-	updateMcpSettingsFileSync,
+	updateMcpSettingsFile,
 } from "../extensions/mcp/config-loader";
 import type { McpServerTransportConfig } from "../extensions/mcp/types";
-import { installMcpServer, parseMcpInstallArgs } from "./mcp-install";
+import { buildMcpInstallTransport, parseMcpInstallArgs } from "./mcp-install";
 
 type JsonRecord = Record<string, unknown>;
 function stringMap(value: object): Record<string, string> {
@@ -166,10 +165,10 @@ export function buildMcpServersResponse(
 	return { settingsPath, hasSettingsFile: true, servers: entries };
 }
 
-export function ensureMcpSettingsFile(): string {
+export async function ensureMcpSettingsFile(): Promise<string> {
 	const path = resolveMcpSettingsPath();
 	if (!existsSync(path))
-		updateMcpSettingsFileSync(path, (settings) => {
+		await updateMcpSettingsFile(path, (settings) => {
 			settings.mcpServers ??= {};
 		});
 	return path;
@@ -187,14 +186,23 @@ export class McpManagementService {
 		return readMcpServersResponse();
 	}
 	ensure() {
-		return this.enqueue(() => ({ settingsPath: ensureMcpSettingsFile() }));
+		return this.enqueue(async () => ({
+			settingsPath: await ensureMcpSettingsFile(),
+		}));
 	}
 	install(args: string[]) {
-		return this.enqueue(() => installMcpServer(parseMcpInstallArgs(args)));
+		return this.enqueue(async () => {
+			const result = buildMcpInstallTransport(parseMcpInstallArgs(args));
+			await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
+				const servers = settings.mcpServers as JsonRecord;
+				servers[result.name] = { transport: result.transport };
+			});
+			return { ...result, status: "installed" as const };
+		});
 	}
 	delete(name: string) {
-		return this.enqueue(() => {
-			updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
+		return this.enqueue(async () => {
+			await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
 				const servers = settings.mcpServers as JsonRecord | undefined;
 				if (servers) delete servers[name];
 			});
@@ -205,7 +213,7 @@ export class McpManagementService {
 		return this.enqueue(async () => {
 			const path = resolveMcpSettingsPath();
 			if (disabled) {
-				setMcpServerDisabled({ filePath: path, name, disabled: true });
+				await this.writeDisabled(name, true);
 				return this.list();
 			}
 			const registration = resolveMcpServerRegistration(name, {
@@ -213,19 +221,32 @@ export class McpManagementService {
 			});
 			if (!registration) throw new Error(`unknown MCP server: ${name}`);
 			if (registration.transport.type !== "stdio") {
-				setMcpServerDisabled({ filePath: path, name, disabled: true });
+				await this.writeDisabled(name, true);
 				const probe = await probeMcpServerConnection({
 					serverName: name,
 					filePath: path,
 				});
 				if (!probe.connected) return this.list();
-				this.enableIfUnchanged(name, registration.transport);
-			} else setMcpServerDisabled({ filePath: path, name, disabled });
+				await this.enableIfUnchanged(name, registration.transport);
+			} else await this.writeDisabled(name, disabled);
 			return this.list();
 		});
 	}
-	private enableIfUnchanged(name: string, transport: McpServerTransportConfig) {
-		updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
+	private async writeDisabled(name: string, disabled: boolean) {
+		await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
+			const servers = settings.mcpServers as JsonRecord;
+			const current = Object.hasOwn(servers, name) ? servers[name] : undefined;
+			if (!current || typeof current !== "object" || Array.isArray(current))
+				throw new Error(`unknown MCP server: ${name}`);
+			servers[name] = { ...current, disabled };
+		});
+	}
+
+	private async enableIfUnchanged(
+		name: string,
+		transport: McpServerTransportConfig,
+	) {
+		await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
 			const servers = settings.mcpServers as JsonRecord | undefined;
 			const current = servers?.[name];
 			if (!servers || !current || typeof current !== "object") return;
@@ -257,20 +278,59 @@ export class McpManagementService {
 				metadata,
 			});
 			const path = resolveMcpSettingsPath();
-			const { shouldProbe } = updateMcpSettingsFileSync(path, (settings) => {
+			const { shouldProbe } = await updateMcpSettingsFile(path, (settings) => {
 				const servers = (settings.mcpServers ?? {}) as JsonRecord;
 				const existingName =
 					previousName && servers[previousName] ? previousName : name;
 				const existing = servers[existingName] as JsonRecord | undefined;
-				let existingTransport: McpServerTransportConfig | undefined;
-				try {
-					if (existing)
-						existingTransport = parseMcpServerRegistration(
-							existingName,
-							existing,
-						).transport;
-				} catch {
-					/* Allow repairing malformed entries. */
+				let existingTransport: { type: string; url?: string } | undefined;
+				if (existing) {
+					// Only transport fields determine credential ownership. Bad metadata or
+					// OAuth bookkeeping must not make an unchanged endpoint look different.
+					const {
+						transport,
+						command,
+						args,
+						cwd,
+						env,
+						url,
+						headers,
+						transportType,
+						type,
+					} = existing;
+					try {
+						existingTransport = parseMcpServerRegistration(existingName, {
+							transport,
+							command,
+							args,
+							cwd,
+							env,
+							url,
+							headers,
+							transportType,
+							type,
+						}).transport;
+					} catch {
+						// Repair unrelated or malformed fields without losing ownership of a
+						// still-identifiable endpoint. Match the catalog's raw-field projection.
+						const raw =
+							transport && typeof transport === "object"
+								? (transport as JsonRecord)
+								: existing;
+						const rawUrl =
+							typeof raw.url === "string"
+								? raw.url
+								: typeof url === "string"
+									? url
+									: undefined;
+						const rawType = String(
+							raw.type ?? transportType ?? type ?? (rawUrl ? "sse" : "stdio"),
+						).trim();
+						existingTransport = {
+							type: rawType === "http" ? "streamableHttp" : rawType,
+							url: rawUrl,
+						};
+					}
 				}
 				const sameEndpoint =
 					existingTransport !== undefined &&
@@ -305,7 +365,7 @@ export class McpManagementService {
 					filePath: path,
 				});
 				if (probe.connected)
-					this.enableIfUnchanged(name, nextRegistration.transport);
+					await this.enableIfUnchanged(name, nextRegistration.transport);
 			}
 			return this.list();
 		});

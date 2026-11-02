@@ -111,6 +111,123 @@ describe("Hub MCP management", () => {
 			expect.objectContaining({ retryAfterDispatch: false }),
 		);
 	});
+	it("deletes the exact stored key, including whitespace and reserved names", async () => {
+		const names = ["foo", " foo ", "constructor", "prototype", "__proto__", ""];
+		await seed(
+			Object.fromEntries(
+				names.map((name) => [
+					name,
+					{ transport: { type: "stdio", command: "node" } },
+				]),
+			),
+		);
+		for (const name of names.slice(1)) {
+			await api.delete(name);
+			const remaining = Object.keys(
+				JSON.parse(await readFile(path, "utf8")).mcpServers,
+			);
+			expect(remaining).not.toContain(name);
+			expect(remaining).toContain("foo");
+		}
+		expect((await api.list()).servers.map((server) => server.name)).toEqual([
+			"foo",
+		]);
+	});
+	it.each([
+		{ transport: { type: "streamableHttp", url: "https://example.test/mcp" } },
+		{ type: "http", url: "https://example.test/mcp" },
+		{ command: "npx", args: ["-y", "mcp-remote", "https://example.test/mcp"] },
+	])("retains OAuth credentials when repairing unrelated malformed metadata: %j", async (transport) => {
+		const oauth = { tokens: { access_token: "keep-token" } };
+		const oauthClient = {
+			clientId: "keep-client",
+			clientSecret: "keep-secret",
+		};
+		await seed({
+			remote: {
+				...transport,
+				disabled: false,
+				metadata: "invalid",
+				oauth,
+				oauthClient,
+			},
+		});
+		const probe = vi.spyOn(McpClient, "probeMcpServerConnection");
+		await api.upsert({
+			name: "remote",
+			transportType: "streamableHttp",
+			url: "https://example.test/mcp",
+			metadata: { repaired: true },
+		});
+		let saved = JSON.parse(await readFile(path, "utf8")).mcpServers.remote;
+		expect(saved).toMatchObject({
+			oauth,
+			oauthClient,
+			metadata: { repaired: true },
+		});
+		expect(probe).not.toHaveBeenCalled();
+		await api.upsert({
+			name: "remote",
+			transportType: "streamableHttp",
+			url: "https://other.test/mcp",
+			disabled: true,
+		});
+		saved = JSON.parse(await readFile(path, "utf8")).mcpServers.remote;
+		expect(saved.oauth).toBeUndefined();
+		expect(saved.oauthClient).toBeUndefined();
+	});
+	it.each([
+		"ensure",
+		"upsert",
+		"install",
+		"delete",
+		"disable",
+	] as const)("keeps the Hub responsive while %s waits for a cross-process settings lock", async (operation) => {
+		if (operation !== "ensure")
+			await seed({ local: { transport: { type: "stdio", command: "node" } } });
+		const lock = `${path}.lock`;
+		await mkdir(lock, { recursive: true });
+		await writeFile(join(lock, "owner.external"), "external");
+		const wait = vi.spyOn(Atomics, "wait").mockImplementation(() => {
+			throw new Error("Blocking lock acquisition in Hub");
+		});
+		const tasks = {
+			ensure: () => api.ensureSettings(),
+			upsert: () =>
+				api.upsert({ name: "other", transportType: "stdio", command: "node" }),
+			install: () => api.install(["other", "--", "node"]),
+			delete: () => api.delete("local"),
+			disable: () => api.setDisabled("local", true),
+		};
+		let settled = false;
+		const pending = tasks[operation]();
+		void pending.then(
+			() => {
+				settled = true;
+			},
+			() => {
+				settled = true;
+			},
+		);
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(settled).toBe(false);
+			expect(
+				(
+					await transport.handleCommand({
+						version: "v1",
+						command: "hub.status",
+					})
+				).ok,
+			).toBe(true);
+			expect(wait).not.toHaveBeenCalled();
+		} finally {
+			await rm(lock, { recursive: true, force: true });
+		}
+		await pending;
+		expect(wait).not.toHaveBeenCalled();
+	});
+
 	it("keeps malformed entries independently editable without returning OAuth secrets", () => {
 		const response = buildMcpServersResponse(path, {
 			mcpServers: {

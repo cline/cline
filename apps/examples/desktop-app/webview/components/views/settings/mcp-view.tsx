@@ -277,6 +277,7 @@ export function McpServersContent({
 					name: server.name,
 					disabled,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} catch (error) {
@@ -296,6 +297,7 @@ export function McpServersContent({
 				{
 					input,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} finally {
@@ -313,6 +315,7 @@ export function McpServersContent({
 				{
 					name: serverName,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} catch (error) {
@@ -446,6 +449,8 @@ export function McpServersContent({
 		try {
 			const openedPath = await desktopClient.invoke<string>(
 				"open_mcp_settings_file",
+				undefined,
+				{ timeoutMs: null },
 			);
 			if (openedPath.trim().length > 0) {
 				setSettingsPath(openedPath);

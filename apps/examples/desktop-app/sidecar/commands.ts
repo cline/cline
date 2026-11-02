@@ -3457,7 +3457,8 @@ export async function handleCommand(
 		);
 	}
 	if (command === "delete_mcp_server") {
-		const name = String(args?.name ?? "").trim();
+		const name = args?.name;
+		if (typeof name !== "string") throw new Error("server name is required");
 		cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
 		return createHubMcpApi(await ensureSharedHubClient(ctx)).delete(name);
 	}
