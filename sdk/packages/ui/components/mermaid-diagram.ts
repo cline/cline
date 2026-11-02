@@ -649,7 +649,7 @@ export interface MermaidThemeTokens {
 	/** Diagram surface (`--card`); also the PNG background fill. */
 	background: string;
 	border: string;
-	/** Destructive/error role color (`--destructive`). */
+	/** Readable error color (`--destructive`, aliasing `--error-text`). */
 	error: string;
 	foreground: string;
 	muted: string;
@@ -666,7 +666,7 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	dark: {
 		background: "#1a1a1f",
 		border: "#282830",
-		error: "#ba1f1c",
+		error: "#ff6d60",
 		foreground: "#fcfcfc",
 		muted: "#212127",
 		mutedForeground: "#c0c0c7",
@@ -675,7 +675,7 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	light: {
 		background: "#f3f3fa",
 		border: "#e3e3ee",
-		error: "#ca0500",
+		error: "#c00000",
 		foreground: "#1f1f25",
 		muted: "#ececf5",
 		mutedForeground: "#3c3c44",
