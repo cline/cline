@@ -219,7 +219,7 @@ export function AgentAskQuestion({
 						<div className="cline-ui-agent-ask-question__footer flex flex-col gap-2 border-cline-ui-border border-t px-2 py-2">
 							{error ? (
 								<div
-									className="cline-ui-agent-ask-question__error text-cline-ui-error-text text-cline-ui-xs px-2"
+									className="cline-ui-agent-ask-question__error text-cline-ui-destructive text-cline-ui-xs px-2"
 									role="alert"
 								>
 									{error}

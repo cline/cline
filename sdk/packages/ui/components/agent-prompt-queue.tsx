@@ -274,7 +274,7 @@ export function AgentPromptQueue({
 								)}
 								{actionError?.id === item.id ? (
 									<p
-										className="cline-ui-agent-prompt-queue__error m-0 mt-1 text-cline-ui-error-text text-cline-ui-xs"
+										className="cline-ui-agent-prompt-queue__error m-0 mt-1 text-cline-ui-destructive text-cline-ui-xs"
 										role="alert"
 									>
 										{actionError.message}
