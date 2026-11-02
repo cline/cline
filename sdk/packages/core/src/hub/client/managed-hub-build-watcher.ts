@@ -66,6 +66,8 @@ export interface ManagedHubBuildMismatchEvent {
 	participantClientCount?: number;
 	/** Active plugin commands or catalog requests on the running Hub. */
 	activePluginRequests?: number;
+	/** Accepted provider settings and model-file writes on the running Hub. */
+	activeProviderMutations?: number;
 }
 
 export interface CheckManagedHubBuildOptions {
@@ -93,6 +95,7 @@ async function withHubSessionActivity(
 			activeSessionCount: activity.activeSessionCount,
 			participantClientCount: activity.participantClientCount,
 			activePluginRequests: activity.activePluginRequests,
+			activeProviderMutations: activity.activeProviderMutations,
 		};
 	} catch {
 		return event;

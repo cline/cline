@@ -117,6 +117,36 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+`createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
+`publish_artifacts` tool. It validates batches and local file paths, assigns missing
+IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
+receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+signal, and returns one result per file in input order. Storage-specific policy
+and persistence belong to the publisher; constructing the tool does not register
+it in default local tools. Hosts control tool approval and which local paths may
+be published; the tool itself does not restrict paths to a workspace.
+
+For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
+from `@cline/core/cloud`. The host provides authenticated transport and the owning
+session ID. The publisher uploads directly with one signed policy per batch,
+refreshes expired policies, and retries transient failures with the same IDs.
+The service remains responsible for upload authorization and limits.
+
+`createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
+returns `fetchArtifact({ artifactId, signal? })`, which downloads a streaming
+`Response`. Each fetcher caches up to 128 signed URLs, refreshing 30 seconds before
+expiry or once after a storage HTTP 403. Missing files and file bytes are not cached.
+Reuse one fetcher per authenticated account/session; discard it on sign-out or
+account changes. Cache hits do not recheck session permissions until URL renewal.
+Wait for a successful publication result before fetching a new artifact. The caller
+consumes or cancels the response body and applies any read size limit. The optional
+signal cancels the download, including while reading its body. This helper does not
+register an agent tool or attach files to messages.
+
+`HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
+an existing artifact through the authenticated Hub without starting its sandbox.
+It returns a signed HTTPS URL and expiry for clients that download directly.
+
 For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
 could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
 hosts should direct users to their session list instead of offering a blind retry.
@@ -334,6 +364,36 @@ executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon marke
 take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
+
+### Hub provider and model management
+
+Use `createHubProvidersApi(client)` from `@cline/core` or `@cline/core/hub`
+with an existing registered `NodeHubClient`. Provider settings belong to the
+machine running that Hub; Desktop uses its local connection even while viewing
+an SSH environment.
+
+| Method | Hub command |
+| --- | --- |
+| `list({ isClinePassEnabled })` | `providers.list` |
+| `listModels({ providerId, includeCloudModels })` | `providers.models.list` |
+| `recommendedModels()` | `providers.models.recommended` |
+| `saveSettings({ providerId, ...settings })` | `providers.settings.save` |
+| `add({ providerId, name, baseUrl, ...options })` | `providers.add` |
+| `updateModels({ providerId, models })` | `providers.models.update` |
+
+The network-free catalog includes saved voice selection and authentication
+metadata. Model discovery uses current provider credentials and omits bundled
+known-model overrides; Cline cloud models are included only when explicitly
+requested. Recommended models retain the bundled offline fallback.
+
+Settings writes merge nested configuration. Null or empty-string nested values
+remove individual fields. Disabling Cline Pass also removes its shared Cline
+credentials, and disabling a provider clears applicable legacy secrets so they
+cannot restore the removed credentials. `saveSettings` returns
+`clineCredentialsChanged` alongside the saved provider id, enabled state, and
+settings path, allowing hosts to update account and cloud views. Provider API
+calls do not automatically resend dispatched requests after a connection loss.
+OAuth login and audio transcription remain separate APIs.
 
 ### Provider authentication metadata for host UIs
 
@@ -715,3 +775,15 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+### UX verification report renderer
+
+`@cline/shared/browser` exports `UxVerificationReportSchema`, `UxVerificationCheckSchema`, `UxScreenshotSchema` and their types. A report contains a title, environment subtitle and ordered checks with unique IDs, passed/failed/blocked statuses, observations and optional action labels. Passed/failed checks require screenshot evidence. This contract describes presentation independently of how checks are run.
+
+`@cline/ui` exports `AgentUxVerification` with `output` and `state` (`running`, `completed`, `error`). It validates the report and renders screenshot evidence, derived status counts, titles, observations, thumbnails and optional slideshow. Left/Right switch slides and pause playback; Space toggles playback while the carousel itself has focus. Import `@cline/ui/components.css` for styling.
+
+Native inline screenshots use validated browser-owned Blob URLs and show a fallback on load errors. Hosts supply `renderScreenshot(check, className, presentation)` for trusted remote or authenticated asset references, including retrying signed URLs only after a fetch error; the renderer performs no URL refresh or transport. Hosts supply `onExpandScreenshot(check)` to open their own image viewer. No producer tool, subagent lifecycle, storage format, CLI projection or product transcript policy is part of this component.
+
+UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
+
+UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.

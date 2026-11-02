@@ -11,6 +11,7 @@ import {
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
 } from "./api";
+import { CLOUD_COMPUTER_USE_PROMPT } from "./computer-use-prompt";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
@@ -61,6 +62,10 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		delete: vi.fn(async () => {}),
 		updateTitle: vi.fn(async () => structuredClone(record)),
 		history: vi.fn(async () => null),
+		getArtifactDownloadUrl: vi.fn(async () => ({
+			url: "https://storage.example/image.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		})),
 		waitUntilReady: vi.fn(
 			async (_sessionId: string, _signal: AbortSignal) => {},
 		),
@@ -1583,6 +1588,62 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it.each([
+		["flag on, image model", true, "anthropic/claude-sonnet-4.5", true],
+		["flag off", false, "anthropic/claude-sonnet-4.5", false],
+		["model not in the catalog", true, "model", false],
+	] as const)("gates the computer-use prompt section: %s", async (_label, enabled, modelId, expected) => {
+		const isComputerUseEnabled = vi.fn(async () => enabled);
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled,
+		});
+		f.api.list.mockResolvedValue([
+			{ ...record, metadata: { ...record.metadata, modelId } },
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).toContain("branch `cline/inner`");
+			expect(
+				sessionConfig.systemPrompt.includes(CLOUD_COMPUTER_USE_PROMPT),
+			).toBe(expected);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("omits the computer-use prompt section when the gate throws", async () => {
+		const f = fixture({
+			pendingInitialTasks: new Map([[record.id, {}]]),
+			isComputerUseEnabled: async () => {
+				throw new Error("flag service down");
+			},
+		});
+		f.api.list.mockResolvedValue([
+			{
+				...record,
+				metadata: {
+					...record.metadata,
+					modelId: "anthropic/claude-sonnet-4.5",
+				},
+			},
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			expect(sessionConfig.systemPrompt).not.toContain(
+				"Verify your work visually",
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not recreate a missing established session with manual creation options", async () => {
 		const f = fixture();
 		f.setHasInner(false);
@@ -1759,7 +1820,12 @@ describe("seeded cloud handoff controller", () => {
 			reasoningEffort: "high",
 		},
 	};
-	function fixture(taskId?: string) {
+	function fixture(
+		taskId?: string,
+		options: Pick<CloudSessionControllerOptions, "isComputerUseEnabled"> & {
+			modelId?: string;
+		} = {},
+	) {
 		let rows: Record<string, unknown>[] = [];
 		let transcript: MessageWithMetadata[] = [];
 		let failure: "none" | "timeout" | "malformed" | "send-timeout" | "connect" =
@@ -1841,13 +1907,21 @@ describe("seeded cloud handoff controller", () => {
 			list: vi.fn(async () => [
 				{
 					...structuredClone(record),
-					metadata: { ...record.metadata, taskId },
+					metadata: {
+						...record.metadata,
+						...(options.modelId ? { modelId: options.modelId } : {}),
+						taskId,
+					},
 				},
 			]),
 			status: vi.fn(async () => ({ status: "ready" })),
 			waitUntilReady: vi.fn(async () => {}),
 			delete: vi.fn(async () => {}),
 			history: vi.fn(async () => null),
+			getArtifactDownloadUrl: vi.fn(async () => ({
+				url: "https://storage.example/image.png",
+				expiresAt: "2030-01-01T00:00:00Z",
+			})),
 			updateTitle: vi.fn(async () => record),
 			listRepositories: vi.fn(async () => ({
 				connected: true,
@@ -1872,6 +1946,7 @@ describe("seeded cloud handoff controller", () => {
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "token",
 			getActiveOrganizationId: async () => "active-org",
+			isComputerUseEnabled: options.isComputerUseEnabled,
 			createHubClient: () => ({
 				command: command as never,
 				connect: async () => {},
@@ -1925,6 +2000,21 @@ describe("seeded cloud handoff controller", () => {
 		} finally {
 			await f.controller.dispose();
 		}
+	});
+	it("adds the computer-use prompt section to gated handoffs", async () => {
+		const f = fixture(undefined, {
+			modelId: "anthropic/claude-sonnet-4.5",
+			isComputerUseEnabled: async () => true,
+		});
+		await f.controller.seedHandoff(record.id, seed);
+		const prompt = (
+			f.calls.find((call) => call.name === "session.create")?.payload
+				?.sessionConfig as Record<string, unknown>
+		).systemPrompt as string;
+		expect(prompt).toContain("fresh Linux clone");
+		expect(prompt).toContain("subdirectory at /workspace/packages/app");
+		expect(prompt).toContain(CLOUD_COMPUTER_USE_PROMPT);
+		await f.controller.dispose();
 	});
 	it("does not use old identical seeded text to confirm a new ambiguous send", async () => {
 		const f = fixture();
@@ -2281,4 +2371,21 @@ describe("seeded cloud handoff controller", () => {
 		);
 		await f.controller.dispose();
 	});
+});
+
+it("retrieves an artifact without connecting to or resuming its sandbox", async () => {
+	const f = fixture();
+	expect(
+		await f.controller.getArtifactDownloadUrl("ses-stopped", "frame"),
+	).toEqual({
+		url: "https://storage.example/image.png",
+		expiresAt: "2030-01-01T00:00:00Z",
+	});
+	expect(f.api.getArtifactDownloadUrl).toHaveBeenCalledWith(
+		"ses-stopped",
+		"frame",
+	);
+	expect(f.api.resume).not.toHaveBeenCalled();
+	expect(f.commands).toEqual([]);
+	await f.controller.dispose();
 });

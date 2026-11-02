@@ -244,7 +244,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			transport,
 			undefined,
 			"/daemon-workspace",
-		).attach(socket, { allowRegisteredWorkspace: true });
+		).attach(socket, { tokenAuthenticated: true });
 
 		for (const [requestId, command] of [
 			["register", "client.register"],
@@ -291,6 +291,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			},
 			crossWorkspace: true,
 			connectionId: expect.any(String),
+			tokenAuthenticated: true,
 		});
 	});
 
