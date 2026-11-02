@@ -1341,3 +1341,16 @@ UX screenshot evidence specializes the existing `GeneratedMediaSchema` to suppor
 MCP OAuth ownership is keyed by the transport-captured connection authority, independently of caller-selected client IDs. Socket cleanup retains that authority. Explicit user cancellation can restore the original enabled state; viewer disconnect cancellation leaves the server disabled. Clients carry that distinction through the cancellation command and check cancellation before each browser launch.
 
 Desktop submission ordering waits for plugin preparation and socket dispatch, not the agent-turn response. The webview can abort its wait for plugin discovery or execution immediately, releasing submission ordering on Stop while ignoring late results and retaining rejection handlers for the original request. Session startup returns the resolved session ID and workspace together so prompts queued during worktree allocation target the started workspace. Provider OAuth remains active through the original provider promise after UI cancellation, and Hub shutdown awaits that work before declaring cleanup complete.
+
+### Hub skill management
+
+Desktop Marketplace skill status, installation, and removal use the local Hub's
+`skills.marketplace.*` commands through `createHubSkillsApi`. The Hub fetches the
+canonical catalog and accepts entry IDs rather than client-supplied installer
+arguments. Core owns the global skills CLI installer/remover and output redaction.
+`skills.remove` removes a local skill inside configured workspace or global roots;
+it rejects symlinked parent paths escaping those roots. All skill commands require
+registered token authentication. Mutations serialize, invalidate skill settings,
+count toward Hub activity/replacement decisions, and finish before shutdown;
+draining refuses new mutations. Desktop still assembles instruction inventory and
+owns toggle settings, while plugin and workflow mutations remain in the sidecar.

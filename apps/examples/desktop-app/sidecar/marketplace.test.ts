@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin, SKILLS_CLI_PACKAGE } from "@cline/core";
+import { installPlugin } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
@@ -190,45 +190,23 @@ describe("official plugin install detection", () => {
 	});
 });
 
-describe("skill install failures", () => {
-	it("explains the missing Git dependency when the skills CLI cannot spawn git", async () => {
-		vi.stubEnv("HOME", tempClineDir);
-		const spawnCommand = vi.fn().mockResolvedValue({
-			exitCode: 1,
-			stdout: "",
-			stderr:
-				"Failed to clone https://github.com/cline/skills.git: Error: spawn git ENOENT",
-		});
-
+describe("Hub-owned skills", () => {
+	it("rejects skill mutations and excludes them from sidecar status", async () => {
 		await expect(
-			installMarketplaceEntry({ entry: SKILL_ENTRY }, { spawnCommand }),
-		).rejects.toThrow(
-			/Git is required to install this skill\. Install Git, make sure it is on PATH, and retry\./,
-		);
-		expect(spawnCommand).toHaveBeenCalledWith("npx", [
-			"-y",
-			SKILLS_CLI_PACKAGE,
-			"add",
-			"https://github.com/cline/skills.git",
-			"-g",
-			"-a",
-			"cline",
-			"-y",
-		]);
-	});
-
-	it("keeps unrelated CLI errors without Git guidance", async () => {
-		vi.stubEnv("HOME", tempClineDir);
-		const spawnCommand = vi.fn().mockResolvedValue({
-			exitCode: 1,
-			stdout: "",
-			stderr: "Network request failed",
-		});
-
+			installMarketplaceEntry({ entry: SKILL_ENTRY }),
+		).rejects.toThrow("belong to the Hub");
 		await expect(
-			installMarketplaceEntry({ entry: SKILL_ENTRY }, { spawnCommand }),
-		).rejects.toThrow(
-			"Skill install failed with exit code 1:\nNetwork request failed",
+			uninstallMarketplaceEntry({ entry: SKILL_ENTRY }),
+		).rejects.toThrow("belong to the Hub");
+		await expect(
+			uninstallLocalPrimitive({
+				type: "skill",
+				id: "example-skill",
+				path: "/tmp/SKILL.md",
+			}),
+		).rejects.toThrow("belong to the Hub");
+		expect(listMarketplaceInstalledEntries({ entries: [SKILL_ENTRY] })).toEqual(
+			{ installedKeys: [] },
 		);
 	});
 });

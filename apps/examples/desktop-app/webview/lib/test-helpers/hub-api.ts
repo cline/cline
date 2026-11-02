@@ -3,6 +3,7 @@ import {
 	createHubPluginCommandsApi,
 	createHubProviderAuthApi,
 	createHubProvidersApi,
+	createHubSkillsApi,
 } from "@cline/core/hub/browser";
 
 /** Domain APIs backed by a test-owned command recorder; no Desktop transport. */
@@ -35,6 +36,7 @@ export function mockHubApis(
 		hubProviders: createHubProvidersApi(client),
 		hubAccount: createHubProviderAuthApi(client),
 		hubMcp: createHubMcpApi(client),
+		hubSkills: createHubSkillsApi(client),
 		hubPlugins: () => createHubPluginCommandsApi(client),
 	};
 }

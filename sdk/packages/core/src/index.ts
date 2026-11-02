@@ -653,9 +653,11 @@ export type {
 	UninstallMarketplaceEntryOptions,
 } from "./services/marketplace";
 export {
+	fetchMarketplaceCatalog,
 	findInstalledGlobalMarketplaceSkillName,
 	getGlobalMarketplaceSkillPaths,
 	getMarketplaceSkillCandidates,
+	installMarketplaceSkill,
 	isMarketplaceSkillInstalled,
 	marketplaceEntryKey,
 	resolveMarketplaceMcpServerName,
@@ -1060,6 +1062,7 @@ export { createHubMcpApi, type HubMcpApi } from "./hub/client/mcp";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
 export { createHubProviderAuthApi } from "./hub/client/provider-auth";
 export { createHubProvidersApi } from "./hub/client/providers";
+export { createHubSkillsApi } from "./hub/client/skills";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";

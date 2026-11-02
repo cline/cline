@@ -41,6 +41,7 @@ const {
 			activeCloudCommands?: number;
 			activeProviderMutations?: number;
 			activeMcpRequests?: number;
+			activeSkillRequests?: number;
 		}> => ({
 			activeSessionCount: 0,
 			participantClientCount: 0,
@@ -567,6 +568,7 @@ describe("ensureDetachedHubServer", () => {
 		"activeCloudCommands",
 		"activeProviderMutations",
 		"activeMcpRequests",
+		"activeSkillRequests",
 	] as const)("preserves an older hub with %s instead of retiring it", async (activity) => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
@@ -1109,6 +1111,7 @@ describe("upgradeManagedHub", () => {
 		"activeCloudCommands",
 		"activeProviderMutations",
 		"activeMcpRequests",
+		"activeSkillRequests",
 	] as const)("leaves a hub with %s running when not forced", async (activity) => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,

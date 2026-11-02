@@ -3,10 +3,11 @@ export { BrowserHubClient } from "./client/browser-client";
 export {
 	type HubBrowserConnection,
 	type HubCommandClient,
-	type HubCommandOptions,
 	HubCommandError,
+	type HubCommandOptions,
 } from "./client/command-client";
 export { createHubMcpApi } from "./client/mcp";
 export { createHubPluginCommandsApi } from "./client/plugin-commands";
 export { createHubProviderAuthApi } from "./client/provider-auth";
 export { createHubProvidersApi } from "./client/providers";
+export { createHubSkillsApi } from "./client/skills";

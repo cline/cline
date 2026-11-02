@@ -290,3 +290,11 @@ Desktop recognizes semantic `ux_verification` tool results independently of the 
 This integration preserves existing work disclosures. Lifting reports out of completed work summaries, producing reports, and other product integrations remain separate changes.
 
 UX image callbacks distinguish full slides from non-interactive thumbnails. Desktop suppresses artifact recovery controls inside thumbnail selection buttons. Inline image decode failures are handled by the shared media renderer in both the carousel and expanded dialog.
+
+### Skill management
+
+Marketplace skill status/install/uninstall and local skill deletion use
+`createHubSkillsApi` over the webview's direct local Hub connection. The Hub owns
+catalog lookup, installer processes, filesystem boundaries, and settings
+invalidation. The sidecar retains inventory assembly, toggle persistence, plugin
+installation/removal, and workflow deletion.

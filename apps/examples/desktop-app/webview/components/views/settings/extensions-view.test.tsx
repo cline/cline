@@ -307,6 +307,7 @@ describe("tool state controls", () => {
 });
 
 vi.mock("@/lib/hub-client", () => ({
+	hubSkills: { remove: vi.fn() },
 	hubMcp: { list: vi.fn(async () => ({ servers: [] })) },
 	hubProviders: { list: vi.fn(async () => ({ providers: [] })) },
 }));

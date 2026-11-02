@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
@@ -55,6 +61,24 @@ const SECRET_BEARER_VALUE_PATTERN =
 	/((?:^|[^\w])authorization\s*[:=]\s*)bearer\s+([^\s,"'}\]]+)/gi;
 const SECRET_AUTHORIZATION_VALUE_PATTERN =
 	/((?:^|[^\w])authorization\s*[:=])(?!\s*bearer\b)\s*(.+)$/gi;
+
+/** Shared catalog source for host UIs and daemon-owned Marketplace actions. */
+export async function fetchMarketplaceCatalog(
+	fetchImpl: typeof fetch = fetch,
+): Promise<unknown> {
+	const url =
+		process.env.CLINE_MARKETPLACE_CATALOG_URL?.trim() ||
+		"https://cline.github.io/marketplace/catalog.json";
+	const response = await fetchImpl(url, {
+		headers: { Accept: "application/json" },
+		signal: AbortSignal.timeout(30_000),
+	});
+	if (!response.ok)
+		throw new Error(
+			`Failed to fetch marketplace catalog: ${response.status} ${response.statusText}`.trim(),
+		);
+	return response.json();
+}
 
 function getMarketplaceEntryArgs(entry: MarketplaceEntryInput): string[] {
 	return entry.install?.args ?? [];
@@ -283,6 +307,76 @@ function removeRemainingMarketplaceSkillPaths(
 		}
 	}
 	return removedPaths;
+}
+
+function ensureGlobalSkillsDirWritable(): void {
+	const skillsDir = join(resolveHomeDir(), ".agents", "skills");
+	try {
+		mkdirSync(skillsDir, { recursive: true });
+		const probePath = join(
+			skillsDir,
+			`.cline-marketplace-write-test-${process.pid}-${Date.now()}`,
+		);
+		writeFileSync(probePath, "", { flag: "wx" });
+		unlinkSync(probePath);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			`Cannot install skill globally because ~/.agents/skills is not writable: ${message}`,
+		);
+	}
+}
+
+export async function installMarketplaceSkill(
+	entry: MarketplaceEntryInput,
+	options: Pick<UninstallMarketplaceEntryOptions, "spawnCommand"> = {},
+): Promise<MarketplaceActionResult> {
+	if (isMarketplaceSkillInstalled(entry)) {
+		return {
+			id: entry.id,
+			type: entry.type,
+			status: "installed",
+			message: `${entry.name ?? entry.id} is already installed.`,
+		};
+	}
+	ensureGlobalSkillsDirWritable();
+	const spawnCommand = options.spawnCommand ?? defaultMarketplaceSpawnCommand;
+	const result = await spawnCommand("npx", [
+		"-y",
+		SKILLS_CLI_PACKAGE,
+		"add",
+		...getMarketplaceEntryArgs(entry),
+		"-g",
+		"-a",
+		"cline",
+		"-y",
+	]);
+	const output = commandOutput(result);
+	const missingGitHint = /\bspawn\s+git\s+ENOENT\b/i.test(output ?? "")
+		? "Git is required to install this skill. Install Git, make sure it is on PATH, and retry.\n"
+		: "";
+	if (result.exitCode !== 0) {
+		throw new Error(
+			`Skill install failed with exit code ${result.exitCode}${output ? `:\n${missingGitHint}${output}` : ""}`,
+		);
+	}
+	if (/\bFailed to install\b/i.test(output ?? "")) {
+		throw new Error(
+			`Skill install failed${output ? `:\n${missingGitHint}${output}` : ""}`,
+		);
+	}
+	if (!isMarketplaceSkillInstalled(entry)) {
+		throw new Error(
+			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
+		);
+	}
+	return {
+		id: entry.id,
+		type: entry.type,
+		status: "installed",
+		message: `Installed ${entry.name ?? entry.id} globally for Cline.`,
+		output,
+	};
 }
 
 export async function uninstallMarketplaceSkill(

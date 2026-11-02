@@ -1,22 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	installMarketplaceItem,
-	uninstallMarketplaceItem,
 	listMarketplaceInstalledItems,
 	type MarketplaceEntry,
+	uninstallMarketplaceItem,
 } from "./marketplace";
+
 const mocks = vi.hoisted(() => ({
 	install: vi.fn(),
 	delete: vi.fn(),
 	list: vi.fn(),
 	invoke: vi.fn(),
 }));
-vi.mock("./hub-client", () => ({ hubMcp: mocks }));
+const skills = vi.hoisted(() => ({
+	install: vi.fn(),
+	uninstall: vi.fn(),
+	status: vi.fn(),
+}));
+vi.mock("./hub-client", () => ({ hubMcp: mocks, hubSkills: skills }));
 vi.mock("./desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 }));
 afterEach(() => vi.resetAllMocks());
-const entry = (type: "mcp" | "skill") =>
+const entry = (type: "mcp" | "skill" | "plugin") =>
 	({
 		id: "entry",
 		name: "Entry",
@@ -37,13 +43,26 @@ describe("Marketplace MCP direct Hub actions", () => {
 	});
 	it("composes installed state without forwarding MCP entries to the sidecar", async () => {
 		mocks.list.mockResolvedValue({ servers: [{ name: "server" }] });
-		mocks.invoke.mockResolvedValue({ installedKeys: ["skill:entry"] });
+		mocks.invoke.mockResolvedValue({ installedKeys: ["plugin:entry"] });
+		skills.status.mockResolvedValue({ installedIds: ["entry"] });
 		expect(
-			await listMarketplaceInstalledItems([entry("mcp"), entry("skill")]),
-		).toEqual({ installedKeys: ["skill:entry", "mcp:entry"] });
+			await listMarketplaceInstalledItems([
+				entry("mcp"),
+				entry("skill"),
+				entry("plugin"),
+			]),
+		).toEqual({ installedKeys: ["plugin:entry", "skill:entry", "mcp:entry"] });
 		expect(mocks.invoke).toHaveBeenCalledWith(
 			"list_marketplace_installed_entries",
-			{ entries: [entry("skill")] },
+			{ entries: [entry("plugin")] },
 		);
+	});
+	it("sends only canonical catalog IDs for skill mutations", async () => {
+		skills.install.mockResolvedValue({ status: "installed" });
+		await installMarketplaceItem(entry("skill"));
+		await uninstallMarketplaceItem(entry("skill"));
+		expect(skills.install).toHaveBeenCalledWith("entry");
+		expect(skills.uninstall).toHaveBeenCalledWith("entry");
+		expect(mocks.invoke).not.toHaveBeenCalled();
 	});
 });
