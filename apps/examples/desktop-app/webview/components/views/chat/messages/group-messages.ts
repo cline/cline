@@ -2,8 +2,10 @@ import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	getPublishedArtifacts,
+	getReportedArtifacts,
 	isUxVerificationMessage,
 	parseToolPayload,
+	type ReportedArtifacts,
 } from "./tool-summaries";
 
 export type ChatRenderItem =
@@ -13,7 +15,11 @@ export type ChatRenderItem =
 			message: ChatMessage;
 			reasoningMessages: ChatMessage[];
 	  }
-	| { type: "tools"; messages: ChatMessage[] }
+	| {
+			type: "tools";
+			messages: ChatMessage[];
+			reportedArtifacts?: ReportedArtifacts;
+	  }
 	| {
 			type: "work";
 			/** Stable per-run key: the id of the first collapsed message. */
@@ -324,21 +330,31 @@ export function collapseCompletedWork(
 					: undefined;
 			const hidden: ChatRenderItem[] = [];
 			const deliverables: ChatMessage[] = [];
+			const reportedArtifacts = getReportedArtifacts(
+				span.flatMap((item) => (item.type === "tools" ? item.messages : [])),
+			);
 			for (const item of collapsed) {
 				if (item.type !== "tools") {
 					hidden.push(item);
 					continue;
 				}
-				const messages = item.messages.filter((message) => {
+				const messages: ChatMessage[] = [];
+				for (const message of item.messages) {
+					const files = getPublishedArtifacts(message);
+					const reportedIds = message.sessionId
+						? reportedArtifacts.get(message.sessionId)
+						: undefined;
 					if (
-						getPublishedArtifacts(message) ||
+						files?.some(
+							(file) => file.error || !reportedIds?.has(file.artifactId),
+						) ||
 						isUxVerificationMessage(message)
 					) {
 						deliverables.push(message);
-						return false;
+					} else {
+						messages.push(message);
 					}
-					return true;
-				});
+				}
 				if (messages.length > 0) hidden.push({ type: "tools", messages });
 			}
 			if (hidden.length > 0) {
@@ -351,7 +367,11 @@ export function collapseCompletedWork(
 				});
 			}
 			if (deliverables.length > 0)
-				out.push({ type: "tools", messages: deliverables });
+				out.push({
+					type: "tools",
+					messages: deliverables,
+					...(reportedArtifacts.size > 0 ? { reportedArtifacts } : {}),
+				});
 			if (answer) {
 				out.push(answer);
 			}

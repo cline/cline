@@ -18,9 +18,11 @@ import type { PublishedFile } from "./tool-summaries";
 export function PublishedArtifacts({
 	files,
 	sessionId,
+	reportedArtifactIds,
 }: {
 	files: PublishedFile[];
 	sessionId: string;
+	reportedArtifactIds?: ReadonlySet<string>;
 }) {
 	const images: ReactNode[] = [];
 	const otherFiles: ReactNode[] = [];
@@ -43,6 +45,7 @@ export function PublishedArtifacts({
 		const key = `${index}:${file.path}`;
 		if (
 			!file.error &&
+			!reportedArtifactIds?.has(file.artifactId) &&
 			mediaType &&
 			SUPPORTED_IMAGE_MEDIA_TYPES.some((type) => type === mediaType)
 		) {

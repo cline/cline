@@ -1,3 +1,4 @@
+import { UxVerificationReportSchema } from "@cline/shared/browser";
 import {
 	buildToolSummary,
 	type ToolSummary,
@@ -168,6 +169,39 @@ export function parsePublishedArtifacts(value: unknown) {
 }
 
 export type PublishedFile = z.infer<typeof PublicationSchema>["files"][number];
+
+export type ReportedArtifacts = ReadonlyMap<string, ReadonlySet<string>>;
+
+export function getReportedArtifacts(
+	messages: ChatMessage[],
+): ReportedArtifacts {
+	const artifacts = new Map<string, Set<string>>();
+	for (const message of messages) {
+		if (
+			!message.sessionId ||
+			message.role !== "tool" ||
+			!message.content.includes("ux_verification")
+		)
+			continue;
+		const { payload, inProgress } = parseToolMessage(message);
+		if (inProgress || payload?.isError) continue;
+		const report = UxVerificationReportSchema.safeParse(
+			normalizeDisplayValue(payload?.result),
+		);
+		if (!report.success) continue;
+		for (const check of report.data.checks) {
+			const source = check.screenshot?.source;
+			if (source?.type !== "artifact") continue;
+			let ids = artifacts.get(message.sessionId);
+			if (!ids) {
+				ids = new Set<string>();
+				artifacts.set(message.sessionId, ids);
+			}
+			ids.add(source.artifactId);
+		}
+	}
+	return artifacts;
+}
 
 export function getPublishedArtifacts(message: ChatMessage) {
 	// Runs over every settled tool row on each stream flush; skip the parse for
