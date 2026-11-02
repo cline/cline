@@ -311,6 +311,10 @@ describe("@cline/ui theme contract", () => {
 					"warning-solid",
 					"error-solid",
 					"info-solid",
+					"success-contrast",
+					"warning-contrast",
+					"error-contrast",
+					"info-contrast",
 				].includes(token)
 			) {
 				expect(root).toContain(`--${token}:`);
@@ -364,10 +368,10 @@ describe("@cline/ui theme contract", () => {
 			"--sidebar-primary-foreground: var(--primary-foreground);",
 		);
 		for (const [status, lightStep, darkStep] of [
-			["success", 10, 6],
-			["warning", 10, 6],
-			["error", 9, 6],
-			["info", 9, 7],
+			["success", 9, 8],
+			["warning", 8, 8],
+			["error", 9, 7],
+			["info", 9, 8],
 		] as const) {
 			expect(root).toContain(
 				`--${status}-solid: var(--${status}-${lightStep});`,
@@ -376,7 +380,12 @@ describe("@cline/ui theme contract", () => {
 				`--${status}-solid: var(--${status}-${darkStep});`,
 			);
 			expect(shared).toContain(`--${status}-text: var(--${status}-10);`);
-			expect(shared).toContain(`--${status}-contrast: #fff;`);
+			expect(root).toContain(
+				`--${status}-contrast: ${status === "success" || status === "warning" ? "#000" : "#fff"};`,
+			);
+			expect(dark).toContain(
+				`--${status}-contrast: ${status === "error" ? "#fff" : "var(--neutral-1)"};`,
+			);
 		}
 		for (const mode of [root, dark]) {
 			expect(mode).toContain("--brand-violet: var(--accent-9);");
@@ -390,7 +399,7 @@ describe("@cline/ui theme contract", () => {
 		expect(shared).toContain("--secondary: var(--surface-3);");
 		expect(shared).toContain("--secondary-foreground: var(--text-1);");
 		expect(shared).toContain("--ring: var(--focus-ring);");
-		expect(shared).toContain("--destructive: var(--error-solid);");
+		expect(shared).toContain("--destructive: var(--error-text);");
 		for (const status of ["success", "warning", "error", "info"]) {
 			expect(shared).toContain(`--${status}-surface: var(--${status}-a2);`);
 			expect(shared).toContain(`--${status}-border: var(--${status}-a4);`);
@@ -407,22 +416,29 @@ describe("@cline/ui theme contract", () => {
 			["sidebar-primary", "sidebar-primary-foreground"],
 			["brand-violet-surface", "brand-violet-surface-foreground"],
 			["error-solid", "error-contrast"],
-			["destructive", "destructive-foreground"],
 			["success-solid", "success-contrast"],
 			["warning-solid", "warning-contrast"],
 			["info-solid", "info-contrast"],
 		]) {
 			const solid = colorRgb(tokenColor(values, fill));
 			const text = colorRgb(tokenColor(values, foreground));
-			if (
-				selector === ":root" ||
-				!["warning-solid", "info-solid"].includes(fill)
-			) {
-				expect(text, foreground).toEqual([1, 1, 1]);
-			}
+			const darkStatusLabel =
+				selector === ".dark" &&
+				["success-contrast", "warning-contrast", "info-contrast"].includes(
+					foreground,
+				);
+			expect(text, foreground).toEqual(
+				darkStatusLabel
+					? colorRgb(tokenColor(values, "neutral-1"))
+					: selector === ":root" &&
+							(foreground === "success-contrast" ||
+								foreground === "warning-contrast")
+						? [0, 0, 0]
+						: [1, 1, 1],
+			);
 			expect(contrastRatio(solid, text), fill).toBeGreaterThanOrEqual(4.5);
-			// Primary/destructive hover uses an opaque 90% fill / 10% black mix.
-			if (fill === "primary" || fill === "destructive") {
+			// Primary/error-filled hover uses an opaque 90% fill / 10% black mix.
+			if (fill === "primary" || fill === "error-solid") {
 				const hover = solid.map((channel) => channel * 0.9);
 				expect(
 					contrastRatio(hover, text),
@@ -440,6 +456,7 @@ describe("@cline/ui theme contract", () => {
 		for (const [textToken, tintToken] of [
 			["accent-foreground", "accent"],
 			["error-text", "error-surface"],
+			["destructive", "error-surface"],
 			["success-text", "success-surface"],
 			["warning-text", "warning-surface"],
 			["info-text", "info-surface"],
