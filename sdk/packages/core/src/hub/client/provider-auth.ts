@@ -5,14 +5,19 @@ import type {
 	HubOAuthLoginResult,
 	HubProviderCommandName,
 } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+import type { ClineAccountNotAuthenticatedResult } from "@cline/shared";
+import type { ClineAccountOperations } from "../../account/rpc";
+import { createSessionId } from "@cline/shared/browser";
 import type { OAuthLoginCallbacks } from "../../auth/types";
-import { HubCommandError, type NodeHubClient } from "./index";
+import { type HubCommandClient, HubCommandError } from "./command-client";
+
+type AccountResult<T extends ClineAccountActionRequest> =
+	T["operation"] extends "switchAccount"
+		? { updated: true }
+		: Awaited<ReturnType<NonNullable<ClineAccountOperations[T["operation"]]>>>;
 
 /** Browser interactions stay with the client; tokens and callback servers stay in the Hub. */
-export function createHubProviderAuthApi(
-	client: Pick<NodeHubClient, "command">,
-) {
+export function createHubProviderAuthApi(client: HubCommandClient) {
 	async function command<T extends HubProviderCommandName>(
 		name: T,
 		input: HubCommandInput<T>,
@@ -33,8 +38,12 @@ export function createHubProviderAuthApi(
 		command("providers.oauth.cancel", { loginId });
 	return {
 		cancel,
-		account: async (request: ClineAccountActionRequest) =>
-			(await command("providers.account.action", request)).result,
+		account: async <T extends ClineAccountActionRequest>(
+			request: T,
+		): Promise<AccountResult<T> | ClineAccountNotAuthenticatedResult> =>
+			(await command("providers.account.action", request)).result as
+				| AccountResult<T>
+				| ClineAccountNotAuthenticatedResult,
 		async login(
 			providerId: string,
 			callbacks: OAuthLoginCallbacks,

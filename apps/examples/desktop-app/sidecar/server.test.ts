@@ -296,3 +296,44 @@ describe("desktop error telemetry", () => {
 		expect(capture).not.toHaveBeenCalled();
 	});
 });
+
+describe("development-only Hub bootstrap", () => {
+	it("exposes credentials only with the dev flag and a trusted browser Origin", async () => {
+		const { publishDesktopHubConnection, revokeDesktopHubConnection } =
+			await import("./hub-bootstrap");
+		const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+		publishDesktopHubConnection("bootstrap-test", "/workspace", {
+			url: "ws://localhost/hub",
+			authToken: "test-token",
+		});
+		const handler = createHandler();
+		const server = createTestServer();
+		const request = (origin?: string) =>
+			new Request(
+				"http://127.0.0.1:3126/hub/connection?environmentId=bootstrap-test",
+				{ headers: origin ? { origin } : {} },
+			);
+		try {
+			vi.stubEnv("CLINE_DESKTOP_DEV_WEB", "0");
+			expect(
+				(await handler(request("http://localhost:3125"), server))?.status,
+			).toBe(404);
+			vi.stubEnv("CLINE_DESKTOP_DEV_WEB", "1");
+			expect((await handler(request(), server))?.status).toBe(403);
+			expect(
+				(await handler(request("https://attacker.example"), server))?.status,
+			).toBe(403);
+			const response = await handler(request("http://localhost:3125"), server);
+			expect(response?.headers.get("cache-control")).toBe("no-store");
+			expect(stdout).not.toHaveBeenCalled();
+			expect(await response?.json()).toMatchObject({
+				authToken: "test-token",
+				workspaceRoot: "/workspace",
+			});
+		} finally {
+			revokeDesktopHubConnection("bootstrap-test");
+			stdout.mockRestore();
+			vi.unstubAllEnvs();
+		}
+	});
+});

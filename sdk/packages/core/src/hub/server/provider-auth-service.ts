@@ -30,7 +30,10 @@ export class HubProviderAuthService {
 	private readonly attempts = new Map<string, Attempt>();
 	private readonly active = new Set<string>();
 	private readonly runs = new Set<Promise<void>>();
-	constructor(private readonly telemetry?: ITelemetryService) {}
+	constructor(
+		private readonly telemetry?: ITelemetryService,
+		private readonly onCredentialsChanged?: (providerId: string) => void,
+	) {}
 	get activeCount(): number {
 		return this.active.size;
 	}
@@ -149,6 +152,7 @@ export class HubProviderAuthService {
 					markLocalProviderEnabled(manager, providerId, {
 						tokenSource: "oauth",
 					});
+				this.onCredentialsChanged?.(providerId);
 				entry.result = {
 					provider: providerId,
 					accountId: credentials.accountId,

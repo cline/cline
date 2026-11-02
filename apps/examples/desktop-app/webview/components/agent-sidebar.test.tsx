@@ -1540,3 +1540,8 @@ describe("AgentSidebar session organization", () => {
 		).toContain("Settings");
 	});
 });
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	return mockHubApis(desktopMocks.invoke);
+});

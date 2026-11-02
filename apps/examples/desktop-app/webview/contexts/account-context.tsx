@@ -1,7 +1,8 @@
 "use client";
+import { hubAccount } from "@/lib/hub-client";
 
 import type { ClineAccountOrganization, ClineAccountUser } from "@cline/core";
-import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared/browser";
 import {
 	createContext,
 	useCallback,
@@ -10,7 +11,6 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { desktopClient } from "@/lib/desktop-client";
 
 export const ACCOUNT_IDENTITY_STORAGE_KEY = "cline.code.account-identity.v1";
 
@@ -103,7 +103,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
 	const refreshAccount = useCallback(async () => {
 		try {
-			const me = await desktopClient.invoke<ClineAccountUser>("cline_account", {
+			const me = await hubAccount.account({
 				action: "clineAccount",
 				operation: "fetchMe",
 			});

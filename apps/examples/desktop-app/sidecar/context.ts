@@ -1,3 +1,4 @@
+import { observeAccountChange } from "./account-observer";
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -31,6 +32,10 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { recordHubActivity } from "./hub-admin";
+import {
+	publishDesktopHubConnection,
+	revokeDesktopHubConnection,
+} from "./hub-bootstrap";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -943,6 +948,19 @@ export function handleHubLiveEvent(
 		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
 	}
+	if (
+		event.event === "account.changed" &&
+		(!ctx.activeEnvironmentId ||
+			ctx.activeEnvironmentId === LOCAL_ENVIRONMENT_ID)
+	) {
+		void observeAccountChange(
+			getSidecarContextOwner(ctx),
+			event.payload ?? {},
+		).catch((error) =>
+			ctx.logger?.error?.("Account observer failed", { error }),
+		);
+		return;
+	}
 	if (event.event === "settings.changed") {
 		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
@@ -1447,6 +1465,12 @@ export async function connectRemoteSessionRuntime(
 			url: connection.endpoint,
 			authToken: connection.authToken,
 			clientType: "code-sidecar-ssh-observer",
+			onConnection: (info) =>
+				publishDesktopHubConnection(
+					environmentId,
+					connection.workspaceRoot,
+					info,
+				),
 			displayName: `Code App observer (${connection.profile.name})`,
 			workspaceRoot: connection.workspaceRoot,
 			cwd: connection.workspaceRoot,
@@ -1499,6 +1523,7 @@ export async function disconnectRemoteSessionRuntime(
 	environmentContexts.get(owner)?.delete(environmentId);
 	if (binding?.kind === "ssh") {
 		ctx.runtimeBindings.delete(environmentId);
+		revokeDesktopHubConnection(environmentId);
 		await disposeRuntimeBinding(binding, "code_sidecar_remote_disconnect");
 	}
 	if (ctx.activeEnvironmentId === environmentId) {
@@ -1534,6 +1559,12 @@ export async function ensureSharedHubClient(
 		const client = new NodeHubClient({
 			url,
 			clientType: "code-sidecar-observer",
+			onConnection: (connection) =>
+				publishDesktopHubConnection(
+					"local",
+					ctx.localWorkspaceRoot,
+					connection,
+				),
 			displayName: "Cline Desktop observer",
 			workspaceRoot: ctx.localWorkspaceRoot,
 			cwd: ctx.localWorkspaceRoot,

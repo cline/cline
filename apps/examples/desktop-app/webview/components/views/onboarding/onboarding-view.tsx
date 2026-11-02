@@ -1,6 +1,7 @@
 "use client";
+import { hubAccount, hubProviders } from "@/lib/hub-client";
 
-import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared/browser";
 import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
@@ -368,16 +369,16 @@ function ConnectStep({
 		setClineKeySaving(true);
 		setClineKeyError(null);
 		try {
-			await desktopClient.invoke("save_provider_settings", {
-				provider: "cline",
+			await hubProviders.saveSettings({
+				providerId: "cline",
 				enabled: true,
-				api_key: key,
+				apiKey: key,
 			});
 			// Verify the key against the account API before advancing; the
 			// account context swallows errors, so an invalid key would
 			// otherwise onboard the user into a broken signed-in state.
 			try {
-				const verified = await desktopClient.invoke("cline_account", {
+				const verified = await hubAccount.account({
 					action: "clineAccount",
 					operation: "fetchMe",
 				});
@@ -389,11 +390,8 @@ function ConnectStep({
 			} catch (verifyError) {
 				// Roll back the persisted key so an unusable credential does
 				// not linger in provider settings.
-				await desktopClient
-					.invoke("save_provider_settings", {
-						provider: "cline",
-						api_key: "",
-					})
+				await hubProviders
+					.saveSettings({ providerId: "cline", apiKey: "" })
 					.catch(() => undefined);
 				throw new Error(
 					`the key could not be verified (${getErrorMessage(verifyError)})`,
@@ -462,10 +460,10 @@ function ConnectStep({
 		setSaving(true);
 		setSaveError(null);
 		try {
-			await desktopClient.invoke("save_provider_settings", {
-				provider: selectedProvider.id,
+			await hubProviders.saveSettings({
+				providerId: selectedProvider.id,
 				enabled: true,
-				api_key: apiKey.trim(),
+				apiKey: apiKey.trim(),
 			});
 			rememberProviderSelection({
 				id: selectedProviderId,

@@ -1,3 +1,4 @@
+import { hubProviders } from "@/lib/hub-client";
 import { Switch } from "@cline/ui";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,12 +44,7 @@ import {
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
-import type {
-	Provider,
-	ProviderCatalogResponse,
-	ProviderModelsResponse,
-	ProviderSettingsUpdate,
-} from "@/lib/provider-schema";
+import type { Provider, ProviderSettingsUpdate } from "@/lib/provider-schema";
 import {
 	type HubAccent,
 	type HubTheme,
@@ -204,9 +200,7 @@ export function SettingsView({
 		setProvidersLoading(true);
 		setProviderCatalogError(null);
 		try {
-			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-				"list_provider_catalog",
-			);
+			const payload = await hubProviders.list({ isClinePassEnabled: true });
 			if (generation !== catalogGenerationRef.current) {
 				return false;
 			}
@@ -237,7 +231,7 @@ export function SettingsView({
 	/**
 	 * Silently refreshes view state from the authoritative catalog after a
 	 * successful save, without toggling the loading screen. Optimistic
-	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * mutations can't know Hub-computed fields (`configured`), so the
 	 * Configured badge would otherwise stay stale until a remount. Claims a
 	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
 	 * and edits always resolve to the newest snapshot: anything older still
@@ -246,9 +240,7 @@ export function SettingsView({
 	const resyncProviderCatalog = useCallback(async () => {
 		const generation = ++catalogGenerationRef.current;
 		try {
-			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-				"list_provider_catalog",
-			);
+			const payload = await hubProviders.list({ isClinePassEnabled: true });
 			if (generation !== catalogGenerationRef.current) {
 				return;
 			}
@@ -270,16 +262,16 @@ export function SettingsView({
 			},
 		): Promise<boolean> => {
 			try {
-				await desktopClient.invoke("save_provider_settings", {
-					provider: id,
+				await hubProviders.saveSettings({
+					providerId: id,
 					enabled: updates.enabled,
-					api_key: updates.apiKey,
-					base_url: updates.baseUrl,
-					settings: updates.configValues
+					apiKey: updates.apiKey,
+					baseUrl: updates.baseUrl,
+					...(updates.configValues
 						? toSettingsPatch(updates.configValues)
-						: undefined,
+						: {}),
 				});
-				// Pick up sidecar-computed readiness (`configured`) for the
+				// Pick up Hub-computed readiness (`configured`) for the
 				// just-saved settings so the Configured badge and count update
 				// without a remount.
 				void resyncProviderCatalog();
@@ -399,12 +391,7 @@ export function SettingsView({
 			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
 			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
 			try {
-				const payload = await desktopClient.invoke<ProviderModelsResponse>(
-					"list_provider_models",
-					{
-						provider: id,
-					},
-				);
+				const payload = await hubProviders.listModels({ providerId: id });
 				setProvidersWithCache((prev) =>
 					prev.map((provider) =>
 						provider.id === id
@@ -432,10 +419,7 @@ export function SettingsView({
 			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
 			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
 			try {
-				await desktopClient.invoke("update_provider_models", {
-					provider: id,
-					models,
-				});
+				await hubProviders.updateModels({ providerId: id, models });
 				await loadProviderModels(id);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -510,16 +494,16 @@ export function SettingsView({
 
 	const saveNewProvider = useCallback(
 		async (payload: AddProviderPayload) => {
-			await desktopClient.invoke("add_provider", {
-				provider_id: payload.providerId,
+			await hubProviders.add({
+				providerId: payload.providerId,
 				name: payload.name,
-				base_url: payload.baseUrl,
-				api_key: payload.apiKey,
+				baseUrl: payload.baseUrl,
+				apiKey: payload.apiKey,
 				headers: payload.headers,
-				timeout_ms: payload.timeoutMs,
+				timeoutMs: payload.timeoutMs,
 				models: payload.models,
-				default_model_id: payload.defaultModelId,
-				models_source_url: payload.modelsSourceUrl,
+				defaultModelId: payload.defaultModelId,
+				modelsSourceUrl: payload.modelsSourceUrl,
 				capabilities: payload.capabilities,
 			});
 			invalidateProviderCatalogCache();

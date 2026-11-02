@@ -46,6 +46,7 @@ async function main(): Promise<void> {
 	const endpoint = `ws://127.0.0.1:${sidecarPort}/transport?approval_token=${approvalToken}`;
 	const sidecar = spawn(["bun", "run", "sidecar/index.ts"], {
 		CLINE_SIDECAR_APPROVAL_TOKEN: approvalToken,
+		CLINE_DESKTOP_DEV_WEB: "1",
 		CLINE_SIDECAR_PORT: String(sidecarPort),
 	});
 	const web = spawn(

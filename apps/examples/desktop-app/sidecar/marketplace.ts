@@ -17,7 +17,6 @@ import {
 	relative,
 	resolve,
 } from "node:path";
-import type { HubMcpApi } from "@cline/core";
 import {
 	installPlugin as installCorePlugin,
 	type MarketplaceActionResult,
@@ -33,12 +32,6 @@ import {
 	resolveClineDir,
 } from "@cline/shared/storage";
 import type { JsonRecord } from "./types";
-
-type McpActions = Pick<HubMcpApi, "install" | "delete">;
-function requireMcpApi(api?: McpActions): McpActions {
-	if (!api) throw new Error("MCP management requires a Hub connection");
-	return api;
-}
 
 type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
 type LocalPrimitiveType = MarketplacePrimitiveType | "workflow";
@@ -353,118 +346,6 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 		});
 	});
 
-function normalizeTransport(value: string | undefined): string {
-	const normalized = (value ?? "stdio").trim();
-	if (normalized === "http" || normalized === "streamable-http") {
-		return "streamableHttp";
-	}
-	if (
-		normalized === "stdio" ||
-		normalized === "sse" ||
-		normalized === "streamableHttp"
-	) {
-		return normalized;
-	}
-	throw new Error(
-		`Unsupported MCP transport "${normalized}". Expected stdio, sse, http, streamable-http, or streamableHttp.`,
-	);
-}
-
-function assertUrl(value: string): void {
-	let parsed: URL;
-	try {
-		parsed = new URL(value);
-	} catch {
-		throw new Error(`Invalid MCP server URL: ${value}`);
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw new Error(`Invalid MCP server URL: ${value}`);
-	}
-}
-
-export function buildMarketplaceMcpInput(args: string[]): JsonRecord {
-	const [rawName, ...rest] = args;
-	const name = rawName?.trim();
-	if (!name) {
-		throw new Error("MCP marketplace install requires a server name");
-	}
-	let transportType = "stdio";
-	const headers: Record<string, string> = {};
-	const targetArgs: string[] = [];
-	let parsingMarketplaceOptions = true;
-	for (let index = 0; index < rest.length; index++) {
-		const arg = rest[index];
-		if (parsingMarketplaceOptions && arg === "--") {
-			targetArgs.push(...rest.slice(index + 1));
-			break;
-		}
-		if (parsingMarketplaceOptions && (arg === "--transport" || arg === "-t")) {
-			const next = rest[index + 1]?.trim();
-			if (!next) throw new Error("--transport requires a value");
-			transportType = normalizeTransport(next);
-			index++;
-			continue;
-		}
-		const shouldParseHeader =
-			parsingMarketplaceOptions ||
-			normalizeTransport(transportType) !== "stdio";
-		if (
-			shouldParseHeader &&
-			(arg === "--header" || arg?.startsWith("--header="))
-		) {
-			const rawHeader =
-				arg === "--header" ? rest[++index] : arg.slice("--header=".length);
-			if (!rawHeader) throw new Error("--header requires a value");
-			const separatorIndex = rawHeader.indexOf(":");
-			if (separatorIndex <= 0) {
-				throw new Error(
-					`Invalid MCP header "${rawHeader}". Expected "Header-Name: header value".`,
-				);
-			}
-			const headerName = rawHeader.slice(0, separatorIndex).trim();
-			const headerValue = rawHeader.slice(separatorIndex + 1).trim();
-			if (!headerName || !headerValue) {
-				throw new Error(
-					`Invalid MCP header "${rawHeader}". Expected "Header-Name: header value".`,
-				);
-			}
-			headers[headerName] = headerValue;
-			continue;
-		}
-		parsingMarketplaceOptions = false;
-		targetArgs.push(arg);
-	}
-	transportType = normalizeTransport(transportType);
-	if (transportType === "stdio") {
-		if (Object.keys(headers).length > 0) {
-			throw new Error("Stdio MCP installs do not support request headers.");
-		}
-		const [command, ...commandArgs] = targetArgs;
-		if (!command?.trim()) {
-			throw new Error("Stdio MCP install requires a command");
-		}
-		return {
-			name,
-			transportType,
-			command,
-			args: commandArgs.length > 0 ? commandArgs : undefined,
-			disabled: false,
-		};
-	}
-	if (targetArgs.length !== 1) {
-		throw new Error("Remote MCP install requires exactly one URL");
-	}
-	const url = targetArgs[0]?.trim() ?? "";
-	assertUrl(url);
-	return {
-		name,
-		transportType,
-		url,
-		headers: Object.keys(headers).length > 0 ? headers : undefined,
-		disabled: false,
-	};
-}
-
 function isInsidePath(childPath: string, parentPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -504,20 +385,11 @@ function resolveUserInstructionRemovalTarget(input: {
 
 export async function uninstallLocalPrimitive(
 	args?: Record<string, unknown>,
-	options: { workspaceRoot?: string; mcp?: McpActions } = {},
+	options: { workspaceRoot?: string } = {},
 ): Promise<MarketplaceInstallResult> {
 	const input = readLocalUninstallInput(args);
-	if (input.type === "mcp") {
-		const name = input.name ?? input.id;
-		const response = await requireMcpApi(options.mcp).delete(name);
-		return {
-			id: input.id,
-			type: input.type,
-			status: "uninstalled",
-			message: `Uninstalled ${name}.`,
-			details: { mcp: response },
-		};
-	}
+	if (input.type === "mcp")
+		throw new Error("Standalone MCP management belongs to the Hub");
 	if (input.type === "plugin") {
 		const result = await uninstallLocalPlugin({
 			name: input.path ? undefined : (input.name ?? input.id),
@@ -731,27 +603,12 @@ function hasMatchingInventoryItem(
 	});
 }
 
-function isMcpEntryInstalled(
-	entry: MarketplaceInstallInput,
-	inventory?: JsonRecord,
-): boolean {
-	if (entry.type !== "mcp") return false;
-	const input = buildMarketplaceMcpInput(entry.install.args ?? []);
-	const response = inventory?.mcp as JsonRecord | undefined;
-	const servers = Array.isArray(response?.servers) ? response.servers : [];
-	return servers.some((server) => {
-		if (!server || typeof server !== "object") return false;
-		const record = server as JsonRecord;
-		return record.name === input.name;
-	});
-}
-
 function isMarketplaceEntryInstalled(
 	entry: MarketplaceInstallInput,
 	inventory?: JsonRecord,
 ): boolean {
 	try {
-		if (entry.type === "mcp") return isMcpEntryInstalled(entry, inventory);
+		if (entry.type === "mcp") return false;
 		if (entry.type === "plugin") {
 			return (
 				isOfficialPluginInstalled(entry) ||
@@ -878,25 +735,12 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand; mcp?: McpActions } = {},
+	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
-	if (entry.type === "mcp") {
-		// The Hub owns registration; Desktop does not write MCP settings.
-		const result = await requireMcpApi(options.mcp).install(
-			entry.install.args ?? [],
-		);
-		return {
-			id: entry.id,
-			type: entry.type,
-			status: "installed",
-			message: `Installed ${entry.name ?? entry.id}.`,
-			details: result as unknown as JsonRecord,
-			output:
-				result.warnings.length > 0 ? result.warnings.join("\n") : undefined,
-		};
-	}
+	if (entry.type === "mcp")
+		throw new Error("Standalone MCP management belongs to the Hub");
 	if (entry.type === "skill") {
 		return installSkill(entry, spawnCommand);
 	}
@@ -908,24 +752,22 @@ export async function installMarketplaceEntry(
 
 export async function uninstallMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand; mcp?: McpActions } = {},
+	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
+	if (entry.type === "mcp")
+		throw new Error("Standalone MCP management belongs to the Hub");
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
-	let mcpDetails: JsonRecord | undefined;
+
 	const result = await uninstallCoreMarketplaceEntry(
 		entry satisfies MarketplaceEntryInput,
 		{
-			deleteMcpServer: async (name) => {
-				mcpDetails = { ...(await requireMcpApi(options.mcp).delete(name)) };
-			},
 			spawnCommand: (command, commandArgs) =>
 				spawnCommand(command, commandArgs),
 		},
 	);
 	return {
 		...(result satisfies MarketplaceActionResult),
-		details: mcpDetails ? { mcp: mcpDetails } : undefined,
 	};
 }
 
@@ -933,7 +775,6 @@ export async function installMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
-		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -950,7 +791,7 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand, mcp: options.mcp },
+		{ spawnCommand: options.spawnCommand },
 	);
 }
 
@@ -958,7 +799,6 @@ export async function uninstallMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
-		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -975,7 +815,7 @@ export async function uninstallMarketplaceEntryFromCatalog(
 	}
 	return uninstallMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand, mcp: options.mcp },
+		{ spawnCommand: options.spawnCommand },
 	);
 }
 
@@ -994,7 +834,6 @@ export async function installMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
-		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -1005,7 +844,6 @@ export async function uninstallMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
-		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {

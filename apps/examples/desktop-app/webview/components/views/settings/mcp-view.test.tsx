@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpServersContent } from "./mcp-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke },
+	openExternalUrl: vi.fn(),
+}));
 vi.mock("./extensions-view", () => ({
 	subscribeToExtensionInventoryInvalidation: () => () => {},
 }));
@@ -54,8 +57,8 @@ describe("MCP management completion", () => {
 		};
 		let complete!: (value: unknown) => void;
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "list_mcp_servers") return catalog;
-			if (command === "set_mcp_server_disabled")
+			if (command === "mcp.servers.list") return catalog;
+			if (command === "mcp.servers.set_disabled")
 				return new Promise((resolve) => {
 					complete = resolve;
 				});
@@ -68,11 +71,10 @@ describe("MCP management completion", () => {
 		);
 		expect(toggle).not.toBeNull();
 		await act(async () => toggle?.click());
-		expect(invoke).toHaveBeenCalledWith(
-			"set_mcp_server_disabled",
-			{ name: "remote", disabled: true },
-			{ timeoutMs: null },
-		);
+		expect(invoke).toHaveBeenCalledWith("mcp.servers.set_disabled", {
+			name: "remote",
+			disabled: true,
+		});
 		await act(async () => vi.advanceTimersByTimeAsync(180_000));
 		expect(toggle?.disabled).toBe(true);
 		expect(container.textContent).not.toContain("Connection failed");
@@ -82,4 +84,66 @@ describe("MCP management completion", () => {
 		expect(toggle?.disabled).toBe(false);
 		expect(toggle?.checked).toBe(false);
 	});
+});
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	return mockHubApis(invoke);
+});
+
+it("waits for Hub cancellation cleanup before re-enabling Connect", async () => {
+	const catalog = {
+		settingsPath: "/hub/settings.json",
+		hasSettingsFile: true,
+		servers: [
+			{
+				name: "remote",
+				transportType: "streamableHttp",
+				url: "https://example.test/mcp",
+				disabled: true,
+				oauthStatus: { authorizationRequired: true },
+			},
+		],
+	};
+	let finish!: (value: unknown) => void;
+	invoke.mockImplementation(async (command: string) => {
+		if (command === "mcp.servers.list") return catalog;
+		if (command === "mcp.oauth.next")
+			return new Promise((resolve) => {
+				finish = resolve;
+			});
+		return {};
+	});
+	await act(async () => root.render(<McpServersContent chrome="embedded" />));
+	await act(async () => vi.advanceTimersByTimeAsync(0));
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>(
+				'[aria-label="Connect remote with OAuth"]',
+			)
+			?.click(),
+	);
+	expect(finish).toBeTypeOf("function");
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>(
+				'[aria-label="Cancel OAuth for remote"]',
+			)
+			?.click(),
+	);
+	expect(
+		container.querySelector('[aria-label="Connect remote with OAuth"]'),
+	).toBeNull();
+	expect(
+		invoke.mock.calls.filter(([command]) => command === "mcp.servers.list"),
+	).toHaveLength(1);
+	await act(async () =>
+		finish({
+			urls: [],
+			error: { code: "mcp_oauth_cancelled", message: "cancelled" },
+		}),
+	);
+	expect(
+		container.querySelector('[aria-label="Connect remote with OAuth"]'),
+	).not.toBeNull();
 });

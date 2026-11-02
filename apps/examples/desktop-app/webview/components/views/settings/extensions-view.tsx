@@ -1,4 +1,5 @@
 "use client";
+import { hubMcp } from "@/lib/hub-client";
 
 import { Switch } from "@cline/ui";
 import {
@@ -373,7 +374,10 @@ async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse
 	const response = await desktopClient.invoke<
 		Partial<UserInstructionListsResponse>
 	>("list_user_instruction_configs");
-	return normalizeInstructionListsResponse(response);
+	return normalizeInstructionListsResponse({
+		...response,
+		mcp: await hubMcp.list(),
+	});
 }
 
 export function CustomizationSectionView({
@@ -752,16 +756,20 @@ export function CustomizationSectionView({
 			});
 			setErrorMessage(null);
 			try {
-				const result = await desktopClient.invoke<{ message?: string }>(
-					"uninstall_local_primitive",
-					{
+				let result: { message?: string };
+				if (target.type === "mcp") {
+					const name = target.name ?? target.id;
+					if (!name) throw new Error("MCP server name is required");
+					await hubMcp.delete(name);
+					result = { message: `Uninstalled ${name}.` };
+				} else {
+					result = await desktopClient.invoke("uninstall_local_primitive", {
 						type: target.type,
 						id: target.id,
 						name: target.name,
 						path: target.path,
-					},
-					{ timeoutMs: target.type === "mcp" ? null : undefined },
-				);
+					});
+				}
 				setLocalActionMessages((current) => {
 					const next = new Map(current);
 					next.set(target.key, {

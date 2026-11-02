@@ -1,5 +1,7 @@
 import type { HubOAuthLoginResult } from "@cline/shared";
-import { desktopClient } from "@/lib/desktop-client";
+import { openExternalUrl } from "@/lib/desktop-client";
+import { hubAccount } from "./hub-client";
+import { setOAuthUserCode } from "./oauth-user-code";
 import type { Provider } from "@/lib/provider-schema";
 
 /**
@@ -20,43 +22,52 @@ export const OAUTH_PROVIDER_IDS = new Set([
 
 export type ProviderAuthKind = "oauth" | "local" | "api-key";
 
-/**
- * Client-side deadline for `run_provider_oauth_login` invokes. The browser
- * round-trip legitimately takes minutes — the user may still be choosing a
- * browser or confirming a device code, and Cline device codes stay valid for
- * many minutes — so the transport's default 120s command deadline would fail
- * a sign-in that is still perfectly viable (observed while verifying
- * cline/cline#14201). The sidecar already bounds the flow by the device-code
- * expiry; this is only a backstop against a wedged command.
- */
-export const OAUTH_LOGIN_TIMEOUT_MS = 15 * 60_000;
-
-// Cancellation targets the provider, so it must finish before another screen signs in.
-let pendingClineCancellation: Promise<unknown> | null = null;
-
-export function cancelClineOAuthLogin(): Promise<unknown> {
-	if (!pendingClineCancellation) {
-		pendingClineCancellation = desktopClient
-			.invoke("cancel_provider_oauth_login", { provider: "cline" })
-			.finally(() => {
-				pendingClineCancellation = null;
-			});
-	}
-	return pendingClineCancellation;
+const attempts = new Map<
+	string,
+	{ controller: AbortController; done: Promise<HubOAuthLoginResult> }
+>();
+export async function cancelClineOAuthLogin(): Promise<void> {
+	const entry = attempts.get("cline");
+	entry?.controller.abort();
+	await entry?.done.catch(() => undefined);
 }
-
 export async function runProviderOAuthLogin(
 	provider: string,
 	signal?: AbortSignal,
 ): Promise<HubOAuthLoginResult> {
-	if (provider === "cline" && pendingClineCancellation) {
-		await pendingClineCancellation.catch(() => undefined);
+	const previous = attempts.get(provider);
+	previous?.controller.abort();
+	signal?.throwIfAborted();
+	const controller = new AbortController();
+	const abort = () => controller.abort();
+	signal?.addEventListener("abort", abort, { once: true });
+	const done = (async () => {
+		await previous?.done.catch(() => undefined);
+		controller.signal.throwIfAborted();
+		setOAuthUserCode(null);
+		return hubAccount.login(
+			provider,
+			{
+				onAuth: (info) => {
+					void openExternalUrl(info.url).catch(() => controller.abort());
+				},
+				onUserCode: setOAuthUserCode,
+				onPrompt: async (prompt) => prompt.defaultValue ?? "",
+			},
+			controller.signal,
+		);
+	})();
+	const entry = { controller, done };
+	attempts.set(provider, entry);
+	try {
+		return await done;
+	} finally {
+		signal?.removeEventListener("abort", abort);
+		if (attempts.get(provider) === entry) {
+			attempts.delete(provider);
+			setOAuthUserCode(null);
+		}
 	}
-	return desktopClient.invoke(
-		"run_provider_oauth_login",
-		{ provider },
-		{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal },
-	);
 }
 
 /**
@@ -81,7 +92,7 @@ export function getProviderAuthKind(provider: Provider): ProviderAuthKind {
  * Whether a provider from the catalog is usable for turns, shown as
  * "Configured" in settings and consulted by the first-run "connect a model"
  * notice. Plain API keys and OAuth are definitive. Beyond those, we rely on
- * the sidecar's `configured` flag (the same per-provider readiness check the
+ * the Hub's `configured` flag (the same per-provider readiness check the
  * CLI uses), which requires real evidence of credentials: cloud credentials
  * for Bedrock/Vertex/SAP AI Core, a local-auth CLI, or a resolvable endpoint
  * + model for keyless local providers like Ollama. `enabled` alone is not

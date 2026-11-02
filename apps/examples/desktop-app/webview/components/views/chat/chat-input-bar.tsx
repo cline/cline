@@ -1,6 +1,5 @@
 "use client";
-
-import type { PluginCommandCatalog } from "@cline/core";
+import { hubPlugins } from "@/lib/hub-client";
 
 import {
 	CLINE_DEFAULT_MODEL_ID,
@@ -1151,12 +1150,8 @@ function ChatInputBarImpl({
 			.finally(() => {
 				if (!cancelled) setInstructionLoading(false);
 			});
-		desktopClient
-			.invoke<PluginCommandCatalog>("list_plugin_commands", {
-				workspacePath: workspaceRoot,
-				environmentId,
-				sessionId: sessionId ?? undefined,
-			})
+		hubPlugins(environmentId)
+			.list({ workspacePath: workspaceRoot, sessionId: sessionId ?? undefined })
 			.then((catalog) => {
 				if (cancelled) return;
 				if (catalog.status !== "error") catalogArrived();

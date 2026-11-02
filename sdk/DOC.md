@@ -423,6 +423,12 @@ is persisted in the Hub; hosts may use results to update their own telemetry and
 feature flags. This migration changes Desktop; other clients retain their
 existing authentication entry points.
 
+### Browser Hub clients
+
+Import `BrowserHubClient` and the typed provider/account/MCP/plugin APIs from `@cline/core/hub/browser`. Supply a bootstrap callback returning `{ url, authToken, workspaceRoot }`; it runs on each new connection so native hosts can rotate endpoints and credentials. The client authenticates using the WebSocket subprotocol and registers before sending commands. Close the client with `dispose()` when the view is retired. Socket loss rejects pending commands; callers may initiate a new request, but dispatched mutations are never replayed automatically. This entry point contains no Node transport, discovery, filesystem, or process imports.
+
+Desktop bootstraps through native IPC, uses the local Hub for settings/account/MCP and the selected environment's Hub for plugin commands. OAuth callback servers and credential persistence remain in the Hub, while the browser client opens authorization URLs and displays device codes. Hub `account.changed` events carry invalidation flags only, allowing Desktop observers to refresh identity and cloud state without owning the account action.
+
 ### Hub MCP management
 
 `createHubMcpApi(client)` uses an existing registered, token-authenticated local

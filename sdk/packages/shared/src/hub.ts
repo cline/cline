@@ -949,6 +949,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "account.changed"
 	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"

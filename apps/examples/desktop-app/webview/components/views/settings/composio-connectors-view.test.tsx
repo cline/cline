@@ -396,7 +396,7 @@ describe("installed connectors", () => {
 		mocks.invoke.mockImplementation(
 			(command: string) =>
 				new Promise((resolve) => {
-					if (command === "cline_account") resolveMe = resolve;
+					if (command === "providers.account.action") resolveMe = resolve;
 					else resolve({});
 				}),
 		);
@@ -442,10 +442,10 @@ describe("installed connectors", () => {
 			),
 		).not.toBeNull();
 		await act(async () => button("Sign in")?.click());
-		expect(mocks.invoke).toHaveBeenCalledWith(
-			"run_provider_oauth_login",
-			{ provider: "cline" },
-			expect.anything(),
+		expect(login).toHaveBeenCalledWith(
+			"cline",
+			expect.any(Object),
+			expect.any(AbortSignal),
 		);
 		expect(mocks.refresh).toHaveBeenCalled();
 		await act(async () => button("Create account")?.click());
@@ -489,3 +489,14 @@ describe("installed connectors", () => {
 		expect(container.textContent).not.toContain("Service unavailable");
 	});
 });
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const apis = mockHubApis(mocks.invoke);
+	apis.hubAccount.login = login;
+	return apis;
+});
+
+const { login } = vi.hoisted(() => ({
+	login: vi.fn(async () => ({ provider: "cline", accountId: "account" })),
+}));

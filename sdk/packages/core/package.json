@@ -38,6 +38,10 @@
 		"./cloud": {
 			"types": "./dist/cloud/index.d.ts",
 			"import": "./dist/cloud/index.js"
+		},
+		"./hub/browser": {
+			"types": "./dist/hub/browser.d.ts",
+			"import": "./dist/hub/browser.js"
 		}
 	},
 	"scripts": {

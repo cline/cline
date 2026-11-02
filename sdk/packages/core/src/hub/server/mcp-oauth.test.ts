@@ -6,6 +6,7 @@ import { updateMcpServerOAuthStateAsync } from "../../extensions/mcp/config-load
 import * as McpOAuth from "../../extensions/mcp/oauth";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { FileSessionService } from "../../session/services/file-session-service";
+import { BrowserHubClient } from "../client/browser-client";
 import { NodeHubClient } from "../client";
 import { createHubMcpApi } from "../client/mcp";
 import { createInMemoryHubOwnerContext } from "../discovery";
@@ -351,7 +352,10 @@ describe("Hub-owned MCP OAuth", () => {
 			JSON.parse(await readFile(path, "utf8")).mcpServers.remote.oauth,
 		).toBeUndefined();
 	});
-	it("runs the owner-scoped OAuth flow over an authenticated WebSocket", async () => {
+	it.each([
+		"node",
+		"browser",
+	] as const)("runs the owner-scoped OAuth flow over an authenticated WebSocket (%s)", async (kind) => {
 		await seed({ remote });
 		vi.spyOn(McpOAuth, "authorizeMcpServerOAuth").mockImplementation(
 			async (options) => {
@@ -365,11 +369,18 @@ describe("Hub-owned MCP OAuth", () => {
 			port: 0,
 			owner: createInMemoryHubOwnerContext("mcp-oauth-wire"),
 		});
-		const client = new NodeHubClient({
-			url: server.url,
-			authToken: server.authToken,
-			clientType: "test",
-		});
+		const client =
+			kind === "browser"
+				? new BrowserHubClient(async () => ({
+						url: server.url,
+						authToken: server.authToken,
+						workspaceRoot: root,
+					}))
+				: new NodeHubClient({
+						url: server.url,
+						authToken: server.authToken,
+						clientType: "test",
+					});
 		try {
 			await client.connect();
 			const openUrl = vi.fn();

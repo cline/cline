@@ -1,4 +1,5 @@
 "use client";
+import { runPluginSlashCommand } from "@/lib/plugin-commands";
 
 import {
 	formatDisplayUserInput,
@@ -1079,16 +1080,75 @@ export function useChatSession(environmentId: string) {
 		};
 	}, []);
 
+	const pluginPreparationControllersRef = useRef(
+		new Map<string, Set<AbortController>>(),
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(
 		async (body: Record<string, unknown>) => {
+			const sessionId = String(body.sessionId);
+			if (body.action === "abort" || body.action === "reset") {
+				for (const controller of pluginPreparationControllersRef.current.get(
+					sessionId,
+				) ?? [])
+					controller.abort();
+			}
 			const bodyConfig =
 				body.config &&
 				typeof body.config === "object" &&
 				!Array.isArray(body.config)
 					? (body.config as Record<string, unknown>)
 					: {};
+			if (
+				body.action === "send" &&
+				bodyConfig.executionTarget !== "cloud" &&
+				typeof body.prompt === "string"
+			) {
+				const controller = new AbortController();
+				const controllers =
+					pluginPreparationControllersRef.current.get(sessionId) ??
+					new Set<AbortController>();
+				pluginPreparationControllersRef.current.set(sessionId, controllers);
+				controllers.add(controller);
+				let result;
+				try {
+					result = await runPluginSlashCommand(
+						environmentId,
+						{
+							workspacePath: String(
+								bodyConfig.workspaceRoot ?? bodyConfig.cwd ?? "",
+							),
+							sessionId,
+							prompt: body.prompt,
+						},
+						controller.signal,
+					);
+				} finally {
+					controllers.delete(controller);
+					if (!controllers.size)
+						pluginPreparationControllersRef.current.delete(sessionId);
+				}
+				if (result) {
+					if (result.reply)
+						toast({
+							description: createElement(
+								"span",
+								{ className: "whitespace-pre-line" },
+								result.reply,
+							),
+						});
+					if (!result.submitPrompt)
+						return {
+							sessionId: String(body.sessionId),
+							ok: true,
+							commandHandled: true,
+						};
+					body = { ...body, runtimePrompt: result.submitPrompt };
+				}
+			}
+
 			const request = {
 				request: {
 					...body,
@@ -3143,8 +3203,8 @@ export function useChatSession(environmentId: string) {
 				const payload = await sendTask;
 				if (payload.ok && payload.commandHandled) {
 					// A plugin slash command (e.g. `/goal status`) was handled by
-					// the sidecar without a turn: its reply arrives as a
-					// chat_command_output toast, so retract the optimistic
+					// the Hub without a turn: its reply is shown as a toast,
+					// so retract the optimistic
 					// bubble/queue entry and hand status back to the prior turn.
 					if (optimisticQueuedPromptId) {
 						setPromptsInQueue((prev) =>

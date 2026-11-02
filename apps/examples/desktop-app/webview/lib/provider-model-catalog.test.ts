@@ -168,7 +168,7 @@ describe("verified voice model loading", () => {
 			],
 		};
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (command) =>
-			command === "list_provider_catalog"
+			command === "providers.list"
 				? {
 						providers: [provider],
 						voiceInput: { providerId: provider.id, modelId: "saved" },
@@ -199,7 +199,7 @@ describe("verified voice model loading", () => {
 
 	it("does not fall back to the bundled selection on discovery failure", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (command) => {
-			if (command === "list_provider_catalog")
+			if (command === "providers.list")
 				return {
 					providers: [
 						{
@@ -507,4 +507,12 @@ describe("transcription model selection", () => {
 			}),
 		).toMatchObject({ supportsStreaming: true });
 	});
+});
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const { desktopClient } = await import("./desktop-client");
+	return mockHubApis((command, payload) =>
+		desktopClient.invoke(command, payload),
+	);
 });

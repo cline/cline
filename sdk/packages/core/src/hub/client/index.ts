@@ -1,3 +1,7 @@
+import { HubCommandError, type HubCommandOptions } from "./command-client";
+
+export { HubCommandError } from "./command-client";
+
 import {
 	createSessionId,
 	ensureLoopbackProxyBypass,
@@ -43,17 +47,6 @@ import {
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
 	reject: (error: unknown) => void;
-};
-
-type HubCommandOptions = {
-	/** Whether transport recovery may resend a request after dispatch. */
-	retryAfterDispatch?: boolean;
-	timeoutMs?: number | null;
-	/** Synchronous local guard, checked after connection before each dispatch. */
-	beforeDispatch?: () => void;
-	/** Observes this attempt's correlation id after the local guard, before sending.
-	 * Dispatch alone does not confirm that the server accepted the command. */
-	onDispatch?: (requestId: string) => void;
 };
 
 type SubscriptionEntry = {
@@ -203,6 +196,7 @@ export interface HubClientOptions {
 	url: string;
 	clientId?: string;
 	clientType?: string;
+	onConnection?: (connection: { url: string; authToken?: string }) => void;
 	displayName?: string;
 	/** Version reported to the hub; defaults to the @cline/core version. */
 	clientVersion?: string;
@@ -270,17 +264,6 @@ export function isHubReconnectableTransportError(
 	error: unknown,
 ): error is HubTransportError {
 	return error instanceof HubTransportError;
-}
-
-export class HubCommandError extends Error {
-	constructor(
-		readonly command: HubCommandEnvelope["command"],
-		readonly code: string | undefined,
-		message: string,
-	) {
-		super(message);
-		this.name = "HubCommandError";
-	}
 }
 
 export function isHubCommandTimeoutError(
@@ -485,6 +468,7 @@ export class NodeHubClient {
 				throw this.lastCloseError;
 			}
 			this.registered = true;
+			this.options.onConnection?.({ url: url.toString(), authToken });
 			for (const key of this.subscriptionCounts.keys()) {
 				this.sendSubscriptionFrame(
 					"stream.subscribe",

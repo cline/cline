@@ -1,3 +1,4 @@
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import { resolve } from "node:path";
 import type {
 	AgendaTaskRecord,
@@ -319,7 +320,15 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly providerAccount: HubProviderAccountService;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
-		this.providerAuth = new HubProviderAuthService(options.telemetry);
+		this.providerAuth = new HubProviderAuthService(
+			options.telemetry,
+			(providerId) => {
+				if (providerId === "cline")
+					this.publish(
+						buildHubEvent("account.changed", { credentialsChanged: true }),
+					);
+			},
+		);
 		this.providerAccount = new HubProviderAccountService(options.telemetry);
 		this.cloud = new HubCloudSessionService({
 			...options.cloudSessionOptions,
@@ -1034,7 +1043,21 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 				this.pendingProviderMutations.add(request);
 				try {
-					return okReply(envelope, { result: await request });
+					const result = await request;
+					if (
+						envelope.payload?.operation === "fetchMe" ||
+						envelope.payload?.operation === "switchAccount" ||
+						isClineAccountNotAuthenticatedResult(result)
+					)
+						this.publish(
+							buildHubEvent("account.changed", {
+								credentialsChanged:
+									envelope.payload?.operation === "switchAccount" ||
+									isClineAccountNotAuthenticatedResult(result),
+								signedOut: isClineAccountNotAuthenticatedResult(result),
+							}),
+						);
+					return okReply(envelope, { result });
 				} finally {
 					this.pendingProviderMutations.delete(request);
 				}
@@ -1060,7 +1083,12 @@ export class HubServerTransport implements NativeHubTransport {
 				const request = handleProviderCommand(envelope);
 				this.pendingProviderMutations.add(request);
 				try {
-					return await request;
+					const reply = await request;
+					if (reply.ok && reply.payload?.clineCredentialsChanged)
+						this.publish(
+							buildHubEvent("account.changed", { credentialsChanged: true }),
+						);
+					return reply;
 				} finally {
 					this.pendingProviderMutations.delete(request);
 				}

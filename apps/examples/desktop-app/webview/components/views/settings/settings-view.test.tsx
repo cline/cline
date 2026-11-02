@@ -40,6 +40,9 @@ beforeEach(() => {
 	document.documentElement.style.removeProperty("font-size");
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
+	login
+		.mockReset()
+		.mockResolvedValue({ provider: "cline", accountId: "account" });
 	invoke.mockImplementation(async (command: string) => {
 		if (command === "get_hub_status") {
 			return { url: "ws://127.0.0.1:1234", clients: [], events: [] };
@@ -118,9 +121,13 @@ describe("SettingsView font size", () => {
 describe("SettingsView provider OAuth", () => {
 	it("refreshes the catalog after metadata-only login completion", async () => {
 		let connected = false;
+		login.mockImplementation(async () => {
+			connected = true;
+			return { provider: "cline", accountId: "account" };
+		});
 		const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "list_provider_catalog")
+			if (command === "providers.list")
 				return {
 					providers: [
 						{
@@ -135,11 +142,8 @@ describe("SettingsView provider OAuth", () => {
 						},
 					],
 				};
-			if (command === "run_provider_oauth_login") {
-				connected = true;
-				return { provider: "cline", accountId: "account-1" };
-			}
-			if (command === "list_provider_models") return { models: [] };
+
+			if (command === "providers.models.list") return { models: [] };
 			return {};
 		});
 		try {
@@ -160,15 +164,14 @@ describe("SettingsView provider OAuth", () => {
 			);
 			expect(signIn).toBeDefined();
 			await act(async () => signIn?.click());
-			expect(invoke).toHaveBeenCalledWith(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
+			expect(login).toHaveBeenCalledWith(
+				"cline",
 				expect.any(Object),
+				expect.any(AbortSignal),
 			);
+
 			expect(
-				invoke.mock.calls.filter(
-					([command]) => command === "list_provider_catalog",
-				),
+				invoke.mock.calls.filter(([command]) => command === "providers.list"),
 			).toHaveLength(2);
 			expect(container.textContent).toContain("Sign out");
 			expect(alert).not.toHaveBeenCalled();
@@ -177,3 +180,12 @@ describe("SettingsView provider OAuth", () => {
 		}
 	});
 });
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const apis = mockHubApis(invoke);
+	apis.hubAccount.login = login;
+	return apis;
+});
+
+const { login } = vi.hoisted(() => ({ login: vi.fn() }));

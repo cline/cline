@@ -379,6 +379,7 @@ describe("remote environment command routing", () => {
 			url: connection.endpoint,
 			authToken: connection.authToken,
 			clientType: "code-sidecar-ssh-observer",
+			onConnection: expect.any(Function),
 			displayName: "Code App observer (Build box)",
 			workspaceRoot: connection.workspaceRoot,
 			cwd: connection.workspaceRoot,

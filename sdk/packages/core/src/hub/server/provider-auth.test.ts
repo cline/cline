@@ -14,6 +14,7 @@ import {
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { FileSessionService } from "../../session/services/file-session-service";
+import { BrowserHubClient } from "../client/browser-client";
 import { NodeHubClient } from "../client";
 import { createHubProviderAuthApi } from "../client/provider-auth";
 import { createInMemoryHubOwnerContext } from "../discovery";
@@ -124,7 +125,10 @@ describe("Hub-owned provider OAuth", () => {
 				?.accessToken,
 		).toBe("workos:secret-access");
 	});
-	it("runs OAuth over the authenticated wire protocol without exposing stored tokens", async () => {
+	it.each([
+		"node",
+		"browser",
+	] as const)("runs OAuth over the authenticated wire protocol without exposing stored tokens (%s)", async (kind) => {
 		const pending = deferred<typeof credentials>();
 		vi.spyOn(handler, "login").mockImplementation(async ({ callbacks }) => {
 			callbacks.onAuth({ url: "https://example.test/login" });
@@ -147,12 +151,19 @@ describe("Hub-owned provider OAuth", () => {
 			runQueue: false,
 			sessionSearchOptions: { dbPath: ":memory:" },
 		});
-		const client = new NodeHubClient({
-			url: server.url,
-			authToken: server.authToken,
-			clientType: "oauth-test",
-			clientId: "oauth-owner",
-		});
+		const client =
+			kind === "browser"
+				? new BrowserHubClient(async () => ({
+						url: server.url,
+						authToken: server.authToken,
+						workspaceRoot: root,
+					}))
+				: new NodeHubClient({
+						url: server.url,
+						authToken: server.authToken,
+						clientType: "oauth-test",
+						clientId: "oauth-owner",
+					});
 		try {
 			await client.connect();
 			const onAuth = vi.fn();

@@ -25,6 +25,8 @@ export type ChatTurnAttachments = {
 export type ChatSessionCommandRequest = {
 	sessionId?: string;
 	prompt?: string;
+	/** Expanded plugin prompt; prompt remains the user-visible label. */
+	runtimePrompt?: string;
 	promptId?: string;
 	checkpointRunCount?: number;
 	forkBeforeRunCount?: number;

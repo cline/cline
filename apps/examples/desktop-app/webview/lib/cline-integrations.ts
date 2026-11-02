@@ -1,4 +1,4 @@
-import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared/browser";
 import type {
 	ClineGitHubRepository,
 	ClineIntegration,

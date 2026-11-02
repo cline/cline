@@ -9,8 +9,7 @@ mod macos_notification;
 mod terminal;
 
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
-use std::fs;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -343,6 +342,7 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 #[derive(Default)]
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
+    hub_connections: Mutex<HashMap<String, DesktopHubConnection>>,
     process: Mutex<Option<Child>>,
     shutting_down: AtomicBool,
 }
@@ -380,6 +380,9 @@ impl DesktopBackendState {
 
         if let Ok(mut endpoint_guard) = self.ws_endpoint.lock() {
             *endpoint_guard = None;
+            if let Ok(mut connections) = self.hub_connections.lock() {
+                connections.clear();
+            }
         }
     }
 }
@@ -388,6 +391,22 @@ impl Drop for DesktopBackendState {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopHubConnection {
+    url: String,
+    auth_token: String,
+    workspace_root: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopHubConnectionLine {
+    #[serde(rename = "type")]
+    line_type: String,
+    environment_id: String,
+    connection: Option<DesktopHubConnection>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -584,6 +603,7 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         command.env("CLINE_DESKTOP_CLI_PATH", cli_path);
     }
     command
+        .env("CLINE_DESKTOP_NATIVE_BOOTSTRAP", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -591,6 +611,34 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     command
         .spawn()
         .map_err(|e| format!("failed to start desktop backend: {e}"))
+}
+
+/// Consume control records before any diagnostic logging, including malformed
+/// records. Only the current child may publish or revoke a connection.
+fn consume_hub_connection_line(state: &DesktopBackendState, child_pid: u32, text: &str) -> bool {
+    if !text.contains("hub-connection") {
+        return false;
+    }
+    if let Ok(line) = serde_json::from_str::<DesktopHubConnectionLine>(text) {
+        if line.line_type != "hub-connection" {
+            return true;
+        }
+        let process = state.process.lock().ok();
+        if process
+            .as_ref()
+            .and_then(|guard| guard.as_ref().map(|child| child.id()))
+            == Some(child_pid)
+        {
+            if let Ok(mut connections) = state.hub_connections.lock() {
+                if let Some(connection) = line.connection {
+                    connections.insert(line.environment_id, connection);
+                } else {
+                    connections.remove(&line.environment_id);
+                }
+            }
+        }
+    }
+    true
 }
 
 fn ensure_desktop_backend_started(
@@ -641,6 +689,9 @@ fn ensure_desktop_backend_started_locked(
             Ok(None) => return Ok(()),
             Ok(Some(_)) | Err(_) => {
                 *process_guard = None;
+                if let Ok(mut connections) = state.hub_connections.lock() {
+                    connections.clear();
+                }
                 if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
                     *endpoint_guard = None;
                 }
@@ -676,6 +727,9 @@ fn ensure_desktop_backend_started_locked(
             if trimmed.is_empty() {
                 continue;
             }
+            if consume_hub_connection_line(&state_for_stdout, child_pid, trimmed) {
+                continue;
+            }
             if let Ok(parsed) = serde_json::from_str::<DesktopBackendReadyLine>(trimmed) {
                 if parsed.line_type == "ready" {
                     if let Some(endpoint) = parsed.ws_endpoint.or(parsed.endpoint) {
@@ -698,6 +752,9 @@ fn ensure_desktop_backend_started_locked(
             .map(|guard| guard.as_ref().map(|child| child.id()) == Some(child_pid))
             .unwrap_or(false);
         if owns_tracked_child {
+            if let Ok(mut connections) = state_for_stdout.hub_connections.lock() {
+                connections.clear();
+            }
             if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
                 *endpoint_guard = None;
             }
@@ -725,30 +782,6 @@ fn non_empty_env(name: &str) -> Option<String> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-}
-
-/// Mirrors `resolveMcpSettingsPath()` in `@cline/shared/storage` (the resolver
-/// the sidecar and the hub runtime use): explicit path override, then the data
-/// dir override, then the cline dir override, then `~/.cline/data`. Keeping the
-/// same precedence here means the "Open MCP settings" window action opens the
-/// exact file the runtime reads (cline/cline#14152).
-fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
-    if let Some(explicit) = non_empty_env("CLINE_MCP_SETTINGS_PATH") {
-        return Ok(PathBuf::from(explicit));
-    }
-    let data_dir = if let Some(data_dir) = non_empty_env("CLINE_DATA_DIR") {
-        PathBuf::from(data_dir)
-    } else if let Some(cline_dir) = non_empty_env("CLINE_DIR") {
-        PathBuf::from(cline_dir).join("data")
-    } else {
-        // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
-        // homedir() resolves there); HOME is usually unset on Windows.
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
-        PathBuf::from(home).join(".cline").join("data")
-    };
-    Ok(data_dir.join("settings").join("cline_mcp_settings.json"))
 }
 
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
@@ -887,6 +920,58 @@ async fn get_desktop_backend_endpoint(
     })
     .await
     .map_err(|error| format!("desktop backend startup task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn get_desktop_hub_connection(
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+    context: State<'_, AppContext>,
+    environment_id: Option<String>,
+) -> Result<DesktopHubConnection, String> {
+    let state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    let environment = environment_id.unwrap_or_else(|| "local".to_string());
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&state, &context)?;
+        let deadline = Instant::now() + ENDPOINT_WAIT_TIMEOUT;
+        let mut last_respawn: Option<Instant> = None;
+        loop {
+            if state.is_shutting_down() {
+                return Err("desktop is shutting down".to_string());
+            }
+            let child_exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if child_exited
+                && last_respawn
+                    .map(|at| at.elapsed() >= ENDPOINT_RESPAWN_BACKOFF)
+                    .unwrap_or(true)
+            {
+                last_respawn = Some(Instant::now());
+                ensure_desktop_backend_started(&state, &context)?;
+            }
+            if let Some(connection) = state
+                .hub_connections
+                .lock()
+                .ok()
+                .and_then(|connections| connections.get(&environment).cloned())
+            {
+                return Ok(connection);
+            }
+            if Instant::now() >= deadline {
+                return Err("Hub connection is not ready".to_string());
+            }
+            thread::sleep(ENDPOINT_WAIT_POLL_INTERVAL);
+        }
+    })
+    .await
+    .map_err(|_| "Hub bootstrap task failed".to_string())?
 }
 
 #[tauri::command]
@@ -1128,24 +1213,32 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
 }
 
 #[tauri::command]
-fn open_mcp_settings_file() -> Result<String, String> {
-    let settings_path = resolve_mcp_settings_path()?;
-    if !settings_path.exists() {
-        if let Some(parent) = settings_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("failed creating MCP settings directory: {e}"))?;
-        }
-        let initial = serde_json::json!({
-            "mcpServers": {}
-        });
-        let mut body = serde_json::to_vec_pretty(&initial)
-            .map_err(|e| format!("failed encoding MCP settings: {e}"))?;
-        body.push(b'\n');
-        fs::write(&settings_path, body)
-            .map_err(|e| format!("failed writing MCP settings file: {e}"))?;
+fn open_local_path(path: String) -> Result<(), String> {
+    let target = PathBuf::from(path);
+    if !target.is_absolute() {
+        return Err("Expected an absolute local path".to_string());
     }
-    open_path_with_default_app(&settings_path)?;
-    Ok(settings_path.to_string_lossy().to_string())
+    open_path_with_default_app(&target)
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = tauri::Url::parse(&url).map_err(|_| "Invalid external URL".to_string())?;
+    if !["http", "https", "mailto", "tel"].contains(&parsed.scheme()) {
+        return Err("Unsupported external URL scheme".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .spawn()
+            .map_err(|_| "Failed to open browser".to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        open_path_with_default_app(Path::new(&url))
+    }
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -1704,8 +1797,10 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
+            get_desktop_hub_connection,
             pick_workspace_directory,
-            open_mcp_settings_file,
+            open_local_path,
+            open_external_url,
             get_update_status,
             restart_to_apply_update,
             check_for_update_now,
@@ -1746,6 +1841,52 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn native_openers_reject_non_web_schemes_and_relative_paths() {
+        assert!(open_external_url("javascript:alert(1)".into()).is_err());
+        assert!(open_external_url("file:///tmp/settings".into()).is_err());
+        assert!(open_local_path("relative/settings.json".into()).is_err());
+    }
+
+    #[test]
+    fn bootstrap_records_are_consumed_and_only_current_child_can_publish() {
+        let state = DesktopBackendState::default();
+        let child = Command::new("sleep").arg("10").spawn().unwrap();
+        let pid = child.id();
+        *state.process.lock().unwrap() = Some(child);
+        let record = r#"{"type":"hub-connection","environmentId":"local","connection":{"url":"ws://localhost/hub","authToken":"private","workspaceRoot":"/tmp"}}"#;
+        assert!(consume_hub_connection_line(&state, pid + 1, record));
+        assert!(state.hub_connections.lock().unwrap().is_empty());
+        assert!(consume_hub_connection_line(&state, pid, record));
+        assert_eq!(
+            state
+                .hub_connections
+                .lock()
+                .unwrap()
+                .get("local")
+                .unwrap()
+                .auth_token,
+            "private"
+        );
+        assert!(consume_hub_connection_line(
+            &state,
+            pid,
+            r#"{"type":"hub-connection","broken":"private""#
+        ));
+        assert!(!consume_hub_connection_line(
+            &state,
+            pid,
+            "ordinary diagnostic"
+        ));
+        assert!(consume_hub_connection_line(
+            &state,
+            pid,
+            r#"{"type":"hub-connection","environmentId":"local","connection":null}"#
+        ));
+        assert!(state.hub_connections.lock().unwrap().is_empty());
+        state.stop();
+    }
 
     #[test]
     fn macos_bundle_declares_voice_input_permissions() {

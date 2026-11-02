@@ -299,3 +299,8 @@ describe("tool state controls", () => {
 		).toBe(!initialEnabled);
 	});
 });
+
+vi.mock("@/lib/hub-client", () => ({
+	hubMcp: { list: vi.fn(async () => ({ servers: [] })) },
+	hubProviders: { list: vi.fn(async () => ({ providers: [] })) },
+}));

@@ -271,7 +271,8 @@ export function writeDesktopDebugLog(payload: unknown): void {
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
-	"open_mcp_settings_file",
+	"open_local_path",
+	"open_external_url",
 	"get_update_status",
 	"restart_to_apply_update",
 	"check_for_update_now",
@@ -844,8 +845,7 @@ export const desktopClient = new DesktopClient();
 /**
  * Open a URL in the user's default browser. Inside the Tauri shell,
  * `target="_blank"` anchors are silently dropped (no window opener is
- * configured), so external links must be routed through the sidecar, which
- * runs on the host and can spawn the platform opener. In plain web mode the
+ * configured), so external links use the native shell’s platform opener. In plain web mode the
  * browser handles it directly.
  */
 export async function openExternalUrl(url: string): Promise<void> {
