@@ -1,4 +1,11 @@
-import type { AgentToolContext } from "@cline/shared";
+import type {
+	AgentToolContext,
+	SessionMcpServerConfig,
+	SessionMcpSseTransport,
+	SessionMcpStdioTransport,
+	SessionMcpStreamableHttpTransport,
+	SessionMcpTransport,
+} from "@cline/shared";
 
 export interface McpToolDescriptor {
 	name: string;
@@ -56,30 +63,14 @@ export interface CreateMcpToolsOptions {
 
 export type McpConnectionStatus = "disconnected" | "connecting" | "connected";
 
-export interface McpStdioTransportConfig {
-	type: "stdio";
-	command: string;
-	args?: string[];
-	cwd?: string;
-	env?: Record<string, string>;
-}
+export type McpStdioTransportConfig = SessionMcpStdioTransport;
 
-export interface McpSseTransportConfig {
-	type: "sse";
-	url: string;
-	headers?: Record<string, string>;
-}
+export type McpSseTransportConfig = SessionMcpSseTransport;
 
-export interface McpStreamableHttpTransportConfig {
-	type: "streamableHttp";
-	url: string;
-	headers?: Record<string, string>;
-}
+export type McpStreamableHttpTransportConfig =
+	SessionMcpStreamableHttpTransport;
 
-export type McpServerTransportConfig =
-	| McpStdioTransportConfig
-	| McpSseTransportConfig
-	| McpStreamableHttpTransportConfig;
+export type McpServerTransportConfig = SessionMcpTransport;
 
 export interface McpServerOAuthState {
 	clientInformation?: Record<string, unknown>;
@@ -97,10 +88,7 @@ export interface McpServerOAuthClientConfig {
 	clientSecret?: string;
 }
 
-export interface McpServerRegistration {
-	name: string;
-	transport: McpServerTransportConfig;
-	disabled?: boolean;
+export interface McpServerRegistration extends SessionMcpServerConfig {
 	/**
 	 * Per-server request timeout in seconds, from the `timeout` field in
 	 * cline_mcp_settings.json. Undefined means the shared default for ordinary
@@ -109,7 +97,6 @@ export interface McpServerRegistration {
 	 * resolved when the runtime is built, so changes take effect on the next
 	 * session.
 	 */
-	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
 	oauthClient?: McpServerOAuthClientConfig;
 	oauth?: McpServerOAuthState;

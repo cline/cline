@@ -15,6 +15,7 @@ import type {
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
 } from "@cline/shared";
+import type { McpServerRegistration } from "../extensions/mcp/types";
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { ProviderConfig } from "./provider-settings";
@@ -271,6 +272,16 @@ export interface CoreSessionConfig
 	telemetry?: ITelemetryService;
 	extensionContext?: ExtensionContext;
 	extraTools?: AgentTool[];
+	/**
+	 * MCP servers supplied by the session host for this session only.
+	 *
+	 * Used by hosts that receive MCP server definitions at session setup time
+	 * (for example an ACP client sending `mcpServers` in `session/new`) instead
+	 * of relying on `cline_mcp_settings.json`. Registrations are applied when
+	 * the runtime is built and are never written to disk, so a host can inject
+	 * servers with per-session URLs, credentials, or lifetimes.
+	 */
+	mcpServers?: McpServerRegistration[];
 	pluginPaths?: string[];
 	/**
 	 * Additional Agent Plugins v1 package roots. Paths are resolved by the

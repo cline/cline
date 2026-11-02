@@ -43,13 +43,14 @@ import type { ResolvedCliReasoning } from "../utils/reasoning";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
-	type AcpAuthMethodId,
 	type AcpAuthResult,
 	authenticateAcpProvider,
 	isAcpAuthMethodId,
+	resolveAcpAuthCandidates,
 } from "./auth";
 import { AUTO_APPROVE_CONFIG_ID, parseAutoApproveValue } from "./auto-approve";
 import { buildConfigOptions } from "./config-options";
+import { toMcpServerRegistrations } from "./mcp-servers";
 import {
 	buildOrganizationConfigOption,
 	fetchClineOrganizations,
@@ -136,6 +137,15 @@ export class AcpAgent implements Agent {
 					image: true,
 					audio: false,
 					embeddedContext: false,
+				},
+				// Hosts (Zed, Neovim, PandaCode, …) hand their own tools to the
+				// agent as MCP servers. ACP clients treat a missing
+				// `mcpCapabilities` as "this agent accepts no MCP servers", and
+				// some of them refuse to start a session at all in that case, so
+				// both HTTP transports are advertised explicitly.
+				mcpCapabilities: {
+					http: true,
+					sse: true,
 				},
 			},
 			agentInfo: {
@@ -637,13 +647,17 @@ export class AcpAgent implements Agent {
 	 * the client doesn't have to re-authenticate every time.
 	 */
 	private tryRestoreAuth(): AcpAuthResult | undefined {
-		for (const method of ACP_AUTH_METHODS) {
-			const settings = this.providerSettingsManager.getProviderSettings(
-				method.id,
-			);
-			const apiKey = getPersistedProviderApiKey(method.id, settings);
+		const candidates = resolveAcpAuthCandidates({
+			envProvider: process.env.CLINE_PROVIDER,
+			lastUsedProvider: this.providerSettingsManager.read().lastUsedProvider,
+		});
+
+		for (const providerId of candidates) {
+			const settings =
+				this.providerSettingsManager.getProviderSettings(providerId);
+			const apiKey = getPersistedProviderApiKey(providerId, settings);
 			if (apiKey) {
-				return { providerId: method.id as AcpAuthMethodId, apiKey };
+				return { providerId, apiKey };
 			}
 		}
 		return undefined;
@@ -795,6 +809,10 @@ export class AcpAgent implements Agent {
 			enableTools: true,
 			cwd,
 			workspaceRoot,
+			// MCP servers the ACP client sent with session/new or session/load.
+			// They are registered for this session only; nothing is written to
+			// cline_mcp_settings.json.
+			mcpServers: toMcpServerRegistrations(session.mcpServers),
 			extensionContext: {
 				client: {
 					name: "cline-acp",

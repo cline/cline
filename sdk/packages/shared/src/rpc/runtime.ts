@@ -17,6 +17,7 @@ import type {
 	SessionExecutionConfig,
 	SessionPromptConfig,
 } from "../session/runtime-config";
+import type { SessionMcpServerConfig } from "./mcp";
 
 export interface ChatRuntimeConfig extends SessionPromptConfig {
 	cwd?: string;
@@ -26,6 +27,11 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
+	/**
+	 * MCP servers that apply to this session only. Registered next to the
+	 * servers from `cline_mcp_settings.json` and never persisted.
+	 */
+	mcpServers?: SessionMcpServerConfig[];
 	/** Additional Agent Plugins package roots resolved by the hub runtime. */
 	agentPluginPaths?: string[];
 	autoApproveTools?: boolean;

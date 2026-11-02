@@ -372,6 +372,13 @@ export {
 } from "./remote-config/schema";
 export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
 export type {
+	SessionMcpServerConfig,
+	SessionMcpSseTransport,
+	SessionMcpStdioTransport,
+	SessionMcpStreamableHttpTransport,
+	SessionMcpTransport,
+} from "./rpc/mcp";
+export type {
 	AddProviderActionRequest,
 	ChatAttachmentFile,
 	ChatAttachments,

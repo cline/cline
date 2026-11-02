@@ -22,6 +22,34 @@ export function isAcpAuthMethodId(id: string): id is AcpAuthMethodId {
 }
 
 /**
+ * Order in which persisted ACP credentials are tried when a session needs
+ * credentials before the client authenticated explicitly.
+ *
+ * An ACP host may pin the provider through `CLINE_PROVIDER`, and
+ * `providers.json` remembers the provider the user picked last, so both win
+ * over the declaration order. Without that, a ClinePass subscriber whose
+ * credentials for plain `cline` also exist would silently be served the
+ * `cline` key — wrong account, and a `cline-pass/…` model id that does not
+ * exist in the `cline` catalog.
+ */
+export function resolveAcpAuthCandidates(input: {
+	envProvider?: string;
+	lastUsedProvider?: string;
+}): AcpAuthMethodId[] {
+	const preferred = [
+		input.envProvider?.trim(),
+		input.lastUsedProvider?.trim(),
+	].filter((id): id is AcpAuthMethodId => !!id && isAcpAuthMethodId(id));
+
+	return [
+		...new Set<AcpAuthMethodId>([
+			...preferred,
+			...ACP_AUTH_METHODS.map((m) => m.id),
+		]),
+	];
+}
+
+/**
  * Perform an OAuth login for the given provider in ACP mode.
  *
  * Since stdin/stdout are used for the JSON-RPC transport, all user-facing

@@ -584,6 +584,76 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("registers MCP servers supplied by the session host", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-host-mcp-"));
+		tempDirs.push(tempRoot);
+		const serverPath = join(tempRoot, "host-mcp-server.js");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "host", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: { value: { type: "string" } }, required: [] } }] } });
+    return;
+  }
+  if (message.method === "tools/call") {
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\n");
+    if (separator < 0) break;
+    const line = buffer.slice(0, separator).trim();
+    buffer = buffer.slice(separator + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+
+		// No settings file on disk: the only MCP server for this session is the
+		// one the host passed in, so a missing file must not short-circuit.
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			tempRoot,
+			"absent-settings.json",
+		);
+		try {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					mcpServers: [
+						{
+							name: "host",
+							transport: {
+								type: "stdio",
+								command: process.execPath,
+								args: [serverPath],
+							},
+						},
+					],
+				}),
+			});
+
+			expect(runtime.tools.map((tool) => tool.name)).toContain("host__echo");
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("exposes MCP Apps for configured servers when mcpApps is enabled", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-apps-"));
 		tempDirs.push(tempRoot);
