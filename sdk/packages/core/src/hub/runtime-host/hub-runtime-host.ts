@@ -1485,11 +1485,14 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async deleteSession(sessionId: string): Promise<boolean> {
-		this.sessionCapabilities.delete(sessionId);
-		this.disposeSessionSubscription(sessionId);
 		const reply = await this.client.command("session.delete", {
 			sessionId,
 		});
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.delete"));
+		}
+		this.sessionCapabilities.delete(sessionId);
+		this.disposeSessionSubscription(sessionId);
 		return reply.payload?.deleted === true;
 	}
 

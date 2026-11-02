@@ -21,6 +21,7 @@ export interface SessionSearchInput {
 	query: string;
 	limit?: number;
 	workspaceRoot?: string;
+	excludeSessionIds?: string[];
 }
 
 export interface SessionSearchHit {
@@ -294,6 +295,7 @@ export class SessionHistorySearchService {
 					WHERE session_search MATCH ?
 						AND session_search.rank MATCH ?
 						AND (? IS NULL OR workspace_root = ?)
+						AND session_search.session_id NOT IN (SELECT value FROM json_each(?))
 					ORDER BY score, started_at DESC
 					LIMIT ?
 				), ranked AS (
@@ -314,6 +316,7 @@ export class SessionHistorySearchService {
 				SESSION_SEARCH_RANKING,
 				workspaceRoot ?? null,
 				workspaceRoot ?? null,
+				JSON.stringify(input.excludeSessionIds ?? []),
 				candidateLimit,
 				limit,
 			) as Array<Record<string, unknown>>;
