@@ -75,6 +75,73 @@ it("keeps model limits from id-keyed and provider-scoped catalogs", () => {
 	]);
 });
 
+it("reads vLLM max_model_len as the context window", () => {
+	expect(
+		extractModelEntriesFromPayload(
+			{ data: [{ id: "vllm-model", max_model_len: 32_768 }] },
+			"custom",
+		),
+	).toMatchObject([
+		{ id: "vllm-model", contextWindow: 32_768, maxInputTokens: 32_768 },
+	]);
+});
+
+it("prefers LM Studio loaded_context_length for maxInputTokens only", () => {
+	expect(
+		extractModelEntriesFromPayload(
+			{
+				data: [
+					{
+						id: "loaded",
+						max_context_length: 131_072,
+						loaded_context_length: 8_192,
+						max_input_tokens: 100_000,
+					},
+					{ id: "not-loaded", max_context_length: 131_072 },
+				],
+			},
+			"custom",
+		),
+	).toMatchObject([
+		{ id: "loaded", contextWindow: 131_072, maxInputTokens: 8_192 },
+		{ id: "not-loaded", contextWindow: 131_072, maxInputTokens: 131_072 },
+	]);
+});
+
+it.each([
+	0,
+	-1,
+	0.5,
+	Number.NaN,
+	Number.POSITIVE_INFINITY,
+	"8192",
+	null,
+])("ignores invalid loaded_context_length %s", (loaded) => {
+	expect(
+		extractModelEntriesFromPayload(
+			{
+				data: [
+					{
+						id: "with-input-limit",
+						max_context_length: 131_072,
+						max_input_tokens: 100_000,
+						loaded_context_length: loaded,
+					},
+					{
+						id: "context-only",
+						max_context_length: 131_072,
+						loaded_context_length: loaded,
+					},
+				],
+			},
+			"custom",
+		),
+	).toMatchObject([
+		{ id: "with-input-limit", contextWindow: 131_072, maxInputTokens: 100_000 },
+		{ id: "context-only", contextWindow: 131_072, maxInputTokens: 131_072 },
+	]);
+});
+
 it("fetches entries with their limits, while the id helper stays compatible", async () => {
 	const payload = {
 		data: [{ id: "long-context-model", context_length: 1_048_576 }],

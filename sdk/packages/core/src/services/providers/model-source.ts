@@ -28,7 +28,7 @@ function firstString(...values: unknown[]): string | undefined {
 
 function firstPositiveInteger(...values: unknown[]): number | undefined {
 	for (const value of values) {
-		if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		if (typeof value === "number" && Number.isFinite(value) && value >= 1) {
 			return Math.trunc(value);
 		}
 	}
@@ -51,14 +51,20 @@ function toModelSourceEntry(item: unknown): ModelSourceEntry | undefined {
 		entry.contextLength,
 		entry.contextWindow,
 		entry.maxContextLength,
+		entry.max_model_len, // vLLM
 	);
 	return {
 		id,
 		name: firstString(entry.name),
 		contextWindow,
+		// LM Studio serves `loaded_context_length`, which can be smaller than the
+		// advertised `max_context_length`; it is the real compaction budget.
 		maxInputTokens:
-			firstPositiveInteger(entry.max_input_tokens, entry.maxInputTokens) ??
-			contextWindow,
+			firstPositiveInteger(
+				entry.loaded_context_length,
+				entry.max_input_tokens,
+				entry.maxInputTokens,
+			) ?? contextWindow,
 		maxTokens: firstPositiveInteger(
 			entry.max_output_tokens,
 			entry.max_completion_tokens,
