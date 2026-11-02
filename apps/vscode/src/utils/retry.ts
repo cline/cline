@@ -8,13 +8,17 @@ export async function retryOperation<T>(maxRetries: number, timeoutPerAttempt: n
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
 			// Create a timeout promise
-			const timeoutPromise = new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("Operation timeout")), timeoutPerAttempt),
-			)
+			let timeoutId: ReturnType<typeof setTimeout> | undefined
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				timeoutId = setTimeout(() => reject(new Error("Operation timeout")), timeoutPerAttempt)
+			})
 
-			// Race the operation against timeout
-			const result = await Promise.race([operation(), timeoutPromise])
-			return result // Success - return result
+			try {
+				// Race the operation against timeout
+				return await Promise.race([operation(), timeoutPromise])
+			} finally {
+				clearTimeout(timeoutId)
+			}
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error))
 
