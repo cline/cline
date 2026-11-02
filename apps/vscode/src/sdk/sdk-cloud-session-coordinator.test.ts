@@ -2298,13 +2298,21 @@ describe("cloud follow-up preparation", () => {
 		await f.coordinator.dispose()
 	})
 
-	it("rejects a retained record whose expiry elapsed before preparation", async () => {
+	it.each(["preparation", "poll"])("retires a displayed transport after cached expiry during %s", async (operation) => {
 		const f = await idleFollowup({ ...record, expiredAt: new Date(Date.now() + 60_000).toISOString() })
 		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 120_000)
-		await expect(f.preparation.prepare()).rejects.toThrow("has expired")
+		if (operation === "preparation") {
+			await expect(f.preparation.prepare()).rejects.toThrow("has expired")
+		} else {
+			f.cloudSessions.listSessions.mockRejectedValue(new Error("list unavailable"))
+			await (f.coordinator as unknown as { pollTick: () => Promise<void> }).pollTick()
+		}
+		expect(f.host.dispose).toHaveBeenCalledOnce()
+		expect(f.entries.get(record.id)?.host).toBeUndefined()
 		expect(f.sessions.getActiveSession()).toBeUndefined()
 		expect(f.cloudSessions.getStatus).not.toHaveBeenCalled()
 		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
+		expect(f.connect).not.toHaveBeenCalled()
 		await f.coordinator.dispose()
 	})
 

@@ -945,6 +945,10 @@ export class SdkCloudSessionCoordinator {
 		}
 		const now = Date.now()
 		for (const entry of this.entries.values()) {
+			if (isCloudSessionExpired(entry.record)) {
+				this.retireTransport(entry)
+				continue
+			}
 			const status = this.statusOf(entry)
 			if (
 				entry.host &&
