@@ -63,6 +63,10 @@ desktop lifecycle or discovery rules a cross-client guarantee. Adding that
 capability requires a shared identity and lifecycle contract rather than
 reusing desktop process ownership as Hub ownership.
 
+Hosts can pass `excludeSessionIds` to the existing `session.search` command.
+The search service applies exclusions before its ranked candidate and result
+limits; the host decides which sessions to exclude.
+
 ## Package Responsibilities
 
 ### `@cline/shared`

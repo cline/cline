@@ -436,6 +436,28 @@ describe("HubServerTransport boundaries", () => {
 			}),
 		]);
 
+		const excludedReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-excluded-session",
+			command: "session.search",
+			payload: {
+				query: "ultramarine",
+				excludeSessionIds: [" searchable-session ", "", "searchable-session"],
+			},
+		});
+		expect(excludedReply.ok).toBe(true);
+		expect(excludedReply.payload?.hits).toEqual([]);
+		const invalidExclusions = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-invalid-exclusions",
+			command: "session.search",
+			payload: { query: "ultramarine", excludeSessionIds: [123] },
+		});
+		expect(invalidExclusions).toMatchObject({
+			ok: false,
+			error: { code: "invalid_search_exclusions" },
+		});
+
 		const deleteReply = await transport.handleCommand({
 			version: "v1",
 			requestId: "delete-searchable-session",

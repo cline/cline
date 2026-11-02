@@ -33,6 +33,42 @@ function fixture(messages: MessageWithMetadata[]) {
 }
 
 describe("side parent history tool", () => {
+	it.each([
+		"recent",
+		"search",
+	] as const)("hashes only returned %s references", async (operation) => {
+		const readId = vi.fn((index: number) => `message-${index}`);
+		const messages: MessageWithMetadata[] = Array.from(
+			{ length: 30 },
+			(_, index) => ({
+				get id() {
+					return readId(index);
+				},
+				role: "user",
+				content: `matching message ${index}`,
+			}),
+		);
+		const { tool } = fixture(messages);
+		const result = await tool.execute(
+			{
+				operation,
+				limit: 2,
+				...(operation === "search" ? { query: "matching" } : {}),
+			},
+			context,
+		);
+		expect(result).toMatchObject({
+			ok: true,
+			result: {
+				matches: [29, 28].map((index) => ({
+					preview: `${operation === "recent" ? "[user]\n" : ""}matching message ${index}`,
+				})),
+				omittedMatches: 28,
+			},
+		});
+		expect(readId.mock.calls).toEqual([[29], [28]]);
+	});
+
 	it("reads only its parent on demand and sees new saved activity without mutating history", async () => {
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "initial task" },

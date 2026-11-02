@@ -122,22 +122,23 @@ export function createSideHistoryTool({
 				texts.push(block.text);
 				grouped.set(block.sourceIndex, texts);
 			}
-			const entries = [...grouped].map(([index, texts]) => {
-				const text = texts.join("\n\n");
+			const entries = [...grouped].map(([index, texts]) => ({
+				index,
+				text: texts.join("\n\n"),
+			}));
+			const referenceFor = ({ index, text }: (typeof entries)[number]) => {
 				const digest = createHash("sha256")
 					.update(JSON.stringify([messages[index].id ?? null, text]))
 					.digest("hex");
-				return { reference: `${index}:${digest}`, text };
-			});
+				return `${index}:${digest}`;
+			};
 			const header = {
 				parentStatus: parent.status,
 				note: SOURCE_NOTE,
 			};
 			if (request.operation === "read") {
-				const entry = entries.find(
-					(item) => item.reference === request.reference,
-				);
-				if (!entry) {
+				const entry = entries.find((item) => item.index === sourceIndex);
+				if (!entry || referenceFor(entry) !== request.reference) {
 					return {
 						ok: false,
 						error: "stale_reference",
@@ -175,7 +176,7 @@ export function createSideHistoryTool({
 					...header,
 					result: {
 						operation: "read",
-						reference: entry.reference,
+						reference: request.reference,
 						text: entry.text.slice(request.offset, end),
 						offset: request.offset,
 						nextOffset: end < entry.text.length ? end : null,
@@ -209,7 +210,7 @@ export function createSideHistoryTool({
 					end--;
 				const preview = bytes.subarray(0, end).toString("utf8");
 				const match: HistoryMatch = {
-					reference: entry.reference,
+					reference: referenceFor(entry),
 					offset: entry.offset,
 					preview,
 					omittedBytes: referenceByteLength(entry.text) - end,
