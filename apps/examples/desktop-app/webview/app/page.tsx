@@ -3311,7 +3311,11 @@ function ChatThreadPane({
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
-			isOpeningSession={displayedIsSwitching}
+			placeholder={
+				isCloudSession && displayedIsSwitching
+					? "Getting session ready…"
+					: undefined
+			}
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
