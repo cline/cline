@@ -681,6 +681,7 @@ export function useChatSession(environmentId: string) {
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
 	const manualCompactionSessionIdRef = useRef<string | null>(null);
+	const [compactionActive, setCompactionActive] = useState(false);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -3115,6 +3116,7 @@ export function useChatSession(environmentId: string) {
 					// Manual compaction has no run-start event to enable Stop.
 					if (isManualCompaction) {
 						manualCompactionSessionIdRef.current = activeSessionId;
+						setCompactionActive(true);
 					}
 					setStatus(isManualCompaction ? "running" : "starting");
 				}
@@ -3626,6 +3628,12 @@ export function useChatSession(environmentId: string) {
 				markCloudOptimisticFailed();
 				if (!failureOwnerCurrent()) {
 					replySuperseded = true;
+				} else if (errorMessage(err).startsWith("Compaction is in progress")) {
+					// A compaction we lost track of (reload, remount) is still
+					// running in the sidecar: show Stop again instead of an error.
+					promptTaken = withdrawPrompt();
+					setCompactionActive(true);
+					setStatus("running");
 				} else {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
@@ -4379,6 +4387,9 @@ export function useChatSession(environmentId: string) {
 		isHydratingSession,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting:
+			compactionActive &&
+			(status === "starting" || status === "running" || status === "stopping"),
 		config,
 		messages,
 		historyPreview: isHydratingSession ? historyPreview : [],

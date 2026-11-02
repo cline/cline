@@ -702,6 +702,29 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("shows Stop instead of an error when the sidecar reports a compaction in progress", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-lost" };
+					if (request.action === "send")
+						throw new Error(
+							"Compaction is in progress. Stop it before sending another message.",
+						);
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(current.status).toBe("running");
+		expect(current.isCompacting).toBe(true);
+		expect(current.error).toBeNull();
+	});
+
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
 		const drafts = new PromptDraftCache();
 		let draft!: ReturnType<typeof usePromptDraft>;

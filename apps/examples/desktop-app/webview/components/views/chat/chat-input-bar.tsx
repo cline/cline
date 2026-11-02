@@ -328,6 +328,7 @@ type ChatInputBarProps = {
 	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
 	placeholder?: string;
+	isCompacting?: boolean;
 	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
@@ -387,6 +388,7 @@ function ChatInputBarImpl({
 	cloudHandoffAvailable = false,
 	status,
 	placeholder,
+	isCompacting = false,
 	hasRunningAgents = false,
 	provider,
 	model,
@@ -1509,9 +1511,11 @@ function ChatInputBarImpl({
 										? "Choose a repository"
 										: (placeholder ??
 											(isBusy && variant !== "welcome"
-												? promptsInQueue.length > 0
-													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-													: "Agent is working... submit to queue another message"
+												? isCompacting
+													? "Compacting... click Stop to cancel"
+													: promptsInQueue.length > 0
+														? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+														: "Agent is working... submit to queue another message"
 												: executionTarget === "cloud"
 													? "Describe what Cline should do in this repository."
 													: variant === "welcome"
