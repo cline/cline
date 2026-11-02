@@ -37,7 +37,13 @@ function logMemoryUsage(): void {
 function reportStreamBacklog(): void {
 	for (const [qualifiedMethod, peak] of coreConnectionBacklog.takePeaks()) {
 		const dot = qualifiedMethod.lastIndexOf(".")
-		telemetryService.captureGrpcStreamBacklog(peak, qualifiedMethod.slice(0, dot), qualifiedMethod.slice(dot + 1))
+		// A gauge series keeps exporting its last value until it is cleared, so a
+		// method's first quiet window retires its series rather than reporting 0.
+		telemetryService.captureGrpcStreamBacklog(
+			peak > 0 ? peak : null,
+			qualifiedMethod.slice(0, dot),
+			qualifiedMethod.slice(dot + 1),
+		)
 		if (peak > 2) {
 			log(`[BACKLOG] ${qualifiedMethod} peak=${peak} queued responses`)
 		}

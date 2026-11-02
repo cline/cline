@@ -73,6 +73,11 @@ describe("core connection stream backlog (cline/cline#15031)", () => {
 		}
 		expect(completedSeqs).toEqual(Array.from({ length: POSTS }, (_, i) => i))
 		expect(backlog.depth(METHOD)).toBe(0)
+		// The window they drained in still peaked at its starting depth; the next,
+		// quiet one is reported as 0 once; then the method drops out.
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, POSTS]]))
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 0]]))
+		expect(backlog.takePeaks()).toEqual(new Map())
 	})
 
 	it("leaves the queue when a forward fails, and does not track unary requests", async () => {
@@ -104,7 +109,7 @@ describe("core connection stream backlog (cline/cline#15031)", () => {
 			},
 			backlog,
 		)
-		expect(backlog.takePeaks()).toEqual(new Map())
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 0]]))
 	})
 
 	it("reports each window's peak, carrying an undrained backlog into the next", () => {
@@ -120,7 +125,15 @@ describe("core connection stream backlog (cline/cline#15031)", () => {
 		backlog.leave(METHOD)
 		// The window in which they drained still peaked at the depth it started with.
 		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 2]]))
-		// Nothing queued and nothing posted: the method drops out of the report.
+		// First quiet window: reported as 0 so the reader sees the recovery.
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 0]]))
+		// Still quiet: the method drops out of the report.
+		expect(backlog.takePeaks()).toEqual(new Map())
+		// Activity brings it back; its next quiet window is again a single 0.
+		backlog.enter(METHOD)
+		backlog.leave(METHOD)
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 1]]))
+		expect(backlog.takePeaks()).toEqual(new Map([[METHOD, 0]]))
 		expect(backlog.takePeaks()).toEqual(new Map())
 	})
 })

@@ -1921,8 +1921,11 @@ export class TelemetryService {
 		}
 	}
 
-	/** Peak depth of one host-bound response stream's forward queue over a reporting window. */
-	public captureGrpcStreamBacklog(peakDepth: number, service: string, method: string): void {
+	/**
+	 * Peak depth of one host-bound response stream's forward queue over a reporting window;
+	 * null ends the method's series once its queue has had an empty window.
+	 */
+	public captureGrpcStreamBacklog(peakDepth: number | null, service: string, method: string): void {
 		this.recordGauge(
 			TelemetryService.METRICS.GRPC.STREAM_BACKLOG_PEAK,
 			peakDepth,

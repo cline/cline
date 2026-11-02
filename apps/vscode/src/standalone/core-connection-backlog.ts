@@ -10,6 +10,8 @@
 export class StreamBacklog {
 	private readonly pending = new Map<string, number>()
 	private readonly peak = new Map<string, number>()
+	/** Methods the previous report showed with a backlog; they owe the reader one empty window. */
+	private readonly reported = new Set<string>()
 
 	enter(qualifiedMethod: string): void {
 		const depth = (this.pending.get(qualifiedMethod) ?? 0) + 1
@@ -35,10 +37,23 @@ export class StreamBacklog {
 	/**
 	 * Peak depth per method since the previous call, for every method that had
 	 * something queued in the window. The next window starts from the current
-	 * depth, so a backlog that never drains keeps reporting.
+	 * depth, so a backlog that never drains keeps reporting. A method reported
+	 * in the previous window and quiet in this one is reported once more as 0,
+	 * so the reader sees it recover instead of its last peak lingering.
 	 */
 	takePeaks(): Map<string, number> {
 		const peaks = new Map(this.peak)
+		for (const qualifiedMethod of this.reported) {
+			if (!peaks.has(qualifiedMethod)) {
+				peaks.set(qualifiedMethod, 0)
+			}
+		}
+		this.reported.clear()
+		for (const [qualifiedMethod, peak] of peaks) {
+			if (peak > 0) {
+				this.reported.add(qualifiedMethod)
+			}
+		}
 		this.peak.clear()
 		for (const [qualifiedMethod, depth] of this.pending) {
 			this.peak.set(qualifiedMethod, depth)
