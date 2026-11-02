@@ -37,6 +37,7 @@ import {
 	type ClineAccountUser,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
+	createHubMcpApi,
 	createHubProvidersApi,
 	createUserInstructionConfigService,
 	executeClineAccountAction,
@@ -48,9 +49,7 @@ import {
 	listHookConfigFiles,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
-	parseMcpServerRegistration,
 	persistClineAccountTelemetryIdentity,
-	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
 	readSessionCheckpointHistory,
@@ -68,7 +67,6 @@ import {
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
-	updateMcpSettingsFileSync,
 	upgradeManagedHub,
 } from "@cline/core";
 import { CloudSessionApi } from "@cline/core/cloud";
@@ -152,11 +150,7 @@ import {
 	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
-import {
-	ensureMcpSettingsFile,
-	readMcpServersResponse,
-	shouldProbeMcpServerAfterUpsert,
-} from "./mcp";
+
 import {
 	cancelMcpOAuthAuthorizationForReason,
 	McpOAuthAuthorizationCancelledError,
@@ -499,40 +493,6 @@ function readProviderSettingsUpdate(
 				Omit<SaveProviderSettingsActionRequest, "action" | "providerId">
 			>)
 		: {};
-}
-
-/**
- * Transport type + URL a server record actually points at, tolerating both
- * the nested `transport` shape and legacy flat fields (mirrors
- * readMcpServersResponse).
- */
-function mcpTransportIdentity(name: string, record: JsonRecord): string {
-	try {
-		const resolved = parseMcpServerRegistration(name, record).transport;
-		return resolved.type === "stdio"
-			? "stdio\u0000"
-			: `${resolved.type}\u0000${resolved.url}`;
-	} catch {
-		// Preserve a best-effort identity for malformed entries so the editor can
-		// still repair them without requiring the entire settings file to parse.
-	}
-	const transport =
-		record.transport && typeof record.transport === "object"
-			? (record.transport as JsonRecord)
-			: undefined;
-	const url =
-		typeof transport?.url === "string"
-			? transport.url
-			: typeof record.url === "string"
-				? record.url
-				: "";
-	// Core's config-loader defaults a URL-based legacy record with no explicit
-	// type to SSE and maps the legacy "http" alias to streamableHttp; mirror
-	// both so an unchanged endpoint keeps the same identity.
-	const rawType = transport?.type ?? record.transportType ?? record.type;
-	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
-	const normalizedType = type === "http" ? "streamableHttp" : type;
-	return `${normalizedType}\u0000${url}`;
 }
 
 function removePathIfExists(
@@ -1768,7 +1728,7 @@ async function listUserInstructionConfigs(
 			})),
 		],
 		hooks: loadHooks(),
-		mcp: readMcpServersResponse(),
+		mcp: await createHubMcpApi(await ensureSharedHubClient(ctx)).list(),
 		warnings,
 	};
 }
@@ -3430,7 +3390,7 @@ export async function handleCommand(
 
 	// ── MCP server management ─────────────────────────────────────────
 	if (command === "list_mcp_servers") {
-		return readMcpServersResponse();
+		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 	}
 	if (command === "authorize_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
@@ -3469,163 +3429,47 @@ export async function handleCommand(
 					disabled: false,
 				});
 			}
-			return readMcpServersResponse();
+			return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 		}
 		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
-		return readMcpServersResponse();
+		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 	}
 	if (command === "cancel_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
 		cancelMcpOAuthAuthorizationForReason(name, "user");
-		return readMcpServersResponse();
+		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 	}
+
 	if (command === "set_mcp_server_disabled") {
 		const name = String(args?.name ?? "").trim();
-		const disabled = Boolean(args?.disabled);
-		const path = ensureMcpSettingsFile();
-		if (disabled) {
+		if (args?.disabled === true)
 			cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
-			setMcpServerDisabled({ filePath: path, name, disabled: true });
-			return readMcpServersResponse();
-		}
-		const registration = resolveMcpServerRegistration(name, { filePath: path });
-		if (!registration) {
-			throw new Error(`unknown MCP server: ${name}`);
-		}
-		if (registration.transport.type !== "stdio") {
-			setMcpServerDisabled({ filePath: path, name, disabled: true });
-			const probe = await probeMcpServerConnection({
-				serverName: name,
-				filePath: path,
-			});
-			if (!probe.connected) {
-				return readMcpServersResponse();
-			}
-		}
-		setMcpServerDisabled({ filePath: path, name, disabled: false });
-		return readMcpServersResponse();
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).setDisabled(
+			name,
+			args?.disabled as boolean,
+		);
 	}
 	if (command === "upsert_mcp_server") {
-		const input =
-			args?.input && typeof args.input === "object"
-				? (args.input as JsonRecord)
-				: (args as JsonRecord);
-		const name = String(input.name ?? "").trim();
-		if (!name) throw new Error("server name is required");
-		const previousName = String(
-			input.previousName ?? input.previous_name ?? "",
-		).trim();
-		const transportType = String(
-			input.transportType ?? input.transport_type ?? "",
-		).trim();
-		const requestedDisabled = Boolean(input.disabled);
-		const isRemote = transportType !== "stdio";
-		const next: JsonRecord =
-			transportType === "stdio"
-				? {
-						transport: {
-							type: "stdio",
-							command: input.command,
-							args: input.args,
-							cwd: input.cwd,
-							env: input.env,
-						},
-						disabled: requestedDisabled,
-						metadata: input.metadata,
-					}
-				: {
-						transport: {
-							type: transportType,
-							url: input.url,
-							headers: input.headers,
-						},
-						disabled: requestedDisabled,
-						metadata: input.metadata,
-					};
-		const path = ensureMcpSettingsFile();
-		const { shouldProbeAfterSave } = updateMcpSettingsFileSync(
-			path,
-			(settings) => {
-				const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-					{}) as JsonRecord;
-				// Preserve machine-managed fields the editor dialog doesn't expose:
-				// oauth tokens for remote servers and plugin-ownership metadata.
-				const existingName =
-					previousName && servers[previousName] ? previousName : name;
-				const existing = servers[existingName];
-				let existingTransportIdentity: string | undefined;
-				let existingWasEnabled = false;
-				if (existing && typeof existing === "object") {
-					const record = existing as JsonRecord;
-					existingTransportIdentity = mcpTransportIdentity(
-						existingName,
-						record,
-					);
-					existingWasEnabled = record.disabled !== true;
-				}
-				const nextTransportIdentity = mcpTransportIdentity(name, next);
-				const transportIdentityUnchanged =
-					existingTransportIdentity === nextTransportIdentity;
-				const shouldProbe = shouldProbeMcpServerAfterUpsert({
-					isRemote,
-					requestedDisabled,
-					existingWasEnabled,
-					transportIdentityUnchanged,
-				});
-				const upserted: JsonRecord = {
-					...next,
-					disabled: requestedDisabled || shouldProbe,
-				};
-				if (existing && typeof existing === "object") {
-					const record = existing as JsonRecord;
-					if (
-						upserted.metadata === undefined &&
-						record.metadata !== undefined
-					) {
-						upserted.metadata = record.metadata;
-					}
-					// OAuth tokens were issued for a specific endpoint; carrying them
-					// onto an edited transport or URL would send the old server's
-					// credentials to a different endpoint.
-					if (record.oauth !== undefined && transportIdentityUnchanged) {
-						upserted.oauth = record.oauth;
-					}
-					if (record.oauthClient !== undefined && transportIdentityUnchanged) {
-						upserted.oauthClient = record.oauthClient;
-					}
-				}
-				if (previousName && previousName !== name) {
-					delete servers[previousName];
-				}
-				servers[name] = upserted;
-				settings.mcpServers = servers;
-				return { shouldProbeAfterSave: shouldProbe };
-			},
+		const input = args?.input ?? args;
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).upsert(
+			input as import("@cline/shared").McpServerConfigInput,
 		);
-		if (shouldProbeAfterSave) {
-			const probe = await probeMcpServerConnection({
-				serverName: name,
-				filePath: path,
-			});
-			if (probe.connected) {
-				setMcpServerDisabled({ filePath: path, name, disabled: false });
-			}
-		}
-		return readMcpServersResponse();
 	}
 	if (command === "delete_mcp_server") {
-		const path = ensureMcpSettingsFile();
-		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-				{}) as JsonRecord;
-			delete servers[String(args?.name ?? "")];
-			settings.mcpServers = servers;
-		});
-		return readMcpServersResponse();
+		const name = String(args?.name ?? "").trim();
+		cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).delete(name);
 	}
 	if (command === "ensure_mcp_settings_file") {
-		return ensureMcpSettingsFile();
+		return (
+			await createHubMcpApi(await ensureSharedHubClient(ctx)).ensureSettings()
+		).settingsPath;
+	}
+	if (command === "inspect_mcp_server") {
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).inspect(
+			String(args?.name ?? "").trim(),
+		);
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
@@ -3924,15 +3768,20 @@ export async function handleCommand(
 		);
 	}
 	if (command === "install_marketplace_entry") {
-		const result = await installMarketplaceEntryForDesktopCommand(args);
+		const result = await installMarketplaceEntryForDesktopCommand(args, {
+			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
+		});
 		return result;
 	}
 	if (command === "uninstall_marketplace_entry") {
-		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		const result = await uninstallMarketplaceEntryForDesktopCommand(args, {
+			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
+		});
 		return result;
 	}
 	if (command === "uninstall_local_primitive") {
 		const result = await uninstallLocalPrimitive(args, {
+			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
 			workspaceRoot: ctx.localWorkspaceRoot,
 		});
 		return result;
@@ -4039,7 +3888,9 @@ export async function handleCommand(
 		return await pickWorkspaceDirectory();
 	}
 	if (command === "open_mcp_settings_file") {
-		const path = ensureMcpSettingsFile();
+		const path = (
+			await createHubMcpApi(await ensureSharedHubClient(ctx)).ensureSettings()
+		).settingsPath;
 		openFileInEditor(path);
 		return path;
 	}

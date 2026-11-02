@@ -138,6 +138,14 @@ existing local Hub connection. Credential mutations and sign-out cleanup belong
 to the daemon. Desktop retains cloud-view and account-context reactions.
 Provider OAuth and voice operations still use their existing sidecar services.
 
+MCP registration, listing, enable/disable, deletion, settings-file creation and
+on-demand connection/tool inspection use `createHubMcpApi` on the local Hub.
+Marketplace MCP installation/removal uses the same API. The Hub resolves the
+settings path and owns writes and passive probes; Desktop keeps browser OAuth
+and OS editor opening. Interactive MCP OAuth still calls the existing core OAuth
+helpers and reads the resulting catalog through the Hub. Session tool runtimes
+continue to own their own MCP connections.
+
 ### 4. Session Storage — Direct SqliteSessionStore
 
 ```typescript

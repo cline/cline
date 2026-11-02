@@ -287,6 +287,12 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export type {
+	McpServerConfigInput,
+	McpServerConfigView,
+	McpServerInspection,
+	McpServersResponse,
+} from "./mcp-management";
 export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
@@ -637,6 +643,6 @@ export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
-export { initVcr } from "./vcr";
 
 export * from "./ux-verifier";
+export { initVcr } from "./vcr";

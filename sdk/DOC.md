@@ -395,6 +395,36 @@ settings path, allowing hosts to update account and cloud views. Provider API
 calls do not automatically resend dispatched requests after a connection loss.
 OAuth login and audio transcription remain separate APIs.
 
+### Hub MCP management
+
+`createHubMcpApi(client)` uses an existing registered, token-authenticated local
+Hub connection. Desktop Settings and Marketplace use it for machine-wide MCP
+settings even while a remote environment is selected.
+
+```ts
+const mcp = createHubMcpApi(client);
+await mcp.upsert({ name: "local", transportType: "stdio", command: "node", args: ["server.js"] });
+const config = await mcp.list();
+await mcp.setDisabled("local", true);
+const inspection = await mcp.inspect("local"); // explicit connect + tool discovery, then disconnect
+await mcp.delete("local");
+```
+
+`ensureSettings()` creates the settings file without rewriting an existing file;
+`install(args)` accepts marketplace MCP install arguments using the existing
+parser and registers the transport without opening a connection. Callers cannot choose a settings path. Invalid requests fail before
+writing. Catalog responses include invalid entries with configuration errors and
+OAuth readiness, without OAuth token state. Static environment/header values are
+available only to authenticated clients for editing.
+
+Remote enable and changed-endpoint Settings saves passively probe existing credentials;
+failed probes leave the server disabled and never open a browser. Same-endpoint
+edits retain OAuth credentials and metadata; endpoint changes discard those
+credentials. MCP requests are not replayed after dispatch. Mutations and probes
+are serialized, accepted work keeps the Hub busy, draining rejects new work, and
+shutdown waits for accepted operations. Inspection opens a temporary client and
+always disconnects it. Interactive MCP OAuth remains a separate migration.
+
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,

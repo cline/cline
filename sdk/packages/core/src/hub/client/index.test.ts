@@ -1583,6 +1583,21 @@ describe("hasActiveHubSessions", () => {
 		).toBe(false);
 	});
 
+	it("counts MCP management requests without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(hasActiveHubSessions({ sessions: [], activeMcpRequests: 1 })).toBe(
+			true,
+		);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activeMcpRequests: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activeMcpRequests: 2 });
+		expect(hasActiveHubSessions({ sessions: [], activeMcpRequests: 0 })).toBe(
+			false,
+		);
+	});
+
 	const payload = (sessions: unknown[]) => ({ sessions });
 
 	it("is idle for an empty or malformed list", async () => {

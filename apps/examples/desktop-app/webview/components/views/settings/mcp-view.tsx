@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+	McpServerConfigView as McpServer,
+	McpServersResponse,
+	McpServerConfigInput as McpServerUpsertInput,
+} from "@cline/shared";
 import { Switch } from "@cline/ui";
 import {
 	ChevronRight,
@@ -71,47 +76,6 @@ const TRANSPORT_TYPE_LABELS: Record<McpTransportType, string> = {
 	sse: "Remote · SSE (legacy)",
 	streamableHttp: "Remote · Streamable HTTP",
 };
-
-interface McpServer {
-	name: string;
-	transportType: McpTransportType;
-	disabled: boolean;
-	command?: string;
-	args?: string[];
-	cwd?: string;
-	env?: Record<string, string>;
-	url?: string;
-	headers?: Record<string, string>;
-	metadata?: unknown;
-	configurationError?: string;
-	oauthStatus?: {
-		supported: boolean;
-		configured: boolean;
-		authorizationRequired: boolean;
-		lastError?: string;
-		lastAuthenticatedAt?: number;
-	};
-}
-
-interface McpServersResponse {
-	settingsPath: string;
-	hasSettingsFile: boolean;
-	servers: McpServer[];
-}
-
-interface McpServerUpsertInput {
-	name: string;
-	previousName?: string;
-	transportType: McpTransportType;
-	command?: string;
-	args?: string[];
-	cwd?: string;
-	env?: Record<string, string>;
-	url?: string;
-	headers?: Record<string, string>;
-	disabled?: boolean;
-	metadata?: unknown;
-}
 
 type McpServerFormState = {
 	name: string;
