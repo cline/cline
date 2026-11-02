@@ -776,6 +776,53 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});
 
+	it("does not treat LiteLLM legacy max_tokens as maxInputTokens when max_output_tokens is present", async () => {
+		const fetchMock = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							model_name: "output-only-model",
+							litellm_params: { model: "custom/output-only" },
+							model_info: {
+								max_output_tokens: 8_192,
+								max_tokens: 8_192,
+							},
+						},
+						{
+							model_name: "legacy-tokens-model",
+							litellm_params: { model: "custom/legacy-tokens" },
+							model_info: {
+								max_tokens: 128_000,
+							},
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		const outputOnly = resolved?.knownModels?.["custom/output-only"];
+		expect(outputOnly?.maxTokens).toBe(8_192);
+		expect(outputOnly?.maxInputTokens).toBeUndefined();
+
+		const legacyTokens = resolved?.knownModels?.["custom/legacy-tokens"];
+		expect(legacyTokens?.maxTokens).toBe(128_000);
+		expect(legacyTokens?.maxInputTokens).toBe(128_000);
+	});
+
 	it("returns an empty authoritative LiteLLM model list without auth", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
