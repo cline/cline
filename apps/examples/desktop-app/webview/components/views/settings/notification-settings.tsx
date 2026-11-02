@@ -113,7 +113,7 @@ export function NotificationSettings() {
 						notification opens its session.
 					</p>
 					{permission === "denied" ? (
-						<p className="mt-1 text-xs text-error-text">
+						<p className="mt-1 text-xs text-destructive">
 							Notifications are blocked in system settings.
 						</p>
 					) : null}

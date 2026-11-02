@@ -171,7 +171,7 @@ export function KeybindingsContent() {
 				title="Keybindings"
 			/>
 			{error ? (
-				<p className="mb-4 text-sm text-error-text">
+				<p className="mb-4 text-sm text-destructive">
 					Could not save keybindings: {error}
 				</p>
 			) : null}
@@ -190,7 +190,7 @@ export function KeybindingsContent() {
 									{definition.description}
 								</p>
 								{conflict ? (
-									<p className="mt-1 text-xs text-error-text">
+									<p className="mt-1 text-xs text-destructive">
 										Also assigned to “{conflict}”.
 									</p>
 								) : null}

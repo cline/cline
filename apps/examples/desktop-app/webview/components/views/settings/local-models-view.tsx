@@ -84,7 +84,7 @@ const FIT_LABELS: Record<LocalModelFit, { text: string; className: string }> = {
 	},
 	"too-large": {
 		text: "Too large for this machine",
-		className: "text-error-text",
+		className: "text-destructive",
 	},
 };
 
@@ -649,7 +649,7 @@ export function LocalModelsContent() {
 					</div>
 				) : null}
 				{error ? (
-					<p className="break-words text-xs text-error-text" role="alert">
+					<p className="break-words text-xs text-destructive" role="alert">
 						{error}
 					</p>
 				) : null}
@@ -667,7 +667,7 @@ export function LocalModelsContent() {
 						</Button>
 					) : null}
 					{!installedModel && !pull && notEnoughDisk && disk ? (
-						<span className="text-xs text-error-text">
+						<span className="text-xs text-destructive">
 							Not enough disk space ({formatGb(disk.freeBytes)} free)
 						</span>
 					) : null}
@@ -869,7 +869,7 @@ export function LocalModelsContent() {
 											{describeRunning(model)}
 										</span>
 										{errors[name] ? (
-											<span className="text-xs text-error-text" role="alert">
+											<span className="text-xs text-destructive" role="alert">
 												{errors[name]}
 											</span>
 										) : null}

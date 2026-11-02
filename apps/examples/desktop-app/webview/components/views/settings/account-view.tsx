@@ -497,7 +497,7 @@ export function AccountView() {
 
 	const renderError = (message: string, onRetry: () => void) => (
 		<div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-			<AlertCircle className="h-8 w-8 text-error-text" />
+			<AlertCircle className="h-8 w-8 text-destructive" />
 			<p className="text-sm text-muted-foreground max-w-md">{message}</p>
 			<button
 				type="button"
@@ -557,7 +557,7 @@ export function AccountView() {
 					</button>
 				</div>
 				{signInError && (
-					<p role="alert" className="text-sm text-error-text">
+					<p role="alert" className="text-sm text-destructive">
 						{signInError}
 					</p>
 				)}

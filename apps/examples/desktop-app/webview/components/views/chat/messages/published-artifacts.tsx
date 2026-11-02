@@ -32,7 +32,7 @@ export function PublishedArtifacts({
 			<div className="flex flex-wrap items-center gap-2">
 				<span className="break-all">{name}</span>
 				{file.error ? (
-					<span className="text-error-text">{file.error.message}</span>
+					<span className="text-destructive">{file.error.message}</span>
 				) : (
 					<ArtifactDownload
 						sessionId={sessionId}
