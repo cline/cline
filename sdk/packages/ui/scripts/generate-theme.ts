@@ -112,6 +112,16 @@ function generateComponentTheme(tokens: string, theme: string): string {
 				rawName,
 			);
 		}),
+		...Array.from(
+			readBlock(theme, "@theme inline").matchAll(
+				/(--text-color-[\w-]+):\s*var\((--[\w-]+)\);/g,
+			),
+			([, name, rawName]) =>
+				mappedDeclaration(
+					name.replace("--text-color-", "--text-color-cline-ui-"),
+					rawName,
+				),
+		),
 		"",
 		...typographyNames.map((name) =>
 			mappedDeclaration(componentThemeName(name), name),

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compile } from "tailwindcss";
 import { describe, expect, it } from "vitest";
 import {
 	FALLBACK_MERMAID_TOKENS,
@@ -399,7 +400,7 @@ describe("@cline/ui theme contract", () => {
 		expect(shared).toContain("--secondary: var(--surface-3);");
 		expect(shared).toContain("--secondary-foreground: var(--text-1);");
 		expect(shared).toContain("--ring: var(--focus-ring);");
-		expect(shared).toContain("--destructive: var(--error-text);");
+		expect(shared).toContain("--destructive: var(--error-solid);");
 		for (const status of ["success", "warning", "error", "info"]) {
 			expect(shared).toContain(`--${status}-surface: var(--${status}-a2);`);
 			expect(shared).toContain(`--${status}-border: var(--${status}-a4);`);
@@ -416,6 +417,7 @@ describe("@cline/ui theme contract", () => {
 			["sidebar-primary", "sidebar-primary-foreground"],
 			["brand-violet-surface", "brand-violet-surface-foreground"],
 			["error-solid", "error-contrast"],
+			["destructive", "destructive-foreground"],
 			["success-solid", "success-contrast"],
 			["warning-solid", "warning-contrast"],
 			["info-solid", "info-contrast"],
@@ -456,7 +458,6 @@ describe("@cline/ui theme contract", () => {
 		for (const [textToken, tintToken] of [
 			["accent-foreground", "accent"],
 			["error-text", "error-surface"],
-			["destructive", "error-surface"],
 			["success-text", "success-surface"],
 			["warning-text", "warning-surface"],
 			["info-text", "info-surface"],
@@ -485,7 +486,7 @@ describe("@cline/ui theme contract", () => {
 		for (const [mermaidToken, themeToken] of [
 			["background", "card"],
 			["border", "border"],
-			["error", "destructive"],
+			["error", "error-text"],
 			["foreground", "foreground"],
 			["muted", "muted"],
 			["mutedForeground", "muted-foreground"],
@@ -603,6 +604,34 @@ describe("@cline/ui theme contract", () => {
 		expect(index).toBe(
 			'@import "@cline/ui/theme/tokens.css";\n@import "@cline/ui/theme/theme.css";\n@import "@cline/ui/theme/base.css";\n',
 		);
+	});
+
+	it("keeps destructive text and fill utilities compatible", async () => {
+		for (const [file, prefix, dark] of [
+			["theme.css", "", "dark"],
+			["component-theme.css", "cline-ui-", "cline-ui-dark"],
+		]) {
+			for (const [candidate, property, token] of [
+				[`text-${prefix}destructive`, "color", "error-text"],
+				[`text-${prefix}destructive/90`, "color", "error-text"],
+				[`focus:text-${prefix}destructive`, "color", "error-text"],
+				[`${dark}:text-${prefix}destructive/80!`, "color", "error-text"],
+				[`bg-${prefix}destructive`, "background-color", "destructive"],
+				[`hover:bg-${prefix}destructive/90`, "background-color", "destructive"],
+				[
+					`text-${prefix}destructive-foreground`,
+					"color",
+					"destructive-foreground",
+				],
+				[`border-${prefix}destructive/40`, "border-color", "destructive"],
+			]) {
+				const compiler = await compile(`${read(file)}\n@tailwind utilities;`);
+				const css = compiler.build([candidate]);
+				expect(css, candidate).toMatch(
+					new RegExp(`${property}:[^;]*var\\(--${token}\\)`),
+				);
+			}
+		}
 	});
 
 	it("keeps embedded component utility names host-safe", () => {

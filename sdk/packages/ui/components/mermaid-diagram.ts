@@ -649,7 +649,7 @@ export interface MermaidThemeTokens {
 	/** Diagram surface (`--card`); also the PNG background fill. */
 	background: string;
 	border: string;
-	/** Readable error color (`--destructive`, aliasing `--error-text`). */
+	/** Readable error color (`--error-text`). */
 	error: string;
 	foreground: string;
 	muted: string;
