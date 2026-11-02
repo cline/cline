@@ -106,10 +106,9 @@ export function createPublishArtifactsTool({
 		name: "publish_artifacts",
 		resultPolicy: "cache-oversized",
 		description:
-			"Publish selected files to make them available outside the current workspace. " +
-			"Requires absolute file paths. Returns artifact IDs for successful publications. " +
-			"artifactId defaults to the filename, including its extension. Reusing an ID replaces that session's file; use distinct filenames to preserve separate outputs. " +
-			"Preserve a returned ID when retrying a failed publication. Reports each file separately.",
+			"Publish files by absolute path for access outside the workspace. " +
+			"Returns an ID or error per file; IDs default to filenames, including extensions. " +
+			"Reusing an ID replaces that session's file. Use distinct filenames to keep separate outputs, and reuse returned IDs for retries.",
 		inputSchema: {
 			type: "object",
 			properties: {
