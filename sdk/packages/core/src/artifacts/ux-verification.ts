@@ -37,11 +37,10 @@ export function createUxVerificationReportTool() {
 	return createTool<unknown, UxVerificationReport>({
 		name: "report_ux_verification",
 		description:
-			"Report observed visual checks with captions and passed, failed, or blocked results. " +
-			"Use subtitle for each screenshot's caption and action for the input that produced it. " +
-			"Passed and failed checks require screenshot evidence from successful publish_artifacts results in this session. " +
-			"An artifactId accompanied by an error is not published evidence. " +
-			"Upload success is not a pass. Without published evidence, report blocked and state what you observed in the subtitle. This tool records your report; it does not run checks or upload files.",
+			"Record observed visual checks as passed, failed, or blocked. " +
+			"Use subtitle for the caption and action for the input performed. " +
+			"Passed/failed checks require screenshots successfully published in this session; never use artifact IDs returned with an error. " +
+			"Judge the observed behavior, not upload success. Without published evidence, use blocked and explain the observation and blocker in subtitle.",
 		inputSchema: zodToJsonSchema(inputSchema),
 		async execute(input) {
 			const { checks, ...metadata } = validateWithZod(inputSchema, input);
