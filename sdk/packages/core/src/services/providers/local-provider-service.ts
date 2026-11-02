@@ -996,6 +996,9 @@ export async function listLocalProviders(
 				const configFields =
 					readProviderConfigFields(info?.metadata) ??
 					fallbackProviderConfigFields(info);
+				// An endpoint a Disconnect preserved, offered until the provider
+				// is connected again and its saved settings take over.
+				const rememberedBaseUrl = state.rememberedBaseUrls?.[id];
 				return {
 					provider: {
 						id,
@@ -1023,7 +1026,8 @@ export async function listLocalProviders(
 						oauthAccessTokenPresent: persistedSettings
 							? hasOAuthAccessToken(persistedSettings)
 							: undefined,
-						baseUrl: persistedSettings?.baseUrl ?? info?.baseUrl,
+						baseUrl:
+							persistedSettings?.baseUrl ?? rememberedBaseUrl ?? info?.baseUrl,
 						defaultModelId: info?.defaultModelId,
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
@@ -1046,7 +1050,9 @@ export async function listLocalProviders(
 						configValues: resolveConfigValues(
 							configFields,
 							persistedSettings,
-							info,
+							rememberedBaseUrl
+								? { ...info, baseUrl: rememberedBaseUrl }
+								: info,
 						),
 						modelList,
 					},
@@ -1342,20 +1348,21 @@ async function saveLocalProviderSettingsUnlocked(
 	if (request.enabled === false) {
 		const state = manager.read();
 		const previous = state.providers[providerId];
+		delete state.providers[providerId];
 		// Disconnect keeps a user-configured endpoint so reconnecting restores
-		// the custom baseUrl instead of the catalog default. The preserved
-		// entry holds no credentials or model, so readiness still reports the
-		// provider as disconnected.
+		// the custom baseUrl instead of the catalog default. It is kept apart
+		// from the provider entry: an entry means "connected" to every
+		// consumer, so a retained one would report the provider as connected.
+		const remembered = { ...state.rememberedBaseUrls };
 		if (previous?.settings.baseUrl) {
-			state.providers[providerId] = {
-				...previous,
-				settings: {
-					provider: previous.settings.provider,
-					baseUrl: previous.settings.baseUrl,
-				},
-			};
+			remembered[providerId] = previous.settings.baseUrl;
 		} else {
-			delete state.providers[providerId];
+			delete remembered[providerId];
+		}
+		if (Object.keys(remembered).length > 0) {
+			state.rememberedBaseUrls = remembered;
+		} else {
+			delete state.rememberedBaseUrls;
 		}
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
 		if (state.modes.voiceInput?.providerId === providerId) {
