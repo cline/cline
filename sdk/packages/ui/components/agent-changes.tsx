@@ -153,7 +153,7 @@ export function AgentChangedFile({
 				<span className="cline-ui-agent-changes__additions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-success-text">
 					+{additions}
 				</span>
-				<span className="cline-ui-agent-changes__deletions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-error-text">
+				<span className="cline-ui-agent-changes__deletions shrink-0 font-cline-ui-mono text-[11px] text-cline-ui-destructive">
 					-{deletions}
 				</span>
 			</div>
