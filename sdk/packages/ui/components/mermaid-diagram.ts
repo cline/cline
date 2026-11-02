@@ -666,7 +666,7 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	dark: {
 		background: "#1a1a1f",
 		border: "#282830",
-		error: "#ba2c25",
+		error: "#ba1f1c",
 		foreground: "#fcfcfc",
 		muted: "#212127",
 		mutedForeground: "#c0c0c7",
@@ -675,7 +675,7 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	light: {
 		background: "#f3f3fa",
 		border: "#e3e3ee",
-		error: "#e31705",
+		error: "#ca0500",
 		foreground: "#1f1f25",
 		muted: "#ececf5",
 		mutedForeground: "#3c3c44",
