@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { HubReplyEnvelope } from "@cline/shared";
+import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { updateMcpServerOAuthStateAsync } from "../../extensions/mcp/config-loader";
 import * as McpOAuth from "../../extensions/mcp/oauth";
@@ -172,7 +174,12 @@ describe("Hub-owned MCP OAuth", () => {
 		await vi.waitFor(() => expect(auth).toHaveBeenCalled());
 		await api.setDisabled("remote", true);
 		expect(
-			(await send("mcp.oauth.cancel", { loginId: "late-cancel" })).payload,
+			(
+				await send("mcp.oauth.cancel", {
+					loginId: "late-cancel",
+					reason: "user",
+				})
+			).payload,
 		).toEqual({ cancelled: false });
 		pending.resolve(success);
 		const snapshot = await send("mcp.oauth.next", { loginId: "late-cancel" });
@@ -253,7 +260,10 @@ describe("Hub-owned MCP OAuth", () => {
 					version: "v1",
 					clientId: "other",
 					command,
-					payload: { loginId: "private" },
+					payload: {
+						loginId: "private",
+						...(command === "mcp.oauth.cancel" ? { reason: "user" } : {}),
+					},
 				}),
 			).toMatchObject({ ok: false });
 		expect(
@@ -311,7 +321,9 @@ describe("Hub-owned MCP OAuth", () => {
 		expect(
 			await send("mcp.oauth.start", { name: "remote", loginId: "refused" }),
 		).toMatchObject({ ok: false, error: { code: "hub_draining" } });
-		expect(await send("mcp.oauth.cancel", { loginId: "drain" })).toMatchObject({
+		expect(
+			await send("mcp.oauth.cancel", { loginId: "drain", reason: "user" }),
+		).toMatchObject({
 			ok: true,
 		});
 	});
@@ -383,4 +395,135 @@ describe("Hub-owned MCP OAuth", () => {
 			await server.close();
 		}
 	});
+});
+
+it("leaves an originally enabled server disabled when its viewer disconnects", async () => {
+	await seed({ remote: { ...remote, disabled: false } });
+	const auth = vi
+		.spyOn(McpOAuth, "authorizeMcpServerOAuth")
+		.mockImplementation((options) => awaitAbort(options.signal));
+	const controller = new AbortController();
+	const login = api.authorize("remote", {
+		openUrl: vi.fn(),
+		signal: controller.signal,
+	});
+	await vi.waitFor(() => expect(auth).toHaveBeenCalled());
+	controller.abort("disconnected");
+	expect((await login).servers[0].disabled).toBe(true);
+});
+it("checks cancellation between asynchronous browser launches", async () => {
+	const controller = new AbortController();
+	const first = deferred<void>();
+	const command = vi.fn(async (name: string) => ({
+		version: "v1" as const,
+		ok: true,
+		payload:
+			name === "mcp.oauth.next"
+				? {
+						urls: ["https://first.test", "https://second.test"],
+						result: { name: "remote", authorized: true },
+					}
+				: { servers: [] },
+	}));
+	const openUrl = vi.fn(async () => {
+		controller.abort();
+		await first.promise;
+	});
+	const login = createHubMcpApi({ command }).authorize("remote", {
+		openUrl,
+		signal: controller.signal,
+	});
+	await vi.waitFor(() => expect(openUrl).toHaveBeenCalledTimes(1));
+	first.resolve();
+	await login;
+	expect(openUrl).toHaveBeenCalledTimes(1);
+	expect(command).toHaveBeenCalledWith(
+		"mcp.oauth.cancel",
+		expect.objectContaining({ reason: "user" }),
+		undefined,
+		expect.any(Object),
+	);
+});
+it("binds OAuth ownership to the registered connection even when another socket copies its clientId", async () => {
+	await seed({ remote: { ...remote, disabled: false } });
+	let signal: AbortSignal | undefined;
+	const auth = vi
+		.spyOn(McpOAuth, "authorizeMcpServerOAuth")
+		.mockImplementation((options) => {
+			signal = options.signal;
+			return awaitAbort(signal);
+		});
+	const server = await startHubWebSocketServer({
+		...runtime(),
+		host: "127.0.0.1",
+		port: 0,
+		owner: createInMemoryHubOwnerContext("mcp-spoof-wire"),
+		workspaceRoot: root,
+	});
+	const victim = new NodeHubClient({
+		url: server.url,
+		authToken: server.authToken,
+		clientId: "victim",
+		clientType: "test",
+	});
+	const sockets: WebSocket[] = [];
+	try {
+		await victim.connect();
+		await victim.command("mcp.oauth.start", {
+			name: "remote",
+			loginId: "victim-login",
+		});
+		await vi.waitFor(() => expect(auth).toHaveBeenCalled());
+		for (const explicit of [true, false]) {
+			const socket = new WebSocket(server.url, {
+				origin: "http://localhost:3125",
+			});
+			sockets.push(socket);
+			await new Promise<void>((resolve, reject) => {
+				socket.once("open", resolve);
+				socket.once("error", reject);
+			});
+			let sequence = 0;
+			const command = (name: string, payload: Record<string, unknown> = {}) =>
+				new Promise<HubReplyEnvelope>((resolve) => {
+					socket.once("message", (data) =>
+						resolve(JSON.parse(String(data)).envelope),
+					);
+					socket.send(
+						JSON.stringify({
+							kind: "command",
+							envelope: {
+								version: "v1",
+								clientId: "victim",
+								requestId: String(++sequence),
+								command: name,
+								payload,
+							},
+						}),
+					);
+				});
+			expect((await command("client.list")).ok).toBe(true);
+			expect(
+				(
+					await command("client.register", {
+						clientId: "victim",
+						clientType: "browser",
+						workspaceContext: { workspaceRoot: root, cwd: root },
+					})
+				).ok,
+			).toBe(true);
+			if (explicit) expect((await command("client.unregister")).ok).toBe(true);
+			const closed = new Promise((resolve) => socket.once("close", resolve));
+			socket.close();
+			await closed;
+			expect(signal?.aborted).toBe(false);
+		}
+		await victim.dispose();
+		await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+		expect((await api.list()).servers[0].disabled).toBe(true);
+	} finally {
+		for (const socket of sockets) socket.terminate();
+		await victim.dispose();
+		await server.close();
+	}
 });

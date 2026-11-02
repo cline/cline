@@ -12,7 +12,7 @@ export async function runMcpOAuthAuthorization(
 ) {
 	const entries = pending.get(owner) ?? new Map<string, AbortController>();
 	pending.set(owner, entries);
-	entries.get(name)?.abort();
+	entries.get(name)?.abort("disconnected");
 	const controller = new AbortController();
 	entries.set(name, controller);
 	try {
@@ -27,13 +27,13 @@ export async function runMcpOAuthAuthorization(
 }
 export function cancelMcpOAuthAuthorization(name: string, owner: object) {
 	const controller = pending.get(owner)?.get(name);
-	controller?.abort();
+	controller?.abort("user");
 	return Boolean(controller);
 }
 export function cancelMcpOAuthAuthorizationsForOwner(owner: object) {
 	const entries = pending.get(owner);
 	if (!entries) return 0;
-	for (const controller of entries.values()) controller.abort();
+	for (const controller of entries.values()) controller.abort("disconnected");
 	pending.delete(owner);
 	return entries.size;
 }

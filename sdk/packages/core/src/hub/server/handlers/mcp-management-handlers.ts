@@ -76,10 +76,16 @@ export async function handleMcpManagementCommand(
 			}
 			case "mcp.oauth.cancel": {
 				const input = z
-					.object({ loginId: z.string().min(1) })
+					.object({
+						loginId: z.string().min(1),
+						reason: z.enum(["user", "disconnected"]),
+					})
 					.strict()
 					.parse(payload);
-				return okReply(envelope, service.oauth.cancel(owner, input.loginId));
+				return okReply(
+					envelope,
+					service.oauth.cancel(owner, input.loginId, input.reason),
+				);
 			}
 
 			case "mcp.servers.list":

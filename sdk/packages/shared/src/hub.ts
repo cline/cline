@@ -646,7 +646,7 @@ export interface HubProviderMutationResult {
 export interface HubCommandInputMap {
 	"mcp.oauth.start": { name: string; loginId: string };
 	"mcp.oauth.next": { loginId: string };
-	"mcp.oauth.cancel": { loginId: string };
+	"mcp.oauth.cancel": { loginId: string; reason: "user" | "disconnected" };
 
 	"mcp.servers.list": Record<string, never>;
 	"mcp.servers.upsert": McpServerConfigInput;

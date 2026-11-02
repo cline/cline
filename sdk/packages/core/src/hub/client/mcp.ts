@@ -34,7 +34,11 @@ export function createHubMcpApi(client: Pick<NodeHubClient, "command">) {
 			const { signal } = options;
 			signal?.throwIfAborted();
 			const loginId = createSessionId("mcp_oauth_");
-			const cancel = () => command("mcp.oauth.cancel", { loginId });
+			const cancel = (
+				reason: "user" | "disconnected" = signal?.reason === "disconnected"
+					? "disconnected"
+					: "user",
+			) => command("mcp.oauth.cancel", { loginId, reason });
 			const abort = () => {
 				void cancel().catch(() => undefined);
 			};
@@ -53,12 +57,18 @@ export function createHubMcpApi(client: Pick<NodeHubClient, "command">) {
 							snapshot.error.message,
 						);
 					}
-					if (!signal?.aborted)
-						for (const url of snapshot.urls) await options.openUrl(url);
+					for (const url of snapshot.urls) {
+						if (signal?.aborted) break;
+						await options.openUrl(url);
+					}
 					if (snapshot.result) return await command("mcp.servers.list", {});
 				}
 			} catch (error) {
-				await cancel().catch(() => undefined);
+				await cancel(
+					signal?.aborted && signal.reason !== "disconnected"
+						? "user"
+						: "disconnected",
+				).catch(() => undefined);
 				throw error;
 			} finally {
 				signal?.removeEventListener("abort", abort);

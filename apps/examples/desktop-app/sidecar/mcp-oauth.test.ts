@@ -54,8 +54,10 @@ describe("Desktop MCP OAuth UI adapter", () => {
 		await vi.waitFor(() => expect(signals).toHaveLength(2));
 		expect(cancelMcpOAuthAuthorizationsForOwner(owner)).toBe(1);
 		expect(signals[0].aborted).toBe(true);
+		expect(signals[0].reason).toBe("disconnected");
 		expect(signals[1].aborted).toBe(false);
 		expect(cancelMcpOAuthAuthorization("remote", other)).toBe(true);
+		expect(signals[1].reason).toBe("user");
 		await Promise.all([first, second]);
 	});
 });
