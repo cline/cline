@@ -258,6 +258,16 @@ describe("buildSessionConnectionUpdate", () => {
 		});
 		expect(Object.hasOwn(update, "thinkingBudgetTokens")).toBe(false);
 	});
+
+	it("passes the max level through to the session", () => {
+		expect(
+			buildSessionConnectionUpdate({
+				provider: "nvidia",
+				model: "moonshotai/kimi-k3",
+				reasoningEffort: "max",
+			}),
+		).toMatchObject({ thinking: true, reasoningEffort: "max" });
+	});
 });
 
 describe("shouldUpdateSessionConnection", () => {
