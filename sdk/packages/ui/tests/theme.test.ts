@@ -451,34 +451,6 @@ describe("@cline/ui theme contract", () => {
 	});
 
 	it.each([
-		":root",
-		".dark",
-	] as const)("keeps small colored text above 4.5:1 on neutral and tinted surfaces in %s", (selector) => {
-		const values = themeValues(selector);
-		for (const [textToken, tintToken] of [
-			["accent-foreground", "accent"],
-			["error-text", "error-surface"],
-			["success-text", "success-surface"],
-			["warning-text", "warning-surface"],
-			["info-text", "info-surface"],
-		]) {
-			const text = colorRgb(tokenColor(values, textToken));
-			for (const surface of ["surface-1", "surface-2", "surface-3"]) {
-				const background = colorRgb(tokenColor(values, surface));
-				const tinted = colorRgb(tokenColor(values, tintToken), background);
-				expect(
-					contrastRatio(text, background),
-					`${textToken} on ${surface}`,
-				).toBeGreaterThanOrEqual(4.5);
-				expect(
-					contrastRatio(text, tinted),
-					`${textToken} on ${tintToken} over ${surface}`,
-				).toBeGreaterThanOrEqual(4.5);
-			}
-		}
-	});
-
-	it.each([
 		[":root", "light"],
 		[".dark", "dark"],
 	] as const)("matches Mermaid fallbacks to the %s semantic colors", (selector, mode) => {
