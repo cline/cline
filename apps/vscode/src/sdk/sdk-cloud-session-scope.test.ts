@@ -45,24 +45,14 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		if (waitPoint === point) {
 			entered.resolve()
 			if (point === "wakeReadiness" && signal) {
-				await new Promise<void>((resolve, reject) => {
-					const abort = () => reject(signal.reason)
-					if (signal.aborted) {
-						abort()
-						return
-					}
-					signal.addEventListener("abort", abort, { once: true })
-					void barrier.promise.then(
-						() => {
-							signal.removeEventListener("abort", abort)
-							resolve()
-						},
-						(error) => {
-							signal.removeEventListener("abort", abort)
-							reject(error)
-						},
-					)
-				})
+				const abort = () => barrier.reject(signal.reason)
+				signal.addEventListener("abort", abort, { once: true })
+				try {
+					signal.throwIfAborted()
+					await barrier.promise
+				} finally {
+					signal.removeEventListener("abort", abort)
+				}
 			} else {
 				await barrier.promise
 			}
@@ -258,30 +248,17 @@ describe("originating-account cloud cleanup", () => {
 		await boundaryPromise
 		f.barrier.resolve()
 
-		expect(f.requests.map(({ method, url, token }) => ({ method, url, token }))).toEqual([
-			expect.objectContaining({
-				method: "GET",
-				url: `${f.origin.endpoint}/api/v1/session?organizationId=org-origin`,
-				token: `Bearer ${f.origin.token}`,
-			}),
-			expect.objectContaining({
-				method: "POST",
-				url: `${f.origin.endpoint}/api/v1/session/${f.record.id}/resume`,
-				token: `Bearer ${f.origin.token}`,
-			}),
-			expect.objectContaining({
-				method: "GET",
-				url: `${f.origin.endpoint}/api/v1/session/${f.record.id}/status`,
-				token: `Bearer ${f.origin.token}`,
-			}),
+		expect(f.requests.map(({ method, url }) => [method, url])).toEqual([
+			["GET", `${f.origin.endpoint}/api/v1/session?organizationId=org-origin`],
+			["POST", `${f.origin.endpoint}/api/v1/session/${f.record.id}/resume`],
+			["GET", `${f.origin.endpoint}/api/v1/session/${f.record.id}/status`],
 		])
-		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
+		expect(f.requests.every((request) => request.token === `Bearer ${f.origin.token}`)).toBe(true)
 		expect(vi.mocked(CloudSessionHost.connect)).not.toHaveBeenCalled()
 		expect(f.host.send).not.toHaveBeenCalled()
 		if (boundary === "reset") {
 			expect(f.scope).toBe(f.successor)
 			expect(f.changeScope).toHaveBeenCalledOnce()
-			expect(f.requests.every((request) => request.token === `Bearer ${f.origin.token}`)).toBe(true)
 		}
 		await f.coordinator.dispose()
 	})

@@ -497,15 +497,12 @@ describe("SDK remote-config coordination", () => {
 			)
 		})
 
-		it.each([
-			"failed",
-			"expired",
-		])("rejects an unsent draft and settles the phase for a detached %s sandbox", async (status) => {
+		it("rejects an unsent draft and settles the phase for a detached sandbox", async () => {
 			const { controller, errorTask } = controllerShowingCloudStartError()
 			// The retry is consumed by the first response; a second one finds no session to send to.
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
-			controller.cloud.getCurrentTaskInfo = () => ({ status })
+			controller.cloud.getCurrentTaskInfo = () => ({ status: "failed" })
 
 			await expect(
 				errorTask.handleWebviewAskResponse("messageResponse", "keep this draft", ["image"], ["file"]),

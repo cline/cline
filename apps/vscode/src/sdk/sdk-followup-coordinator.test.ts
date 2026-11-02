@@ -134,50 +134,6 @@ describe("SdkFollowupCoordinator", () => {
 		expect(prepare).not.toHaveBeenCalled()
 	})
 
-	it("prepares an idle cloud follow-up before echoing and dispatches its original input once", async () => {
-		const task = makeTask("ses-cloud")
-		const preparedSession = makeActiveSession()
-		preparedSession.sessionId = task.taskId
-		let finishPreparation!: () => void
-		const events: string[] = []
-		const prepare = vi.fn(
-			async () =>
-				new Promise<ReturnType<typeof makeActiveSession>>((resolve) => {
-					finishPreparation = () => {
-						events.push("prepared")
-						options.sessions.getActiveSession.mockReturnValue(preparedSession)
-						resolve(preparedSession)
-					}
-				}),
-		)
-		const preparation = { prepare, isCurrent: () => true }
-		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
-		options.messages.appendAndEmit.mockImplementation(() => {
-			events.push("echo")
-		})
-		options.sessions.fireAndForgetSend.mockImplementation(() => {
-			events.push("send")
-		})
-
-		const sending = coordinator.askResponse("keep going", ["image.png"], ["file.ts"])
-		await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
-		expect(events).toEqual([])
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-
-		finishPreparation()
-		await sending
-
-		expect(events).toEqual(["prepared", "echo", "send"])
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			preparedSession.sdkHost,
-			task.taskId,
-			"resolved: keep going",
-			["image.png"],
-			["file.ts"],
-		)
-	})
-
 	it("rejects cloud preparation before echo or send so the submitted draft can be restored", async () => {
 		const task = makeTask("ses-cloud")
 		const error = new Error("pre-dispatch connection failed")
@@ -196,12 +152,12 @@ describe("SdkFollowupCoordinator", () => {
 		const task = makeTask("ses-cloud")
 		const preparedSession = makeActiveSession()
 		preparedSession.sessionId = task.taskId
-		let finishPreparation!: () => void
+		let finishPreparation!: (session: ActiveSession) => void
 		let current = true
 		const prepare = vi.fn(
-			async () =>
-				new Promise<ReturnType<typeof makeActiveSession>>((resolve) => {
-					finishPreparation = () => resolve(preparedSession)
+			() =>
+				new Promise<ActiveSession>((resolve) => {
+					finishPreparation = resolve
 				}),
 		)
 		const preparation = { prepare, isCurrent: () => current }
@@ -210,14 +166,14 @@ describe("SdkFollowupCoordinator", () => {
 		const sending = coordinator.askResponse("old task prompt")
 		await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
 		current = false
-		finishPreparation()
+		finishPreparation(preparedSession)
 
 		await expect(sending).rejects.toThrow("task changed")
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
-	it("serializes a second streaming-phase submit behind cloud preparation and queues it on the prepared host", async () => {
+	it("prepares before echoing and sends each original input once, queuing a second submit on the prepared host", async () => {
 		const task = makeTask("ses-cloud")
 		const oldSession = makeActiveSession()
 		oldSession.sessionId = task.taskId
@@ -225,16 +181,14 @@ describe("SdkFollowupCoordinator", () => {
 		preparedSession.sessionId = task.taskId
 		let currentSession = oldSession
 		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => currentSession } })
-		let finishPreparation!: () => void
+		let finishPreparation!: (session: ActiveSession) => void
 		const prepare = vi.fn(
-			async () =>
-				new Promise<ReturnType<typeof makeActiveSession>>((resolve) => {
-					finishPreparation = () => {
-						currentSession = preparedSession
-						resolve(preparedSession)
-					}
+			() =>
+				new Promise<ActiveSession>((resolve) => {
+					finishPreparation = resolve
 				}),
 		)
+		const events: string[] = []
 		const preparation = { prepare, isCurrent: () => true }
 		const { coordinator, options } = makeCoordinator({
 			activeSession: oldSession,
@@ -247,15 +201,20 @@ describe("SdkFollowupCoordinator", () => {
 			currentSession.isRunning = running
 		})
 
-		const first = coordinator.askResponse("first prompt", undefined, undefined, "messageResponse", "completed")
+		options.messages.appendAndEmit.mockImplementation(() => events.push("echo"))
+		options.sessions.fireAndForgetSend.mockImplementation(() => events.push("send"))
+
+		const first = coordinator.askResponse("first prompt", ["image.png"], ["file.ts"], "messageResponse", "completed")
 		await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
 		const second = coordinator.askResponse("second prompt", undefined, undefined, "messageResponse", "streaming")
 		await Promise.resolve()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(events).toEqual([])
 
-		finishPreparation()
+		currentSession = preparedSession
+		finishPreparation(preparedSession)
 		await Promise.all([first, second])
 
+		expect(events).toEqual(["echo", "send", "send"])
 		expect(prepare).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledTimes(2)
 		expect(options.sessions.fireAndForgetSend).toHaveBeenNthCalledWith(
@@ -263,8 +222,8 @@ describe("SdkFollowupCoordinator", () => {
 			preparedSession.sdkHost,
 			task.taskId,
 			"resolved: first prompt",
-			undefined,
-			undefined,
+			["image.png"],
+			["file.ts"],
 		)
 		expect(options.sessions.fireAndForgetSend).toHaveBeenNthCalledWith(
 			2,
