@@ -115,16 +115,16 @@
 	border-radius: 50%;
 }
 .cline-ui-ux-status-passed {
-	color: var(--success-contrast);
-	background: var(--success-solid);
+	color: var(--success-text);
+	background: var(--success-surface);
 }
 .cline-ui-ux-status-failed {
-	color: var(--error-contrast);
-	background: var(--error-solid);
+	color: var(--error-text);
+	background: var(--error-surface);
 }
 .cline-ui-ux-status-blocked {
-	color: var(--warning-contrast);
-	background: var(--warning-solid);
+	color: var(--warning-text);
+	background: var(--warning-surface);
 }
 .cline-ui-ux-evidence-expand,
 .cline-ui-ux-evidence-prev,
