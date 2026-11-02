@@ -128,6 +128,13 @@ and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
 be published; the tool itself does not restrict paths to a workspace.
 
+`createUxVerificationReportTool()` from `@cline/core` creates the opt-in
+`report_ux_verification` tool. It returns a UX verification report with captions,
+observed passed/failed/blocked results, and screenshot references (`artifactId`,
+`mediaType`). Passed and failed checks require a screenshot; blocked checks may
+omit one. Hosts register it explicitly. It does not upload files or check artifact
+availability.
+
 For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
 session ID. The publisher uploads directly with one signed policy per batch,
