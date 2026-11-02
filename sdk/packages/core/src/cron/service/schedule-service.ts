@@ -13,6 +13,7 @@ import {
 	type ScheduleRecord,
 } from "@cline/shared";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
+import type { RuntimeActivity } from "../../runtime/host/runtime-host";
 import { CronMaterializer } from "../runner/cron-materializer";
 import { CronRunner } from "../runner/cron-runner";
 import { validateCronPattern, validateTimezone } from "../schedule/scheduler";
@@ -57,6 +58,7 @@ export interface HubScheduleStartSessionOptions {
 }
 
 export interface HubScheduleRuntimeHandlers {
+	getActivity?(): RuntimeActivity;
 	startSession(
 		request: ChatStartSessionRequest,
 		options?: HubScheduleStartSessionOptions,
@@ -244,6 +246,10 @@ export class HubScheduleService {
 			claimLeaseSeconds: options.claimLeaseSeconds,
 			globalMaxConcurrency: options.globalMaxConcurrency,
 		});
+	}
+
+	public getActivity(): RuntimeActivity | undefined {
+		return this.runner.getActivity();
 	}
 
 	public async start(): Promise<void> {

@@ -350,11 +350,14 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			).toHaveLength(1);
 		});
 
+		expect(runtime.hasPendingWork()).toBe(true);
 		runtime.cancelOutstandingWork("parent_session_abort");
+		expect(runtime.hasPendingWork()).toBe(true);
 
 		await expect(routePromise).resolves.toEqual(
 			expect.objectContaining({ finishReason: "aborted" }),
 		);
+		expect(runtime.hasPendingWork()).toBe(false);
 		expect(abort).toHaveBeenCalledTimes(1);
 		expect(runtime.isTeammateActive("python-poet")).toBe(true);
 		expect(runtime.getSnapshot().members).toContainEqual(
@@ -912,6 +915,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 			const recoveredRuntime = new AgentTeamsRuntime({ teamName: "test-team" });
 			recoveredRuntime.hydrateState(persistedState);
+			expect(recoveredRuntime.hasPendingWork()).toBe(false);
 			recoveredRuntime.spawnTeammate({
 				agentId: "alice",
 				config: {
@@ -924,6 +928,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 			const recovered = recoveredRuntime.recoverActiveRuns("runtime_recovered");
 			expect(recovered).toHaveLength(1);
+			expect(recoveredRuntime.hasPendingWork()).toBe(true);
 			expect(recovered[0].nextAttemptAt).toEqual(retryAt);
 			expect(runMock).not.toHaveBeenCalled();
 

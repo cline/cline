@@ -1433,6 +1433,17 @@ export class SqliteCronStore {
 		return changes === 1;
 	}
 
+	public hasPendingDueRuns(): boolean {
+		return !!this.db
+			.prepare(`
+			SELECT 1 FROM cron_runs
+			WHERE status = 'running'
+				OR (status = 'queued' AND (scheduled_for IS NULL OR scheduled_for <= ?))
+			LIMIT 1
+		`)
+			.get(nowIso());
+	}
+
 	public listRuns(options: ListRunsOptions = {}): CronRunRecord[] {
 		const where: string[] = [];
 		const params: unknown[] = [];
