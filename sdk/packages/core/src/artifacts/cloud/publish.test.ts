@@ -38,7 +38,6 @@ async function fixture(
 		"x-goog-signature": "synthetic-signature",
 	};
 	const stored = new Map<string, Buffer>();
-	const filenames = new Map<string, ReturnType<FormData["get"]>>();
 	const keys: string[] = [];
 	let signs = 0;
 	let uploads = 0;
@@ -79,7 +78,7 @@ async function fixture(
 		}).formData();
 		const fieldNames = [...form.keys()];
 		assert.equal(fieldNames.at(-1), "file");
-		assert.equal(fieldNames.length, Object.keys(fields).length + 3);
+		assert.equal(fieldNames.length, Object.keys(fields).length + 2);
 		for (const [name, value] of Object.entries(fields))
 			assert.equal(form.get(name), value);
 		const key = form.get("key");
@@ -112,7 +111,6 @@ async function fixture(
 		if (scenario === "reject" && artifactId === "reject")
 			return void res.writeHead(400).end();
 		stored.set(artifactId, bytes);
-		filenames.set(artifactId, form.get("x-goog-meta-filename"));
 		if (scenario === "lost" && uploads === 1) req.socket.destroy();
 		else res.writeHead(204).end();
 	});
@@ -140,7 +138,6 @@ async function fixture(
 		cwd,
 		filePath,
 		stored,
-		filenames,
 		keys,
 		context,
 		tool,
@@ -166,10 +163,6 @@ test("publishes files and retains ordered per-file results", async (t) => {
 	assert.ok("error" in result.files[1]);
 	assert.ok("error" in result.files[2]);
 	assert.equal(result.files[0].path, f.filePath);
-	assert.equal(
-		f.filenames.get(result.files[0].artifactId),
-		"hello%20%E4%B8%96%E7%95%8C.txt",
-	);
 	assert.deepEqual(
 		f.stored.get(result.files[0].artifactId),
 		await readFile(f.filePath),
@@ -215,15 +208,16 @@ for (const scenario of [
 	});
 }
 
-test("reuses the supplied ID and rereads the file on a later call", async (t) => {
+test("publishing the same filename again replaces its contents", async (t) => {
 	const f = await fixture(t);
 	const tool = f.tool;
-	const input = { files: [{ path: f.filePath, artifactId: "same" }] };
-	assert.deepEqual((await tool.execute(input, f.context())).files, input.files);
+	const input = { files: [{ path: f.filePath }] };
+	const expected = [{ path: f.filePath, artifactId: "hello 世界.txt" }];
+	assert.deepEqual((await tool.execute(input, f.context())).files, expected);
 	await writeFile(f.filePath, "changed");
-	assert.deepEqual((await tool.execute(input, f.context())).files, input.files);
+	assert.deepEqual((await tool.execute(input, f.context())).files, expected);
 	assert.equal(f.stored.size, 1);
-	assert.equal(f.stored.get("same")?.toString(), "changed");
+	assert.equal(f.stored.get("hello 世界.txt")?.toString(), "changed");
 });
 
 for (const scenario of ["auth", "forbidden", "unavailable"] as const) {
@@ -295,33 +289,7 @@ test("uploads an unknown file type without changing its bytes", async (t) => {
 	const result = await f.tool.execute({ files: [entry] }, f.context());
 	assert.deepEqual(result.files, [entry]);
 	assert.deepEqual(f.stored.get(entry.artifactId), bytes);
-	assert.equal(f.filenames.get(entry.artifactId), "file.unknown");
 });
-
-test.skipIf(process.platform === "win32")(
-	"rejects unsafe filenames before upload without losing valid files",
-	async (t) => {
-		const f = await fixture(t);
-		const invalid = ["report\\draft.txt", "report\n.txt"];
-		const entries = await Promise.all(
-			invalid.map(async (name) => {
-				const path = join(f.cwd, name);
-				await writeFile(path, "data");
-				return { path };
-			}),
-		);
-		const result = await f.tool.execute(
-			{ files: [...entries, { path: f.filePath }] },
-			f.context(),
-		);
-		for (const file of result.files.slice(0, 2)) {
-			assert.ok("error" in file);
-			assert.equal(file.error.code, "INVALID_FILENAME");
-		}
-		assert.ok(!("error" in result.files[2]));
-		assert.equal(f.counts().uploads, 1);
-	},
-);
 
 test("aborting during signing stops uploads", async (t) => {
 	const controller = new AbortController();
