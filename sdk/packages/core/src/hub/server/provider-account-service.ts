@@ -110,10 +110,7 @@ export class HubProviderAccountService {
 		);
 		if (!token) return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		const settings = this.manager.getProviderSettings("cline");
-		const identity =
-			settings?.auth?.accountId ||
-			settings?.auth?.accessToken ||
-			settings?.apiKey;
+
 		const authToken = token;
 		const service = new ClineAccountService({
 			apiBaseUrl:
@@ -123,9 +120,9 @@ export class HubProviderAccountService {
 		const result = await executeClineAccountAction(request, service);
 		const current = this.manager.getProviderSettings("cline");
 		if (
-			(current?.auth?.accountId ||
-				current?.auth?.accessToken ||
-				current?.apiKey) !== identity ||
+			current?.auth?.accessToken !== settings?.auth?.accessToken ||
+			current?.auth?.refreshToken !== settings?.auth?.refreshToken ||
+			current?.apiKey !== settings?.apiKey ||
 			current?.baseUrl !== settings?.baseUrl
 		) {
 			throw new Error("Cline account changed during the request");

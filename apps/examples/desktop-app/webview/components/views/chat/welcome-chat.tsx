@@ -27,7 +27,7 @@ import {
 	resolveRememberedCloudBranch,
 	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type { WorkIn } from "@/lib/work-in-selection";
@@ -220,9 +220,6 @@ export function WelcomeScreen({
 		},
 		[],
 	);
-	const openExternalUrl = useCallback(async (url: string) => {
-		await desktopClient.invoke("open_external_url", { url });
-	}, []);
 	const connectGitHub = useCallback(
 		async (fallbackUrl: string) => {
 			if (activeOrganization) {

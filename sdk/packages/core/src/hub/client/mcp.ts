@@ -28,6 +28,7 @@ export function createHubMcpApi(client: HubCommandClient) {
 			name: string,
 			options: {
 				openUrl: (url: string) => void | Promise<void>;
+				/** Abort with reason "disconnected" when the viewer is retired; ordinary abort means user cancellation. */
 				signal?: AbortSignal;
 			},
 		) {

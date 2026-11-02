@@ -99,39 +99,37 @@ export class HubProviderAuthService {
 				{ once: true },
 			);
 		});
-		const run = Promise.race([
-			Promise.resolve().then(() =>
-				handler.login({
-					settings: existing,
-					signal: entry.controller.signal,
-					telemetry: this.telemetry,
-					callbacks: {
-						onAuth: (info) => emit({ kind: "auth", ...info }),
-						onUserCode: (userCode) => emit({ kind: "user_code", userCode }),
-						onProgress: (message) => emit({ kind: "progress", message }),
-						onPrompt: ({ message, defaultValue }) =>
-							prompt(message, defaultValue),
-						...(input.manualCodeInput
-							? {
-									onManualCodeInput: () =>
-										prompt(
-											"Paste the authorization code or redirect URL:",
-											undefined,
-											true,
-										),
-								}
-							: {}),
-						onServerListening: (info) =>
-							emit({ kind: "server_listening", ...info }),
-						onServerClose: (info) => {
-							if (!entry.controller.signal.aborted)
-								emit({ kind: "server_close", ...info });
-						},
+		const loginWork = Promise.resolve().then(() =>
+			handler.login({
+				settings: existing,
+				signal: entry.controller.signal,
+				telemetry: this.telemetry,
+				callbacks: {
+					onAuth: (info) => emit({ kind: "auth", ...info }),
+					onUserCode: (userCode) => emit({ kind: "user_code", userCode }),
+					onProgress: (message) => emit({ kind: "progress", message }),
+					onPrompt: ({ message, defaultValue }) =>
+						prompt(message, defaultValue),
+					...(input.manualCodeInput
+						? {
+								onManualCodeInput: () =>
+									prompt(
+										"Paste the authorization code or redirect URL:",
+										undefined,
+										true,
+									),
+							}
+						: {}),
+					onServerListening: (info) =>
+						emit({ kind: "server_listening", ...info }),
+					onServerClose: (info) => {
+						if (!entry.controller.signal.aborted)
+							emit({ kind: "server_close", ...info });
 					},
-				}),
-			),
-			cancelled,
-		])
+				},
+			}),
+		);
+		const run = Promise.race([loginWork, cancelled])
 			.then((credentials) => {
 				entry.controller.signal.throwIfAborted();
 				const current = manager.getProviderSettings(entry.storageId);
@@ -152,7 +150,7 @@ export class HubProviderAuthService {
 					markLocalProviderEnabled(manager, providerId, {
 						tokenSource: "oauth",
 					});
-				this.onCredentialsChanged?.(providerId);
+				this.onCredentialsChanged?.(entry.storageId);
 				entry.result = {
 					provider: providerId,
 					accountId: credentials.accountId,
@@ -166,8 +164,11 @@ export class HubProviderAuthService {
 						: "oauth_failed",
 					message: error instanceof Error ? error.message : String(error),
 				};
+				entry.wake?.();
 			})
-			.finally(() => {
+			.finally(async () => {
+				// Cancellation can settle the UI before a provider finishes its network work.
+				await loginWork.catch(() => undefined);
 				clearTimeout(timer);
 				this.active.delete(entry.id);
 				entry.prompts.clear();

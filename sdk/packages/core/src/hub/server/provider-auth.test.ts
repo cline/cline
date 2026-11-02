@@ -232,7 +232,14 @@ describe("Hub-owned provider OAuth", () => {
 	});
 	it("refuses another client's access to pending login state and cancellation", async () => {
 		vi.spyOn(handler, "login").mockImplementation(
-			async () => new Promise(() => {}),
+			async ({ signal }) =>
+				new Promise((_, reject) => {
+					if (signal?.aborted) reject(signal.reason);
+					else
+						signal?.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+				}),
 		);
 		await send("owner", "providers.oauth.start", {
 			providerId: "cline",
@@ -364,11 +371,15 @@ describe("Hub-owned provider OAuth", () => {
 			loginId: "shutdown",
 		});
 		await vi.waitFor(() => expect(signal).toBeDefined());
-		await transport.stop();
+		let settled = false;
+		const stopping = transport.stop().then(() => {
+			settled = true;
+		});
 		stopped = true;
-		expect(signal?.aborted).toBe(true);
+		await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+		expect(settled).toBe(false);
 		pending.resolve(credentials);
-		await Promise.resolve();
+		await stopping;
 		expect(
 			new ProviderSettingsManager().getProviderSettings("cline"),
 		).toBeUndefined();
@@ -376,7 +387,14 @@ describe("Hub-owned provider OAuth", () => {
 
 	it("tracks login activity and rejects new logins during drain while allowing cancellation", async () => {
 		vi.spyOn(handler, "login").mockImplementation(
-			async () => new Promise(() => {}),
+			async ({ signal }) =>
+				new Promise((_, reject) => {
+					if (signal?.aborted) reject(signal.reason);
+					else
+						signal?.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+				}),
 		);
 		await send("owner", "providers.oauth.start", {
 			providerId: "cline",
@@ -544,4 +562,93 @@ describe("Hub-owned account actions", () => {
 		).rejects.toThrow();
 		expect(tokens).not.toHaveBeenCalled();
 	});
+});
+
+it("notifies account observers for shared Cline Pass credential storage", async () => {
+	const pass = getProviderAuthHandler("cline-pass");
+	if (!pass) throw new Error("missing handler");
+	vi.spyOn(pass, "login").mockResolvedValue(credentials);
+	const events: unknown[] = [];
+	const unsubscribe = transport.subscribe("observer", (event) =>
+		events.push(event),
+	);
+	try {
+		await api().login("cline-pass", {
+			onAuth: vi.fn(),
+			onPrompt: async () => "",
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "account.changed",
+				payload: { credentialsChanged: true },
+			}),
+		);
+	} finally {
+		unsubscribe();
+	}
+});
+it("keeps cancelled provider work active and awaits its original promise on disposal", async () => {
+	const pending = deferred<typeof credentials>();
+	const login = vi.spyOn(handler, "login").mockReturnValue(pending.promise);
+	await send("owner", "providers.oauth.start", {
+		providerId: "cline",
+		loginId: "tracked",
+	});
+	await vi.waitFor(() => expect(login).toHaveBeenCalled());
+	await send("owner", "providers.oauth.cancel", { loginId: "tracked" });
+	await vi.waitFor(async () =>
+		expect(
+			(await send("owner", "providers.oauth.next", { loginId: "tracked" }))
+				.payload?.error,
+		).toBeDefined(),
+	);
+	expect((await send("owner", "hub.status")).payload).toMatchObject({
+		idle: false,
+		activeProviderMutations: 1,
+	});
+	let disposed = false;
+	const stopping = transport.stop().then(() => {
+		disposed = true;
+	});
+	stopped = true;
+	await Promise.resolve();
+	expect(disposed).toBe(false);
+	pending.resolve(credentials);
+	await stopping;
+	expect(
+		new ProviderSettingsManager().getProviderSettings("cline"),
+	).toBeUndefined();
+});
+it("accepts overlapping API-key account reads when the first saves account metadata", async () => {
+	const manager = new ProviderSettingsManager();
+	manager.saveProviderSettings({ provider: "cline", apiKey: "original" });
+	vi.spyOn(
+		RuntimeOAuthTokenManager.prototype,
+		"resolveProviderApiKey",
+	).mockResolvedValue({ apiKey: "original", refreshed: false });
+	const user = {
+		id: "account-1",
+		email: "user@example.test",
+		displayName: "User",
+		photoUrl: "",
+		createdAt: "",
+		updatedAt: "",
+		organizations: [],
+	};
+	const first = deferred<typeof user>();
+	const second = deferred<typeof user>();
+	const fetchMe = vi
+		.spyOn(ClineAccountService.prototype, "fetchMe")
+		.mockReturnValueOnce(first.promise)
+		.mockReturnValueOnce(second.promise);
+	const a = api().account({ action: "clineAccount", operation: "fetchMe" });
+	const b = api().account({ action: "clineAccount", operation: "fetchMe" });
+	await vi.waitFor(() => expect(fetchMe).toHaveBeenCalledTimes(2));
+	first.resolve(user);
+	expect(await a).toEqual(user);
+	expect(manager.getProviderSettings("cline")?.auth?.accountId).toBe(
+		"account-1",
+	);
+	second.resolve(user);
+	expect(await b).toEqual(user);
 });

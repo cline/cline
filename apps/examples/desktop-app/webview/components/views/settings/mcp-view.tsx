@@ -188,7 +188,7 @@ export function McpServersContent({
 	useEffect(
 		() => () => {
 			for (const controller of authorizations.current.values())
-				controller.abort();
+				controller.abort("disconnected");
 		},
 		[],
 	);

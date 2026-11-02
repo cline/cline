@@ -984,8 +984,8 @@ function ClineModelsSummary() {
 
 	useEffect(() => {
 		let cancelled = false;
-		desktopClient
-			.invoke<ClineRecommendedModelsResponse>("list_cline_recommended_models")
+		hubProviders
+			.recommendedModels()
 			.then((response) => {
 				if (!cancelled) {
 					setFreeModels(response?.free ?? []);

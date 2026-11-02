@@ -103,6 +103,8 @@ type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
 
 export type DesktopInvokeOptions = {
+	/** Called once after the request is written to the socket, independently of its response. */
+	onDispatch?: () => void;
 	/** Prevent sending a queued command after cancellation. Does not cancel a sent command. */
 	signal?: AbortSignal;
 	/**
@@ -706,6 +708,7 @@ class DesktopClient {
 			});
 			try {
 				socket.send(JSON.stringify(request));
+				options?.onDispatch?.();
 			} catch (error) {
 				this.takePending(id);
 				this.reportError({

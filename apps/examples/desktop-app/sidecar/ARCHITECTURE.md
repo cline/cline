@@ -133,26 +133,25 @@ from storage.
 ### 3. Provider Management — Shared Hub Commands
 
 Provider catalog/model discovery, recommended models, provider settings, custom
-provider creation, and model overrides use `createHubProvidersApi` over the
-existing local Hub connection. Credential mutations and sign-out cleanup belong
-to the daemon. Desktop retains cloud-view and account-context reactions.
-Provider OAuth and Cline account actions use `createHubProviderAuthApi` on the
-same local connection. The Hub owns login attempts, loopback servers, credential
-writes/refresh and account requests. The sidecar's OAuth adapter only opens the
-browser, displays device codes and aborts the initiating webview's interaction
-when it disconnects. Results contain completion metadata rather than credentials.
-Account results still drive Desktop telemetry, feature flags and cloud views.
-Voice operations still use their existing sidecar services.
+provider creation, and model overrides use `createHubProvidersApi` from the
+webview's direct authenticated local Hub client. Credential mutations and
+sign-out cleanup belong to the daemon. Provider OAuth and Cline account actions
+use `createHubProviderAuthApi` on that same connection. The Hub owns login
+attempts, callback servers, credential writes/refresh, and account requests.
+The webview opens authorization URLs, displays device codes, and cancels its
+interaction when its view unmounts. The native shell supplies connection
+bootstrap data and opens external URLs. Results contain completion metadata,
+not credentials. Hub account invalidations drive Desktop telemetry, feature
+flags, and cloud views. Voice operations retain their sidecar services.
 
-MCP registration, listing, enable/disable, deletion, settings-file creation and
-on-demand connection/tool inspection use `createHubMcpApi` on the local Hub.
-Marketplace MCP installation/removal uses the same API. The Hub resolves the
-settings path and owns writes, passive probes and interactive OAuth. The
-sidecar's OAuth adapter only opens owner-scoped browser URLs and aborts its
-viewer interaction on cancellation/disconnect. Callback listeners, attempts,
-credential persistence and enable-state restoration belong to the Hub. Desktop
-keeps OS editor opening. Session tool runtimes continue to own their own MCP
-connections.
+MCP registration, listing, enable/disable, deletion, settings-file creation,
+on-demand inspection, Marketplace installation/removal, and OAuth use
+`createHubMcpApi` from the webview's direct local Hub connection. The Hub owns
+settings writes, probes, callbacks, credentials, and enable-state restoration.
+The webview opens owner-scoped URLs and distinguishes explicit user cancellation
+from view unmount/disconnection; disconnection leaves the server disabled.
+The native shell opens Hub-created settings paths, with a sidecar host action
+for plain-browser development. Session runtimes own their MCP tool connections.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 

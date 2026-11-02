@@ -1022,10 +1022,7 @@ export class HubServerTransport implements NativeHubTransport {
 					})
 					.strict()
 					.parse(envelope.payload);
-				return okReply(
-					envelope,
-					this.providerAuth.start(envelope.clientId ?? "in-process", input),
-				);
+				return okReply(envelope, this.providerAuth.start(oauthOwner, input));
 			}
 			case "providers.oauth.next":
 			case "providers.oauth.cancel": {
@@ -1033,7 +1030,7 @@ export class HubServerTransport implements NativeHubTransport {
 					.object({ loginId: z.string().min(1) })
 					.strict()
 					.parse(envelope.payload);
-				const owner = envelope.clientId ?? "in-process";
+				const owner = oauthOwner;
 				return okReply(envelope, {
 					...(envelope.command === "providers.oauth.next"
 						? await this.providerAuth.next(owner, input.loginId)
@@ -1052,7 +1049,7 @@ export class HubServerTransport implements NativeHubTransport {
 				return okReply(
 					envelope,
 					this.providerAuth.respond(
-						envelope.clientId ?? "in-process",
+						oauthOwner,
 						input.loginId,
 						input.promptId,
 						input.value,
@@ -1126,8 +1123,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return reply;
 			}
 			case "client.unregister": {
-                this.mcpManagement.oauth.cancelOwner(oauthOwner);
-                this.providerAuth.cancelOwner(oauthOwner);
+				this.mcpManagement.oauth.cancelOwner(oauthOwner);
+				this.providerAuth.cancelOwner(oauthOwner);
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);

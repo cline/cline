@@ -1628,9 +1628,12 @@ async function listUserInstructionConfigs(
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
 	const cmd =
-		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-	const cmdArgs =
-		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
+		platform === "darwin"
+			? "open"
+			: platform === "win32"
+				? "explorer.exe"
+				: "xdg-open";
+	const cmdArgs = [filePath];
 	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
 	// An unhandled child error event would crash the sidecar process.
 	child.once("error", () => {});
@@ -3499,6 +3502,13 @@ export async function handleCommand(
 	if (command === "list_available_editors") {
 		return await listAvailableCodeEditors();
 	}
+	if (command === "open_local_path") {
+		const path = typeof args?.path === "string" ? args.path : "";
+		if (!isAbsolute(path)) throw new Error("Expected an absolute local path");
+		openFileInEditor(path);
+		return { opened: true };
+	}
+
 	if (command === "open_file_in_editor") {
 		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") {
 			throw new Error(

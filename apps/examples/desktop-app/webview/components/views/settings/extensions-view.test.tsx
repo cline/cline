@@ -282,6 +282,12 @@ describe("tool state controls", () => {
 		await act(async () => {
 			root.render(<CustomizationSectionView section="Tools" />);
 		});
+		await vi.waitFor(() =>
+			expect(
+				container.querySelector('[aria-label="Toggle web_search"]'),
+			).not.toBeNull(),
+		);
+
 		await act(async () => {
 			container
 				.querySelector<HTMLInputElement>('[aria-label="Toggle web_search"]')

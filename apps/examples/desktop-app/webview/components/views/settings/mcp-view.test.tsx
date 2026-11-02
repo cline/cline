@@ -147,3 +147,48 @@ it("waits for Hub cancellation cleanup before re-enabling Connect", async () => 
 		container.querySelector('[aria-label="Connect remote with OAuth"]'),
 	).not.toBeNull();
 });
+
+it("sends disconnected cancellation when the MCP view unmounts", async () => {
+	const catalog = {
+		settingsPath: "/hub/settings.json",
+		hasSettingsFile: true,
+		servers: [
+			{
+				name: "remote",
+				transportType: "streamableHttp",
+				url: "https://example.test/mcp",
+				disabled: false,
+				oauthStatus: { authorizationRequired: true },
+			},
+		],
+	};
+	let finish!: (value: unknown) => void;
+	invoke.mockImplementation(async (command: string) => {
+		if (command === "mcp.servers.list") return catalog;
+		if (command === "mcp.oauth.next")
+			return new Promise((resolve) => {
+				finish = resolve;
+			});
+		return {};
+	});
+	await act(async () => root.render(<McpServersContent chrome="embedded" />));
+	await act(async () => vi.advanceTimersByTimeAsync(0));
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>(
+				'[aria-label="Connect remote with OAuth"]',
+			)
+			?.click(),
+	);
+	await act(async () => root.render(null));
+	expect(invoke).toHaveBeenCalledWith(
+		"mcp.oauth.cancel",
+		expect.objectContaining({ reason: "disconnected" }),
+	);
+	await act(async () =>
+		finish({
+			urls: [],
+			error: { code: "mcp_oauth_cancelled", message: "disconnected" },
+		}),
+	);
+});

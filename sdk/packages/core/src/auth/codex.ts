@@ -2,7 +2,7 @@
  * OpenAI Codex (ChatGPT OAuth) flow
  *
  * NOTE: This module uses Node.js crypto and http for the OAuth callback.
- * It is only intended for CLI use, not browser environments.
+ * It runs in the CLI or Hub host process, not browser environments.
  */
 
 import { decodeJwtPayload, type ITelemetryService } from "@cline/shared";
@@ -89,6 +89,7 @@ async function exchangeAuthorizationCode(
 	code: string,
 	verifier: string,
 	redirectUri: string = OPENAI_CODEX_OAUTH_CONFIG.redirectUri,
+	signal?: AbortSignal,
 ): Promise<CodexTokenResult> {
 	const response = await fetch(OPENAI_CODEX_OAUTH_CONFIG.tokenEndpoint, {
 		method: "POST",
@@ -100,7 +101,10 @@ async function exchangeAuthorizationCode(
 			code_verifier: verifier,
 			redirect_uri: redirectUri,
 		}),
-		signal: AbortSignal.timeout(OPENAI_CODEX_OAUTH_CONFIG.httpTimeoutMs),
+		signal: AbortSignal.any([
+			AbortSignal.timeout(OPENAI_CODEX_OAUTH_CONFIG.httpTimeoutMs),
+			...(signal ? [signal] : []),
+		]),
 	});
 
 	if (!response.ok) {
@@ -372,11 +376,13 @@ export async function loginOpenAICodex(options: {
 			code,
 			verifier,
 			callbackConfig.redirectUri,
+			options.signal,
 		);
 		if (tokenResult.type !== "success") {
 			throw new Error("Token exchange failed");
 		}
 
+		options.signal?.throwIfAborted();
 		const credentials = toCodexCredentials(tokenResult);
 		captureAuthSucceeded(options.telemetry, "openai-codex");
 		identifyAccount(options.telemetry, {

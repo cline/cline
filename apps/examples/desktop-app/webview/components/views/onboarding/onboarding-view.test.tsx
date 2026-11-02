@@ -404,7 +404,7 @@ describe("OnboardingView", () => {
 			if (command === "get_feature_flags") {
 				return GITHUB_STEP_ENABLED_FLAGS;
 			}
-			if (command === "list_cline_recommended_models") {
+			if (command === "providers.models.recommended") {
 				return {
 					recommended: [],
 					free: [

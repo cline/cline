@@ -608,3 +608,25 @@ describe("writeDesktopDebugLog", () => {
 		expect(debugSpy).not.toHaveBeenCalled();
 	});
 });
+
+it("reports actual socket dispatch independently of a long-running response", async () => {
+	const { desktopClient } = await import("./desktop-client");
+	const onDispatch = vi.fn();
+	const response = desktopClient.invoke(
+		"chat_session_command",
+		{ request: { action: "send" } },
+		{ timeoutMs: null, onDispatch },
+	);
+	expect(onDispatch).not.toHaveBeenCalled();
+	const socket = await connectLatestSocket();
+	expect(socket.sent).toHaveLength(1);
+	expect(onDispatch).toHaveBeenCalledTimes(1);
+	let completed = false;
+	void response.then(() => {
+		completed = true;
+	});
+	await Promise.resolve();
+	expect(completed).toBe(false);
+	socket.respond({ ok: true });
+	await response;
+});

@@ -345,3 +345,67 @@ describe("auth/codex loginOpenAICodex — callback port unavailable", () => {
 		},
 	);
 });
+
+describe("Codex login cancellation during token exchange", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+	codexPortIt(
+		"passes cancellation into the exchange and never identifies a late account",
+		async () => {
+			const blocker = await occupyCodexPort();
+			const controller = new AbortController();
+			const setDistinctId = vi.fn();
+			const updateCommonProperties = vi.fn();
+			let complete!: (response: Response) => void;
+			let requestSignal: AbortSignal | undefined;
+			const fetchMock = vi.fn(async (_url: unknown, options?: RequestInit) => {
+				requestSignal = options?.signal ?? undefined;
+				return new Promise<Response>((resolve) => {
+					complete = resolve;
+				});
+			});
+			vi.stubGlobal("fetch", fetchMock);
+			const login = loginOpenAICodex({
+				onAuth: vi.fn(),
+				onPrompt: async () => "",
+				onManualCodeInput: async () => "manual-code",
+				signal: controller.signal,
+				telemetry: {
+					capture: vi.fn(),
+					setDistinctId,
+					updateCommonProperties,
+				} as never,
+			});
+			const rejected = expect(login).rejects.toMatchObject({
+				name: "AbortError",
+			});
+			try {
+				await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+				controller.abort();
+				expect(requestSignal?.aborted).toBe(true);
+				complete(
+					new Response(
+						JSON.stringify({
+							access_token: createJwt({
+								"https://api.openai.com/auth": {
+									chatgpt_account_id: "late-account",
+								},
+							}),
+							refresh_token: "late-refresh",
+							expires_in: 3600,
+						}),
+						{ status: 200 },
+					),
+				);
+				await rejected;
+				expect(setDistinctId).not.toHaveBeenCalled();
+				expect(updateCommonProperties).not.toHaveBeenCalled();
+			} finally {
+				controller.abort();
+				await new Promise<void>((resolve) => blocker.close(() => resolve()));
+			}
+		},
+	);
+});
