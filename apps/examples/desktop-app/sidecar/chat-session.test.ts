@@ -38,6 +38,7 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	createSidecarRuntimeCapabilities,
 	disposeSidecarContext,
 	getEnvironmentContext,
 	handleCoreSessionEvent,
@@ -4634,34 +4635,65 @@ describe("side conversation lifecycle", () => {
 		const rejection = expect(sideQuestion).rejects.toThrow(
 			action === "abort" ? "Run aborted" : "Session stopped",
 		);
-		const parentResolve = vi.fn();
-		const sideResolve = vi.fn();
-		for (const [id, resolveApproval] of [
-			[parentId, parentResolve],
-			[sideId, sideResolve],
-		] as const)
-			ctx.pendingApprovals.set(id, {
-				item: {
-					sessionId: id,
-					requestId: id,
-					createdAt: new Date().toISOString(),
-					toolCallId: id,
-					toolName: "edit_file",
-				},
-				resolve: resolveApproval,
+		const owner = {
+			data: { canApproveTools: true },
+			send: vi.fn<(message: string) => void>(),
+		};
+		const observer = { send: vi.fn<(message: string) => void>() };
+		ctx.wsClients.add(owner);
+		ctx.wsClients.add(observer);
+		const capabilities = createSidecarRuntimeCapabilities(ctx);
+		const requestApproval = (sessionId: string, toolCallId: string) =>
+			capabilities.requestToolApproval?.({
+				sessionId,
+				toolCallId,
+				toolName: "edit_file",
+				input: { path: "test.txt" },
+				agentId: sessionId,
+				conversationId: sessionId,
+				iteration: 1,
+				policy: { autoApprove: false },
 			});
+		const parentApproval = requestApproval(parentId, "parent-edit");
+		const sideApprovals = [
+			requestApproval(sideId, "side-edit-1"),
+			requestApproval(sideId, "side-edit-2"),
+		];
+		owner.send.mockClear();
+		observer.send.mockClear();
 		await handleChatSessionCommand(ctx, {
 			action,
 			sessionId: sideId,
 			config: { environmentId: "local" },
 		});
 		await rejection;
-		expect(parentResolve).not.toHaveBeenCalled();
-		expect(sideResolve).toHaveBeenCalledWith(
-			expect.objectContaining({ approved: false }),
-		);
+		for (const approval of sideApprovals)
+			await expect(approval).resolves.toEqual(
+				expect.objectContaining({ approved: false }),
+			);
+		const approvalEvents = owner.send.mock.calls
+			.map(([message]) => JSON.parse(message))
+			.filter((message) => message.event?.name === "tool_approval_state");
+		expect(approvalEvents).toEqual([
+			expect.objectContaining({
+				event: expect.objectContaining({
+					payload: expect.objectContaining({ sessionId: sideId, items: [] }),
+				}),
+			}),
+		]);
+		expect(
+			observer.send.mock.calls.some(
+				([message]) =>
+					JSON.parse(message).event?.name === "tool_approval_state",
+			),
+		).toBe(false);
 		expect(ctx.pendingQuestions.size).toBe(1);
-		expect(ctx.pendingApprovals.has(parentId)).toBe(true);
+		const parentPendingApproval = [...ctx.pendingApprovals.values()].find(
+			(pending) => pending.item.sessionId === parentId,
+		);
+		expect(parentPendingApproval).toBeDefined();
+		parentPendingApproval?.resolve({ approved: true });
+		await expect(parentApproval).resolves.toEqual({ approved: true });
 		expect(ctx.liveSessions.get(parentId)?.busy).toBe(true);
 		const parentPending = [...ctx.pendingQuestions.values()][0];
 		resolveSidecarAskQuestion(ctx, parentPending.item.requestId, "continue");

@@ -996,35 +996,22 @@ function App() {
 							(thread.sessionId === relation.parentSessionId ||
 								thread.historySession?.sessionId === relation.parentSessionId),
 					);
-					const parent = parentThread
-						? parentThread.historySession
-						: await desktopClient.invoke<SessionHistoryItem | null>(
-								"get_discovered_session",
-								{
-									sessionId: relation.parentSessionId,
-									environmentId: session.environmentId,
-								},
-							);
+					const parent =
+						parentThread?.historySession ??
+						(await desktopClient.invoke<SessionHistoryItem | null>(
+							"get_discovered_session",
+							{
+								sessionId: relation.parentSessionId,
+								environmentId: session.environmentId,
+							},
+						));
 					if (navigationIntentRef.current !== intent) return { opened: false };
-					if (parentThread || parent) {
-						const parentThreadId =
-							parentThread?.id ??
-							`session_${sessionKey({ sessionId: relation.parentSessionId, environmentId: session.environmentId })}`;
-						if (parent)
-							dispatchApp({
-								type: "open-session",
-								session: parent,
-								environmentId: parent.environmentId,
-							});
-						else
-							dispatchApp({
-								type: "navigate",
-								destination: {
-									activeThreadId: parentThreadId,
-									settingsSection: "General",
-									view: "chat",
-								},
-							});
+					if (parent) {
+						dispatchApp({
+							type: "open-session",
+							session: parent,
+							environmentId: parent.environmentId,
+						});
 						dispatchApp({
 							type: "open-side",
 							session,

@@ -183,14 +183,22 @@ export async function cancelSidecarSessionInteractions(
 	reason: string,
 ): Promise<void> {
 	const approvals: Promise<unknown>[] = [];
+	const approvalOwners = new Set<SidecarWebSocketClient>();
 	for (const [requestId, pending] of ctx.pendingApprovals) {
 		if (pending.item.sessionId !== sessionId) continue;
 		ctx.pendingApprovals.delete(requestId);
+		if (pending.owner) approvalOwners.add(pending.owner);
 		approvals.push(
 			Promise.resolve().then(() =>
 				pending.resolve({ approved: false, reason }),
 			),
 		);
+	}
+	for (const owner of approvalOwners) {
+		sendEventToClient(ctx, owner, "tool_approval_state", {
+			sessionId,
+			items: [],
+		});
 	}
 	for (const [requestId, pending] of ctx.pendingQuestions) {
 		if (pending.item.sessionId !== sessionId) continue;
