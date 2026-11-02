@@ -374,12 +374,12 @@ export const MessageBubble = memo(function MessageBubble({
 						{messageTimestamp}
 					</MessageActions>
 					{restoreError ? (
-						<div className="text-right text-xs text-error-text">
+						<div className="text-right text-xs text-destructive">
 							{restoreError}
 						</div>
 					) : null}
 					{editError ? (
-						<div className="text-right text-xs text-error-text">
+						<div className="text-right text-xs text-destructive">
 							{editError}
 						</div>
 					) : null}
@@ -421,7 +421,7 @@ export const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{messageTimestamp}
 					{forkError ? (
-						<span className="text-[11px] text-error-text">{forkError}</span>
+						<span className="text-[11px] text-destructive">{forkError}</span>
 					) : null}
 				</MessageActions>
 			) : null}
