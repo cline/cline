@@ -1199,7 +1199,7 @@ export function ProjectFilesPanel({
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-error-solid text-error-contrast hover:bg-error-solid/90"
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							onClick={() => void confirmDiscard()}
 						>
 							Discard

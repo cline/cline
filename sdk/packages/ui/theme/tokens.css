@@ -160,8 +160,8 @@
 	--muted-foreground: var(--text-2);
 	--accent: var(--accent-3);
 	--accent-foreground: var(--accent-11);
-	/* Destructive text stays readable; filled controls use --error-solid. */
-	--destructive: var(--error-text);
+	/* Filled controls use the solid role; text utilities map to --error-text. */
+	--destructive: var(--error-solid);
 	--destructive-foreground: var(--error-contrast);
 	--border: var(--border-1);
 	--input: var(--border-2);
