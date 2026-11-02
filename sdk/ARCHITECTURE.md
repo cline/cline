@@ -1337,3 +1337,5 @@ The reusable `@cline/ui` UX verification carousel consumes a report contract own
 Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.
 
 UX screenshot evidence specializes the existing `GeneratedMediaSchema` to supported raster images rather than introducing another transport shape. Reports can retain artifact IDs while Desktop/IDE/web consumers reuse their existing media-access lifecycle through the renderer callback. The shared UI performs no artifact lookup, upload, signed-URL refresh or transcript mutation.
+
+MCP OAuth ownership is keyed by the transport-captured connection authority, independently of caller-selected client IDs. Socket cleanup retains that authority. Explicit user cancellation can restore the original enabled state; viewer disconnect cancellation leaves the server disabled. Clients carry that distinction through the cancellation command and check cancellation before each browser launch.

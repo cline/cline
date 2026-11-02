@@ -185,8 +185,8 @@ export class McpOAuthService {
 		// Let cleanup/restoration settle before reporting completion to the viewer.
 		return true;
 	}
-	cancel(owner: string, id: string) {
-		return { cancelled: this.abort(this.owned(owner, id), "user") };
+	cancel(owner: string, id: string, reason: "user" | "disconnected") {
+		return { cancelled: this.abort(this.owned(owner, id), reason) };
 	}
 	cancelServer(name: string, reason: Reason = "changed") {
 		for (const entry of this.attempts.values())

@@ -830,6 +830,23 @@ export class HubServerTransport implements NativeHubTransport {
 		this.runExecutor = undefined;
 	}
 
+	private readonly oauthConnectionOwners = new WeakMap<
+		HubConnectionAuthority,
+		string
+	>();
+	private oauthOwner(
+		authority: HubConnectionAuthority | null | undefined,
+		clientId: string | undefined,
+	) {
+		if (!authority) return `in-process:${clientId ?? "default"}`;
+		let owner = this.oauthConnectionOwners.get(authority);
+		if (!owner) {
+			owner = createSessionId("oauth_owner_");
+			this.oauthConnectionOwners.set(authority, owner);
+		}
+		return owner;
+	}
+
 	async handleCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority | null,
@@ -900,7 +917,11 @@ export class HubServerTransport implements NativeHubTransport {
 							}
 						: undefined
 					: (authority ?? undefined);
-			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
+			const reply = await this.dispatchCommand(
+				envelope,
+				effectiveAuthority,
+				this.oauthOwner(authority, clientId),
+			);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -918,7 +939,8 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority: HubConnectionAuthority | undefined,
+		oauthOwner: string,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
@@ -981,7 +1003,7 @@ export class HubServerTransport implements NativeHubTransport {
 			const request = handleMcpManagementCommand(
 				envelope,
 				this.mcpManagement,
-				authority?.clientId ?? envelope.clientId ?? "in-process",
+				oauthOwner,
 			);
 			this.pendingMcpRequests.add(request);
 			try {
@@ -1104,9 +1126,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return reply;
 			}
 			case "client.unregister": {
-				const owner = authority?.clientId ?? envelope.clientId;
-				if (owner) this.mcpManagement.oauth.cancelOwner(owner);
-				if (owner) this.providerAuth.cancelOwner(owner);
+                this.mcpManagement.oauth.cancelOwner(oauthOwner);
+                this.providerAuth.cancelOwner(oauthOwner);
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
