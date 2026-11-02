@@ -7,6 +7,7 @@ import type {
 	StartSessionResult,
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -57,6 +58,10 @@ export interface SdkSessionLifecycleOptions {
 	onDidBecomeIdle?: () => void
 }
 
+function toSessionMode(mode: string | undefined): Mode | undefined {
+	return mode === "plan" || mode === "act" ? mode : undefined
+}
+
 export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
 	private sharedHost: SdkSessionHost | undefined
@@ -77,8 +82,57 @@ export class SdkSessionLifecycle {
 	 * session idle, or a passive rebuild could replace it mid-turn.
 	 */
 	private turnGeneration = 0
+	/**
+	 * Session starts that read the mode setting outside the rebuild lock (new
+	 * task, edited message, checkpoint restore). Until one settles, the session
+	 * it is building is not active yet, so a mode toggle waits for it instead
+	 * of mistaking "no active session" for "nothing to rebuild".
+	 */
+	private readonly pendingStarts = new Set<Promise<void>>()
+	/**
+	 * Settles with each session's latest turn send. Core adds the prompt to the
+	 * conversation only when its agent loop picks the turn up, so a turn
+	 * aborted right after its send is missing from the session's messages
+	 * until the send settles.
+	 */
+	private readonly turnSends = new WeakMap<ActiveSession, Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
+
+	/**
+	 * Runs a session start, from reading the mode setting until the new
+	 * session is active and its first turn is sent, as one tracked unit.
+	 */
+	async trackSessionStart<T>(operation: () => Promise<T>): Promise<T> {
+		const run = operation()
+		const settled = run.then(
+			() => undefined,
+			() => undefined,
+		)
+		this.pendingStarts.add(settled)
+		try {
+			return await run
+		} finally {
+			this.pendingStarts.delete(settled)
+		}
+	}
+
+	/** Resolves once no tracked session start is in flight. */
+	async waitForSessionStarts(): Promise<void> {
+		while (this.pendingStarts.size > 0) {
+			await Promise.all(this.pendingStarts)
+		}
+	}
+
+	/** Waits for `session`'s latest turn send to settle; false if it is still in flight after `timeoutMs`. */
+	async waitForTurnSend(session: ActiveSession, timeoutMs = 3000): Promise<boolean> {
+		const send = this.turnSends.get(session)
+		if (send && !(await this.waitForStop(send, timeoutMs))) {
+			Logger.warn(`[SdkController] Timed out after ${timeoutMs}ms waiting for the turn of ${session.sessionId} to settle`)
+			return false
+		}
+		return true
+	}
 
 	getActiveSession(): ActiveSession | undefined {
 		return this.activeSession
@@ -214,6 +268,7 @@ export class SdkSessionLifecycle {
 						modelId: startInput.config.modelId,
 					}
 				: undefined,
+			mode: toSessionMode(startInput.config?.mode),
 			sdkHost,
 			unsubscribe: hostOverride ? this.subscribeSessionHost(hostOverride) : () => {},
 			startResult,
@@ -322,6 +377,7 @@ export class SdkSessionLifecycle {
 						modelId: input.start.config.modelId,
 					}
 				: activeSession.startConfig,
+			mode: toSessionMode(input.start?.config?.mode) ?? activeSession.mode,
 			startResult: restored.startResult,
 			isRunning: false,
 			queuedPromptCount: 0,
@@ -482,38 +538,45 @@ export class SdkSessionLifecycle {
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
-		sdkHost
-			.send({
-				sessionId,
-				prompt: noticedPrompt,
-				userImages: images,
-				userFiles: files,
-				delivery,
-			})
-			.then(async () => {
-				if (delivery === "queue" || delivery === "steer") {
-					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
-					return
-				}
-				if (isSuperseded("completion")) {
-					return
-				}
-				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
-				this.setRunning(false)
-				await this.options.onSendComplete(sessionId)
-			})
-			.catch(async (error: unknown) => {
-				if (isAbortError(error)) {
-					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
-					return
-				}
-				if (isSuperseded("failure")) {
-					return
-				}
-				Logger.error("[SdkController] Agent turn failed:", error)
-				this.setRunning(false)
-				await this.options.onSendError(error, sessionId)
-			})
+		const send = sdkHost.send({
+			sessionId,
+			prompt: noticedPrompt,
+			userImages: images,
+			userFiles: files,
+			delivery,
+		})
+		if (sessionAtSend && delivery !== "queue" && delivery !== "steer") {
+			this.turnSends.set(
+				sessionAtSend,
+				send.then(
+					() => undefined,
+					() => undefined,
+				),
+			)
+		}
+		send.then(async () => {
+			if (delivery === "queue" || delivery === "steer") {
+				Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
+				return
+			}
+			if (isSuperseded("completion")) {
+				return
+			}
+			Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+			this.setRunning(false)
+			await this.options.onSendComplete(sessionId)
+		}).catch(async (error: unknown) => {
+			if (isAbortError(error)) {
+				Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+				return
+			}
+			if (isSuperseded("failure")) {
+				return
+			}
+			Logger.error("[SdkController] Agent turn failed:", error)
+			this.setRunning(false)
+			await this.options.onSendError(error, sessionId)
+		})
 	}
 }
 

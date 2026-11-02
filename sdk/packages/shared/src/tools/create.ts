@@ -84,6 +84,7 @@ export function createTool<TInput, TOutput>(config: {
 	description: string;
 	inputSchema: Record<string, unknown>;
 	execute: (input: TInput, context: AgentToolContext) => Promise<TOutput>;
+	successContext?: string;
 	lifecycle?: AgentTool<TInput, TOutput>["lifecycle"];
 	executionMode?: AgentTool["executionMode"];
 	timeoutMs?: number;
@@ -99,6 +100,7 @@ export function createTool<TSchema extends z.ZodTypeAny, TOutput>(config: {
 		input: z.infer<TSchema>,
 		context: AgentToolContext,
 	) => Promise<TOutput>;
+	successContext?: string;
 	lifecycle?: AgentTool<z.infer<TSchema>, TOutput>["lifecycle"];
 	executionMode?: AgentTool["executionMode"];
 	timeoutMs?: number;
@@ -111,6 +113,7 @@ export function createTool<TInput, TOutput>(config: {
 	description: string;
 	inputSchema: Record<string, unknown> | z.ZodTypeAny;
 	execute: (input: TInput, context: AgentToolContext) => Promise<TOutput>;
+	successContext?: string;
 	lifecycle?: AgentTool<TInput, TOutput>["lifecycle"];
 	executionMode?: AgentTool["executionMode"];
 	timeoutMs?: number;
@@ -129,6 +132,7 @@ export function createTool<TInput, TOutput>(config: {
 		description: config.description,
 		inputSchema,
 		lifecycle: config.lifecycle,
+		successContext: config.successContext,
 		executionMode: config.executionMode,
 		timeoutMs: config.timeoutMs ?? 30_000,
 		retryable: config.retryable ?? true,

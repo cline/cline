@@ -19,6 +19,10 @@ service CloudService {
   rpc getRepositoryBranches(RepositoryBranchesRequest) returns (CloudBranchList);
   // Records one user choice about where new tasks run: Local/Cloud, a repository, or a branch
   rpc chooseCloudTaskTarget(CloudTaskTargetChoice) returns (Empty);
+  // Saves the Cline model new cloud tasks run on
+  rpc setCloudModel(StringRequest) returns (Empty);
+  // Re-checks whether the account has ClinePass, so a subscription bought in the browser shows up
+  rpc refreshClinePassSubscription(EmptyRequest) returns (Empty);
   // Opens the Cline Cloud dashboard page for a cloud session
   rpc openCloudSessionDashboard(StringRequest) returns (Empty);
   // Resolves live agent status for only the cloud sessions currently displayed

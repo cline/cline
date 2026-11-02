@@ -498,6 +498,7 @@ export async function startHubWebSocketServer(
 		if ((req.url ?? "/") === "/health") {
 			const body = JSON.stringify({
 				ok: true,
+				hubId,
 				protocolVersion: versionPayload.protocolVersion,
 				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
 				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,

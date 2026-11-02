@@ -11,6 +11,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 	FeaturebaseTokenResponse,
+	UserCurrentPlan,
 } from "./types";
 
 export interface ClineAccountOperations {
@@ -32,6 +33,7 @@ export interface ClineAccountOperations {
 	}): Promise<ClineAccountOrganizationUsageTransaction[]>;
 	switchAccount(organizationId?: string | null): Promise<void>;
 	fetchFeaturebaseToken?(): Promise<FeaturebaseTokenResponse | undefined>;
+	fetchCurrentUserPlan?(): Promise<UserCurrentPlan | undefined>;
 }
 
 export function isClineAccountActionRequest(
@@ -67,6 +69,8 @@ export async function executeClineAccountAction(
 			return { updated: true };
 		case "fetchFeaturebaseToken":
 			return service.fetchFeaturebaseToken?.();
+		case "fetchCurrentUserPlan":
+			return service.fetchCurrentUserPlan?.();
 		default: {
 			const exhaustive: never = request;
 			throw new Error(
@@ -175,6 +179,13 @@ export class RpcClineAccountService implements ClineAccountOperations {
 		return this.request<FeaturebaseTokenResponse | undefined>({
 			action: "clineAccount",
 			operation: "fetchFeaturebaseToken",
+		});
+	}
+
+	public async fetchCurrentUserPlan(): Promise<UserCurrentPlan | undefined> {
+		return this.request<UserCurrentPlan | undefined>({
+			action: "clineAccount",
+			operation: "fetchCurrentUserPlan",
 		});
 	}
 

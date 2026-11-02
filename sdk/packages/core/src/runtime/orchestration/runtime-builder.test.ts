@@ -584,6 +584,159 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("exposes MCP Apps for configured servers when mcpApps is enabled", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-apps-"));
+		tempDirs.push(tempRoot);
+		const serverPath = join(tempRoot, "apps-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+let capabilities;
+function write(payload) { process.stdout.write(JSON.stringify(payload) + "\\n"); }
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    if (message.method === "initialize") {
+      capabilities = message.params.capabilities;
+      write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {}, resources: {} }, serverInfo: { name: "apps", version: "1.0.0" } } });
+    }
+    if (message.method === "tools/list") write({ jsonrpc: "2.0", id: message.id, result: { tools: [
+      { name: "show_weather", inputSchema: { type: "object" }, _meta: { ui: { resourceUri: "ui://weather/view.html" } } },
+      { name: "refresh_view", inputSchema: { type: "object" }, _meta: { ui: { visibility: ["app"] } } }
+    ] } });
+    if (message.method === "tools/call") write({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: JSON.stringify({ name: message.params.name, capabilities }) }] } });
+    if (message.method === "resources/read") write({ jsonrpc: "2.0", id: message.id, result: { contents: [{ uri: message.params.uri, mimeType: "text/html;profile=mcp-app", text: "<html></html>" }] } });
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					weather: { command: process.execPath, args: [serverPath] },
+				},
+			}),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({ mcpApps: true }),
+			});
+			const toolNames = runtime.tools.map((tool) => tool.name);
+			expect(toolNames).toContain("weather__show_weather");
+			expect(toolNames).not.toContain("weather__refresh_view");
+
+			const mcpApps = runtime.mcpApps;
+			if (!mcpApps) {
+				throw new Error("Expected the MCP Apps runtime.");
+			}
+			await expect(
+				mcpApps.resolveTool("weather__show_weather"),
+			).resolves.toEqual({
+				serverName: "weather",
+				toolName: "show_weather",
+				resourceUri: "ui://weather/view.html",
+			});
+			await expect(
+				mcpApps.readResource({
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				}),
+			).resolves.toMatchObject({
+				contents: [{ mimeType: "text/html;profile=mcp-app" }],
+			});
+			const result = (await mcpApps.callTool({
+				serverName: "weather",
+				toolName: "refresh_view",
+			})) as { content: Array<{ text: string }> };
+			expect(JSON.parse(result.content[0].text)).toEqual({
+				name: "refresh_view",
+				capabilities: {
+					extensions: {
+						"io.modelcontextprotocol/ui": {
+							mimeTypes: ["text/html;profile=mcp-app"],
+						},
+					},
+				},
+			});
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			expect(runtime.mcpApps).toBeUndefined();
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					mcpApps: true,
+					toolPolicies: { weather__refresh_view: { enabled: false } },
+				}),
+			});
+			await expect(
+				runtime.mcpApps?.callTool({
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("is disabled for this session");
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+
+		const globalSettingsRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-apps-global-"),
+		);
+		tempDirs.push(globalSettingsRoot);
+		const globalSettingsPath = join(globalSettingsRoot, "global-settings.json");
+		writeFileSync(
+			globalSettingsPath,
+			JSON.stringify({ disabledTools: ["weather__refresh_view"] }),
+			"utf8",
+		);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({ mcpApps: true }),
+			});
+			await expect(
+				runtime.mcpApps?.callTool({
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("is disabled for this session");
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
 		const tempRoot = realpathSync.native(
 			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),

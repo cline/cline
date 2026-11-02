@@ -62,6 +62,7 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -416,6 +417,8 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	/** Why the tracker stopped the run; returned as stop control from the hooks. */
+	private trackerStopReason: string | undefined;
 	private readonly handleExternalAbort = (): void => {
 		this.abort(this.config.abortSignal?.reason);
 	};
@@ -909,7 +912,7 @@ export class SessionRuntime {
 			.slice(2, 8)}`;
 		// Lazily initialize contribution-registry extensions on the
 		// first run, before runtime construction.
-		await this.ensureExtensionsInitialized();
+		await this.initializeExtensions();
 		this.eventAdapter.reset();
 		this.currentRunToolCalls = [];
 		this.currentRunUsage = { inputTokens: 0, outputTokens: 0 };
@@ -920,6 +923,7 @@ export class SessionRuntime {
 		this.currentTurnFailureDetails = [];
 		this.activeTrackerWork = Promise.resolve();
 		this.trackerAbortInFlight = false;
+		this.trackerStopReason = undefined;
 
 		const startedAt = new Date();
 		const effectiveUserMessage = input.userMessage;
@@ -1004,6 +1008,14 @@ export class SessionRuntime {
 				.filter((tool) => tool.resultPolicy === "cache-oversized")
 				.map((tool) => tool.name.toLowerCase()),
 		);
+		const runHealth =
+			this.telemetry &&
+			new RunHealthObserver(this.telemetry, {
+				sessionId: this.config.sessionId,
+				isSubagent: Boolean(this.parentAgentId),
+				providerId: this.config.providerId,
+				modelId: this.config.modelId,
+			});
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
 			sessionId: this.config.sessionId,
@@ -1013,6 +1025,9 @@ export class SessionRuntime {
 			model: agentModel,
 			logger: this.logger,
 			telemetry: this.telemetry,
+			runEndTelemetryProperties: runHealth
+				? () => runHealth.endProperties()
+				: undefined,
 			tools,
 			toolContextMetadata: {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
@@ -1037,6 +1052,7 @@ export class SessionRuntime {
 			if (event.type === "run-started" && this.abortRequested) {
 				runtime.abort(this.abortReason);
 			}
+			runHealth?.observe(event);
 			this.handleRuntimeEvent(event);
 		});
 		if (this.config.abortSignal) {
@@ -1067,6 +1083,7 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			runHealth?.dispose();
 			this.config.abortSignal?.removeEventListener(
 				"abort",
 				this.handleExternalAbort,
@@ -1127,6 +1144,16 @@ export class SessionRuntime {
 	 * Idempotent: subsequent calls are no-ops once the registry has
 	 * been activated.
 	 */
+	private extensionInitialization?: Promise<void>;
+	async initializeExtensions(): Promise<void> {
+		this.extensionInitialization ??= this.ensureExtensionsInitialized().catch(
+			(error) => {
+				this.extensionInitialization = undefined;
+				throw error;
+			},
+		);
+		return this.extensionInitialization;
+	}
 	private async ensureExtensionsInitialized(): Promise<void> {
 		if (this.extensionsInitialized) {
 			return;
@@ -1156,9 +1183,28 @@ export class SessionRuntime {
 				.getValidatedExtensions()
 				.map((extension) => extension.hooks),
 		]);
+		// Mistake-limit decisions run on activeTrackerWork, off the agent loop.
+		// Holding each model/tool boundary on it pauses the run while the
+		// onConsecutiveMistakeLimitReached callback (e.g. a user prompt) decides;
+		// it is already settled in every other turn. Failures are logged by the
+		// end-of-run drain, not raised here. A Stop decision is returned as stop
+		// control: abort alone does not keep the rest of a tool batch from running.
+		const trackerSettled = async () => {
+			await this.activeTrackerWork.catch(() => undefined);
+			return this.trackerAbortInFlight
+				? { stop: true as const, reason: this.trackerStopReason }
+				: undefined;
+		};
 		return {
 			...hooks,
+			beforeTool: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
+				return hooks.beforeTool?.(ctx);
+			},
 			afterTool: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
 				const control = await hooks.afterTool?.(ctx);
 				const result = control?.result ?? ctx.result;
 				if (ctx.tool.resultPolicy === "cache-oversized") {
@@ -1177,6 +1223,8 @@ export class SessionRuntime {
 				return control;
 			},
 			beforeModel: async (ctx) => {
+				const stopped = await trackerSettled();
+				if (stopped) return stopped;
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
 					return control;
@@ -1255,7 +1303,12 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
@@ -1521,6 +1574,7 @@ export class SessionRuntime {
 			const outcome = await this.mistakeTracker.record(input);
 			if (outcome.action === "stop") {
 				this.trackerAbortInFlight = true;
+				this.trackerStopReason = outcome.reason ?? outcome.message;
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: outcome.message }],

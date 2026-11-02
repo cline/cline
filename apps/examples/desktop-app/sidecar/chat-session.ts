@@ -25,6 +25,7 @@ import {
 	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	summarizeConversation,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
@@ -47,6 +48,13 @@ import {
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
 import {
+	beginActiveSessionSend,
+	handleDiscardHandoff,
+	handleHandoff,
+	handlePrepareHandoff,
+	invalidateHandoffCaptureForWorkspace,
+} from "./cloud-handoff";
+import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
 } from "./cloud-sessions";
@@ -63,6 +71,11 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
+import {
+	readReasoningEffort,
+	readWorkspacePath,
+	workspacePathKey,
+} from "./session-config";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -98,36 +111,6 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 	"Cannot send a prompt while the session workspace is being restored";
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
-
-type WorkspacePathSource = {
-	cwd?: unknown;
-	workspaceRoot?: unknown;
-	workspace_root?: unknown;
-};
-
-function readWorkspacePath(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
-	if (cwd) return cwd;
-	const workspaceRoot =
-		typeof source?.workspaceRoot === "string"
-			? source.workspaceRoot.trim()
-			: "";
-	if (workspaceRoot) return workspaceRoot;
-	const snakeCaseWorkspaceRoot =
-		typeof source?.workspace_root === "string"
-			? source.workspace_root.trim()
-			: "";
-	return snakeCaseWorkspaceRoot || undefined;
-}
-
-function workspacePathKey(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
-}
 
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
@@ -355,6 +338,7 @@ async function withWorkspaceRestoreLock<T>(
 
 	ctx.restoringWorkspacePaths.add(key);
 	try {
+		invalidateHandoffCaptureForWorkspace(ctx, key);
 		return await work();
 	} finally {
 		ctx.restoringWorkspacePaths.delete(key);
@@ -486,20 +470,6 @@ function isoTimestampToMs(
 	}
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readReasoningEffort(
-	value: unknown,
-): "low" | "medium" | "high" | "xhigh" | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh"
-	) {
-		return value;
-	}
-	return undefined;
 }
 
 function readPositiveInteger(value: unknown): number | undefined {
@@ -648,12 +618,8 @@ export function createDesktopMistakeRecovery(
 ) {
 	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
 	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	const waitForDecision = async () => {
-		const decision = await pendingDecision;
-		return decision?.action === "stop"
-			? { stop: true, reason: decision.reason }
-			: undefined;
-	};
+	// The SDK holds the run at its next model/tool boundary until this
+	// decision settles, so no per-step hooks are needed to pause it.
 	return {
 		onConsecutiveMistakeLimitReached: (
 			context: ConsecutiveMistakeLimitContext,
@@ -664,15 +630,6 @@ export function createDesktopMistakeRecovery(
 				});
 			}
 			return pendingDecision;
-		},
-		hooks: {
-			// The decision callback alone does not pause the SDK. These existing
-			// awaited hooks hold desktop runs at tool/model boundaries until the
-			// user answers. afterTool holds before the next iteration consumes
-			// the recovery guidance queued by the prompt's Continue action.
-			beforeModel: waitForDecision,
-			beforeTool: waitForDecision,
-			afterTool: waitForDecision,
 		},
 	};
 }
@@ -726,7 +683,6 @@ function buildCoreSessionConfig(
 		// runs and long desktop sessions overflow the context window.
 		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -1094,7 +1050,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -1636,6 +1591,20 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
+	try {
+		return await handleSendOnce(ctx, request, sessionId, prompt);
+	} finally {
+		finishActiveSend();
+	}
+}
+
+async function handleSendOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+): Promise<unknown> {
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1658,8 +1627,8 @@ async function handleSend(
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
 		ctx.localWorkspaceRoot;
-	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
-	// as in the CLI: the handler's reply goes to the webview as a toast and
+	// Plugin slash commands execute in the session runtime.
+	// The handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	if (commandName === "compact") {
@@ -1686,10 +1655,13 @@ async function handleSend(
 		return { sessionId, ok: true, commandHandled: true };
 	}
 	const pluginCommand =
-		commandName &&
-		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
-		binding.kind !== "ssh"
-			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand(ctx, {
+					workspacePath,
+					prompt,
+					sessionId,
+					environmentId: binding.environmentId,
+				})
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {
@@ -1706,15 +1678,15 @@ async function handleSend(
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		binding.kind === "ssh"
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
 			? prompt
-			: (pluginCommand?.submitPrompt ??
-				(await resolveDesktopRuntimePrompt(
+			: await resolveDesktopRuntimePrompt(
 					ctx,
 					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				)));
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -2656,20 +2628,50 @@ export async function handleChatSessionCommand(
 		}
 	}
 	const handler = ACTION_HANDLERS[request.action];
-	if (!handler) throw new Error("unsupported action");
+	if (!handler && request.action !== "handoff")
+		throw new Error("unsupported action");
 	const explicitEnvironment = readEnvironmentId(request.config);
 	const binding =
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	ctx = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (request.action === "handoff") {
+		if (getSessionRuntimeBinding(ctx).kind !== "local")
+			throw new Error("Cloud handoff is only supported for local sessions.");
+		switch (request.operation) {
+			case "prepare":
+				return handlePrepareHandoff(ctx, request, async (messages, config) => {
+					const connection = buildSessionConnectionUpdate(
+						await withRemoteProviderCredentials(config),
+					);
+					if (!connection.providerId || !connection.modelId)
+						throw new Error(
+							"Select a local model before preparing a cloud summary.",
+						);
+					return summarizeConversation({
+						messages,
+						signal: AbortSignal.timeout(120_000),
+						config: {
+							...connection,
+							providerId: connection.providerId,
+							modelId: connection.modelId,
+						},
+					});
+				});
+			case "discard":
+				return handleDiscardHandoff(ctx, request);
+			case "launch":
+				return handleHandoff(ctx, request);
+			default:
+				throw new Error("unsupported handoff operation");
+		}
+	}
+	return handler(ctx, request);
 }

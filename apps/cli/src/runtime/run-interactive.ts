@@ -52,6 +52,10 @@ import {
 } from "./active-runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
+import {
+	createCliCloudSessions,
+	isCloudSessionsEnabled,
+} from "./interactive/cloud-sessions";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
 import {
 	formatInteractiveExitSummary,
@@ -194,44 +198,49 @@ export async function runInteractive(
 		userInstructionService,
 	);
 	let interactiveChatCommandHost = chatCommandHost;
-	let pluginChatCommandHostLoaded = false;
-	let pluginChatSlashCommands: InteractiveSlashCommand[] = [];
-	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
-	let pluginChatCommandHostPromise:
-		| Promise<InteractiveSlashCommand[]>
+	let pluginHostPromise:
+		| ReturnType<typeof createWorkspaceChatCommandHost>
 		| undefined;
-	const ensurePluginChatCommandHost = async (): Promise<
-		InteractiveSlashCommand[]
-	> => {
-		if (pluginChatCommandHostLoaded) {
-			return pluginChatSlashCommands;
-		}
-		pluginChatCommandHostPromise ??= createWorkspaceChatCommandHost({
-			cwd: config.cwd,
-			workspaceRoot: config.workspaceRoot,
-			logger: config.logger,
-		})
-			.then(({ host, pluginSlashCommands, shutdown }) => {
-				interactiveChatCommandHost = host;
-				pluginChatCommandHostShutdown = shutdown;
-				pluginChatSlashCommands = pluginSlashCommands.map((cmd) => ({
-					name: cmd.name,
-					instructions: "",
-					description: cmd.description ?? "Plugin command",
-				}));
-				return pluginChatSlashCommands;
+	const ensurePluginHost = () => {
+		pluginHostPromise ??= sessionRuntime
+			.getPluginCommandsApi()
+			.then((commands) =>
+				createWorkspaceChatCommandHost({
+					cwd: config.cwd,
+					workspaceRoot: config.workspaceRoot,
+					logger: config.logger,
+					commands,
+					getSessionId: () => sessionRuntime.getActiveSessionId(),
+				}),
+			)
+			.then((host) => {
+				interactiveChatCommandHost = host.host;
+				return host;
 			})
-			.finally(() => {
-				pluginChatCommandHostLoaded = true;
-				pluginChatCommandHostPromise = undefined;
+			.catch((error) => {
+				pluginHostPromise = undefined;
+				throw error;
 			});
-		return await pluginChatCommandHostPromise;
+		return pluginHostPromise;
 	};
 	const loadAdditionalSlashCommands = async (): Promise<
 		InteractiveSlashCommand[]
-	> => await ensurePluginChatCommandHost();
-	const shouldTryPluginChatCommands = (prompt: string): boolean => {
-		return prompt.trimStart().startsWith("/");
+	> => {
+		const host = await ensurePluginHost();
+		return (await host.listCommands()).map((command) => ({
+			...command,
+			description: command.description ?? "Plugin command",
+			instructions: "",
+		}));
+	};
+	// Session commands come from the active session's plugins, so a session
+	// change can change the catalog.
+	const activeSessionListeners = new Set<() => void>();
+	const subscribeAdditionalSlashCommands = (listener: () => void) => {
+		activeSessionListeners.add(listener);
+		return () => {
+			activeSessionListeners.delete(listener);
+		};
 	};
 
 	const enableChatCommands = true;
@@ -296,6 +305,9 @@ export async function runInteractive(
 		},
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
+		},
+		onActiveSessionChange: () => {
+			for (const listener of activeSessionListeners) listener();
 		},
 	});
 	const configDataLoader = createInteractiveConfigDataLoader({
@@ -385,11 +397,6 @@ export async function runInteractive(
 			try {
 				exitSummary = await sessionRuntime.cleanup();
 			} finally {
-				await pluginChatCommandHostPromise?.catch(() => []);
-				await pluginChatCommandHostShutdown?.().catch(() => {
-					// Best effort cleanup for plugin command discovery sandbox.
-				});
-				pluginChatCommandHostShutdown = undefined;
 				setActiveRuntimeAbort(undefined);
 				setActiveRuntimeCleanup(undefined);
 			}
@@ -515,8 +522,13 @@ export async function runInteractive(
 			}
 		: undefined;
 
+	const cloudSessions = isCloudSessionsEnabled()
+		? createCliCloudSessions(config.workspaceRoot?.trim() || config.cwd)
+		: undefined;
+
 	tuiApp = await renderOpenTui({
 		config,
+		cloudSessions: cloudSessions?.client,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
@@ -525,6 +537,7 @@ export async function runInteractive(
 		initialRepoStatus,
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({
 				config,
@@ -579,7 +592,8 @@ export async function runInteractive(
 					isRunning = true;
 				}
 
-				let chatCommandResult = await runInteractiveChatCommand({
+				if (input.trimStart().startsWith("/")) await ensurePluginHost();
+				const chatCommandResult = await runInteractiveChatCommand({
 					prompt: input,
 					enabled: enableChatCommands,
 					config,
@@ -594,27 +608,7 @@ export async function runInteractive(
 				if (chatCommandResult.handled) {
 					return chatCommandResult.turnResult;
 				}
-				if (
-					shouldTryPluginChatCommands(input) &&
-					!pluginChatCommandHostLoaded
-				) {
-					await ensurePluginChatCommandHost();
-					chatCommandResult = await runInteractiveChatCommand({
-						prompt: input,
-						enabled: enableChatCommands,
-						config,
-						host: interactiveChatCommandHost,
-						chatCommandState,
-						autoApproveAllRef,
-						setInteractiveAutoApprove,
-						sessionRuntime,
-						stop: () => tuiApp?.destroy(),
-						onCommandOutput,
-					});
-					if (chatCommandResult.handled) {
-						return chatCommandResult.turnResult;
-					}
-				}
+
 				input = chatCommandResult.input;
 				commandOutput = chatCommandResult.commandOutput;
 				zeroTurnCost = await shouldZeroClineFreeModelCost(config);
@@ -880,6 +874,7 @@ export async function runInteractive(
 	try {
 		await tuiApp.waitUntilExit();
 	} finally {
+		await cloudSessions?.dispose().catch(() => {});
 		exitSummary = await cleanupRuntime();
 	}
 	if (exitSummary) {

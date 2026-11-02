@@ -48,6 +48,7 @@ import {
 	createStreamErrorTelemetry,
 	isTimeoutReason,
 } from "../services/stream-error-telemetry";
+import { wrapFetchForAimlapiAttribution } from "./aimlapi/attribution";
 import {
 	classifyProviderError,
 	isRetryableBeyondSdkRetries,
@@ -1093,7 +1094,7 @@ function getNestedUsageValue(
  * do not trigger the agent's whole-turn retry, so the retry budgets do not
  * multiply. See `captureStreamError` and `isRetryableBeyondSdkRetries`.
  */
-const MODEL_REQUEST_MAX_RETRIES = 5;
+const MODEL_REQUEST_MAX_RETRIES = 3;
 const MODEL_STREAM_MAX_RETRIES = 3;
 
 type UsagePath = readonly [string] | readonly [string, string];
@@ -2247,10 +2248,13 @@ function createAiSdkProvider(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
+						fetch: wrapFetchForAimlapiAttribution(
+							wrapFetchForStickySession(
+								wrapFetchForProviderRequestCapture(config.fetch, request),
+								request,
+								context,
+							),
+							request.providerId,
 						),
 					},
 					context,

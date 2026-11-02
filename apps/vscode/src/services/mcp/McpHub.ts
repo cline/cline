@@ -16,6 +16,8 @@ import {
 	ListToolsResultSchema,
 	McpError,
 	PromptListChangedNotificationSchema,
+	type ReadResourceResult,
+	ReadResourceResultSchema,
 	ResourceListChangedNotificationSchema,
 	ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
@@ -1747,6 +1749,29 @@ export class McpHub {
 				error instanceof Error ? error.message : String(error),
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
+			throw augmentMcpTimeoutError(error, serverName, timeout)
+		}
+	}
+
+	async readResource(serverName: string, uri: string, signal?: AbortSignal): Promise<ReadResourceResult> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
+		}
+		if (!connection.client) {
+			throw new Error(`Server "${serverName}" is not connected and cannot be used.`)
+		}
+
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+		try {
+			return await connection.client.request({ method: "resources/read", params: { uri } }, ReadResourceResultSchema, {
+				timeout,
+				signal,
+			})
+		} catch (error) {
 			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
 	}

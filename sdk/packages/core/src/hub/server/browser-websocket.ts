@@ -141,6 +141,7 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			if (envelope.event === "cloud.event" && !authority) return;
 			sendFrame({ kind: "event", envelope });
 		};
 

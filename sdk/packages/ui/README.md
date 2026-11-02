@@ -4,23 +4,20 @@ Shared visual foundations and reusable React presentation primitives for Cline
 web products. The package lets teams adopt the same semantic theme and agent
 chat language without adopting another product's routes, state, or runtime.
 
-The package is configured for public npm releases on its own version and
-release cycle. Its API is still pre-stable, so consumers should pin an exact
-version and review compatibility notes when updating. Check availability with
-`npm view @cline/ui version`; an `E404` means the first release is still pending.
+The package is published to npm with the SDK packages and shares their version.
+Its API is still pre-stable, so consumers should pin an exact version and review
+compatibility notes when updating.
 
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
 
 ## Install
 
-After the initial release is available:
-
 ```bash
 bun add --exact @cline/ui
 ```
 
-Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
+Use `@cline/ui@nightly` only for deliberate previews. Monorepo consumers use
 `"@cline/ui": "workspace:*"` instead.
 
 ## Entry points
@@ -348,10 +345,13 @@ ownership model settle.
 
 ## Releases
 
-The standalone `ui-publish.yml` workflow validates the package and publishes
-only after a manual dispatch from `main`. Production releases use the npm
-`latest` tag; deliberate previews use `next`. UI releases do not trigger the
-SDK release, GitHub releases, or Slack announcements.
+`@cline/ui` is released with the SDK packages and shares their version. The
+`sdk-publish.yml` workflow (or `bun release sdk` locally) publishes it after
+`@cline/sdk`: production releases use the npm `latest` tag and nightly builds
+use `nightly`. See [Publishing](../../CONTRIBUTING.md#publishing).
+
+Earlier standalone releases used `0.1.0` and `0.2.0-next.N`. The SDK moved to
+`0.2.0` when the UI joined it, so SDK releases continue that version line.
 
 ### 0.2.0-next.10 compatibility notes
 
@@ -367,52 +367,50 @@ consumers:
   published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
 
 Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
-explicitly to enable catalog refresh. The version change prepares a package;
-publication still requires the separate manual workflow below.
+explicitly to enable catalog refresh.
 
-### Publish a preview
-
-Prepare an unused `0.2.0-next.N` version in this package's `package.json`,
-regenerate the workspace lockfile with Bun if needed, and merge the release
-commit to `main`. Keep `internal: true`: the UI package has its own release
-workflow and is excluded from SDK-wide version bumps.
-
-After merging the version change, dispatch:
-
-```sh
-gh workflow run ui-publish.yml \
-  --repo cline/cline \
-  --ref main \
-  -f npm_tag=next \
-  -f confirm_publish=publish
-```
-
-The workflow builds dependencies, runs UI and integration checks, builds
-Storybook, tests the packed artifact, and publishes that artifact with
-provenance. It rejects a version that already exists. Recheck registry versions
-before release preparation; if the version was taken, commit the next unused
-prerelease before dispatching. Publishing does not happen when the PR merges.
-
-After the run succeeds, verify that the registry's `next` tag points to the
-prepared version and that `latest` is unchanged. Install the exact preview in
-an external consumer and verify its build, styles, keyboard interaction, and
-disabled states:
-
-```sh
-bun add --exact '@cline/ui@<prepared-version>'
-```
-
-Commit the consumer's manifest and lockfile. Monorepo consumers retain
-`workspace:*`; rebuild with `bun -F @cline/ui build` and restart the consuming
-app. If a preview regresses, pin the previous version and publish a corrected
-prerelease instead of replacing an existing version.
-
-The install command above pins the resolved release. Commit the consumer
-lockfile and update deliberately. The package is ESM and its React components
-target browser applications. A complete Tailwind theme also requires Tailwind
-v4 and the two font packages shown above.
+Monorepo consumers retain `workspace:*`; rebuild with `bun -F @cline/ui build`
+and restart the consuming app. External consumers should pin an exact version,
+commit their lockfile, and update deliberately. The package is ESM and its
+React components target browser applications. A complete Tailwind theme also
+requires Tailwind v4 and the two font packages shown above.
 
 `AgentContextUsage` supplies the desktop context ring, accessible trigger label,
 and usage-detail body through a render callback. The host keeps its existing
 button/popover behavior and passes its formatted cost separately from the latest
 request's context tokens. See [context usage](./ADOPTION.md#context-usage).
+
+### UX verification reports
+
+`AgentUxVerification` renders the shared `UxVerificationReport` contract from `@cline/shared/browser` as an evidence carousel. It supports passed/failed/blocked checks, titles, observations, thumbnails, keyboard navigation and optional slideshow. Pass `state="running"` while verification runs, then `state="completed"` with its report. Invalid output or `state="error"` displays a failure state rather than a success count.
+
+Inline screenshots use the existing safe Blob renderer. Hosts can supply `renderScreenshot(check, className, presentation)` to resolve authenticated asset references, and `onExpandScreenshot(check)` to open their focus-managed image viewer. The component owns no transport or upload client. Its styles ship in `@cline/ui/components.css`; see the **Agent/UX verification** Storybook stories.
+
+When the carousel has focus, Left/Right switch slides and Space toggles slideshow playback without scrolling the page. Arrow navigation pauses playback. Space on a focused button retains that button’s normal action.
+
+Screenshot evidence uses the existing `GeneratedMedia` image contract: `id`, `modality: "image"`, a supported raster `mediaType`, and `source` (`base64`, `url`, or `artifact`). Optional `name` and `sizeBytes` metadata are preserved. Persist artifact IDs in reports and let the host resolve access URLs when displaying them; the shared component does not invent or refresh signed URLs.
+
+A Desktop consumer can pass `check.screenshot` directly to its existing `ArtifactImage` component from the cloud-artifact integration, without converting between image formats:
+
+```tsx
+<AgentUxVerification
+  output={report}
+  state="completed"
+  renderScreenshot={(check, className, presentation) =>
+    check.screenshot?.source.type === "artifact" ? (
+      <ArtifactImage
+        media={check.screenshot}
+        sessionId={sessionId}
+        className={className}
+        interactive={presentation !== "thumbnail"}
+      />
+    ) : undefined
+  }
+/>
+```
+
+`ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.
+
+A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. For example, an artifact renderer returns `undefined` for inline screenshots so the shared Blob rendering and image-load fallback stay active.
+
+`presentation` is `"slide"` or `"thumbnail"`. Thumbnail content lives inside the selection button and must not render buttons, links or other interactive controls. Hosts should disable retry controls in that context while keeping recovery available in the main view. `GeneratedMediaContent` shows its unavailable fallback if inline image bytes fail to decode, including in expanded host viewers.

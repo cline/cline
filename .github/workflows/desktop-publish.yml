@@ -977,6 +977,10 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.ref }}
 
+      # The rpm bundler (tauri-cli >= 2.12) rejects '-' in the package
+      # version, so the nightly's prerelease separator becomes '+' (still
+      # valid semver, and deb accepts it too). Safe only because nightlies
+      # never reach an update feed; artifact names keep the shared version.
       - name: Stamp nightly version
         if: needs.validate.outputs.channel == 'nightly'
         env:
@@ -984,9 +988,10 @@ jobs:
         run: |
           node <<'JS'
           const fs = require('node:fs');
+          const version = process.env.VERSION.replace('-', '+');
           for (const file of ['apps/examples/desktop-app/package.json', 'apps/examples/desktop-app/src-tauri/tauri.conf.json']) {
             const config = JSON.parse(fs.readFileSync(file, 'utf8'));
-            config.version = process.env.VERSION;
+            config.version = version;
             fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
           }
           JS

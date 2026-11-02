@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildDiagnosticsReport,
 	DIAGNOSTICS_LOG_TAIL_BYTES,
+	dropHubPollingLines,
 	redactDiagnosticsText,
 	writeDiagnosticsReport,
 } from "./diagnostics";
@@ -121,6 +122,52 @@ describe("buildDiagnosticsReport", () => {
 		);
 		expect(text).toContain("=====\nxxx");
 		expect(text).not.toContain("hub-daemon.log");
+	});
+});
+
+describe("hub log polling filter", () => {
+	const poll = (command: string, ok = true) =>
+		`[hub] {"ts":"t","level":"info","component":"hub","message":"command.start","command":"${command}","requestId":"r","clientId":"c"}\n` +
+		`[hub] {"ts":"t","level":"info","component":"hub","message":"command.end","command":"${command}","requestId":"r","clientId":"c","durationMs":1,"ok":${ok}}\n`;
+
+	it("drops successful polls and keeps everything else", () => {
+		const text =
+			poll("session.list") +
+			poll("schedule.active") +
+			poll("session.list", false) +
+			poll("run.start");
+		const kept = dropHubPollingLines(text);
+		expect(kept).not.toContain('"command":"schedule.active"');
+		// A failed poll keeps its start and its end.
+		expect(kept.match(/"command":"session\.list"/g)).toHaveLength(2);
+		expect(kept).toContain('"ok":false');
+		expect(kept.match(/"command":"run\.start"/g)).toHaveLength(2);
+	});
+
+	it("keeps the start of a poll that never finished", () => {
+		const unfinished = poll("session.list").split("\n")[0];
+		const kept = dropHubPollingLines(
+			`${poll("session.list")}${unfinished}\n${poll("settings.list")}`,
+		);
+		expect(kept.split("\n").filter(Boolean)).toEqual([unfinished]);
+	});
+
+	it("reaches past polling that would have filled the whole tail", () => {
+		const polling = poll("session.list") + poll("settings.list");
+		writeFileSync(
+			join(dataDir, "logs", "hub-daemon.log"),
+			`[hub] {"message":"run.heartbeat","note":"older run"}\n` +
+				polling.repeat(
+					Math.ceil((DIAGNOSTICS_LOG_TAIL_BYTES * 2) / polling.length),
+				) +
+				`[hub] {"message":"capability.request.start","note":"newer"}\n`,
+		);
+
+		const { text } = buildDiagnosticsReport([]);
+		expect(text).toContain("hub-daemon.log, routine polling omitted");
+		expect(text).toContain("older run");
+		expect(text).toContain("newer");
+		expect(text).not.toContain('"command":"session.list"');
 	});
 });
 

@@ -67,6 +67,7 @@ export const GlobalSettingsSchema = z
 		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
+		cloudModelId: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
@@ -82,6 +83,7 @@ export const GlobalSettingsSchema = z
 			planActMode?: GlobalPlanActMode;
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
+			cloudModelId?: string;
 			disabledTools?: string[];
 			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
@@ -104,6 +106,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.tuiTheme?.trim()) {
 			normalized.tuiTheme = settings.tuiTheme.trim();
+		}
+		if (settings.cloudModelId?.trim()) {
+			normalized.cloudModelId = settings.cloudModelId.trim();
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -327,6 +332,15 @@ export function readTuiThemeGlobally(): string | undefined {
 
 export function setTuiThemeGlobally(tuiTheme: string): void {
 	writeGlobalSettings({ ...readGlobalSettings(), tuiTheme });
+}
+
+/** The cloud session model the user explicitly picked, if any. */
+export function readCloudModelIdGlobally(): string | undefined {
+	return readGlobalSettings().cloudModelId;
+}
+
+export function setCloudModelIdGlobally(cloudModelId: string): void {
+	writeGlobalSettings({ ...readGlobalSettings(), cloudModelId });
 }
 
 export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {

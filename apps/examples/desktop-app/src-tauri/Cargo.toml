@@ -4,23 +4,33 @@ version = "0.1.0"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2.0.0", features = [] }
+tauri-build = { version = "2.7.3", features = [] }
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2.11.1", features = ["image-png", "tray-icon"] }
+tauri = { version = "2.12.4", features = ["image-png", "tray-icon"] }
 notify-rust = "4.18"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["sync", "time"] }
+portable-pty = "0.9"
 # gtk3 instead of the default xdg-portal backend on Linux: the portal needs a
 # D-Bus session and an xdg-desktop-portal backend, and when either is missing
 # pick_folder() returns None, which the app reads as "cancelled". The app is a
 # GTK window already, so the GTK dialog works wherever the app runs. The
 # feature is a no-op on macOS and Windows.
 rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
+
+[target."cfg(target_os = \"linux\")".dependencies]
+# Already in the graph through notify-rust; used to ask the session bus
+# whether a StatusNotifier host exists (see linux_tray.rs).
+zbus = "5"
+
+[target."cfg(windows)".dependencies]
+# Same version portable-pty already pulls in; reads the Windows build number.
+winreg = "0.10"
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"

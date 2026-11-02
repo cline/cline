@@ -1,5 +1,4 @@
 /// <reference types="@types/bun" />
-import { builtinModules } from "node:module";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -85,17 +84,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		outdir: "./dist/services/feature-flags",
 		...buildConfig,
 	},
-	// The plugin sandbox bootstrap runs in an isolated child process
-	// (SubprocessSandbox) or worker thread (WorkerSandbox) and is emitted as a
-	// separate entrypoint. It bundles every package it uses: the CLI ships it
-	// beside the compiled binary with no node_modules to resolve from, so it
-	// may import only Node builtins.
-	{
-		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
-		outdir: "./dist/extensions",
-		...buildConfig,
-		external: [],
-	},
 ];
 
 for (const config of builds) {
@@ -111,20 +99,4 @@ for (const config of builds) {
 			console.warn(log);
 		}
 	}
-}
-
-// Fail the build if the bootstrap still imports a package: it would load in
-// dev and tests, then fail in a published CLI install.
-const bootstrapPath = "./dist/extensions/plugin-sandbox-bootstrap.js";
-const bootstrapPackages = new Bun.Transpiler({ loader: "js" })
-	.scanImports(await Bun.file(bootstrapPath).text())
-	.map((entry) => entry.path)
-	.filter(
-		(path) => !path.startsWith("node:") && !builtinModules.includes(path),
-	);
-if (bootstrapPackages.length > 0) {
-	console.error(
-		`${bootstrapPath} must be self-contained but imports: ${[...new Set(bootstrapPackages)].join(", ")}`,
-	);
-	process.exit(1);
 }

@@ -28,11 +28,14 @@ export const HUB_DRAINING_ERROR_CODE = "hub_draining";
 /** Commands refused while the Hub is draining (all of them admit new work). */
 const DRAIN_REFUSED_COMMANDS = new Set<string>([
 	"session.create",
+	"session.resume",
 	"session.restore",
 	"session.fork",
 	"run.start",
 	"session.send_input",
 	"run.enqueue",
+	"plugins.commands.run",
+	"plugins.commands.list",
 ]);
 
 export function isDrainRefusedCommand(command: string): boolean {

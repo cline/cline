@@ -129,10 +129,11 @@ The GitHub workflow at `.github/workflows/cli-publish.yml` automates publishing:
 
 - Main releases are manual. Select `publish_target=main` and set `confirm_publish=publish`.
 - Main releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
-- Nightly releases run on a schedule or manually with `publish_target=nightly`.
+- Nightly releases are manual only, with `publish_target=nightly`. There is no schedule.
+- Every run, main or nightly, waits for a reviewer to approve it in the `PublishNPM` GitHub environment.
 - Nightly releases publish `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skip if there were no commits in the last 24 hours unless forced.
 
-CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package before relying on the workflow.
+CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package, with the environment set to `PublishNPM`, before relying on the workflow.
 
 ## How It Works Under the Hood
 

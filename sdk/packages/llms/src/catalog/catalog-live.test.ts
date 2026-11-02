@@ -511,20 +511,22 @@ describe("models-dev-catalog", () => {
 				],
 			},
 			{
-				"base-model": {
-					id: "base-model",
-					name: "OpenRouter Base Model",
-					description: "OpenRouter description",
-					contextWindow: 200_000,
-					maxInputTokens: 180_000,
-					maxTokens: 16_384,
-					capabilities: ["tools", "reasoning", "images"],
-					reasoningOptions: [
-						{ type: "effort", values: ["low", "medium", "high"] },
-					],
-					pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-					releaseDate: "2026-01-01",
-					family: "base-family",
+				openrouter: {
+					"base-model": {
+						id: "base-model",
+						name: "OpenRouter Base Model",
+						description: "OpenRouter description",
+						contextWindow: 200_000,
+						maxInputTokens: 180_000,
+						maxTokens: 16_384,
+						capabilities: ["tools", "reasoning", "images"],
+						reasoningOptions: [
+							{ type: "effort", values: ["low", "medium", "high"] },
+						],
+						pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+						releaseDate: "2026-01-01",
+						family: "base-family",
+					},
 				},
 			},
 		);
@@ -568,14 +570,16 @@ describe("models-dev-catalog", () => {
 				],
 			},
 			{
-				"z-ai/glm-5.2": {
-					id: "z-ai/glm-5.2",
-					name: "GLM 5.2",
-					contextWindow: 256_000,
-					maxInputTokens: 200_000,
-					maxTokens: 32_000,
-					capabilities: ["tools", "reasoning", "temperature"],
-					pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+				openrouter: {
+					"z-ai/glm-5.2": {
+						id: "z-ai/glm-5.2",
+						name: "GLM 5.2",
+						contextWindow: 256_000,
+						maxInputTokens: 200_000,
+						maxTokens: 32_000,
+						capabilities: ["tools", "reasoning", "temperature"],
+						pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+					},
 				},
 			},
 		);
@@ -597,6 +601,70 @@ describe("models-dev-catalog", () => {
 		).toEqual({});
 	});
 
+	it("falls back to Vercel only for Cline recommended models OpenRouter doesn't list", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{ id: "cline-pass/vercel-only" },
+					{ id: "cline-pass/glm-5.2" },
+				],
+				free: [{ id: "cline-free/vercel-only" }, { id: "cline-free/glm-5.2" }],
+			},
+			{
+				openrouter: {
+					"z-ai/glm-5.2": {
+						id: "z-ai/glm-5.2",
+						name: "GLM 5.2",
+						contextWindow: 200_000,
+					},
+				},
+				"vercel-ai-gateway": {
+					"acme/vercel-only": {
+						id: "acme/vercel-only",
+						name: "Acme Vercel Only",
+						contextWindow: 1_000_000,
+						maxTokens: 64_000,
+						capabilities: ["images", "tools", "reasoning"],
+					},
+					// Same exact id as OpenRouter, then a second alias visited later.
+					"z-ai/glm-5.2": {
+						id: "z-ai/glm-5.2",
+						name: "GLM 5.2 (Vercel)",
+						contextWindow: 100_000,
+					},
+					"zai/glm-5.2": {
+						id: "zai/glm-5.2",
+						name: "GLM 5.2 (Vercel alias)",
+						contextWindow: 100_000,
+					},
+				},
+			},
+		);
+
+		for (const id of ["cline-free/vercel-only", "cline-pass/vercel-only"]) {
+			expect(result["cline-pass"]?.[id]).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 64_000,
+				capabilities: ["images", "tools", "reasoning"],
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			});
+		}
+		expect(result.cline?.["cline-free/vercel-only"]).toMatchObject({
+			name: "Acme Vercel Only (free)",
+			contextWindow: 1_000_000,
+		});
+		// Any OpenRouter match wins over every Vercel alias
+		for (const id of ["cline-free/glm-5.2", "cline-pass/glm-5.2"]) {
+			expect(result["cline-pass"]?.[id]).toMatchObject({
+				contextWindow: 200_000,
+			});
+		}
+		expect(result.cline?.["cline-free/glm-5.2"]).toMatchObject({
+			name: "GLM 5.2 (free)",
+			contextWindow: 200_000,
+		});
+	});
+
 	it("includes Cline free models alongside ClinePass models", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
@@ -604,14 +672,16 @@ describe("models-dev-catalog", () => {
 				free: [{ id: "cline-free/kat-coder-pro", name: "kat-coder-pro" }],
 			},
 			{
-				"kwaipilot/kat-coder-pro": {
-					id: "kwaipilot/kat-coder-pro",
-					name: "KAT Coder Pro",
-					contextWindow: 256_000,
-					maxInputTokens: 200_000,
-					maxTokens: 32_000,
-					capabilities: ["tools", "temperature"],
-					pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
+				openrouter: {
+					"kwaipilot/kat-coder-pro": {
+						id: "kwaipilot/kat-coder-pro",
+						name: "KAT Coder Pro",
+						contextWindow: 256_000,
+						maxInputTokens: 200_000,
+						maxTokens: 32_000,
+						capabilities: ["tools", "temperature"],
+						pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
+					},
 				},
 			},
 		);
@@ -710,14 +780,16 @@ describe("models-dev-catalog", () => {
 				free: [{ id: "cline-free/trinity-large-preview:free" }],
 			},
 			{
-				"arcee-ai/trinity-large-preview:free": {
-					id: "arcee-ai/trinity-large-preview:free",
-					name: "Trinity Large Preview",
-					contextWindow: 512_000,
-					maxInputTokens: 400_000,
-					maxTokens: 64_000,
-					capabilities: ["tools"],
-					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				openrouter: {
+					"arcee-ai/trinity-large-preview:free": {
+						id: "arcee-ai/trinity-large-preview:free",
+						name: "Trinity Large Preview",
+						contextWindow: 512_000,
+						maxInputTokens: 400_000,
+						maxTokens: 64_000,
+						capabilities: ["tools"],
+						pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					},
 				},
 			},
 		);
@@ -748,14 +820,16 @@ describe("models-dev-catalog", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{ free: [{ id: "cline-free/k2-think" }] },
 			{
-				"moonshotai/k2-think": {
-					id: "moonshotai/k2-think",
-					name: "K2 Think",
-					contextWindow: 1_000_000,
-					maxInputTokens: 800_000,
-					maxTokens: 128_000,
-					capabilities: ["tools", "reasoning"],
-					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				openrouter: {
+					"moonshotai/k2-think": {
+						id: "moonshotai/k2-think",
+						name: "K2 Think",
+						contextWindow: 1_000_000,
+						maxInputTokens: 800_000,
+						maxTokens: 128_000,
+						capabilities: ["tools", "reasoning"],
+						pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+					},
 				},
 			},
 		);
@@ -785,23 +859,25 @@ describe("models-dev-catalog", () => {
 				],
 			},
 			{
-				"deepseek/deepseek-v4-flash": {
-					id: "deepseek/deepseek-v4-flash",
-					name: "DeepSeek V4 Flash",
-					contextWindow: 1_000_000,
-					maxInputTokens: 800_000,
-					maxTokens: 128_000,
-					capabilities: ["tools", "reasoning"],
-					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
-				},
-				"poolside/laguna-s-2.1:free": {
-					id: "poolside/laguna-s-2.1:free",
-					name: "Laguna S 2.1 (free)",
-					contextWindow: 262_144,
-					maxInputTokens: 262_144,
-					maxTokens: 32_768,
-					capabilities: ["tools"],
-					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				openrouter: {
+					"deepseek/deepseek-v4-flash": {
+						id: "deepseek/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+						contextWindow: 1_000_000,
+						maxInputTokens: 800_000,
+						maxTokens: 128_000,
+						capabilities: ["tools", "reasoning"],
+						pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+					},
+					"poolside/laguna-s-2.1:free": {
+						id: "poolside/laguna-s-2.1:free",
+						name: "Laguna S 2.1 (free)",
+						contextWindow: 262_144,
+						maxInputTokens: 262_144,
+						maxTokens: 32_768,
+						capabilities: ["tools"],
+						pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					},
 				},
 			},
 		);

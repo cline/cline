@@ -2,6 +2,10 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
+	createCloudSessionTestRuntime,
+	reconnectCloudSessionTestViewer,
+} from "./cloud-session-test-runtime";
+import {
 	type CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
@@ -128,7 +132,7 @@ class FakeHubClient {
 	async dispose(): Promise<void> {}
 }
 
-function createFixture({
+async function createFixture({
 	hub = new FakeHubClient(),
 	api = {
 		list: async () => [
@@ -140,13 +144,13 @@ function createFixture({
 	api?: CloudSessionApi;
 } = {}) {
 	const { ctx, events } = createContext();
-	const manager = new CloudSessionManager(ctx, {
+	const manager = await createCloudSessionTestRuntime(ctx, {
 		api,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "workos:fresh",
 		createHubClient: () => hub as never,
 	});
-	ctx.cloudSessionManager = manager;
+
 	return { ctx, events, hub, manager };
 }
 
@@ -158,14 +162,65 @@ afterAll(() => {
 });
 
 describe("Cloud sessions sidecar wiring", () => {
+	it("clears resolved approvals when a replacement snapshot has an empty approval list", async () => {
+		const { ctx, events } = createContext();
+		const viewer = new CloudSessionManager(ctx);
+		const approval = {
+			requestId: "request",
+			sessionId: "ses-one",
+			approvalId: "approval",
+			createdAt: "2026-10-20",
+			toolCallId: "tool",
+			toolName: "bash",
+		};
+		const snapshot = {
+			sessionId: "ses-one",
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			approvals: [approval],
+			busy: true,
+			status: "running",
+			startedAt: 1,
+			connectionState: "connected" as const,
+			transcriptKnown: true,
+		};
+		viewer["project"]({
+			type: "snapshot",
+			sessionId: "ses-one",
+			snapshot,
+			replace: true,
+		});
+		expect(ctx.pendingApprovals.has("request")).toBe(true);
+		viewer["project"]({
+			type: "snapshot",
+			sessionId: "ses-one",
+			snapshot: { ...snapshot, approvals: [] },
+			replace: true,
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
+		await viewer.dispose();
+	});
+
 	it.each([
 		"local",
 		"ssh-remote",
 	])("shares cloud manager ownership with the %s context", async (environmentId) => {
-		const { ctx } = createContext();
+		const { ctx, events } = createContext();
 		const scoped = getEnvironmentContext(ctx, environmentId);
 		const manager = getCloudSessionManager(scoped);
-		const dispose = vi.spyOn(manager, "dispose");
+		const originalDispose = manager.dispose.bind(manager);
+		const dispose = vi
+			.spyOn(manager, "dispose")
+			.mockImplementation(async () => {
+				expect(ctx.cloudSessionManager).toBeNull();
+				expect(events.at(-1)?.name).toBe("cloud_sessions_changed");
+				await originalDispose();
+			});
 		expect(getCloudSessionManager(ctx)).toBe(manager);
 		await resetCloudSessionManager(ctx);
 		expect(dispose).toHaveBeenCalledOnce();
@@ -180,7 +235,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		try {
 			const create = vi.fn();
-			const { ctx, hub } = createFixture({
+			const { ctx, hub } = await createFixture({
 				api: { create } as unknown as CloudSessionApi,
 			});
 			const connect = vi.spyOn(hub, "connect");
@@ -221,7 +276,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(result[0]).toMatchObject({ sessionId: "ses-active" });
 	});
 
-	it("does not project a live cloud session through local discovery", () => {
+	it("does not project a live cloud session through local discovery", async () => {
 		const { ctx } = createContext();
 		ctx.liveSessions.set("ses-cloud", {
 			busy: true,
@@ -239,14 +294,18 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("keeps cloud discovery and run events local after switching to SSH", async () => {
-		const { ctx, events, hub, manager } = createFixture();
+		const { ctx, events, hub, manager } = await createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
 		ctx.activeEnvironmentId = "ssh-remote";
 		for (const session of [
-			...(await manager.listForDiscovery()),
-			manager.getCachedDiscoveryRecord("ses-outer"),
+			...(await (
+				ctx.cloudSessionManager as CloudSessionManager
+			).listForDiscovery()),
+			(ctx.cloudSessionManager as CloudSessionManager).getCachedDiscoveryRecord(
+				"ses-outer",
+			),
 		]) {
 			expect(session).toMatchObject({
 				environmentId: "local",
@@ -277,7 +336,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("updates cloud settings from an SSH-scoped command before sending", async () => {
-		const { ctx, hub, manager } = createFixture();
+		const { ctx, hub, manager } = await createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -312,8 +371,34 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("waits for cloud preferences before sending (failure: %s)", async (failure) => {
+		const { ctx, hub, manager } = await createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const viewer = getCloudSessionManager(ctx);
+		const restoring = Promise.withResolvers<void>();
+		vi.spyOn(viewer, "restoreCreationOptions").mockReturnValueOnce(
+			restoring.promise,
+		);
+		const sending = viewer.send("ses-outer", "Next turn");
+		const outcome = failure
+			? expect(sending).rejects.toThrow("Preferences unavailable")
+			: expect(sending).resolves.toMatchObject({ ok: true });
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(false);
+		if (failure) restoring.reject(new Error("Preferences unavailable"));
+		else restoring.resolve();
+		await outcome;
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(!failure);
+	});
 	it("forwards image-only cloud messages and rejects file attachments", async () => {
-		const { ctx, hub, manager } = createFixture();
+		const { ctx, hub, manager } = await createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 		const image = "data:image/png;base64,aGVsbG8=";
@@ -410,7 +495,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("bridges pending-prompt events and queue commands to the hub", async () => {
-		const { ctx, events, hub, manager } = createFixture();
+		const { ctx, events, hub, manager } = await createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -490,7 +575,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			status: "ready",
 			sandboxUrl: "pod",
 		}));
-		const { ctx, hub, manager } = createFixture({
+		const { ctx, hub, manager } = await createFixture({
 			hub: new FakeHubClient(false),
 			api: {
 				list: async () => [],
@@ -545,7 +630,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			list: async () => [session],
 			create: async () => ({ sessionId: session.id, status: "ready" }),
 		} as unknown as CloudSessionApi;
-		const { ctx, manager } = createFixture({
+		const { ctx, manager, hub } = await createFixture({
 			hub: new FakeHubClient(false),
 			api,
 		});
@@ -566,14 +651,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			await resetCloudSessionManager(ctx);
 			expect(ctx.liveSessions.has(session.id)).toBe(false);
 
-			const hub = new FakeHubClient(false);
-			const replacement = new CloudSessionManager(ctx, {
-				api,
-				apiBaseUrl: "https://api.example",
-				getAuthToken: async () => "workos:fresh",
-				createHubClient: () => hub as never,
-			});
-			ctx.cloudSessionManager = replacement;
+			const replacement = await reconnectCloudSessionTestViewer(ctx);
 			await replacement.attach(session.id);
 			await replacement.send(session.id, "First prompt after reset");
 			expect(
@@ -602,7 +680,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			id: "ses-created",
 			status: "provisioning",
 		};
-		const { events, hub, manager } = createFixture({
+		const { events, hub, manager } = await createFixture({
 			hub: new FakeHubClient(false),
 			api: {
 				create: async () => ({
@@ -657,7 +735,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("retains a failed real session and rejects its first send", async () => {
-		const { events, hub, manager } = createFixture({
+		const { events, hub, manager } = await createFixture({
 			hub: new FakeHubClient(false),
 			api: {
 				create: async () => ({
@@ -697,7 +775,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
-		const { ctx, events, hub, manager } = createFixture();
+		const { events, hub, manager } = await createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -729,7 +807,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
 		const create = vi.fn();
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
-		const { ctx, hub } = createFixture({
+		const { ctx, hub } = await createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
 				create,

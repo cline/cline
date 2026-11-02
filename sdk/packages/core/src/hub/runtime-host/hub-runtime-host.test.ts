@@ -1,5 +1,5 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
@@ -717,6 +717,17 @@ describe("HubRuntimeHost", () => {
 			config: createConfig(),
 			source: SessionSource.CLI,
 			capabilities: appCapabilities,
+			localRuntime: {
+				extraTools: [
+					{
+						name: "custom_tool",
+						description: "Custom tool",
+						inputSchema: { type: "object" },
+						successContext: "Keep going.",
+						execute: async () => "done",
+					},
+				],
+			},
 		});
 		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
 		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
@@ -726,6 +737,11 @@ describe("HubRuntimeHost", () => {
 						kind: "toolExecutor",
 						executor: "askQuestion",
 						capabilityName: "tool_executor.askQuestion",
+					},
+					{
+						kind: "tool",
+						name: "custom_tool",
+						successContext: "Keep going.",
 					},
 				],
 			},
@@ -1884,4 +1900,113 @@ it("sends atomic first-prompt steering through the Hub without listing the queue
 	} finally {
 		await host.dispose();
 	}
+});
+
+describe("HubRuntimeHost MCP Apps commands", () => {
+	beforeEach(() => {
+		commandMock.mockReset();
+	});
+
+	it("sends MCP Apps requests as session-scoped hub commands", async () => {
+		const binding = {
+			serverName: "weather",
+			toolName: "show_weather",
+			resourceUri: "ui://weather/view.html",
+		};
+		commandMock
+			.mockResolvedValueOnce({ ok: true, payload: { binding } })
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: { result: { contents: [] } },
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: { result: { content: [] } },
+			});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.resolveMcpAppTool("sess-1", "weather__show_weather"),
+		).resolves.toEqual(binding);
+		await expect(
+			host.readMcpAppResource("sess-1", {
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			}),
+		).resolves.toEqual({ contents: [] });
+		await expect(
+			host.callMcpAppTool("sess-1", {
+				serverName: "weather",
+				toolName: "refresh_view",
+				arguments: { city: "Lisbon" },
+			}),
+		).resolves.toEqual({ content: [] });
+
+		expect(commandMock.mock.calls).toEqual([
+			[
+				"session.mcp_apps.resolve_tool",
+				{ sessionId: "sess-1", toolName: "weather__show_weather" },
+				"sess-1",
+				{ timeoutMs: null },
+			],
+			[
+				"session.mcp_apps.read_resource",
+				{
+					sessionId: "sess-1",
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				},
+				"sess-1",
+				{ timeoutMs: null },
+			],
+			[
+				"session.mcp_apps.call_tool",
+				{
+					sessionId: "sess-1",
+					serverName: "weather",
+					toolName: "refresh_view",
+					arguments: { city: "Lisbon" },
+				},
+				"sess-1",
+				{ timeoutMs: null, retryAfterDispatch: false },
+			],
+		]);
+	});
+
+	it("resolves no app tool when the hub does not support MCP Apps", async () => {
+		commandMock.mockRejectedValue(
+			Object.assign(
+				new Error(
+					"Unsupported hub schedule command: session.mcp_apps.resolve_tool",
+				),
+				{ code: "unsupported_command" },
+			),
+		);
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.resolveMcpAppTool("sess-1", "weather__show_weather"),
+		).resolves.toBeUndefined();
+	});
+
+	it("surfaces hub errors from MCP Apps commands", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "mcp_apps_call_tool_failed",
+				message: "cannot be called by an app",
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.callMcpAppTool("sess-1", {
+				serverName: "weather",
+				toolName: "summarize",
+			}),
+		).rejects.toThrow("cannot be called by an app");
+	});
 });
