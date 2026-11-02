@@ -117,6 +117,18 @@ export function createArtifactPublisher({
 		}
 		for (const file of files) {
 			try {
+				const filename = basename(file.path);
+				if (
+					!filename ||
+					[...filename].length > 255 ||
+					filename === "." ||
+					filename === ".." ||
+					/[/\\\p{Cc}\p{Cs}]/u.test(filename)
+				)
+					throw new ArtifactPublicationError(
+						"INVALID_FILENAME",
+						"Filename must be at most 255 characters without path separators, control characters, or invalid Unicode",
+					);
 				if (file.size === 0)
 					throw new ArtifactPublicationError(
 						"EMPTY_FILE",
@@ -136,13 +148,14 @@ export function createArtifactPublisher({
 					for (const [name, value] of Object.entries(policy.fields))
 						form.append(name, value);
 					form.append("key", policy.keyPrefix + file.artifactId);
+					form.set("x-goog-meta-filename", encodeURIComponent(filename));
 					// GCS requires the file to be the final multipart field.
 					form.append(
 						"file",
 						await openAsBlob(file.path, {
 							type: policy.fields["Content-Type"],
 						}),
-						basename(file.path),
+						filename,
 					);
 					let response: Response | undefined;
 					try {

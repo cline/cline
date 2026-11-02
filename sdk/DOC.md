@@ -130,6 +130,7 @@ For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
 session ID. The publisher uploads directly with one signed policy per batch,
 refreshes expired policies, and retries transient failures with the same IDs.
+The publisher stores each file’s basename as object metadata so downloads need only its artifact ID.
 The service remains responsible for upload authorization and limits.
 
 `createArtifactFetcher({ request, cloudSessionId })` from `@cline/core/cloud`
@@ -142,8 +143,6 @@ Wait for a successful publication result before fetching a new artifact. The cal
 consumes or cancels the response body and applies any read size limit. The optional
 signal cancels the download, including while reading its body. This helper does not
 register an agent tool or attach files to messages.
-
-`CloudSessionApi.getArtifactDownloadUrl(sessionId, artifactId, downloadFilename?)` accepts an optional filename for the signed download response.
 
 `HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` resolves
 an existing artifact through the authenticated Hub without starting its sandbox.

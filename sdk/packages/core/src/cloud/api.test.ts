@@ -40,10 +40,7 @@ function jwtFor(subject: string, nonce: string): string {
 }
 
 describe("CloudSessionApi", () => {
-	it.each([
-		undefined,
-		'résumé "final".png',
-	])("resolves an artifact through authenticated REST with filename %s", async (downloadFilename) => {
+	it("resolves an artifact through authenticated REST with encoded session and artifact IDs", async () => {
 		const download = {
 			url: "https://storage.example/frame.png?signature=test",
 			expiresAt: "2030-01-01T00:00:00Z",
@@ -57,18 +54,11 @@ describe("CloudSessionApi", () => {
 			getAuthToken: async () => "token",
 			fetch,
 		});
-		expect(
-			await api.getArtifactDownloadUrl(
-				"ses/outer",
-				"frame + 1",
-				downloadFilename,
-			),
-		).toEqual(download);
+		expect(await api.getArtifactDownloadUrl("ses/outer", "frame + 1")).toEqual(
+			download,
+		);
 		expect(fetch).toHaveBeenCalledExactlyOnceWith(
-			"https://api.example/api/v1/session/ses%2Fouter/artifacts/download-url?name=frame%20%2B%201" +
-				(downloadFilename
-					? `&downloadFilename=${encodeURIComponent(downloadFilename)}`
-					: ""),
+			"https://api.example/api/v1/session/ses%2Fouter/artifacts/download-url?name=frame%20%2B%201",
 			expect.objectContaining({
 				headers: expect.objectContaining({ Authorization: "Bearer token" }),
 			}),

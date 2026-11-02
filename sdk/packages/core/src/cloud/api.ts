@@ -993,10 +993,9 @@ export class CloudSessionApi {
 	async getArtifactDownloadUrl(
 		sessionId: string,
 		artifactId: string,
-		downloadFilename?: string,
 	): Promise<CloudArtifactDownload> {
 		const result = await this.request<unknown>(
-			artifactDownloadPath(sessionId, artifactId, downloadFilename),
+			artifactDownloadPath(sessionId, artifactId),
 		);
 		return ArtifactDownloadSchema.parse(result);
 	}
