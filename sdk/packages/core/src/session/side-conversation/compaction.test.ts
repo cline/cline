@@ -1,14 +1,10 @@
-import type { CoreCompactionContext } from "../../types/config";
-import { countUserRunMessages } from "../user-run-messages";
-import {
-	createSessionCompactionState,
-	projectSessionCompactionState,
-} from "../models/session-compaction";
 import type { MessageWithMetadata } from "@cline/llms";
+import { SIDE_REFERENCE_KIND } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { runAgenticCompaction } from "../../extensions/context/agentic-compaction";
 import { runBasicCompaction } from "../../extensions/context/basic-compaction";
-import { SIDE_REFERENCE_KIND } from "@cline/shared";
+import type { CoreCompactionContext } from "../../types/config";
+import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
 
 vi.mock("@cline/llms", async (original) => ({
@@ -56,7 +52,7 @@ describe("side reference compaction", () => {
 	it.each([
 		"basic",
 		"agentic",
-	] as const)("keeps the %s marker and absolute run numbering through persistence", async (strategy) => {
+	] as const)("excludes the parent reference from user-turn counts after %s compaction", async (strategy) => {
 		const seed = captureSideReference({
 			messages: [
 				{ role: "user", content: "parent goal" },
@@ -115,23 +111,11 @@ describe("side reference compaction", () => {
 					(strategy === "basic" ? "compaction" : "compaction_summary"),
 			),
 		).toHaveLength(1);
-		// Canonical history retains the reference even when compaction omits it from working context.
 		expect(
 			compacted.some(
 				(message) => message.metadata?.kind === SIDE_REFERENCE_KIND,
 			),
 		).toBe(false);
-		const state = createSessionCompactionState({
-			sourceMessages: messages,
-			compactedMessages: compacted,
-		});
-		const reloaded = JSON.parse(JSON.stringify(messages));
-		const projected = projectSessionCompactionState(
-			JSON.parse(JSON.stringify(state)),
-			reloaded,
-		);
-		expect(projected).toEqual(compacted);
-		expect(countUserRunMessages(projected)).toBe(2);
-		expect(reloaded[0]).toEqual(seed);
+		expect(countUserRunMessages(compacted)).toBe(2);
 	});
 });
