@@ -514,7 +514,7 @@ export function WelcomeScreen({
 							workspaces={workspaces}
 						/>
 						{signInError ? (
-							<p className="mt-2 text-xs text-error-text">
+							<p className="mt-2 text-xs text-destructive">
 								Sign in failed: {signInError}
 							</p>
 						) : null}
@@ -578,7 +578,7 @@ export function WelcomeScreen({
 								task={reviewTask}
 							/>
 							{agenda.error ? (
-								<p className="mt-2 text-xs text-error-text" role="alert">
+								<p className="mt-2 text-xs text-destructive" role="alert">
 									{agenda.error}
 								</p>
 							) : null}
