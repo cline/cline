@@ -499,7 +499,7 @@ export function SpeechInput({
 						className={cn(
 							"group relative z-10 size-7 rounded-md p-1.5 transition-colors",
 							isListening
-								? "bg-destructive text-white hover:bg-destructive/80"
+								? "bg-error-solid text-error-contrast hover:bg-error-solid/80"
 								: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
 							className,
 						)}

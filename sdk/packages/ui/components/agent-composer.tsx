@@ -238,8 +238,8 @@ export const AgentComposerStopButton = forwardRef<
 			ref={ref}
 			className={clsx(
 				variant === "welcome"
-					? "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive hover:text-cline-ui-destructive-foreground rounded-cline-ui-md"
-					: "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive hover:text-cline-ui-destructive-foreground rounded-full",
+					? "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-error-solid hover:text-cline-ui-error-contrast rounded-cline-ui-md"
+					: "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-error-solid hover:text-cline-ui-error-contrast rounded-full",
 				className,
 			)}
 		/>
