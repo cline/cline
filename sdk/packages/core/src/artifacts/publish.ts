@@ -1,7 +1,6 @@
-import { randomUUID } from "node:crypto";
 import type { Stats } from "node:fs";
 import { stat } from "node:fs/promises";
-import { isAbsolute } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import { createTool } from "@cline/shared";
 
 export type ArtifactPublicationResult =
@@ -67,7 +66,7 @@ async function localFile(value: unknown): Promise<ArtifactPublicationFile> {
 			"INVALID_INPUT",
 			"Each entry requires an absolute file path",
 		);
-	const artifactId = entry.artifactId ?? randomUUID();
+	const artifactId = entry.artifactId ?? basename(entry.path);
 	if (typeof artifactId !== "string" || artifactId.length === 0)
 		throw new ArtifactPublicationError(
 			"INVALID_INPUT",
@@ -107,9 +106,9 @@ export function createPublishArtifactsTool({
 		name: "publish_artifacts",
 		resultPolicy: "cache-oversized",
 		description:
-			"Publish selected files to make them available outside the current workspace. " +
-			"Requires absolute file paths. Returns artifact IDs for successful publications. " +
-			"Omit artifactId for new files; preserve a returned ID when retrying a failed publication. Reports each file separately.",
+			"Publish files by absolute path for access outside the workspace. " +
+			"Returns an ID or error per file; IDs default to filenames, including extensions. " +
+			"Reusing an ID replaces that session's file. Use distinct filenames to keep separate outputs, and reuse returned IDs for retries.",
 		inputSchema: {
 			type: "object",
 			properties: {

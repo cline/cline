@@ -118,9 +118,11 @@ URLs and a fresh-token callback; feature gating and account selection stay in th
 host. Importing this subpath does not start a local agent.
 
 `createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
-`publish_artifacts` tool. It validates batches and local file paths, assigns missing
-IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
-receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+`publish_artifacts` tool. It validates batches and local file paths, defaults IDs
+to the filename including its extension, and returns ordered per-file IDs or errors.
+Reusing an ID replaces the session's file; use distinct filenames to preserve
+separate outputs. The injected `ArtifactPublisher` receives prepared files
+(`path`, `artifactId`, `size`, `modifiedAt`) and an abort
 signal, and returns one result per file in input order. Storage-specific policy
 and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
