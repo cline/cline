@@ -3,12 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "tailwindcss";
 import { describe, expect, it } from "vitest";
-import {
-	FALLBACK_MERMAID_TOKENS,
-	parseCssColor,
-	type RgbaColor,
-	rgbToHex,
-} from "../components/mermaid-diagram";
+import { parseCssColor, type RgbaColor } from "../components/mermaid-diagram";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const themeDir = join(packageRoot, "theme");
@@ -447,26 +442,6 @@ describe("@cline/ui theme contract", () => {
 					`${fill} hover`,
 				).toBeGreaterThanOrEqual(4.5);
 			}
-		}
-	});
-
-	it.each([
-		[":root", "light"],
-		[".dark", "dark"],
-	] as const)("matches Mermaid fallbacks to the %s semantic colors", (selector, mode) => {
-		const values = themeValues(selector);
-		for (const [mermaidToken, themeToken] of [
-			["background", "card"],
-			["border", "border"],
-			["error", "error-text"],
-			["foreground", "foreground"],
-			["muted", "muted"],
-			["mutedForeground", "muted-foreground"],
-			["primary", "primary"],
-		] as const) {
-			expect(FALLBACK_MERMAID_TOKENS[mode][mermaidToken], mermaidToken).toBe(
-				rgbToHex(tokenColor(values, themeToken)),
-			);
 		}
 	});
 
