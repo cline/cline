@@ -226,44 +226,17 @@ export function collapseCompletedWork(
 	items: ChatRenderItem[],
 	{ collapseTrailingRun }: CollapseWorkOptions,
 ): ChatRenderItem[] {
-	let lastUserIndex = -1;
-	for (let index = items.length - 1; index >= 0; index--) {
-		const item = items[index];
-		if (isUserTurnBoundary(item)) {
-			lastUserIndex = index;
-			break;
-		}
-	}
-
 	const out: ChatRenderItem[] = [];
 	let span: ChatRenderItem[] = [];
-	let turnStart = 0;
-	let reportedArtifacts: ReportedArtifacts | undefined;
 	// When the span directly follows a user message, "Worked for" counts from
 	// that message so the label reflects the whole run, not just row deltas.
 	let runStartTimestamp: number | undefined;
 
-	const flushSpan = (nextIndex: number) => {
+	const flushSpan = (
+		reportedArtifacts: ReportedArtifacts,
+		hasNextTurn: boolean,
+	) => {
 		if (span.length === 0) return;
-		if (reportedArtifacts === undefined) {
-			let turnEnd = turnStart;
-			while (turnEnd < items.length) {
-				const item = items[turnEnd];
-				if (isUserTurnBoundary(item)) break;
-				turnEnd++;
-			}
-			// Attachments split display spans, but reports refer to the whole user turn.
-			reportedArtifacts =
-				turnEnd < items.length || collapseTrailingRun
-					? getReportedArtifacts(
-							items
-								.slice(turnStart, turnEnd)
-								.flatMap((item) =>
-									item.type === "tools" ? item.messages : [],
-								),
-						)
-					: new Map();
-		}
 		// "Done" means the run ended on its deliverable: assistant text not
 		// followed by more tool calls, or a submit_and_exit call carrying the
 		// run's final report. That item is the run's answer and stays visible
@@ -296,8 +269,7 @@ export function collapseCompletedWork(
 		// ended on an answer — a cancelled or failed tail keeps its rows
 		// visible so the user can see where the run stopped.
 		const complete =
-			nextIndex <= lastUserIndex ||
-			(collapseTrailingRun && answer !== undefined);
+			hasNextTurn || (collapseTrailingRun && answer !== undefined);
 		const collapsed = complete && answer ? workRows : span;
 		const toolCallCount = collapsed.reduce(
 			(count, item) =>
@@ -407,24 +379,37 @@ export function collapseCompletedWork(
 		span = [];
 	};
 
-	for (let index = 0; index < items.length; index++) {
-		const item = items[index];
-		if (isCollapsibleWorkItem(item)) {
-			span.push(item);
-			continue;
+	for (let turnStart = 0; turnStart < items.length; ) {
+		let turnEnd = turnStart + 1;
+		while (turnEnd < items.length && !isUserTurnBoundary(items[turnEnd])) {
+			turnEnd++;
 		}
-		flushSpan(index);
-		if (isUserTurnBoundary(item)) {
-			turnStart = index + 1;
-			reportedArtifacts = undefined;
+		const hasNextTurn = turnEnd < items.length;
+		// Attachments split display spans, but reports refer to the whole user turn.
+		const reportedArtifacts: ReportedArtifacts =
+			hasNextTurn || collapseTrailingRun
+				? getReportedArtifacts(
+						items
+							.slice(turnStart, turnEnd)
+							.flatMap((item) => (item.type === "tools" ? item.messages : [])),
+					)
+				: new Map();
+		for (let index = turnStart; index < turnEnd; index++) {
+			const item = items[index];
+			if (isCollapsibleWorkItem(item)) {
+				span.push(item);
+				continue;
+			}
+			flushSpan(reportedArtifacts, hasNextTurn);
+			out.push(item);
+			runStartTimestamp =
+				item.type === "message" && item.message.role === "user"
+					? item.message.createdAt
+					: undefined;
 		}
-		out.push(item);
-		runStartTimestamp =
-			item.type === "message" && item.message.role === "user"
-				? item.message.createdAt
-				: undefined;
+		flushSpan(reportedArtifacts, hasNextTurn);
+		turnStart = turnEnd;
 	}
-	flushSpan(items.length);
 	return out;
 }
 
