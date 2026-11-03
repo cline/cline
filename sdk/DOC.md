@@ -267,6 +267,13 @@ unreachable without interrupting existing cloud work.
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
 models. Handoff requires the selected model; it never substitutes another.
 
+`publishCloudHandoff({ controller, input, assertCurrent })` from `@cline/core/cloud`
+publishes a confirmed Git snapshot and creates the cloud task with its initial
+message, defaulting to a resumable sandbox. Hosts prevent duplicate confirmation
+and supply `assertCurrent`, which throws if the account changes or the host is
+disposed. Git work already underway can finish; the guard prevents subsequent
+creation. The function provides no automatic retry or rollback.
+
 Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
 an existing target. Persist target IDs and dispatch markers through the callbacks;
 use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.

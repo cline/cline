@@ -234,7 +234,7 @@ export async function inspectHandoffGit(
 		);
 	}
 	const { repoUrl } = destination;
-	const remoteHeads = await git(root, ["ls-remote", "--heads", remote]);
+	const remoteHeads = await git(root, ["ls-remote", "--heads", "--", remote]);
 	const knownHeads = remoteHeads
 		.split("\n")
 		.map((line) => line.split(/\s/)[0] ?? "")
@@ -342,6 +342,7 @@ export async function verifyPublishedHandoffGit(
 	const published = await git(plan.root, [
 		"ls-remote",
 		"--heads",
+		"--",
 		plan.remote,
 		`refs/heads/${plan.branch}`,
 	]);
@@ -360,6 +361,7 @@ export async function applyHandoffGit(
 			await git(plan.root, [
 				"ls-remote",
 				"--heads",
+				"--",
 				plan.remote,
 				`refs/heads/${plan.branch}`,
 			])
