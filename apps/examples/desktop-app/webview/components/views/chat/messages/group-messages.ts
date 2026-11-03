@@ -158,6 +158,14 @@ function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
 	);
 }
 
+function isUserTurnBoundary(item: ChatRenderItem): boolean {
+	return (
+		item.type === "message" &&
+		item.message.role === "user" &&
+		!isSystemSteeringMessage(item.message)
+	);
+}
+
 function firstTimestamp(item: ChatRenderItem): number | undefined {
 	if (item.type === "tools") return item.messages[0]?.createdAt;
 	if (item.type === "message") {
@@ -221,11 +229,7 @@ export function collapseCompletedWork(
 	let lastUserIndex = -1;
 	for (let index = items.length - 1; index >= 0; index--) {
 		const item = items[index];
-		if (
-			item.type === "message" &&
-			item.message.role === "user" &&
-			!isSystemSteeringMessage(item.message)
-		) {
+		if (isUserTurnBoundary(item)) {
 			lastUserIndex = index;
 			break;
 		}
@@ -233,12 +237,33 @@ export function collapseCompletedWork(
 
 	const out: ChatRenderItem[] = [];
 	let span: ChatRenderItem[] = [];
+	let turnStart = 0;
+	let reportedArtifacts: ReportedArtifacts | undefined;
 	// When the span directly follows a user message, "Worked for" counts from
 	// that message so the label reflects the whole run, not just row deltas.
 	let runStartTimestamp: number | undefined;
 
 	const flushSpan = (nextIndex: number) => {
 		if (span.length === 0) return;
+		if (reportedArtifacts === undefined) {
+			let turnEnd = turnStart;
+			while (turnEnd < items.length) {
+				const item = items[turnEnd];
+				if (isUserTurnBoundary(item)) break;
+				turnEnd++;
+			}
+			// Attachments split display spans, but reports refer to the whole user turn.
+			reportedArtifacts =
+				turnEnd < items.length || collapseTrailingRun
+					? getReportedArtifacts(
+							items
+								.slice(turnStart, turnEnd)
+								.flatMap((item) =>
+									item.type === "tools" ? item.messages : [],
+								),
+						)
+					: new Map();
+		}
 		// "Done" means the run ended on its deliverable: assistant text not
 		// followed by more tool calls, or a submit_and_exit call carrying the
 		// run's final report. That item is the run's answer and stays visible
@@ -287,8 +312,14 @@ export function collapseCompletedWork(
 			// no tool work to group and keep normal spacing. A trailing submit
 			// row stays inside the group here — it only pops out once the run
 			// actually collapses.
+			const visibleSpan =
+				reportedArtifacts.size > 0
+					? span.map((item) =>
+							item.type === "tools" ? { ...item, reportedArtifacts } : item,
+						)
+					: span;
 			const messageAnswer = answer?.type === "message" ? answer : undefined;
-			const body = messageAnswer ? span.slice(0, -1) : span;
+			const body = messageAnswer ? visibleSpan.slice(0, -1) : visibleSpan;
 			const firstBody = body[0];
 			const hasToolWork = body.some((item) => item.type === "tools");
 			if (body.length >= 2 && hasToolWork && firstBody !== undefined) {
@@ -301,7 +332,7 @@ export function collapseCompletedWork(
 					out.push(messageAnswer);
 				}
 			} else {
-				out.push(...span);
+				out.push(...visibleSpan);
 			}
 		} else {
 			const startTimestamp =
@@ -330,9 +361,6 @@ export function collapseCompletedWork(
 					: undefined;
 			const hidden: ChatRenderItem[] = [];
 			const deliverables: ChatMessage[] = [];
-			const reportedArtifacts = getReportedArtifacts(
-				span.flatMap((item) => (item.type === "tools" ? item.messages : [])),
-			);
 			for (const item of collapsed) {
 				if (item.type !== "tools") {
 					hidden.push(item);
@@ -386,6 +414,10 @@ export function collapseCompletedWork(
 			continue;
 		}
 		flushSpan(index);
+		if (isUserTurnBoundary(item)) {
+			turnStart = index + 1;
+			reportedArtifacts = undefined;
+		}
 		out.push(item);
 		runStartTimestamp =
 			item.type === "message" && item.message.role === "user"

@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
+import type { MessageWithMetadata } from "@cline/shared";
 import type { UxVerificationReport } from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ChatMessage } from "@/lib/chat-schema";
+import { type ChatMessage, ChatMessageSchema } from "@/lib/chat-schema";
+import { readSessionMessagesSync } from "../../../../../sidecar/session-data/messages";
 import { ChatMessages } from "../chat-messages";
 import { ToolMessageBlock } from "./tool-message-block";
 import {
@@ -370,6 +372,91 @@ it.each([
 			),
 		).toBe(true);
 	}
+});
+it.each([
+	"final",
+	"between",
+	"next turn",
+])("selects the screenshot carousel for %s history", async (placement) => {
+	const tool = (
+		id: string,
+		name: string,
+		result: unknown,
+	): MessageWithMetadata[] => [
+		{ role: "assistant", content: [{ type: "tool_use", id, name, input: {} }] },
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: id,
+					name,
+					content: JSON.stringify(result),
+				},
+			],
+		},
+	];
+	const attachment: MessageWithMetadata = {
+		role: "assistant",
+		content: [
+			{ type: "text", text: "Here is the screenshot" },
+			{
+				type: "image",
+				mediaType: "image/png",
+				data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1z8AAAAASUVORK5CYII=",
+			},
+		],
+	};
+	const source: MessageWithMetadata[] = [
+		{ role: "user", content: "Verify the navigation" },
+		...tool("publish", "publish_artifacts", {
+			files: [{ path: "/tmp/menu.png", artifactId: " frame/雪 " }],
+		}),
+		...(placement !== "final" ? [attachment] : []),
+		...(placement === "next turn"
+			? [
+					{
+						role: "user",
+						content: "Show the report",
+					} satisfies MessageWithMetadata,
+				]
+			: []),
+		...tool("verify", "present_results", report),
+		placement === "final" ? attachment : { role: "assistant", content: "Done" },
+	];
+	const messages = readSessionMessagesSync(
+		{ liveSessions: new Map() },
+		"ses-one",
+		800,
+		source,
+	).map((value) => ChatMessageSchema.parse(value));
+	await act(async () =>
+		root.render(
+			<ChatMessages
+				sessionId="ses-one"
+				status="completed"
+				chatTransportState="connected"
+				error={null}
+				messages={messages}
+				pendingAskQuestions={[]}
+				pendingToolApprovals={[]}
+				onAnswerAskQuestion={vi.fn()}
+				onApproveToolApproval={vi.fn()}
+				onRejectToolApproval={vi.fn()}
+			/>,
+		),
+	);
+	expect(container.textContent).toContain("Verified navigation");
+	expect(container.textContent).toContain("Here is the screenshot");
+	expect(
+		container.querySelector('[aria-label="Published images"]') !== null,
+	).toBe(placement === "next turn");
+	expect(container.textContent).toContain("menu.png");
+	expect(
+		Array.from(container.querySelectorAll("button")).some(
+			(button) => button.textContent === "Download",
+		),
+	).toBe(true);
 });
 it("keeps failed thumbnails non-interactive while retaining Retry in the main image", async () => {
 	mocks.invoke.mockRejectedValue(new Error("Artifact access denied"));
