@@ -838,7 +838,7 @@ describe("HubRuntimeHost", () => {
 
 	it.each([
 		"transport error",
-		"rejected reply",
+		"Hub rejection",
 		"already absent",
 		"deleted",
 	] as const)("keeps session delivery until deletion succeeds: %s", async (outcome) => {
@@ -885,13 +885,12 @@ describe("HubRuntimeHost", () => {
 		if (outcome === "transport error") {
 			rejectReply?.(new Error("connection lost"));
 			await expect(deleting).rejects.toThrow("connection lost");
-		} else if (outcome === "rejected reply") {
-			resolveReply?.({
-				version: "v1",
-				requestId: "delete",
-				ok: false,
-				error: { code: "delete_failed", message: "delete failed" },
-			});
+		} else if (outcome === "Hub rejection") {
+			const { HubCommandError } =
+				await vi.importActual<typeof import("../client")>("../client");
+			rejectReply?.(
+				new HubCommandError("session.delete", "delete_failed", "delete failed"),
+			);
 			await expect(deleting).rejects.toThrow("delete failed");
 		} else {
 			resolveReply?.({
