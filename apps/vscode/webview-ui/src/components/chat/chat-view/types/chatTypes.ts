@@ -110,6 +110,11 @@ export interface ScrollBehavior {
 	toggleRowExpansion: (ts: number, options?: { preserveAutoScroll?: boolean; next?: boolean }) => void
 	handleRowHeightChange: (isTaller: boolean) => void
 	handleLastRowContentChange: () => void
+	/**
+	 * Tells the reading-position lock that a scroll is about to happen on purpose (a timeline jump,
+	 * a turn-navigation step), so it must not interpret the new position as content shifting.
+	 */
+	notifyProgrammaticScroll: () => void
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null

@@ -10,6 +10,12 @@ interface UseTurnNavigationOptions {
 	enabled: boolean
 	virtuosoRef: RefObject<VirtuosoHandle | null>
 	scrollContainerRef: RefObject<HTMLElement | null>
+	/**
+	 * Announces the jump to the reading-position lock. `scrollToIndex` is instant, so the list lands
+	 * somewhere new in one frame; without this the lock can mistake that for content moving under
+	 * the reader and pull the old distance back.
+	 */
+	onJump?: () => void
 }
 
 /** Scroll position of the list as a 0..1 fraction. */
@@ -31,15 +37,16 @@ export function useTurnNavigation(options: UseTurnNavigationOptions): {
 	jumpTo: (marker: TimelineMarker) => void
 	step: (direction: 1 | -1) => void
 } {
-	const { markers, positions, enabled, virtuosoRef, scrollContainerRef } = options
+	const { markers, positions, enabled, virtuosoRef, scrollContainerRef, onJump } = options
 
 	const jumpTo = useCallback(
 		(marker: TimelineMarker) => {
+			onJump?.()
 			// Instant on purpose: virtuoso has not measured the rows in between, so a smooth scroll
 			// animates toward an estimate and then crawls while it corrects itself.
 			virtuosoRef.current?.scrollToIndex({ index: marker.listIndex, align: "start", behavior: "auto" })
 		},
-		[virtuosoRef],
+		[onJump, virtuosoRef],
 	)
 
 	const step = useCallback(

@@ -1,13 +1,23 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import debounce from "debounce"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ScrollBehavior } from "../types/chatTypes"
 import { flattenActivityGroup, getGroupHeadMessage } from "../utils/activityFolding"
+import { resolveChatScroller } from "../utils/turnTimeline"
 
 // Height of the sticky user message header (padding + content)
 const STICKY_HEADER_HEIGHT = 32
+
+/**
+ * Distance from the bottom that still counts as "pinned to the tail". Matches the threshold the
+ * list itself reports `atBottom` with (`MessagesArea`), so the two never disagree by a hair.
+ */
+export const BOTTOM_TOLERANCE_PX = 12
+
+/** How long the reading-position lock stands down after a programmatic scroll, so it cannot fight the animation. */
+const PROGRAMMATIC_SCROLL_GRACE_MS = 800
 
 /**
  * Custom hook for managing scroll behavior
@@ -32,6 +42,10 @@ export function useScrollBehavior(
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
 	const layoutSettleScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	/** Distance to the bottom at the previous commit — what the reading-position lock restores. */
+	const readingPositionRef = useRef<{ scrollHeight: number; distanceFromBottom: number } | undefined>(undefined)
+	/** Until when a programmatic scroll owns the scroller and the lock has to keep its hands off. */
+	const scrollGraceUntilRef = useRef(0)
 
 	// State
 	const [isAtBottom, setIsAtBottom] = useState(false)
@@ -193,6 +207,9 @@ export function useScrollBehavior(
 			if (groupIndex !== -1) {
 				setPendingScrollToMessage(null)
 				disableAutoScrollRef.current = true
+				// The glide to the target is a programmatic scroll: the lock would read the frames
+				// it passes as content moving under the reader and pull them back.
+				scrollGraceUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_GRACE_MS
 
 				// Check if this is the first user feedback message (no sticky header would show when scrolling to it)
 				const isFirstUserMessage =
@@ -296,6 +313,10 @@ export function useScrollBehavior(
 		keepPinnedToBottomAfterLayout()
 	}, [keepPinnedToBottomAfterLayout])
 
+	const notifyProgrammaticScroll = useCallback(() => {
+		scrollGraceUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_GRACE_MS
+	}, [])
+
 	useEffect(() => clearLayoutSettleScrollTimers, [clearLayoutSettleScrollTimers])
 
 	useEffect(() => {
@@ -332,6 +353,72 @@ export function useScrollBehavior(
 	}, [])
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
+	/**
+	 * Leaving the tail counts however it happens, not only with the wheel.
+	 *
+	 * `handleWheel` catches scrolling up, but dragging the scrollbar thumb, PageUp or a swipe leaves
+	 * the bottom just the same while auto-scroll stayed armed — every row the agent then produced
+	 * pulled the view back down, which is what reads as jumping back and forth. The geometry itself
+	 * is the honest signal, so the flag follows it.
+	 */
+	useEffect(() => {
+		const handleAnyScroll = (event: Event) => {
+			const container = scrollContainerRef.current
+			const scroller = resolveChatScroller(container)
+			if (!container || !scroller || !container.contains(event.target as Node)) {
+				return
+			}
+			const distance = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+			if (distance > BOTTOM_TOLERANCE_PX) {
+				disableAutoScrollRef.current = true
+			} else if (Date.now() >= scrollGraceUntilRef.current) {
+				disableAutoScrollRef.current = false
+			}
+		}
+		// Scroll events do not bubble; capturing them on the window catches the list's own, also
+		// after Virtuoso re-creates its scroller when the task changes.
+		window.addEventListener("scroll", handleAnyScroll, { passive: true, capture: true })
+		return () => window.removeEventListener("scroll", handleAnyScroll, { capture: true })
+	}, [])
+
+	/**
+	 * Keeps the reading position still while the agent keeps producing output.
+	 *
+	 * Rows appended below the viewport cannot move anything, but a fold collapsing above it, a
+	 * streaming row growing or a re-measure does — and the list runs with `overflow-anchor: none`,
+	 * which upstream needs, so the browser hands no compensation back. The distance to the bottom is
+	 * therefore remembered per commit and restored whenever the content height changed while the
+	 * reader is not pinned to the tail. Restoring the *distance* rather than an index is what keeps
+	 * the text under the eyes: content growing inside the viewport still grows downwards.
+	 *
+	 * Runs before paint, so the correction never shows as a second jump. When another mechanism has
+	 * already kept that distance constant — the fold anchoring does exactly that — the measurement
+	 * matches and nothing is corrected twice.
+	 */
+	useLayoutEffect(() => {
+		const scroller = resolveChatScroller(scrollContainerRef.current)
+		if (!scroller) {
+			readingPositionRef.current = undefined
+			return
+		}
+		const distance = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+		const previous = readingPositionRef.current
+		readingPositionRef.current = { scrollHeight: scroller.scrollHeight, distanceFromBottom: distance }
+		if (!previous || Date.now() < scrollGraceUntilRef.current) {
+			return
+		}
+		const contentUntouched = scroller.scrollHeight === previous.scrollHeight || distance === previous.distanceFromBottom
+		// Pinned to the tail: output arriving there is exactly what following is for.
+		if (contentUntouched || previous.distanceFromBottom <= BOTTOM_TOLERANCE_PX) {
+			return
+		}
+		scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - previous.distanceFromBottom
+		readingPositionRef.current = {
+			scrollHeight: scroller.scrollHeight,
+			distanceFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+		}
+	})
+
 	return {
 		virtuosoRef,
 		scrollContainerRef,
@@ -342,6 +429,7 @@ export function useScrollBehavior(
 		toggleRowExpansion,
 		handleRowHeightChange,
 		handleLastRowContentChange,
+		notifyProgrammaticScroll,
 		isAtBottom,
 		setIsAtBottom,
 		pendingScrollToMessage,

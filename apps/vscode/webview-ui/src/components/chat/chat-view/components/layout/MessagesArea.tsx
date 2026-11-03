@@ -6,6 +6,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
+import { BOTTOM_TOLERANCE_PX } from "../../hooks/useScrollBehavior"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
 import { useTimelinePositions } from "../../hooks/useTimelinePositions"
 import { useTurnNavigation } from "../../hooks/useTurnNavigation"
@@ -13,7 +14,7 @@ import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/cha
 import { getGroupTailMessage } from "../../utils/activityFolding"
 import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
 import { createCachedSummarizer } from "../../utils/timelineSummaries"
-import { collectTimelineMarkers, groupIntoTurns } from "../../utils/turnTimeline"
+import { collectTimelineMarkers, groupIntoTurns, resolveChatScroller } from "../../utils/turnTimeline"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 import { TimelineRail } from "./TimelineRail"
 
@@ -67,6 +68,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		scrollToBottomSmooth,
 		scrollToBottomAuto,
 		handleLastRowContentChange,
+		notifyProgrammaticScroll,
 	} = scrollBehavior
 
 	// Find the index of the scrolled past user message for scrolling
@@ -133,6 +135,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	const { jumpTo: jumpToTimelineMarker } = useTurnNavigation({
 		enabled: true,
 		markers: timelineMarkers,
+		onJump: notifyProgrammaticScroll,
 		positions: timelinePositions,
 		scrollContainerRef,
 		virtuosoRef,
@@ -193,11 +196,19 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	useEffect(() => {
 		const prevPhase = prevTurnPhaseRef.current
 		prevTurnPhaseRef.current = turnState?.phase
-		if (turnState?.phase === "streaming" && prevPhase !== "streaming") {
-			disableAutoScrollRef.current = false
-			scrollToBottomSmooth()
+		if (turnState?.phase !== "streaming" || prevPhase === "streaming") {
+			return
 		}
-	}, [turnState?.phase, scrollToBottomSmooth, disableAutoScrollRef])
+		// Re-arm following for a reader who never left the tail — and only for that reader. A turn
+		// starting used to pull the view down unconditionally, undoing every jump from the timeline
+		// rail and every scroll up taken while the agent kept working.
+		const scroller = resolveChatScroller(scrollContainerRef.current)
+		if (!scroller || scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > BOTTOM_TOLERANCE_PX) {
+			return
+		}
+		disableAutoScrollRef.current = false
+		scrollToBottomSmooth()
+	}, [turnState?.phase, scrollToBottomSmooth, disableAutoScrollRef, scrollContainerRef])
 
 	const itemContent = useMemo(
 		() =>
