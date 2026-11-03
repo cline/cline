@@ -1,4 +1,4 @@
-import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE, type CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -46,7 +46,7 @@ vi.mock("@shared/proto/cline/common", () => ({
 
 // useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
-let mockCurrentCloudTask: { sessionId: string; status: "idle" } | undefined
+let mockCurrentCloudTask: CurrentCloudTaskInfo | undefined
 let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
@@ -1168,7 +1168,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setActiveQuote).toHaveBeenCalledWith(null)
 	})
 
-	it("does not clear a quote selected while New Task is pending", async () => {
+	it("preserves a quote during New Task and clears the unavailable sandbox without losing the draft", async () => {
 		mockTurnState = { phase: "awaiting_followup", anchorTs: 2, seq: 3 }
 		const newTaskConversation: ClineMessage[] = [
 			{ ts: 1, type: "say", say: "task", text: "task" },
@@ -1176,7 +1176,7 @@ describe("useMessageHandlers — send routing", () => {
 		]
 		let resolveNewTask: (() => void) | undefined
 		newTask.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveNewTask = resolve)))
-		const { result } = renderHook(() => {
+		const { result, rerender } = renderHook(() => {
 			const chatState = useChatState(newTaskConversation)
 			return { chatState, handlers: useMessageHandlers(newTaskConversation, chatState) }
 		})
@@ -1193,6 +1193,24 @@ describe("useMessageHandlers — send routing", () => {
 		})
 
 		expect(result.current.chatState.activeQuote).toBe("new draft quote")
+
+		act(() => {
+			result.current.chatState.setInputValue("keep this draft")
+			result.current.chatState.setSelectedImages(["image.png"])
+			result.current.chatState.setSelectedFiles(["notes.txt"])
+		})
+		mockCurrentCloudTask = { sessionId: "ses-expired", status: "expired", unavailableReason: "expired" }
+		rerender()
+		await act(async () => {
+			await result.current.handlers.executeButtonAction({ type: "new_task" })
+		})
+
+		expect(clearTask).toHaveBeenCalledOnce()
+		expect(newTask).toHaveBeenCalledOnce()
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(result.current.chatState.inputValue).toBe("keep this draft")
+		expect(result.current.chatState.selectedImages).toEqual(["image.png"])
+		expect(result.current.chatState.selectedFiles).toEqual(["notes.txt"])
 	})
 
 	it("retries a failed request without changing the unsent draft", async () => {

@@ -1,7 +1,8 @@
+import type { CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 import { ActionButtons } from "./ActionButtons"
 
@@ -15,8 +16,9 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 }))
 
 const mockTurnState = vi.fn<() => TurnState | undefined>(() => undefined)
+let mockCurrentCloudTask: CurrentCloudTaskInfo | undefined
 vi.mock("../../../../../context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ turnState: mockTurnState() }),
+	useExtensionState: () => ({ turnState: mockTurnState(), currentCloudTask: mockCurrentCloudTask }),
 }))
 
 function fileApprovalAsk(ts: number, path: string): ClineMessage {
@@ -47,6 +49,10 @@ function makeChatState(): ChatState {
 }
 
 describe("ActionButtons", () => {
+	afterEach(() => {
+		mockCurrentCloudTask = undefined
+	})
+
 	it("does not render a scroll button when there are no action buttons", () => {
 		mockTurnState.mockReturnValue(undefined)
 		const task: ClineMessage = {
@@ -110,25 +116,29 @@ describe("ActionButtons", () => {
 		expect(screen.getByRole("button", { name: "Reject" })).not.toBeDisabled()
 	})
 
-	it("passes Retry its preserving action without reading the draft", () => {
+	it.each([
+		{ label: "healthy failed turn", status: "failed", action: "retry", buttonText: "Retry" },
+		{
+			label: "failed sandbox",
+			status: "failed",
+			unavailableReason: "failed",
+			action: "new_task",
+			buttonText: "Start New Task",
+		},
+		{
+			label: "expired sandbox",
+			status: "expired",
+			unavailableReason: "expired",
+			action: "new_task",
+			buttonText: "Start New Task",
+		},
+	] as const)("uses the right footer action for a $label", ({ status, unavailableReason, action, buttonText }) => {
 		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2 })
+		mockCurrentCloudTask = { sessionId: "cloud-1", status, unavailableReason }
 		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
 		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
 		const executeButtonAction = vi.fn().mockResolvedValue(true)
-		const chatState = {
-			...makeChatState(),
-			inputValue: "unsent draft",
-			activeQuote: "selected context",
-			selectedImages: ["image.png"],
-			selectedFiles: ["notes.md"],
-			getDraftSnapshot: vi.fn(() => ({
-				revision: 9,
-				text: "unsent draft",
-				activeQuote: "selected context",
-				images: ["image.png"],
-				files: ["notes.md"],
-			})),
-		} as ChatState
+		const chatState = { ...makeChatState(), inputValue: "unsent draft" }
 
 		render(
 			<ActionButtons
@@ -140,9 +150,15 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+		const button = screen.getByRole("button", { name: buttonText })
+		expect(button).toBeEnabled()
+		if (unavailableReason) {
+			expect(screen.getByRole("status")).toHaveTextContent(`Sandbox ${unavailableReason}.`)
+			expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+		}
+		fireEvent.click(button)
 
-		expect(executeButtonAction).toHaveBeenCalledWith({ type: "retry" })
+		expect(executeButtonAction).toHaveBeenCalledWith({ type: action })
 		expect(chatState.getDraftSnapshot).not.toHaveBeenCalled()
 	})
 

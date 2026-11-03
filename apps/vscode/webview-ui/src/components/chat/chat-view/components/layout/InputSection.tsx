@@ -63,6 +63,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 		(sendingDisabled && !allowSubmitWhileDisabled) ||
 		cloudTargetIncomplete ||
 		cloudFilesUnsupported ||
+		!!currentCloudTask?.unavailableReason ||
 		currentCloudTask?.status === "provisioning"
 
 	return (

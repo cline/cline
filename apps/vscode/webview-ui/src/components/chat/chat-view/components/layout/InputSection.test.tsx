@@ -192,11 +192,16 @@ describe("InputSection", () => {
 		mockCloudState.mockReturnValue({})
 	})
 
-	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
+	it.each([
+		["provisioning", { status: "provisioning" }, true],
+		["failed sandbox", { status: "failed", unavailableReason: "failed" }, true],
+		["expired sandbox", { status: "expired", unavailableReason: "expired" }, true],
+		["failed agent turn", { status: "failed" }, false],
+	] as const)("sets submit availability for %s", (_label, currentCloudTask, disabled) => {
 		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
 		mockCloudState.mockReturnValue({
 			cloudSessionsEnabled: true,
-			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
+			currentCloudTask: { sessionId: "cloud-provisioning-1", ...currentCloudTask },
 			clineMessages: [{ ts: 1, type: "say", say: "task", text: "test" }],
 		})
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
@@ -213,9 +218,13 @@ describe("InputSection", () => {
 		)
 
 		const composer = screen.getByLabelText("composer")
-		expect(composer).toBeDisabled()
+		if (disabled) {
+			expect(composer).toBeDisabled()
+		} else {
+			expect(composer).not.toBeDisabled()
+		}
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).not.toHaveBeenCalled()
+		expect(handleSendMessage).toHaveBeenCalledTimes(disabled ? 0 : 1)
 		mockCloudState.mockReturnValue({})
 	})
 
