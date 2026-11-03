@@ -2123,7 +2123,11 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (known?.status === "provisioning" || known?.status === "failed") {
+		if (
+			known?.status === "failed" ||
+			(known?.status === "provisioning" &&
+				this.pendingInitialTasks.has(outerSessionId))
+		) {
 			return [];
 		}
 		if (known && isExpiredRecord(known)) {

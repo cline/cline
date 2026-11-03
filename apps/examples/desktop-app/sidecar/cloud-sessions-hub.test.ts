@@ -2074,7 +2074,6 @@ describe("CloudSessionManager Hub runtime", () => {
 			sessionId: REMOTE_SESSION.id,
 			status: "provisioning",
 		});
-		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual([]);
 
 		status = "ready";
 		await expect(manager.listForDiscovery()).resolves.toEqual([
