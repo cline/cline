@@ -1,11 +1,16 @@
+import * as cloudCore from "@cline/core/cloud"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
+import { PrepareCloudHandoffRequest } from "@shared/proto/cline/cloud"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { prepareHandoff } from "@/core/controller/cloud/prepareHandoff"
 import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
+import { mockFetchForTesting } from "@/shared/net"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
+import { SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
@@ -58,6 +63,7 @@ describe("SDK remote-config coordination", () => {
 			ensureWorkspaceManager: async () => undefined,
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
+			cloudHandoff: { viewFor: () => undefined },
 			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
@@ -95,6 +101,7 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
+			cloudHandoff: { viewFor: () => undefined },
 			cloud: {
 				getCurrentTaskInfo: () => undefined,
 				getCloudModelId: () => "cloud-model",
@@ -146,6 +153,16 @@ describe("SDK remote-config coordination", () => {
 		const events: string[] = []
 		const controller = {
 			authService: { handleAuthCallback: vi.fn(async () => events.push("auth")) },
+			handoffAccountChanges: 0,
+			cloudHandoff: { reset: vi.fn(() => events.push("invalidate handoff")) },
+			handoffCloud: {
+				dispose: vi.fn(async () => {
+					events.push("dispose handoff")
+				}),
+			},
+			cloud: { reset: async (change: () => Promise<void>) => change() },
+			changeHandoffAccount: SdkController.prototype["changeHandoffAccount"],
+			resetCloudHandoff: SdkController.prototype["resetCloudHandoff"],
 			refreshRemoteConfig: vi.fn(async () => {
 				events.push("refresh")
 				return true
@@ -155,7 +172,8 @@ describe("SDK remote-config coordination", () => {
 
 		await SdkController.prototype.handleAuthCallback.call(controller as never, "token", "cline")
 
-		expect(events).toEqual(["auth", "refresh", "post"])
+		expect(events).toEqual(["invalidate handoff", "dispose handoff", "auth", "refresh", "post"])
+		expect(controller.handoffAccountChanges).toBe(0)
 	})
 
 	it("rematerializes policy and ends the active session after a managed toggle", async () => {
@@ -895,5 +913,354 @@ describe("cloud tasks stay in the cloud", () => {
 		expect(mode("ses-cloud")).toBe("act")
 		expect(mode("local-task")).toBe("plan")
 		expect(mode(undefined)).toBe("plan")
+	})
+})
+
+describe("cloud handoff source capture", () => {
+	afterEach(() => vi.restoreAllMocks())
+
+	function setup(active = true, record: { cwd?: string; workspaceRoot?: string } = { cwd: "/workspace" }) {
+		const messages = [{ role: "user" as const, content: "Finish the widget" }]
+		const host = {
+			get: vi.fn(async () => record),
+			readLiveMessages: vi.fn(async () => messages),
+			readMessages: vi.fn(async () => []),
+			dispose: vi.fn(async () => {}),
+		}
+		const session = {
+			sdkHost: host,
+			mode: "act",
+			isRunning: false,
+			queuedPromptCount: 0,
+			startConfig: { providerId: "cline", modelId: "test-model" },
+		}
+		const controller = {
+			task: { taskId: "local-task" },
+			sessions: {
+				getActiveSession: () => (active ? session : undefined),
+				captureState: { generation: 0, starting: false },
+			},
+			sessionRebuilds: { runExclusive: <T>(operation: () => Promise<T>) => operation() },
+			turnStateTracker: { get: () => ({ seq: 1 }), currentPhase: "idle" },
+			backgroundCommandRunning: false,
+			foregroundCommands: { isRunning: false },
+			createRemoteConfigAwareSessionHost: vi.fn(async () => host),
+			taskHistory: { findHistoryItem: vi.fn(async () => ({ cwdOnTaskInitialization: "/legacy" })) },
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => session.startConfig },
+			sessionHistory: { loadInitialMessages: vi.fn(async () => messages) },
+		}
+		const inspect = vi.spyOn(cloudCore, "inspectHandoffGit").mockResolvedValue({
+			id: "plan",
+			root: "/workspace",
+			workspaceRelativePath: "",
+			repoUrl: "https://github.com/example/project",
+			remote: "origin",
+			branch: "cline/handoff-example",
+			sourceBranch: "main",
+			headSha: "a".repeat(40),
+			treeSha: "b".repeat(40),
+			files: [],
+			commits: [],
+		})
+		const capture = () =>
+			SdkController.prototype["captureCloudHandoffSource"].call(
+				controller as never,
+				"local-task",
+				new AbortController().signal,
+			)
+		return { controller, session, host, messages, inspect, capture }
+	}
+
+	it.each([
+		{ cwd: "/workspace" },
+		{ workspaceRoot: "/workspace" },
+	])("copies the live transcript using its saved location %j", async (record) => {
+		const { capture, host, messages, inspect, controller } = setup(true, record)
+		const snapshot = await capture()
+		messages[0].content = "Later local edit"
+		expect(snapshot.messages[0].content).toBe("Finish the widget")
+		expect(host.readMessages).not.toHaveBeenCalled()
+		expect(host.dispose).not.toHaveBeenCalled()
+		expect(controller.taskHistory.findHistoryItem).not.toHaveBeenCalled()
+		expect(inspect).toHaveBeenCalledWith("/workspace", expect.any(Function))
+	})
+
+	it("rejects a turn that starts and finishes while the transcript is being read", async () => {
+		const { controller, host, messages, inspect, capture } = setup()
+		host.readLiveMessages.mockImplementation(async () => {
+			controller.sessions.captureState.generation++
+			return messages
+		})
+		await expect(capture()).rejects.toThrow("conversation changed")
+		expect(inspect).not.toHaveBeenCalled()
+	})
+
+	it("captures the selected model after a model-only change without replacing the session", async () => {
+		const { controller, session, capture } = setup()
+		controller.sessionConfigBuilder.build = async () => ({ providerId: "cline", modelId: "new-model" })
+
+		const snapshot = await capture()
+
+		expect(snapshot.config.modelId).toBe("new-model")
+		expect(snapshot.messages).toEqual([{ role: "user", content: "Finish the widget" }])
+		expect(session.startConfig.modelId).toBe("test-model")
+		expect(controller.sessions.getActiveSession()).toBe(session)
+	})
+
+	it("waits for a provider change to rebuild the session before capturing", async () => {
+		const { controller, host, inspect, capture } = setup()
+		controller.sessionConfigBuilder.build = async () => ({ providerId: "anthropic", modelId: "test-model" })
+
+		await expect(capture()).rejects.toThrow("Wait for the provider change")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(inspect).not.toHaveBeenCalled()
+	})
+
+	it("refuses capture while a workspace command is running", async () => {
+		const { controller, host, inspect, capture } = setup()
+		controller.foregroundCommands.isRunning = true
+		await expect(capture()).rejects.toThrow("workspace operation")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(inspect).not.toHaveBeenCalled()
+	})
+
+	it("reads a saved conversation without activating it and disposes its temporary host", async () => {
+		const { controller, host, capture, inspect } = setup(false, {})
+		expect((await capture()).messages).toEqual([{ role: "user", content: "Finish the widget" }])
+		expect(controller.sessionHistory.loadInitialMessages).toHaveBeenCalledWith(host, "local-task")
+		expect(host.readLiveMessages).not.toHaveBeenCalled()
+		expect(host.dispose).toHaveBeenCalledWith("cloudHandoffCapture")
+		expect(inspect).toHaveBeenCalledWith("/legacy", expect.any(Function))
+	})
+})
+
+describe("cloud handoff controller", () => {
+	const repoUrl = "https://github.com/example/project"
+
+	function setup(organizationId: string | null = null) {
+		const identity = { accountId: "user-1", organizationId, organizationsKnown: true }
+		const controller = {
+			handoffCloud: undefined,
+			resetCloudHandoff: SdkController.prototype["resetCloudHandoff"],
+			handoffAccountChanges: 0,
+			getCloudAccountScope() {
+				return SdkController.prototype["getCloudAccountScope"].call(this as never)
+			},
+			getHandoffAccount() {
+				return SdkController.prototype["getHandoffAccount"].call(this as never)
+			},
+			authService: {
+				getInfo: () => ({ user: { uid: identity.accountId } }),
+				getActiveOrganizationId: () => identity.organizationId,
+				restoreRefreshTokenAndRetrieveAuthInfo: vi.fn(async () => {}),
+				getUserOrganizations: () =>
+					!identity.organizationsKnown
+						? undefined
+						: identity.organizationId
+							? [{ active: true, organizationId: identity.organizationId, name: "Test organization" }]
+							: [],
+				getAuthToken: vi.fn(async () => "workos:extension-token"),
+			},
+			accountService: {
+				fetchUserOrganizationsRPC: vi.fn<() => Promise<Array<{ active: boolean; organizationId: string }> | undefined>>(
+					async () => (identity.organizationId ? [{ active: true, organizationId: identity.organizationId }] : []),
+				),
+			},
+			cloudSessions: { apiBaseUrl: "https://api.example.test", appBaseUrl: "https://app.example.test" },
+			cloudHandoff: { reset: vi.fn(), prepare: vi.fn(async () => {}) },
+			prepareCloudHandoff(input: Parameters<SdkController["prepareCloudHandoff"]>[0]) {
+				return SdkController.prototype.prepareCloudHandoff.call(this as never, input)
+			},
+			postStateToWebview: vi.fn(async () => {}),
+			providerConfigStoreSubscription: { dispose: vi.fn() },
+			setRemoteConfigCoreIntegration: vi.fn(async () => {}),
+			statePostDebouncer: { dispose: vi.fn(async () => {}) },
+			invalidateUserInstructionService: vi.fn(async () => {}),
+			messages: { cancelPendingSave: vi.fn(), dispose: vi.fn() },
+			diffEdits: { discardAllPreviews: vi.fn(async () => {}) },
+			clearTask: vi.fn(async () => {}),
+			cloud: { dispose: vi.fn(async () => {}) },
+			sessions: { dispose: vi.fn(async () => {}) },
+			taskHistory: { dispose: vi.fn(async () => {}) },
+			sdkTelemetry: { dispose: vi.fn(async () => {}) },
+		}
+		const cloud = SdkController.prototype["getHandoffCloud"].call(controller as never)
+		controller.cloudHandoff.reset.mockClear()
+		const fetch = vi.fn<Parameters<typeof mockFetchForTesting>[0]>(async () =>
+			Response.json({ data: [{ id: 1, name: "project", html_url: repoUrl }] }),
+		)
+		return { controller, cloud, identity, fetch }
+	}
+
+	it.each([
+		"user-1",
+		"",
+	])("recovers an unknown organization for account ID %j on the next handoff request", async (accountId) => {
+		vi.stubEnv("CLINE_CLOUD_SESSIONS", "1")
+		const { controller, cloud, identity } = setup()
+		const input = PrepareCloudHandoffRequest.create({ sourceTaskId: "local-task", instruction: "Continue in cloud" })
+		identity.organizationsKnown = false
+		identity.accountId = accountId
+		try {
+			expect(controller.getHandoffAccount()).toBeUndefined()
+			expect(controller.cloudHandoff.reset).not.toHaveBeenCalled()
+			await expect(prepareHandoff(controller as never, input)).rejects.toThrow("Could not verify the cloud organization")
+			expect(controller.cloudHandoff.prepare).not.toHaveBeenCalled()
+			expect(controller.authService.restoreRefreshTokenAndRetrieveAuthInfo).toHaveBeenCalledOnce()
+			controller.authService.restoreRefreshTokenAndRetrieveAuthInfo.mockImplementation(async () => {
+				identity.organizationsKnown = true
+				identity.accountId = "user-1"
+			})
+			await prepareHandoff(controller as never, input)
+			expect(controller.cloudHandoff.prepare).toHaveBeenCalledWith(input)
+			await prepareHandoff(controller as never, input)
+			expect(controller.authService.restoreRefreshTokenAndRetrieveAuthInfo).toHaveBeenCalledTimes(2)
+		} finally {
+			vi.unstubAllEnvs()
+			await cloud.dispose()
+		}
+	})
+
+	it.each(["account", "organization"])("replaces the cached handoff controller after an observed %s change", async (change) => {
+		const { controller, cloud, identity, fetch } = setup()
+		await mockFetchForTesting(fetch, async () => {
+			await cloud.prepareHandoffRepository(repoUrl)
+			if (change === "account") identity.accountId = "user-2"
+			else identity.organizationId = "org-2"
+			const replacement = SdkController.prototype["getHandoffCloud"].call(controller as never)
+			try {
+				await expect(replacement.prepareHandoffRepository(repoUrl)).resolves.toEqual(
+					identity.organizationId ? { organizationId: identity.organizationId } : {},
+				)
+				await expect(cloud.prepareHandoffRepository(repoUrl)).rejects.toThrow()
+			} finally {
+				await replacement.dispose()
+			}
+		})
+		expect(fetch).toHaveBeenCalledTimes(2)
+	})
+
+	it.each([
+		true,
+		false,
+	])("admits a new handoff after an account change with prior state projection: %s", async (projectState) => {
+		const { controller, cloud, identity } = setup()
+		const capture = vi.fn(async () => {
+			throw new Error("Repository unavailable")
+		})
+		const handoff = new SdkCloudHandoffCoordinator({
+			capture,
+			getCloud: () => SdkController.prototype["getHandoffCloud"].call(controller as never),
+			getAccount: () => controller.getHandoffAccount(),
+			assertEnabled: () => {},
+			changed: async () => {},
+		})
+		controller.cloudHandoff.reset.mockImplementation(() => handoff.reset())
+		const input = { sourceTaskId: "local-task", instruction: "Continue", files: [], images: [] }
+		await handoff.prepare(input)
+		expect(handoff.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message: "Repository unavailable" })
+		identity.accountId = "user-2"
+		if (projectState) expect(handoff.viewFor(input.sourceTaskId)).toBeUndefined()
+		await handoff.prepare(input)
+		expect(capture).toHaveBeenCalledTimes(2)
+		expect(handoff.viewFor(input.sourceTaskId)).toMatchObject({ phase: "failed", message: "Repository unavailable" })
+		expect(controller.cloudHandoff.reset).toHaveBeenCalledOnce()
+		await cloud.dispose()
+	})
+
+	it("preserves the controller across same-account token rotation and temporary auth unavailability", async () => {
+		const { controller, cloud, identity, fetch } = setup()
+		controller.authService.getAuthToken.mockResolvedValue("workos:rotated-token")
+		identity.accountId = ""
+		expect(controller.getHandoffAccount()).toBeUndefined()
+		expect(() => SdkController.prototype["getHandoffCloud"].call(controller as never)).toThrow("Sign in")
+		identity.accountId = "user-1"
+		expect(SdkController.prototype["getHandoffCloud"].call(controller as never)).toBe(cloud)
+		await mockFetchForTesting(fetch, async () => {
+			await cloud.prepareHandoffRepository(repoUrl)
+		})
+		expect(fetch).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer workos:rotated-token" }) }),
+		)
+		expect(controller.cloudHandoff.reset).not.toHaveBeenCalled()
+		await cloud.dispose()
+	})
+
+	it.each([
+		null,
+		"org-1",
+	])("uses the extension token and verified organization %s for repository access", async (organizationId) => {
+		const { controller, cloud, fetch } = setup(organizationId)
+		await mockFetchForTesting(fetch, async () => {
+			expect(await cloud.prepareHandoffRepository(repoUrl)).toEqual(organizationId ? { organizationId } : {})
+		})
+		expect(controller.accountService.fetchUserOrganizationsRPC).toHaveBeenCalledOnce()
+		expect(fetch).toHaveBeenCalledWith(
+			`https://api.example.test/api/v1/${organizationId ? `organizations/${organizationId}/` : ""}integrations/github/repositories`,
+			expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer workos:extension-token" }) }),
+		)
+		await cloud.dispose()
+	})
+
+	it.each([
+		{ organizations: undefined, message: "Could not verify the cloud organization" },
+		{
+			organizations: [{ active: true, organizationId: "org-other" }],
+			message: "The cloud organization changed. Reload this VS Code window to refresh your account, then run /cloud again.",
+		},
+	])("does not fall back to Personal when $message", async ({ organizations, message }) => {
+		const { controller, cloud, fetch } = setup()
+		controller.accountService.fetchUserOrganizationsRPC.mockResolvedValueOnce(organizations)
+		await mockFetchForTesting(fetch, async () => {
+			await expect(cloud.prepareHandoffRepository(repoUrl)).rejects.toThrow(message)
+		})
+		expect(fetch).not.toHaveBeenCalled()
+		expect(controller.authService.getAuthToken).not.toHaveBeenCalled()
+		await cloud.dispose()
+	})
+
+	it.each(["account changes", "organization becomes unknown"])("rejects a credential returned after the %s", async (change) => {
+		const { controller, cloud, identity, fetch } = setup()
+		const token = Promise.withResolvers<string>()
+		controller.authService.getAuthToken.mockReturnValueOnce(token.promise)
+		await mockFetchForTesting(fetch, async () => {
+			const preparing = cloud.prepareHandoffRepository(repoUrl)
+			await vi.waitFor(() => expect(controller.authService.getAuthToken).toHaveBeenCalledOnce())
+			if (change === "account changes") identity.accountId = "user-2"
+			else identity.organizationsKnown = false
+			token.resolve("workos:stale-token")
+			await expect(preparing).rejects.toThrow("account or organization changed")
+		})
+		expect(fetch).not.toHaveBeenCalled()
+		await cloud.dispose()
+	})
+
+	it.each([
+		"account change",
+		"observed account change",
+		"disposal",
+	])("invalidates an organization lookup during %s", async (reason) => {
+		const { controller, cloud, identity, fetch } = setup()
+		const organizations = Promise.withResolvers<Array<{ active: boolean; organizationId: string }>>()
+		controller.accountService.fetchUserOrganizationsRPC.mockReturnValueOnce(organizations.promise)
+		await mockFetchForTesting(fetch, async () => {
+			const preparing = cloud.prepareHandoffRepository(repoUrl)
+			await vi.waitFor(() => expect(controller.accountService.fetchUserOrganizationsRPC).toHaveBeenCalledOnce())
+			if (reason === "account change") {
+				await SdkController.prototype["changeHandoffAccount"].call(controller as never, async () => {})
+			} else if (reason === "observed account change") {
+				identity.accountId = "user-2"
+				controller.getHandoffAccount()
+			} else {
+				await SdkController.prototype.dispose.call(controller as never)
+			}
+			organizations.resolve([])
+			await expect(preparing).rejects.toThrow("account or organization changed")
+		})
+		expect(controller.cloudHandoff.reset).toHaveBeenCalledOnce()
+		expect(fetch).not.toHaveBeenCalled()
+		expect(controller.authService.getAuthToken).not.toHaveBeenCalled()
 	})
 })

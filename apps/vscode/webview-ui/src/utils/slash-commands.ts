@@ -181,6 +181,7 @@ export function getMatchingSlashCommands(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	cloudHandoffEnabled = false,
 ): SlashCommand[] {
 	const workflowCommands = getWorkflowCommands(
 		localWorkflowToggles,
@@ -189,7 +190,11 @@ export function getMatchingSlashCommands(
 		remoteWorkflows,
 	)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
+	const allCommands = [
+		...DEFAULT_SLASH_COMMANDS.filter((command) => command.name !== "cloud" || cloudHandoffEnabled),
+		...workflowCommands,
+		...mcpPromptCommands,
+	]
 
 	if (!query) {
 		return allCommands
@@ -233,32 +238,21 @@ export function validateSlashCommand(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	cloudHandoffEnabled = false,
 ): "full" | "partial" | null {
 	if (!command) {
 		return null
 	}
 
-	const workflowCommands = getWorkflowCommands(
+	const matches = getMatchingSlashCommands(
+		command,
 		localWorkflowToggles,
 		globalWorkflowToggles,
 		remoteWorkflowToggles,
 		remoteWorkflows,
+		mcpServers,
+		cloudHandoffEnabled,
 	)
-	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
-
-	// case insensitive matching
-	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())
-
-	if (exactMatch) {
-		return "full"
-	}
-
-	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(command.toLowerCase()))
-
-	if (partialMatch) {
-		return "partial"
-	}
-
-	return null // no match
+	if (matches.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())) return "full"
+	return matches.length ? "partial" : null
 }

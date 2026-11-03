@@ -60,7 +60,7 @@ export interface ClineAccountUserInfo {
 	displayName: string
 	email: string
 	id: string
-	organizations: ClineAccountOrganization[]
+	organizations?: ClineAccountOrganization[]
 	appBaseUrl?: string
 	subject?: string
 	dataPrivacyPath?: string
@@ -296,7 +296,6 @@ export class AuthService {
 				id: credentials.accountId ?? "",
 				email: credentials.email ?? "",
 				displayName: "",
-				organizations: [],
 			},
 			provider,
 			startedAt,
@@ -317,6 +316,7 @@ export class AuthService {
 				`[SdkAuthService] fetchUserInfoFromApi: GET ${apiBaseUrl}/api/v1/users/me (tokenHash=${hashSecret(accessToken)})`,
 			)
 			const response = await axios.get(`${apiBaseUrl}/api/v1/users/me`, {
+				timeout: 10_000,
 				headers: {
 					Authorization: `Bearer ${bearerToken}`,
 					"Content-Type": "application/json",
@@ -917,7 +917,6 @@ export class AuthService {
 					email: tokenData.userInfo.email || "",
 					displayName: tokenData.userInfo.name || "",
 					createdAt: new Date().toISOString(),
-					organizations: [],
 				},
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000,
 				provider: "cline",
@@ -970,6 +969,7 @@ export class AuthService {
 	 * live in providers.json, user info is fetched fresh each session.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
+		const previousUserInfo = this._clineAuthInfo?.userInfo
 		try {
 			const creds = readClineCredentials()
 			if (!creds) {
@@ -986,7 +986,6 @@ export class AuthService {
 					id: creds.accountId ?? "",
 					email: "",
 					displayName: "",
-					organizations: [],
 				},
 				provider: "cline",
 				startedAt: creds.sessionStartedAtMs,
@@ -1026,30 +1025,29 @@ export class AuthService {
 				sessionStartedAtMs: readSessionStartedAtMs(validCredentials.metadata),
 			})
 
+			const accountId = validCredentials.accountId ?? restoredAuthInfo.userInfo.id
+			const authBeforeProfile = this._clineAuthInfo
+			// Publish the full identity together; an incomplete profile is not a Personal account.
+			const userInfo =
+				(await this.fetchUserInfoFromApi(validCredentials.access)) ??
+				(previousUserInfo?.id && previousUserInfo.id === accountId
+					? previousUserInfo
+					: {
+							...restoredAuthInfo.userInfo,
+							id: accountId,
+							email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
+						})
+			if (this._clineAuthInfo !== authBeforeProfile || readClineCredentials()?.accessToken !== validCredentials.access)
+				return
 			this._clineAuthInfo = {
 				idToken: validCredentials.access,
 				refreshToken: validCredentials.refresh,
 				expiresAt: validCredentials.expires ? validCredentials.expires / 1000 : undefined,
-				userInfo: {
-					...restoredAuthInfo.userInfo,
-					id: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
-					email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
-				},
+				userInfo,
 				provider: restoredAuthInfo.provider,
 				startedAt: restoredAuthInfo.startedAt,
 			}
 			this._authenticated = true
-
-			// Fetch full user info from the API (the key step — fills in
-			// email, displayName, organizations that providers.json doesn't store)
-			if (this._authenticated && this._clineAuthInfo) {
-				const userInfo = await this.fetchUserInfoFromApi(this._clineAuthInfo.idToken)
-				if (userInfo) {
-					this._clineAuthInfo.userInfo = userInfo
-				} else {
-					Logger.warn("[SdkAuthService] Could not fetch user info on restore — UI will show limited profile")
-				}
-			}
 
 			await this.sendAuthStatusUpdate()
 
