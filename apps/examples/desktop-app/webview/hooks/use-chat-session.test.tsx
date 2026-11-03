@@ -15,6 +15,7 @@ import {
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
+import type { CreateSideConversationResult } from "../../shared/side-conversation";
 import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
@@ -457,6 +458,20 @@ afterEach(async () => {
 	container.remove();
 	vi.restoreAllMocks();
 });
+
+const sideMetadata = {
+	title: "Side chat",
+	desktopSideConfig: {
+		mode: "act",
+		autoApproveTools: false,
+		enableTools: true,
+	},
+	desktopSideConversation: {
+		version: 2,
+		parentSessionId: "parent",
+		owner: { runId: "test-desktop-run", pid: 1, startToken: "test-start" },
+	},
+} satisfies CreateSideConversationResult["metadata"];
 
 describe("useChatSession", () => {
 	it("ignores an attachment result after navigation to a different session", async () => {
@@ -1022,23 +1037,7 @@ describe("useChatSession", () => {
 					mode: "act",
 					autoApproveTools: false,
 					enableTools: true,
-					metadata: {
-						title: "Side: Parent",
-						desktopSideConfig: {
-							mode: "act",
-							autoApproveTools: false,
-							enableTools: true,
-						},
-						desktopSideConversation: {
-							version: 2,
-							parentSessionId: "parent",
-							owner: {
-								runId: "test-desktop-run",
-								pid: 1,
-								startToken: "test-start",
-							},
-						},
-					},
+					metadata: sideMetadata,
 				};
 			return [];
 		});
@@ -1124,23 +1123,7 @@ describe("useChatSession", () => {
 					mode: "act",
 					autoApproveTools: false,
 					enableTools: true,
-					metadata: {
-						title: "Side chat",
-						desktopSideConfig: {
-							mode: "act",
-							autoApproveTools: false,
-							enableTools: true,
-						},
-						desktopSideConversation: {
-							version: 2,
-							parentSessionId: "parent",
-							owner: {
-								runId: "test-desktop-run",
-								pid: 1,
-								startToken: "test-start",
-							},
-						},
-					},
+					metadata: sideMetadata,
 				};
 			}
 			return [];

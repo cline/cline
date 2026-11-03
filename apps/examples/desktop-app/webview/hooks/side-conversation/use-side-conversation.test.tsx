@@ -248,41 +248,34 @@ describe("side conversation submission", () => {
 		expect(props.open).toHaveBeenCalledTimes(1);
 	});
 
-	it("reuses the selected side for repeated questions without replacing its draft", async () => {
-		props.existingSession = {
-			...result,
-			status: "idle",
-			startedAt: "2026-10-28T00:00:00Z",
-		};
-		props.drafts.set("side-thread", {
-			text: "Unsent side draft",
-			attachments: [],
-		});
-		await render();
-		await act(async () => {
-			await current.intercept("/btw another question");
-		});
-		expect(props.create).not.toHaveBeenCalled();
-		expect(props.open).toHaveBeenCalledWith(
-			props.existingSession,
-			expect.objectContaining({ question: "another question" }),
-		);
-		expect(props.drafts.get("side-thread")?.text).toBe("Unsent side draft");
-	});
-	it("reopening reuses the current side while preserving the parent's draft", async () => {
+	it.each([
+		undefined,
+		"another question",
+	])("reuses the current side for question %j", async (question) => {
 		props.existingSession = {
 			...result,
 			status: "idle",
 			startedAt: "2026-10-28T00:00:00Z",
 		};
 		props.drafts.set("thread", { text: "Keep this draft", attachments: [] });
+		props.drafts.set("side-thread", {
+			text: "Unsent side draft",
+			attachments: [],
+		});
 		await render(true);
 		await act(async () => {
-			await current.openSide();
+			if (question) await current.intercept(`/btw ${question}`);
+			else await current.openSide();
 		});
 		expect(props.create).not.toHaveBeenCalled();
-		expect(props.open).toHaveBeenCalledWith(props.existingSession, undefined);
-		expect(props.drafts.get("thread")?.text).toBe("Keep this draft");
+		expect(props.open).toHaveBeenCalledWith(
+			props.existingSession,
+			question ? { question } : undefined,
+		);
+		expect(props.drafts.get("thread")?.text).toBe(
+			question ? "" : "Keep this draft",
+		);
+		expect(props.drafts.get("side-thread")?.text).toBe("Unsent side draft");
 	});
 
 	it("preserves newer typing and keeps creation hidden when the rail closes during opening", async () => {

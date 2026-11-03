@@ -1564,18 +1564,15 @@ async function startRebuiltSession(
 	if (readSideConversation(metadata)) {
 		metadata = withSideConfig(metadata, config);
 		config = recoverSideConfig({ ...config, sessionId }, metadata);
-		systemPrompt = await resolveSystemPrompt(config);
 	}
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
-	const coreConfig = {
-		...buildCoreSessionConfig(
-			{ ...config, sessionId, systemPrompt },
-			ctx.telemetryUser,
-			createDesktopMistakeRecovery(ctx, () => sessionId),
-		),
-	};
+	const coreConfig = buildCoreSessionConfig(
+		{ ...config, sessionId, systemPrompt },
+		ctx.telemetryUser,
+		createDesktopMistakeRecovery(ctx, () => sessionId),
+	);
 	const restarted = await startSessionWithSidePolicy(ctx, manager, {
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,

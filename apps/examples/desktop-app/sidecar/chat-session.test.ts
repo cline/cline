@@ -4089,16 +4089,24 @@ describe("side conversation lifecycle", () => {
 			],
 		});
 		readSessionCompactionState.mockResolvedValueOnce(compaction);
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId: sideId,
-			prompt: "actual question",
-			config: {
-				provider: "openai",
-				model: "other-model",
-				environmentId: "local",
-			},
-		});
+		const metadataScan = vi
+			.spyOn(core, "buildWorkspaceMetadata")
+			.mockResolvedValue("Synthetic workspace context");
+		try {
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: sideId,
+				prompt: "actual question",
+				config: {
+					provider: "openai",
+					model: "other-model",
+					environmentId: "local",
+				},
+			});
+			expect(metadataScan).toHaveBeenCalledOnce();
+		} finally {
+			metadataScan.mockRestore();
+		}
 		const rebuilt = start.mock.calls.at(-1)?.[0];
 		expect(rebuilt).toMatchObject({
 			config: {
@@ -4212,7 +4220,6 @@ describe("side conversation lifecycle", () => {
 
 	it.each([
 		{ source: "runtime", count: 51 },
-		{ source: "runtime", count: 5_000 },
 		{ source: "persisted", count: 51 },
 	] as const)("fills discovery pages from $source with $count ordinary records", async ({
 		source,

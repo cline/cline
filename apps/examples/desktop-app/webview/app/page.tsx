@@ -735,6 +735,13 @@ function App() {
 		() =>
 			watchDesktopNotifications({
 				resolveSession: async (sessionId, environmentId) => {
+					const thread = threadsRef.current.find(
+						(thread) =>
+							thread.environmentId === environmentId &&
+							(thread.sessionId === sessionId ||
+								thread.historySession?.sessionId === sessionId),
+					);
+					if (thread && !thread.historySession) return {};
 					const findSession = async (id: string) =>
 						threadsRef.current.find(
 							(thread) =>
@@ -746,7 +753,8 @@ function App() {
 							"get_discovered_session",
 							{ sessionId: id, environmentId },
 						));
-					const session = await findSession(sessionId);
+					const session =
+						thread?.historySession ?? (await findSession(sessionId));
 					if (!session) return null;
 					const side = readSideConversation(session.metadata);
 					if (!side) return {};
