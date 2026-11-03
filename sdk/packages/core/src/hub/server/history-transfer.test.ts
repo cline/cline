@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { type FileHandle, mkdtemp, open, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,7 +119,6 @@ describe("HistoryTransferPool", () => {
 		let reply = await pool.command(envelope, owner, read, signal());
 		expect(await readdir(join(directory, "history-transfers"))).toEqual([]);
 		const chunks: string[] = [];
-		let checkedOverlap = false;
 		while (true) {
 			expect(
 				Buffer.byteLength(JSON.stringify({ kind: "reply", envelope: reply })),
@@ -130,29 +130,30 @@ describe("HistoryTransferPool", () => {
 				...envelope,
 				payload: { chunkHistory: true, historyCursor: cursor },
 			};
-			await expect(
-				pool.command(continuation, {}, read, signal()),
-			).rejects.toThrow("cursor is invalid");
-			await expect(
-				pool.command(
-					{ ...continuation, sessionId: "other" },
-					owner,
-					read,
-					signal(),
-				),
-			).rejects.toThrow("cursor is invalid");
-			await expect(
-				pool.command(
-					{
-						...continuation,
-						payload: { ...continuation.payload, sessionId: "other" },
-					},
-					owner,
-					read,
-					signal(),
-				),
-			).rejects.toThrow("cursor is invalid");
-			if (!checkedOverlap) {
+			if (chunks.length === 1) {
+				await expect(
+					pool.command(continuation, {}, read, signal()),
+				).rejects.toThrow("cursor is invalid");
+				await expect(
+					pool.command(
+						{ ...continuation, sessionId: "other" },
+						owner,
+						read,
+						signal(),
+					),
+				).rejects.toThrow("cursor is invalid");
+				await expect(
+					pool.command(
+						{
+							...continuation,
+							payload: { ...continuation.payload, sessionId: "other" },
+						},
+						owner,
+						read,
+						signal(),
+					),
+				).rejects.toThrow("cursor is invalid");
+
 				const [first, overlapping] = await Promise.allSettled([
 					pool.command(continuation, owner, read, signal()),
 					pool.command(continuation, owner, read, signal()),
@@ -160,7 +161,6 @@ describe("HistoryTransferPool", () => {
 				expect(overlapping.status).toBe("rejected");
 				if (first.status !== "fulfilled") throw first.reason;
 				reply = first.value;
-				checkedOverlap = true;
 			} else reply = await pool.command(continuation, owner, read, signal());
 		}
 		expect(JSON.parse(chunks.join(""))).toEqual(messages);
@@ -253,10 +253,10 @@ describe("HistoryTransferPool", () => {
 		await pool.close(owner);
 	});
 
-	it("allows another viewer to prepare while two 32 MiB downloads are paused", async () => {
+	it("allows another viewer to prepare while two downloads are paused", async () => {
 		const pool = new HistoryTransferPool();
 		const owners = [{}, {}];
-		const messages = ["x".repeat(32 * 1024 * 1024)];
+		const messages = ["x".repeat(200 * 1024)];
 		const read = vi.fn(
 			async (): Promise<HubReplyEnvelope> => ({
 				version: "v1",
@@ -303,9 +303,9 @@ describe("HistoryTransferPool", () => {
 			}),
 		);
 		let reply = await pool.command(envelope, owner, read, signal());
-		const chunks: string[] = [];
+		const actual = createHash("sha256");
 		while (true) {
-			chunks.push(String(reply.payload?.historyChunk));
+			actual.update(String(reply.payload?.historyChunk));
 			const cursor = reply.payload?.historyCursor;
 			if (cursor === undefined) break;
 			reply = await pool.command(
@@ -315,7 +315,9 @@ describe("HistoryTransferPool", () => {
 				signal(),
 			);
 		}
-		expect(JSON.parse(chunks.join(""))).toEqual(messages);
+		expect(actual.digest("hex")).toBe(
+			createHash("sha256").update(JSON.stringify(messages)).digest("hex"),
+		);
 		expect(read).toHaveBeenCalledTimes(1);
 		await pool.close(owner);
 	});

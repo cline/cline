@@ -133,7 +133,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 		}
 	});
 
-	it("chunks only opted-in history and leaves legacy replies and other commands intact", async () => {
+	it("rejects malformed history without blocking chunked or legacy reads", async () => {
 		const messages = [{ role: "user", content: "saved text ".repeat(30_000) }];
 		const transport = {
 			command: vi.fn(
@@ -151,6 +151,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 		const send = async (
 			command: HubCommandEnvelope["command"],
 			payload: Record<string, string | boolean> = {},
+			fields: { sessionId?: unknown; clientId?: string } = {},
 		) => {
 			const count = socket.sent.length;
 			socket.emitMessage(
@@ -163,6 +164,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 						sessionId: "session-1",
 						command,
 						payload,
+						...fields,
 					},
 				}),
 			);
@@ -171,10 +173,22 @@ describe("BrowserWebSocketHubAdapter", () => {
 		};
 		try {
 			await send("client.register", { clientId: "client-1" });
+			for (const sessionId of [42, {}]) {
+				const rejected = await send(
+					"session.messages",
+					{ chunkHistory: true },
+					{ sessionId },
+				);
+				expect(rejected.error?.code).toBe("command_failed");
+			}
 			expect((await send("session.messages")).payload?.messages).toEqual(
 				messages,
 			);
-			let reply = await send("session.messages", { chunkHistory: true });
+			let reply = await send(
+				"session.messages",
+				{ chunkHistory: true },
+				{ clientId: "client-1 " },
+			);
 			await send("session.get");
 			const chunks = [reply.payload?.historyChunk];
 			while (typeof reply.payload?.historyCursor === "string") {

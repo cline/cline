@@ -21,7 +21,6 @@ type Snapshot = {
 };
 
 type Transfer = {
-	clientId: string | undefined;
 	sessionId: string;
 	snapshot: Promise<Snapshot | undefined>;
 	cancelled: boolean;
@@ -41,7 +40,6 @@ function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
 	};
 }
 
-/** Pins opt-in history in an anonymous file while its connection pulls chunks. */
 export class HistoryTransferPool {
 	private readonly owners = new Map<object, Map<string, Transfer>>();
 	private preparations = 0;
@@ -58,11 +56,7 @@ export class HistoryTransferPool {
 			if (typeof cursor !== "string") throw new Error("Invalid history cursor");
 			const [key] = cursor.split(":");
 			const transfer = this.owners.get(owner)?.get(key);
-			if (
-				!transfer ||
-				transfer.clientId !== envelope.clientId ||
-				transfer.sessionId !== extractSessionId(envelope)
-			) {
+			if (!transfer || transfer.sessionId !== extractSessionId(envelope)) {
 				throw new Error("History transfer expired or cursor is invalid");
 			}
 			const cancel = () => {
@@ -80,6 +74,7 @@ export class HistoryTransferPool {
 			}
 		}
 
+		const sessionId = extractSessionId(envelope);
 		const deadline = Date.now() + TRANSFER_TIMEOUT_MS;
 		const boundedSignal = AbortSignal.any([
 			signal,
@@ -106,8 +101,7 @@ export class HistoryTransferPool {
 			resolveSnapshot = resolve;
 		});
 		const transfer: Transfer = {
-			clientId: envelope.clientId,
-			sessionId: extractSessionId(envelope),
+			sessionId,
 			snapshot: prepared,
 			cancelled: false,
 			timer: setTimeout(() => {
