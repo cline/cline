@@ -50,6 +50,144 @@ function createSocket() {
 }
 
 describe("BrowserWebSocketHubAdapter", () => {
+	it("unregister cancels queued history and never sends an abandoned full reply", async () => {
+		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
+		const transport = {
+			command: vi.fn(
+				(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> => {
+					if (envelope.command === "session.messages")
+						return new Promise((resolve) => {
+							finishers.push((reply) =>
+								resolve({ ...reply, requestId: envelope.requestId }),
+							);
+						});
+					return Promise.resolve({
+						version: "v1",
+						requestId: envelope.requestId,
+						ok: true,
+					});
+				},
+			),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		const detach = new BrowserWebSocketHubAdapter(transport).attach(socket);
+		const send = (
+			requestId: string,
+			command: HubCommandEnvelope["command"],
+			payload = {},
+		) =>
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						clientId: "client-1",
+						sessionId: "session-1",
+						requestId,
+						command,
+						payload,
+					},
+				}),
+			);
+		const response = (id: string): HubReplyEnvelope | undefined =>
+			socket.sent
+				.map((frame) => JSON.parse(frame).envelope as HubReplyEnvelope)
+				.find((reply) => reply.requestId === id);
+		try {
+			send("register", "client.register", { clientId: "client-1" });
+			await vi.waitFor(() => expect(response("register")?.ok).toBe(true));
+			for (let i = 0; i < 3; i++)
+				send(`history-${i}`, "session.messages", { chunkHistory: true });
+			expect(finishers).toHaveLength(2);
+			send("unregister", "client.unregister");
+			await vi.waitFor(() => expect(response("unregister")?.ok).toBe(true));
+			for (const finish of finishers)
+				finish({
+					version: "v1",
+					ok: true,
+					payload: { messages: ["x".repeat(200_000)] },
+				});
+			await vi.waitFor(() =>
+				expect(
+					[0, 1, 2].every((i) => response(`history-${i}`) !== undefined),
+				).toBe(true),
+			);
+			for (let i = 0; i < 3; i++) {
+				expect(response(`history-${i}`)).toMatchObject({
+					ok: false,
+					error: { code: "history_transfer_closed" },
+				});
+				expect(response(`history-${i}`)?.payload).toBeUndefined();
+			}
+			expect(finishers).toHaveLength(2);
+		} finally {
+			detach();
+		}
+	});
+
+	it("chunks only opted-in history and leaves legacy replies and other commands intact", async () => {
+		const messages = [{ role: "user", content: "saved text ".repeat(30_000) }];
+		const transport = {
+			command: vi.fn(
+				async (envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> => ({
+					version: "v1",
+					requestId: envelope.requestId,
+					ok: true,
+					payload: envelope.command === "session.messages" ? { messages } : {},
+				}),
+			),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		const detach = new BrowserWebSocketHubAdapter(transport).attach(socket);
+		const send = async (
+			command: HubCommandEnvelope["command"],
+			payload: Record<string, string | boolean> = {},
+		) => {
+			const count = socket.sent.length;
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						requestId: `req-${count}`,
+						clientId: "client-1",
+						sessionId: "session-1",
+						command,
+						payload,
+					},
+				}),
+			);
+			await vi.waitFor(() => expect(socket.sent.length).toBe(count + 1));
+			return JSON.parse(socket.sent[count]).envelope as HubReplyEnvelope;
+		};
+		try {
+			await send("client.register", { clientId: "client-1" });
+			expect((await send("session.messages")).payload?.messages).toEqual(
+				messages,
+			);
+			let reply = await send("session.messages", { chunkHistory: true });
+			await send("session.get");
+			const chunks = [reply.payload?.historyChunk];
+			while (typeof reply.payload?.historyCursor === "string") {
+				reply = await send("session.messages", {
+					chunkHistory: true,
+					historyCursor: reply.payload.historyCursor,
+				});
+				chunks.push(reply.payload?.historyChunk);
+			}
+			expect(JSON.parse(chunks.join(""))).toEqual(messages);
+			expect(
+				transport.command.mock.calls.filter(
+					([envelope]) => envelope.command === "session.messages",
+				),
+			).toHaveLength(2);
+		} finally {
+			detach();
+		}
+	});
+
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
