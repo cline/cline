@@ -13,7 +13,7 @@ const reasoning = (ts: number, partial = false): ClineMessage => ({
 	partial,
 })
 
-const command = (ts: number): ClineMessage => ({ ts, type: "say", say: "command", text: "ls -la" })
+const command = (ts: number, partial = false): ClineMessage => ({ ts, type: "say", say: "command", text: "ls -la", partial })
 
 const tool = (ts: number, toolName: string, path: string): ClineMessage => ({
 	ts,
@@ -87,33 +87,45 @@ describe("ActivityGroupRenderer", () => {
 		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: false })
 	})
 
-	it("stays open while the activity is still streaming", () => {
-		const group = buildGroup([reasoning(1, true), tool(2, "readFile", "a.ts")])
+	it("shows only the running action and counts the finished ones away", () => {
+		const group = buildGroup([reasoning(1), tool(2, "readFile", "a.ts"), command(3, true)])
 
 		renderFold({ group, isLastGroup: true, turnPhase: "streaming" })
 
-		expect(screen.queryAllByTestId("nested-row")).toHaveLength(2)
-		expect(screen.getByRole("button", { name: /Collapse agent activities/ })).toBeInTheDocument()
+		// The finished thinking block and read folded themselves away; the command is still running.
+		const rows = screen.queryAllByTestId("nested-row")
+		expect(rows).toHaveLength(1)
+		expect(rows[0].textContent).toBe("command")
+
+		// The header keeps the running total of the whole group, plus how much is hidden.
+		const button = screen.getByRole("button", { name: /Show all agent activities/ })
+		expect(button).toHaveTextContent("1 command · 1 file read · 1× thinking")
+		expect(button.textContent).toContain("+2")
 	})
 
-	it("stays open while a command inside the fold waits for approval", () => {
-		const group = buildGroup([command(1)])
+	it("keeps a pending approval visible although it is not streaming", () => {
+		const group = buildGroup([command(1), tool(2, "readFile", "a.ts")])
 
 		renderFold({ group, isLastGroup: true, turnPhase: "awaiting_approval" })
 
-		expect(screen.queryAllByTestId("nested-row")).toHaveLength(1)
+		// An approval row is finished as content; hiding it would hide the buttons that unblock
+		// the agent, so the tail stays on screen while the turn waits.
+		const rows = screen.queryAllByTestId("nested-row")
+		expect(rows).toHaveLength(1)
+		expect(rows[0].textContent).toBe("a.ts")
 	})
 
-	it("collapses a fold that is open only because the agent is still working", () => {
+	it("reveals everything from the live view", () => {
 		const group = buildGroup([command(1), tool(2, "readFile", "a.ts")])
 		const key = getActivityGroupKey(group as unknown as ClineMessage[])
 		const onToggleExpand = vi.fn()
 
+		// Nothing in flight: the fold is the summary line alone, even mid-turn.
 		renderFold({ group, isLastGroup: true, onToggleExpand, turnPhase: "streaming" })
-		expect(screen.queryAllByTestId("nested-row")).toHaveLength(2)
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(0)
 
-		fireEvent.click(screen.getByRole("button", { name: /Collapse agent activities/ }))
-		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: false })
+		fireEvent.click(screen.getByRole("button", { name: /Show all agent activities/ }))
+		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: true })
 	})
 
 	it("folds the tail group away once the turn is over", () => {

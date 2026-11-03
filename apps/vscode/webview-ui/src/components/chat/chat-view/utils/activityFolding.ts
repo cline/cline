@@ -6,9 +6,11 @@
  * of consecutive activity rows into a single foldable "activity group" so that the actual
  * conversation (user prompts + assistant answers) stays scannable.
  *
- * A group renders expanded while the agent is still working on it (live feedback) and collapses
- * itself as soon as the activity has completed. Users can always override a fold by clicking its
- * header; the override is remembered per group (keyed by {@link getActivityGroupKey}).
+ * A group shows only what is happening right now: every row that is still streaming renders, and
+ * each of them folds away the moment it completes, so the fold never grows into a wall of finished
+ * bookkeeping. Its header carries the running total of everything the group has done. Users can
+ * always override a fold by clicking its header; the override is remembered per group (keyed by
+ * {@link getActivityGroupKey}).
  *
  * The grouping runs *after* `groupLowStakesTools`, so an activity group may contain nested
  * groups (tool groups). Everything that consumes the rendered list must therefore use the
@@ -236,23 +238,44 @@ export function hasStreamingActivity(group: ChatListItem[]): boolean {
 	return flattenActivityGroup(group).some((message) => message.partial === true)
 }
 
-/**
- * The agent is mid-turn for as long as the backend reports a streaming phase, or is blocked on a
- * tool/command approval. Both are "still working" states for the tail fold.
- */
-export function isTurnWorking(turnPhase?: TurnPhase): boolean {
-	return turnPhase === "streaming" || turnPhase === "awaiting_approval"
+/** Whether one child of a fold — a row or a nested tool group — is still in flight. */
+function isStreamingItem(item: ChatListItem): boolean {
+	return Array.isArray(item) ? hasStreamingActivity(item as ChatListItem[]) : item.partial === true
 }
 
 /**
- * Decide whether a fold is open.
+ * The children a fold shows on its own: the ones still running.
  *
- * 1. an explicit user override always wins,
- * 2. a group that is still streaming stays open (live feedback),
- * 3. the tail group stays open while the agent is working,
- * 4. everything else — completed activity — is folded away by default.
+ * A command, a read, a diff or a thinking block is interesting while it happens and bookkeeping
+ * afterwards. Folding each row individually the moment its `partial` flag clears is what keeps a
+ * long turn at one summary line plus the action in flight, instead of an ever-growing open list.
+ * Nested tool groups stay whole while any of their rows streams: splitting them would separate a
+ * tool call from the result it belongs to.
+ *
+ * @param options.keepTail while the agent is blocked on an approval, keep the last row even though
+ *   it is not streaming — a pending approval prompt is finished as content and still the one thing
+ *   the user has to see, and hiding its buttons would deadlock the turn.
  */
-export function resolveActivityGroupExpansion({
+export function liveActivityChildren(group: ChatListItem[], { keepTail = false }: { keepTail?: boolean } = {}): ChatListItem[] {
+	const running = group.filter(isStreamingItem)
+	if (running.length === 0 && keepTail && group.length > 0) {
+		return [group[group.length - 1]]
+	}
+	return running
+}
+
+/** How much of a fold is visible: everything, only what is running, or nothing. */
+export type ActivityGroupMode = "all" | "live" | "none"
+
+/**
+ * Decide what a fold shows.
+ *
+ * 1. an explicit user override always wins (`true` = everything, `false` = nothing),
+ * 2. otherwise a group with a row in flight shows exactly that row — finished actions fold away,
+ * 3. the tail group does the same while the agent is mid-turn or blocked on an approval,
+ * 4. with nothing running and the turn over, the fold is the summary line alone.
+ */
+export function resolveActivityGroupMode({
 	override,
 	isLastGroup,
 	hasStreamingMessage,
@@ -262,17 +285,35 @@ export function resolveActivityGroupExpansion({
 	isLastGroup: boolean
 	hasStreamingMessage: boolean
 	turnPhase?: TurnPhase
-}): boolean {
+}): ActivityGroupMode {
 	if (override !== undefined) {
-		return override
+		return override ? "all" : "none"
 	}
 	if (hasStreamingMessage) {
-		return true
+		return "live"
 	}
 	if (isLastGroup && isTurnWorking(turnPhase)) {
-		return true
+		return "live"
 	}
-	return false
+	return "none"
+}
+
+/** Whether a fold renders any of its rows at all — the state the scroll anchoring reacts to. */
+export function resolveActivityGroupExpansion(args: {
+	override?: boolean
+	isLastGroup: boolean
+	hasStreamingMessage: boolean
+	turnPhase?: TurnPhase
+}): boolean {
+	return resolveActivityGroupMode(args) !== "none"
+}
+
+/**
+ * The agent is mid-turn for as long as the backend reports a streaming phase, or is blocked on a
+ * tool/command approval. Both are "still working" states for the tail fold.
+ */
+export function isTurnWorking(turnPhase?: TurnPhase): boolean {
+	return turnPhase === "streaming" || turnPhase === "awaiting_approval"
 }
 
 export interface ActivityGroupStats {

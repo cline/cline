@@ -12,8 +12,10 @@ import {
 	hasStreamingActivity,
 	isActivityGroup,
 	isAgentActivityMessage,
+	liveActivityChildren,
 	markTurnFinalAnswers,
 	resolveActivityGroupExpansion,
+	resolveActivityGroupMode,
 } from "./activityFolding"
 
 const reasoning = (ts: number, text = "thinking", partial = false): ClineMessage => ({
@@ -199,6 +201,48 @@ describe("resolveActivityGroupExpansion", () => {
 				turnPhase: "streaming",
 			}),
 		).toBe(false)
+	})
+})
+
+describe("resolveActivityGroupMode", () => {
+	it("shows only what is running while the agent works", () => {
+		expect(resolveActivityGroupMode({ isLastGroup: true, hasStreamingMessage: true, turnPhase: "streaming" })).toBe("live")
+		// Nothing in flight and the turn over: the summary line alone.
+		expect(resolveActivityGroupMode({ isLastGroup: true, hasStreamingMessage: false, turnPhase: "completed" })).toBe("none")
+		expect(resolveActivityGroupMode({ isLastGroup: false, hasStreamingMessage: false, turnPhase: "idle" })).toBe("none")
+	})
+
+	it("lets the user override pick everything or nothing", () => {
+		expect(
+			resolveActivityGroupMode({ override: true, isLastGroup: false, hasStreamingMessage: false, turnPhase: "idle" }),
+		).toBe("all")
+		expect(
+			resolveActivityGroupMode({ override: false, isLastGroup: true, hasStreamingMessage: true, turnPhase: "streaming" }),
+		).toBe("none")
+	})
+
+	it("stays the boolean `expansion` for anything that only asks whether rows show at all", () => {
+		expect(resolveActivityGroupExpansion({ isLastGroup: true, hasStreamingMessage: true, turnPhase: "streaming" })).toBe(true)
+		expect(resolveActivityGroupExpansion({ isLastGroup: true, hasStreamingMessage: false, turnPhase: "idle" })).toBe(false)
+	})
+})
+
+describe("liveActivityChildren", () => {
+	it("keeps exactly the rows that are still in flight", () => {
+		const group = [reasoning(1), reasoning(2, "still streaming", true), tool(3, "readFile")]
+		expect(liveActivityChildren(group).map((item) => (item as ClineMessage).ts)).toEqual([2])
+	})
+
+	it("keeps a nested tool group whole while any of its rows streams", () => {
+		const nested = toolGroup([tool(1, "readFile"), reasoning(2, "streaming", true)])
+		expect(liveActivityChildren([nested])).toEqual([nested])
+	})
+
+	it("keeps the tail row only while an approval is pending", () => {
+		const group = [command(1), tool(2, "readFile")]
+		// A pending approval is not streaming, and hiding it would hide its buttons.
+		expect(liveActivityChildren(group, { keepTail: true }).map((item) => (item as ClineMessage).ts)).toEqual([2])
+		expect(liveActivityChildren(group)).toEqual([])
 	})
 })
 

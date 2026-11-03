@@ -30,13 +30,14 @@ const reasoning = (ts: number, partial = false): ClineMessage => ({
 	partial,
 })
 
-const command = (ts: number): ClineMessage => ({ ts, type: "say", say: "command", text: "ls -la" })
+const command = (ts: number, partial = false): ClineMessage => ({ ts, type: "say", say: "command", text: "ls -la", partial })
 
-const tool = (ts: number, toolName = "readFile", path = "a.ts"): ClineMessage => ({
+const tool = (ts: number, toolName = "readFile", path = "a.ts", partial = false): ClineMessage => ({
 	ts,
 	type: "say",
 	say: "tool",
 	text: JSON.stringify({ tool: toolName, path }),
+	partial,
 })
 
 const answer = (ts: number): ClineMessage => ({ ts, type: "say", say: "text", text: "here you go" })
@@ -108,16 +109,25 @@ describe("createMessageRenderer with activity folding", () => {
 		expect(screen.getByTestId("chat-row-4")).toBeInTheDocument()
 	})
 
-	it("marks a nested tool group as live so its running items keep rendering", () => {
-		renderList({ messages: [toolGroup([tool(1)]), answer(2)], turnPhase: "streaming" })
+	it("keeps a running nested tool group rendered while its finished siblings fold away", () => {
+		renderList({ messages: [toolGroup([tool(1), tool(2, "searchFiles", "b.ts", true)]), answer(3)], turnPhase: "streaming" })
 
 		expect(screen.getByTestId("tool-group")).toHaveTextContent("live")
 	})
 
-	it("keeps the tail fold open while the agent is working", () => {
-		renderList({ messages: [answer(1), reasoning(2), command(3)], turnPhase: "streaming" })
+	it("shows the running action of the tail fold and folds its finished rows away", () => {
+		renderList({ messages: [answer(1), reasoning(2), command(3, true)], turnPhase: "streaming" })
 
 		expect(screen.getByTestId("chat-row-3")).toBeInTheDocument()
+		expect(screen.queryByTestId("chat-row-2")).not.toBeInTheDocument()
+	})
+
+	it("folds a finished action away even while the turn is still working", () => {
+		renderList({ messages: [answer(1), reasoning(2), command(3)], turnPhase: "streaming" })
+
+		// Nothing in flight: the summary line is all that remains until the next action starts.
+		expect(screen.queryByTestId("chat-row-3")).not.toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Show all agent activities/ })).toBeInTheDocument()
 	})
 
 	it("folds the tail group away once the turn is over", () => {

@@ -6,13 +6,15 @@ import { cn } from "@/lib/utils"
 import { useCollapseAnchoring } from "../../hooks/useCollapseAnchoring"
 import {
 	type ActivityGroup,
+	type ActivityGroupMode,
 	type ChatListItem,
 	getActivityGroupKey,
 	getActivityGroupLabel,
 	getGroupHeadMessage,
 	hasStreamingActivity,
 	isTurnWorking,
-	resolveActivityGroupExpansion,
+	liveActivityChildren,
+	resolveActivityGroupMode,
 } from "../../utils/activityFolding"
 
 interface ActivityGroupRendererProps {
@@ -31,9 +33,10 @@ interface ActivityGroupRendererProps {
 /**
  * Collapsible fold for a run of agent activities.
  *
- * Open while the agent is still working (so live progress stays visible), folded to a single
- * muted summary line as soon as the activity has completed. Clicking the header reveals every
- * action that ran in the meantime.
+ * Only the action that is running right now is on screen: a command, read, diff or thinking block
+ * folds away as soon as it completes, while the header keeps counting everything the group has
+ * done. With nothing in flight the fold is that single summary line. Clicking the header reveals
+ * every action that ran in the meantime.
  */
 export const ActivityGroupRenderer = memo(
 	({ group, isLastGroup, turnPhase, expandedRows, onToggleExpand, renderItem }: ActivityGroupRendererProps) => {
@@ -41,36 +44,54 @@ export const ActivityGroupRenderer = memo(
 		const hasStreamingMessage = useMemo(() => hasStreamingActivity(group as ChatListItem[]), [group])
 		const label = useMemo(() => getActivityGroupLabel(group as ChatListItem[]), [group])
 
-		const isExpanded = resolveActivityGroupExpansion({
+		const mode: ActivityGroupMode = resolveActivityGroupMode({
 			override: expandedRows[key],
 			isLastGroup,
 			hasStreamingMessage,
 			turnPhase,
 		})
+		/** `all` = the user asked for everything, `live` = only what is running, `none` = header only. */
+		const children = useMemo(() => {
+			if (mode === "all") {
+				return group as ChatListItem[]
+			}
+			return mode === "live"
+				? liveActivityChildren(group as ChatListItem[], { keepTail: turnPhase === "awaiting_approval" })
+				: []
+		}, [group, mode, turnPhase])
+		const isExpanded = mode !== "none"
 		const isWorking = hasStreamingMessage || (isLastGroup && isTurnWorking(turnPhase))
+		const foldedAway = group.length - children.length
 
 		const rootRef = useRef<HTMLDivElement>(null)
 		useCollapseAnchoring(rootRef, isExpanded)
 
 		const handleToggle = useCallback(() => {
-			onToggleExpand(key, { preserveAutoScroll: true, next: !isExpanded })
-		}, [onToggleExpand, key, isExpanded])
+			// From the live view a click reveals everything; from the revealed list it folds away.
+			onToggleExpand(key, { preserveAutoScroll: true, next: mode !== "all" })
+		}, [onToggleExpand, key, mode])
 
 		if (group.length === 0) {
 			return null
 		}
 
+		const action = mode === "all" ? "Collapse" : mode === "live" ? "Show all" : "Expand"
+
 		return (
 			<div className="min-w-0" data-activity-group={key} data-expanded={isExpanded} ref={rootRef}>
 				<button
 					aria-expanded={isExpanded}
-					aria-label={`${isExpanded ? "Collapse" : "Expand"} agent activities (${label})`}
+					aria-label={`${action} agent activities (${label})`}
 					className={cn(
 						"flex w-full min-w-0 items-center gap-1.5 px-4 py-1 text-left text-[12px] leading-tight select-none cursor-pointer",
 						"text-description/80 hover:text-foreground",
 					)}
 					onClick={handleToggle}
-					title={`${label} — ${isExpanded ? "fold agent activities" : "show all agent activities"}`}
+					title={
+						mode === "all"
+							? `${label} — fold agent activities`
+							: `${label} — show all agent activities${foldedAway > 0 ? ` (${foldedAway} folded away)` : ""}`
+					}
 					type="button">
 					{isExpanded ? (
 						<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
@@ -79,13 +100,14 @@ export const ActivityGroupRenderer = memo(
 					)}
 					<WrenchIcon className="size-3 shrink-0 opacity-60" />
 					<span className="truncate">{label}</span>
+					{mode === "live" && foldedAway > 0 && <span className="shrink-0 opacity-60">+{foldedAway}</span>}
 					{isWorking && <LoaderCircleIcon className="size-3 shrink-0 animate-spin opacity-70" />}
 				</button>
 				{isExpanded && (
 					<div className="min-w-0">
-						{group.map((item, index) => (
+						{children.map((item, index) => (
 							<Fragment key={getGroupHeadMessage(item as ChatListItem)?.ts ?? index}>
-								{renderItem(item as ChatListItem, index, isLastGroup && index === group.length - 1)}
+								{renderItem(item as ChatListItem, index, isLastGroup && index === children.length - 1)}
 							</Fragment>
 						))}
 					</div>
