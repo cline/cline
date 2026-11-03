@@ -171,35 +171,37 @@ describe("desktop settings commands", () => {
 		expect(ctx.liveSessions.has("cloud")).toBe(true);
 	});
 
-	it.each([
-		"0",
-		"1",
-	])("keeps cloud-only models out of the local picker with cloud flag %s", async (enabled) => {
+	it("routes local model discovery through the local hub without cloud-only models", async () => {
 		const { ctx } = createContext();
-		const fetchMock = vi.fn(async (input: string | URL | Request) => {
-			if (String(input) === "https://models.dev/api.json") {
-				return new Response(JSON.stringify({}), { status: 200 });
-			}
-			return new Response(
-				JSON.stringify({
-					clineCloud: [
-						{
-							id: "cline-cloud/cloud-only",
-							name: "Cloud Only",
-						},
-					],
-				}),
-				{ status: 200 },
-			);
+		const command = vi.fn().mockResolvedValue({
+			ok: true,
+			payload: { providerId: "cline", models: [] },
 		});
-		vi.stubGlobal("fetch", fetchMock);
-
-		process.env.CLINE_CODE_CLOUD_AGENTS = enabled;
-		const local = (await handleCommand(ctx, "list_provider_models", {
+		ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+			hubClient: { command },
+		} as unknown as SessionRuntimeBinding);
+		ctx.activeEnvironmentId = "ssh-remote";
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		await handleCommand(ctx, "list_provider_models", {
 			provider: "cline",
-		})) as { models: Array<{ id: string }> };
-		expect(
-			local.models.some((model) => model.id.startsWith("cline-cloud/")),
-		).toBe(false);
+			includeCloudModels: true,
+		});
+		expect(command).toHaveBeenLastCalledWith(
+			"providers.models.list",
+			{ providerId: "cline" },
+			undefined,
+			{ retryAfterDispatch: false },
+		);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		await handleCommand(ctx, "list_provider_models", {
+			provider: "cline",
+			includeCloudModels: true,
+		});
+		expect(command).toHaveBeenLastCalledWith(
+			"providers.models.list",
+			{ providerId: "cline" },
+			undefined,
+			{ retryAfterDispatch: false },
+		);
 	});
 });

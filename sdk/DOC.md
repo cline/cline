@@ -118,13 +118,22 @@ URLs and a fresh-token callback; feature gating and account selection stay in th
 host. Importing this subpath does not start a local agent.
 
 `createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
-`publish_artifacts` tool. It validates batches and local file paths, assigns missing
-IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
-receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+`publish_artifacts` tool. It validates batches and local file paths, defaults IDs
+to the filename including its extension, and returns ordered per-file IDs or errors.
+Reusing an ID replaces the session's file; use distinct filenames to preserve
+separate outputs. The injected `ArtifactPublisher` receives prepared files
+(`path`, `artifactId`, `size`, `modifiedAt`) and an abort
 signal, and returns one result per file in input order. Storage-specific policy
 and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
 be published; the tool itself does not restrict paths to a workspace.
+
+`createUxVerificationReportTool()` from `@cline/core` creates the opt-in
+`report_ux_verification` tool. It returns a UX verification report with captions,
+observed passed/failed/blocked results, and screenshot references (`artifactId`,
+`mediaType`). Passed and failed checks require a screenshot; blocked checks may
+omit one. Hosts register it explicitly. It does not upload files or check artifact
+availability.
 
 For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
@@ -364,6 +373,36 @@ executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon marke
 take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
+
+### Hub provider and model management
+
+Use `createHubProvidersApi(client)` from `@cline/core` or `@cline/core/hub`
+with an existing registered `NodeHubClient`. Provider settings belong to the
+machine running that Hub; Desktop uses its local connection even while viewing
+an SSH environment.
+
+| Method | Hub command |
+| --- | --- |
+| `list({ isClinePassEnabled })` | `providers.list` |
+| `listModels({ providerId, includeCloudModels })` | `providers.models.list` |
+| `recommendedModels()` | `providers.models.recommended` |
+| `saveSettings({ providerId, ...settings })` | `providers.settings.save` |
+| `add({ providerId, name, baseUrl, ...options })` | `providers.add` |
+| `updateModels({ providerId, models })` | `providers.models.update` |
+
+The network-free catalog includes saved voice selection and authentication
+metadata. Model discovery uses current provider credentials and omits bundled
+known-model overrides; Cline cloud models are included only when explicitly
+requested. Recommended models retain the bundled offline fallback.
+
+Settings writes merge nested configuration. Null or empty-string nested values
+remove individual fields. Disabling Cline Pass also removes its shared Cline
+credentials, and disabling a provider clears applicable legacy secrets so they
+cannot restore the removed credentials. `saveSettings` returns
+`clineCredentialsChanged` alongside the saved provider id, enabled state, and
+settings path, allowing hosts to update account and cloud views. Provider API
+calls do not automatically resend dispatched requests after a connection loss.
+OAuth login and audio transcription remain separate APIs.
 
 ### Provider authentication metadata for host UIs
 

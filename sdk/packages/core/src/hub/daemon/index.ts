@@ -302,7 +302,8 @@ export async function hubHasLiveSessions(
 		return (
 			activity.activeSessionCount > 0 ||
 			(activity.activePluginRequests ?? 0) > 0 ||
-			(activity.activeCloudCommands ?? 0) > 0
+			(activity.activeCloudCommands ?? 0) > 0 ||
+			(activity.activeProviderMutations ?? 0) > 0
 		);
 	} catch {
 		return false;
@@ -988,7 +989,8 @@ export async function upgradeManagedHub(
 			observedSessionCount = activity.activeSessionCount;
 			observedBackgroundRequests =
 				(activity.activePluginRequests ?? 0) +
-				(activity.activeCloudCommands ?? 0);
+				(activity.activeCloudCommands ?? 0) +
+				(activity.activeProviderMutations ?? 0);
 			if (observedSessionCount === 0 && observedBackgroundRequests === 0) {
 				break;
 			}

@@ -68,7 +68,7 @@ function commandErrorReply(
 function registrationAuthority(
 	frame: HubCommandFrame,
 	serverWorkspaceRoot?: string,
-	allowRegisteredWorkspace = false,
+	tokenAuthenticated = false,
 ): HubConnectionAuthority {
 	const registration = (frame.envelope.payload ??
 		{}) as unknown as HubClientRegistration;
@@ -78,13 +78,14 @@ function registrationAuthority(
 		throw new Error("Registration clientId must match the command connection");
 	}
 	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
-	const authorizedRoot = allowRegisteredWorkspace
+	const authorizedRoot = tokenAuthenticated
 		? requestedRoot || serverWorkspaceRoot?.trim()
 		: serverWorkspaceRoot?.trim();
-	if (!authorizedRoot) return { clientId };
+	const authentication = tokenAuthenticated ? { tokenAuthenticated: true } : {};
+	if (!authorizedRoot) return { clientId, ...authentication };
 	const workspaceRoot = resolve(authorizedRoot);
 	if (
-		!allowRegisteredWorkspace &&
+		!tokenAuthenticated &&
 		requestedRoot &&
 		resolve(requestedRoot) !== workspaceRoot
 	) {
@@ -105,8 +106,9 @@ function registrationAuthority(
 	}
 	return {
 		clientId,
+		...authentication,
 		workspaceContext: { workspaceRoot, cwd },
-		...(allowRegisteredWorkspace ? { crossWorkspace: true } : {}),
+		...(tokenAuthenticated ? { crossWorkspace: true } : {}),
 	};
 }
 
@@ -119,7 +121,7 @@ export class BrowserWebSocketHubAdapter {
 
 	attach(
 		socket: BrowserHubSocketLike,
-		options: { allowRegisteredWorkspace?: boolean } = {},
+		options: { tokenAuthenticated?: boolean } = {},
 	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
@@ -181,7 +183,7 @@ export class BrowserWebSocketHubAdapter {
 								registration = registrationAuthority(
 									frame,
 									this.workspaceRoot,
-									options.allowRegisteredWorkspace,
+									options.tokenAuthenticated,
 								);
 							} catch (error) {
 								sendFrame({
