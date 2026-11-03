@@ -2509,7 +2509,11 @@ describe("ChatMessages tool approvals", () => {
 		expect(card?.textContent).toContain("execute_command");
 		expect(card?.textContent).toContain('"command": "pwd"');
 
-		const [approve, reject] = card?.querySelectorAll("button") ?? [];
+		const buttons = [...(card?.querySelectorAll("button") ?? [])];
+		const approve = buttons.find((button) => button.textContent === "Approve");
+		const reject = buttons.find((button) => button.textContent === "Reject");
+		expect(approve).toBeDefined();
+		expect(reject).toBeDefined();
 		await act(async () => approve?.click());
 		expect(onApprove).toHaveBeenCalledWith("req-1");
 
