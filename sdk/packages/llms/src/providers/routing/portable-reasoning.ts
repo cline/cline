@@ -23,12 +23,15 @@ export interface PortableReasoningWire {
 
 /**
  * Adapters that put the top-level `reasoning` value on the request unchanged
- * (`@ai-sdk/openai-compatible` sends it as `reasoning_effort`). The other
- * adapters translate the portable level through their own per-model effort
- * maps, so the gateway leaves the level to them.
+ * (`@ai-sdk/openai-compatible` sends it as `reasoning_effort`, `@ai-sdk/openai`
+ * as `reasoning.effort`; the latter validates the level itself only for the
+ * GPT-6 Sol/Luna family). The other adapters translate the portable level
+ * through their own per-model effort maps, so the gateway leaves the level to
+ * them.
  */
 const VERBATIM_REASONING_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
 	"cline",
+	"openai",
 	"openai-compatible",
 ]);
 
