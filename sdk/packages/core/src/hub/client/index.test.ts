@@ -1568,6 +1568,21 @@ describe("hasActiveHubSessions", () => {
 		).toMatchObject({ activeSessionCount: 0, activeCloudCommands: 2 });
 	});
 
+	it("counts pending provider mutations without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(
+			hasActiveHubSessions({ sessions: [], activeProviderMutations: 1 }),
+		).toBe(true);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activeProviderMutations: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activeProviderMutations: 2 });
+		expect(
+			hasActiveHubSessions({ sessions: [], activeProviderMutations: 0 }),
+		).toBe(false);
+	});
+
 	const payload = (sessions: unknown[]) => ({ sessions });
 
 	it("is idle for an empty or malformed list", async () => {

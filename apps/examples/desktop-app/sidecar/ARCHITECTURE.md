@@ -119,16 +119,24 @@ const pendingApprovals = new Map<string, {
 
 Cloud sessions project approval snapshots from the shared Hub. Their async
 resolvers send `respondApproval` through the cloud RPC facade; the daemon forwards
-the response to the sandbox Hub. Desktop owns no cloud API client or sandbox connection.
+the response to the sandbox Hub. Desktop owns no cloud lifecycle controller or sandbox connection.
 Disposing its cloud viewer only unsubscribes; account-scope retirement and shutdown
 are owned by the daemon.
 
-### 3. Provider Management — Direct ProviderSettingsManager
+Published artifact previews and downloads share `useArtifactResource`. The sidecar
+resolves signed URLs through the account-scoped Hub without resuming the sandbox.
+If an older Hub rejects the operation as unknown, the sidecar uses `CloudSessionApi`
+with refreshed, account-bound credentials. Other failures do not trigger fallback.
+Artifact IDs remain in history; signed URLs stay transient and bytes load directly
+from storage.
 
-```typescript
-import { ProviderSettingsManager, listLocalProviders, ... } from "@cline/core";
-const manager = new ProviderSettingsManager();
-```
+### 3. Provider Management — Shared Hub Commands
+
+Provider catalog/model discovery, recommended models, provider settings, custom
+provider creation, and model overrides use `createHubProvidersApi` over the
+existing local Hub connection. Credential mutations and sign-out cleanup belong
+to the daemon. Desktop retains cloud-view and account-context reactions.
+Provider OAuth and voice operations still use their existing sidecar services.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 
@@ -168,11 +176,11 @@ OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
 Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
 discovery endpoints instead. Catalog and public endpoint requests time out after
 five seconds, and the initial picker remains usable while a refresh is pending.
-The sidecar omits bundled `knownModels` from the discovery config so they cannot
+The Hub omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
 The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
-command/docs) through the shared RPC contract. The sidecar resolves these facts
+command/docs) through the shared RPC contract. The Hub resolves these facts
 from the registered provider catalog; chat validation and credential-error UI use
 that data rather than importing the browser LLM registry. Error-message metadata
 retains the provider facts used for that message, so changing providers does not
@@ -203,14 +211,16 @@ Supported commands:
 | Command | Implementation |
 |---------|---------------|
 | `chat_session_command` | shared Hub through `ClineCore`; cloud sessions use `HubCloudSessionClient` through `CloudSessionManager` |
-| `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
-| `list_provider_models` | `getLocalProviderModels` |
+| `list_provider_catalog` | shared Hub `providers.list` |
+| `list_provider_models` | shared Hub `providers.models.list` |
+| `list_cline_recommended_models` | shared Hub `providers.models.recommended` |
+| `update_provider_models` | shared Hub `providers.models.update` |
 | `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
-| `save_provider_settings` | `saveLocalProviderSettings` |
-| `add_provider` | `addLocalProvider` |
+| `save_provider_settings` | shared Hub `providers.settings.save` |
+| `add_provider` | shared Hub `providers.add` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
 | `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
 | `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
@@ -257,3 +267,11 @@ bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
 bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```
+
+### UX verification reports
+
+Desktop recognizes semantic `ux_verification` tool results independently of the producer's tool name. The webview renders them with `AgentUxVerification` and passes each canonical screenshot directly to `ArtifactImage`. Both carousel images and the focus-managed expanded view therefore use `useArtifactResource` and the existing `resolve_artifact` command, reaching `HubCloudSessionClient.getArtifactDownloadUrl` without another uploader, resolver, or refresh timer. Stable artifact references remain in the transcript; signed URLs remain transient viewer state.
+
+This integration preserves existing work disclosures. Lifting reports out of completed work summaries, producing reports, and other product integrations remain separate changes.
+
+UX image callbacks distinguish full slides from non-interactive thumbnails. Desktop suppresses artifact recovery controls inside thumbnail selection buttons. Inline image decode failures are handled by the shared media renderer in both the carousel and expanded dialog.
