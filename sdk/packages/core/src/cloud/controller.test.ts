@@ -542,11 +542,41 @@ describe("CloudSessionController neutral host contract", () => {
 			];
 			f.setMessages(messages);
 			f.setStatus("running");
+			const command = f.command.getMockImplementation()!;
+			f.command.mockImplementation(async (...args) => {
+				const reply = await command(...args);
+				return args[0] === "session.pending_prompts"
+					? {
+							...reply,
+							payload: {
+								prompts: [
+									{
+										id: "queued-follow-up",
+										prompt: "Follow up",
+										delivery: "queue",
+									},
+								],
+							},
+						}
+					: reply;
+			});
 			f.api.status.mockRejectedValueOnce(new TypeError("Status unavailable"));
 			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
 				"running",
 			);
 			expect(await f.controller.readMessages(record.id)).toEqual(messages);
+			expect(await f.controller.attach(record.id)).toMatchObject({
+				status: "running",
+				model: "model",
+			});
+			expect(f.controller.getSnapshot(record.id)?.promptsInQueue).toMatchObject(
+				[{ id: "queued-follow-up", prompt: "Follow up", steer: false }],
+			);
+			expect(await f.controller.pendingPrompts(record.id)).toMatchObject({
+				promptsInQueue: [
+					{ id: "queued-follow-up", prompt: "Follow up", steer: false },
+				],
+			});
 
 			f.api.list.mockResolvedValue([
 				{ ...record, sandboxType: "resumable", status: "suspended" },

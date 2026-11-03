@@ -2980,7 +2980,7 @@ describe("useChatSession", () => {
 		["retry", "ready", "idle"],
 		["retry-idle", "idle", "idle"],
 		["snapshot", "ready", "running"],
-		["failed", "failed", "error"],
+		["failed", "failed", "failed"],
 		["deleted", "ready", "error"],
 		["expired", "expired", "error"],
 	] as const)("recovers an attached provisioning cloud session: %s", async (outcome, readyStatus, expectedStatus) => {
@@ -3025,8 +3025,8 @@ describe("useChatSession", () => {
 						throw new Error(
 							'CLOUD_SESSION_ERROR:{"code":"session_not_found","message":"Session was deleted."}',
 						);
+					if (outcome === "failed") return [];
 					if (
-						outcome === "failed" ||
 						outcome === "expired" ||
 						((outcome === "retry" || outcome === "retry-idle") &&
 							readyReads === 1)
@@ -3101,9 +3101,7 @@ describe("useChatSession", () => {
 			}
 			await act(async () => hydration);
 			expect(attachCalls).toBe(
-				outcome === "failed" || outcome === "expired" || outcome === "deleted"
-					? 0
-					: 1,
+				outcome === "expired" || outcome === "deleted" ? 0 : 1,
 			);
 			expect(current.isHydratingSession).toBe(false);
 			expect(current.status).toBe(expectedStatus);

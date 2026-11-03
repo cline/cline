@@ -1435,7 +1435,11 @@ export class CloudSessionController {
 			throw new Error("Cloud viewer detached during attachment");
 		if (!this.sessions.has(outerSessionId))
 			this.sessions.set(outerSessionId, this.stateFromRecord(known));
-		if (known.status === "provisioning" || known.status === "failed") {
+		if (
+			known.status === "failed" ||
+			(known.status === "provisioning" &&
+				!this.connections.get(outerSessionId)?.innerSessionId)
+		) {
 			return attachResultPayload(
 				known,
 				known.status,
@@ -2008,7 +2012,10 @@ export class CloudSessionController {
 	}
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
-		if (this.knownSessions.get(outerSessionId)?.status === "provisioning") {
+		if (
+			this.knownSessions.get(outerSessionId)?.status === "provisioning" &&
+			!this.connections.get(outerSessionId)?.innerSessionId
+		) {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
 		}
 		const connection = await this.ensureConnection(outerSessionId);
