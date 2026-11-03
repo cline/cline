@@ -1,4 +1,8 @@
-import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
+import type {
+	AgentToolContext,
+	HubEventEnvelope,
+	HubReplyEnvelope,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
@@ -830,6 +834,102 @@ describe("HubRuntimeHost", () => {
 			},
 			"sess-1",
 		);
+	});
+
+	it.each([
+		"transport error",
+		"Hub rejection",
+		"already absent",
+		"deleted",
+	] as const)("keeps session delivery until deletion succeeds: %s", async (outcome) => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		const unsubscribe = vi.fn(() => {
+			onEvent = undefined;
+		});
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return unsubscribe;
+		});
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
+		commandMock.mockResolvedValueOnce({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			capabilities: { requestToolApproval },
+		});
+		unsubscribe.mockClear();
+		let resolveReply: ((reply: HubReplyEnvelope) => void) | undefined;
+		let rejectReply: ((error: Error) => void) | undefined;
+		const pending = new Promise<HubReplyEnvelope>((resolve, reject) => {
+			resolveReply = resolve;
+			rejectReply = reject;
+		});
+		commandMock.mockReturnValueOnce(pending);
+		const deleting = host.deleteSession("sess-1");
+		expect(unsubscribe).not.toHaveBeenCalled();
+		if (outcome === "transport error") {
+			rejectReply?.(new Error("connection lost"));
+			await expect(deleting).rejects.toThrow("connection lost");
+		} else if (outcome === "Hub rejection") {
+			const { HubCommandError } =
+				await vi.importActual<typeof import("../client")>("../client");
+			rejectReply?.(
+				new HubCommandError("session.delete", "delete_failed", "delete failed"),
+			);
+			await expect(deleting).rejects.toThrow("delete failed");
+		} else {
+			resolveReply?.({
+				version: "v1",
+				requestId: "delete",
+				ok: true,
+				payload: { deleted: outcome === "deleted" },
+			});
+			await expect(deleting).resolves.toBe(outcome === "deleted");
+		}
+		if (outcome === "deleted" || outcome === "already absent") {
+			expect(unsubscribe).toHaveBeenCalledOnce();
+		} else {
+			expect(unsubscribe).not.toHaveBeenCalled();
+			onEvent?.({
+				version: "v1",
+				event: "approval.requested",
+				sessionId: "sess-1",
+				payload: {
+					approvalId: "approval-1",
+					agentId: "agent-1",
+					conversationId: "conversation-1",
+					iteration: 1,
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					inputJson: '{"commands":["echo hi"]}',
+					policy: { autoApprove: false },
+				},
+			});
+			await vi.waitFor(() =>
+				expect(commandMock).toHaveBeenLastCalledWith(
+					"approval.respond",
+					{ approvalId: "approval-1", approved: true, reason: undefined },
+					"sess-1",
+				),
+			);
+			expect(requestToolApproval).toHaveBeenCalledOnce();
+		}
+		await host.dispose();
 	});
 
 	it("passes cancellation into long-running hub capability handlers", async () => {
