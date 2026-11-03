@@ -2976,6 +2976,7 @@ describe("useChatSession", () => {
 		["ready", "ready", "idle"],
 		["empty", "ready", "idle"],
 		["idle-event", "ready", "idle"],
+		["queued-start", "running", "running"],
 		["active", "active", "idle"],
 		["retry", "ready", "idle"],
 		["retry-idle", "idle", "idle"],
@@ -3083,12 +3084,30 @@ describe("useChatSession", () => {
 					}),
 				);
 			}
+			if (outcome === "queued-start") {
+				await act(async () => {
+					handlerFor("chat_event")({
+						sessionId: "cloud-transition",
+						stream: "chat_queued_prompt_start",
+						chunk: JSON.stringify({
+							promptId: "queued-1",
+							prompt: "New remote turn",
+						}),
+						index: 1,
+						ts: new Date().toISOString(),
+					});
+				});
+			}
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(3_100);
 			});
 			expect(discoveryReads).toBe(1);
 			expect(current.status).toBe(
-				outcome === "idle-event" ? "idle" : "starting",
+				outcome === "idle-event"
+					? "idle"
+					: outcome === "queued-start"
+						? "running"
+						: "starting",
 			);
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(3_100);
@@ -3099,10 +3118,10 @@ describe("useChatSession", () => {
 					await vi.advanceTimersByTimeAsync(3_100);
 				});
 			}
-			await act(async () => hydration);
 			expect(attachCalls).toBe(
 				outcome === "expired" || outcome === "deleted" ? 0 : 1,
 			);
+			await act(async () => hydration);
 			expect(current.isHydratingSession).toBe(false);
 			expect(current.status).toBe(expectedStatus);
 			if (outcome === "snapshot") {
@@ -3347,30 +3366,60 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toContain("read_files");
 	});
 
-	it("keeps live assistant and tool routing across a running cloud snapshot", async () => {
+	it.each([
+		"started",
+		"opening",
+	] as const)("keeps live assistant and tool routing across a running cloud snapshot (%s)", async (mode) => {
+		const history = Promise.withResolvers<ChatSessionHook["messages"]>();
+		let opening: Promise<void> | undefined;
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 			}
+			if (command === "read_session_messages") return history.promise;
 			if (command === "chat_session_command") {
 				return {
 					sessionId: "ses-cloud",
+					status: "running",
 					cwd: "/workspace",
 					workspaceRoot: "/workspace",
 				};
 			}
 			return [];
 		});
-		await act(async () => {
-			await current.start({
-				...current.config,
-				executionTarget: "cloud",
-				provider: "cline",
-				repoUrl: "https://github.com/cline/test",
+		if (mode === "opening") {
+			await act(async () => {
+				opening = current.hydrateSession({
+					sessionId: "ses-cloud",
+					origin: "cloud",
+					status: "provisioning",
+					...cloudSessionConfig,
+					repoUrl: "https://github.com/cline/test",
+					startedAt: "2026-08-06T00:00:00.000Z",
+				});
+				await Promise.resolve();
 			});
-		});
+		} else {
+			await act(async () => {
+				await current.start({
+					...current.config,
+					executionTarget: "cloud",
+					provider: "cline",
+					repoUrl: "https://github.com/cline/test",
+				});
+			});
+		}
 		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
 		const chatEventHandler = handlerFor("chat_event");
+		const snapshot: ChatSessionHook["messages"] = [
+			{
+				id: "saved-assistant",
+				sessionId: "ses-cloud",
+				role: "assistant",
+				content: "Hello",
+				createdAt: 1,
+			},
+		];
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -3391,16 +3440,17 @@ describe("useChatSession", () => {
 				sessionId: "ses-cloud",
 				status: "running",
 				transcriptKnown: true,
-				messages: [
-					{
-						id: "saved-assistant",
-						sessionId: "ses-cloud",
-						role: "assistant",
-						content: "Hello",
-						createdAt: 1,
-					},
-				],
+				messages: snapshot,
 			});
+		});
+		if (mode === "opening") {
+			await act(async () => {
+				history.resolve(snapshot);
+				await opening;
+			});
+			expect(current.isHydratingSession).toBe(false);
+		}
+		await act(async () => {
 			chatEventHandler?.({
 				sessionId: "ses-cloud",
 				stream: "chat_text",

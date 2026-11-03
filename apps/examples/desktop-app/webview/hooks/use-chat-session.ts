@@ -2558,8 +2558,9 @@ export function useChatSession(environmentId: string) {
 			// (schedules, other clients) — stay inert until the local turn
 			// settles.
 			if (
-				turnEpochRef.current !== turnSettledEpochRef.current ||
-				outstandingOptimisticUserIdsRef.current.size > 0
+				!openingCloudSession &&
+				(turnEpochRef.current !== turnSettledEpochRef.current ||
+					outstandingOptimisticUserIdsRef.current.size > 0)
 			) {
 				return;
 			}
@@ -4072,7 +4073,7 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
-						preserveLiveRouting: sessionStatus === "running",
+						preserveLiveRouting: true,
 					});
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
