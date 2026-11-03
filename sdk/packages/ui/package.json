@@ -117,7 +117,10 @@
 		"components/agent-ux-verification.tsx",
 		"components/agent-ux-verification.css",
 		"components/button-control.tsx",
-		"components/button.css"
+		"components/button.css",
+		"components/has-content.ts",
+		"components/section-heading.css",
+		"components/section-heading.tsx"
 	],
 	"sideEffects": [
 		"./components.css",

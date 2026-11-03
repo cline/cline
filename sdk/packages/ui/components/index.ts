@@ -94,6 +94,12 @@ export {
 	type AgentSessionRowProps,
 } from "./agent-session-row.js";
 export {
+	AgentUxVerification,
+	type AgentUxVerificationProps,
+	type UxScreenshotPresentation,
+	type UxScreenshotRenderer,
+} from "./agent-ux-verification.js";
+export {
 	AgentWelcomeHero,
 	type AgentWelcomeHeroLayout,
 	type AgentWelcomeHeroProps,
@@ -116,6 +122,14 @@ export {
 	iconButtonVariants,
 } from "./button.js";
 export {
+	Carousel,
+	type CarouselApi,
+	CarouselContent,
+	CarouselItem,
+	CarouselNext,
+	CarouselPrevious,
+} from "./carousel.js";
+export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
@@ -128,24 +142,10 @@ export {
 	type SearchComboboxProps,
 	type SearchComboboxSection,
 } from "./search-combobox.js";
+export { SectionHeading, type SectionHeadingProps } from "./section-heading.js";
 export {
 	SessionStatus,
 	type SessionStatusProps,
 	type SessionStatusTone,
 } from "./session-status.js";
 export { Switch, type SwitchProps } from "./switch.js";
-
-export {
-	AgentUxVerification,
-	type AgentUxVerificationProps,
-	type UxScreenshotRenderer,
-	type UxScreenshotPresentation,
-} from "./agent-ux-verification.js";
-export {
-	Carousel,
-	CarouselContent,
-	CarouselItem,
-	CarouselPrevious,
-	CarouselNext,
-	type CarouselApi,
-} from "./carousel.js";
