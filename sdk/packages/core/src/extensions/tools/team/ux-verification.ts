@@ -36,10 +36,14 @@ Return JSON with subtitle describing the actual environment and checks containin
 
 /** Specialize the existing spawn tool without introducing another child runtime. */
 export function createUxVerifierTool(
-	delegate: Pick<AgentTool<SpawnAgentInput>, "execute">,
+	delegate: Pick<
+		AgentTool<SpawnAgentInput>,
+		"name" | "execute" | "policyDependencies"
+	>,
 ): AgentTool {
 	return createTool({
 		name: "ux_verifier",
+		policyDependencies: [delegate.name, ...(delegate.policyDependencies ?? [])],
 		description:
 			"Delegate an ordered UX checklist to a verification subagent. Returns observations and saved screenshot paths, not a final report. Supply the app/environment, steps, and expected outcomes. After collecting findings from one or more workers, publish their screenshots with publish_artifacts when available, then call report_ux_verification in the main conversation. Never invent evidence or mark blocked checks as passed.",
 		inputSchema: zodToJsonSchema(UxVerifierInputSchema),

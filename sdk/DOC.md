@@ -140,6 +140,11 @@ an ordered checklist (`id`, `steps`, `expected`) plus a `task` describing the ap
 and environment through the host's existing `spawn_agent` executor. Calls run
 sequentially because workers can share a browser. Disabling `spawn_agent` also
 disables this specialization; `ux_verifier` can be disabled independently.
+The shared agent runtime also requires approval for the verifier whenever the
+effective spawn-executor policy requires it, even if the verifier's own policy
+permits auto-approval.
+A stricter verifier policy still applies, with one approval request before
+delegation rather than a second approval inside the worker tool.
 
 The worker returns observations and absolute screenshot paths to the main agent.
 It does not edit the app, upload evidence, or produce the final carousel. The

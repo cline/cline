@@ -990,6 +990,7 @@ export interface HubClientToolExecutorContribution
 
 export interface HubClientToolContribution extends HubClientContributionBase {
 	successContext?: string;
+	policyDependencies?: readonly string[];
 	kind: "tool";
 	name: string;
 	description: string;

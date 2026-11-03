@@ -1340,6 +1340,12 @@ registered when tools and spawning are enabled. It shares child configuration,
 hooks, cancellation, telemetry and lifecycle observers with generic delegation;
 it does not introduce another child runtime. Spawn-tool opt-outs also disable the
 specialization. It runs sequentially to avoid racing a shared browser.
+The verifier declares its spawn executor and its upstream policy dependencies.
+The shared agent runtime combines their approval and disable restrictions with
+the verifier's outer tool policy. A stricter verifier policy is preserved,
+and the normal approval callback runs once before the spawn executor is reached.
+Hub client-tool contributions preserve policy dependencies when proxying tools
+through the daemon; malformed dependency metadata rejects the contribution.
 
 Workers return observations and local screenshot paths. The main agent owns
 fixes, retries, evidence publication and assembling the opt-in

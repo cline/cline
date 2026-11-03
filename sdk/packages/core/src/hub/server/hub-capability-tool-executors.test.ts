@@ -27,6 +27,7 @@ describe("hub capability custom tools", () => {
 						inputSchema: { type: "object" },
 						capabilityName: "custom_tool.custom_tool",
 						successContext,
+						policyDependencies: ["delegate_tool"],
 					},
 				]),
 			),
@@ -38,9 +39,27 @@ describe("hub capability custom tools", () => {
 			requestCapability: vi.fn(async () => ({ result: "done" })),
 		});
 		expect(runtime.localRuntime.extraTools).toHaveLength(1);
+		expect(runtime.localRuntime.extraTools?.[0]?.policyDependencies).toEqual([
+			"delegate_tool",
+		]);
 		expect(runtime.localRuntime.extraTools?.[0]?.successContext).toBe(
 			typeof successContext === "string" ? successContext : undefined,
 		);
+	});
+
+	it("rejects malformed policy dependencies instead of dropping restrictions", () => {
+		expect(
+			parseHubClientContributions([
+				{
+					kind: "tool",
+					name: "wrapper",
+					description: "Wrapper",
+					inputSchema: { type: "object" },
+					capabilityName: "custom_tool.wrapper",
+					policyDependencies: ["delegate_tool", 42],
+				},
+			]),
+		).toEqual([]);
 	});
 
 	it("proxies custom tool execution to the owning client", async () => {

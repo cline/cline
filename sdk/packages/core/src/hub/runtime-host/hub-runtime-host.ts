@@ -290,6 +290,7 @@ function buildClientContributionRegistration(
 				description: tool.description,
 				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
 				successContext: tool.successContext,
+				policyDependencies: tool.policyDependencies,
 				...(tool.lifecycle
 					? {
 							lifecycle: toJsonRecord(
