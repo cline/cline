@@ -1353,6 +1353,10 @@ Every event emitted by `SessionRuntime` carries its agent, conversation, and
 parent-agent identity, including locally adapted runtime events and completion.
 Consumers filter worker events by ancestry rather than inferring delegation from
 tool names or suppressing concurrent parent events.
+The Hub projector includes that identity on agent and hook events, and
+`HubRuntimeHost` restores it when reconstructing Core events. Worker completion
+does not consume the parent's completion marker or suppress the parent's final
+event when its turn ends.
 
 Workers return observations and local screenshot paths. The main agent owns
 fixes, retries, evidence publication and assembling the opt-in
