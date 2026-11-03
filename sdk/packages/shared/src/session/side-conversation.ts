@@ -3,7 +3,6 @@ import { formatFileContentBlock } from "../prompt/format";
 
 const TextFileSchema = z.object({ path: z.string(), content: z.string() });
 
-// Preserve the stored marker used by existing conversation transcripts.
 export const SIDE_REFERENCE_KIND = "desktop_side_reference";
 
 export const SIDE_REFERENCE_BUDGET_BYTES = 16 * 1024;
