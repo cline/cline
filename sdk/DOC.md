@@ -31,8 +31,7 @@ there is no continuous synchronization.
 bound when the tool is created. Results include saved-history limitations and
 separately read parent status. Stale read references are rejected. Neither
 history reads nor the starting reference replay parent tool calls or copy
-parent usage into the side conversation. The existing stored reference marker
-is preserved for transcript compatibility.
+parent usage into the side conversation.
 
 Text attachments and tool failure status remain available in references;
 binary media, provider reasoning, and parent cache handles are omitted.

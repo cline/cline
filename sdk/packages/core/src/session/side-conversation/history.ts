@@ -204,7 +204,10 @@ export function createSideHistoryTool({
 				omittedMatches: found.length,
 			};
 			for (const entry of found.slice(0, request.limit)) {
-				const bytes = Buffer.from(entry.text.slice(entry.offset), "utf8");
+				const bytes = Buffer.from(
+					entry.text.slice(entry.offset, entry.offset + 512),
+					"utf8",
+				);
 				let end = Math.min(512, bytes.length);
 				while (end > 0 && end < bytes.length && (bytes[end] & 0xc0) === 0x80)
 					end--;
