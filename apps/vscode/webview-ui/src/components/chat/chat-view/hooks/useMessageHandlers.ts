@@ -449,7 +449,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
-			currentCloudTask?.sessionId,
 		],
 	)
 

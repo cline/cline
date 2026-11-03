@@ -125,6 +125,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		isSignedIn: () => true,
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
+		getTurnPhase: () => "idle",
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => undefined),

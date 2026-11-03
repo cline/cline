@@ -1445,10 +1445,7 @@ export class SdkCloudSessionCoordinator {
 						entry.record = checkedRecord
 						let live: Awaited<ReturnType<CloudSessionsService["getStatus"]>>
 						try {
-							live = await this.options.cloudSessions.getStatus(
-								task.taskId,
-								AbortSignal.any([signal, this.scopeAbort.signal]),
-							)
+							live = await this.options.cloudSessions.getStatus(task.taskId, signal)
 						} catch (error) {
 							assertCurrent()
 							if (entry.record === checkedRecord && error instanceof CloudSessionError) {
