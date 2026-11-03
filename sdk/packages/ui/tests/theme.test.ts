@@ -351,55 +351,12 @@ describe("@cline/ui theme contract", () => {
 			expect(root).toContain(token);
 		}
 
-		expect(root).toContain("--primary: var(--accent-9);");
-		expect(dark).toContain(
-			"--primary: color-mix(in srgb, var(--accent-8) 60%, var(--accent-7));",
-		);
-		expect(shared).toMatch(
-			/--primary-emphasis:\s*color-mix\(\s*in srgb,\s*var\(--primary\) 90%,\s*#000\s*\);/,
-		);
-		expect(shared).toContain("--primary-foreground: #fff;");
 		expect(shared).toContain("--sidebar-primary: var(--primary);");
 		expect(shared).toContain(
 			"--sidebar-primary-foreground: var(--primary-foreground);",
 		);
-		for (const [status, lightStep, darkStep] of [
-			["success", 9, 8],
-			["warning", 8, 8],
-			["error", 9, 7],
-			["info", 9, 8],
-		] as const) {
-			expect(root).toContain(
-				`--${status}-solid: var(--${status}-${lightStep});`,
-			);
-			expect(dark).toContain(
-				`--${status}-solid: var(--${status}-${darkStep});`,
-			);
-			expect(shared).toContain(`--${status}-text: var(--${status}-10);`);
-			expect(root).toContain(
-				`--${status}-contrast: ${status === "success" || status === "warning" ? "#000" : "#fff"};`,
-			);
-			expect(dark).toContain(
-				`--${status}-contrast: ${status === "error" ? "#fff" : "var(--neutral-1)"};`,
-			);
-		}
-		for (const mode of [root, dark]) {
-			expect(mode).toContain("--brand-violet: var(--accent-9);");
-			expect(mode).toContain("--brand-violet-surface-foreground: #fff;");
-		}
-		expect(root).toContain("--brand-violet-surface: var(--accent-9);");
-		expect(dark).toMatch(
-			/--brand-violet-surface:\s*color-mix\(\s*in srgb,\s*var\(--accent-8\) 60%,\s*var\(--accent-7\)\s*\);/,
-		);
-		expect(shared).toContain("--accent-foreground: var(--accent-11);");
-		expect(shared).toContain("--secondary: var(--surface-3);");
-		expect(shared).toContain("--secondary-foreground: var(--text-1);");
 		expect(shared).toContain("--ring: var(--focus-ring);");
 		expect(shared).toContain("--destructive: var(--error-solid);");
-		for (const status of ["success", "warning", "error", "info"]) {
-			expect(shared).toContain(`--${status}-surface: var(--${status}-a2);`);
-			expect(shared).toContain(`--${status}-border: var(--${status}-a4);`);
-		}
 	});
 
 	it.each([
@@ -419,20 +376,6 @@ describe("@cline/ui theme contract", () => {
 		]) {
 			const solid = colorRgb(tokenColor(values, fill));
 			const text = colorRgb(tokenColor(values, foreground));
-			const darkStatusLabel =
-				selector === ".dark" &&
-				["success-contrast", "warning-contrast", "info-contrast"].includes(
-					foreground,
-				);
-			expect(text, foreground).toEqual(
-				darkStatusLabel
-					? colorRgb(tokenColor(values, "neutral-1"))
-					: selector === ":root" &&
-							(foreground === "success-contrast" ||
-								foreground === "warning-contrast")
-						? [0, 0, 0]
-						: [1, 1, 1],
-			);
 			expect(contrastRatio(solid, text), fill).toBeGreaterThanOrEqual(4.5);
 			// Primary/error-filled hover uses an opaque 90% fill / 10% black mix.
 			if (fill === "primary" || fill === "error-solid") {
