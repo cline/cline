@@ -52,6 +52,7 @@ import {
 	isClineFreePromotionEndedMessage,
 	MODEL_NOT_FOUND_GUIDANCE,
 } from "../services/error/ClineError"
+import { rememberMessageClock } from "./message-clock"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
 import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
@@ -156,6 +157,8 @@ export class MessageTranslatorState {
 	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
 	 */
 	private readonly minter: MessageIdMinter
+	/** Wall clock to attribute minted ids to while a persisted session is replayed; see setSourceClock. */
+	private sourceClock: number | undefined
 
 	constructor(
 		minter: MessageIdMinter = new MessageIdMinter(),
@@ -202,7 +205,21 @@ export class MessageTranslatorState {
 
 	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
 	nextTs(): number {
-		return this.minter.nextId()
+		const ts = this.minter.nextId()
+		// The id is not a time, so record the time it stands for: the transcript's clock while a
+		// persisted session is being replayed, the wall clock otherwise. See message-clock.ts.
+		rememberMessageClock(ts, this.sourceClock ?? Date.now())
+		return ts
+	}
+
+	/**
+	 * Attribute ids minted from now on to `clock` instead of to the moment they are minted.
+	 *
+	 * Set per transcript entry by {@link sdkMessagesToClineMessages}: a replayed session knows when
+	 * its messages happened, and minting them now would otherwise date the whole history to now.
+	 */
+	setSourceClock(clock: number | undefined): void {
+		this.sourceClock = clock
 	}
 
 	/** Mint and remember the ts of an in-flight compaction divider. */
@@ -2380,6 +2397,19 @@ export interface SdkMessagesToClineMessagesOptions {
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
+/**
+ * The entry's own wall clock, if it carries one.
+ *
+ * Persisted transcripts store epoch milliseconds; anything smaller is not a clock (a counter, a
+ * legacy placeholder) and must not be passed on, because the fallback for a missing clock is the
+ * moment the id is minted — which is right for live rows and wrong for history.
+ */
+function transcriptClock(value: unknown): number | undefined {
+	const ms = typeof value === "number" ? value : Number(value)
+	// 1e11 ms is 1973; real transcripts are ~1.7e12 today.
+	return Number.isFinite(ms) && (ms as number) > 1e11 ? (ms as number) : undefined
+}
+
 export function sdkMessagesToClineMessages(
 	messages: SdkMessageWithMetrics[],
 	minter?: MessageIdMinter,
@@ -2436,6 +2466,9 @@ export function sdkMessagesToClineMessages(
 
 	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
 		const sourceMessage = messages[sourceIndex]
+		// Every id minted while this entry is translated happened when the entry happened. Without
+		// this a replayed session would be dated to the moment it was opened. See message-clock.ts.
+		state.setSourceClock(transcriptClock(sourceMessage.ts))
 		if (resolveMessageDisplayRole(message) === "error") {
 			flushUnmatchedToolUses()
 			const text = typeof message.content === "string" ? message.content : textContentBlocksToText(message.content)

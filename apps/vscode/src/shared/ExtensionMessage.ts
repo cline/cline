@@ -194,6 +194,16 @@ export interface QueuedPrompt {
 
 export interface ClineMessage {
 	ts: number
+	/**
+	 * The row's real wall clock in epoch milliseconds.
+	 *
+	 * `ts` is **not** a time: `MessageIdMinter` mints it as a monotonic identity counter, so the
+	 * newest row of a freshly resumed session can carry `ts` 145. Anything that shows or measures
+	 * *when* something happened has to read this field instead — the extension fills it from the
+	 * transcript for restored rows and from the moment the id was minted for live ones.
+	 * Undefined when no clock could be determined (older hosts, optimistic rows).
+	 */
+	createdAt?: number
 	type: "ask" | "say"
 	ask?: ClineAsk
 	say?: ClineSay

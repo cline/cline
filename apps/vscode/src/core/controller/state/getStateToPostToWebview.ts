@@ -6,9 +6,10 @@
 
 import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
-import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
+import type { ClineMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
+import { messageClock } from "@/sdk/message-clock"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -83,7 +84,16 @@ export async function getStateToPostToWebview(controller: {
 	const currentTaskItem = controller.task?.taskId
 		? (taskHistory || []).find((item: any) => item.id === controller.task?.taskId)
 		: undefined
-	const clineMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
+	// `ts` is an identity counter, not a time (see sdk/message-clock.ts), so the webview gets the
+	// wall clock separately: the transcript's for restored rows, the mint moment for live ones.
+	// Rows the clock never saw — classic-path messages, optimistic bubbles — keep it undefined.
+	const clineMessages = (controller.task?.messageStateHandler?.getClineMessages?.() || []).map((message: ClineMessage) => {
+		if (message.createdAt !== undefined) {
+			return message
+		}
+		const createdAt = messageClock(message.ts)
+		return createdAt === undefined ? message : { ...message, createdAt }
+	})
 	const checkpointRestoreInput = controller.checkpointRestoreInput
 
 	const processedTaskHistory = (taskHistory || [])
