@@ -138,7 +138,9 @@
 		"components/section-heading.css",
 		"components/section-heading.tsx",
 		"components/segmented-control.css",
-		"components/segmented-control.tsx"
+		"components/segmented-control.tsx",
+		"components/tooltip.css",
+		"components/tooltip.tsx"
 	],
 	"sideEffects": [
 		"./components.css",
@@ -245,6 +247,7 @@
 		"embla-carousel-react": "^8.6.0",
 		"@radix-ui/react-alert-dialog": "1.1.15",
 		"@radix-ui/react-dialog": "1.1.15",
-		"@radix-ui/react-toggle-group": "1.1.11"
+		"@radix-ui/react-toggle-group": "1.1.11",
+		"@radix-ui/react-tooltip": "1.2.8"
 	}
 }

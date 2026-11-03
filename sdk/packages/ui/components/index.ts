@@ -187,3 +187,5 @@ export {
 	type SessionStatusTone,
 } from "./session-status.js";
 export { Switch, type SwitchProps } from "./switch.js";
+
+export { Tooltip, type TooltipProps } from "./tooltip.js";
