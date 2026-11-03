@@ -55,6 +55,7 @@ import {
 	writeModelsFile,
 } from "./local-provider-registry";
 import {
+	enrichOllamaModelCapabilities,
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
@@ -635,7 +636,12 @@ async function addLocalProviderUnlocked(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: buildProviderModels(modelIds),
+		models: await enrichOllamaModelCapabilities(
+			buildProviderModels(modelIds),
+			providerId,
+			sourceUrl,
+			{ baseUrl, apiKey, headers: normalizedHeaders },
+		),
 		discoveredModelIds: modelIds.filter((id) => !typedModels.includes(id)),
 	};
 	await writeModelsFile(modelsPath, modelsState);
@@ -872,7 +878,19 @@ async function prepareProviderUpdate(
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
-		models: buildProviderModels(modelIds, existingEntry.models),
+		models: await enrichOllamaModelCapabilities(
+			buildProviderModels(modelIds, existingEntry.models),
+			providerId,
+			nextModelsSourceUrl,
+			{
+				baseUrl,
+				apiKey:
+					typeof nextSettings.apiKey === "string"
+						? nextSettings.apiKey
+						: undefined,
+				headers: nextSettings.headers as Record<string, string> | undefined,
+			},
+		),
 		discoveredModelIds: nextModelsSourceUrl
 			? shouldRecomputeModels
 				? modelIds.filter((id) => !explicitModels.includes(id))
