@@ -281,7 +281,9 @@ export class McpManagementService {
 			const { shouldProbe } = await updateMcpSettingsFile(path, (settings) => {
 				const servers = (settings.mcpServers ?? {}) as JsonRecord;
 				const existingName =
-					previousName && servers[previousName] ? previousName : name;
+					previousName !== undefined && Object.hasOwn(servers, previousName)
+						? previousName
+						: name;
 				const existing = servers[existingName] as JsonRecord | undefined;
 				let existingTransport: { type: string; url?: string } | undefined;
 				if (existing) {
@@ -354,7 +356,8 @@ export class McpManagementService {
 				}
 				// Preserve settings not exposed by the editor, including the request timeout.
 				if (existing?.timeout !== undefined) record.timeout = existing.timeout;
-				if (previousName && previousName !== name) delete servers[previousName];
+				if (previousName !== undefined && previousName !== name)
+					delete servers[previousName];
 				servers[name] = record;
 				settings.mcpServers = servers;
 				return { shouldProbe };

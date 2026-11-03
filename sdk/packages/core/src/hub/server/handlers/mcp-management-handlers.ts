@@ -12,12 +12,12 @@ const name = z
 		(value) => !["__proto__", "prototype", "constructor"].includes(value),
 		"Invalid server name",
 	);
-// Deletion addresses a stored JSON key, including malformed or reserved names.
+// Existing entries are addressed by their exact stored JSON key.
 const storedKey = z.string();
 const strings = z.record(z.string(), z.string());
 const common = {
 	name,
-	previousName: name.optional(),
+	previousName: storedKey.optional(),
 	disabled: z.boolean().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 };

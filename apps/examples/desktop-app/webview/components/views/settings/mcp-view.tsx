@@ -79,7 +79,7 @@ const TRANSPORT_TYPE_LABELS: Record<McpTransportType, string> = {
 
 type McpServerFormState = {
 	name: string;
-	previousName: string;
+	previousName: string | undefined;
 	transportType: McpTransportType;
 	command: string;
 	argsText: string;
@@ -155,7 +155,7 @@ function createEnvEntries(
 function createServerFormState(existing?: McpServer): McpServerFormState {
 	return {
 		name: existing?.name ?? "",
-		previousName: existing?.name ?? "",
+		previousName: existing?.name,
 		transportType: existing?.transportType ?? "stdio",
 		command: existing?.command ?? "",
 		argsText: existing?.args?.join(", ") ?? "",
@@ -387,7 +387,7 @@ export function McpServersContent({
 			const args = splitCsv(form.argsText);
 			return {
 				name,
-				previousName: form.previousName.trim() || undefined,
+				previousName: form.previousName,
 				transportType: form.transportType,
 				command,
 				args: args.length > 0 ? args : undefined,
@@ -403,7 +403,7 @@ export function McpServersContent({
 		}
 		return {
 			name,
-			previousName: form.previousName.trim() || undefined,
+			previousName: form.previousName,
 			transportType: form.transportType,
 			url,
 			headers: parseKeyValuePairs(form.headersText),
