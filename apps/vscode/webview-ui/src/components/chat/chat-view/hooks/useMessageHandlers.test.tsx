@@ -326,150 +326,90 @@ describe("useMessageHandlers — send routing", () => {
 		})
 	})
 
-	it("restores pending follow-up UI state when askResponse fails", async () => {
-		mockTurnState = { phase: "completed", seq: 7 }
-		const error = new Error("transport down")
-		const setInputValue = vi.fn()
-		const setActiveQuote = vi.fn()
-		const setSendingDisabled = vi.fn()
-		const setSelectedImages = vi.fn()
-		const setSelectedFiles = vi.fn()
-		const setEnableButtons = vi.fn()
-		const setPendingUserMessage = vi.fn()
-		const setPendingResponse = vi.fn()
-		const chatState = makeChatState(completedConversation, {
-			activeQuote: "selected context",
-			sendingDisabled: false,
-			enableButtons: true,
-			setInputValue,
-			setActiveQuote,
-			setSendingDisabled,
-			setSelectedImages,
-			setSelectedFiles,
-			setEnableButtons,
-			setPendingUserMessage,
-			setPendingResponse,
-		})
-		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
-		askResponse.mockRejectedValueOnce(error)
-
-		let caught: unknown
-		await act(async () => {
-			try {
-				await result.current.handleSendMessage("another question", ["image.png"], ["a.ts"])
-			} catch (err) {
-				caught = err
-			}
-		})
-
-		expect(caught).toBe(error)
-		expect(setInputValue).toHaveBeenNthCalledWith(1, "")
-		expect(setInputValue).toHaveBeenLastCalledWith("another question")
-		expect(setActiveQuote).toHaveBeenNthCalledWith(1, null)
-		expect(setActiveQuote).toHaveBeenLastCalledWith("selected context")
-		expect(setSendingDisabled).toHaveBeenNthCalledWith(1, true)
-		expect(setSendingDisabled).toHaveBeenLastCalledWith(false)
-		expect(setSelectedImages).toHaveBeenNthCalledWith(1, [])
-		expect(setSelectedImages).toHaveBeenLastCalledWith(["image.png"])
-		expect(setSelectedFiles).toHaveBeenNthCalledWith(1, [])
-		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
-		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
-		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
-		expect(setPendingUserMessage).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({
-				afterTs: 2,
-				message: expect.objectContaining({
-					type: "say",
-					say: "user_feedback",
-					text: expect.stringContaining("another question"),
-				}),
-			}),
-		)
-		const optimisticMessage = setPendingUserMessage.mock.calls[0][0]
-		const rollbackMessage = setPendingUserMessage.mock.calls.at(-1)?.[0]
-		expect(rollbackMessage(optimisticMessage)).toBeUndefined()
-		const newerMessage = { afterTs: 3, message: { ...optimisticMessage.message, ts: 4 } }
-		expect(rollbackMessage(newerMessage)).toBe(newerMessage)
-		const pendingResponse = setPendingResponse.mock.calls[0][0]
-		const rollbackResponse = setPendingResponse.mock.calls.at(-1)?.[0]
-		expect(rollbackResponse(pendingResponse)).toBeUndefined()
-		const newerResponse = { ...pendingResponse, id: 2 }
-		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
-	})
-
 	it.each([
-		["followup", "edit"],
-		["newTask", "edit"],
-		["followup", "clear"],
-		["followup", "unchanged"],
-		["newTask", "unchanged"],
-		["followup", "navigate"],
-		["followup", "return"],
-	] as const)("preserves the current draft after a failed %s with %s", async (request, action) => {
-		const starting = request === "newTask"
-		mockTurnState = { phase: starting ? "idle" : "completed", seq: 7 }
-		mockCurrentCloudTask = starting ? undefined : { sessionId: "ses-current", status: "idle" }
-		const messages = starting ? [] : completedConversation
-		const pendingRequest = Promise.withResolvers<void>()
-		const rpc = starting ? newTask : askResponse
-		rpc.mockReturnValueOnce(pendingRequest.promise)
-		const { result, rerender } = renderHook(
-			({ messages }: { messages: ClineMessage[] }) => {
-				const chatState = useChatState(messages)
-				return { chatState, handlers: useMessageHandlers(messages, chatState) }
-			},
-			{ initialProps: { messages } },
-		)
-		const files = starting ? ["old.ts"] : []
+		"unchanged",
+		"edit",
+		"clear",
+		"return",
+	] as const)("restores or preserves the real follow-up draft after failure: %s", async (change) => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		mockCurrentCloudTask = change === "return" ? { sessionId: "ses-current", status: "idle" } : undefined
+		const pendingAsk = Promise.withResolvers<void>()
+		askResponse.mockReturnValueOnce(pendingAsk.promise)
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
 		act(() => {
-			result.current.chatState.setInputValue("submitted draft")
-			result.current.chatState.setActiveQuote("old quote")
-			result.current.chatState.setSelectedImages(["old.png"])
-			result.current.chatState.setSelectedFiles(files)
+			result.current.chatState.setInputValue("another question")
+			result.current.chatState.setActiveQuote("selected context")
+			result.current.chatState.setSelectedImages(["image.png"])
+			result.current.chatState.setSelectedFiles(["a.ts"])
 			result.current.chatState.setEnableButtons(true)
 		})
-		let pending: Promise<void> = Promise.resolve()
+
+		let sendPromise: Promise<void> = Promise.resolve()
 		await act(async () => {
-			pending = result.current.handlers.handleSendMessage("submitted draft", ["old.png"], files)
+			sendPromise = result.current.handlers.handleSendMessage("another question", ["image.png"], ["a.ts"])
 			await Promise.resolve()
 		})
-		expect(rpc).toHaveBeenCalledOnce()
-		if (action === "edit" || action === "clear")
+		expect(result.current.chatState.getDraftSnapshot()).toMatchObject({
+			text: "",
+			activeQuote: null,
+			images: [],
+			files: [],
+		})
+		expect(result.current.chatState.pendingUserMessage).toMatchObject({
+			afterTs: 2,
+			message: expect.objectContaining({
+				say: "user_feedback",
+				text: expect.stringContaining("another question"),
+				images: ["image.png"],
+				files: ["a.ts"],
+				partial: false,
+			}),
+		})
+		expect(result.current.chatState.sendingDisabled).toBe(true)
+		expect(result.current.chatState.enableButtons).toBe(false)
+		expect(result.current.chatState.pendingResponse).toEqual({
+			id: 1,
+			turnStateSeq: 7,
+			messageCount: completedConversation.length,
+		})
+		if (change === "edit") {
 			act(() => {
 				result.current.chatState.setInputValue("newer draft")
-				result.current.chatState.setActiveQuote("new quote")
-				result.current.chatState.setSelectedImages(["new.png"])
-				result.current.chatState.setSelectedFiles(starting ? ["new.ts"] : [])
-				if (action === "clear") result.current.chatState.resetState()
+				result.current.chatState.setActiveQuote("newer quote")
+				result.current.chatState.setSelectedImages(["newer.png"])
+				result.current.chatState.setSelectedFiles(["newer.ts"])
 			})
-		const navigated = action === "navigate" || action === "return"
-		if (navigated) {
-			const revision = result.current.chatState.getDraftSnapshot().revision
+		} else if (change === "clear") {
+			act(() => result.current.chatState.resetState())
+		} else if (change === "return") {
 			mockCurrentCloudTask = { sessionId: "ses-other", status: "idle" }
-			rerender({ messages })
-			if (action === "return") {
-				mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
-				rerender({ messages })
-			}
-			expect(result.current.chatState.getDraftSnapshot().revision).toBe(revision)
+			rerender()
+			mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
+			rerender()
 		}
-		const edited = result.current.chatState.getDraftSnapshot()
+		const currentDraft = result.current.chatState.getDraftSnapshot()
+
 		await act(async () => {
-			pendingRequest.reject(new Error("preparation failed"))
-			await expect(pending).rejects.toThrow("preparation failed")
+			pendingAsk.reject(new Error("preparation failed"))
+			await expect(sendPromise).rejects.toThrow("preparation failed")
 		})
-		if (action === "unchanged") {
+		if (change === "unchanged") {
 			expect(result.current.chatState.getDraftSnapshot()).toMatchObject({
-				text: "submitted draft",
-				activeQuote: "old quote",
-				images: ["old.png"],
-				files,
+				text: "another question",
+				activeQuote: "selected context",
+				images: ["image.png"],
+				files: ["a.ts"],
 			})
 		} else {
-			expect(result.current.chatState.getDraftSnapshot()).toEqual(edited)
+			expect(result.current.chatState.getDraftSnapshot()).toEqual(currentDraft)
 		}
-		if (!navigated) {
+		expect(result.current.chatState.pendingUserMessage).toBeUndefined()
+		expect(result.current.chatState.pendingResponse).toBeUndefined()
+		if (change !== "return") {
 			expect(result.current.chatState.sendingDisabled).toBe(false)
 			expect(result.current.chatState.enableButtons).toBe(true)
 		}
@@ -494,7 +434,7 @@ describe("useMessageHandlers — send routing", () => {
 			await Promise.resolve()
 		})
 		act(() => {
-			mockTurnState = { phase: "streaming", seq: 8 }
+			mockTurnState = { phase: "completed", seq: 8 }
 			result.current.chatState.setInputValue("second")
 			rerender()
 		})
@@ -503,6 +443,12 @@ describe("useMessageHandlers — send routing", () => {
 			second = result.current.handlers.handleSendMessage("second", [], [])
 			await Promise.resolve()
 		})
+		const secondPendingUserMessage = result.current.chatState.pendingUserMessage
+		const secondPendingResponse = result.current.chatState.pendingResponse
+		expect(secondPendingUserMessage).toMatchObject({
+			message: expect.objectContaining({ say: "user_feedback", text: "second" }),
+		})
+		expect(secondPendingResponse).toMatchObject({ id: 2, turnStateSeq: 8 })
 		await act(async () => {
 			firstRequest.reject(new Error("first failed"))
 			await expect(first).rejects.toThrow("first failed")
@@ -510,6 +456,8 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.inputValue).toBe("")
 		expect(result.current.chatState.sendingDisabled).toBe(true)
 		expect(result.current.chatState.enableButtons).toBe(false)
+		expect(result.current.chatState.pendingUserMessage).toBe(secondPendingUserMessage)
+		expect(result.current.chatState.pendingResponse).toBe(secondPendingResponse)
 		await act(async () => {
 			secondRequest.resolve()
 			await second
@@ -1018,15 +966,10 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).toHaveBeenCalledWith(expect.objectContaining({ action: "new_task_clicked", source: "navbar" }))
 	})
 
-	it("keeps a draft typed while a new task's RPC is still pending", async () => {
+	it.each(["succeeds", "fails"] as const)("keeps a draft typed while a new task's RPC %s", async (outcome) => {
 		mockTurnState = { phase: "idle", seq: 1 }
-		let resolveNewTask: () => void = () => {}
-		newTask.mockImplementationOnce(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveNewTask = resolve
-				}),
-		)
+		const pendingNewTask = Promise.withResolvers<void>()
+		newTask.mockReturnValueOnce(pendingNewTask.promise)
 		const { result } = renderHook(() => {
 			const chatState = useChatState([])
 			return { chatState, handlers: useMessageHandlers([], chatState) }
@@ -1040,13 +983,28 @@ describe("useMessageHandlers — send routing", () => {
 		})
 		expect(result.current.chatState.inputValue).toBe("")
 		// The composer disables submit while the task provisions, so the draft stays in the input.
-		act(() => result.current.chatState.setInputValue("follow up"))
+		act(() => {
+			result.current.chatState.setInputValue("follow up")
+			result.current.chatState.setActiveQuote("follow-up quote")
+			result.current.chatState.setSelectedImages(["follow-up.png"])
+			result.current.chatState.setSelectedFiles(["follow-up.ts"])
+		})
 
 		await act(async () => {
-			resolveNewTask()
-			await sendPromise
+			if (outcome === "succeeds") {
+				pendingNewTask.resolve()
+				await sendPromise
+			} else {
+				pendingNewTask.reject(new Error("start failed"))
+				await expect(sendPromise).rejects.toThrow("start failed")
+			}
 		})
-		expect(result.current.chatState.inputValue).toBe("follow up")
+		expect(result.current.chatState.getDraftSnapshot()).toMatchObject({
+			text: "follow up",
+			activeQuote: "follow-up quote",
+			images: ["follow-up.png"],
+			files: ["follow-up.ts"],
+		})
 	})
 
 	it("preserves edits made while a recovery response succeeds", async () => {
