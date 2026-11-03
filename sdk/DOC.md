@@ -152,9 +152,10 @@ could not be reconciled. It remains a `CloudSessionError` with code `request_fai
 hosts should direct users to their session list instead of offering a blind retry.
 
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
-to open a session, and `send` for a follow-up. Attaching a provisioning or failed
-session returns its receipt without connecting. `detach` closes this viewer, not
-the remote task. Call `dispose` when the host shuts down.
+to open a session, and `send` for a follow-up. Attaching a failed session, or a
+provisioning session without a resolved live task, returns its receipt without
+connecting. `detach` closes this viewer, not the remote task. Call `dispose` when
+the host shuts down.
 Use `readArchivedMessages` to fetch a snapshot without attaching or changing
 canonical session state. It returns `null` when no snapshot exists.
 The optional sixth argument to `send` accepts a `beforeDispatch` callback.
