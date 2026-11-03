@@ -604,6 +604,7 @@ function ChatMessagesImpl({
 													}
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
+													reportedArtifacts={child.reportedArtifacts}
 													onExpandImage={handleExpandImage}
 													onProceedWhileRunning={onProceedWhileRunning}
 												/>

@@ -12,5 +12,6 @@
 @import "./components/session-status.css";
 @import "./components/switch.css";
 @import "./components/message-scroller.css";
+@import "./components/agent-ux-verification.css";
 
 @source "./components";

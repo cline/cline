@@ -87,6 +87,7 @@ import {
 	handleSessionMcpAppsReadResource,
 	handleSessionMcpAppsResolveTool,
 } from "./handlers/mcp-apps-handlers";
+import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
@@ -302,6 +303,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
+	private readonly pendingProviderMutations = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
 
@@ -765,7 +767,10 @@ export class HubServerTransport implements NativeHubTransport {
 
 	async stop(): Promise<void> {
 		this.draining = true;
-		await Promise.allSettled(this.pendingPluginCommands);
+		await Promise.allSettled([
+			...this.pendingPluginCommands,
+			...this.pendingProviderMutations,
+		]);
 		this.unsubscribePluginStatus?.();
 		this.unsubscribePluginStatus = undefined;
 		if (this.eventLogPruneTimer) {
@@ -817,6 +822,25 @@ export class HubServerTransport implements NativeHubTransport {
 					"client_not_registered",
 					"Register before accessing cloud sessions",
 				);
+			if (authority === null && envelope.command.startsWith("providers.")) {
+				return errorReply(
+					envelope,
+					"client_not_registered",
+					"Register before accessing provider settings",
+				);
+			}
+			if (
+				envelope.command.startsWith("providers.") &&
+				authority !== undefined &&
+				authority?.tokenAuthenticated !== true
+			) {
+				return errorReply(
+					envelope,
+					"authentication_required",
+					"Provider management requires a token-authenticated Hub connection",
+				);
+			}
+
 			const clientId = envelope.clientId?.trim();
 			// Omitted authority is reserved for trusted in-process callers. A remote
 			// transport passes null until registration so caller-controlled envelope
@@ -911,6 +935,21 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 		}
 		switch (envelope.command) {
+			case "providers.list":
+			case "providers.models.list":
+			case "providers.models.recommended":
+				return await handleProviderCommand(envelope);
+			case "providers.settings.save":
+			case "providers.add":
+			case "providers.models.update": {
+				const request = handleProviderCommand(envelope);
+				this.pendingProviderMutations.add(request);
+				try {
+					return await request;
+				} finally {
+					this.pendingProviderMutations.delete(request);
+				}
+			}
 			case "client.register": {
 				const reply = handleClientRegister(this.ctx, envelope);
 				this.tasks.notifyAutomationReadinessChanged();
@@ -969,6 +1008,7 @@ export class HubServerTransport implements NativeHubTransport {
 					payload: {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
+						activeProviderMutations: this.pendingProviderMutations.size,
 						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
@@ -1314,6 +1354,7 @@ export class HubServerTransport implements NativeHubTransport {
 			activeRpcTurns,
 			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
+			activeProviderMutations: this.pendingProviderMutations.size,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
@@ -1323,6 +1364,7 @@ export class HubServerTransport implements NativeHubTransport {
 				activeRpcTurns === 0 &&
 				this.cloud.activeCommands === 0 &&
 				this.pendingPluginCommands.size === 0 &&
+				this.pendingProviderMutations.size === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
