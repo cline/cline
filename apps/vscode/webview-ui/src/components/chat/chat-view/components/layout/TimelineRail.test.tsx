@@ -1,7 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { collectTimelineMarkers, groupIntoTurns } from "../../utils/turnTimeline"
+import { collectTimelineMarkers, formatShortClock, groupIntoTurns } from "../../utils/turnTimeline"
 import { TimelineRail } from "./TimelineRail"
 
 const DAY = 86_400_000
@@ -91,9 +91,12 @@ describe("TimelineRail", () => {
 	it("labels the rail around the reading position, one step per label", () => {
 		renderRail()
 
-		// current = 0: the position itself plus the markers a day and two days after it. The
-		// nine-second neighbour falls into `now` and is dropped rather than repeating it.
-		expect(screen.getAllByTestId("timeline-label").map((node) => node.textContent)).toEqual(["now", "+1d", "+2d"])
+		// current = 0: the reading position carries its own time, then the markers a day and two
+		// days after it. The nine-second neighbour repeats that time and is dropped.
+		const labels = screen.getAllByTestId("timeline-label").map((node) => node.textContent)
+		expect(labels[0]).toBe(formatShortClock(NOW - 2 * DAY))
+		expect(labels[0]).toMatch(/^\d{2}:\d{2}$/)
+		expect(labels.slice(1)).toEqual(["+1d", "+2d"])
 	})
 
 	it("moves the whole grid when the reading position moves", () => {
@@ -104,8 +107,11 @@ describe("TimelineRail", () => {
 		Object.defineProperty(scrollContainer, "scrollTop", { value: 500, configurable: true })
 		renderRail({ scrollContainerRef: { current: scrollContainer } })
 
-		// Same markers, now measured from the last one: everything above reads as earlier.
-		expect(screen.getAllByTestId("timeline-label").map((node) => node.textContent)).toEqual(["-2d", "-1d", "now"])
+		// Same markers, now measured from the last one: everything above reads as earlier, and the
+		// position itself is its own time.
+		const labels = screen.getAllByTestId("timeline-label").map((node) => node.textContent)
+		expect(labels.slice(0, 2)).toEqual(["-2d", "-1d"])
+		expect(labels[2]).toBe(formatShortClock(NOW - DAY + 7_000))
 	})
 
 	it("shows answer durations of a minute or more, rounded to minutes", () => {

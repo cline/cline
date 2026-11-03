@@ -319,12 +319,18 @@ export function timelineAnchorClock(markers: Array<Pick<TimelineMarker, "clock">
 	return undefined
 }
 
-/** The grid label for one marker: empty when either side has no clock to measure against. */
+/**
+ * The grid label for one marker: empty when either side has no clock to measure against.
+ *
+ * The reading position is labelled with its time instead of `now` — a row has no distance to
+ * itself, and the moment it happened is the informative answer exactly where the grid is anchored.
+ */
 export function markerStepLabel(marker: Pick<TimelineMarker, "clock"> | undefined, anchorClock: number | undefined): string {
 	if (!marker || !isPlausibleTimestamp(marker.clock) || !isPlausibleTimestamp(anchorClock)) {
 		return ""
 	}
-	return formatRelativeStep(marker.clock, anchorClock)
+	const step = formatRelativeStep(marker.clock, anchorClock)
+	return step === "now" ? formatShortClock(marker.clock) : step
 }
 
 /**
@@ -354,10 +360,13 @@ export function relativeLabelIndices(
 
 	const picked: number[] = []
 	let lastLabel: string | undefined
+	const anchorLabel = markerStepLabel(markers[reference], anchor)
 	for (let index = from; index <= to; index++) {
 		const label = markerStepLabel(markers[index], anchor)
-		// Rows without a clock are skipped, and only the anchor itself may read `now`.
-		if (!label || (index !== reference && (label === lastLabel || label === "now"))) {
+		// Rows without a clock are skipped, and a step that was just shown is not shown twice. The
+		// reading position wins over a neighbour that would repeat its time, so the time appears
+		// once and on the tick it belongs to.
+		if (!label || (index !== reference && (label === lastLabel || label === anchorLabel))) {
 			continue
 		}
 		picked.push(index)
@@ -367,8 +376,22 @@ export function relativeLabelIndices(
 }
 
 /**
+ * The shortest honest time: `14:32`, local, 24 hours.
+ *
+ * Built by hand rather than with `toLocaleTimeString`, because a chip on the rail has a few
+ * characters to spare and must not grow an `AM`/`PM` suffix depending on the host's locale.
+ */
+export function formatShortClock(ts: number): string {
+	if (!isPlausibleTimestamp(ts)) {
+		return ""
+	}
+	const date = new Date(ts)
+	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+}
+
+/**
  * When the row happened on the wall clock: `14:32` today, `3 Nov 14:32` earlier this year,
- * `3 Nov 2025 14:32` before that. The grid says how far; this says *when*.
+ * `03 Nov 2025 14:32` before that. The grid says how far; this says *when*.
  */
 export function formatClockTime(ts: number, now: number = Date.now()): string {
 	if (!isPlausibleTimestamp(ts)) {
@@ -376,7 +399,7 @@ export function formatClockTime(ts: number, now: number = Date.now()): string {
 	}
 	const date = new Date(ts)
 	const reference = new Date(now)
-	const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+	const time = formatShortClock(ts)
 	if (date.toDateString() === reference.toDateString()) {
 		return time
 	}

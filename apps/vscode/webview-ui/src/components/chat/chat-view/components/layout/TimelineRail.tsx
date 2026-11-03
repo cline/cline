@@ -154,6 +154,9 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 		return `${Math.min(Math.max(ratio * 100, EDGE_INSET_PERCENT), 100 - EDGE_INSET_PERCENT)}%`
 	}
 
+	/** The hovered row's distance to the reading position; its time when that position is itself. */
+	const stepLabel = markerStepLabel(marker, anchorClock)
+
 	const details = useMemo(() => {
 		if (!marker) {
 			return [] as string[]
@@ -163,7 +166,7 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 		// When it happened, on the wall clock: the grid says how far, this says when. Rows whose
 		// clock the transcript does not carry stay without a time — `ts` is an id, not a date.
 		const when = formatClockTime(marker.clock ?? Number.NaN)
-		if (when) {
+		if (when && when !== stepLabel) {
 			lines.push(when)
 		}
 		if (marker.kind === "prompt") {
@@ -180,14 +183,11 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 			}
 		}
 		return lines
-	}, [marker, sessionKey, turns])
+	}, [marker, sessionKey, stepLabel, turns])
 
 	if (markers.length < 2) {
 		return null
 	}
-
-	/** The hovered row's distance to the reading position; empty when either side has no clock. */
-	const stepLabel = markerStepLabel(marker, anchorClock)
 
 	return (
 		<div

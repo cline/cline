@@ -7,6 +7,7 @@ import {
 	formatDurationMinutes,
 	formatElapsed,
 	formatRelativeStep,
+	formatShortClock,
 	formatTimeAgo,
 	groupIntoTurns,
 	interpolateRatios,
@@ -389,6 +390,26 @@ describe("timelineAnchorClock", () => {
 		expect(markerStepLabel({ clock: undefined }, real)).toBe("")
 		expect(markerStepLabel({ clock: real }, undefined)).toBe("")
 		expect(markerStepLabel(undefined, real)).toBe("")
+	})
+})
+
+describe("formatShortClock", () => {
+	it("is the anchor's label: a time, not `now`", () => {
+		const anchor = new Date(2026, 10, 3, 14, 32).getTime()
+		expect(markerStepLabel({ clock: anchor }, anchor)).toBe("14:32")
+		// A neighbour in the same minute collapses onto the same string, so the rail shows it once.
+		expect(markerStepLabel({ clock: anchor + 20_000 }, anchor)).toBe("14:32")
+		expect(markerStepLabel({ clock: anchor + 4 * 60_000 }, anchor)).toBe("+5m")
+	})
+
+	it("pads to four characters and stays 24-hour in every locale", () => {
+		expect(formatShortClock(new Date(2026, 10, 3, 9, 5).getTime())).toBe("09:05")
+		expect(formatShortClock(new Date(2026, 10, 3, 23, 59).getTime())).toBe("23:59")
+	})
+
+	it("stays quiet about a number that is not a clock", () => {
+		expect(formatShortClock(145)).toBe("")
+		expect(formatShortClock(Number.NaN)).toBe("")
 	})
 })
 
