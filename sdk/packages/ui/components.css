@@ -2,6 +2,7 @@
 @import "./components/button.css";
 @import "./components/detail-list.css";
 @import "./components/detail-list-item.css";
+@import "./components/empty-state.css";
 @import "./components/section-heading.css";
 @import "./components/agent-changes.css";
 @import "./components/agent-pull-request-bar.css";

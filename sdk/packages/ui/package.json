@@ -122,6 +122,8 @@
 		"components/detail-list-item.tsx",
 		"components/detail-list.css",
 		"components/detail-list.tsx",
+		"components/empty-state.css",
+		"components/empty-state.tsx",
 		"components/has-content.ts",
 		"components/section-heading.css",
 		"components/section-heading.tsx"
