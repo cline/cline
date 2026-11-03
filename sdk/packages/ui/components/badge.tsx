@@ -70,15 +70,6 @@ const hoverClasses = {
 		"hover:bg-[color-mix(in_srgb,var(--error-surface),var(--error-text)_6%)]",
 };
 
-const ghostHoverClasses = {
-	neutral: "hover:bg-(--surface-hover) hover:text-cline-ui-foreground",
-	accent: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
-	info: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
-	success: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
-	warning: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
-	error: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
-};
-
 export const Badge = forwardRef<
 	HTMLSpanElement | HTMLButtonElement,
 	BadgeProps | InteractiveBadgeProps
@@ -106,7 +97,11 @@ export const Badge = forwardRef<
 					className={clsx(
 						"cline-ui-button",
 						classes,
-						variant === "ghost" ? ghostHoverClasses[tone] : hoverClasses[tone],
+						variant === "soft"
+							? hoverClasses[tone]
+							: tone === "neutral"
+								? "hover:bg-(--surface-hover) hover:text-cline-ui-foreground"
+								: "hover:bg-[color-mix(in_srgb,currentColor_6%,transparent)]",
 					)}
 					data-slot="badge"
 					ref={ref as ForwardedRef<HTMLButtonElement>}

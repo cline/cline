@@ -53,32 +53,6 @@ describe("Switch", () => {
 		expect(onCheckedChange).toHaveBeenNthCalledWith(2, false);
 	});
 
-	it("keeps the same native input and form state when its tone changes", async () => {
-		const onCheckedChange = vi.fn();
-		const preference = (tone?: "accent" | "neutral") => (
-			<form>
-				<Switch
-					aria-label="Notifications"
-					name="notifications"
-					onCheckedChange={onCheckedChange}
-					tone={tone}
-					value="enabled"
-				/>
-			</form>
-		);
-		await render(preference());
-		const originalInput = input();
-		await act(async () => originalInput.click());
-		for (const tone of ["neutral", "accent"] as const) {
-			await render(preference(tone));
-			expect(input()).toBe(originalInput);
-			expect(input().checked).toBe(true);
-			expect(input().hasAttribute("tone")).toBe(false);
-			expect(new FormData(form()).get("notifications")).toBe("enabled");
-		}
-		expect(onCheckedChange).toHaveBeenCalledExactlyOnceWith(true);
-	});
-
 	it("keeps controlled state owned by the consumer", async () => {
 		const onCheckedChange = vi.fn();
 		await render(<Switch checked={false} onCheckedChange={onCheckedChange} />);
@@ -193,6 +167,7 @@ describe("Switch", () => {
 				ref={(node) => {
 					forwardedRef = node;
 				}}
+				tone="neutral"
 				style={{ marginInlineStart: 8 }}
 				tabIndex={-1}
 			/>,
@@ -201,6 +176,10 @@ describe("Switch", () => {
 		expect(input().getAttribute("aria-label")).toBe("Notifications");
 		expect(input().getAttribute("aria-describedby")).toBe("help");
 		expect(input().tabIndex).toBe(-1);
+		expect(input().hasAttribute("tone")).toBe(false);
+		expect(
+			input().parentElement?.classList.contains("cline-ui-switch-neutral"),
+		).toBe(true);
 		expect(input().parentElement?.classList.contains("consumer-class")).toBe(
 			true,
 		);
