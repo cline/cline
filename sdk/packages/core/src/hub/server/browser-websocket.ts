@@ -128,7 +128,6 @@ export class BrowserWebSocketHubAdapter {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
 		const historyOwner = {};
-		let historyClosed = new AbortController();
 		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
@@ -155,6 +154,23 @@ export class BrowserWebSocketHubAdapter {
 			try {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
+					case "history.cancel": {
+						if (
+							authority &&
+							typeof frame.clientId === "string" &&
+							frame.clientId.trim() === authority.clientId &&
+							typeof frame.requestId === "string" &&
+							frame.requestId.trim() &&
+							typeof frame.sessionId === "string"
+						) {
+							this.historyTransfers.cancel(
+								historyOwner,
+								frame.requestId,
+								frame.sessionId.trim(),
+							);
+						}
+						break;
+					}
 					case "command": {
 						let registration: HubConnectionAuthority | undefined;
 						if (authority && frame.envelope.command === "client.register") {
@@ -232,7 +248,7 @@ export class BrowserWebSocketHubAdapter {
 									frame.envelope,
 									historyOwner,
 									read,
-									AbortSignal.any([historyAbort.signal, historyClosed.signal]),
+									historyAbort.signal,
 								)
 							: read();
 						commandPromise.then(
@@ -339,9 +355,7 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
-								historyClosed.abort();
 								void this.historyTransfers.close(historyOwner);
-								historyClosed = new AbortController();
 								authority = undefined;
 							}
 						}
@@ -509,7 +523,6 @@ export class BrowserWebSocketHubAdapter {
 				return;
 			}
 			closed = true;
-			historyClosed.abort();
 			void this.historyTransfers.close(historyOwner);
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();

@@ -32,6 +32,7 @@ describe("HistoryTransferPool", () => {
 	it.each([
 		"already",
 		"during",
+		"scoped",
 	] as const)("cancels a continuation when aborted %s its disk read", async (mode) => {
 		const pool = new HistoryTransferPool();
 		const owner = {};
@@ -48,7 +49,7 @@ describe("HistoryTransferPool", () => {
 		const diskRead = vi.spyOn(prototype, "read");
 		let resume: (() => void) | undefined;
 		let transferFile: FileHandle | undefined;
-		if (mode === "during") {
+		if (mode !== "already") {
 			diskRead.mockImplementationOnce(function (
 				this: FileHandle,
 				...args: unknown[]
@@ -77,9 +78,10 @@ describe("HistoryTransferPool", () => {
 				read,
 				abort.signal,
 			);
-			if (mode === "during") {
+			if (mode !== "already") {
 				await vi.waitFor(() => expect(resume).toBeTypeOf("function"));
-				abort.abort();
+				if (mode === "scoped") pool.cancel(owner, "history-1", "session-1");
+				else abort.abort();
 				if (!resume) throw new Error("Delayed file read did not start");
 				resume();
 			}
@@ -87,7 +89,7 @@ describe("HistoryTransferPool", () => {
 				ok: false,
 				error: { code: "history_transfer_closed" },
 			});
-			if (mode === "during") expect(transferFile?.fd).toBe(-1);
+			if (mode !== "already") expect(transferFile?.fd).toBe(-1);
 			if (mode === "already") expect(diskRead).not.toHaveBeenCalled();
 			await expect(
 				pool.command(
@@ -211,7 +213,10 @@ describe("HistoryTransferPool", () => {
 		await pool.close(owner);
 	});
 
-	it("waits for admission until two uncancellable producers actually settle", async () => {
+	it.each([
+		"close",
+		"cancel",
+	] as const)("%s retains admission until uncancellable producers settle", async (mode) => {
 		const pool = new HistoryTransferPool();
 		const owner = {};
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
@@ -222,7 +227,21 @@ describe("HistoryTransferPool", () => {
 				}),
 		);
 		const first = pool.command(envelope, owner, read, signal());
-		const second = pool.command(envelope, owner, read, signal());
+		const second = pool.command(
+			{ ...envelope, requestId: "history-2" },
+			owner,
+			read,
+			signal(),
+		);
+		const queuedRead = vi.fn(() => read());
+		const queuedEnvelope = { ...envelope, requestId: "history-queued" };
+		const queued = pool.command(queuedEnvelope, owner, queuedRead, signal());
+		await expect(pool.command(envelope, owner, read, signal())).rejects.toThrow(
+			"Duplicate live history request ID",
+		);
+		await expect(
+			pool.command(queuedEnvelope, owner, read, signal()),
+		).rejects.toThrow("Duplicate live history request ID");
 		const thirdRead = vi.fn(
 			async (): Promise<HubReplyEnvelope> => ({
 				version: "v1",
@@ -233,9 +252,19 @@ describe("HistoryTransferPool", () => {
 		const third = pool.command(envelope, {}, thirdRead, signal());
 		expect(thirdRead).not.toHaveBeenCalled();
 		expect(read).toHaveBeenCalledTimes(2);
-		pool.close(owner);
+		if (mode === "close") void pool.close(owner);
+		else {
+			pool.cancel(owner, "history-queued", "session-1");
+			pool.cancel(owner, "history-1", "session-1");
+			pool.cancel(owner, "history-2", "session-1");
+		}
+		await expect(queued).resolves.toMatchObject({
+			ok: false,
+			error: { code: "history_transfer_closed" },
+		});
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		expect(thirdRead).not.toHaveBeenCalled();
+		expect(queuedRead).not.toHaveBeenCalled();
 		for (const finish of finishers)
 			finish({ version: "v1", ok: true, payload: { messages: [] } });
 		await expect(first).resolves.toMatchObject({
@@ -250,6 +279,7 @@ describe("HistoryTransferPool", () => {
 			payload: { historyChunk: "[]" },
 		});
 		expect(thirdRead).toHaveBeenCalledTimes(1);
+		expect(queuedRead).not.toHaveBeenCalled();
 		await pool.close(owner);
 	});
 

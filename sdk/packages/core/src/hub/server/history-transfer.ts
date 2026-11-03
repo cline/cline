@@ -21,12 +21,15 @@ type Snapshot = {
 };
 
 type Transfer = {
+	initialRequestId: string;
 	sessionId: string;
 	snapshot: Promise<Snapshot | undefined>;
 	cancelled: boolean;
 	timer: ReturnType<typeof setTimeout>;
 	cleanup?: Promise<void>;
 };
+
+type WaitingTransfer = { sessionId: string; abort: AbortController };
 
 function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
 	return {
@@ -42,8 +45,22 @@ function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
 
 export class HistoryTransferPool {
 	private readonly owners = new Map<object, Map<string, Transfer>>();
+	private readonly waiting = new Map<object, Map<string, WaitingTransfer>>();
 	private preparations = 0;
 	private readonly available = new EventEmitter().setMaxListeners(0);
+
+	cancel(owner: object, requestId: string, sessionId: string): void {
+		const queued = this.waiting.get(owner)?.get(requestId);
+		if (queued?.sessionId === sessionId) queued.abort.abort();
+		for (const [key, transfer] of this.owners.get(owner) ?? []) {
+			if (
+				transfer.initialRequestId === requestId &&
+				transfer.sessionId === sessionId
+			) {
+				void this.release(owner, key);
+			}
+		}
+	}
 
 	async command(
 		envelope: HubCommandEnvelope,
@@ -75,9 +92,27 @@ export class HistoryTransferPool {
 		}
 
 		const sessionId = extractSessionId(envelope);
+		const initialRequestId = envelope.requestId;
+		if (typeof initialRequestId !== "string" || !initialRequestId.trim()) {
+			throw new Error("Chunked history requires an initial request ID");
+		}
+		const waitingEntries =
+			this.waiting.get(owner) ?? new Map<string, WaitingTransfer>();
+		if (
+			waitingEntries.has(initialRequestId) ||
+			Array.from(this.owners.get(owner)?.values() ?? []).some(
+				(transfer) => transfer.initialRequestId === initialRequestId,
+			)
+		) {
+			throw new Error("Duplicate live history request ID");
+		}
+		const waitingAbort = new AbortController();
+		this.waiting.set(owner, waitingEntries);
+		waitingEntries.set(initialRequestId, { sessionId, abort: waitingAbort });
 		const deadline = Date.now() + TRANSFER_TIMEOUT_MS;
 		const boundedSignal = AbortSignal.any([
 			signal,
+			waitingAbort.signal,
 			AbortSignal.timeout(TRANSFER_TIMEOUT_MS),
 		]);
 		try {
@@ -92,6 +127,9 @@ export class HistoryTransferPool {
 		} catch (error) {
 			if (boundedSignal.aborted) return closedReply(envelope);
 			throw error;
+		} finally {
+			waitingEntries.delete(initialRequestId);
+			if (waitingEntries.size === 0) this.waiting.delete(owner);
 		}
 
 		this.preparations++;
@@ -101,6 +139,7 @@ export class HistoryTransferPool {
 			resolveSnapshot = resolve;
 		});
 		const transfer: Transfer = {
+			initialRequestId,
 			sessionId,
 			snapshot: prepared,
 			cancelled: false,
@@ -155,6 +194,9 @@ export class HistoryTransferPool {
 	}
 
 	async close(owner: object): Promise<void> {
+		for (const queued of this.waiting.get(owner)?.values() ?? []) {
+			queued.abort.abort();
+		}
 		await Promise.all(
 			Array.from(this.owners.get(owner)?.keys() ?? [], (key) =>
 				this.release(owner, key),

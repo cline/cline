@@ -57,7 +57,10 @@ describe("BrowserWebSocketHubAdapter", () => {
 		directory = await mkdtemp(join(tmpdir(), "hub-browser-history-"));
 		vi.stubEnv("CLINE_DATA_DIR", directory);
 	});
-	it("unregister cancels queued history and never sends an abandoned full reply", async () => {
+	it.each([
+		"unregister",
+		"close",
+	] as const)("%s cancels queued history and never sends an abandoned full reply", async (mode) => {
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
 		const transport = {
 			command: vi.fn(
@@ -107,25 +110,34 @@ describe("BrowserWebSocketHubAdapter", () => {
 			for (let i = 0; i < 3; i++)
 				send(`history-${i}`, "session.messages", { chunkHistory: true });
 			expect(finishers).toHaveLength(2);
-			send("unregister", "client.unregister");
-			await vi.waitFor(() => expect(response("unregister")?.ok).toBe(true));
+			if (mode === "unregister") {
+				send("unregister", "client.unregister");
+				await vi.waitFor(() => expect(response("unregister")?.ok).toBe(true));
+			} else socket.emitClose();
 			for (const finish of finishers)
 				finish({
 					version: "v1",
 					ok: true,
 					payload: { messages: ["x".repeat(200_000)] },
 				});
-			await vi.waitFor(() =>
-				expect(
-					[0, 1, 2].every((i) => response(`history-${i}`) !== undefined),
-				).toBe(true),
-			);
-			for (let i = 0; i < 3; i++) {
-				expect(response(`history-${i}`)).toMatchObject({
-					ok: false,
-					error: { code: "history_transfer_closed" },
-				});
-				expect(response(`history-${i}`)?.payload).toBeUndefined();
+			if (mode === "unregister") {
+				await vi.waitFor(() =>
+					expect(
+						[0, 1, 2].every((i) => response(`history-${i}`) !== undefined),
+					).toBe(true),
+				);
+				for (let i = 0; i < 3; i++) {
+					expect(response(`history-${i}`)).toMatchObject({
+						ok: false,
+						error: { code: "history_transfer_closed" },
+					});
+					expect(response(`history-${i}`)?.payload).toBeUndefined();
+				}
+			} else {
+				await new Promise<void>((resolve) => setImmediate(resolve));
+				for (let i = 0; i < 3; i++) {
+					expect(response(`history-${i}`)).toBeUndefined();
+				}
 			}
 			expect(finishers).toHaveLength(2);
 		} finally {
@@ -151,7 +163,11 @@ describe("BrowserWebSocketHubAdapter", () => {
 		const send = async (
 			command: HubCommandEnvelope["command"],
 			payload: Record<string, string | boolean> = {},
-			fields: { sessionId?: unknown; clientId?: string } = {},
+			fields: {
+				sessionId?: unknown;
+				clientId?: string;
+				requestId?: unknown;
+			} = {},
 		) => {
 			const count = socket.sent.length;
 			socket.emitMessage(
@@ -181,6 +197,16 @@ describe("BrowserWebSocketHubAdapter", () => {
 				);
 				expect(rejected.error?.code).toBe("command_failed");
 			}
+			for (const requestId of [undefined, "", " ", 42, {}]) {
+				const rejected = await send(
+					"session.messages",
+					{ chunkHistory: true },
+					{ requestId },
+				);
+				expect(rejected.error?.message).toBe(
+					"Chunked history requires an initial request ID",
+				);
+			}
 			expect((await send("session.messages")).payload?.messages).toEqual(
 				messages,
 			);
@@ -206,6 +232,148 @@ describe("BrowserWebSocketHubAdapter", () => {
 			).toHaveLength(2);
 		} finally {
 			detach();
+		}
+	});
+
+	it("cancels a lost first reply by its request without disturbing another read or events", async () => {
+		const messages = [{ role: "assistant", content: "x".repeat(200_000) }];
+		let publish: ((event: HubEventEnvelope) => void) | undefined;
+		const transport = {
+			command: vi.fn(
+				async (envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> => ({
+					version: "v1",
+					requestId: envelope.requestId,
+					ok: true,
+					payload: envelope.command === "session.messages" ? { messages } : {},
+				}),
+			),
+			subscribe: vi.fn(
+				(_clientId: string, listener: (event: HubEventEnvelope) => void) => {
+					publish = listener;
+					return () => undefined;
+				},
+			),
+		};
+		const socket = createSocket();
+		const foreign = createSocket();
+		const adapter = new BrowserWebSocketHubAdapter(transport);
+		const detach = adapter.attach(socket);
+		const detachForeign = adapter.attach(foreign);
+		let firstReplyDropped = false;
+		const sendFrame = socket.send.bind(socket);
+		vi.spyOn(socket, "send").mockImplementation((data) => {
+			if (JSON.parse(data).envelope?.requestId === "history-1") {
+				firstReplyDropped = true;
+			} else sendFrame(data);
+		});
+		const send = (
+			target: ReturnType<typeof createSocket>,
+			requestId: string,
+			command: HubCommandEnvelope["command"],
+			payload: Record<string, unknown> = {},
+		) =>
+			target.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						clientId: "client-1",
+						sessionId: "session-1",
+						requestId,
+						command,
+						payload,
+					},
+				}),
+			);
+		const response = (id: string): HubReplyEnvelope | undefined =>
+			socket.sent
+				.map((frame) => JSON.parse(frame).envelope as HubReplyEnvelope)
+				.find((reply) => reply.requestId === id);
+		const cancel = (
+			target: ReturnType<typeof createSocket>,
+			overrides: Record<string, unknown> = {},
+		) =>
+			target.emitMessage(
+				JSON.stringify({
+					kind: "history.cancel",
+					clientId: "client-1",
+					sessionId: "session-1",
+					requestId: "history-1",
+					...overrides,
+				}),
+			);
+		try {
+			send(socket, "register", "client.register", { clientId: "client-1" });
+			await vi.waitFor(() => expect(response("register")?.ok).toBe(true));
+			socket.emitMessage(
+				JSON.stringify({ kind: "stream.subscribe", clientId: "client-1" }),
+			);
+			send(socket, "history-1", "session.messages", { chunkHistory: true });
+			send(socket, "history-2", "session.messages", { chunkHistory: true });
+			await vi.waitFor(() => {
+				expect(firstReplyDropped).toBe(true);
+				expect(response("history-2")?.payload?.historyCursor).toBeTypeOf(
+					"string",
+				);
+			});
+			send(socket, "history-3", "session.messages", { chunkHistory: true });
+			cancel(foreign);
+			send(foreign, "foreign-register", "client.register", {
+				clientId: "client-1",
+			});
+			await vi.waitFor(() => expect(foreign.sent).toHaveLength(1));
+			cancel(foreign);
+			for (const overrides of [
+				{ clientId: "other-client" },
+				{ clientId: {} },
+				{ sessionId: "other-session" },
+				{ sessionId: {} },
+				{ requestId: "" },
+				{ requestId: 42 },
+			])
+				cancel(socket, overrides);
+			send(socket, "status", "session.get");
+			await vi.waitFor(() => expect(response("status")?.ok).toBe(true));
+			expect(response("history-3")).toBeUndefined();
+			expect(
+				transport.command.mock.calls.filter(
+					([request]) => request.command === "session.messages",
+				),
+			).toHaveLength(2);
+			const event: HubEventEnvelope = {
+				version: "v1",
+				event: "run.completed",
+				sessionId: "session-1",
+			};
+			expect(publish).toBeTypeOf("function");
+			publish?.(event);
+			expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({
+				kind: "event",
+				envelope: event,
+			});
+			cancel(socket, { clientId: " client-1 ", sessionId: " session-1 " });
+			await vi.waitFor(() =>
+				expect(response("history-3")?.payload?.historyCursor).toBeTypeOf(
+					"string",
+				),
+			);
+			cancel(socket);
+			for (const id of ["history-2", "history-3"]) {
+				send(socket, `${id}-next`, "session.messages", {
+					chunkHistory: true,
+					historyCursor: response(id)?.payload?.historyCursor,
+				});
+				await vi.waitFor(() => expect(response(`${id}-next`)?.ok).toBe(true));
+				expect(response(`${id}-next`)?.payload?.historyCursor).toBeUndefined();
+			}
+			expect(
+				transport.command.mock.calls.filter(
+					([request]) => request.command === "session.messages",
+				),
+			).toHaveLength(3);
+		} finally {
+			detach();
+			detachForeign();
 		}
 	});
 
