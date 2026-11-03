@@ -36,8 +36,10 @@ describe("runtime memory result recovery", () => {
 		t.onTestFinished(() => rm(root, { recursive: true, force: true }));
 		const directory = join(root, ...Array(4).fill("directory".repeat(13)));
 		await mkdir(directory, { recursive: true });
-		const path = join(directory, "report.txt");
-		await writeFile(path, "report");
+		const paths = Array.from({ length: 20 }, (_, i) =>
+			join(directory, `report-${i}.txt`),
+		);
+		await Promise.all(paths.map((path) => writeFile(path, "report")));
 		let files: { path: string; artifactId: string }[] = [];
 		let publications = 0;
 		const tool = createPublishArtifactsTool({
@@ -53,7 +55,7 @@ describe("runtime memory result recovery", () => {
 			async stream(request) {
 				const call = calls++;
 				let input: unknown = {
-					files: Array.from({ length: 20 }, () => ({ path })),
+					files: paths.map((path) => ({ path })),
 				};
 				if (call === 1) {
 					const preview = JSON.stringify(
