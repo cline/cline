@@ -130,6 +130,10 @@
 		"components/dialog.tsx",
 		"components/empty-state.css",
 		"components/empty-state.tsx",
+		"components/file-browser-actions.tsx",
+		"components/file-browser-navigation.tsx",
+		"components/file-browser.css",
+		"components/file-browser.tsx",
 		"components/has-content.ts",
 		"components/item-card.css",
 		"components/item-card.tsx",
@@ -247,6 +251,7 @@
 		"embla-carousel-react": "^8.6.0",
 		"@radix-ui/react-alert-dialog": "1.1.15",
 		"@radix-ui/react-dialog": "1.1.15",
+		"@radix-ui/react-dropdown-menu": "2.1.16",
 		"@radix-ui/react-toggle-group": "1.1.11",
 		"@radix-ui/react-tooltip": "1.2.8"
 	}

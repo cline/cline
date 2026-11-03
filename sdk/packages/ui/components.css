@@ -4,6 +4,7 @@
 @import "./components/dialog.css";
 @import "./components/detail-list.css";
 @import "./components/detail-list-item.css";
+@import "./components/file-browser.css";
 @import "./components/item-card.css";
 @import "./components/empty-state.css";
 @import "./components/pill-selector.css";
