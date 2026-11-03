@@ -74,7 +74,7 @@ function CloudHandoffNotice({
 	const dismissLabel = view?.phase === "preparing" ? "Cancel handoff" : "Dismiss handoff"
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	const errorText = error ?? preparationError
-	if (!view && !onRestoreDraft)
+	if (!view && !onRestoreDraft && !onDiscardDraft)
 		return errorText ? (
 			<section
 				aria-label="Cloud handoff error"
@@ -175,10 +175,12 @@ function CloudHandoffNotice({
 						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
 							<div
 								className="min-w-0 flex-[1_1_16rem] whitespace-pre-wrap [overflow-wrap:anywhere]"
-								role={view?.phase === "failed" ? "alert" : "status"}>
+								role={view?.phase === "failed" || (!view && !onRestoreDraft) ? "alert" : "status"}>
 								{view
 									? handoffStatus(view)
-									: "Cloud handoff ended. Your original draft is saved locally. Check Cline Cloud before resending."}
+									: onRestoreDraft
+										? "Cloud handoff ended. Your original draft is saved locally. Check Cline Cloud before resending."
+										: errorText}
 							</div>
 							{view?.phase === "failed" && view.recovery === "connect_github" && (
 								<VSCodeButton
@@ -227,10 +229,10 @@ function CloudHandoffNotice({
 							)}
 							{onDiscardDraft && (
 								<VSCodeButton appearance="secondary" onClick={() => void run(onDiscardDraft)}>
-									Discard saved draft
+									{onRestoreDraft ? "Discard saved draft" : "Discard all saved prompts"}
 								</VSCodeButton>
 							)}
-							{errorText && (
+							{errorText && (view || onRestoreDraft) && (
 								<div className="w-full text-error whitespace-pre-wrap [overflow-wrap:anywhere]" role="alert">
 									{errorText}
 								</div>

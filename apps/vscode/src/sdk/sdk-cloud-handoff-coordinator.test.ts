@@ -30,7 +30,6 @@ function setup() {
 	const source: CapturedHandoffSource = {
 		messages: [{ role: "user", content: "Implement the widget" }],
 		config: { providerId: "cline", modelId: "test-model", apiKey: "original-token", thinking: false },
-		mode: "act",
 		plan: {
 			id: "git-plan",
 			root: "/workspace",
@@ -261,6 +260,7 @@ describe("cloud conversation handoff", () => {
 			controller: cloud,
 			assertCurrent: expect.any(Function),
 			input: expect.objectContaining({
+				mode: "act",
 				organizationId: null,
 				thinking: false,
 				localGit: expect.objectContaining({ treeSha: "b".repeat(40) }),

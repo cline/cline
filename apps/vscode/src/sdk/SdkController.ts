@@ -1823,7 +1823,7 @@ export class Controller {
 				assertIdle()
 				const plan = await inspectHandoffGit(cwd, assertIdle)
 				assertIdle()
-				return { messages, config, plan, mode }
+				return { messages, config, plan }
 			} finally {
 				if (!session) await host.dispose("cloudHandoffCapture")
 			}

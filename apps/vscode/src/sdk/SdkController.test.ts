@@ -972,6 +972,17 @@ describe("cloud handoff source capture", () => {
 		return { controller, session, host, messages, inspect, capture }
 	}
 
+	it("keeps the local Plan configuration when capturing a handoff summary", async () => {
+		const { controller, session, capture } = setup()
+		session.mode = "plan"
+		const build = vi.spyOn(controller.sessionConfigBuilder, "build")
+
+		const snapshot = await capture()
+
+		expect(build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
+		expect(snapshot.config).toEqual(session.startConfig)
+	})
+
 	it.each([
 		{ cwd: "/workspace" },
 		{ workspaceRoot: "/workspace" },

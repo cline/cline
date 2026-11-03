@@ -117,6 +117,19 @@ describe("cloud handoff navigation", () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 	})
 
+	it("offers an explicit local discard when saved recovery is full", () => {
+		viewingSource = false
+		const discard = vi.fn().mockResolvedValue(undefined)
+		const message = "Saved cloud prompt recovery is full. Your current draft was kept."
+		render(<CloudHandoff error={message} onDiscardDraft={discard} />)
+		expect(screen.getAllByText(message)).toHaveLength(1)
+		expect(screen.getByRole("alert")).toHaveTextContent(message)
+		fireEvent.click(screen.getByRole("button", { name: "Discard all saved prompts" }))
+		expect(discard).toHaveBeenCalledOnce()
+		expect(clients.discardHandoff).not.toHaveBeenCalled()
+		expect(screen.queryByText(/Cloud handoff ended/)).not.toBeInTheDocument()
+	})
+
 	it("shows a failed in-panel open without silently launching a browser", async () => {
 		clients.showTaskWithId.mockRejectedValue(new Error("Cloud session is unavailable."))
 		render(<CloudHandoff />)

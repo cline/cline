@@ -10,6 +10,7 @@ import {
 } from "@cline/core/cloud"
 import { createMediaBudgetState, validateAndReserveImageMedia } from "@cline/shared"
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
+import { CLOUD_SESSION_MODE } from "@shared/cloud/cloud-sessions"
 import { Logger } from "@/shared/services/Logger"
 import { getProviderSettingsManager } from "./provider-migration"
 
@@ -30,7 +31,6 @@ export interface CapturedHandoffSource {
 	messages: Parameters<typeof summarizeConversation>[0]["messages"]
 	config: Parameters<typeof summarizeConversation>[0]["config"] & Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
 	plan: HandoffGitPlan
-	mode: "plan" | "act"
 }
 
 export interface PrepareCloudHandoffInput {
@@ -174,7 +174,7 @@ export class SdkCloudHandoffCoordinator {
 						workspaceRelativePath: source.plan.workspaceRelativePath || undefined,
 						organizationId: organizationId ?? null,
 						modelId,
-						mode: source.mode,
+						mode: CLOUD_SESSION_MODE,
 						thinking: source.config.thinking,
 						reasoningEffort:
 							source.config.reasoningEffort === "minimal" || source.config.reasoningEffort === "max"

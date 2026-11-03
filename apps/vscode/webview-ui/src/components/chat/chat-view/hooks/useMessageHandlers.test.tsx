@@ -16,6 +16,26 @@ const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
 const prepareHandoff = vi.fn().mockResolvedValue(undefined)
 const discardHandoff = vi.fn().mockResolvedValue(undefined)
+const nativeState = vi.hoisted((): { value: unknown; fail: boolean; writes: number } => ({
+	value: undefined,
+	fail: false,
+	writes: 0,
+}))
+vi.mock("@/config/platform.config", async (original) => {
+	const actual = await original<typeof import("@/config/platform.config")>()
+	return {
+		...actual,
+		PLATFORM_CONFIG: {
+			...actual.PLATFORM_CONFIG,
+			getState: () => nativeState.value,
+			setState: (state: unknown) => {
+				if (nativeState.fail) throw new Error("Native state unavailable")
+				nativeState.writes++
+				nativeState.value = structuredClone(state)
+			},
+		},
+	}
+})
 
 vi.mock("@/services/grpc-client", () => ({
 	CloudServiceClient: {
@@ -128,6 +148,9 @@ function renderConversation() {
 
 describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
+		nativeState.value = { anotherFeature: "keep" }
+		nativeState.fail = false
+		nativeState.writes = 0
 		prepareHandoff.mockClear()
 		discardHandoff.mockReset().mockResolvedValue(undefined)
 		mockHandoff = undefined
@@ -217,7 +240,7 @@ describe("useMessageHandlers — send routing", () => {
 		"preparation-failed",
 	] as const)("preserves local edits and offers the appropriate recovery after %s", async (outcome) => {
 		mockTaskId = "local-task"
-		const { result, rerender } = renderConversation()
+		let { result, rerender, unmount } = renderConversation()
 		act(() => {
 			result.current.chatState.setInputValue("/cloud finish tests")
 			result.current.chatState.setActiveQuote("quoted context")
@@ -249,8 +272,18 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.inputValue).toBe("Continue locally")
 		if (outcome === "sent" || outcome === "unsent") {
 			expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+			if (outcome === "sent") {
+				unmount()
+				mockHandoff = undefined
+				const reopened = renderConversation()
+				expect(reopened.result.current.handlers.restoreHandoffDraft).toBeUndefined()
+			}
 			return
 		}
+		unmount()
+		;({ result, rerender, unmount } = renderConversation())
+		expect(result.current.handlers.restoreHandoffDraft).toBeDefined()
+		act(() => result.current.chatState.setInputValue("Continue locally"))
 		await expect(result.current.handlers.restoreHandoffDraft?.()).rejects.toThrow("Move or clear")
 		expect(discardHandoff).not.toHaveBeenCalled()
 		act(() => result.current.chatState.setInputValue(""))
@@ -286,6 +319,102 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.selectedImages).toEqual(["image"])
 		expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
 		expect(discardHandoff).toHaveBeenCalledTimes(outcome === "failed" ? 1 : 0)
+		expect(nativeState.value).toEqual({ anotherFeature: "keep", cloudHandoffDrafts: {} })
+	})
+
+	it("does not acknowledge a saved submission with a replacement composer's revision", async () => {
+		mockTaskId = "local-task"
+		const original = renderConversation()
+		act(() => original.result.current.chatState.setInputValue("/cloud original"))
+		await act(async () => original.result.current.handlers.handleSendMessage("/cloud original", [], []))
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		original.rerender()
+		mockHandoff = { ...mockHandoff, phase: "launching" }
+		original.rerender()
+		original.unmount()
+
+		const reopened = renderConversation()
+		act(() => reopened.result.current.chatState.setInputValue("newer draft"))
+		for (let i = 0; i < 5; i++) {
+			mockHandoff = { ...mockHandoff }
+			reopened.rerender()
+		}
+		expect(nativeState.writes).toBe(1)
+		expect(reopened.result.current.chatState.inputValue).toBe("newer draft")
+		mockHandoff = { ...mockHandoff, phase: "failed", message: "Launch failed" }
+		reopened.rerender()
+		await expect(reopened.result.current.handlers.restoreHandoffDraft?.()).rejects.toThrow("Move or clear")
+		expect(reopened.result.current.chatState.inputValue).toBe("newer draft")
+	})
+
+	it.each(["launch", "cleanup"] as const)("reports native recovery storage failures accurately: %s", async (stage) => {
+		mockTaskId = "local-task"
+		const { result, rerender } = renderConversation()
+		act(() => result.current.chatState.setInputValue("/cloud original"))
+		await act(async () => result.current.handlers.handleSendMessage("/cloud original", [], []))
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		rerender()
+		nativeState.fail = stage === "launch"
+		mockHandoff = { ...mockHandoff, phase: "launching" }
+		rerender()
+		expect(result.current.chatState.inputValue).toBe(stage === "launch" ? "/cloud original" : "")
+		if (stage === "launch") expect(result.current.handlers.handoffError).toContain("draft was kept")
+		nativeState.fail = true
+		mockHandoff = { ...mockHandoff, phase: "complete", sessionId: "ses_example", delivery: "sent" }
+		rerender()
+		expect(result.current.chatState.inputValue).toBe("")
+		expect(result.current.handlers.handoffError).toBe(
+			stage === "cleanup" ? "Could not update saved cloud prompt recovery." : undefined,
+		)
+	})
+
+	it.each([
+		{ capacity: 5, textSize: 100 },
+		{ capacity: 3, textSize: 4 * 1024 * 1024 },
+	])("preserves saved prompts when recovery admission is full: %j", async ({ capacity, textSize }) => {
+		const { result, rerender } = renderConversation()
+		const prompt = `/cloud ${"a".repeat(textSize)}`
+		for (let i = 0; i < capacity; i++) {
+			mockTaskId = `local-${i}`
+			mockHandoff = undefined
+			rerender()
+			act(() => result.current.chatState.setInputValue(prompt))
+			await act(async () => result.current.handlers.handleSendMessage(prompt, [], []))
+			mockHandoff = { id: `attempt-${i}`, sourceTaskId: mockTaskId, phase: "preparing" }
+			rerender()
+			mockHandoff = { ...mockHandoff, phase: "launching" }
+			rerender()
+			expect(result.current.chatState.inputValue).toBe("")
+		}
+		mockTaskId = "overflow-task"
+		mockHandoff = undefined
+		rerender()
+		act(() => result.current.chatState.setInputValue(prompt))
+		await act(async () => result.current.handlers.handleSendMessage(prompt, [], []))
+		expect(prepareHandoff).toHaveBeenCalledTimes(capacity)
+		expect(result.current.chatState.inputValue).toBe(prompt)
+		expect(result.current.handlers.handoffError).toMatch(/saved cloud prompt/i)
+		expect(nativeState.value).toMatchObject({ cloudHandoffDrafts: { "local-0": { draft: { text: prompt } } } })
+		const retained = nativeState.value
+		nativeState.fail = true
+		await expect(result.current.handlers.discardHandoffDraft?.()).rejects.toThrow("Native state unavailable")
+		expect(nativeState.value).toBe(retained)
+		expect(result.current.handlers.handoffError).toMatch(/saved cloud prompt/i)
+		nativeState.fail = false
+		await act(async () => result.current.handlers.discardHandoffDraft?.())
+		expect(result.current.chatState.inputValue).toBe(prompt)
+		expect(discardHandoff).not.toHaveBeenCalled()
+		expect(nativeState.value).toEqual({ anotherFeature: "keep", cloudHandoffDrafts: {} })
+		await act(async () => result.current.handlers.handleSendMessage(prompt, [], []))
+		expect(prepareHandoff).toHaveBeenCalledTimes(capacity + 1)
+	})
+
+	it("ignores malformed native recovery records", () => {
+		nativeState.value = { cloudHandoffDrafts: { "local-task": { draft: { text: "/cloud invalid" } } } }
+		mockTaskId = "local-task"
+		const { result } = renderConversation()
+		expect(result.current.handlers.restoreHandoffDraft).toBeUndefined()
+		expect(result.current.chatState.inputValue).toBe("")
 	})
 
 	it.each([
