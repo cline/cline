@@ -57,7 +57,6 @@ import {
 	type ChatSessionConfig,
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
-	ChatSessionStatusSchema,
 } from "@/lib/chat-schema";
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
@@ -2375,100 +2374,6 @@ export function useChatSession(
 		};
 	}, [handleIncomingChunk, subscribeToEnvironment]);
 
-	const applySessionStatus = useCallback(
-		(rawStatus: string): ChatSessionStatus | null => {
-			const parsed = ChatSessionStatusSchema.safeParse(
-				rawStatus === "provisioning"
-					? "starting"
-					: rawStatus === "aborted"
-						? "cancelled"
-						: rawStatus,
-			);
-			if (!parsed.success) return null;
-			const next = parsed.data;
-			// A delayed running/idle snapshot must not reopen a settled turn or hide a new submission.
-			if (
-				next === "running" &&
-				(abortedRef.current ||
-					turnEpochRef.current === turnSettledEpochRef.current)
-			)
-				return null;
-			if (next === "idle" && activePromptSubmissionsRef.current > 0)
-				return null;
-			authoritativeStatusRevisionRef.current++;
-			setStatus(next);
-			return next;
-		},
-		[],
-	);
-	const previousTransport = useRef(chatTransportState);
-	useEffect(() => {
-		const reconnected =
-			previousTransport.current !== "connected" &&
-			chatTransportState === "connected";
-		previousTransport.current = chatTransportState;
-		if (
-			!reconnected ||
-			!sessionId ||
-			environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID ||
-			config.executionTarget === "cloud"
-		)
-			return;
-		let cancelled = false;
-		const epoch = turnEpochRef.current;
-		const aborted = abortedRef.current;
-		const recover = (): Promise<void> => {
-			const revision = authoritativeStatusRevisionRef.current;
-			return desktopClient
-				.invoke<SessionHistoryItem | null>("get_discovered_session", {
-					environmentId,
-					sessionId,
-				})
-				.then((record) => {
-					if (
-						cancelled ||
-						record?.sessionId !== sessionId ||
-						epoch !== turnEpochRef.current ||
-						aborted !== abortedRef.current ||
-						activePromptSubmissionsRef.current > 0
-					)
-						return;
-					if (revision !== authoritativeStatusRevisionRef.current) {
-						// Status-only events can supersede the read without settling the turn.
-						if (epoch !== turnSettledEpochRef.current) void recover();
-						return;
-					}
-					const next = applySessionStatus(record.status);
-					if (
-						next &&
-						!BUSY_STATUSES.has(next) &&
-						epoch !== turnSettledEpochRef.current
-					) {
-						outstandingOptimisticUserIdsRef.current.clear();
-						delete lastCoreErrorBySessionRef.current[sessionId];
-						turnSettledEpochRef.current = turnEpochRef.current;
-						clearLiveToolRefs();
-						finalizeSettledTurn(sessionId);
-					}
-				})
-				.catch(() => {
-					/* Live events retain ownership if recovery is unavailable. */
-				});
-		};
-		void recover();
-		return () => {
-			cancelled = true;
-		};
-	}, [
-		chatTransportState,
-		sessionId,
-		environmentId,
-		config.executionTarget,
-		applySessionStatus,
-		clearLiveToolRefs,
-		finalizeSettledTurn,
-	]);
-
 	useEffect(() => {
 		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
@@ -2491,7 +2396,41 @@ export function useChatSession(
 				if (!nextStatus) {
 					return;
 				}
-				applySessionStatus(nextStatus);
+				// Status events are projected asynchronously from the hub's
+				// session record and can deliver a stale "running" after the
+				// stream's chat_done already settled the turn. A genuinely new
+				// turn always bumps the epoch (chat_queued_prompt_start) or
+				// goes through the local submit paths, so while the epoch still
+				// equals the settled epoch a "running" here can only be stale.
+				if (
+					nextStatus === "running" &&
+					(abortedRef.current ||
+						turnEpochRef.current === turnSettledEpochRef.current)
+				) {
+					return;
+				}
+				// The reverse case: the hub publishes the session record's status
+				// as soon as the session is created, before the first prompt's
+				// run starts, so an "idle" that lands while a local submission is
+				// still in flight predates the run it is about to start. Applying
+				// it flipped the composer and the request indicator from
+				// "starting" to idle and back for a frame on every new task. The
+				// submission owns status until it hands off (the queued-start
+				// event, or its own completion for a blocking send). Only "idle"
+				// is held back: a terminal status (failed, aborted) during a
+				// submission is real and must still unstick the UI even if the
+				// send response never arrives.
+				if (nextStatus === "idle" && activePromptSubmissionsRef.current > 0) {
+					return;
+				}
+				authoritativeStatusRevisionRef.current += 1;
+				setStatus(
+					(nextStatus === "provisioning"
+						? "starting"
+						: nextStatus === "aborted"
+							? "cancelled"
+							: nextStatus) as ChatSessionStatus,
+				);
 			},
 		);
 		const unsubscribeEnded = subscribeToEnvironment(
@@ -2637,7 +2576,6 @@ export function useChatSession(
 	}, [
 		appendTurnFailureMessage,
 		applyCloudSnapshotMessages,
-		applySessionStatus,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
 		subscribeToEnvironment,

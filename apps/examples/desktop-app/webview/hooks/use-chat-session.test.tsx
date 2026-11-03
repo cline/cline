@@ -644,6 +644,7 @@ describe("useChatSession", () => {
 			question: "Continue?",
 			options: [],
 		};
+		const currentApproval = { ...approval, requestId: "current" };
 		let connected = false;
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "chat_session_command")
@@ -654,7 +655,7 @@ describe("useChatSession", () => {
 				};
 			if (command === "poll_tool_approvals") {
 				if (!connected) throw new Error("Disconnected");
-				return [approval];
+				return [currentApproval];
 			}
 			if (command === "poll_ask_questions") return [question];
 			return [];
@@ -676,108 +677,7 @@ describe("useChatSession", () => {
 		connected = true;
 		await act(async () => transport("connected"));
 		expect(current.interactionsKnown).toBe(true);
-		expect(current.pendingToolApprovals).toEqual([approval]);
-	});
-
-	it.each([
-		{ change: "none", snapshotStatus: "completed", settles: true },
-		{ change: "none", snapshotStatus: "idle", settles: true },
-		{ change: "abort", snapshotStatus: "running", settles: false },
-		{ change: "new-turn", snapshotStatus: "completed", settles: false },
-		{ change: "failed-event", snapshotStatus: "completed", settles: true },
-		{ change: "completed-event", snapshotStatus: "running", settles: true },
-	])("reconciles $snapshotStatus after reconnect with $change", async ({
-		change,
-		snapshotStatus,
-		settles,
-	}) => {
-		const snapshot = deferred<unknown>();
-		const eventStatus =
-			change === "failed-event"
-				? "failed"
-				: change === "completed-event"
-					? "completed"
-					: undefined;
-		let discoveryReads = 0;
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_discovered_session")
-					return discoveryReads++ === 0
-						? snapshot.promise
-						: { sessionId: "side", status: eventStatus };
-				if (command === "read_session_messages")
-					return [
-						{
-							id: "saved-answer",
-							sessionId: "side",
-							role: "assistant",
-							content: "Complete answer",
-							createdAt: 1,
-						},
-					];
-				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string };
-					if (request.action === "start")
-						return {
-							sessionId: "side",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
-						};
-					if (request.action === "send")
-						return { ok: true, queued: true, promptsInQueue: [] };
-					return { ok: true, promptsInQueue: [] };
-				}
-				return [];
-			},
-		);
-		await act(async () => {
-			await current.sendPrompt("First queued question");
-		});
-		expect(current.status).toBe("running");
-		await act(async () => {
-			handlerFor("chat_event")({
-				sessionId: "side",
-				stream: "chat_text",
-				chunk: "Partial",
-				index: 1,
-			});
-			await new Promise((resolve) => setTimeout(resolve, 60));
-		});
-		expect(current.activeAssistantMessageId).not.toBeNull();
-		const transport = subscribeTransportMock.mock.calls[0][0];
-		await act(async () => transport("reconnecting"));
-		await act(async () => transport("connected"));
-		if (change === "abort") await act(async () => current.abort());
-		if (change === "new-turn")
-			await act(async () => {
-				await current.sendPrompt("New question");
-			});
-		if (eventStatus)
-			await act(async () =>
-				handlerFor("chat_session_status")({
-					sessionId: "side",
-					status: eventStatus,
-				}),
-			);
-		const before = current.status;
-		await act(async () =>
-			snapshot.resolve({
-				sessionId: "side",
-				status: snapshotStatus,
-			}),
-		);
-		expect(current.status).toBe(
-			eventStatus ?? (settles ? snapshotStatus : before),
-		);
-		if (settles) {
-			expect(current.activeAssistantMessageId).toBeNull();
-			await act(async () => {
-				await new Promise((resolve) => setTimeout(resolve, 300));
-			});
-			expect(current.messages).toEqual([
-				expect.objectContaining({ content: "Complete answer" }),
-			]);
-		}
+		expect(current.pendingToolApprovals).toEqual([currentApproval]);
 	});
 
 	it("uses current main choices for a legacy side and freezes them only during its turn", async () => {
