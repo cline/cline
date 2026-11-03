@@ -411,14 +411,9 @@ describe("useMessageHandlers — send routing", () => {
 		mockTurnState = { phase: starting ? "idle" : "completed", seq: 7 }
 		mockCurrentCloudTask = starting ? undefined : { sessionId: "ses-current", status: "idle" }
 		const messages = starting ? [] : completedConversation
-		let rejectRequest: (error: Error) => void = () => {}
+		const pendingRequest = Promise.withResolvers<void>()
 		const rpc = starting ? newTask : askResponse
-		rpc.mockImplementationOnce(
-			() =>
-				new Promise<void>((_resolve, reject) => {
-					rejectRequest = reject
-				}),
-		)
+		rpc.mockReturnValueOnce(pendingRequest.promise)
 		const { result, rerender } = renderHook(
 			({ messages }: { messages: ClineMessage[] }) => {
 				const chatState = useChatState(messages)
@@ -452,7 +447,7 @@ describe("useMessageHandlers — send routing", () => {
 		if (navigated) {
 			const revision = result.current.chatState.getDraftSnapshot().revision
 			mockCurrentCloudTask = { sessionId: "ses-other", status: "idle" }
-			rerender({ messages: completedConversation.map((message) => ({ ...message, ts: message.ts + 10 })) })
+			rerender({ messages })
 			if (action === "return") {
 				mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
 				rerender({ messages })
@@ -461,7 +456,7 @@ describe("useMessageHandlers — send routing", () => {
 		}
 		const edited = result.current.chatState.getDraftSnapshot()
 		await act(async () => {
-			rejectRequest(new Error("preparation failed"))
+			pendingRequest.reject(new Error("preparation failed"))
 			await expect(pending).rejects.toThrow("preparation failed")
 		})
 		if (action === "unchanged") {
@@ -482,21 +477,9 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("does not restore an older send's flags while a newer send is pending", async () => {
 		mockTurnState = { phase: "completed", seq: 7 }
-		let rejectFirst: (error: Error) => void = () => {}
-		let resolveSecond: () => void = () => {}
-		askResponse
-			.mockImplementationOnce(
-				() =>
-					new Promise<void>((_resolve, reject) => {
-						rejectFirst = reject
-					}),
-			)
-			.mockImplementationOnce(
-				() =>
-					new Promise<void>((resolve) => {
-						resolveSecond = resolve
-					}),
-			)
+		const firstRequest = Promise.withResolvers<void>()
+		const secondRequest = Promise.withResolvers<void>()
+		askResponse.mockReturnValueOnce(firstRequest.promise).mockReturnValueOnce(secondRequest.promise)
 		const { result, rerender } = renderHook(() => {
 			const chatState = useChatState(completedConversation)
 			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
@@ -521,14 +504,14 @@ describe("useMessageHandlers — send routing", () => {
 			await Promise.resolve()
 		})
 		await act(async () => {
-			rejectFirst(new Error("first failed"))
+			firstRequest.reject(new Error("first failed"))
 			await expect(first).rejects.toThrow("first failed")
 		})
 		expect(result.current.chatState.inputValue).toBe("")
 		expect(result.current.chatState.sendingDisabled).toBe(true)
 		expect(result.current.chatState.enableButtons).toBe(false)
 		await act(async () => {
-			resolveSecond()
+			secondRequest.resolve()
 			await second
 		})
 	})

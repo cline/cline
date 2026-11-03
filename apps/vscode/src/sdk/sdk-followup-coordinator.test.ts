@@ -150,21 +150,16 @@ describe("SdkFollowupCoordinator", () => {
 		const task = makeTask("ses-cloud")
 		const preparedSession = makeActiveSession()
 		preparedSession.sessionId = task.taskId
-		let finishPreparation!: (session: ActiveSession) => void
+		const pendingPreparation = Promise.withResolvers<ActiveSession>()
 		let current = true
-		const prepare = vi.fn(
-			() =>
-				new Promise<ActiveSession>((resolve) => {
-					finishPreparation = resolve
-				}),
-		)
+		const prepare = vi.fn(() => pendingPreparation.promise)
 		const preparation = { prepare, isCurrent: () => current }
 		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
 
 		const sending = coordinator.askResponse("old task prompt")
 		await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
 		current = false
-		finishPreparation(preparedSession)
+		pendingPreparation.resolve(preparedSession)
 
 		await expect(sending).rejects.toThrow("task changed")
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
@@ -179,13 +174,8 @@ describe("SdkFollowupCoordinator", () => {
 		preparedSession.sessionId = task.taskId
 		let currentSession = oldSession
 		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => currentSession } })
-		let finishPreparation!: (session: ActiveSession) => void
-		const prepare = vi.fn(
-			() =>
-				new Promise<ActiveSession>((resolve) => {
-					finishPreparation = resolve
-				}),
-		)
+		const pendingPreparation = Promise.withResolvers<ActiveSession>()
+		const prepare = vi.fn(() => pendingPreparation.promise)
 		const events: string[] = []
 		const preparation = { prepare, isCurrent: () => true }
 		const { coordinator, options } = makeCoordinator({
@@ -209,29 +199,15 @@ describe("SdkFollowupCoordinator", () => {
 		expect(events).toEqual([])
 
 		currentSession = preparedSession
-		finishPreparation(preparedSession)
+		pendingPreparation.resolve(preparedSession)
 		await Promise.all([first, second])
 
 		expect(events).toEqual(["echo", "send", "send"])
 		expect(prepare).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledTimes(2)
-		expect(options.sessions.fireAndForgetSend).toHaveBeenNthCalledWith(
-			1,
-			preparedSession.sdkHost,
-			task.taskId,
-			"resolved: first prompt",
-			["image.png"],
-			["file.ts"],
-		)
-		expect(options.sessions.fireAndForgetSend).toHaveBeenNthCalledWith(
-			2,
-			preparedSession.sdkHost,
-			task.taskId,
-			"resolved: second prompt",
-			undefined,
-			undefined,
-			"queue",
-		)
+		expect(options.sessions.fireAndForgetSend.mock.calls).toEqual([
+			[preparedSession.sdkHost, task.taskId, "resolved: first prompt", ["image.png"], ["file.ts"]],
+			[preparedSession.sdkHost, task.taskId, "resolved: second prompt", undefined, undefined, "queue"],
+		])
 	})
 
 	it("queues a follow-up when the turn phase is still streaming even if the session running flag is stale", async () => {
