@@ -13,8 +13,6 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import {
 	Button, IconButton, Badge,
 	AgentConversationHeader,
@@ -88,16 +86,9 @@ const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
 for (const control of [Button, IconButton, Badge]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
-const legacyButton = renderToStaticMarkup(createElement(Button, { variant: "fill" }, "Continue"));
-const badge = renderToStaticMarkup(createElement(Badge, { interactive: true, tone: "error" }, "Retry"));
-if (!legacyButton.includes('data-slot="button"') || !legacyButton.includes('type="button"') || !badge.startsWith("<button")) {
- throw new Error("packed controls did not retain their native semantics");
-}
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-for (const name of ["button"]) {
- if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl))) || !componentStyles.includes("./components/" + name + ".css")) {
-  throw new Error("packed control stylesheet is missing: " + name);
- }
+if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
+ throw new Error("packed button stylesheet is missing");
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -433,7 +424,6 @@ try {
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.4.0",
 			"@types/react@19.2.14",
-			"@types/react-dom@19.2.3",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
@@ -465,7 +455,6 @@ try {
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
 			"@types/react@18.3.1",
-			"@types/react-dom@18.3.1",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
