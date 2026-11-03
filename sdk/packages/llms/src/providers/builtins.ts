@@ -589,6 +589,10 @@ function modelInfoToGateway(
 	if (info.metadata?.apiProtocol) {
 		metadata.apiProtocol = info.metadata.apiProtocol;
 	}
+	if (info.metadata?.interleavedReasoningField) {
+		metadata.interleavedReasoningField =
+			info.metadata.interleavedReasoningField;
+	}
 	return {
 		id: info.id,
 		name: info.name ?? info.id,
