@@ -1,17 +1,17 @@
 "use client";
 
+import { clsx as cn } from "clsx";
+import useEmblaCarousel from "embla-carousel-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
+	type ComponentProps,
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
-	type ComponentProps,
-	type ReactNode,
 } from "react";
-import useEmblaCarousel from "embla-carousel-react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-
-import { clsx as cn } from "clsx";
+import { IconButton } from "./button.js";
 
 export type CarouselApi = ReturnType<typeof useEmblaCarousel>[1];
 type CarouselOptions = Parameters<typeof useEmblaCarousel>[0];
@@ -101,32 +101,28 @@ export function CarouselItem({ className, ...props }: ComponentProps<"div">) {
 export function CarouselPrevious(props: ComponentProps<"button">) {
 	const { api } = useCarousel();
 	return (
-		<button
-			type="button"
+		<IconButton
+			icon={ArrowLeft}
 			{...props}
 			onClick={(event) => {
 				props.onClick?.(event);
 				api?.scrollPrev();
 			}}
 			aria-label="Previous screenshot"
-		>
-			<ArrowLeft className="size-4" />
-		</button>
+		/>
 	);
 }
 export function CarouselNext(props: ComponentProps<"button">) {
 	const { api } = useCarousel();
 	return (
-		<button
-			type="button"
+		<IconButton
+			icon={ArrowRight}
 			{...props}
 			onClick={(event) => {
 				props.onClick?.(event);
 				api?.scrollNext();
 			}}
 			aria-label="Next screenshot"
-		>
-			<ArrowRight className="size-4" />
-		</button>
+		/>
 	);
 }

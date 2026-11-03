@@ -3624,7 +3624,9 @@ describe("ChatInputBar token ring", () => {
 		);
 		expect(cachedSegment?.style.backgroundImage).toContain("linear-gradient");
 		expect(cachedSegment?.style.width).toBe("12.5%");
-		expect(outputSegment?.classList.contains("bg-blue-500")).toBe(true);
+		expect(outputSegment?.classList.contains("bg-cline-ui-info-solid")).toBe(
+			true,
+		);
 		expect(outputSegment?.style.backgroundImage).toContain("linear-gradient");
 		expect(outputSegment?.style.width).toBe("0.05%");
 		expect(panel?.textContent).not.toContain("Total");

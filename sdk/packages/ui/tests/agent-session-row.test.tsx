@@ -140,7 +140,7 @@ describe("AgentSessionRow host integration", () => {
 	it.each([
 		["pending", true, "bg-cline-ui-warning-solid", false],
 		["provisioning", true, "bg-cline-ui-warning-solid", true],
-		["running", true, "bg-cline-ui-success-solid", false],
+		["running", true, "bg-cline-ui-success-text", false],
 		["idle", true, "bg-cline-ui-info-solid", false],
 		["idle", false, null, false],
 	] as const)("preserves desktop status precedence for %s/unread=%s", async (status, unread, color, pulsing) => {

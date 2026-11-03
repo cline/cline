@@ -31,6 +31,25 @@ afterEach(async () => {
 });
 
 describe("AgentComposer", () => {
+	it.each([
+		[undefined, "submit", 1],
+		["submit", "submit", 1],
+		["button", "button", 0],
+	] as const)("preserves send button form behavior with type=%s", async (type, expectedType, submissions) => {
+		const onSubmit = vi.fn((event) => event.preventDefault());
+		await act(async () =>
+			root.render(
+				<form onSubmit={onSubmit}>
+					<AgentComposerSendButton type={type}>Send</AgentComposerSendButton>
+				</form>,
+			),
+		);
+		const button = container.querySelector("button");
+		expect(button?.type).toBe(expectedType);
+		await act(async () => button?.click());
+		expect(onSubmit).toHaveBeenCalledTimes(submissions);
+	});
+
 	it("keeps host refs, controlled input, focus, keyboard and button events on the original native elements", async () => {
 		const textarea = createRef<HTMLTextAreaElement>();
 		const onKeyDown = vi.fn();

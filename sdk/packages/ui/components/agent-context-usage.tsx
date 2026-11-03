@@ -120,11 +120,11 @@ export function AgentContextUsage({
 					/>
 					<div
 						aria-hidden="true"
-						className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
+						className="h-full shrink-0 bg-cline-ui-info-solid transition-[background,width] duration-120"
 						data-token-kind="output"
 						style={{
 							backgroundImage:
-								"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
+								"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--info-solid))",
 							width: segmentWidth(usage.tokensOut),
 						}}
 					/>

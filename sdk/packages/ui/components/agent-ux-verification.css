@@ -33,18 +33,7 @@
 	opacity: 0.6;
 }
 .cline-ui-ux-verifier-count {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	font-size: 10px;
-	padding: 4px 8px;
-	border-radius: 99px;
-	background: color-mix(in srgb, var(--foreground) 7%, transparent);
 	white-space: nowrap;
-}
-.cline-ui-ux-verifier-count.all-passed {
-	color: var(--success-text);
-	background: var(--success-surface);
 }
 .cline-ui-ux-evidence-carousel {
 	border-radius: 12px;
@@ -87,12 +76,6 @@
 	margin-bottom: 8px;
 	font-size: 10px;
 }
-.cline-ui-ux-evidence-action > span + span {
-	padding: 2px 7px;
-	border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
-	background: color-mix(in srgb, var(--foreground) 7%, transparent);
-	border-radius: 5px;
-}
 .cline-ui-ux-evidence-caption h4 {
 	display: flex;
 	align-items: center;
@@ -130,8 +113,6 @@
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
 	position: absolute;
-	display: grid;
-	place-items: center;
 	height: 34px;
 	width: 34px;
 	border-radius: 50%;
@@ -143,10 +124,6 @@
 .cline-ui-ux-evidence-expand {
 	right: 12px;
 	top: 12px;
-}
-.cline-ui-ux-evidence-expand:disabled {
-	opacity: 0.4;
-	cursor: default;
 }
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
@@ -210,12 +187,7 @@
 	height: 9px;
 }
 .cline-ui-ux-evidence-play {
-	display: grid;
-	place-items: center;
-	width: 32px;
-	height: 32px;
 	border-radius: 50%;
-	background: color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 .cline-ui-ux-verifier-pending {
 	display: flex;
@@ -263,15 +235,15 @@
 .cline-ui-ux-verifier header p {
 	margin: 0;
 }
-.cline-ui-ux-verifier button {
+.cline-ui-ux-evidence-thumbnail {
 	cursor: pointer;
 	font: inherit;
 }
-.cline-ui-ux-verifier button:disabled {
+.cline-ui-ux-evidence-thumbnail:disabled {
 	opacity: 0.4;
 	cursor: default;
 }
-.cline-ui-ux-verifier button:focus-visible {
+.cline-ui-ux-evidence-thumbnail:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: 2px;
 }

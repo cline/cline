@@ -40,6 +40,9 @@ export const HostRendered: Story = {
 	args: {
 		output: "Build succeeded",
 		isRunning: false,
-		children: <span className="text-green-400">Build succeeded</span>,
+		// Command output keeps a dark terminal surface in both app themes.
+		children: (
+			<span className="dark text-cline-ui-success-text">Build succeeded</span>
+		),
 	},
 };

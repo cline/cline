@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+	type UxVerificationCheck,
+	UxVerificationReportSchema,
+} from "@cline/shared/browser";
+import { clsx as cn } from "clsx";
 import {
 	Check,
 	CircleAlert,
@@ -11,20 +15,18 @@ import {
 	ShieldCheck,
 	X,
 } from "lucide-react";
-import {
-	UxVerificationReportSchema,
-	type UxVerificationCheck,
-} from "@cline/shared/browser";
-import { GeneratedMediaContent } from "./generated-media.js";
-import { clsx as cn } from "clsx";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Badge } from "./badge.js";
+import { IconButton } from "./button.js";
 import {
 	Carousel,
+	type CarouselApi,
 	CarouselContent,
 	CarouselItem,
 	CarouselNext,
 	CarouselPrevious,
-	type CarouselApi,
 } from "./carousel.js";
+import { GeneratedMediaContent } from "./generated-media.js";
 
 export type UxScreenshotPresentation = "slide" | "thumbnail";
 export type UxScreenshotRenderer = (
@@ -181,15 +183,14 @@ export function AgentUxVerification({
 					<h3>{report.title}</h3>
 					<p>{report.subtitle}</p>
 				</div>
-				<span
-					className={cn(
-						"cline-ui-ux-verifier-count",
-						passed === report.checks.length && "all-passed",
-					)}
+				<Badge
+					className="cline-ui-ux-verifier-count"
+					tone={passed === report.checks.length ? "success" : "neutral"}
+					size="xxs"
 				>
 					<Check className="size-3.5" />
 					{passed}/{report.checks.length} checks passed
-				</span>
+				</Badge>
 			</header>
 			<Carousel
 				setApi={setApi}
@@ -232,7 +233,7 @@ export function AgentUxVerification({
 										<span>
 											{index + 1}/{report.checks.length}
 										</span>
-										{check.action && <span>{check.action}</span>}
+										{check.action && <Badge size="xxs">{check.action}</Badge>}
 									</div>
 									<h4>
 										<StatusIcon status={check.status} />
@@ -244,8 +245,8 @@ export function AgentUxVerification({
 						</CarouselItem>
 					))}
 				</CarouselContent>
-				<button
-					type="button"
+				<IconButton
+					icon={Expand}
 					disabled={!current.screenshot || !onExpandScreenshot}
 					onClick={() => {
 						setPlaying(false);
@@ -254,9 +255,7 @@ export function AgentUxVerification({
 					className="cline-ui-ux-evidence-expand"
 					aria-label="Expand screenshot"
 					title="Expand screenshot"
-				>
-					<Expand className="size-4" />
-				</button>
+				/>
 				{report.checks.length > 1 && (
 					<>
 						<CarouselPrevious
@@ -303,19 +302,14 @@ export function AgentUxVerification({
 					))}
 				</div>
 				{report.checks.length > 1 && (
-					<button
-						type="button"
+					<IconButton
+						icon={playing ? Pause : Play}
+						variant="secondary"
 						className="cline-ui-ux-evidence-play"
 						onClick={() => setPlaying((value) => !value)}
 						aria-label={playing ? "Pause slideshow" : "Play slideshow"}
 						aria-pressed={playing}
-					>
-						{playing ? (
-							<Pause className="size-4" />
-						) : (
-							<Play className="size-4" />
-						)}
-					</button>
+					/>
 				)}
 			</footer>
 			<p className="sr-only" aria-live={playing ? "off" : "polite"}>

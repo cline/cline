@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ArrowUp, Square } from "lucide-react";
 import { useRef, useState } from "react";
 import {
 	AgentComposer,
@@ -74,23 +75,21 @@ function ComposerExample({
 								{running && (
 									<AgentComposerStopButton
 										variant={variant}
+										icon={Square}
 										type="button"
 										aria-label="Stop agent"
 										title="Stop the agent (Esc)"
-									>
-										<span aria-hidden>■</span>
-									</AgentComposerStopButton>
+									/>
 								)}
 								<AgentComposerSendButton
 									variant={variant}
+									icon={ArrowUp}
 									type="button"
 									aria-label="Send message"
 									title="Send (Enter)"
 									disabled={!draft.trim()}
 									onClick={() => setDraft("")}
-								>
-									<span aria-hidden>↑</span>
-								</AgentComposerSendButton>
+								/>
 							</AgentComposerActions>
 						</AgentComposerField>
 					</div>

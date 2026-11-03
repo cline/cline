@@ -1,6 +1,8 @@
 "use client";
 
-import { type ReactNode, useId } from "react";
+import { type ReactNode, type SVGProps, useId } from "react";
+import { Badge } from "./badge.js";
+import { Button } from "./button.js";
 
 export type AgentApprovalAction = "approve" | "reject";
 
@@ -15,12 +17,13 @@ export interface AgentApprovalCardProps {
 	title: ReactNode;
 }
 
-function Spinner() {
+function Spinner({ className, ...props }: SVGProps<SVGSVGElement>) {
 	return (
 		<svg
 			aria-hidden="true"
-			className="cline-ui-agent-approval-card__spinner mr-1 size-3.5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] stroke-2"
+			className={`cline-ui-agent-approval-card__spinner fill-none stroke-2 stroke-current [stroke-linecap:round] [stroke-linejoin:round] ${className ?? ""}`}
 			viewBox="0 0 24 24"
+			{...props}
 		>
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
 		</svg>
@@ -46,7 +49,7 @@ export function AgentApprovalCard({
 			aria-labelledby={titleId}
 			className="cline-ui-agent-approval-card rounded-cline-ui-lg border border-cline-ui-border/80 bg-cline-ui-background/70 p-3"
 		>
-			<div className="cline-ui-agent-approval-card__header flex items-center justify-between gap-2">
+			<div className="cline-ui-agent-approval-card__header flex items-center justify-between gap-3">
 				<div
 					className="cline-ui-agent-approval-card__title font-cline-ui-medium text-cline-ui-foreground text-cline-ui-sm"
 					id={titleId}
@@ -54,13 +57,17 @@ export function AgentApprovalCard({
 					{title}
 				</div>
 				{meta ? (
-					<div className="cline-ui-agent-approval-card__meta inline-flex items-center gap-1 text-[11px] text-cline-ui-muted-foreground">
+					<Badge
+						className="cline-ui-agent-approval-card__meta"
+						size="xxs"
+						variant="ghost"
+					>
 						{meta}
-					</div>
+					</Badge>
 				) : null}
 			</div>
 			{description ? (
-				<div className="cline-ui-agent-approval-card__description mt-1 text-[11px] text-cline-ui-muted-foreground">
+				<div className="cline-ui-agent-approval-card__description mt-1 mb-3 text-cline-ui-muted-foreground text-cline-ui-xxs">
 					{description}
 				</div>
 			) : null}
@@ -73,36 +80,30 @@ export function AgentApprovalCard({
 				<div className="cline-ui-agent-approval-card__error">{error}</div>
 			) : null}
 			<div className="cline-ui-agent-approval-card__actions">
-				<button
-					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-cline-ui-md border-0 bg-cline-ui-primary px-3 font-cline-ui-medium text-cline-ui-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-cline-ui-primary-emphasis focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50"
+				<Button
+					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--reject"
 					disabled={isPending}
-					onClick={onApprove}
-					type="button"
-				>
-					{responding === "approve" ? (
-						<>
-							<Spinner />
-							Approving...
-						</>
-					) : (
-						"Approve"
-					)}
-				</button>
-				<button
-					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--reject inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-3 font-cline-ui-medium text-cline-ui-foreground shadow-xs transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-cline-ui-accent [&:hover]:text-cline-ui-accent-foreground focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50 cline-ui-dark:border-cline-ui-input cline-ui-dark:bg-cline-ui-input/30 cline-ui-dark:[&:hover]:bg-cline-ui-input/50"
-					disabled={isPending}
+					leadingIcon={responding === "reject" ? Spinner : undefined}
 					onClick={onReject}
+					size="sm"
+					tone="neutral"
 					type="button"
+					variant="secondary"
 				>
-					{responding === "reject" ? (
-						<>
-							<Spinner />
-							Rejecting...
-						</>
-					) : (
-						"Reject"
-					)}
-				</button>
+					{responding === "reject" ? "Rejecting..." : "Reject"}
+				</Button>
+				<Button
+					tone="neutral"
+					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve"
+					disabled={isPending}
+					leadingIcon={responding === "approve" ? Spinner : undefined}
+					onClick={onApprove}
+					size="sm"
+					type="button"
+					variant="primary"
+				>
+					{responding === "approve" ? "Approving..." : "Approve"}
+				</Button>
 			</div>
 		</section>
 	);

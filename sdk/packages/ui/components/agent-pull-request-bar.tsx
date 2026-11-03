@@ -12,6 +12,8 @@ import {
 	X,
 } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
+import { Badge } from "./badge.js";
+import { Button, IconButton } from "./button.js";
 
 export type AgentPullRequestCheck = {
 	name: string;
@@ -91,13 +93,16 @@ const checkLabels = {
 	failure: "CI failed",
 	skipped: "CI skipped",
 };
-const statusColors = {
-	merged: "text-cline-ui-accent-foreground",
-	failure: "text-cline-ui-error-text",
-	warning: "text-cline-ui-warning-text",
-	neutral: "text-cline-ui-muted-foreground",
-	success: "text-cline-ui-success-text",
-};
+const statusStyles = {
+	merged: { tone: "accent", colorClassName: "text-cline-ui-accent-foreground" },
+	failure: { tone: "error", colorClassName: "text-cline-ui-error-text" },
+	warning: { tone: "warning", colorClassName: "text-cline-ui-warning-text" },
+	neutral: {
+		tone: "neutral",
+		colorClassName: "text-cline-ui-muted-foreground",
+	},
+	success: { tone: "success", colorClassName: "text-cline-ui-success-text" },
+} as const;
 const checkColors = {
 	unavailable: "bg-cline-ui-muted-foreground",
 	none: "bg-cline-ui-muted-foreground",
@@ -128,6 +133,7 @@ export function AgentPullRequestBar({
 						: GitBranch;
 	if (!error && !data?.branch && !pr) return null;
 	const status = pr ? getAgentPullRequestMergeStatus(pr) : null;
+	const statusStyle = statusStyles[status?.tone ?? "neutral"];
 	const ci =
 		!pr?.checks || pr.checksUnavailable
 			? "unavailable"
@@ -138,55 +144,53 @@ export function AgentPullRequestBar({
 		children: ReactNode,
 		title?: string,
 		label?: string,
-	) =>
-		onNavigate ? (
-			<button
-				type="button"
-				className={`cline-ui-pr-bar__link hover:underline ${action === "open" || action === "create" ? "shrink-0 font-medium" : "text-left"}`}
-				title={title}
-				aria-label={label}
-				onClick={() => onNavigate(url, action)}
-			>
-				{children}
-				{(action === "create" || action === "check") && (
-					<>
-						{" "}
-						<ExternalLink className="inline size-3" />
-					</>
-				)}
-			</button>
-		) : (
-			<a
-				className={`cline-ui-pr-bar__link hover:underline ${action === "open" || action === "create" ? "shrink-0 font-medium" : "text-left"}`}
-				href={url}
-				target="_blank"
-				rel="noopener noreferrer"
-				title={title}
-				aria-label={label}
-			>
-				{children}
-				{(action === "create" || action === "check") && (
-					<>
-						{" "}
-						<ExternalLink className="inline size-3" />
-					</>
-				)}
-			</a>
-		);
+	) => (
+		<Button
+			asChild
+			size="xs"
+			tone="neutral"
+			variant="ghost"
+			className={`cline-ui-pr-bar__link h-auto min-w-0 whitespace-normal px-0 text-left hover:underline ${action === "open" || action === "create" ? "shrink-0 font-medium" : "shrink"}`}
+			trailingIcon={
+				action === "create" || action === "check" ? ExternalLink : undefined
+			}
+		>
+			{onNavigate ? (
+				<button
+					type="button"
+					title={title}
+					aria-label={label}
+					onClick={() => onNavigate(url, action)}
+				>
+					{children}
+				</button>
+			) : (
+				<a
+					href={url}
+					target="_blank"
+					rel="noopener noreferrer"
+					title={title}
+					aria-label={label}
+				>
+					{children}
+				</a>
+			)}
+		</Button>
+	);
 	const checksContent = (
 		<div
 			className="cline-ui-pr-bar__checks p-3"
 			data-native-navigation={onNavigate ? true : undefined}
 		>
-			<p className="cline-ui-pr-bar__checks-title mb-2 text-cline-ui-sm font-medium">
+			<p className="cline-ui-pr-bar__checks-title mb-2 font-medium text-cline-ui-sm">
 				Checks for #{pr?.number}
 			</p>
 			{ci === "unavailable" ? (
-				<p className="text-cline-ui-xs text-cline-ui-muted-foreground">
+				<p className="text-cline-ui-muted-foreground text-cline-ui-xs">
 					Checks could not be loaded. Refresh to try again.
 				</p>
 			) : ci === "none" ? (
-				<p className="text-cline-ui-xs text-cline-ui-muted-foreground">
+				<p className="text-cline-ui-muted-foreground text-cline-ui-xs">
 					No checks reported for this pull request.
 				</p>
 			) : null}
@@ -216,7 +220,7 @@ export function AgentPullRequestBar({
 	);
 	return (
 		<section
-			className="cline-ui-pr-bar border-b border-cline-ui-border px-4 py-2 text-cline-ui-xs"
+			className="cline-ui-pr-bar border-cline-ui-border border-b px-4 py-2 text-cline-ui-xs"
 			aria-label="Pull request status"
 			data-native-navigation={onNavigate ? true : undefined}
 		>
@@ -224,14 +228,12 @@ export function AgentPullRequestBar({
 				<div className="cline-ui-pr-bar__error mb-1 flex items-start gap-2 text-cline-ui-error-text">
 					<output className="min-w-0 flex-1">{error}</output>
 					{onDismissError && (
-						<button
-							type="button"
+						<IconButton
 							aria-label="Dismiss pull request error"
-							className="shrink-0 rounded p-1 hover:bg-cline-ui-muted"
+							size="xs"
+							icon={X}
 							onClick={onDismissError}
-						>
-							<X className="size-3" />
-						</button>
+						/>
 					)}
 				</div>
 			)}
@@ -240,7 +242,7 @@ export function AgentPullRequestBar({
 					(data.branch ? (
 						<>
 							<PullRequestIcon
-								className={`cline-ui-pr-bar__icon size-4 shrink-0 cline-ui-pr-bar__tone--${status?.tone ?? "neutral"} ${statusColors[status?.tone ?? "neutral"]}`}
+								className={`cline-ui-pr-bar__icon size-4 shrink-0 cline-ui-pr-bar__tone--${status?.tone ?? "neutral"} ${statusStyle.colorClassName}`}
 							/>
 							{pr ? (
 								<>
@@ -251,11 +253,14 @@ export function AgentPullRequestBar({
 										pr.title,
 										`Open pull request #${pr.number}: ${pr.title}`,
 									)}
-									<span
-										className={`shrink-0 cline-ui-pr-bar__tone--${status?.tone} ${statusColors[status?.tone ?? "neutral"]}`}
+									<Badge
+										className={`cline-ui-pr-bar__tone--${status?.tone}`}
+										size="xs"
+										tone={statusStyle.tone}
+										variant="ghost"
 									>
 										{status?.label}
-									</span>
+									</Badge>
 								</>
 							) : data.createUrl ? (
 								link(
@@ -305,9 +310,10 @@ export function AgentPullRequestBar({
 										</span>
 									)}
 									{renderChecks(
-										<button
-											type="button"
-											className="cline-ui-pr-bar__check-trigger flex shrink-0 items-center gap-1.5 rounded-md bg-cline-ui-muted px-2 py-1"
+										<Badge
+											interactive
+											size="xs"
+											className="cline-ui-pr-bar__check-trigger"
 											aria-label={
 												ci === "none" ? "No CI checks" : checkLabels[ci]
 											}
@@ -319,7 +325,7 @@ export function AgentPullRequestBar({
 											/>
 											{checkLabels[ci]}
 											<ChevronDown className="size-3" />
-										</button>,
+										</Badge>,
 										checksContent,
 									)}
 								</>
@@ -328,18 +334,18 @@ export function AgentPullRequestBar({
 					) : (
 						<span>Task branch unavailable.</span>
 					))}
-				<button
-					type="button"
+				<IconButton
+					size="xs"
 					disabled={loading}
 					onClick={onRefresh}
 					aria-label="Refresh pull request status"
 					title="Refresh pull request status"
-					className="cline-ui-pr-bar__refresh shrink-0 rounded p-1 text-cline-ui-muted-foreground hover:bg-cline-ui-muted disabled:opacity-50"
+					className="cline-ui-pr-bar__refresh"
 				>
 					<RefreshCw
 						className={`size-3 ${loading ? `animate-spin ${onNavigate ? "" : "motion-reduce:animate-none"}` : ""}`}
 					/>
-				</button>
+				</IconButton>
 			</div>
 		</section>
 	);

@@ -27,10 +27,7 @@
 	font-variant: inherit;
 	letter-spacing: inherit;
 	line-height: inherit;
-	/* The Button base sets `whitespace-nowrap`, and clsx keeps both classes on
-	 * the element, letting the utility stylesheet's order pick nowrap. This
-	 * unlayered rule beats layered utilities so long options wrap instead of
-	 * clipping under the item's overflow:hidden. */
+	/* Model-supplied answers may span multiple lines. */
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
@@ -79,15 +76,6 @@
 .cline-ui-agent-ask-question__footer {
 	border-style: solid;
 	border-width: 1px 0 0;
-}
-
-.cline-ui-agent-ask-question__submit:not(:disabled) {
-	background: var(--foreground);
-	color: var(--background);
-}
-
-.cline-ui-agent-ask-question__submit:hover:not(:disabled) {
-	opacity: 0.9;
 }
 
 @keyframes cline-ui-agent-ask-question-spin {

@@ -144,6 +144,11 @@ export function ToolFileDiff({
 						"--diffs-line-height": "calc(var(--text-xs, 0.8rem) * 1.5)",
 						"--diffs-light-bg": background,
 						"--diffs-dark-bg": background,
+						// These supported overrides also drive gutter and line tints.
+						// Missing Cline tokens leave them invalid, so pierre retains
+						// its own theme-color fallback for standalone consumers.
+						"--diffs-addition-color-override": "var(--success-text)",
+						"--diffs-deletion-color-override": "var(--error-text)",
 						// @pierre/diffs declares `color-scheme: light dark` on its
 						// shadow :host, so its light-dark() token colors follow the
 						// browser's preferred scheme — not the host app's
