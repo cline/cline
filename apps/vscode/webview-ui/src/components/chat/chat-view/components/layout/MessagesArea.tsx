@@ -252,7 +252,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				className={cn(
 					"absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px] bg-background",
 					scrolledPastUserMessage && "pb-2",
-				)}>
+				)}
+				data-sticky-header="">
 				<StickyUserMessage
 					isVisible={!!scrolledPastUserMessage}
 					lastUserMessage={scrolledPastUserMessage}

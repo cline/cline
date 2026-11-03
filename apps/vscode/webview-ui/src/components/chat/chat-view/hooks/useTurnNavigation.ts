@@ -1,6 +1,50 @@
 import { type RefObject, useCallback, useEffect } from "react"
 import type { VirtuosoHandle } from "react-virtuoso"
-import { nearestByRatio, type TimelineMarker } from "../utils/turnTimeline"
+import { nearestByRatio, resolveChatScroller, type TimelineMarker } from "../utils/turnTimeline"
+
+/** Frames the landing correction waits for the virtualiser to build the target row. */
+const LANDING_FRAMES = 10
+
+/** Breathing room between the pinned prompt and the row a jump lands on. */
+const LANDING_GAP_PX = 8
+
+/** How much the sticky prompt covers at the top of the list — 0 while nothing is pinned. */
+function stickyCover(scroller: HTMLElement | null): number {
+	if (!scroller) {
+		return 0
+	}
+	const sticky = scroller.parentElement?.querySelector<HTMLElement>("[data-sticky-header]")
+	const height = sticky?.getBoundingClientRect().height ?? 0
+	return height > 1 ? Math.round(height) + LANDING_GAP_PX : 0
+}
+
+/**
+ * Moves the scroller until the row sits exactly `below` px under its top edge.
+ *
+ * `scrollToIndex` positions an *estimated* offset, and a folded run of activity is far shorter than
+ * the estimate, so a jump can land tens of rows away — the target arrived hidden under the pinned
+ * prompt or off screen altogether. The first jump renders the neighbourhood; from there the row's
+ * own rect decides, one frame at a time, until it is where the reader meant to go.
+ */
+export function landRowBelow(scroller: HTMLElement, ts: number, below: number, framesLeft = LANDING_FRAMES): void {
+	if (framesLeft <= 0) {
+		return
+	}
+	requestAnimationFrame(() => {
+		const row = scroller.querySelector<HTMLElement>(`[data-message-ts="${ts}"]`)
+		if (!row) {
+			// Not rendered yet: the jump above has to let the virtualiser build it first.
+			landRowBelow(scroller, ts, below, framesLeft - 1)
+			return
+		}
+		const delta = row.getBoundingClientRect().top - (scroller.getBoundingClientRect().top + below)
+		if (Math.abs(delta) <= 1) {
+			return
+		}
+		scroller.scrollTop = scroller.scrollTop + delta
+		landRowBelow(scroller, ts, below, framesLeft - 1)
+	})
+}
 
 interface UseTurnNavigationOptions {
 	/** Prompts and final answers, in reading order. */
@@ -42,11 +86,17 @@ export function useTurnNavigation(options: UseTurnNavigationOptions): {
 	const jumpTo = useCallback(
 		(marker: TimelineMarker) => {
 			onJump?.()
+			const scroller = resolveChatScroller(scrollContainerRef.current)
+			const below = stickyCover(scroller)
 			// Instant on purpose: virtuoso has not measured the rows in between, so a smooth scroll
-			// animates toward an estimate and then crawls while it corrects itself.
-			virtuosoRef.current?.scrollToIndex({ index: marker.listIndex, align: "start", behavior: "auto" })
+			// animates toward an estimate and then crawls while it corrects itself. The estimate is
+			// only a starting point — the correction below lands on the row itself.
+			virtuosoRef.current?.scrollToIndex({ index: marker.listIndex, align: "start", behavior: "auto", offset: -below })
+			if (scroller) {
+				landRowBelow(scroller, marker.ts, below)
+			}
 		},
-		[onJump, virtuosoRef],
+		[onJump, scrollContainerRef, virtuosoRef],
 	)
 
 	const step = useCallback(
