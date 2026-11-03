@@ -1,10 +1,12 @@
-import { resolve } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import type {
 	HubCommandEnvelope,
 	HubEventEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type { HubConnectionAuthority } from "./command-transport";
 
@@ -50,6 +52,11 @@ function createSocket() {
 }
 
 describe("BrowserWebSocketHubAdapter", () => {
+	let directory: string;
+	beforeEach(async () => {
+		directory = await mkdtemp(join(tmpdir(), "hub-browser-history-"));
+		vi.stubEnv("CLINE_DATA_DIR", directory);
+	});
 	it("unregister cancels queued history and never sends an abandoned full reply", async () => {
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
 		const transport = {
@@ -188,9 +195,11 @@ describe("BrowserWebSocketHubAdapter", () => {
 		}
 	});
 
-	afterEach(() => {
+	afterEach(async () => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
+		await rm(directory, { recursive: true, force: true });
 	});
 
 	it("ignores malformed websocket frames instead of throwing", async () => {

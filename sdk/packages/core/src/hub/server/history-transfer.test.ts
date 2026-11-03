@@ -1,5 +1,8 @@
+import { type FileHandle, mkdtemp, open, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HistoryTransferPool } from "./history-transfer";
 
 const envelope: HubCommandEnvelope = {
@@ -13,7 +16,93 @@ const envelope: HubCommandEnvelope = {
 const signal = () => new AbortController().signal;
 
 describe("HistoryTransferPool", () => {
-	afterEach(() => vi.useRealTimers());
+	let directory: string;
+	beforeEach(async () => {
+		directory = await mkdtemp(join(tmpdir(), "hub-history-transfer-"));
+		vi.stubEnv("CLINE_DATA_DIR", directory);
+	});
+	afterEach(async () => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
+		await rm(directory, { recursive: true, force: true });
+	});
+
+	it.each([
+		"already",
+		"during",
+	] as const)("cancels a continuation when aborted %s its disk read", async (mode) => {
+		const pool = new HistoryTransferPool();
+		const owner = {};
+		const read = async (): Promise<HubReplyEnvelope> => ({
+			version: "v1",
+			ok: true,
+			payload: { messages: ["x".repeat(512 * 1024)] },
+		});
+		const first = await pool.command(envelope, owner, read, signal());
+		const probe = await open(join(directory, "probe"), "wx+");
+		const prototype: Pick<FileHandle, "read"> = Object.getPrototypeOf(probe);
+		await probe.close();
+		const originalRead = prototype.read;
+		const diskRead = vi.spyOn(prototype, "read");
+		let resume: (() => void) | undefined;
+		let transferFile: FileHandle | undefined;
+		if (mode === "during") {
+			diskRead.mockImplementationOnce(function (
+				this: FileHandle,
+				...args: unknown[]
+			) {
+				transferFile = this;
+				return new Promise<Awaited<ReturnType<FileHandle["read"]>>>(
+					(resolve, reject) => {
+						resume = () => {
+							Promise.resolve()
+								.then(() => Reflect.apply(originalRead, this, args))
+								.then(resolve, reject);
+						};
+					},
+				);
+			});
+		}
+		const abort = new AbortController();
+		if (mode === "already") abort.abort();
+		try {
+			const pending = pool.command(
+				{
+					...envelope,
+					payload: { historyCursor: first.payload?.historyCursor },
+				},
+				owner,
+				read,
+				abort.signal,
+			);
+			if (mode === "during") {
+				await vi.waitFor(() => expect(resume).toBeTypeOf("function"));
+				abort.abort();
+				if (!resume) throw new Error("Delayed file read did not start");
+				resume();
+			}
+			await expect(pending).resolves.toMatchObject({
+				ok: false,
+				error: { code: "history_transfer_closed" },
+			});
+			if (mode === "during") expect(transferFile?.fd).toBe(-1);
+			if (mode === "already") expect(diskRead).not.toHaveBeenCalled();
+			await expect(
+				pool.command(
+					{
+						...envelope,
+						payload: { historyCursor: first.payload?.historyCursor },
+					},
+					owner,
+					read,
+					signal(),
+				),
+			).rejects.toThrow("cursor is invalid");
+		} finally {
+			await pool.close(owner);
+		}
+	});
 
 	it("pins one exact transcript across escaped Unicode chunks and rejects foreign cursors", async () => {
 		const pool = new HistoryTransferPool();
@@ -27,7 +116,9 @@ describe("HistoryTransferPool", () => {
 			}),
 		);
 		let reply = await pool.command(envelope, owner, read, signal());
+		expect(await readdir(join(directory, "history-transfers"))).toEqual([]);
 		const chunks: string[] = [];
+		let checkedOverlap = false;
 		while (true) {
 			expect(
 				Buffer.byteLength(JSON.stringify({ kind: "reply", envelope: reply })),
@@ -61,11 +152,20 @@ describe("HistoryTransferPool", () => {
 					signal(),
 				),
 			).rejects.toThrow("cursor is invalid");
-			reply = await pool.command(continuation, owner, read, signal());
+			if (!checkedOverlap) {
+				const [first, overlapping] = await Promise.allSettled([
+					pool.command(continuation, owner, read, signal()),
+					pool.command(continuation, owner, read, signal()),
+				]);
+				expect(overlapping.status).toBe("rejected");
+				if (first.status !== "fulfilled") throw first.reason;
+				reply = first.value;
+				checkedOverlap = true;
+			} else reply = await pool.command(continuation, owner, read, signal());
 		}
 		expect(JSON.parse(chunks.join(""))).toEqual(messages);
 		expect(read).toHaveBeenCalledTimes(1);
-		pool.close(owner);
+		await pool.close(owner);
 	});
 
 	it.each([
@@ -108,7 +208,7 @@ describe("HistoryTransferPool", () => {
 				signal(),
 			),
 		).resolves.toMatchObject({ payload: { historyChunk: "[]" } });
-		pool.close(owner);
+		await pool.close(owner);
 	});
 
 	it("waits for admission until two uncancellable producers actually settle", async () => {
@@ -150,32 +250,73 @@ describe("HistoryTransferPool", () => {
 			payload: { historyChunk: "[]" },
 		});
 		expect(thirdRead).toHaveBeenCalledTimes(1);
-		pool.close(owner);
+		await pool.close(owner);
 	});
 
-	it("rejects an oversized pinned transcript without leaking its admission slot", async () => {
+	it("allows another viewer to prepare while two 32 MiB downloads are paused", async () => {
 		const pool = new HistoryTransferPool();
-		const owner = {};
-		await expect(
-			pool.command(
+		const owners = [{}, {}];
+		const messages = ["x".repeat(32 * 1024 * 1024)];
+		const read = vi.fn(
+			async (): Promise<HubReplyEnvelope> => ({
+				version: "v1",
+				ok: true,
+				payload: { messages },
+			}),
+		);
+		try {
+			const replies = await Promise.all(
+				owners.map((owner) => pool.command(envelope, owner, read, signal())),
+			);
+			expect(
+				replies.every(
+					(reply) => typeof reply.payload?.historyCursor === "string",
+				),
+			).toBe(true);
+			const third = await pool.command(
 				envelope,
-				owner,
+				{},
 				async () => ({
 					version: "v1",
 					ok: true,
-					payload: { messages: ["x".repeat(64 * 1024 * 1024)] },
+					payload: { messages: ["small"] },
 				}),
 				signal(),
-			),
-		).rejects.toThrow("byte limit");
-		await expect(
-			pool.command(
-				envelope,
+			);
+			expect(third.payload?.historyChunk).toBe('["small"]');
+			expect(third.payload?.historyCursor).toBeUndefined();
+			expect(await readdir(join(directory, "history-transfers"))).toEqual([]);
+		} finally {
+			await Promise.all(owners.map((owner) => pool.close(owner)));
+		}
+	});
+
+	it("streams a history larger than 64 MiB without a new transcript-size limit", async () => {
+		const pool = new HistoryTransferPool();
+		const owner = {};
+		const messages = ["x".repeat(65 * 1024 * 1024)];
+		const read = vi.fn(
+			async (): Promise<HubReplyEnvelope> => ({
+				version: "v1",
+				ok: true,
+				payload: { messages },
+			}),
+		);
+		let reply = await pool.command(envelope, owner, read, signal());
+		const chunks: string[] = [];
+		while (true) {
+			chunks.push(String(reply.payload?.historyChunk));
+			const cursor = reply.payload?.historyCursor;
+			if (cursor === undefined) break;
+			reply = await pool.command(
+				{ ...envelope, payload: { historyCursor: cursor } },
 				owner,
-				async () => ({ version: "v1", ok: true, payload: { messages: [] } }),
+				read,
 				signal(),
-			),
-		).resolves.toMatchObject({ payload: { historyChunk: "[]" } });
-		pool.close(owner);
+			);
+		}
+		expect(JSON.parse(chunks.join(""))).toEqual(messages);
+		expect(read).toHaveBeenCalledTimes(1);
+		await pool.close(owner);
 	});
 });

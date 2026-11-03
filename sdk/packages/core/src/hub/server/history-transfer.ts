@@ -1,20 +1,32 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter, once } from "node:events";
+import { type FileHandle, mkdir, open, unlink } from "node:fs/promises";
+import { join } from "node:path";
+import { TextDecoder } from "node:util";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import { resolveClineDataDir } from "@cline/shared/storage";
 import { extractSessionId } from "./handlers/context";
+import { logHubMessage } from "./hub-server-logging";
 
-const CHUNK_LENGTH = 128 * 1024;
+// Leave room for the UTF-8 decoder's carry without exceeding 128 Ki code units.
+const CHUNK_BYTES = 128 * 1024 - 4;
 const TRANSFER_TIMEOUT_MS = 5 * 60_000;
-const RETAINED_BYTE_LIMIT = 64 * 1024 * 1024;
+
+type Snapshot = {
+	file: FileHandle;
+	size: number;
+	offset: number;
+	decoder: TextDecoder;
+	reading: boolean;
+};
 
 type Transfer = {
-	owner: object;
 	clientId: string | undefined;
 	sessionId: string;
-	text: string;
-	offset: number;
+	snapshot: Promise<Snapshot | undefined>;
+	cancelled: boolean;
 	timer: ReturnType<typeof setTimeout>;
-	state: "reading" | "ready" | "closed";
+	cleanup?: Promise<void>;
 };
 
 function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
@@ -29,11 +41,11 @@ function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
 	};
 }
 
-/** Pins an opt-in history reply while the connection pulls bounded chunks. */
+/** Pins opt-in history in an anonymous file while its connection pulls chunks. */
 export class HistoryTransferPool {
-	private readonly transfers = new Map<string, Transfer>();
-	private retainedBytes = 0;
-	private readonly available = new EventEmitter();
+	private readonly owners = new Map<object, Map<string, Transfer>>();
+	private preparations = 0;
+	private readonly available = new EventEmitter().setMaxListeners(0);
 
 	async command(
 		envelope: HubCommandEnvelope,
@@ -45,113 +57,237 @@ export class HistoryTransferPool {
 		if (cursor !== undefined) {
 			if (typeof cursor !== "string") throw new Error("Invalid history cursor");
 			const [key] = cursor.split(":");
-			const transfer = this.transfers.get(key);
+			const transfer = this.owners.get(owner)?.get(key);
 			if (
 				!transfer ||
-				transfer.owner !== owner ||
 				transfer.clientId !== envelope.clientId ||
-				transfer.sessionId !== extractSessionId(envelope) ||
-				transfer.state !== "ready" ||
-				cursor !== `${key}:${transfer.offset}`
-			)
+				transfer.sessionId !== extractSessionId(envelope)
+			) {
 				throw new Error("History transfer expired or cursor is invalid");
-			return this.chunk(envelope, key, transfer);
+			}
+			const cancel = () => {
+				void this.release(owner, key);
+			};
+			if (signal.aborted) {
+				await this.release(owner, key);
+				return closedReply(envelope);
+			}
+			signal.addEventListener("abort", cancel, { once: true });
+			try {
+				return await this.chunk(envelope, owner, key, transfer, cursor);
+			} finally {
+				signal.removeEventListener("abort", cancel);
+			}
 		}
+
+		const deadline = Date.now() + TRANSFER_TIMEOUT_MS;
+		const boundedSignal = AbortSignal.any([
+			signal,
+			AbortSignal.timeout(TRANSFER_TIMEOUT_MS),
+		]);
 		try {
-			signal.throwIfAborted();
-			while (this.transfers.size >= 2) {
-				if (this.available.listenerCount("slot") >= 8)
-					throw new Error("History transfers are busy");
-				await once(this.available, "slot", { signal });
-				signal.throwIfAborted();
+			boundedSignal.throwIfAborted();
+			while (
+				this.preparations >= 2 ||
+				(this.owners.get(owner)?.size ?? 0) >= 2
+			) {
+				await once(this.available, "slot", { signal: boundedSignal });
+				boundedSignal.throwIfAborted();
 			}
 		} catch (error) {
-			if (signal.aborted) return closedReply(envelope);
+			if (boundedSignal.aborted) return closedReply(envelope);
 			throw error;
 		}
+
+		this.preparations++;
 		const key = randomUUID();
+		let resolveSnapshot!: (snapshot: Snapshot | undefined) => void;
+		const prepared = new Promise<Snapshot | undefined>((resolve) => {
+			resolveSnapshot = resolve;
+		});
 		const transfer: Transfer = {
-			owner,
 			clientId: envelope.clientId,
 			sessionId: extractSessionId(envelope),
-			text: "",
-			offset: 0,
-			state: "reading",
-			timer: setTimeout(() => this.release(key), TRANSFER_TIMEOUT_MS),
+			snapshot: prepared,
+			cancelled: false,
+			timer: setTimeout(() => {
+				void this.release(owner, key);
+			}, deadline - Date.now()),
 		};
 		transfer.timer.unref();
-		this.transfers.set(key, transfer);
-		const cancel = () => this.release(key);
-		signal.addEventListener("abort", cancel, { once: true });
+		const entries = this.owners.get(owner) ?? new Map<string, Transfer>();
+		this.owners.set(owner, entries);
+		entries.set(key, transfer);
+		const cancel = () => {
+			void this.release(owner, key);
+		};
+		boundedSignal.addEventListener("abort", cancel, { once: true });
+		let snapshot: Snapshot | undefined;
 		try {
-			const reply = await read();
-			if (transfer.state === "closed") return closedReply(envelope);
-			if (!reply.ok) {
-				this.release(key);
-				return reply;
-			}
-			const text = JSON.stringify(reply.payload?.messages ?? []);
-			const bytes = Buffer.byteLength(text);
-			if (bytes + this.retainedBytes > RETAINED_BYTE_LIMIT) {
-				throw new Error("History transfer exceeds the retained byte limit");
-			}
-			transfer.text = text;
-			transfer.state = "ready";
-			this.retainedBytes += bytes;
-			return this.chunk(envelope, key, transfer);
-		} catch (error) {
-			this.release(key);
-			throw error;
-		} finally {
-			signal.removeEventListener("abort", cancel);
-			if (transfer.state === "closed") {
-				this.transfers.delete(key);
+			let reply: HubReplyEnvelope;
+			try {
+				reply = await read();
+				if (reply.ok && !transfer.cancelled) {
+					snapshot = await this.capture(
+						key,
+						reply.payload?.messages ?? [],
+						transfer,
+					);
+					reply = { version: envelope.version, ok: true };
+				}
+			} catch (error) {
+				const cancelled = transfer.cancelled;
+				resolveSnapshot(snapshot);
+				await this.release(owner, key);
+				if (cancelled) return closedReply(envelope);
+				throw error;
+			} finally {
+				resolveSnapshot(snapshot);
+				this.preparations--;
 				this.available.emit("slot");
 			}
+			if (transfer.cancelled) {
+				await this.release(owner, key);
+				return closedReply(envelope);
+			}
+			if (!reply.ok) {
+				await this.release(owner, key);
+				return reply;
+			}
+			return await this.chunk(envelope, owner, key, transfer);
+		} finally {
+			boundedSignal.removeEventListener("abort", cancel);
 		}
 	}
 
-	close(owner: object): void {
-		for (const [key, transfer] of this.transfers) {
-			if (transfer.owner === owner) this.release(key);
+	async close(owner: object): Promise<void> {
+		await Promise.all(
+			Array.from(this.owners.get(owner)?.keys() ?? [], (key) =>
+				this.release(owner, key),
+			),
+		);
+	}
+
+	private async capture(
+		key: string,
+		messages: unknown,
+		transfer: Transfer,
+	): Promise<Snapshot | undefined> {
+		const directory = join(resolveClineDataDir(), "history-transfers");
+		await mkdir(directory, { recursive: true, mode: 0o700 });
+		if (transfer.cancelled) return undefined;
+		const path = join(directory, `${key}.json`);
+		const file = await open(path, "wx+", 0o600);
+		let linked = true;
+		let captured = false;
+		try {
+			// Unlink before writing history: close/process exit reclaims the snapshot.
+			await unlink(path);
+			linked = false;
+			if (transfer.cancelled) return undefined;
+			await file.writeFile(JSON.stringify(messages), "utf8");
+			const { size } = await file.stat();
+			if (transfer.cancelled) return undefined;
+			captured = true;
+			return {
+				file,
+				size,
+				offset: 0,
+				decoder: new TextDecoder("utf-8", { fatal: true }),
+				reading: false,
+			};
+		} finally {
+			if (!captured) await file.close();
+			if (linked) {
+				await unlink(path).catch((error) => {
+					logHubMessage("warn", "history transfer empty-file cleanup failed", {
+						error,
+					});
+				});
+			}
 		}
 	}
 
-	private chunk(
+	private async chunk(
 		envelope: HubCommandEnvelope,
+		owner: object,
 		key: string,
 		transfer: Transfer,
-	): HubReplyEnvelope {
-		// JSON escaping uses at most six bytes per UTF-16 code unit.
-		const historyChunk = transfer.text.slice(
-			transfer.offset,
-			transfer.offset + CHUNK_LENGTH,
-		);
-		transfer.offset += historyChunk.length;
-		const historyCursor =
-			transfer.offset < transfer.text.length
-				? `${key}:${transfer.offset}`
-				: undefined;
-		if (!historyCursor) this.release(key);
-		return {
-			version: envelope.version,
-			requestId: envelope.requestId,
-			ok: true,
-			payload: { historyChunk, ...(historyCursor ? { historyCursor } : {}) },
-		};
+		cursor?: string,
+	): Promise<HubReplyEnvelope> {
+		const snapshot = await transfer.snapshot;
+		if (transfer.cancelled || !snapshot) {
+			await this.release(owner, key);
+			return closedReply(envelope);
+		}
+		if (
+			snapshot.reading ||
+			(cursor !== undefined && cursor !== `${key}:${snapshot.offset}`)
+		) {
+			throw new Error("History transfer expired or cursor is invalid");
+		}
+		snapshot.reading = true;
+		try {
+			const buffer = Buffer.allocUnsafe(CHUNK_BYTES);
+			let historyChunk = "";
+			do {
+				const { bytesRead } = await snapshot.file.read(
+					buffer,
+					0,
+					Math.min(buffer.length, snapshot.size - snapshot.offset),
+					snapshot.offset,
+				);
+				if (transfer.cancelled) {
+					await this.release(owner, key);
+					return closedReply(envelope);
+				}
+				if (bytesRead === 0)
+					throw new Error("History snapshot ended before its recorded size");
+				snapshot.offset += bytesRead;
+				historyChunk = snapshot.decoder.decode(buffer.subarray(0, bytesRead), {
+					stream: snapshot.offset < snapshot.size,
+				});
+			} while (!historyChunk && snapshot.offset < snapshot.size);
+			const historyCursor =
+				snapshot.offset < snapshot.size
+					? `${key}:${snapshot.offset}`
+					: undefined;
+			if (!historyCursor) await this.release(owner, key);
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: true,
+				payload: { historyChunk, ...(historyCursor ? { historyCursor } : {}) },
+			};
+		} catch (error) {
+			const cancelled = transfer.cancelled;
+			await this.release(owner, key);
+			if (cancelled) return closedReply(envelope);
+			throw error;
+		} finally {
+			snapshot.reading = false;
+		}
 	}
 
-	private release(key: string): void {
-		const transfer = this.transfers.get(key);
-		if (!transfer) return;
+	private release(owner: object, key: string): Promise<void> {
+		const entries = this.owners.get(owner);
+		const transfer = entries?.get(key);
+		if (!transfer) return Promise.resolve();
+		if (transfer.cleanup) return transfer.cleanup;
+		transfer.cancelled = true;
 		clearTimeout(transfer.timer);
-		// Closing a connection cannot cancel its underlying file read.
-		if (transfer.state !== "ready") {
-			transfer.state = "closed";
-			return;
-		}
-		this.retainedBytes -= Buffer.byteLength(transfer.text);
-		this.transfers.delete(key);
-		this.available.emit("slot");
+		transfer.cleanup = (async () => {
+			try {
+				const snapshot = await transfer.snapshot;
+				await snapshot?.file.close();
+			} catch (error) {
+				logHubMessage("warn", "history transfer close failed", { error });
+			} finally {
+				entries?.delete(key);
+				if (entries?.size === 0) this.owners.delete(owner);
+				this.available.emit("slot");
+			}
+		})();
+		return transfer.cleanup;
 	}
 }

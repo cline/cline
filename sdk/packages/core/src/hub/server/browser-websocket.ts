@@ -340,7 +340,7 @@ export class BrowserWebSocketHubAdapter {
 							if (clientId) {
 								registeredClientIds.delete(clientId);
 								historyClosed.abort();
-								this.historyTransfers.close(historyOwner);
+								void this.historyTransfers.close(historyOwner);
 								historyClosed = new AbortController();
 								authority = undefined;
 							}
@@ -510,7 +510,7 @@ export class BrowserWebSocketHubAdapter {
 			}
 			closed = true;
 			historyClosed.abort();
-			this.historyTransfers.close(historyOwner);
+			void this.historyTransfers.close(historyOwner);
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();
 			}
