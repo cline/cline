@@ -121,6 +121,10 @@ export type TelemetryMetadata = {
 	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
 	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
 	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
+	host_workspace_path_kind?: CoreSpawnTelemetryMetadata["host_workspace_path_kind"]
+	host_terminal_shell_kind?: CoreSpawnTelemetryMetadata["host_terminal_shell_kind"]
+	host_ide_mode?: CoreSpawnTelemetryMetadata["host_ide_mode"]
+	host_in_wsl?: CoreSpawnTelemetryMetadata["host_in_wsl"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
