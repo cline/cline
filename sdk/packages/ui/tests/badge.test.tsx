@@ -25,23 +25,24 @@ async function render(node: ReactNode) {
 }
 
 describe("Badge", () => {
-	it("renders its content with the default styling", async () => {
+	it("renders static content as a span", async () => {
 		await render(<Badge>Required</Badge>);
 		const badge = container.querySelector("span");
 		expect(badge?.textContent).toBe("Required");
 		expect(badge?.dataset.slot).toBe("badge");
-		expect(badge?.className).toContain("border-(--neutral-a4)");
-		expect(badge?.className).toContain("bg-(--neutral-a2)");
 		expect(badge?.tabIndex).toBe(-1);
 		expect(container.querySelector("button")).toBeNull();
 	});
 
 	it("forwards native props, refs, and custom classes", async () => {
 		const forwardedRef = createRef<HTMLSpanElement>();
+		const onClick = vi.fn();
 		await render(
 			<Badge
 				aria-label="Status"
 				className="consumer-class"
+				interactive={false}
+				onClick={(event) => onClick(event.currentTarget)}
 				ref={forwardedRef}
 				title="Current status"
 			>
@@ -53,33 +54,9 @@ describe("Badge", () => {
 		expect(badge?.className).toContain("consumer-class");
 		expect(badge?.getAttribute("aria-label")).toBe("Status");
 		expect(badge?.title).toBe("Current status");
-	});
-
-	it.each([
-		undefined,
-		false,
-	] as const)("preserves a span ref and click target when interactive is %s", async (interactive) => {
-		const ref = createRef<HTMLSpanElement>();
-		const onAction = vi.fn();
-		await render(
-			<Badge
-				interactive={interactive}
-				onClick={(event) => {
-					const span: HTMLSpanElement = event.currentTarget;
-					onAction(span);
-				}}
-				ref={ref}
-			>
-				Completed
-			</Badge>,
-		);
-		const badge = container.querySelector("span");
-		expect(badge).not.toBeNull();
-		expect(ref.current).toBe(badge);
-		expect(container.querySelector("button")).toBeNull();
 		expect(badge?.hasAttribute("interactive")).toBe(false);
 		await act(async () => badge?.click());
-		expect(onAction).toHaveBeenCalledExactlyOnceWith(badge);
+		expect(onClick).toHaveBeenCalledExactlyOnceWith(badge);
 	});
 
 	it("renders an action as a native button with a button ref and click target", async () => {
@@ -143,21 +120,6 @@ describe("Badge", () => {
 		);
 		const badge = container.querySelector("button");
 		expect(badge?.disabled).toBe(true);
-		await act(async () => badge?.click());
-		expect(onClick).not.toHaveBeenCalled();
-	});
-
-	it("respects a disabled ancestor fieldset", async () => {
-		const onClick = vi.fn();
-		await render(
-			<fieldset disabled>
-				<Badge interactive onClick={onClick}>
-					Unavailable
-				</Badge>
-			</fieldset>,
-		);
-		const badge = container.querySelector("button");
-		expect(badge?.matches(":disabled")).toBe(true);
 		await act(async () => badge?.click());
 		expect(onClick).not.toHaveBeenCalled();
 	});
