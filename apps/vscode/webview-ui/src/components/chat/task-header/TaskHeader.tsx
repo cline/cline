@@ -9,6 +9,7 @@ import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfigura
 import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/utils/environmentColors"
+import ActivityFoldingButton from "./buttons/ActivityFoldingButton"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import NewTaskButton from "./buttons/NewTaskButton"
@@ -197,6 +198,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 						<div className="inline-flex flex-wrap gap-y-1 items-center justify-end select-none ml-auto min-w-0">
+							<ActivityFoldingButton className={cn(BUTTON_CLASS, "shrink-0")} />
 							{currentCloudTask ? (
 								<CloudTaskBadge cloudTask={currentCloudTask} />
 							) : (

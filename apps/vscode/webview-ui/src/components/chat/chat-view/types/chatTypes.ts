@@ -107,7 +107,7 @@ export interface ScrollBehavior {
 	scrollToBottomSmooth: () => void
 	scrollToBottomAuto: () => void
 	scrollToMessage: (messageIndex: number) => void
-	toggleRowExpansion: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
+	toggleRowExpansion: (ts: number, options?: { preserveAutoScroll?: boolean; next?: boolean }) => void
 	handleRowHeightChange: (isTaller: boolean) => void
 	handleLastRowContentChange: () => void
 	isAtBottom: boolean

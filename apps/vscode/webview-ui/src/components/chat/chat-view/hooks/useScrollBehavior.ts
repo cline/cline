@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ScrollBehavior } from "../types/chatTypes"
+import { flattenActivityGroup, getGroupHeadMessage } from "../utils/activityFolding"
 
 // Height of the sticky user message header (padding + content)
 const STICKY_HEADER_HEIGHT = 32
@@ -175,7 +176,8 @@ export function useScrollBehavior(
 			for (let i = 0; i < groupedMessages.length; i++) {
 				const group = groupedMessages[i]
 				if (Array.isArray(group)) {
-					const messageInGroup = group.some((msg) => msg.ts === targetMessage.ts)
+					// Activity folds nest their rows, so flatten before looking for the message.
+					const messageInGroup = flattenActivityGroup(group).some((msg) => msg.ts === targetMessage.ts)
 					if (messageInGroup) {
 						groupIndex = i
 						break
@@ -214,13 +216,13 @@ export function useScrollBehavior(
 
 	// scroll when user toggles certain rows
 	const toggleRowExpansion = useCallback(
-		(ts: number, options?: { preserveAutoScroll?: boolean }) => {
-			const isCollapsing = expandedRows[ts] ?? false
+		(ts: number, options?: { preserveAutoScroll?: boolean; next?: boolean }) => {
+			const isCollapsing = options?.next !== undefined ? !options.next : (expandedRows[ts] ?? false)
 			const lastGroup = groupedMessages.at(-1)
-			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
+			const isLast = Array.isArray(lastGroup) ? getGroupHeadMessage(lastGroup)?.ts === ts : lastGroup?.ts === ts
 			const secondToLastGroup = groupedMessages.at(-2)
 			const isSecondToLast = Array.isArray(secondToLastGroup)
-				? secondToLastGroup[0].ts === ts
+				? getGroupHeadMessage(secondToLastGroup)?.ts === ts
 				: secondToLastGroup?.ts === ts
 
 			const isLastCollapsedApiReq =
@@ -231,7 +233,7 @@ export function useScrollBehavior(
 
 			setExpandedRows((prev) => ({
 				...prev,
-				[ts]: !prev[ts],
+				[ts]: options?.next !== undefined ? options.next : !prev[ts],
 			}))
 
 			// Disable auto-scroll when the user expands a row. Programmatic expansions

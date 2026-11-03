@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Cline chat folding gallery (dev only)</title>
+		<style>
+			/* VS Code "Dark+" palette so the webview components render like they do in the sidebar. */
+			:root {
+				--vscode-sideBar-background: #252526;
+				--vscode-sideBar-foreground: #cccccc;
+				--vscode-editor-background: #1e1e1e;
+				--vscode-editor-foreground: #d4d4d4;
+				--vscode-foreground: #cccccc;
+				--vscode-descriptionForeground: #9d9d9d;
+				--vscode-focusBorder: #007fd4;
+				--vscode-errorForeground: #f48771;
+				--vscode-problemsErrorIcon-foreground: #f14c4c;
+				--vscode-editorWarning-foreground: #cca700;
+				--vscode-charts-green: #89d185;
+				--vscode-textLink-foreground: #3794ff;
+				--vscode-textLink-activeForeground: #3794ff;
+				--vscode-textCodeBlock-background: #1b1b1c;
+				--vscode-textBlockQuote-background: #2b2b2c;
+				--vscode-textBlockQuote-foreground: #cccccc;
+				--vscode-editorGroup-border: #444444;
+				--vscode-editorGroupHeader-tabsBackground: #252526;
+				--vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+				--vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+				--vscode-scrollbarSlider-activeBackground: rgba(191, 191, 191, 0.4);
+				--vscode-button-background: #0e639c;
+				--vscode-button-foreground: #ffffff;
+				--vscode-button-secondaryBackground: #3a3d41;
+				--vscode-button-hoverBackground: #1177bb;
+				--vscode-badge-background: #4d4d4d;
+				--vscode-badge-foreground: #ffffff;
+				--vscode-banner-background: #1d293d;
+				--vscode-banner-foreground: #cccccc;
+				--vscode-banner-iconForeground: #3794ff;
+				--vscode-toolbar-hoverBackground: #3c3c3c;
+				--vscode-menu-background: #252526;
+				--vscode-menu-foreground: #cccccc;
+				--vscode-menu-border: #454545;
+				--vscode-input-background: #3c3c3c;
+				--vscode-input-foreground: #cccccc;
+				--vscode-input-border: #454545;
+				--vscode-input-placeholderForeground: #9d9d9d;
+				--vscode-list-hoverBackground: #2a2d2e;
+				--vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+				--vscode-selection-background: #acc4f1;
+			}
+
+			body {
+				margin: 0;
+				background: #131313;
+				color: #eeeeee;
+				font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+			}
+
+			#root {
+				display: flex;
+				flex-direction: column;
+				gap: 24px;
+				padding: 24px;
+			}
+
+			.scene-row {
+				display: flex;
+				gap: 24px;
+				align-items: flex-start;
+			}
+
+			.scene {
+				width: 430px;
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+
+			.scene h2 {
+				margin: 0;
+				font-size: 13px;
+				font-weight: 600;
+				letter-spacing: 0.02em;
+				text-transform: uppercase;
+				color: #9d9d9d;
+			}
+
+			.scene p {
+				margin: 0;
+				font-size: 12px;
+				color: #7d7d7d;
+				min-height: 32px;
+			}
+
+			/* The fake VS Code sidebar: same background + fixed height, scrollable chat list. */
+			.sidebar {
+				height: 560px;
+				overflow: hidden;
+				border: 1px solid #3a3a3a;
+				border-radius: 4px;
+				background: var(--vscode-sideBar-background);
+				color: var(--vscode-foreground);
+				font-size: 13px;
+				line-height: 1.4;
+			}
+
+			.sidebar .chat-scroll {
+				height: 100%;
+				overflow-y: auto;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/dev/foldingGallery.tsx"></script>
+	</body>
+</html>

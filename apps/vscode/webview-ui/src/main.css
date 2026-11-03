@@ -76,6 +76,56 @@ body:focus-within .code-block-scrollable {
 }
 
 /*
+ * Chat window scrollbar.
+ * The conversation list deliberately opts out of the "thumb only on hover" behaviour above: a
+ * permanently visible thumb is the affordance used to travel between prompts and answers in a
+ * long task, so it is kept visible and painted with the native VS Code scrollbar slider colors.
+ */
+.chat-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) transparent;
+}
+
+/*
+ * Chromium stops honouring ::-webkit-scrollbar as soon as the standard scrollbar properties are
+ * set, so they are reset for the webview host (same trick as the `html` rule below) and the thumb
+ * is styled explicitly.
+ */
+@supports selector(::-webkit-scrollbar) {
+	.chat-scrollbar {
+		scrollbar-width: unset;
+		scrollbar-color: unset;
+	}
+
+	.chat-scrollbar::-webkit-scrollbar {
+		width: 12px;
+	}
+
+	.chat-scrollbar::-webkit-scrollbar-track {
+		background-color: transparent;
+	}
+
+	.chat-scrollbar::-webkit-scrollbar-thumb {
+		background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+		border: 3px solid transparent;
+		border-radius: 6px;
+		background-clip: content-box;
+	}
+
+	.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+		background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+	}
+
+	.chat-scrollbar::-webkit-scrollbar-thumb:active {
+		background-color: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+	}
+
+	.chat-scrollbar::-webkit-scrollbar-corner {
+		background-color: transparent;
+	}
+}
+
+/*
 Fix VSCode ignoring webkit scrollbar modifiers
 https://github.com/microsoft/vscode/issues/213045
 */
