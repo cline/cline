@@ -132,6 +132,9 @@ export default defineConfig({
 		__PLATFORM__: JSON.stringify(platform),
 		__NODE_PLATFORM__: JSON.stringify(process.platform),
 		"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
+		// Fork kill switch for Cline's commercial promos (ClinePass surfaces). Empty
+		// string when unset, so upstream behaviour is unchanged by default.
+		"process.env.CLINE_DISABLE_PROMOS": JSON.stringify(process.env.CLINE_DISABLE_PROMOS ?? ""),
 		"process.env.IS_DEV": JSON.stringify(process.env.IS_DEV),
 		"process.env.IS_TEST": JSON.stringify(process.env.IS_TEST),
 		"process.env.CI": JSON.stringify(process.env.CI),

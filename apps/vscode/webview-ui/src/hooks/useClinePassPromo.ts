@@ -23,7 +23,8 @@ export function useClinePassPromo() {
 	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
 	const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
 	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
-	const isClinePassEnabled = !isSelfHostedOrUnknown && !isBlockedByRemoteConfig
+	// CLINE_DISABLE_PROMOS is a fork build-time kill switch (webview-ui/vite.config.ts); unset = upstream behaviour.
+	const isClinePassEnabled = !isSelfHostedOrUnknown && !isBlockedByRemoteConfig && !process.env.CLINE_DISABLE_PROMOS
 
 	// Mirrors the switch action's scope: with separate plan/act models the
 	// promos only affect (and therefore only reflect) the current mode.
