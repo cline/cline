@@ -214,8 +214,8 @@ interface CloudSessionEntry {
 	transportGeneration: number
 	wake?: Promise<void>
 	/**
-	 * Number of task-open and follow-up calls currently reading from or attaching to the
-	 * host. Status resolution and the idle sweep leave a pinned host open.
+	 * Calls reading from or attaching to the host. Pinning prevents idle cleanup;
+	 * confirmed sandbox unavailability still retires the transport.
 	 */
 	pinned: number
 	/**
@@ -833,6 +833,11 @@ export class SdkCloudSessionCoordinator {
 		}
 		const generation = this.scopeGeneration
 		const transportGeneration = entry.transportGeneration
+		const isCurrent = () =>
+			!this.disposed &&
+			generation === this.scopeGeneration &&
+			entry.transportGeneration === transportGeneration &&
+			this.entries.get(sessionId) === entry
 		const record = entry.record
 		const connection = (async () => {
 			const retainedHost = entry.host
@@ -849,23 +854,13 @@ export class SdkCloudSessionCoordinator {
 					restoreConfig: () => this.cloudSessionConfig(record.metadata.modelId ?? this.nextCloudModelId()),
 					onStatusChange: (status) => {
 						// A replaced account entry must never receive its predecessor's events.
-						if (
-							!this.disposed &&
-							generation === this.scopeGeneration &&
-							entry.transportGeneration === transportGeneration &&
-							this.entries.get(sessionId) === entry
-						) {
+						if (isCurrent()) {
 							this.handleStatusChange(sessionId, status)
 						}
 					},
 				}))
 			const status = retainedHost ? await retainedHost.refreshStatus() : host.status
-			if (
-				this.disposed ||
-				generation !== this.scopeGeneration ||
-				entry.transportGeneration !== transportGeneration ||
-				this.entries.get(sessionId) !== entry
-			) {
+			if (!isCurrent()) {
 				await host.dispose("accountScopeChanged").catch(() => undefined)
 				throw new Error("Cloud session connection was superseded")
 			}
@@ -1409,7 +1404,7 @@ export class SdkCloudSessionCoordinator {
 			if (signal.aborted) cancel()
 		})
 		try {
-			// Release navigation's lock immediately; the wake remains owned until it settles.
+			// Release navigation's lock immediately; underlying work stays tracked until it settles.
 			return await Promise.race([this.trackScopeOperation(operation), cancelled])
 		} finally {
 			signal.removeEventListener("abort", cancel)
@@ -1466,12 +1461,21 @@ export class SdkCloudSessionCoordinator {
 							throw error
 						}
 						assertCurrent()
-						if (entry.record !== checkedRecord)
-							throw new Error("Cloud sandbox status changed. Send your message again.")
 						const status = live.status?.toLowerCase()
-						if (!status) throw new Error("Could not confirm the cloud sandbox's status. Send your message again.")
-						this.upsertRecord({ ...checkedRecord, status })
-						this.assertSandboxNotTerminated(entry)
+						if (entry.record !== checkedRecord) {
+							this.assertSandboxNotTerminated(entry)
+							if (
+								(status !== "active" && status !== "ready") ||
+								entry.record.status?.toLowerCase() !== status ||
+								entry.record.metadata.taskId?.trim() !== checkedRecord.metadata.taskId?.trim()
+							) {
+								throw new Error("Cloud sandbox status changed. Send your message again.")
+							}
+						} else {
+							if (!status) throw new Error("Could not confirm the cloud sandbox's status. Send your message again.")
+							this.upsertRecord({ ...checkedRecord, status })
+							this.assertSandboxNotTerminated(entry)
+						}
 						if (status !== "active" && status !== "ready" && status !== "suspended") {
 							throw new Error("The cloud sandbox is not ready. Send your message again once it is running.")
 						}
@@ -1689,11 +1693,17 @@ export class SdkCloudSessionCoordinator {
 	 */
 	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
 		if (entry.wake || entry.record.status?.toLowerCase() === "suspended") return undefined
+		const record = entry.record
 		try {
 			return await this.connect(entry)
 		} catch (error) {
-			const live = await this.options.cloudSessions.getStatus(entry.record.id).catch(() => undefined)
-			if (live?.status?.toLowerCase() === "suspended") return undefined
+			const live = await this.options.cloudSessions.getStatus(record.id).catch(() => undefined)
+			if (live?.status?.toLowerCase() === "suspended") {
+				if (this.entries.get(record.id) === entry && entry.record === record) {
+					this.upsertRecord({ ...record, status: "suspended" })
+				}
+				return undefined
+			}
 			throw error
 		}
 	}
@@ -1790,7 +1800,8 @@ export class SdkCloudSessionCoordinator {
 		entry: CloudSessionEntry,
 		error: unknown,
 	): Promise<{ messages: ClineMessage[]; deleted: boolean; resumable: boolean }> {
-		const probe = await this.options.cloudSessions.getStatus(entry.record.id).then(
+		const record = entry.record
+		const probe = await this.options.cloudSessions.getStatus(record.id).then(
 			(status) => (status.status?.toLowerCase() === "expired" ? "session_expired" : status.status?.toLowerCase()),
 			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
 		)
@@ -1810,18 +1821,28 @@ export class SdkCloudSessionCoordinator {
 				resumable: false,
 			}
 		}
+		const resumable =
+			probe === "suspended" &&
+			!(
+				error instanceof CloudSessionError &&
+				["session_expired", "session_not_found", "session_failed"].includes(error.code)
+			)
+		if (
+			resumable &&
+			this.entries.get(record.id) === entry &&
+			entry.record === record &&
+			record.status?.toLowerCase() !== "failed" &&
+			!isCloudSessionExpired(record)
+		) {
+			this.upsertRecord({ ...record, status: "suspended" })
+		}
 		return {
 			messages: notice(
 				"error",
 				`Could not connect to this cloud session: ${error instanceof Error ? error.message : String(error)}`,
 			),
 			deleted: false,
-			resumable:
-				probe === "suspended" &&
-				!(
-					error instanceof CloudSessionError &&
-					["session_expired", "session_not_found", "session_failed"].includes(error.code)
-				),
+			resumable,
 		}
 	}
 

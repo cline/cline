@@ -260,7 +260,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	}
 
 	private assertOpen(): void {
-		// A state snapshot may still hold this host after the coordinator retires it.
+		// Captured callers must not trigger the Hub client's lazy reconnect after disposal.
 		if (this.disposed) throw new Error("This cloud session's connection is closed.")
 	}
 

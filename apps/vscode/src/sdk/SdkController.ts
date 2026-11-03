@@ -1552,7 +1552,6 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 		cloudTarget?: CloudTarget,
 	): Promise<string | undefined> {
-		this.cloud.cancelPendingFollowup()
 		if (cloudTarget) {
 			// Register the cloud start before the first await so a Cancel that
 			// arrives while remote config is still loading finds it and stops it.
@@ -1568,6 +1567,7 @@ export class Controller {
 			this.pendingStartRetry = undefined
 			return startCloudTask()
 		}
+		this.cloud.cancelPendingFollowup()
 		await this.waitForInitialRemoteConfig()
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
@@ -1730,11 +1730,8 @@ export class Controller {
 			!this.sessions.getActiveSession() &&
 			!this.cloud.canPrepareFollowup(this.task.taskId)
 		) {
-			// No sandbox to send to: still provisioning (only reachable through the
-			// extension API, the composer is disabled), expired, or unconfirmed. Refusing the
-			// response is itself a turn outcome: the footer holds its Retry claim
-			// until the turn phase advances, so set the phase even though it does
-			// not change.
+			// Refusal must advance the turn state to release the footer's Retry claim,
+			// even when the task already shows an error.
 			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
 			const anchorTs = this.turnStateTracker.get().anchorTs
 			const anchor = this.task.messageStateHandler.getClineMessages().find((message) => message.ts === anchorTs)

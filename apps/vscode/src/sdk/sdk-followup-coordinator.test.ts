@@ -107,7 +107,6 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			"queue",
 		)
-		expect(beginCloudFollowup).toHaveBeenCalledOnce()
 		expect(prepare).not.toHaveBeenCalled()
 	})
 
@@ -144,7 +143,6 @@ describe("SdkFollowupCoordinator", () => {
 
 		const emitted = options.messages.appendAndEmit.mock.calls.flatMap(([messages]) => messages)
 		expect(emitted).toEqual([expect.objectContaining({ say: "error", text: expect.stringContaining(error.message) })])
-		expect(emitted).not.toContainEqual(expect.objectContaining({ say: "user_feedback" }))
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 

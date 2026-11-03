@@ -753,7 +753,7 @@ describe("starting a cloud task", () => {
 	it("leaves the turn phase to the coordinator so a start cancelled during policy loading stays idle", async () => {
 		const run = vi.fn(async () => undefined)
 		const controller = {
-			cloud: { beginCloudTask: vi.fn(() => run), cancelPendingFollowup: vi.fn() },
+			cloud: { beginCloudTask: vi.fn(() => run) },
 			waitForInitialRemoteConfig: vi.fn(async () => undefined),
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
@@ -767,7 +767,6 @@ describe("starting a cloud task", () => {
 			controller.waitForInitialRemoteConfig.mock.invocationCallOrder[0],
 		)
 		expect(run).toHaveBeenCalledOnce()
-		expect(controller.cloud.cancelPendingFollowup).toHaveBeenCalledOnce()
 		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
 		expect(controller.messageTranslatorState.clearTurnOutcome).not.toHaveBeenCalled()
 	})
