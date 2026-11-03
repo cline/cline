@@ -8,17 +8,28 @@ export interface SwitchProps
 		InputHTMLAttributes<HTMLInputElement>,
 		"children" | "type" | "role" | "size" | "aria-checked"
 	> {
+	/** Color of the checked switch. Defaults to accent. */
+	tone?: "accent" | "neutral";
 	onCheckedChange?: (checked: boolean) => void;
 }
 
 /** A native checkbox with switch semantics; className and style apply to the wrapper. */
 export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 	(
-		{ className, style, dir, hidden, onChange, onCheckedChange, ...props },
+		{
+			className,
+			style,
+			dir,
+			hidden,
+			tone = "accent",
+			onChange,
+			onCheckedChange,
+			...props
+		},
 		ref,
 	) => (
 		<span
-			className={clsx("cline-ui-switch", className)}
+			className={clsx("cline-ui-switch", `cline-ui-switch-${tone}`, className)}
 			data-slot="switch-root"
 			dir={dir}
 			hidden={hidden}
