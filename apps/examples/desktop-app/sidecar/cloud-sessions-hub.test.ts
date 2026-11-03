@@ -2000,7 +2000,6 @@ describe("CloudSessionManager Hub runtime", () => {
 	it("serves archived history for expired sessions without dialing the sandbox", async () => {
 		const expired: CloudSessionRecord = {
 			...REMOTE_SESSION,
-			status: "expired",
 			expiredAt: "2026-08-04T00:00:00.000Z",
 		};
 		let historyCalls = 0;

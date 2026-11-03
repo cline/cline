@@ -127,6 +127,7 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 // and re-check at this interval while it stays quiet.
 const STALE_STREAM_QUIET_MS = 5_000;
 const STALE_STREAM_POLL_INTERVAL_MS = 3_000;
+const CLOUD_HISTORY_RETRY_WINDOW_MS = 15 * 60_000;
 
 type PendingToolOutput = {
 	text: string;
@@ -679,7 +680,16 @@ export function useChatSession(environmentId: string) {
 	);
 	const hydrationRequestIdRef = useRef(0);
 	const historyPreviewRequestRef = useRef<number | undefined>(undefined);
-	const deferredCloudHydrationRef = useRef<number | undefined>(undefined);
+	const pendingCloudHistoryRef = useRef<
+		| {
+				requestId: number;
+				startedAt: number;
+				polling: boolean;
+				resolve: (messages: ChatMessage[]) => void;
+				reject: (error: unknown) => void;
+		  }
+		| undefined
+	>(undefined);
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -2521,14 +2531,13 @@ export function useChatSession(environmentId: string) {
 		let cancelled = false;
 		let polling = false;
 		const poll = async () => {
+			const pendingHistory = pendingCloudHistoryRef.current;
 			if (
 				cancelled ||
 				polling ||
-				(openingCloudSession &&
-					deferredCloudHydrationRef.current !== hydrationRequestIdRef.current)
-			) {
+				(openingCloudSession && (!pendingHistory || pendingHistory.polling))
+			)
 				return;
-			}
 			if (
 				!openingCloudSession &&
 				Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS
@@ -2555,6 +2564,7 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			polling = true;
+			if (openingCloudSession && pendingHistory) pendingHistory.polling = true;
 			try {
 				const pollStartedAt = Date.now();
 				const hydrationRequestId = hydrationRequestIdRef.current;
@@ -2588,43 +2598,41 @@ export function useChatSession(environmentId: string) {
 					recordPromise,
 				]);
 				const nextStatus = record?.status?.trim();
-				const cloudError = openingCloudSession
-					? parseCloudSessionError(errorMessage(historyError))
-					: null;
-				const terminalError =
-					cloudError && cloudError.code !== "request_failed";
-				// A rehydration event can restart this effect before the read replies.
-				// Opening completion belongs to the hydration request, not this poll.
-				if (
-					openingCloudSession &&
-					historyPreviewRequestRef.current === hydrationRequestId &&
-					hydrationRequestIdRef.current === hydrationRequestId &&
-					activeSessionIdRef.current === sessionId &&
-					(terminalError ||
+				if (openingCloudSession && pendingHistory) {
+					if (
+						pendingCloudHistoryRef.current !== pendingHistory ||
+						hydrationRequestIdRef.current !== pendingHistory.requestId
+					)
+						return;
+					const cloudError = parseCloudSessionError(errorMessage(historyError));
+					if (
+						historyMessages !== null &&
+						(historyMessages.length > 0 ||
+							(nextStatus && nextStatus !== "provisioning"))
+					) {
+						pendingCloudHistoryRef.current = undefined;
+						pendingHistory.resolve(historyMessages);
+					} else if (
+						(cloudError && cloudError.code !== "request_failed") ||
 						nextStatus === "failed" ||
 						nextStatus === "expired" ||
-						(historyMessages !== null &&
-							nextStatus &&
-							nextStatus !== "provisioning"))
-				) {
-					historyPreviewRequestRef.current = undefined;
-					setHistoryPreview([]);
-					setIsHydratingSession(false);
-					if (terminalError) {
-						setError(errorMessage(historyError));
-						setStatus("error");
-						if (cloudError.code === "session_expired")
+						Date.now() - pendingHistory.startedAt >=
+							CLOUD_HISTORY_RETRY_WINDOW_MS
+					) {
+						pendingCloudHistoryRef.current = undefined;
+						if (
+							nextStatus === "expired" ||
+							cloudError?.code === "session_expired"
+						)
 							setIsCloudSessionExpired(true);
-						return;
-					}
-					if (nextStatus === "expired") {
-						setIsCloudSessionExpired(true);
-						setError(
-							historyMessages?.length === 0
-								? "This cloud session has expired and no archived history is available. Start a new cloud session to continue."
-								: "This cloud session has expired. Start a new cloud session to continue.",
+						pendingHistory.reject(
+							historyError ??
+								new Error(
+									"This session is taking too long to open. Try opening it again.",
+								),
 						);
 					}
+					return;
 				}
 				if (
 					cancelled ||
@@ -2673,8 +2681,7 @@ export function useChatSession(environmentId: string) {
 						isCloudSession &&
 						mappedStatus === "idle" &&
 						(historyMessages === null ||
-							(!openingCloudSession &&
-								status !== "starting" &&
+							(status !== "starting" &&
 								(nextStatus === "ready" || nextStatus === "active")))
 					) {
 						return;
@@ -2691,6 +2698,8 @@ export function useChatSession(environmentId: string) {
 				}
 			} finally {
 				polling = false;
+				if (pendingCloudHistoryRef.current === pendingHistory && pendingHistory)
+					pendingHistory.polling = false;
 			}
 		};
 		const interval = window.setInterval(
@@ -2719,6 +2728,11 @@ export function useChatSession(environmentId: string) {
 			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
+			pendingCloudHistoryRef.current?.reject(
+				new Error("Session selection changed"),
+			);
+			pendingCloudHistoryRef.current = undefined;
+			setHistoryPreview([]);
 			setIsHydratingSession(false);
 			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
@@ -2847,6 +2861,7 @@ export function useChatSession(environmentId: string) {
 
 			setError(null);
 			historyPreviewRequestRef.current = undefined;
+			setHistoryPreview([]);
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3906,6 +3921,11 @@ export function useChatSession(environmentId: string) {
 
 	const reset = useCallback(async () => {
 		hydrationRequestIdRef.current += 1;
+		pendingCloudHistoryRef.current?.reject(
+			new Error("Session selection changed"),
+		);
+		pendingCloudHistoryRef.current = undefined;
+		setHistoryPreview([]);
 		const activeSessionId = sessionId;
 		setSessionId(null);
 		setStatus("idle");
@@ -3993,6 +4013,10 @@ export function useChatSession(environmentId: string) {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
+			pendingCloudHistoryRef.current?.reject(
+				new Error("Session selection changed"),
+			);
+			pendingCloudHistoryRef.current = undefined;
 			historyPreviewRequestRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
@@ -4095,7 +4119,7 @@ export function useChatSession(environmentId: string) {
 					});
 			}
 			try {
-				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
+				let historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
 					{
 						environmentId,
@@ -4111,17 +4135,26 @@ export function useChatSession(environmentId: string) {
 					session.status !== "expired" &&
 					session.status !== "failed"
 				) {
-					// An empty read can mean provisioning. Refresh discovery before
-					// retrying rather than racing the creator's first task with attach.
-					deferredCloudHydrationRef.current = requestId;
-					return;
+					// Activity pauses the existing refresh while this pane is hidden.
+					historyMessages = await new Promise<ChatMessage[]>(
+						(resolve, reject) => {
+							pendingCloudHistoryRef.current = {
+								requestId,
+								startedAt: Date.now(),
+								polling: false,
+								resolve,
+								reject,
+							};
+						},
+					);
+					if (hydrationRequestIdRef.current !== requestId) return;
 				}
 				historyPreviewRequestRef.current = undefined;
 				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
-					setIsHydratingSession(false);
+					if (session.origin !== "cloud") setIsHydratingSession(false);
 				}
 
 				const attached = await desktopClient
@@ -4244,10 +4277,7 @@ export function useChatSession(environmentId: string) {
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
-				if (
-					hydrationRequestIdRef.current === requestId &&
-					deferredCloudHydrationRef.current !== requestId
-				) {
+				if (hydrationRequestIdRef.current === requestId) {
 					historyPreviewRequestRef.current = undefined;
 					setIsHydratingSession(false);
 				}

@@ -464,17 +464,38 @@ describe("useChatSession", () => {
 		let archive: PromiseWithResolvers<typeof saved | null>;
 		let live: PromiseWithResolvers<typeof saved>;
 		let hydration: Promise<void>;
+		let attach:
+			| PromiseWithResolvers<{
+					sessionId: string;
+					status: string;
+					provider: string;
+					model: string;
+			  }>
+			| undefined;
+		let readCount: number;
 
 		beforeEach(async () => {
 			vi.useFakeTimers();
 			archive = Promise.withResolvers();
 			live = Promise.withResolvers();
+			attach = undefined;
+			readCount = 0;
 			invokeMock.mockImplementation(async (command: string) => {
 				if (command === "read_archived_cloud_messages") return archive.promise;
-				if (command === "read_session_messages") return live.promise;
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return live.promise;
+				}
 				if (command === "get_discovered_session") return { status: "ready" };
 				if (command === "chat_session_command")
-					return { sessionId: session.sessionId, status: "idle" };
+					return (
+						attach?.promise ?? {
+							sessionId: session.sessionId,
+							status: "idle",
+							provider: "openai",
+							model: "attached-model",
+						}
+					);
 				return [];
 			});
 			await act(async () => {
@@ -497,48 +518,50 @@ describe("useChatSession", () => {
 						sessionId: session.sessionId,
 						status: "idle",
 					});
-					await vi.advanceTimersByTimeAsync(3_100);
 				});
-				expect(
-					invokeMock.mock.calls.filter(
-						([command]) => command === "read_session_messages",
-					),
-				).toHaveLength(1);
+				await act(async () => archive.resolve(saved));
 				await act(async () => {
 					live.resolve([]);
-					await hydration;
+					await Promise.resolve();
 				});
-				expect(
-					invokeMock.mock.calls.some(
-						([command, args]) =>
-							command === "chat_session_command" &&
-							args?.request?.action === "attach",
-					),
-				).toBe(false);
+				expect(current.historyPreview).toEqual(saved);
+				expect(current.isHydratingSession).toBe(true);
+				live = Promise.withResolvers();
+				live.resolve(latest);
+				attach = Promise.withResolvers();
+				await act(async () => {
+					await vi.advanceTimersByTimeAsync(3_100);
+					await Promise.resolve();
+				});
+				expect(readCount).toBe(2);
+			} else {
+				await act(async () => archive.resolve(saved));
+				expect(current.historyPreview).toEqual(saved);
+				attach = Promise.withResolvers();
 			}
-			await act(async () => archive.resolve(saved));
-			expect(current.historyPreview).toEqual(saved);
-			expect(current.messages).toEqual([]);
+			if (!provisioning) live.resolve(latest);
+			await act(async () => {
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			expect(current.messages).toEqual(latest);
 			expect(current.isHydratingSession).toBe(true);
 			await act(async () => {
-				if (provisioning) {
-					live = Promise.withResolvers();
-					live.resolve(latest);
-					handlerFor("cloud_session_rehydrated")({
-						sessionId: session.sessionId,
-						status: "idle",
-						transcriptKnown: true,
-						messages: latest,
-					});
-					await vi.advanceTimersByTimeAsync(3_100);
-				} else {
-					live.resolve(latest);
-					await hydration;
-				}
+				attach?.resolve({
+					sessionId: session.sessionId,
+					status: "idle",
+					provider: "openai",
+					model: "attached-model",
+				});
+				await hydration;
 			});
 			expect(current.messages).toEqual(latest);
 			expect(current.historyPreview).toEqual([]);
 			expect(current.isHydratingSession).toBe(false);
+			expect(current.config).toMatchObject({
+				provider: "openai",
+				model: "attached-model",
+			});
 		});
 
 		it.each([
@@ -574,10 +597,19 @@ describe("useChatSession", () => {
 					transcriptKnown: true,
 					messages: expected,
 				});
-				live.resolve(expected);
-				await hydration;
 				await vi.advanceTimersByTimeAsync(3_100);
 			});
+			if (outcome === "live messages") {
+				live.resolve(expected);
+				await act(async () => hydration);
+			} else {
+				live.resolve([]);
+				await act(async () => {
+					await Promise.resolve();
+					await vi.advanceTimersByTimeAsync(3_100);
+					await hydration;
+				});
+			}
 			await act(async () => archive.resolve(saved));
 			expect(current.historyPreview).toEqual([]);
 			expect(current.messages).toEqual(expected);
@@ -609,13 +641,13 @@ describe("useChatSession", () => {
 			expect(current.messages).toEqual(latest);
 		});
 
-		it("ignores an opening poll that fails after another poll completed opening", async () => {
+		it("keeps one provisional history poll in flight across a status change", async () => {
+			const lateRead = Promise.withResolvers<ChatSessionHook["messages"]>();
+			await act(async () => archive.resolve(saved));
 			await act(async () => {
 				live.resolve([]);
-				await hydration;
-				archive.resolve(saved);
+				await Promise.resolve();
 			});
-			const lateRead = Promise.withResolvers<ChatSessionHook["messages"]>();
 			let reads = 0;
 			invokeMock.mockImplementation(async (command: string) => {
 				if (command === "read_session_messages") {
@@ -623,34 +655,79 @@ describe("useChatSession", () => {
 					return reads === 1 ? lateRead.promise : latest;
 				}
 				if (command === "get_discovered_session") return { status: "ready" };
+				if (command === "chat_session_command")
+					return {
+						sessionId: session.sessionId,
+						status: "idle",
+						provider: "openai",
+						model: "attached-model",
+					};
 				return [];
 			});
 
 			await act(async () => vi.advanceTimersByTimeAsync(3_100));
 			expect(reads).toBe(1);
-			await act(async () =>
+			await act(async () => {
 				handlerFor("chat_session_status")({
 					sessionId: session.sessionId,
 					status: "idle",
-				}),
-			);
+				});
+			});
 			await act(async () => vi.advanceTimersByTimeAsync(3_100));
-			expect(reads).toBe(2);
+			expect(reads).toBe(1);
+			await act(async () => {
+				lateRead.resolve(latest);
+				await hydration;
+			});
 			expect(current.isHydratingSession).toBe(false);
 			expect(current.messages).toEqual(latest);
-
-			expect(current.status).toBe("idle");
-			await act(async () => {
-				lateRead.reject(
-					new Error(
-						'CLOUD_SESSION_ERROR:{"code":"session_not_found","message":"Session was deleted."}',
-					),
-				);
-				await Promise.resolve();
-			});
 			expect(current.error).toBeNull();
 			expect(current.status).toBe("idle");
-			expect(current.messages).toEqual(expect.arrayContaining(latest));
+			expect(current.config).toMatchObject({
+				provider: "openai",
+				model: "attached-model",
+			});
+		});
+
+		it.each([
+			["provisioning", false],
+			["ready", true],
+		] as const)("checks the retry deadline after fresh %s history", async (status, completes) => {
+			await act(async () => {
+				live.resolve([]);
+				await Promise.resolve();
+			});
+			const history = completes ? latest : [];
+			let pollReads = 0;
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "get_discovered_session") return { status };
+				if (command === "read_session_messages") {
+					pollReads += 1;
+					return history;
+				}
+				if (command === "chat_session_command")
+					return {
+						sessionId: session.sessionId,
+						status: "idle",
+						provider: "openai",
+						model: "attached-model",
+					};
+				return [];
+			});
+			vi.setSystemTime(Date.now() + 15 * 60 * 1_000 + 1);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+				await hydration;
+			});
+			expect(pollReads).toBe(1);
+			expect(current.isHydratingSession).toBe(false);
+			if (completes) {
+				expect(current.messages).toEqual(latest);
+				expect(current.error).toBeNull();
+			} else {
+				expect(current.status).toBe("error");
+				expect(current.error).toContain("taking too long to open");
+			}
 		});
 
 		it("ignores pending history after resetting the selected session", async () => {
@@ -971,8 +1048,9 @@ describe("useChatSession", () => {
 				return { sessionId: "expired-cloud", status: "expired" };
 			return [];
 		});
-		await act(async () =>
-			current.hydrateSession({
+		let hydration: Promise<void>;
+		await act(async () => {
+			hydration = current.hydrateSession({
 				sessionId: "expired-cloud",
 				environmentId: "local",
 				origin: "cloud",
@@ -980,8 +1058,13 @@ describe("useChatSession", () => {
 				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
-			}),
-		);
+			});
+			await Promise.resolve();
+		});
+		if (!hasHistory && !failedCommand) {
+			await act(async () => vi.advanceTimersByTimeAsync(3_100));
+		}
+		await act(async () => hydration);
 		await act(async () => vi.advanceTimersByTimeAsync(3_100));
 		expect(current.isCloudSessionExpired).toBe(true);
 		if (failedCommand) {
@@ -1874,9 +1957,18 @@ describe("useChatSession", () => {
 	it("locks an attached cloud session when discovery polling reports expired", async () => {
 		const sessionId = "session-expired-poll";
 		const queued = [{ id: "queued", prompt: "next", steer: false }];
+		const transcript: ChatSessionHook["messages"] = [
+			{
+				id: "existing",
+				sessionId,
+				role: "assistant",
+				content: "Existing reply",
+				createdAt: 1,
+			},
+		];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "read_session_messages") return [];
+				if (command === "read_session_messages") return transcript;
 				if (command === "get_discovered_session")
 					return { sessionId, status: "expired" };
 				if (command === "chat_session_command") {
@@ -2888,9 +2980,9 @@ describe("useChatSession", () => {
 		["retry", "ready", "idle"],
 		["retry-idle", "idle", "idle"],
 		["snapshot", "ready", "running"],
-		["failed", "failed", "failed"],
+		["failed", "failed", "error"],
 		["deleted", "ready", "error"],
-		["expired", "expired", "completed"],
+		["expired", "expired", "error"],
 	] as const)("recovers an attached provisioning cloud session: %s", async (outcome, readyStatus, expectedStatus) => {
 		let discoveryReads = 0;
 		let readyReads = 0;
@@ -2958,7 +3050,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "cloud-transition",
 							prompt: "Fix the provisioning flow",
-							status: "provisioning",
+							status: outcome === "snapshot" ? "running" : discoveredStatus,
 							...cloudSessionConfig,
 						};
 					}
@@ -2969,8 +3061,9 @@ describe("useChatSession", () => {
 		);
 		vi.useFakeTimers();
 		try {
+			let hydration: Promise<void>;
 			await act(async () => {
-				await current.hydrateSession({
+				hydration = current.hydrateSession({
 					sessionId: "cloud-transition",
 					origin: "cloud",
 					repoUrl: "https://github.com/cline/test",
@@ -2978,6 +3071,7 @@ describe("useChatSession", () => {
 					...cloudSessionConfig,
 					startedAt: "2026-08-17T00:00:00.000Z",
 				});
+				await Promise.resolve();
 			});
 			expect(current.messages).toEqual([]);
 			expect(current.isHydratingSession).toBe(true);
@@ -2993,7 +3087,9 @@ describe("useChatSession", () => {
 				await vi.advanceTimersByTimeAsync(3_100);
 			});
 			expect(discoveryReads).toBe(1);
-			expect(current.status).toBe("starting");
+			expect(current.status).toBe(
+				outcome === "idle-event" ? "idle" : "starting",
+			);
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(3_100);
 			});
@@ -3003,7 +3099,12 @@ describe("useChatSession", () => {
 					await vi.advanceTimersByTimeAsync(3_100);
 				});
 			}
-			expect(attachCalls).toBe(0);
+			await act(async () => hydration);
+			expect(attachCalls).toBe(
+				outcome === "failed" || outcome === "expired" || outcome === "deleted"
+					? 0
+					: 1,
+			);
 			expect(current.isHydratingSession).toBe(false);
 			expect(current.status).toBe(expectedStatus);
 			if (outcome === "snapshot") {
@@ -3433,9 +3534,16 @@ describe("useChatSession", () => {
 				if (command === "get_process_context") {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}
-				if (command === "read_session_messages") {
-					return [];
-				}
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "saved-branch-history",
+							sessionId: "ses-cloud",
+							role: "assistant",
+							content: "Existing reply",
+							createdAt: 1,
+						},
+					];
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
 					if (request?.action === "attach") {
@@ -5607,6 +5715,15 @@ describe("useChatSession", () => {
 	});
 
 	it("keeps one assistant message when the end event precedes the send reply", async () => {
+		const existingHistory: ChatSessionHook["messages"] = [
+			{
+				id: "existing-cloud-reply",
+				sessionId: "ses-cloud",
+				role: "assistant",
+				content: "Existing reply",
+				createdAt: 1,
+			},
+		];
 		let resolveSend!: (value: {
 			ok: true;
 			result: { text: string; finishReason: "completed" };
@@ -5631,9 +5748,9 @@ describe("useChatSession", () => {
 						sessionId: "ses-cloud",
 						status: "idle",
 						transcriptKnown: true,
-						messages: [],
+						messages: existingHistory,
 					});
-					return [];
+					return existingHistory;
 				}
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
@@ -6775,7 +6892,16 @@ describe("useChatSession", () => {
 						workspaceRoot: "/workspace/cline",
 					};
 				}
-				if (command === "read_session_messages") return [];
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "saved-cloud-history",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "Existing reply",
+							createdAt: 1,
+						},
+					];
 				if (command === "read_session_hooks") return [];
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;

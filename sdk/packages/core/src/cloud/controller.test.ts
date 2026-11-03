@@ -372,6 +372,53 @@ describe("CloudSessionController neutral host contract", () => {
 		}
 	});
 
+	it("uses cross-scope readiness for canonical history reads", async () => {
+		const f = resumableFixture("provisioning");
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Saved prompt" },
+		];
+		f.setMessages(messages);
+		try {
+			await f.controller.listForDiscovery();
+			f.api.list.mockResolvedValue([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+			f.api.status.mockResolvedValue({ status: "ready" });
+			expect(
+				await f.controller.getCrossScopeDiscoveryRecord(record.id),
+			).toMatchObject({ status: "ready" });
+			expect(await f.controller.readMessages(record.id)).toEqual(messages);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		"delete",
+		"dispose",
+	] as const)("does not restore a cross-scope record after %s", async (action) => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		let finish!: (result: { status: string }) => void;
+		f.api.status.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const refreshing = f.controller.getCrossScopeDiscoveryRecord(record.id);
+		try {
+			if (action === "delete") await f.controller.delete(record.id);
+			else await f.controller.dispose();
+			finish({ status: "ready" });
+			expect(await refreshing).toBeUndefined();
+			expect(f.controller.getCachedDiscoveryRecord(record.id)).toBeUndefined();
+		} finally {
+			finish({ status: "ready" });
+			await refreshing;
+			await f.controller.dispose();
+		}
+	});
+
 	it("refreshes an attached session title after an external rename", async () => {
 		const f = await attached();
 		await f.controller.updateTitle(record.id, "Desktop title");
@@ -490,6 +537,16 @@ describe("CloudSessionController neutral host contract", () => {
 			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
 				"running",
 			);
+			const messages: MessageWithMetadata[] = [
+				{ role: "assistant", content: "Live reply" },
+			];
+			f.setMessages(messages);
+			f.setStatus("running");
+			f.api.status.mockRejectedValueOnce(new TypeError("Status unavailable"));
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"running",
+			);
+			expect(await f.controller.readMessages(record.id)).toEqual(messages);
 
 			f.api.list.mockResolvedValue([
 				{ ...record, sandboxType: "resumable", status: "suspended" },

@@ -370,7 +370,7 @@ export function cloudSessionToDiscoveryRecord(
 		sessionId: record.id,
 		origin: "cloud",
 		executionTarget: "cloud",
-		status: record.status,
+		status: isExpiredRecord(record) ? "expired" : record.status,
 		provider: "cline",
 		model: record.metadata.modelId ?? "",
 		cwd: cloudSessionCwd(record),
@@ -705,15 +705,28 @@ export class CloudSessionController {
 	async getCrossScopeDiscoveryRecord(
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
-		const cached = this.getCachedDiscoveryRecord(sessionId);
-		if (!cached) {
+		const record = this.knownSessions.get(sessionId);
+		if (!record) {
 			return undefined;
 		}
 		try {
 			const status = await this.options.api.status(sessionId);
+			if (
+				this.disposed ||
+				this.deletingSessions.has(sessionId) ||
+				this.knownSessions.get(sessionId) !== record
+			)
+				return undefined;
 			const value = status.status?.trim();
-			return value ? { ...cached, status: value } : cached;
+			if (value) record.status = value;
+			return cloudSessionToDiscoveryRecord(record);
 		} catch (error) {
+			if (
+				this.disposed ||
+				this.deletingSessions.has(sessionId) ||
+				this.knownSessions.get(sessionId) !== record
+			)
+				return undefined;
 			if (
 				error instanceof CloudSessionError &&
 				(error.code === "session_not_found" || error.code === "session_expired")
@@ -724,7 +737,7 @@ export class CloudSessionController {
 				return undefined;
 			}
 			// A scope/auth/network failure cannot prove the cached session is gone.
-			return cached;
+			return cloudSessionToDiscoveryRecord(record);
 		}
 	}
 
@@ -1031,7 +1044,11 @@ export class CloudSessionController {
 			const title = live.title?.trim() || record.title?.trim();
 			return {
 				...projected,
-				status: record.status === "provisioning" ? "provisioning" : live.status,
+				status:
+					record.status === "provisioning" &&
+					!this.connections.get(record.id)?.innerSessionId
+						? "provisioning"
+						: live.status,
 				prompt: live.prompt,
 				endedAt:
 					live.endedAt !== undefined
@@ -2123,7 +2140,11 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (known?.status === "provisioning" || known?.status === "failed") {
+		if (
+			known?.status === "failed" ||
+			(known?.status === "provisioning" &&
+				!this.connections.get(outerSessionId)?.innerSessionId)
+		) {
 			return [];
 		}
 		if (known && isExpiredRecord(known)) {
