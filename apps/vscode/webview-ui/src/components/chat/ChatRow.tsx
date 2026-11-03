@@ -51,6 +51,7 @@ import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
+import { resolveSelectedOption } from "./chat-view/utils/turnTimeline"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
@@ -1097,6 +1098,8 @@ export const ChatRowContent = memo(
 							// legacy messages would pass question directly
 							question = message.text
 						}
+						// Restored sessions lose `selected`; recover it from the submitted answer.
+						selected ??= resolveSelectedOption(clineMessages, message.ts, options)
 
 						return (
 							<div>
@@ -1176,6 +1179,7 @@ export const ChatRowContent = memo(
 							// legacy messages would pass response directly
 							response = message.text
 						}
+						selected ??= resolveSelectedOption(clineMessages, message.ts, options)
 						return (
 							<div>
 								<PlanCompletionOutputRow text={response || message.text || ""} />

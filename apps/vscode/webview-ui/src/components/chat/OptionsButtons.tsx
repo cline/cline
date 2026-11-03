@@ -1,4 +1,5 @@
 import { AskResponseRequest } from "@shared/proto/cline/task"
+import { CheckIcon } from "lucide-react"
 import { useState } from "react"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -6,9 +7,14 @@ import { TaskServiceClient } from "@/services/grpc-client"
 
 const OptionButton = styled.button<{ $isSelected?: boolean; $isNotSelectable?: boolean }>`
 	padding: 8px 12px;
-	background: ${(props) => (props.$isSelected ? "var(--vscode-focusBorder)" : CODE_BLOCK_BG_COLOR)};
-	color: ${(props) => (props.$isSelected ? "white" : "var(--vscode-input-foreground)")};
-	border: 1px solid var(--vscode-editorGroup-border);
+	/* The chosen option stays marked once the question is answered. Badge colours are used
+	   rather than the hover colour so "selected" and "pointing at it" never look the same, and
+	   a check icon carries the same message without relying on colour alone. */
+	background: ${(props) => (props.$isSelected ? "var(--vscode-badge-background)" : CODE_BLOCK_BG_COLOR)};
+	color: ${(props) => (props.$isSelected ? "var(--vscode-badge-foreground)" : "var(--vscode-input-foreground)")};
+	border: 1px solid
+		${(props) => (props.$isSelected ? "var(--vscode-textLink-foreground)" : "var(--vscode-editorGroup-border)")};
+	${(props) => props.$isSelected && "font-weight: 600;"}
 	border-radius: 2px;
 	cursor: ${(props) => (props.$isNotSelectable ? "default" : "pointer")};
 	text-align: left;
@@ -88,6 +94,7 @@ export const OptionsButtons = ({
 							console.error("Error sending option response:", error)
 						}
 					}}>
+					{option === selectedOption && <CheckIcon aria-hidden className="size-3 shrink-0 mr-1.5 inline-block" />}
 					<span className="ph-no-capture">{option}</span>
 				</OptionButton>
 			))}
