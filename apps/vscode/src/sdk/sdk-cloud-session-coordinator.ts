@@ -1802,6 +1802,10 @@ export class SdkCloudSessionCoordinator {
 			(status) => (status.status?.toLowerCase() === "expired" ? "session_expired" : status.status?.toLowerCase()),
 			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
 		)
+		const ownsRecord = this.entries.get(record.id) === entry && entry.record === record
+		if (ownsRecord && (probe === "session_expired" || probe === "failed" || probe === "session_failed")) {
+			this.upsertRecord({ ...record, status: probe === "session_expired" ? "expired" : "failed" })
+		}
 		if (probe === "session_expired") {
 			return { messages: await this.renderExpired(entry), deleted: false, resumable: false }
 		}
@@ -1824,13 +1828,7 @@ export class SdkCloudSessionCoordinator {
 				error instanceof CloudSessionError &&
 				["session_expired", "session_not_found", "session_failed"].includes(error.code)
 			)
-		if (
-			resumable &&
-			this.entries.get(record.id) === entry &&
-			entry.record === record &&
-			record.status?.toLowerCase() !== "failed" &&
-			!isCloudSessionExpired(record)
-		) {
+		if (resumable && ownsRecord && record.status?.toLowerCase() !== "failed" && !isCloudSessionExpired(record)) {
 			this.upsertRecord({ ...record, status: "suspended" })
 		}
 		return {

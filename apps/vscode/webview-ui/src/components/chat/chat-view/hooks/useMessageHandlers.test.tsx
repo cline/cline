@@ -249,83 +249,6 @@ describe("useMessageHandlers — send routing", () => {
 		)
 	})
 
-	it("shows pending composer state before a follow-up askResponse resolves", async () => {
-		mockTurnState = { phase: "completed", seq: 7 }
-		let resolveAskResponse: () => void = () => {}
-		askResponse.mockImplementationOnce(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveAskResponse = resolve
-				}),
-		)
-		const setInputValue = vi.fn()
-		const setActiveQuote = vi.fn()
-		const setSendingDisabled = vi.fn()
-		const setSelectedImages = vi.fn()
-		const setSelectedFiles = vi.fn()
-		const setEnableButtons = vi.fn()
-		const setPendingUserMessage = vi.fn()
-		const setPendingResponse = vi.fn()
-		const chatState = makeChatState(completedConversation, {
-			activeQuote: "selected context",
-			sendingDisabled: false,
-			enableButtons: true,
-			setInputValue,
-			setActiveQuote,
-			setSendingDisabled,
-			setSelectedImages,
-			setSelectedFiles,
-			setEnableButtons,
-			setPendingUserMessage,
-			setPendingResponse,
-		})
-		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
-
-		let sendPromise: Promise<void> = Promise.resolve()
-		await act(async () => {
-			sendPromise = result.current.handleSendMessage("another question", ["image.png"], ["a.ts"])
-			await Promise.resolve()
-		})
-
-		expect(askResponse).toHaveBeenCalledWith(
-			expect.objectContaining({
-				responseType: "messageResponse",
-				text: expect.stringContaining("another question"),
-				images: ["image.png"],
-				files: ["a.ts"],
-			}),
-		)
-		expect(setInputValue).toHaveBeenCalledWith("")
-		expect(setActiveQuote).toHaveBeenCalledWith(null)
-		expect(setSendingDisabled).toHaveBeenCalledWith(true)
-		expect(setSelectedImages).toHaveBeenCalledWith([])
-		expect(setSelectedFiles).toHaveBeenCalledWith([])
-		expect(setEnableButtons).toHaveBeenCalledWith(false)
-		expect(setPendingUserMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				afterTs: 2,
-				message: expect.objectContaining({
-					type: "say",
-					say: "user_feedback",
-					text: expect.stringContaining("another question"),
-					images: ["image.png"],
-					files: ["a.ts"],
-					partial: false,
-				}),
-			}),
-		)
-		expect(setPendingResponse).toHaveBeenCalledWith({
-			id: 1,
-			turnStateSeq: 7,
-			messageCount: completedConversation.length,
-		})
-
-		await act(async () => {
-			resolveAskResponse()
-			await sendPromise
-		})
-	})
-
 	it.each([
 		"unchanged",
 		"edit",
@@ -353,6 +276,14 @@ describe("useMessageHandlers — send routing", () => {
 			sendPromise = result.current.handlers.handleSendMessage("another question", ["image.png"], ["a.ts"])
 			await Promise.resolve()
 		})
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseType: "messageResponse",
+				text: expect.stringContaining("another question"),
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
 		expect(result.current.chatState.getDraftSnapshot()).toMatchObject({
 			text: "",
 			activeQuote: null,
@@ -362,6 +293,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(result.current.chatState.pendingUserMessage).toMatchObject({
 			afterTs: 2,
 			message: expect.objectContaining({
+				type: "say",
 				say: "user_feedback",
 				text: expect.stringContaining("another question"),
 				images: ["image.png"],

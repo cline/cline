@@ -502,7 +502,6 @@ describe("SDK remote-config coordination", () => {
 			// The retry is consumed by the first response; a second one finds no session to send to.
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
-			controller.cloud.getCurrentTaskInfo = () => ({ status: "failed" })
 
 			await expect(
 				errorTask.handleWebviewAskResponse("messageResponse", "keep this draft", ["image"], ["file"]),
@@ -515,6 +514,25 @@ describe("SDK remote-config coordination", () => {
 			expect(controller.turnStateTracker.set.mock.invocationCallOrder[0]).toBeLessThan(
 				controller.postStateToWebview.mock.invocationCallOrder.at(-1)!,
 			)
+		})
+
+		it("admits a detached cloud follow-up when it can be prepared", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			controller.initTask.mockClear()
+			controller.cloud.canPrepareFollowup = () => true
+
+			await errorTask.handleWebviewAskResponse("messageResponse", "continue", ["image"], ["file"])
+
+			expect(controller.followups.askResponse).toHaveBeenCalledExactlyOnceWith(
+				"continue",
+				["image"],
+				["file"],
+				"messageResponse",
+				"error",
+			)
+			expect(controller.messages.appendAndEmit).not.toHaveBeenCalled()
+			expect(controller.initTask).not.toHaveBeenCalled()
 		})
 	})
 

@@ -18,8 +18,7 @@ describe("SdkFollowupCoordinator", () => {
 	})
 
 	it("resolves pending tool approvals without sending a follow-up", async () => {
-		const beginCloudFollowup = vi.fn()
-		const { coordinator, options } = makeCoordinator({ task: makeTask("ses-approval"), beginCloudFollowup })
+		const { coordinator, options } = makeCoordinator()
 		options.interactions.resolvePendingToolApproval.mockReturnValue(true)
 
 		await coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")
@@ -31,12 +30,10 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 		)
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(beginCloudFollowup).not.toHaveBeenCalled()
 	})
 
 	it("resolves pending ask_question responses without sending a follow-up", async () => {
-		const beginCloudFollowup = vi.fn()
-		const { coordinator, options } = makeCoordinator({ task: makeTask("ses-question"), beginCloudFollowup })
+		const { coordinator, options } = makeCoordinator()
 		options.interactions.resolvePendingAskQuestion.mockReturnValue(true)
 
 		await coordinator.askResponse("answer", ["data:image/png;base64,abc"], ["/workspace/spec.md"])
@@ -47,7 +44,6 @@ describe("SdkFollowupCoordinator", () => {
 			["/workspace/spec.md"],
 		)
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(beginCloudFollowup).not.toHaveBeenCalled()
 	})
 
 	it("sends a follow-up to an idle active session", async () => {
@@ -143,6 +139,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		const emitted = options.messages.appendAndEmit.mock.calls.flatMap(([messages]) => messages)
 		expect(emitted).toEqual([expect.objectContaining({ say: "error", text: expect.stringContaining(error.message) })])
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
