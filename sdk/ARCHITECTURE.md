@@ -1334,3 +1334,16 @@ The reusable `@cline/ui` UX verification carousel consumes a report contract own
 Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.
 
 UX screenshot evidence specializes the existing `GeneratedMediaSchema` to supported raster images rather than introducing another transport shape. Reports can retain artifact IDs while Desktop/IDE/web consumers reuse their existing media-access lifecycle through the renderer callback. The shared UI performs no artifact lookup, upload, signed-URL refresh or transcript mutation.
+
+Core's `ux_verifier` is a specialization of the existing host-provided spawn tool,
+registered when tools and spawning are enabled. It shares child configuration,
+hooks, cancellation, telemetry and lifecycle observers with generic delegation;
+it does not introduce another child runtime. Spawn-tool opt-outs also disable the
+specialization. It runs sequentially to avoid racing a shared browser.
+
+Workers return observations and local screenshot paths. The main agent owns
+fixes, retries, evidence publication and assembling the opt-in
+`report_ux_verification` call, and can combine several workers into one report.
+The cloud computer-use prompt requests this delegation when available and keeps
+manual verification as a fallback. Report persistence, UI grouping, image access
+and rendering continue through the existing host boundaries.
