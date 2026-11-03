@@ -42,8 +42,8 @@ export function useScrollBehavior(
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
 	const layoutSettleScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-	/** Distance to the bottom at the previous commit — what the reading-position lock restores. */
-	const readingPositionRef = useRef<{ scrollHeight: number; distanceFromBottom: number } | undefined>(undefined)
+	/** Row at the top of the viewport, in document space — what the lock keeps where it is. */
+	const anchorRef = useRef<{ ts: string; documentTop: number; distanceFromBottom: number } | undefined>(undefined)
 	/** Until when a programmatic scroll owns the scroller and the lock has to keep its hands off. */
 	const scrollGraceUntilRef = useRef(0)
 
@@ -384,39 +384,58 @@ export function useScrollBehavior(
 	/**
 	 * Keeps the reading position still while the agent keeps producing output.
 	 *
-	 * Rows appended below the viewport cannot move anything, but a fold collapsing above it, a
-	 * streaming row growing or a re-measure does — and the list runs with `overflow-anchor: none`,
-	 * which upstream needs, so the browser hands no compensation back. The distance to the bottom is
-	 * therefore remembered per commit and restored whenever the content height changed while the
-	 * reader is not pinned to the tail. Restoring the *distance* rather than an index is what keeps
-	 * the text under the eyes: content growing inside the viewport still grows downwards.
+	 * The anchor is the row at the top of the viewport, measured in **document** space (its rect
+	 * plus `scrollTop`). A wheel tick or a scrollbar drag cannot change that number — only content
+	 * growing or collapsing above the row can — so correcting it never fights the reader. Measuring
+	 * the distance to the bottom instead did: while the agent streamed, the content height changed
+	 * between nearly every commit, and restoring the stale distance on top of each wheel tick stuck
+	 * the scroll and snapped it back at every row boundary.
 	 *
-	 * Runs before paint, so the correction never shows as a second jump. When another mechanism has
-	 * already kept that distance constant — the fold anchoring does exactly that — the measurement
-	 * matches and nothing is corrected twice.
+	 * This is what `overflow-anchor` would do for free, and the list cannot have it: upstream sets
+	 * `overflow-anchor: none` because its own expand/collapse needs that control. Runs before paint,
+	 * so the correction is never a second visible jump.
 	 */
 	useLayoutEffect(() => {
 		const scroller = resolveChatScroller(scrollContainerRef.current)
 		if (!scroller) {
-			readingPositionRef.current = undefined
+			anchorRef.current = undefined
 			return
 		}
-		const distance = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
-		const previous = readingPositionRef.current
-		readingPositionRef.current = { scrollHeight: scroller.scrollHeight, distanceFromBottom: distance }
-		if (!previous || Date.now() < scrollGraceUntilRef.current) {
+		const measure = () => {
+			const viewportTop = scroller.getBoundingClientRect().top
+			const distanceFromBottom = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+			for (const row of Array.from(scroller.querySelectorAll<HTMLElement>("[data-message-ts]"))) {
+				const box = row.getBoundingClientRect()
+				// First row that still reaches into the viewport, so a partly scrolled-out row keeps
+				// its identity instead of handing the anchor to its successor on the last pixel.
+				if (box.bottom - viewportTop > 1) {
+					return {
+						ts: row.dataset.messageTs ?? "",
+						documentTop: box.top - viewportTop + scroller.scrollTop,
+						distanceFromBottom,
+					}
+				}
+			}
+			return undefined
+		}
+		const current = measure()
+		const previous = anchorRef.current
+		anchorRef.current = current
+		// Another row at the top means the reader moved, not the content: new baseline, no correction.
+		if (!current || !previous || previous.ts !== current.ts || Date.now() < scrollGraceUntilRef.current) {
 			return
 		}
-		const contentUntouched = scroller.scrollHeight === previous.scrollHeight || distance === previous.distanceFromBottom
-		// Pinned to the tail: output arriving there is exactly what following is for.
-		if (contentUntouched || previous.distanceFromBottom <= BOTTOM_TOLERANCE_PX) {
+		// Pinned to the tail before the content moved: output arriving there is what following is for.
+		// The *previous* distance is the one that says so — growing content above pushes the reader
+		// away from the tail all by itself.
+		if (previous.distanceFromBottom <= BOTTOM_TOLERANCE_PX) {
 			return
 		}
-		scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - previous.distanceFromBottom
-		readingPositionRef.current = {
-			scrollHeight: scroller.scrollHeight,
-			distanceFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+		const drift = current.documentTop - previous.documentTop
+		if (Math.abs(drift) < 2) {
+			return
 		}
+		scroller.scrollTop = scroller.scrollTop + drift
 	})
 
 	return {
