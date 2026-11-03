@@ -129,6 +129,11 @@ export {
 	CarouselNext,
 	CarouselPrevious,
 } from "./carousel.js";
+export { DetailList, type DetailListProps } from "./detail-list.js";
+export {
+	DetailListItem,
+	type DetailListItemProps,
+} from "./detail-list-item.js";
 export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,

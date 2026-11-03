@@ -1,0 +1,27 @@
+@layer components {
+	.cline-ui-detail-list {
+		container: cline-ui-detail-list / inline-size;
+		box-sizing: border-box;
+		width: 100%;
+		min-width: 0;
+		margin: 0;
+		padding: 0 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xl);
+		background: var(--card);
+		color: var(--foreground);
+		font-family: var(--font-sans);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	.cline-ui-detail-list
+		> .cline-ui-detail-list-item:not([hidden])
+		~ .cline-ui-detail-list-item:not([hidden]) {
+		border-top: 1px solid var(--border);
+	}
+	.cline-ui-detail-list[hidden]:not([hidden="until-found"]) {
+		display: none;
+	}
+}
