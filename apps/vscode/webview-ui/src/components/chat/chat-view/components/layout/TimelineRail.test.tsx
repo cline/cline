@@ -75,14 +75,37 @@ describe("TimelineRail", () => {
 		expect(onSelect).toHaveBeenCalledWith(markers[1])
 	})
 
-	it("previews the summary and a relative time on hover", () => {
+	it("previews the summary, the wall-clock time and the distance to the reading position", () => {
 		renderRail()
 
-		fireEvent.pointerEnter(screen.getAllByRole("button")[0])
+		// The reading position sits at the top of the rail (scrollRatio 0), this answer is a day
+		// and seven seconds later — the grid rounds up, so it reads +2d.
+		fireEvent.pointerEnter(screen.getAllByRole("button")[3])
 
 		const preview = screen.getByTestId("timeline-preview")
-		expect(preview.textContent).toContain("Führe den SATA-Selbsttest aus")
-		expect(preview.textContent).toMatch(/-\d+d/)
+		expect(preview.textContent).toContain("Zusammenfassung steht im Kommentar")
+		expect(preview.textContent).toContain("+2d")
+		expect(preview.textContent).toMatch(/\d{1,2}:\d{2}/)
+	})
+
+	it("labels the rail around the reading position, one step per label", () => {
+		renderRail()
+
+		// current = 0: the position itself plus the markers a day and two days after it. The
+		// nine-second neighbour falls into `now` and is dropped rather than repeating it.
+		expect(screen.getAllByTestId("timeline-label").map((node) => node.textContent)).toEqual(["now", "+1d", "+2d"])
+	})
+
+	it("moves the whole grid when the reading position moves", () => {
+		const scrollContainer = document.createElement("div")
+		// jsdom reports no geometry; give the scroller a real range and a thumb at the bottom.
+		Object.defineProperty(scrollContainer, "scrollHeight", { value: 1000, configurable: true })
+		Object.defineProperty(scrollContainer, "clientHeight", { value: 500, configurable: true })
+		Object.defineProperty(scrollContainer, "scrollTop", { value: 500, configurable: true })
+		renderRail({ scrollContainerRef: { current: scrollContainer } })
+
+		// Same markers, now measured from the last one: everything above reads as earlier.
+		expect(screen.getAllByTestId("timeline-label").map((node) => node.textContent)).toEqual(["-2d", "-1d", "now"])
 	})
 
 	it("shows answer durations of a minute or more, rounded to minutes", () => {

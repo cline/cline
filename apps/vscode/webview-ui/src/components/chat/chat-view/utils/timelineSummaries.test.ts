@@ -21,7 +21,7 @@ let memory: ReturnType<typeof installMemoryStorage>
 
 /** The entries inside the single storage key. */
 function storedEntries(): Record<string, unknown> {
-	const raw = memory.data.get("ccline.timelineSummaries.v1")
+	const raw = memory.data.get("ccline.timelineSummaries.v2")
 	return raw ? JSON.parse(raw) : {}
 }
 
@@ -47,11 +47,19 @@ describe("createCachedSummarizer", () => {
 
 	it("recomputes when the text changed, e.g. an answer that kept streaming", () => {
 		const summarizer = createCachedSummarizer(SESSION)
-		expect(summarizer("Anfang").length).toBeLessThanOrEqual(31)
+		expect(summarizer("Anfang")).toBe("Anfang")
 
 		// Same session, different content: the cached entry must not be reused.
 		const grown = summarizer("Anfang, der später noch deutlich länger wird und jetzt abbricht")
 		expect(grown).toBe(summarizeTimelineText("Anfang, der später noch deutlich länger wird und jetzt abbricht"))
+	})
+
+	it("remembers whole sentences, and nothing from the thirty-character era", () => {
+		expect(createCachedSummarizer(SESSION)(LONG)).toBe(LONG)
+		// The key is a hash of the source text, so a longer label only takes effect under a new
+		// prefix — the previous version must stay untouched rather than be read back.
+		expect(memory.data.has("ccline.timelineSummaries.v1")).toBe(false)
+		expect(Object.keys(storedEntries()).length).toBe(1)
 	})
 
 	it("keeps sessions apart", () => {

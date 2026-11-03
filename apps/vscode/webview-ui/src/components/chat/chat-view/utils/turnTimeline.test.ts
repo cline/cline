@@ -1,16 +1,23 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
+	clockOfMessage,
 	collectTimelineMarkers,
+	formatClockTime,
 	formatDurationMinutes,
 	formatElapsed,
+	formatRelativeStep,
 	formatTimeAgo,
 	groupIntoTurns,
 	interpolateRatios,
+	markerStepLabel,
 	nearestByRatio,
+	relativeLabelIndices,
 	resolveChatScroller,
 	resolveSelectedOption,
 	summarizeTimelineText,
+	TIMELINE_LABEL_SLOTS,
+	timelineAnchorClock,
 	timelineKindOf,
 } from "./turnTimeline"
 
@@ -42,19 +49,35 @@ describe("summarizeTimelineText", () => {
 		expect(summarizeTimelineText("```bash\nls -la\n```\nSee **the [docs](https://x.y)** now")).toBe("See the docs now")
 	})
 
-	it("keeps only the first sentence", () => {
-		expect(summarizeTimelineText("Erste Sache. Zweite Sache, die viel zu lang ist.").startsWith("Erste Sache.")).toBe(true)
+	it("keeps every sentence that fits", () => {
+		const text = "Erste Sache. Zweite Sache, die jetzt mitläuft, weil sie ins Limit passt."
+		expect(summarizeTimelineText(text)).toBe(text)
 	})
 
 	it("does not cut on decimals", () => {
 		expect(summarizeTimelineText("Es sind 1.5 GB übrig")).toBe("Es sind 1.5 GB übrig")
 	})
 
-	it("truncates to the limit on a word boundary", () => {
-		const out = summarizeTimelineText("Führe den SATA-Selbsttest auf allen Platten aus und korrigiere die Staffelung")
-		expect(out.length).toBeLessThanOrEqual(31)
+	it("ends on the last sentence boundary inside the limit", () => {
+		const head = `${"a".repeat(60)}.`
+		const out = summarizeTimelineText(`${head} Und ein zweiter Satz, der über das Limit hinausgeht und deshalb wegfällt.`)
+		expect(out).toBe(head)
+		expect(out.endsWith("…")).toBe(false)
+	})
+
+	it("cuts on a word boundary when no sentence boundary fits", () => {
+		const out = summarizeTimelineText("Wort ".repeat(50))
+		expect(out.length).toBeLessThanOrEqual(111)
 		expect(out.endsWith("…")).toBe(true)
 		expect(out).not.toMatch(/\s…$/)
+	})
+
+	it("does not end a label on a single-letter abbreviation", () => {
+		const text =
+			"Erste Erklärung z. B. mit Abkürzung und danach noch deutlich zu viel Text, damit die Grenze irgendwo mitten durch den Satz fällt."
+		const out = summarizeTimelineText(text)
+		expect(out).not.toBe("Erste Erklärung z.")
+		expect(out.length).toBeLessThanOrEqual(111)
 	})
 
 	it("returns empty for contentless text", () => {
@@ -267,6 +290,125 @@ describe("formatTimeAgo with implausible timestamps", () => {
 		const now = Date.now()
 
 		expect(formatTimeAgo(now - 12 * 60_000, now)).toBe("-12m")
+	})
+})
+
+describe("formatRelativeStep", () => {
+	const reference = Date.UTC(2026, 10, 3, 12)
+	const before = (ms: number) => reference - ms
+	const after = (ms: number) => reference + ms
+
+	it("rounds up to the grid instead of to the nearest step", () => {
+		expect(formatRelativeStep(before(3 * 60_000), reference)).toBe("-5m")
+		expect(formatRelativeStep(before(6 * 60_000), reference)).toBe("-15m")
+		expect(formatRelativeStep(before(20 * 60_000), reference)).toBe("-30m")
+		expect(formatRelativeStep(before(45 * 60_000), reference)).toBe("-1h")
+		expect(formatRelativeStep(before(3 * 3_600_000 + 1), reference)).toBe("-6h")
+		expect(formatRelativeStep(before(10 * 86_400_000), reference)).toBe("-30d")
+	})
+
+	it("signs by direction, so the grid reads both ways", () => {
+		expect(formatRelativeStep(before(90_000), reference)).toBe("-5m")
+		expect(formatRelativeStep(after(90_000), reference)).toBe("+5m")
+		expect(formatRelativeStep(reference, reference)).toBe("now")
+		expect(formatRelativeStep(after(20_000), reference)).toBe("now")
+	})
+
+	it("stays quiet about implausible distances, like formatTimeAgo does", () => {
+		expect(formatRelativeStep(0, reference)).toBe("")
+		expect(formatRelativeStep(reference, Number.NaN)).toBe("")
+	})
+})
+
+describe("relativeLabelIndices", () => {
+	const reference = Date.UTC(2026, 10, 3, 12)
+	// Markers a minute apart: neighbouring steps repeat, which is what the dedupe exists for.
+	const markers = Array.from({ length: 7 }, (_, offset) => ({ clock: reference + offset * 60_000 }))
+
+	it("keeps a window around the reading position, one label per step", () => {
+		for (const current of [0, 2, 4, 6]) {
+			const picked = relativeLabelIndices(markers, current)
+			const labels = picked.map((index) => markerStepLabel(markers[index], markers[current].clock))
+			// The position itself is always labelled, no step appears twice, nothing leaves the window.
+			expect(picked).toContain(current)
+			expect(new Set(labels).size).toBe(labels.length)
+			expect(Math.max(...picked) - Math.min(...picked)).toBeLessThan(TIMELINE_LABEL_SLOTS)
+		}
+	})
+
+	it("collapses to the position alone while every marker falls in the same step", () => {
+		const tight = markers.map((_, offset) => ({ clock: reference + offset * 5_000 }))
+		expect(relativeLabelIndices(tight, 3)).toEqual([3])
+	})
+
+	it("labels nothing while no row knows its time", () => {
+		// A session restored before the host sent clocks: `ts` is a counter, so there is no time.
+		expect(relativeLabelIndices([{ clock: undefined }, { clock: undefined }], 0)).toEqual([])
+	})
+
+	it("falls back to the bottom of the list before the first measurement", () => {
+		expect(relativeLabelIndices([], 0)).toEqual([])
+		expect(relativeLabelIndices(markers, -1)).toContain(markers.length - 1)
+	})
+})
+
+describe("clockOfMessage", () => {
+	const real = Date.UTC(2026, 10, 3, 12)
+
+	it("prefers the host's clock over the identity counter", () => {
+		// MessageIdMinter hands out 1, 2, 3 … — 145 is the 145th row, not 145 ms after the epoch.
+		expect(clockOfMessage({ ts: 145, createdAt: real })).toBe(real)
+		expect(clockOfMessage({ ts: 145 })).toBeUndefined()
+	})
+
+	it("still reads a clock off ts where ts really is one, as the classic path sent it", () => {
+		expect(clockOfMessage({ ts: real })).toBe(real)
+		expect(clockOfMessage({ ts: real, createdAt: 7 })).toBe(real)
+	})
+
+	it("reaches the markers through collectTimelineMarkers", () => {
+		const [marker] = collectTimelineMarkers([say(real, "task", "heute vor drei Stunden")])
+		expect(marker.clock).toBe(real)
+		const [counter] = collectTimelineMarkers([{ ts: 3, type: "say", say: "task", text: "id ist kein Datum" }])
+		expect(counter.clock).toBeUndefined()
+		expect(counter.ts).toBe(3)
+	})
+})
+
+describe("timelineAnchorClock", () => {
+	const real = Date.UTC(2026, 10, 3, 12)
+
+	it("uses the nearest row that knows its time", () => {
+		const markers = [{ clock: real }, { clock: undefined }, { clock: real + 60_000 }]
+		expect(timelineAnchorClock(markers, 1)).toBe(real)
+		expect(timelineAnchorClock(markers, 0)).toBe(real)
+		expect(timelineAnchorClock([{ clock: undefined }], 0)).toBeUndefined()
+	})
+
+	it("says nothing about a row without a clock", () => {
+		expect(markerStepLabel({ clock: undefined }, real)).toBe("")
+		expect(markerStepLabel({ clock: real }, undefined)).toBe("")
+		expect(markerStepLabel(undefined, real)).toBe("")
+	})
+})
+
+describe("formatClockTime", () => {
+	const now = new Date(2026, 10, 3, 14, 32).getTime()
+
+	it("gives just the time for today", () => {
+		const today = formatClockTime(new Date(2026, 10, 3, 9, 5).getTime(), now)
+		expect(today).toMatch(/9:05|09:05/)
+		expect(today).not.toMatch(/Nov|2026/)
+	})
+
+	it("adds the day earlier this year and the year once it changes", () => {
+		expect(formatClockTime(new Date(2026, 10, 1, 9, 5).getTime(), now)).toMatch(/Nov/)
+		expect(formatClockTime(new Date(2025, 10, 1, 9, 5).getTime(), now)).toMatch(/2025/)
+	})
+
+	it("stays quiet about a timestamp that is not one", () => {
+		expect(formatClockTime(0, now)).toBe("")
+		expect(formatClockTime(Number.NaN, now)).toBe("")
 	})
 })
 

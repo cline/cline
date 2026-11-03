@@ -2,13 +2,16 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import { cn } from "@/lib/utils"
 import { getPromptTypingMs } from "../../utils/promptTimings"
 import {
+	formatClockTime,
 	formatDurationMinutes,
 	formatElapsed,
-	formatTimeAgo,
+	markerStepLabel,
 	nearestByRatio,
+	relativeLabelIndices,
 	resolveChatScroller,
 	type TimelineMarker,
 	type TimelineTurn,
+	timelineAnchorClock,
 } from "../../utils/turnTimeline"
 
 interface TimelineRailProps {
@@ -31,9 +34,12 @@ const EDGE_INSET_PERCENT = 7
  * A minimap-style rail beside the scrollbar for travelling through a long task.
  *
  * It marks only what carries the conversation — prompts and final answers — so the ticks double
- * as an outline of the session. Dragging it scrubs between those rows and shows a one-line
- * summary with the wall-clock distance plus, where known, how long the prompt took to type and
- * how long the answer took to arrive.
+ * as an outline of the session. A few ticks carry a step label (`-5m`, `-1h`) measured from the
+ * marker at the current reading position, so the grid travels with the scroll rather than counting
+ * back from the clock; the window around that position holds one label per step, and any other tick
+ * shows its distance in the preview. Dragging scrubs between those rows and previews the summary
+ * with the wall-clock time plus, where known, how long the prompt took to type and how long the
+ * answer took to arrive.
  *
  * It deliberately sits next to the native scrollbar rather than replacing it: the native thumb
  * still reflects real row heights, while the rail trades that precision for labelled targets.
@@ -132,6 +138,16 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 
 	const current = nearestByRatio(positions, scrollRatio)
 
+	/**
+	 * The wall clock the grid is measured against: the row at the visible scroll position. Every
+	 * label on the rail — and the one in the preview — is a distance to this, so scrolling moves the
+	 * whole grid with the reading position instead of counting back from the clock.
+	 */
+	const anchorClock = useMemo(() => timelineAnchorClock(markers, current), [markers, current])
+
+	/** The handful of labels that stay on the rail; the rest only surface in the preview. */
+	const labelIndices = useMemo(() => relativeLabelIndices(markers, current), [markers, current])
+
 	/** Vertical placement for a marker index, falling back to an even spread before first measure. */
 	const topFor = (index: number) => {
 		const ratio = positions[index] ?? (markers.length > 1 ? index / (markers.length - 1) : 0)
@@ -144,15 +160,21 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 		}
 		const turn = turns.find((candidate) => candidate.prompt?.ts === marker.ts || candidate.answer?.ts === marker.ts)
 		const lines: string[] = []
+		// When it happened, on the wall clock: the grid says how far, this says when. Rows whose
+		// clock the transcript does not carry stay without a time — `ts` is an id, not a date.
+		const when = formatClockTime(marker.clock ?? Number.NaN)
+		if (when) {
+			lines.push(when)
+		}
 		if (marker.kind === "prompt") {
 			const typing = sessionKey === undefined ? undefined : getPromptTypingMs(sessionKey, marker.ts)
 			if (typing) {
 				lines.push(`typed ${formatElapsed(typing)}`)
 			}
 		}
-		if (turn?.prompt && turn.answer) {
+		if (turn?.prompt?.clock !== undefined && turn.answer?.clock !== undefined) {
 			// Empty below a minute, so a fast answer adds no label instead of a meaningless 0s.
-			const answer = formatDurationMinutes(turn.answer.ts - turn.prompt.ts)
+			const answer = formatDurationMinutes(turn.answer.clock - turn.prompt.clock)
 			if (answer) {
 				lines.push(`answer ${answer}`)
 			}
@@ -163,6 +185,9 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 	if (markers.length < 2) {
 		return null
 	}
+
+	/** The hovered row's distance to the reading position; empty when either side has no clock. */
+	const stepLabel = markerStepLabel(marker, anchorClock)
 
 	return (
 		<div
@@ -203,9 +228,29 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 				/>
 			))}
 
+			{anchorClock !== undefined &&
+				labelIndices.map((index) => (
+					<span
+						className={cn(
+							"pointer-events-none absolute right-4 z-20 -translate-y-1/2 rounded-sm px-1 text-[0.625rem] leading-[1.4] tabular-nums whitespace-nowrap",
+							index === current ? "font-semibold opacity-100" : "opacity-75",
+						)}
+						data-testid="timeline-label"
+						key={`label-${markers[index].ts}`}
+						style={{
+							top: topFor(index),
+							// The chip floats over the conversation, so it needs the widget's own
+							// background to stay legible against whatever is underneath.
+							backgroundColor: "var(--vscode-editorWidget-background)",
+							color: "var(--vscode-editorWidget-foreground)",
+						}}>
+						{markerStepLabel(markers[index], anchorClock)}
+					</span>
+				))}
+
 			{marker && (
 				<div
-					className="pointer-events-none absolute right-5 z-30 w-[min(70dvw,18em)] -translate-y-1/2 overflow-hidden rounded p-2 text-xs leading-snug break-words"
+					className="pointer-events-none absolute right-5 z-30 w-[min(78dvw,28em)] -translate-y-1/2 overflow-hidden rounded p-2 text-xs leading-snug break-words"
 					data-testid="timeline-preview"
 					style={{
 						top: topFor(activeIndex ?? 0),
@@ -217,10 +262,15 @@ export const TimelineRail = ({ markers, turns, positions, sessionKey, onSelect, 
 						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
 					}}>
 					<div className="flex items-baseline justify-between gap-2">
-						<span className={cn("min-w-0 font-medium", marker.kind === "answer" ? "text-success" : "text-link")}>
+						<span
+							className={cn(
+								"line-clamp-3 min-w-0 font-medium",
+								marker.kind === "answer" ? "text-success" : "text-link",
+							)}
+							title={marker.summary}>
 							{marker.summary}
 						</span>
-						<span className="shrink-0 opacity-70">{formatTimeAgo(marker.ts, Date.now())}</span>
+						{stepLabel && <span className="shrink-0 opacity-70">{stepLabel}</span>}
 					</div>
 					{details.length > 0 && <div className="mt-0.5 opacity-70">{details.join(" · ")}</div>}
 				</div>

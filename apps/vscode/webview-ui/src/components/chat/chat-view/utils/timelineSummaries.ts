@@ -11,7 +11,10 @@ import { summarizeTimelineText } from "./turnTimeline"
  * Same trade-off as the typing durations: `localStorage` is per device and per VS Code profile.
  */
 
-const STORAGE_KEY = "ccline.timelineSummaries.v1"
+// v2: the summariser now keeps a whole sentence instead of a thirty-character stub, but the key is
+// a hash of the *source* text. Without a new prefix every existing entry would keep serving the old
+// label and the change would look like it never happened.
+const STORAGE_KEY = "ccline.timelineSummaries.v2"
 const MAX_ENTRIES = 1200
 
 interface CacheEntry {
