@@ -220,6 +220,26 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
+Portals must also mount inside the themed subtree. `Dialog`, `AlertDialog`,
+and `Tooltip` accept `portalContainer`; pass the same mounted element to each
+when using scoped tokens. For example, use a callback ref stored in state so
+the components receive the container after it mounts:
+
+```tsx
+const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+
+<section className="cline-ui-theme">
+  <Tooltip content="Copy the session link" portalContainer={portalContainer}>
+    <Button tone="neutral" variant="secondary">Copy link</Button>
+  </Tooltip>
+  <div ref={setPortalContainer} />
+</section>;
+```
+
+Keep the portal container outside ancestors that clip overflow or constrain
+fixed positioning. Without `portalContainer`, these components use
+`document.body` and inherit the global theme.
+
 Do not import `theme.css` for this scoped setup. That entry point deliberately
 registers the complete, generic Cline utility vocabulary and is intended only
 for applications that want Cline to own those utility names globally.
@@ -304,6 +324,144 @@ Use `interactive` for a native button with disabled behavior and a button ref.
 <Badge tone="success">Connected</Badge>
 <Badge interactive tone="error" onClick={retry}>Retry</Badge>
 ```
+
+## Alert dialog
+
+`AlertDialog` is a controlled two-action alert dialog. It requires React
+and React DOM 18.3 or 19, theme tokens, and `@cline/ui/components.css`. It focuses
+Cancel when opened, traps keyboard focus, and restores focus to the opening
+element when that element remains mounted. Outside clicks do not dismiss it;
+Escape and either action request closure through `onOpenChange`.
+
+```tsx
+import { AlertDialog } from "@cline/ui";
+
+<AlertDialog
+	open={deleteTarget !== null}
+	onOpenChange={(open) => {
+		if (!open && !deleting) setDeleteTarget(null);
+	}}
+	title="Delete session?"
+	description="This removes the session from local history."
+	confirmLabel={deleting ? "Deleting…" : "Delete"}
+	confirmTone="destructive"
+	confirmDisabled={deleting}
+	cancelDisabled={deleting}
+	onConfirm={(event) => {
+		event.preventDefault();
+		void deleteSession(); // The host closes on success and handles failures.
+	}}
+/>;
+```
+
+Actions normally request closure after their callback. Call `preventDefault()`
+in `onConfirm` or `onCancel` to keep the dialog open. Promises are not awaited;
+the host controls disabled states, loading labels, errors, and retry hints.
+For a blocking prompt, keep `open` true and ignore close requests until its
+explicit action completes. `cancelLabel` defaults to “Cancel”; `confirmTone`
+defaults to `neutral` and accepts all button tones: `accent`, `neutral`, and
+`destructive`. Use `confirmTone="neutral"` for a high-contrast neutral action
+or `confirmTone="destructive"` for a destructive action.
+
+`description` accepts React content, including multiple paragraphs. Put optional
+details such as a destination URL in `children`. All actions use the shared
+small Button size, with a secondary neutral cancel button and a primary
+confirmation button.
+
+The dialog portals to `document.body` by default. Pass `portalContainer` with
+an element inside a scoped theme to inherit its tokens and dark mode. It uses
+the shared small dialog width. Its title,
+description, and details scroll together while its actions remain visible.
+
+## Dialog
+
+`Dialog` is a controlled content dialog styled like `AlertDialog`. Import it
+from `@cline/ui` with the shared theme and `@cline/ui/components.css`.
+
+Both components use `components/dialog.css` for their overlay, surface, heading,
+body spacing, footer, and motion. Update that stylesheet to change their shared
+appearance; `--cline-dialog-padding-inline` and `--cline-dialog-padding-block`
+keep header and body spacing aligned. The private `useDialogFocus` helper shares
+opener capture and focus restoration. Each component retains its own Radix
+primitive and public API: Dialog supplies a close control and host-owned footer,
+while AlertDialog supplies confirm/cancel actions and ignores outside clicks.
+
+```tsx
+import { Button, Dialog } from "@cline/ui";
+
+<Dialog
+  open={open}
+  onOpenChange={(nextOpen) => {
+    if (!saving) setOpen(nextOpen);
+  }}
+  title="Export diagnostics"
+  description="Choose the sessions to include."
+  size="md"
+  footer={
+    <>
+      <Button size="sm" tone="neutral" variant="secondary"
+        disabled={saving} onClick={() => setOpen(false)}>Cancel</Button>
+      <Button size="sm" disabled={saving} onClick={save}>Export</Button>
+    </>
+  }
+>
+  <SessionPicker />
+</Dialog>
+```
+
+`title` supplies the accessible name. Optional `description` supports multiple
+paragraphs, and `children` renders in the scrollable body. The header and
+optional `footer` remain visible while the body scrolls. Long headers are capped
+and scroll independently, with a keyboard tab stop only when they overflow.
+This keeps rich descriptions from hiding the body or footer. Footer controls are
+host-owned: they do not close the dialog automatically. Close the dialog after
+a successful action and keep pending state, errors, and dismissal guards in
+the caller.
+
+`size` accepts `sm` (32rem), `md` (40rem, the default), and `lg` (48rem).
+Widths and height are bounded by the viewport. Use `className` for shell
+adjustments and `bodyClassName` for body layouts, such as a fixed-height session
+picker with an independently scrolling list. `headerClassName` and `headerStyle`
+support branded introductions; the title and description keep their semantics.
+Use shared small Buttons in the footer for consistency with confirmations.
+
+The dialog portals to `document.body` by default; use `portalContainer` to
+mount inside a scoped theme. It traps focus, initially focuses the content,
+and restores focus to the opener if it is still mounted. Escape,
+clicking outside, and the close button request dismissal through `onOpenChange`.
+Use `onOpenAutoFocus` or `onCloseAutoFocus` with `preventDefault()` when a flow
+needs different focus behavior. Dismissal event handlers are also available for
+specific Escape/outside policies. `showCloseButton={false}` only hides the close
+button; keep the controlled state open to block all dismissal while work is
+pending. Use `AlertDialog` for confirmations that should ignore outside clicks.
+
+## Tooltip
+
+Import `Tooltip` from `@cline/ui` with theme tokens and `components.css`.
+It wraps a single focusable element that forwards its ref and event props,
+including the shared `Button` and `IconButton`.
+
+```tsx
+import { Button, Tooltip } from "@cline/ui";
+
+<Tooltip content="Copy the session link" side="top">
+  <Button tone="neutral" variant="secondary">Copy link</Button>
+</Tooltip>;
+```
+
+`content` is a plain-text description. The tooltip uses a neutral black
+background with white text. It opens on hover or keyboard focus and dismisses
+with Escape or when focus leaves.
+Keep an accessible label on the trigger; a tooltip provides extra description.
+
+Placement defaults to `side="top"`, `align="center"`, and `sideOffset={6}`,
+with collision handling near viewport edges. `delayDuration` controls the
+hover delay in milliseconds and defaults to `0`; keyboard focus opens
+immediately. The provider is included, so no extra wrapper is needed.
+
+Content portals to `document.body` by default. For scoped tokens, pass
+`portalContainer` with an element inside the themed wrapper; the trigger's
+theme alone cannot reach a portal mounted outside that subtree.
 
 ## Switch
 
@@ -878,3 +1036,420 @@ jumps and reader-position tracking. A collapsed tool group can keep the same
 row ID as its expanded form. The host chooses which rows anchor turns and
 which messages appear in its outline; transport and session state remain in
 the app. Key the provider by session ID when switching transcripts.
+
+## Pill selector
+
+Import `PillSelector` and `PillSelectorItem` from `@cline/ui`, plus the shared
+theme tokens and `components.css`. Supply an accessible group name and a unique,
+non-empty `value` for each item. Labels, counts, and badges are ordinary children;
+hosts own category data and content rendering.
+
+```tsx
+<PillSelector
+  aria-label="Browse categories"
+  value={category ?? "all"}
+  onValueChange={(value) => setCategory(!value || value === "all" ? null : value)}
+>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">
+    Skills <span className="text-cline-ui-xs tabular-nums">12</span>
+  </PillSelectorItem>
+</PillSelector>
+```
+
+Clicking the selected item calls `onValueChange("")`. To require a selection,
+keep the component controlled and ignore that empty value:
+`onValueChange={(value) => { if (value) setCategory(value); }}`.
+Use `defaultValue` for uncontrolled selection. `disabled` works on the group
+or individual items. Both components forward refs, native DOM attributes,
+`className`, and `style` to their root elements.
+
+The group uses horizontal roving focus: Tab enters the row, Left/Right and
+Home/End move focus (skipping disabled items), and Space/Enter selects or clears
+an item. Focus movement alone does not change the selection. Direction follows
+`dir`, and the single row scrolls horizontally when its contents do not fit.
+Items expose `aria-checked`; keep count text inheriting the item foreground
+so it stays readable in both selected and unselected states. Use smaller type
+for emphasis, as in the example, instead of reducing the count contrast.
+
+## Segmented control
+
+Import `SegmentedControl` from `@cline/ui` with the shared theme tokens and
+`components.css`. Supply options with unique values and readable labels, plus
+an accessible group name through `aria-label` or `aria-labelledby`.
+
+```tsx
+import { SegmentedControl } from "@cline/ui";
+
+<SegmentedControl
+  aria-label="Calendar period"
+  name="period"
+  defaultValue="week"
+  options={[
+    { value: "day", label: "Day" },
+    { value: "week", label: "Week" },
+    { value: "month", label: "Month" },
+  ]}
+/>;
+```
+
+Use `value` and `onValueChange` for application-owned selection, or
+`defaultValue` for uncontrolled state. Clicking the selected option leaves it
+selected. Each option can include an `icon`; set `iconOnly` to hide the labels
+visually while retaining their accessible names. Supply an icon for every
+option in icon-only controls.
+
+Set `size` to `"xs"`, `"sm"`, `"md"`, or `"lg"` for control heights of 2rem,
+2.25rem, 2.5rem, and 2.5rem respectively (30, 33.75, 37.5, and 37.5px with
+the complete theme's 15px root). The default is `"md"`; `"lg"` uses larger text
+and icons within the same height. Padding and content scale apply to text-only,
+icon-only, and mixed controls; for example, use `size="sm"` in compact toolbars.
+
+The group is a native fieldset with radio inputs. Tab enters the radio group,
+arrow keys move and select, and Space selects the focused option. `name`
+includes the selected value in form submission; `required` enables native
+validation. Uncontrolled groups follow form resets; controlled groups must be
+reset by their owner. `disabled` applies to the group or individual options.
+The ref, `className`, `style`, and native fieldset attributes target the group.
+
+Segments share equal widths and a sliding selection treatment adapted from the
+cline-web footer. The control uses shared light/dark theme tokens, respects
+reduced motion, and follows `dir` for RTL placement. Theme persistence and
+content changes remain the host's responsibility.
+
+## Optional content slots
+
+Banner, Dialog, EmptyState, FileBrowser, ItemCard, DetailListItem, and SectionHeading omit
+optional regions for nullish values, booleans, empty strings, and arrays or
+fragments containing only those values. Zero and whitespace remain content.
+Child components are opaque: when a child might return null, conditionally pass
+the slot itself if its surrounding region should also disappear.
+
+## ItemCard
+
+Import `ItemCard`, `Badge`, and `Button` from `@cline/ui` and include `@cline/ui/components.css` after the
+theme. It presents a generic item with optional leading and trailing content,
+both absent by default. It has a fluid width. Trailing actions stay beside the
+main content at widths of 320px and above. Below 320px, the leading item, text,
+trailing content, and footer stack in a single column with a shared left edge.
+Title badges stay inline when they fit. Narrow titles wrap up to two lines and
+truncate after the second line.
+
+```tsx
+<ItemCard
+  title={item.name}
+  icon={showLeadingItem ? <ItemIcon /> : undefined}
+  description={item.description}
+  badges={<Badge variant="ghost">Weekly</Badge>}
+  primaryAction={{ onClick: openDetails, label: `View ${item.name} details` }}
+  actions={
+    showTrailingItem ? (
+      <Button size="xs" tone="neutral" variant="secondary" onClick={editItem}>
+        Edit
+      </Button>
+    ) : undefined
+  }
+  footer={item.author ? `by ${item.author}` : undefined}
+/>
+```
+
+Use `icon` for the leading image or icon and `actions` for trailing content such
+as a switch, button, icon button, status, or custom element. Omit either prop or
+pass `null` to turn that item off independently. Storybook exposes
+`showLeadingItem` and `showTrailingItem` controls, both initially off, plus
+`leadingItemType` (image or icon) and `trailingItemType` (switch, button, icon-button,
+or status) controls to preview these combinations.
+
+Use `Button` directly for trailing actions. Set `size="xs"` for compact typography
+and icons, with `tone="neutral"` and `variant="secondary"` for neutral secondary
+styling. Consumers choose the button props and provide handlers, disabled state,
+and content. Leave icon dimensions to the button component.
+
+Use `Badge variant="ghost" size="xs"` for trailing statuses and secondary
+metadata. Choose `tone="success"`, `tone="warning"`, or `tone="error"` for status
+labels and place a decorative SVG before the text for a leading icon. Keep
+changing status labels inside an `output` element so updates remain announced.
+
+Use `count` for a muted number beside the title. It stays aligned with the title
+at narrow widths and remains outside the primary action's title label. Supplied
+counts, including zero and one, are displayed; omit the prop to hide it. For
+example, a tool group can pass `count={tools.length > 1 ? tools.length : undefined}`
+to show a count only for multiple tools.
+
+`title`, `icon`, `description`, and `badges` must contain display content only.
+`primaryAction` covers the whole card with a native button, including padding,
+gaps, and passive metadata. Buttons, switches, links, and other interactive
+elements in `actions`, `footer`, and `children` remain independent. For a custom
+interactive region without native control semantics, set
+`data-item-card-interactive` on its element to preserve its pointer target.
+The optional primary action also accepts `disabled`. ItemCard does not support
+expandable content; use `children` for additional static content or errors.
+`selected` controls visual emphasis only. The root forwards its ref and div
+attributes (except the native `title` attribute, which is the content slot).
+
+Hosts own item data, action handlers, switch state, and errors. When rendering
+a switch, provide its checked state and change handler from the host.
+
+
+## File browser
+
+Import `FileBrowser` and `FileBrowserContent` from `@cline/ui`, with the shared
+theme and `@cline/ui/components.css` loaded.
+
+```tsx
+<FileBrowser
+  aria-label="Skill content"
+  files={files}
+  filesLabel="Skill files"
+  selectedPath={selectedPath}
+  onSelect={setSelectedPath}
+>
+  <FileBrowserContent
+    key={selectedPath}
+    path={selectedPath}
+    content={source}
+    preview={<Markdown content={source} />}
+  />
+</FileBrowser>
+```
+
+Files have unique root-relative `path` strings with `/` separators. Hosts own
+selection, file loading, Markdown rendering, and link handling. The tree sorts
+folders first and starts expanded. Nested folder choices persist when an ancestor
+is closed and reopened. Below 560px of container width it stacks
+above the preview. The content pane keeps a 36rem scroll area to avoid page jumps.
+
+Drag the sidebar border to resize it, or focus the divider and use the arrow
+keys (Home/End select its limits). Double-click the border to reset the width.
+Resizing preserves at least 240px for the preview and is hidden in the stacked
+layout. The chosen width stays in place while browsing files.
+
+`FileBrowserContent` shows the icon-only Preview/Source segmented control when
+`preview` is supplied; omit it for source-only files. `content` is displayed
+verbatim in Source mode. Key the content by path to reset its mode and scroll
+position on selection.
+
+The file actions menu is on by default beside the display control, including for
+source-only files. Set `showActions={false}` on `FileBrowserContent` to hide it.
+Provide `actionPath` for a full local path or a remote source URL; otherwise actions
+use `path`. Copy path uses the browser Clipboard API by default. Supply `onCopyPath`
+when the host has its own clipboard bridge. Supply `onOpenFileLocation` to reveal
+local files through the host's platform API or open remote sources; without that
+callback, Open file location is disabled. Both callbacks receive the path unchanged,
+including Windows drive letters and UNC paths. Rejected actions show an inline error.
+The menu hides during loading and prevents duplicate actions while a request runs.
+Use `actionsPortalContainer` when the menu needs to inherit a scoped theme.
+
+```tsx
+<FileBrowserContent
+  path="references/guide.md"
+  actionPath={file.absolutePath}
+  onOpenFileLocation={(path) => host.revealFile(path)}
+  onCopyPath={(path) => host.clipboard.writeText(path)}
+  content={file.content}
+/>
+```
+
+Set `loading` on `FileBrowser` while fetching the file list to show a skeleton
+for both panes. Set `loading` on `FileBrowserContent` while fetching a selected
+file to show a content skeleton and keep navigation and resizing available.
+Both preserve the preview height, expose `aria-busy`, and announce a
+customizable `loadingLabel` (defaults: "Loading files…" and "Loading file…").
+The placeholders respect reduced-motion preferences.
+
+Pass error content as children to override the file body. For directory errors,
+pass children to `FileBrowser` with an empty file list. An empty file list without
+children shows `emptyMessage`. A nonempty file list always keeps navigation
+available, including when `selectedPath` is omitted or null. Without preview
+children, the pane shows `unselectedMessage` (default: "Select a file to preview.").
+Loading takes precedence over children.
+
+## Empty state
+
+Import `EmptyState`, `EmptyStateProps`, and `EmptyStateAction` from
+`@cline/ui`, with the shared theme and `@cline/ui/components.css` loaded.
+It defaults to a left-aligned, description-only panel with a dashed border,
+card background, and muted text.
+
+```tsx
+import { EmptyState } from "@cline/ui";
+
+<EmptyState description="No rules found." />;
+
+<EmptyState
+  align="center"
+  title="No plugins installed"
+  description="Browse the marketplace to add one."
+  action={{ label: "Browse plugins", onClick: openBrowse }}
+/>;
+```
+
+`align` accepts `left` (default) or `center` and aligns the message and action
+together. `title` and `description` accept React content; text children remain
+the description fallback when `description` is omitted. An explicit description
+takes precedence. The optional title uses an `h3` by default; `headingLevel`
+accepts 2 through 6 without changing its visual size.
+
+`action` accepts a `label`, `onClick`, and optional `disabled`. The component
+renders a small shared `Button` with neutral tone, secondary variant, and
+`type="button"`, so it does not submit a surrounding form.
+
+The root forwards its div ref, native attributes (except `title`, which is the
+content slot), and `className`/`style` overrides. Hosts own visibility, wording,
+action behavior, and live announcements; no automatic status role is added.
+
+## Section heading
+
+Import `SectionHeading` from `@cline/ui`, with the shared theme and
+`@cline/ui/components.css`. Use it for plain section titles with an optional
+description, result count, and independent trailing actions.
+
+```tsx
+<SectionHeading
+  title="Skills"
+  description="Reusable instructions and workflows for your workspace."
+  count={skills.length}
+  headingLevel={3}
+  size="lg"
+  actions={<Button variant="ghost" tone="neutral" size="sm" onClick={showAllSkills}>View all</Button>}
+/>
+```
+
+The default size is `lg` with an `h2` heading. `size` accepts `base`, `lg`, `xl`,
+and `2xl`; their count text uses `sm`, `base`, `lg`, and `xl` respectively. All
+sizes use theme typography and colors. Choose `headingLevel` (`2` through `6`) for the
+document hierarchy independently of visual size. Counts stay outside the
+heading, follow its last line on the same baseline, and render zero when supplied;
+omit `count` when it is unknown or not relevant.
+
+`title` and optional `description` accept display content. Descriptions appear
+below the title and actions in full-width, muted `sm` text. Put links, buttons,
+and other controls in `actions`, keeping navigation and state in the consumer.
+The component wraps long titles, descriptions, and action rows at narrow widths.
+At container widths of `32rem` or less, actions appear below the description and
+align to the start.
+It adds no outer spacing or icon. The root forwards a div ref, `className`,
+`style`, and native attributes; its native `title` attribute is replaced by the
+content slot.
+
+
+## Detail list
+
+Import `DetailList` and `DetailListItem` from `@cline/ui`, with the shared theme and
+`@cline/ui/components.css` loaded. Use one list for a single configuration
+requirement or several related metadata rows.
+
+```tsx
+import { Badge, Button, DetailList, DetailListItem } from "@cline/ui";
+
+<DetailList aria-label="Server details">
+  <DetailListItem title="Type" trailingText="Remote · Streamable HTTP" />
+  <DetailListItem title="URL" trailingText={serverUrl} />
+  <DetailListItem
+    title={
+      <>
+        <code>CONTEXT7_API_KEY</code>
+        <Badge size="xs" variant="ghost">Optional</Badge>
+      </>
+    }
+    description="Optional API key for higher rate limits."
+    actions={
+      <Button size="xs" tone="neutral" variant="secondary" onClick={openKeyPage}>
+        Get value
+      </Button>
+    }
+  />
+</DetailList>;
+```
+
+`DetailList` owns the container and separators; compose `DetailListItem` as its
+direct children. Each item has four React content slots: required `title`,
+optional `description` below the title, optional `trailingText` for the value,
+and optional `actions` for independent buttons, links, or menus. Pass `count` to
+show a muted number beside the title, matching `SectionHeading`; zero remains
+visible. For example, use `<DetailListItem title="Skills" count={1}
+trailingText="agent-browser" />`. Compose other badges in the `title` slot. Use
+`<code>` in `title` or `trailingText` for environment variable names and paths.
+
+The list renders a semantic `dl`; each row groups its `dt` and `dd` in a `div`.
+`DetailList` forwards native list attributes and its `HTMLDListElement` ref;
+`DetailListItem` forwards native div attributes and its `HTMLDivElement` ref,
+except that `title` is the content slot and children are not accepted. Both
+accept `className` and `style` overrides. Trailing text aligns to the end in wide
+containers. At container widths of `30rem` or less, rows stack with values and
+actions aligned to the start. Long text wraps, including paths and URLs.
+
+Hosts own values, controls, navigation, menu behavior, and accessible action
+names. The shared components provide layout and theme styling without making
+the row clickable or adding state. Storybook separates list composition from
+item controls, with configuration and server examples, description-only items,
+and narrow layouts; use its theme toolbar to inspect both light and dark
+appearance.
+
+## Banner
+
+Import `Banner`, `BannerAction`, `BannerProps`, and `BannerTone` from `@cline/ui`, with the
+shared theme and `@cline/ui/components.css`. Use it for persistent inline
+notices, configuration errors, and connection or authorization guidance.
+
+```tsx
+<Banner
+  tone="warning"
+  size="sm"
+  title="OAuth authorization required"
+  description="Connect your account to use this server."
+  actions={[{ id: "connect", label: "Connect", onClick: connect }]}
+/>;
+
+<Banner tone="error">A valid server URL is required.</Banner>;
+```
+
+`tone` accepts `neutral`, `info` (default), `success`, `warning`, or `error`.
+`size="md"` (default) uses small body text; `size="sm"` uses extra-small text
+and tighter horizontal padding. Titles and descriptions use the selected tone's
+semantic text color. Content wraps and actions move to a new row in narrow panels.
+
+`title`, `description`, and `icon` accept React content. Children are the
+description fallback only when `description` is omitted. Mark decorative icons
+`aria-hidden="true"`.
+
+`actions` accepts an array of `BannerAction` descriptors in priority order.
+Each action has a stable `id`, a React `label`, and native button behavior such
+as `onClick`, `disabled`, and `aria-label`. Keep the same id when labels or state
+change to preserve focus. Banner renders the buttons and owns their appearance:
+small banners use extra-small buttons, regular banners use small buttons, and
+all actions use the ghost variant. Action text and hover colors match the banner
+tone unless the action sets `destructive: true` (for example, removing credentials),
+which keeps the destructive red tone.
+Appearance props (`size`, `tone`, `variant`, `className`, and `style`) are not
+part of the action API. Hosts own callbacks, disabled/loading state, wording,
+and visibility. Buttons default to `type="button"`.
+
+Pass `onDismiss` to show a dismiss icon button. The callback lets the host
+hide or remove the banner; Banner does not manage its own visibility. Omit
+`onDismiss` to keep the banner non-dismissible. `dismissLabel` customizes the
+button's accessible label and defaults to `"Dismiss banner"`. The dismiss button
+also uses the ghost variant with text and hover colors matching the banner tone.
+
+```tsx
+import { Banner } from "@cline/ui";
+import { useState } from "react";
+
+function DismissibleNotice() {
+  const [visible, setVisible] = useState(true);
+
+  return visible ? (
+    <Banner
+      title="A new version is available"
+      description="Restart the app to finish installing the update."
+      onDismiss={() => setVisible(false)}
+      dismissLabel="Dismiss update notice"
+    />
+  ) : null;
+}
+```
+
+The root forwards its div ref and native attributes; `title` is the content
+slot instead of the native tooltip attribute. Errors default to `role="alert"`
+and other tones to `role="status"`. Override `role` and `aria-live` for static
+notices or when the host already announces the message. No focus is moved.

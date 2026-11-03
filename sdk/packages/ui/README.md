@@ -56,6 +56,61 @@ transcript outline examples.
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
 
+`PillSelector` and `PillSelectorItem` present a horizontal, single-selection
+category row with neutral pills, keyboard navigation, and overflow scrolling.
+See the [pill selector guide](./ADOPTION.md#pill-selector) for optional clearing
+and required-selection examples.
+
+`SegmentedControl` presents equal-width choices with the sliding selection
+treatment from the cline-web footer. It supports text, icons, native radio
+keyboard behavior, and controlled or uncontrolled state. See the
+[segmented control guide](./ADOPTION.md#segmented-control) for naming and forms.
+
+`FileBrowser` and `FileBrowserContent` pair a collapsible file tree with a
+preview/source pane using the shared segmented control. Hosts supply files,
+selection, and rendered previews. Navigation remains available before a file is
+selected, and nested folder choices survive closing and reopening a parent.
+See the [file browser guide](./ADOPTION.md#file-browser).
+
+`EmptyState` presents a compact empty-state panel with left or center
+alignment, an optional title, and an optional neutral secondary action button.
+It defaults to description-only content; hosts own loading and visibility.
+See the [empty state guide](./ADOPTION.md#empty-state).
+
+`SectionHeading` presents a section title, optional description and count, and
+trailing actions. Choose visual size independently from the semantic heading
+level. See the
+[section heading guide](./ADOPTION.md#section-heading) for composition.
+
+`DetailList` groups related `DetailListItem` components in a neutral card with
+separators. Each item provides `title`, `description`, `trailingText`, and
+`actions` slots, supports an optional numeric `count` beside its title, and stacks
+in narrow containers. See the
+[detail list guide](./ADOPTION.md#detail-list) for composition and host boundaries.
+
+`Banner` presents inline notices in neutral, info, success, warning, and error
+tones, with optional title, icon, actions, and dismiss control. Banner owns action
+button size and color; ghost actions match the banner tone unless marked
+destructive. Hosts supply labels and behavior. It supports compact and regular sizes; see the
+[banner guide](./ADOPTION.md#banner).
+
+`Tooltip` adds hover and keyboard-focus descriptions to a single focusable
+child, with a neutral black background and white text. See the
+[tooltip guide](./ADOPTION.md#tooltip) for placement and delay options.
+
+`Dialog` presents details, forms, and rich content with a scrollable body and
+optional action footer. It shares AlertDialog’s styling and adds a close button,
+three sizes, and customizable headers. See the [dialog guide](./ADOPTION.md#dialog).
+
+`AlertDialog` presents a controlled, accessible confirmation using shared
+buttons. Hosts own actions, pending state, and errors. See the
+[alert dialog guide](./ADOPTION.md#alert-dialog) for keep-open
+callbacks and disabled actions.
+
+`Dialog`, `AlertDialog`, and `Tooltip` portal to `document.body` by default.
+For a scoped theme, pass `portalContainer` with an element inside the themed
+wrapper so portalled content inherits its tokens and dark mode.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 
@@ -326,6 +381,18 @@ The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
 frame, and hover metadata. Hosts retain their icons, actions, rename input,
 menus, data formatting, and session behavior. See the session-row section in
 [ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
+
+## Item cards
+
+`ItemCard` presents a title, two-line description, badges, metadata footer, and
+optional additional content. Its optional leading item can be an image or icon;
+its optional trailing item can be a switch, button, status, or custom content.
+Both are absent by default. Consumers supply these through `icon` and `actions`
+and retain data, actions, and state. Use `Button` directly for trailing actions,
+with `size="xs"`, `tone="neutral"`, and `variant="secondary"` for compact neutral styling.
+Use `Badge variant="ghost"` for trailing statuses and secondary metadata.
+See [the ItemCard contract](./ADOPTION.md#itemcard)
+and **Components / Item Card** in Storybook for independent visibility and type controls.
 
 ## Storybook
 
