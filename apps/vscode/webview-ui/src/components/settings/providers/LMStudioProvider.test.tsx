@@ -55,11 +55,19 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</select>
 	),
-	VSCodeLink: ({ children, href }: { children?: ReactNode; href?: string }) => <a href={href}>{children}</a>,
-	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
-	VSCodeTextField: ({ children, disabled, value }: { children?: ReactNode; disabled?: boolean; value?: string }) => (
-		<input disabled={disabled} readOnly value={value ?? ""} />
+	VSCodeLink: ({ children, href }: { children?: ReactNode; href?: string }) => (
+		<a href={href}>{children}</a>
 	),
+	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
+	VSCodeTextField: ({
+		children,
+		disabled,
+		value,
+	}: {
+		children?: ReactNode
+		disabled?: boolean
+		value?: string
+	}) => <input disabled={disabled} value={value ?? ""} readOnly />,
 }))
 
 vi.mock("../common/ApiKeyField", () => ({
@@ -184,10 +192,6 @@ describe("LMStudioProvider", () => {
 
 		await renderProvider()
 
-		await waitFor(() =>
-			expect(mocks.getLmStudioModels).toHaveBeenCalledWith(
-				expect.objectContaining({ value: "http://lmstudio.local:1234" }),
-			),
-		)
+		await waitFor(() => expect(mocks.getLmStudioModels).toHaveBeenCalledWith(expect.objectContaining({ value: "http://lmstudio.local:1234" })))
 	})
 })
