@@ -260,6 +260,51 @@ For native controls that should follow the selected theme:
 }
 ```
 
+## Buttons
+
+Import `Button` and `IconButton` from `@cline/ui` after loading the theme and
+`@cline/ui/components.css`. Use `primary` for main actions, `secondary` for
+supporting actions, and `ghost` for low-emphasis actions. Existing `fill` and
+`surface` variants remain aliases for `primary` and `secondary`.
+
+Both controls support `accent`, `neutral`, and `destructive` tones and
+`xs`, `sm`, `md`, and `lg` sizes. `Button` defaults to primary/accent/md;
+`IconButton` defaults to ghost/neutral/sm.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+import { Plus, X } from "lucide-react";
+
+<Button leadingIcon={Plus}>New session</Button>
+<Button tone="neutral" variant="secondary">More options</Button>
+<IconButton icon={X} aria-label="Close" />
+```
+
+Pass SVG components through `leadingIcon`, `trailingIcon`, or `icon`; the button
+handles sizing, spacing, and decorative accessibility. Custom icons must forward
+SVG props, including `className`. `IconButton` requires an accessible label.
+Existing icon children remain supported.
+
+Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
+the child's native type behavior is preserved, so set `type="button"` explicitly
+when needed. Custom composed children must forward props, refs, and children;
+place Radix slot triggers outside the control.
+
+Use `className` to override component styles and `pressScale={false}` to disable
+press feedback. See the button stories for more examples.
+
+## Badges
+
+`Badge` renders a span by default. Choose a neutral, accent, info, success,
+warning, or error tone; a soft or ghost variant; and an `sm`, `xs`, or `xxs` size.
+Use `interactive` for a native button with disabled behavior and a button ref.
+`BadgeProps` describes the span; `InteractiveBadgeProps` describes the button.
+
+```tsx
+<Badge tone="success">Connected</Badge>
+<Badge interactive tone="error" onClick={retry}>Retry</Badge>
+```
+
 ## Switch
 
 Import `Switch` from `@cline/ui` after setting up the theme and
@@ -303,10 +348,9 @@ fieldsets, are excluded from form submission.
 The switch scales with the root font size and reserves a minimum 24px hit area
 on each axis by default.
 
-Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
-`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
-remain white. The switch supports light/dark themes, system colors in
-forced-colors mode, and reduced motion.
+The default `tone="accent"` uses the shared accent colors. Use `tone="neutral"`
+for a checked track that is dark in light mode and light in dark mode. Both tones
+support keyboard focus, forced colors, and reduced motion.
 
 When migrating from the desktop's Radix wrapper, update button refs to
 `HTMLInputElement` and read the native `checked` property in tests instead of
