@@ -219,7 +219,7 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 	const abortController = new AbortController()
 	activeCommitGenerations.add(abortController)
 	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+		vscode.commands.executeCommand("setContext", "ccline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
 
@@ -298,7 +298,7 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 		// The button shows Stop while any generation runs, not just this one.
 		activeCommitGenerations.delete(abortController)
 		if (activeCommitGenerations.size === 0) {
-			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+			vscode.commands.executeCommand("setContext", "ccline.isGeneratingCommit", false)
 		}
 	}
 }
@@ -307,7 +307,7 @@ export function abortCommitGeneration() {
 	for (const generation of activeCommitGenerations) {
 		generation.abort()
 	}
-	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	vscode.commands.executeCommand("setContext", "ccline.isGeneratingCommit", false)
 }
 
 /**

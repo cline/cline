@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
+import os from "node:os"
 import { disableCurrentDirectoryExecutableSearch } from "@cline/shared"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
@@ -67,6 +68,12 @@ export async function reportRolloutActivation(input: RolloutBundleActivation): P
 // for all-platform should be registered in common.ts.
 export async function activate(context: vscode.ExtensionContext) {
 	const activationStartTime = performance.now()
+
+	// Fork isolation: this build ships as "ccline" so it can be installed next to the official
+	// Cline extension. Both would otherwise share ~/.cline (tasks, rules, credentials), so give the
+	// fork its own data dir. The SDK resolves CLINE_DIR lazily, hence doing it here — before the
+	// HostProvider, the storage migrations and the controller are created.
+	process.env.CLINE_DIR ||= path.join(os.homedir(), ".ccline")
 
 	// Before anything spawns with the workspace as cwd (rg, git, hooks, MCP).
 	disableCurrentDirectoryExecutableSearch()
@@ -191,7 +198,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register size testing commands in development mode
 	if (IS_DEV) {
-		vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV)
+		vscode.commands.executeCommand("setContext", "ccline.isDevMode", IS_DEV)
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {

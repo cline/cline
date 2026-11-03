@@ -3,7 +3,7 @@ import { buildEditPreviewAnimation, EditPreview, type EditPreviewContent } from 
 import { Logger } from "@/shared/services/Logger"
 import { DecorationController } from "./DecorationController"
 
-export const EDIT_PREVIEW_URI_SCHEME = "cline-edit-preview"
+export const EDIT_PREVIEW_URI_SCHEME = "ccline-edit-preview"
 
 /**
  * Hold at the top of the file — whole doc under the faded overlay, cursor parked on

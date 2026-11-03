@@ -1,7 +1,7 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "ccline",
+	"displayName": "CLine",
+	"description": "Custom fork of Cline (runs side by side with the official extension): autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "4.1.26",
 	"icon": "assets/icons/icon.png",
 	"engines": {
@@ -11,12 +11,12 @@
 		"name": "Cline Bot Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "simonx200",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/SimonX200/cline"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://github.com/SimonX200/Customization",
 	"categories": [
 		"AI",
 		"Chat",
@@ -27,6 +27,7 @@
 	],
 	"keywords": [
 		"cline",
+		"ccline",
 		"claude",
 		"dev",
 		"mcp",
@@ -46,18 +47,9 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"icons": {
-			"cline-icon": {
-				"description": "cline",
-				"default": {
-					"fontPath": "assets/icons/cline-bot.woff",
-					"fontCharacter": "\\e900"
-				}
-			}
-		},
 		"walkthroughs": [
 			{
-				"id": "ClineWalkthrough",
+				"id": "CclineWalkthrough",
 				"title": "Meet Cline, your new coding partner",
 				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
@@ -110,17 +102,17 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"id": "ccline-ActivityBar",
+					"title": "CLine",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"ccline-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "ccline.SidebarProvider",
 					"name": "",
 					"icon": "assets/icons/icon.svg"
 				}
@@ -128,111 +120,111 @@
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "ccline.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "ccline.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.marketplaceButtonClicked",
+				"command": "ccline.marketplaceButtonClicked",
 				"title": "Customize",
 				"icon": "$(wrench)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "ccline.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
+				"command": "ccline.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
+				"command": "ccline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "ccline.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "CLine",
+				"when": "ccline.isDevMode"
 			},
 			{
-				"command": "cline.dev.expireMcpOAuthTokens",
+				"command": "ccline.dev.expireMcpOAuthTokens",
 				"title": "Expire MCP OAuth Tokens (for testing)",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "CLine",
+				"when": "ccline.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "ccline.addToChat",
 				"title": "Add to Cline",
-				"category": "Cline"
+				"category": "CLine"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
+				"command": "ccline.addTerminalOutputToChat",
 				"title": "Add to Cline",
-				"category": "Cline"
+				"category": "CLine"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "ccline.focusChatInput",
 				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"category": "CLine"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "ccline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
-				"icon": "$(cline-icon)"
+				"category": "CLine",
+				"icon": "$(hubot)"
 			},
 			{
-				"command": "cline.abortGitCommitMessage",
+				"command": "ccline.abortGitCommitMessage",
 				"title": "Generate Commit Message with Cline - Stop",
-				"category": "Cline",
+				"category": "CLine",
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "cline.explainCode",
+				"command": "ccline.explainCode",
 				"title": "Explain with Cline",
-				"category": "Cline"
+				"category": "CLine"
 			},
 			{
-				"command": "cline.improveCode",
+				"command": "ccline.improveCode",
 				"title": "Improve with Cline",
-				"category": "Cline"
+				"category": "CLine"
 			},
 			{
-				"command": "cline.jupyterGenerateCell",
+				"command": "ccline.jupyterGenerateCell",
 				"title": "Generate Jupyter Cell with Cline",
-				"category": "Cline",
+				"category": "CLine",
 				"icon": "$(sparkle)"
 			},
 			{
-				"command": "cline.jupyterExplainCell",
+				"command": "ccline.jupyterExplainCell",
 				"title": "Explain Jupyter Cell with Cline",
-				"category": "Cline",
+				"category": "CLine",
 				"icon": "$(question)"
 			},
 			{
-				"command": "cline.jupyterImproveCell",
+				"command": "ccline.jupyterImproveCell",
 				"title": "Improve Jupyter Cell with Cline",
-				"category": "Cline",
+				"category": "CLine",
 				"icon": "$(lightbulb)"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "ccline.openWalkthrough",
 				"title": "Open Walkthrough",
-				"category": "Cline"
+				"category": "CLine"
 			}
 		],
 		"keybindings": [
 			{
-				"command": "cline.addToChat",
+				"command": "ccline.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -240,11 +232,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "ccline.generateGitCommitMessage",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "ccline.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -255,88 +247,88 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "ccline.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ccline.SidebarProvider"
 				},
 				{
-					"command": "cline.marketplaceButtonClicked",
+					"command": "ccline.marketplaceButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ccline.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "ccline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ccline.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "ccline.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ccline.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "ccline.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ccline.SidebarProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "ccline.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "ccline.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "ccline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && !ccline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "ccline.abortGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && ccline.isGeneratingCommit"
 				}
 			],
 			"notebook/toolbar": [
 				{
-					"command": "cline.jupyterGenerateCell",
+					"command": "ccline.jupyterGenerateCell",
 					"group": "navigation/add@1",
 					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"notebook/cell/title": [
 				{
-					"command": "cline.jupyterExplainCell",
+					"command": "ccline.jupyterExplainCell",
 					"group": "inline@1",
 					"when": "notebookType == 'jupyter-notebook'"
 				},
 				{
-					"command": "cline.jupyterImproveCell",
+					"command": "ccline.jupyterImproveCell",
 					"group": "inline@2",
 					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && !cline.isGeneratingCommit"
+					"command": "ccline.generateGitCommitMessage",
+					"when": "config.git.enabled && !ccline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && cline.isGeneratingCommit"
+					"command": "ccline.abortGitCommitMessage",
+					"when": "config.git.enabled && ccline.isGeneratingCommit"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "CLine",
 			"properties": {}
 		}
 	},
