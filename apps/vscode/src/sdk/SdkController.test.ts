@@ -11,6 +11,7 @@ import { mockFetchForTesting } from "@/shared/net"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
 import { SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
@@ -950,7 +951,7 @@ describe("cloud handoff source capture", () => {
 			sessionConfigBuilder: { build: async () => session.startConfig },
 			sessionHistory: { loadInitialMessages: vi.fn(async () => messages) },
 		}
-		const inspect = vi.spyOn(cloudCore, "inspectHandoffGit").mockResolvedValue({
+		const plan = {
 			id: "plan",
 			root: "/workspace",
 			workspaceRelativePath: "",
@@ -962,15 +963,79 @@ describe("cloud handoff source capture", () => {
 			treeSha: "b".repeat(40),
 			files: [],
 			commits: [],
-		})
-		const capture = () =>
-			SdkController.prototype["captureCloudHandoffSource"].call(
-				controller as never,
-				"local-task",
-				new AbortController().signal,
-			)
-		return { controller, session, host, messages, inspect, capture }
+		}
+		const inspect = vi.spyOn(cloudCore, "inspectHandoffGit").mockResolvedValue(plan)
+		const capture = (signal = new AbortController().signal) =>
+			SdkController.prototype["captureCloudHandoffSource"].call(controller as never, "local-task", signal)
+		return { controller, session, host, messages, inspect, capture, plan }
 	}
+
+	it("allows local work during Git inspection and rejects a subsequent turn change", async () => {
+		const { controller, inspect, capture, plan } = setup()
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+		controller.sessionRebuilds = scheduler
+		const inspecting = Promise.withResolvers<void>()
+		const finishInspection = Promise.withResolvers<void>()
+		inspect.mockImplementation(async (_cwd, onCaptured) => {
+			onCaptured?.()
+			inspecting.resolve()
+			await finishInspection.promise
+			return plan
+		})
+		const outcome = capture().catch((error: unknown) => error)
+		await inspecting.promise
+		const localWork = vi.fn(async () => {
+			controller.turnStateTracker.get = () => ({ seq: 2 })
+		})
+		const followup = scheduler.runExclusive(localWork)
+		try {
+			expect(localWork).toHaveBeenCalledOnce()
+		} finally {
+			finishInspection.resolve()
+			await followup
+		}
+		expect(await outcome).toEqual(expect.objectContaining({ message: expect.stringContaining("conversation changed") }))
+	})
+
+	it("disposes the temporary history host before Git inspection and still rejects cancellation", async () => {
+		const { controller, host, inspect, capture, plan } = setup(false)
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+		controller.sessionRebuilds = scheduler
+		const abort = new AbortController()
+		const inspecting = Promise.withResolvers<void>()
+		const finishInspection = Promise.withResolvers<void>()
+		let disposedAtInspection = 0
+		inspect.mockImplementation(async (_cwd, onCaptured) => {
+			onCaptured?.()
+			disposedAtInspection = host.dispose.mock.calls.length
+			inspecting.resolve()
+			await finishInspection.promise
+			return plan
+		})
+		const outcome = capture(abort.signal).catch((error: unknown) => error)
+		await inspecting.promise
+		abort.abort()
+		const navigate = vi.fn(async () => {})
+		const transition = scheduler.runTaskTransition(navigate)
+		try {
+			expect(disposedAtInspection).toBe(1)
+			expect(navigate).toHaveBeenCalledOnce()
+		} finally {
+			finishInspection.resolve()
+			await transition
+		}
+		expect(await outcome).toHaveProperty("name", "AbortError")
+	})
+
+	it("rejects source changes before Git finishes capturing its local snapshot", async () => {
+		const { controller, inspect, capture, plan } = setup()
+		inspect.mockImplementation(async (_cwd, onCaptured) => {
+			controller.sessions.captureState.generation++
+			onCaptured?.()
+			return plan
+		})
+		await expect(capture()).rejects.toThrow("conversation changed")
+	})
 
 	it("keeps the local Plan configuration when capturing a handoff summary", async () => {
 		const { controller, session, capture } = setup()

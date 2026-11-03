@@ -1772,7 +1772,7 @@ export class Controller {
 		if (!sourceTaskId || this.task?.taskId !== sourceTaskId)
 			throw new Error("Start a local conversation before using /cloud.")
 		if (isCloudSessionId(sourceTaskId)) throw new Error("This conversation is already in the cloud.")
-		return this.sessionRebuilds.runExclusive(async () => {
+		const { messages, config, cwd, assertIdle } = await this.sessionRebuilds.runExclusive(async () => {
 			const session = this.sessions.getActiveSession()
 			const startGeneration = this.sessions.captureState.generation
 			const turnSeq = this.turnStateTracker.get().seq
@@ -1821,13 +1821,14 @@ export class Controller {
 				)
 				if (!messages.length) throw new Error("Start a conversation before using /cloud.")
 				assertIdle()
-				const plan = await inspectHandoffGit(cwd, assertIdle)
-				assertIdle()
-				return { messages, config, plan }
+				return { messages, config, cwd, assertIdle }
 			} finally {
 				if (!session) await host.dispose("cloudHandoffCapture")
 			}
 		})
+		const plan = await inspectHandoffGit(cwd, assertIdle)
+		assertIdle()
+		return { messages, config, plan }
 	}
 
 	async clearTask(): Promise<void> {
