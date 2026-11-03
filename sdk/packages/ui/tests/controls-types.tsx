@@ -1,18 +1,20 @@
-// Compiler-only regression fixture; included by the package typecheck, not Vitest.
+// Compiler-only public API checks; included by the package typecheck.
+import { Plus } from "lucide-react";
 import { createRef, forwardRef } from "react";
 import {
 	Badge,
 	type BadgeProps,
+	Button,
+	IconButton,
 	type InteractiveBadgeProps,
-} from "../components/badge.js";
-import { Switch, type SwitchProps } from "../components/switch.js";
+} from "../components/index.js";
 
-// Existing consumers can extend BadgeProps and forward a span ref unchanged.
+// Existing span wrappers and new action wrappers must retain specific ref/event types.
 interface LegacyBadgeProps extends BadgeProps {
 	label: string;
 }
 
-export const LegacyBadge = forwardRef<HTMLSpanElement, LegacyBadgeProps>(
+const LegacyBadge = forwardRef<HTMLSpanElement, LegacyBadgeProps>(
 	({ label, ...props }, ref) => (
 		<Badge {...props} ref={ref}>
 			{label}
@@ -24,7 +26,7 @@ interface ActionBadgeProps extends InteractiveBadgeProps {
 	label: string;
 }
 
-export const ActionBadge = forwardRef<HTMLButtonElement, ActionBadgeProps>(
+const ActionBadge = forwardRef<HTMLButtonElement, ActionBadgeProps>(
 	({ label, ...props }, ref) => (
 		<Badge {...props} ref={ref}>
 			{label}
@@ -32,71 +34,42 @@ export const ActionBadge = forwardRef<HTMLButtonElement, ActionBadgeProps>(
 	),
 );
 
-interface PreferenceSwitchProps extends SwitchProps {
-	label: string;
-}
+<LegacyBadge
+	label="Ready"
+	ref={createRef<HTMLSpanElement>()}
+	onClick={(event) => {
+		event.currentTarget.focus();
+		// @ts-expect-error Static callbacks target a span, not a button.
+		event.currentTarget.disabled = true;
+	}}
+/>;
+<ActionBadge
+	interactive
+	label="Apply"
+	ref={createRef<HTMLButtonElement>()}
+	onClick={(event) => {
+		event.currentTarget.disabled = true;
+	}}
+/>;
 
-export const PreferenceSwitch = forwardRef<
-	HTMLInputElement,
-	PreferenceSwitchProps
->(({ label, ...props }, ref) => (
-	<Switch {...props} aria-label={label} ref={ref} />
-));
+// @ts-expect-error An interactive badge requires a button ref.
+<Badge interactive ref={createRef<HTMLSpanElement>()}>
+	Invalid ref
+</Badge>;
+// @ts-expect-error A static badge does not accept button-only props.
+<Badge interactive={false} disabled>
+	Invalid disabled span
+</Badge>;
+// @ts-expect-error Interactive badges always render a native button.
+<Badge interactive asChild>
+	<a href="/">Invalid composition</a>
+</Badge>;
 
-export function ControlsTypeCompatibility() {
-	const spanRef = createRef<HTMLSpanElement>();
-	const buttonRef = createRef<HTMLButtonElement>();
-	const inputRef = createRef<HTMLInputElement>();
-
-	return (
-		<>
-			<LegacyBadge
-				label="Ready"
-				ref={spanRef}
-				onClick={(event) => {
-					const span: HTMLSpanElement = event.currentTarget;
-					span.focus();
-					// @ts-expect-error Legacy callbacks target a span, not a button.
-					event.currentTarget.disabled = true;
-				}}
-			/>
-			<ActionBadge
-				interactive
-				label="Apply"
-				ref={buttonRef}
-				onClick={(event) => {
-					const button: HTMLButtonElement = event.currentTarget;
-					button.disabled = true;
-				}}
-			/>
-			<Badge
-				interactive
-				ref={buttonRef}
-				onClick={(event) => event.currentTarget.focus()}
-			>
-				Apply
-			</Badge>
-			<PreferenceSwitch
-				label="Notifications"
-				ref={inputRef}
-				tone="neutral"
-				onChange={(event) => {
-					const input: HTMLInputElement = event.currentTarget;
-					input.focus();
-				}}
-			/>
-			{/* @ts-expect-error An interactive badge requires a button ref. */}
-			<Badge interactive ref={spanRef}>
-				Invalid ref
-			</Badge>
-			{/* @ts-expect-error A static badge does not accept button-only props. */}
-			<Badge interactive={false} disabled>
-				Invalid disabled span
-			</Badge>
-			{/* @ts-expect-error Interactive badges always render a native button. */}
-			<Badge interactive asChild>
-				<a href="/">Invalid composition</a>
-			</Badge>
-		</>
-	);
-}
+<Button leadingIcon={Plus}>Continue</Button>;
+<IconButton aria-label="Add" icon={Plus} />;
+// @ts-expect-error Icon slots accept components, not pre-sized elements.
+<Button leadingIcon={<Plus size={32} />}>Invalid icon</Button>;
+// @ts-expect-error The button size owns icon dimensions.
+<Button iconSize={32}>Invalid size</Button>;
+// @ts-expect-error Icon-only controls require an accessible name.
+<IconButton icon={Plus} />;

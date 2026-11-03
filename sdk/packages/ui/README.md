@@ -69,17 +69,18 @@ their utilities are emitted without changing generic host utility names.
 share welcome/conversation geometry and header groups through host-owned slots.
 See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
-`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
-accent, neutral, and destructive tones. Without `asChild`, both default to
-`type="button"`. Composed children retain their native form behavior unless a
-`type` is specified; a native button without a type submits its form.
+`Button` and `IconButton` share `primary`, `secondary`, and `ghost` variants
+across accent, neutral, and destructive tones. Existing `fill` and `surface`
+variants remain aliases for `primary` and `secondary`. Without `asChild`, both
+default to `type="button"`. Composed children retain their native form behavior
+unless a `type` is specified; a native button without a type submits its form.
 `IconButton` requires an accessible `aria-label`, and both components support
 Radix-style composition through `asChild`.
 
 ```tsx
 import { Button, IconButton } from "@cline/ui";
 
-<Button size="sm" tone="accent" variant="fill">
+<Button size="sm" tone="accent" variant="primary">
 	Continue
 </Button>;
 
@@ -87,6 +88,11 @@ import { Button, IconButton } from "@cline/ui";
 	<CloseIcon />
 </IconButton>;
 ```
+
+Icon props are optional; existing child icons keep working. `Badge` renders a
+span by default and a native button when `interactive` is supplied. See the
+[control adoption examples](./ADOPTION.md#buttons) for icon props, press
+feedback, and badge variants.
 
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
@@ -205,20 +211,6 @@ Use `--accent-foreground` and the status `-text` roles for small colored text.
 Pair solid fills with their foreground or `-contrast` roles.
 The existing token names and component APIs remain available. Typography adds
 `--text-xxs` for 11px text at the default 15px root size.
-
-## Shared controls
-
-Import `Button`, `IconButton`, `Badge`, and `Switch` from `@cline/ui` after
-loading the theme and `@cline/ui/components.css`.
-
-Buttons support `primary`, `secondary`, and `ghost` styles, with the existing
-`fill` and `surface` aliases retained. Icon props are optional; existing child
-icons keep working. Badges render spans by default and use a native button only
-when `interactive` is supplied. Switches retain native form behavior.
-
-See [control adoption examples](./ADOPTION.md#buttons) for keyboard behavior,
-press feedback, and compatible props. Stories cover light/dark modes
-and disabled, focus, and loading states.
 
 ## Agent-chat usage
 
