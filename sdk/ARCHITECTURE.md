@@ -192,6 +192,12 @@ The hub health endpoint includes its `hubId`. Restart callers compare this insta
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+`HubRuntimeHost.deleteSession()` retains local event subscriptions and approval
+handlers during pending deletion and after a rejected `session.delete` command,
+releasing them after a successful reply even when the session was already absent.
+In contrast, `stopSession()` removes those handlers immediately, before awaiting
+`session.detach`.
+
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
