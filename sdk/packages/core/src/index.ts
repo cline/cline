@@ -990,6 +990,7 @@ export {
 	type ArtifactPublisher,
 	createPublishArtifactsTool,
 } from "./artifacts/publish";
+export { createUxVerificationReportTool } from "./artifacts/ux-verification";
 export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
 export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
@@ -1057,6 +1058,7 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";

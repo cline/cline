@@ -113,7 +113,9 @@ export function GeneratedMediaContent({
 	classNames,
 }: GeneratedMediaContentProps) {
 	const source = useInlineMediaUrl(media);
-	const browserOwnedSource = source?.startsWith("blob:") ? source : undefined;
+	const [failedSource, setFailedSource] = useState<string>();
+	const browserOwnedSource =
+		source?.startsWith("blob:") && source !== failedSource ? source : undefined;
 	if (!browserOwnedSource) {
 		return (
 			<div
@@ -135,6 +137,7 @@ export function GeneratedMediaContent({
 					className={modalityClassName}
 					data-media-id={media.id}
 					src={browserOwnedSource}
+					onError={() => setFailedSource(browserOwnedSource)}
 				/>
 			);
 		case "audio":

@@ -407,6 +407,7 @@ export type {
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
+	ProviderSettingsObjectPatch,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
@@ -535,3 +536,5 @@ export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";
+
+export * from "./ux-verifier";
