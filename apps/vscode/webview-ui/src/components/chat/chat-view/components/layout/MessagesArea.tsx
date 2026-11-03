@@ -7,9 +7,15 @@ import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessa
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
+import { useTimelinePositions } from "../../hooks/useTimelinePositions"
+import { useTurnNavigation } from "../../hooks/useTurnNavigation"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { getGroupTailMessage } from "../../utils/activityFolding"
 import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
+import { createCachedSummarizer } from "../../utils/timelineSummaries"
+import { collectTimelineMarkers, groupIntoTurns } from "../../utils/turnTimeline"
 import { createMessageRenderer } from "../messages/MessageRenderer"
+import { TimelineRail } from "./TimelineRail"
 
 // Sentinel ts for the synthetic "Thinking..." placeholder row. Not a real message; ignored when
 // deriving scroll triggers from the tail of the rendered list.
@@ -80,13 +86,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
 	const lastVisibleRow = useMemo(() => groupedMessages.at(-1), [groupedMessages])
-	const lastVisibleMessage = useMemo(() => {
-		const lastRow = lastVisibleRow
-		if (!lastRow) {
-			return undefined
-		}
-		return Array.isArray(lastRow) ? lastRow.at(-1) : lastRow
-	}, [lastVisibleRow])
+	const lastVisibleMessage = useMemo(() => (lastVisibleRow ? getGroupTailMessage(lastVisibleRow) : undefined), [lastVisibleRow])
 	// A turn (new task or follow-up) was just started from this webview but the backend's
 	// streaming TurnState has not round-tripped yet, so the replica's turnState is stale
 	// (idle/completed/awaiting_*). Let the loader show optimistically so "Thinking..." renders
@@ -119,6 +119,25 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		return [...groupedMessages, WAITING_ROW]
 	}, [groupedMessages, showThinkingLoaderRow, showEmptyListLoader])
 
+	// ── Timeline: prompts + final answers, plus Ctrl+PageUp/Down between them ──
+	// Derived from the rendered list so a marker's index is directly usable by virtuoso.
+	// Summaries are cached per session so a reload shows the same labels without re-deriving them.
+	const summarizeTimelineEntry = useMemo(() => createCachedSummarizer(task.ts), [task.ts])
+	const timelineMarkers = useMemo(
+		() => collectTimelineMarkers(displayedGroupedMessages, summarizeTimelineEntry),
+		[displayedGroupedMessages, summarizeTimelineEntry],
+	)
+	const timelineTurns = useMemo(() => groupIntoTurns(timelineMarkers), [timelineMarkers])
+	// Measured from the rendered rows so a tick lines up with where the scrollbar thumb lands.
+	const timelinePositions = useTimelinePositions(timelineMarkers, displayedGroupedMessages.length, scrollContainerRef)
+	const { jumpTo: jumpToTimelineMarker } = useTurnNavigation({
+		enabled: true,
+		markers: timelineMarkers,
+		positions: timelinePositions,
+		scrollContainerRef,
+		virtuosoRef,
+	})
+
 	// useScrollBehavior auto-scrolls when groupedMessages.length changes, but rows can change here
 	// without that: the waiting row is turnState-driven (e.g. plan -> act auto-continue adds no
 	// message), new tool messages merge into the trailing tool group at constant length, and the
@@ -128,7 +147,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	const lastTailTs = useMemo(() => {
 		for (let i = displayedGroupedMessages.length - 1; i >= 0; i--) {
 			const row = displayedGroupedMessages[i]
-			const message = Array.isArray(row) ? row.at(-1) : row
+			const message = getGroupTailMessage(row)
 			if (message && message.ts !== WAITING_ROW_TS) {
 				return message.ts
 			}
@@ -141,14 +160,30 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			return
 		}
 		scrollToBottomSmooth()
-		// Settle with an instant scroll so late layout shifts can't leave us short of the bottom.
-		// No cleanup: a quick follow-up change would cancel the settle scroll.
+		// Settle so late layout shifts can't leave us short of the bottom. The delay has to outlast
+		// the smooth animation above: snapping while it is still travelling is what made each new
+		// row read as a jump. No cleanup: a quick follow-up change would cancel the settle scroll.
 		setTimeout(() => {
-			if (!disableAutoScrollRef.current) {
+			if (disableAutoScrollRef.current) {
+				return
+			}
+			const element = scrollContainerRef.current
+			if (!element) {
+				return
+			}
+			// Only correct a real gap; the last few pixels of the animation are invisible anyway.
+			if (element.scrollHeight - element.clientHeight - element.scrollTop > 24) {
 				scrollToBottomAuto()
 			}
-		}, 50)
-	}, [displayedGroupedMessages.length, lastTailTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
+		}, 400)
+	}, [
+		displayedGroupedMessages.length,
+		lastTailTs,
+		scrollToBottomSmooth,
+		scrollToBottomAuto,
+		disableAutoScrollRef,
+		scrollContainerRef,
+	])
 
 	// Re-engage auto scroll when a new turn starts streaming. In the old extension every turn start
 	// came from a webview action (send, approve, resume) whose handler reset disableAutoScrollRef;
@@ -245,7 +280,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 						}
 					}}
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
-					className="scrollable grow overflow-y-scroll"
+					className="scrollable chat-scrollbar grow overflow-y-scroll"
 					components={virtuosoComponents}
 					data={displayedGroupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row
@@ -259,12 +294,19 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					rangeChanged={handleRangeChanged}
 					ref={virtuosoRef} // anything lower causes issues with followOutput
 					style={{
-						scrollbarWidth: "none", // Firefox
-						msOverflowStyle: "none", // IE/Edge
 						overflowAnchor: "none", // prevent scroll jump when content expands
 					}}
 				/>
 			</div>
+			{/* Travels the conversation: prompts and final answers only, draggable with a preview. */}
+			<TimelineRail
+				markers={timelineMarkers}
+				onSelect={jumpToTimelineMarker}
+				positions={timelinePositions}
+				scrollContainerRef={scrollContainerRef}
+				sessionKey={task.ts}
+				turns={timelineTurns}
+			/>
 		</div>
 	)
 }

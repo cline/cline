@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
+import { useActivityFoldingEnabled } from "@/hooks/useActivityFolding"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
@@ -18,14 +19,17 @@ import {
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	groupAgentActivities,
 	groupLowStakesTools,
 	groupMessages,
 	InputSection,
 	MessagesArea,
+	markTurnFinalAnswers,
 	QueuedPrompts,
 	TaskSection,
 	useChatState,
 	useMessageHandlers,
+	usePromptTypingTimer,
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
@@ -87,6 +91,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const displayMessages = useMemo(() => withPendingUserMessage(messages, pendingUserMessage), [messages, pendingUserMessage])
 
+	// Fold agent activities (tools, commands, diffs, thinking) into collapsible groups.
+	const [activityFoldingEnabled] = useActivityFoldingEnabled()
+
 	useEffect(() => {
 		if (pendingUserMessage && hasPendingMessageConfirmation(messages, pendingUserMessage)) {
 			setPendingUserMessage((current) => (current === pendingUserMessage ? undefined : current))
@@ -102,6 +109,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => displayMessages.at(0), [displayMessages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	// Measured here rather than in MessagesArea: that subtree only mounts once a task exists, so a
+	// timer living there would miss the very first prompt of every session.
+	usePromptTypingTimer({ sessionKey: task?.ts, inputValue: chatState.inputValue, clineMessages: messages })
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = displayMessages.slice(1)
 		// Only combine hook sequences if hooks are enabled
@@ -347,8 +357,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const groupedMessages = useMemo(() => {
-		return groupLowStakesTools(groupMessages(visibleMessages))
-	}, [visibleMessages])
+		return groupAgentActivities(groupLowStakesTools(groupMessages(markTurnFinalAnswers(visibleMessages))), {
+			enabled: activityFoldingEnabled,
+		})
+	}, [visibleMessages, activityFoldingEnabled])
 
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
