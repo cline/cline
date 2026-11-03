@@ -26,7 +26,7 @@ export class TerminalRegistry {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
 			name: "Cline",
-			iconPath: new vscode.ThemeIcon("cline-icon"),
+			iconPath: new vscode.ThemeIcon("hubot"),
 			env: {
 				CLINE_ACTIVE: "true",
 				// Override $SHELL to match the selected shell profile so that
