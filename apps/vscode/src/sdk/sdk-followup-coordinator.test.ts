@@ -132,14 +132,46 @@ describe("SdkFollowupCoordinator", () => {
 	it("rejects cloud preparation before echo or send so the submitted draft can be restored", async () => {
 		const task = makeTask("ses-cloud")
 		const error = new Error("pre-dispatch connection failed")
-		const preparation = { prepare: vi.fn(async () => Promise.reject(error)), isCurrent: () => true }
-		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
+		const activeSession = makeActiveSession()
+		activeSession.sessionId = task.taskId
+		const preparation = {
+			prepare: vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(activeSession),
+			isCurrent: () => true,
+		}
+		const { coordinator, options } = makeCoordinator({ task, activeSession, beginCloudFollowup: () => preparation })
 
 		await expect(coordinator.askResponse("keep this draft", ["image.png"], ["file.ts"])).rejects.toBe(error)
 
 		const emitted = options.messages.appendAndEmit.mock.calls.flatMap(([messages]) => messages)
 		expect(emitted).toEqual([expect.objectContaining({ say: "error", text: expect.stringContaining(error.message) })])
+		expect(options.onResumeFailed).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		await coordinator.askResponse("keep this draft", ["image.png"], ["file.ts"], "messageResponse", "idle")
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			task.taskId,
+			"resolved: keep this draft",
+			["image.png"],
+			["file.ts"],
+		)
+	})
+
+	it("keeps Retry after a bare cloud resume preparation fails", async () => {
+		const task = makeTask("ses-cloud")
+		const error = new Error("resume could not be prepared")
+		const preparation = { prepare: vi.fn(async () => Promise.reject(error)), isCurrent: () => true }
+		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
+
+		await expect(coordinator.askResponse(undefined, undefined, undefined, "yesButtonClicked", "resumable")).rejects.toBe(
+			error,
+		)
+
 		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+		expect(options.onFollowUpAbandoned).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 

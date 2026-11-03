@@ -1694,13 +1694,18 @@ export class SdkCloudSessionCoordinator {
 		try {
 			return await this.connect(entry)
 		} catch (error) {
-			const live = await this.options.cloudSessions.getStatus(record.id).catch(() => undefined)
-			if (live?.status?.toLowerCase() === "suspended") {
+			const status = await this.options.cloudSessions.getStatus(record.id).then(
+				(live) => live.status?.toLowerCase(),
+				(probeError: unknown) =>
+					probeError instanceof CloudSessionError && probeError.code === "session_expired" ? "expired" : undefined,
+			)
+			if (status === "suspended" || status === "failed" || status === "expired") {
 				if (this.entries.get(record.id) === entry && entry.record === record) {
-					this.upsertRecord({ ...record, status: "suspended" })
+					this.upsertRecord({ ...record, status })
 				}
-				return undefined
+				if (status === "suspended") return undefined
 			}
+			this.assertSandboxNotTerminated(entry)
 			throw error
 		}
 	}
@@ -1731,14 +1736,25 @@ export class SdkCloudSessionCoordinator {
 		this.retireTransport(entry)
 		const generation = this.scopeGeneration
 		const signal = this.scopeAbort.signal
+		const isCurrent = () => !this.disposed && generation === this.scopeGeneration && this.entries.get(suspended.id) === entry
 		const waking = this.trackScopeOperation(async () => {
 			try {
 				await this.options.cloudSessions.resumeSession(suspended.id, undefined, signal)
 			} catch (error) {
-				if (entry.record === resuming) entry.record = suspended
+				if (entry.record === resuming) {
+					if (
+						isCurrent() &&
+						error instanceof CloudSessionError &&
+						(error.code === "session_expired" || error.code === "session_failed")
+					) {
+						this.upsertRecord({ ...suspended, status: error.code === "session_expired" ? "expired" : "failed" })
+					} else {
+						entry.record = suspended
+					}
+				}
 				throw error
 			}
-			if (!this.disposed && generation === this.scopeGeneration && this.entries.get(suspended.id) === entry) {
+			if (isCurrent()) {
 				this.assertSandboxNotTerminated(entry)
 				entry.record = { ...entry.record, status: "ready" }
 			}
@@ -1748,7 +1764,7 @@ export class SdkCloudSessionCoordinator {
 			await waking
 		} finally {
 			if (entry.wake === waking) entry.wake = undefined
-			if (!this.disposed && generation === this.scopeGeneration && this.entries.get(suspended.id) === entry) {
+			if (isCurrent()) {
 				this.options.invalidateHistoryCache()
 				void this.options.postStateToWebview().catch(() => undefined)
 			}
@@ -1798,12 +1814,14 @@ export class SdkCloudSessionCoordinator {
 		error: unknown,
 	): Promise<{ messages: ClineMessage[]; deleted: boolean; resumable: boolean }> {
 		const record = entry.record
-		const probe = await this.options.cloudSessions.getStatus(record.id).then(
-			(status) => (status.status?.toLowerCase() === "expired" ? "session_expired" : status.status?.toLowerCase()),
-			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
-		)
+		const probe = isCloudSessionExpired(record)
+			? "session_expired"
+			: await this.options.cloudSessions.getStatus(record.id).then(
+					(status) => (status.status?.toLowerCase() === "expired" ? "session_expired" : status.status?.toLowerCase()),
+					(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
+				)
 		const ownsRecord = this.entries.get(record.id) === entry && entry.record === record
-		if (ownsRecord && (probe === "session_expired" || probe === "failed" || probe === "session_failed")) {
+		if (ownsRecord && (probe === "session_expired" || probe === "failed")) {
 			this.upsertRecord({ ...record, status: probe === "session_expired" ? "expired" : "failed" })
 		}
 		if (probe === "session_expired") {

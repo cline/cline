@@ -5,7 +5,7 @@ import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import type { TaskProxy } from "./task-proxy"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
 vi.mock("@/hosts/host-provider", () => ({ HostProvider: { window: { showMessage: vi.fn(async () => ({})) } } }))
 vi.mock("@/core/storage/StateManager", () => ({ StateManager: { get: () => ({ getGlobalSettingsKey: () => undefined }) } }))
@@ -28,6 +28,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const origin = scope
 	const successor = { token: "fixture-successor", endpoint: "http://127.0.0.1:2222", organizationId: "org-successor" }
 	let deletionStatus = 204
+	let resumeStatus = 200
 	let readinessStatus = "active"
 	const deleted = new Set<string>()
 	const requests: Array<{ method: string; url: string; token: string | null; body?: string }> = []
@@ -75,6 +76,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				body: typeof init?.body === "string" ? init.body : undefined,
 			})
 			if (method === "POST" && url.endsWith("/resume")) {
+				if (resumeStatus !== 200) return Response.json({ error: "resume refused" }, { status: resumeStatus })
 				return Response.json({ data: { ...currentRecord(), status: "provisioning" } })
 			}
 			if (method === "POST") {
@@ -213,6 +215,9 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setDeletionStatus: (status: number) => {
 			deletionStatus = status
 		},
+		setResumeStatus: (status: number) => {
+			resumeStatus = status
+		},
 		setReadinessStatus: (status: string) => {
 			readinessStatus = status
 		},
@@ -230,6 +235,36 @@ afterEach(() => {
 })
 
 describe("originating-account cloud cleanup", () => {
+	it.each([
+		{ resumeStatus: 409, readinessStatus: "failed", expectedStatus: "failed", expectedCode: "session_failed" },
+		{ resumeStatus: 409, readinessStatus: "expired", expectedStatus: "expired", expectedCode: "session_expired" },
+		{ resumeStatus: 200, readinessStatus: "failed", expectedStatus: "failed", expectedCode: "session_failed" },
+		{ resumeStatus: 410, readinessStatus: "active", expectedStatus: "expired", expectedCode: "session_expired" },
+	] as const)("records terminal wake result after resume HTTP $resumeStatus and status $readinessStatus", async (scenario) => {
+		const f = fixture("create")
+		f.setRecordStatus("suspended")
+		f.setResumeStatus(scenario.resumeStatus)
+		f.setReadinessStatus(scenario.readinessStatus)
+		await f.coordinator.listHistoryRecords()
+		const task = createTaskProxy(f.record.id, vi.fn(), vi.fn())
+		f.options.setTask(task)
+
+		await expect(f.coordinator.beginFollowup(task, () => true).prepare()).rejects.toMatchObject({
+			code: scenario.expectedCode,
+		})
+		expect(f.coordinator.getCurrentTaskInfo()?.status).toBe(scenario.expectedStatus)
+		expect(f.coordinator.canPrepareFollowup(task.taskId)).toBe(false)
+		expect(f.requests.filter(({ method, url }) => method === "POST" && url.endsWith("/resume"))).toHaveLength(1)
+		expect(vi.mocked(CloudSessionHost.connect)).not.toHaveBeenCalled()
+		expect(f.host.send).not.toHaveBeenCalled()
+
+		await expect(f.coordinator.beginFollowup(task, () => true).prepare()).rejects.toThrow(
+			scenario.expectedStatus === "expired" ? "has expired" : "has failed",
+		)
+		expect(f.requests.filter(({ method, url }) => method === "POST" && url.endsWith("/resume"))).toHaveLength(1)
+		await f.coordinator.dispose()
+	})
+
 	it.each([
 		"reset",
 		"dispose",

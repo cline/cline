@@ -159,7 +159,9 @@ export class SdkFollowupCoordinator {
 							{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
 						)
 					}
-					this.options.onResumeFailed()
+					// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
+					if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
+					else this.options.onResumeFailed()
 					await this.options.postStateToWebview()
 				}
 				throw error

@@ -2255,6 +2255,33 @@ describe("cloud follow-up preparation", () => {
 	})
 
 	it.each([
+		{ label: "failed", status: "failed", probe: { status: "failed" }, message: "has failed" },
+		{ label: "expired", status: "expired", probe: { status: "expired" }, message: "has expired" },
+		{
+			label: "HTTP 410",
+			status: "expired",
+			probe: new CloudSessionError("session_expired", "sandbox expired", undefined, 410),
+			message: "has expired",
+		},
+	] as const)("retires a retained host after its $label connection fallback", async ({ status, probe, message }) => {
+		const f = await idleFollowup()
+		f.sessions.setActiveSession(undefined)
+		f.host.refreshStatus.mockRejectedValue(new Error("connection refused"))
+		const getStatus = f.cloudSessions.getStatus.mockResolvedValueOnce({ status: "ready" })
+		if (probe instanceof CloudSessionError) getStatus.mockRejectedValueOnce(probe)
+		else getStatus.mockResolvedValueOnce(probe)
+
+		await expect(f.preparation.prepare()).rejects.toThrow(message)
+
+		expect(f.entries.get(record.id)?.record.status).toBe(status)
+		expect(f.entries.get(record.id)?.host).toBeUndefined()
+		expect(f.host.dispose).toHaveBeenCalledOnce()
+		expect(f.coordinator.canPrepareFollowup(record.id)).toBe(false)
+		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
+		await f.coordinator.dispose()
+	})
+
+	it.each([
 		new Error("status service unavailable"),
 		new CloudSessionError("session_expired", "sandbox expired", undefined, 410),
 		new CloudSessionError("session_not_found", "sandbox deleted", undefined, 404),

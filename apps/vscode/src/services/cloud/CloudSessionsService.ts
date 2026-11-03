@@ -302,6 +302,12 @@ export class CloudSessionsService {
 			// Another client may have resumed it first, or resume may still be in flight.
 			if (!(error instanceof CloudSessionError) || error.status !== 409) throw error
 			status = (await this.getStatus(sessionId, signal)).status
+			if (status === "failed" || status === "expired") {
+				throw new CloudSessionError(
+					status === "expired" ? "session_expired" : "session_failed",
+					`This cloud sandbox has ${status}. Start a new cloud task to continue.`,
+				)
+			}
 			if (status !== "provisioning" && status !== "ready" && status !== "active") throw error
 		}
 		if (status !== "ready" && status !== "active") {
