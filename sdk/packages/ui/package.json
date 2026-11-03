@@ -136,7 +136,9 @@
 		"components/pill-selector.css",
 		"components/pill-selector.tsx",
 		"components/section-heading.css",
-		"components/section-heading.tsx"
+		"components/section-heading.tsx",
+		"components/segmented-control.css",
+		"components/segmented-control.tsx"
 	],
 	"sideEffects": [
 		"./components.css",

@@ -176,6 +176,12 @@ export {
 } from "./search-combobox.js";
 export { SectionHeading, type SectionHeadingProps } from "./section-heading.js";
 export {
+	SegmentedControl,
+	type SegmentedControlOption,
+	type SegmentedControlProps,
+	type SegmentedControlSize,
+} from "./segmented-control.js";
+export {
 	SessionStatus,
 	type SessionStatusProps,
 	type SessionStatusTone,
