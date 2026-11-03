@@ -1346,6 +1346,13 @@ the verifier's outer tool policy. A stricter verifier policy is preserved,
 and the normal approval callback runs once before the spawn executor is reached.
 Hub client-tool contributions preserve policy dependencies when proxying tools
 through the daemon; malformed dependency metadata rejects the contribution.
+They also preserve tool execution mode so a sequential worker remains sequential
+when registered through `extraTools` on a Hub client.
+
+Every event emitted by `SessionRuntime` carries its agent, conversation, and
+parent-agent identity, including locally adapted runtime events and completion.
+Consumers filter worker events by ancestry rather than inferring delegation from
+tool names or suppressing concurrent parent events.
 
 Workers return observations and local screenshot paths. The main agent owns
 fixes, retries, evidence publication and assembling the opt-in

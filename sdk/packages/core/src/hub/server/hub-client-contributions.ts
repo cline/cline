@@ -118,6 +118,13 @@ function parseToolContribution(
 			: "";
 	const inputSchema = cloneRecord(record.inputSchema);
 	const policyDependencies = record.policyDependencies;
+	const executionMode = record.executionMode;
+	if (
+		executionMode !== undefined &&
+		executionMode !== "sequential" &&
+		executionMode !== "parallel"
+	)
+		return undefined;
 	if (
 		policyDependencies !== undefined &&
 		(!Array.isArray(policyDependencies) ||
@@ -143,6 +150,7 @@ function parseToolContribution(
 		description,
 		inputSchema,
 		...(policyDependencies === undefined ? {} : { policyDependencies }),
+		...(executionMode === undefined ? {} : { executionMode }),
 		...(typeof record.successContext === "string"
 			? { successContext: record.successContext }
 			: {}),
@@ -494,6 +502,7 @@ function createToolProxies(
 		lifecycle: contribution.lifecycle as AgentTool["lifecycle"],
 		successContext: contribution.successContext,
 		policyDependencies: contribution.policyDependencies,
+		executionMode: contribution.executionMode,
 		async execute(input, context) {
 			const response = await requestCapability(
 				sessionId,

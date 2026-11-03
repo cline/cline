@@ -1,4 +1,4 @@
-import type { AgentMessage } from "./agent";
+import type { AgentMessage, AgentTool } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type {
@@ -991,6 +991,7 @@ export interface HubClientToolExecutorContribution
 export interface HubClientToolContribution extends HubClientContributionBase {
 	successContext?: string;
 	policyDependencies?: readonly string[];
+	executionMode?: AgentTool["executionMode"];
 	kind: "tool";
 	name: string;
 	description: string;

@@ -291,6 +291,7 @@ function buildClientContributionRegistration(
 				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
 				successContext: tool.successContext,
 				policyDependencies: tool.policyDependencies,
+				executionMode: tool.executionMode,
 				...(tool.lifecycle
 					? {
 							lifecycle: toJsonRecord(

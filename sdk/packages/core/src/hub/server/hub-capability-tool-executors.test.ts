@@ -1,3 +1,5 @@
+import { AgentRuntime } from "@cline/agents";
+import type { AgentModel } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { handleCapabilityProgress } from "./handlers/capability-handlers";
 import type { HubTransportContext } from "./handlers/context";
@@ -12,6 +14,61 @@ type ClientContributionRequest = Parameters<
 >[0]["requestCapability"];
 
 describe("hub capability custom tools", () => {
+	it("preserves sequential execution through serialized tool contributions", async () => {
+		const contributions = parseHubClientContributions(
+			JSON.parse(
+				JSON.stringify([
+					{
+						kind: "tool",
+						name: "verifier",
+						description: "Verify using the shared browser",
+						inputSchema: { type: "object" },
+						capabilityName: "custom_tool.verifier",
+						executionMode: "sequential",
+					},
+				]),
+			),
+		);
+		let active = 0;
+		let peak = 0;
+		const requestCapability = vi.fn(async () => {
+			active++;
+			peak = Math.max(peak, active);
+			await new Promise<void>((resolve) => setImmediate(resolve));
+			active--;
+			return { result: "checked" };
+		});
+		const proxy = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions,
+			requestCapability,
+		});
+		let turns = 0;
+		const model: AgentModel = {
+			async *stream() {
+				if (turns++ === 0) {
+					for (const toolCallId of ["first", "second"])
+						yield {
+							type: "tool-call-delta",
+							toolCallId,
+							toolName: "verifier",
+							inputText: "{}",
+						};
+					yield { type: "finish", reason: "tool-calls" };
+				} else yield { type: "finish", reason: "stop" };
+			},
+		};
+		await new AgentRuntime({
+			agentId: "lead",
+			model,
+			tools: proxy.localRuntime.extraTools,
+			toolExecution: "parallel",
+		}).run("Verify twice");
+		expect(requestCapability).toHaveBeenCalledTimes(2);
+		expect(peak).toBe(1);
+	});
+
 	it.each([
 		"Keep going.",
 		undefined,
