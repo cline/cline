@@ -151,15 +151,14 @@ Nightly is manual only (no schedule). It publishes `X.Y.Z-nightly.TIMESTAMP` to 
 If you need fine-grained control over individual steps:
 
 1. `bun run test`
-2. `bun version <version>` — updates all workspace package versions, regenerates models, formats, and builds.
-3. `rm bun.lock && bun install --lockfile-only` — regenerate the lockfile so `bun pm pack` resolves `workspace:*` to the new versions.
-4. `bun scripts/check-publish.ts` — pack tarballs, verify dependency alignment, test isolated install and module resolution.
-5. `npm login` — ensure you're authenticated with the npm registry.
-6. Publish in dependency order:
+2. `bun version <version>` — updates all workspace package versions and the lockfile, regenerates models, formats, and builds.
+3. `bun scripts/check-publish.ts` — pack tarballs, verify dependency alignment, test isolated install and module resolution.
+4. `npm login` — ensure you're authenticated with the npm registry.
+5. Publish in dependency order:
    ```sh
    cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../ui && bun publish && cd ../../
    ```
-7. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
+6. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
 
 ### Workspace Dependency Rules
 
