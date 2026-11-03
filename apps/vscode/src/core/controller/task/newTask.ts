@@ -69,6 +69,23 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
+	let cloudTarget: { repoUrl: string; branch?: string } | undefined
+	if (request.executionTarget === "cloud") {
+		const repoUrl = request.cloudRepoUrl?.trim()
+		// A cloud request without a repository is incomplete; running it locally
+		// instead would contradict the Cloud choice the user made.
+		if (!repoUrl) {
+			throw new Error("Choose a GitHub repository before starting a cloud task.")
+		}
+		cloudTarget = { repoUrl, branch: request.cloudBranch?.trim() || undefined }
+	}
+	const taskId = await controller.initTask(
+		request.text,
+		request.images,
+		request.files,
+		undefined,
+		filteredTaskSettings,
+		cloudTarget,
+	)
 	return String.create({ value: taskId || "" })
 }

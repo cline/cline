@@ -494,6 +494,7 @@ export function ProviderConfigInputContent(
 		providerSettingsManager,
 	} = props;
 	const palette = useDialogPalette();
+	const [saveError, setSaveError] = useState("");
 
 	const config = useMemo(
 		() => getProviderConfigFields(providerId),
@@ -554,7 +555,7 @@ export function ProviderConfigInputContent(
 		() => fieldKeys[0] ?? "apiKey",
 	);
 
-	const submit = () => {
+	const submit = async () => {
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAzureFields = config.fields.azureApiVersion;
@@ -566,22 +567,27 @@ export function ProviderConfigInputContent(
 			config.fields.sapTokenUrl ||
 			config.fields.sapResourceGroup ||
 			config.fields.sapDeploymentId;
-		saveLocalProviderSettings(providerSettingsManager, {
-			providerId,
-			apiKey: config.fields.apiKey ? apiKey : undefined,
-			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
-			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
-			aws: hasAwsFields
-				? {
-						region: resolveProviderConfigAwsRegion(values),
-						authentication: apiKey ? "api-key" : "profile",
-						profile: apiKey ? undefined : awsProfile || undefined,
-					}
-				: undefined,
-			gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
-			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
-		});
-		resolve(true);
+		setSaveError("");
+		try {
+			await saveLocalProviderSettings(providerSettingsManager, {
+				providerId,
+				apiKey: config.fields.apiKey ? apiKey : undefined,
+				baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
+				azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
+				aws: hasAwsFields
+					? {
+							region: resolveProviderConfigAwsRegion(values),
+							authentication: apiKey ? "api-key" : "profile",
+							profile: apiKey ? undefined : awsProfile || undefined,
+						}
+					: undefined,
+				gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
+				sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
+			});
+			resolve(true);
+		} catch (error) {
+			setSaveError(error instanceof Error ? error.message : String(error));
+		}
 	};
 
 	useDialogKeyboard((key) => {
@@ -608,6 +614,7 @@ export function ProviderConfigInputContent(
 			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
+			{saveError && <text fg="red">{saveError}</text>}
 
 			{config.description && <text fg="gray">{config.description}</text>}
 
@@ -979,13 +986,23 @@ export function OAuthApiKeyInputContent(
 		providerSettingsManager,
 	} = props;
 	const palette = useDialogPalette();
+	const [saveError, setSaveError] = useState("");
 	const [value, setValue] = useState("");
 
-	const submit = () => {
+	const submit = async () => {
 		const apiKey = value.trim();
 		if (!apiKey) return;
-		saveManualProviderApiKey(providerSettingsManager, providerId, apiKey);
-		resolve(true);
+		setSaveError("");
+		try {
+			await saveManualProviderApiKey(
+				providerSettingsManager,
+				providerId,
+				apiKey,
+			);
+			resolve(true);
+		} catch (error) {
+			setSaveError(error instanceof Error ? error.message : String(error));
+		}
 	};
 
 	useDialogKeyboard((key) => {
@@ -1003,6 +1020,7 @@ export function OAuthApiKeyInputContent(
 			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
+			{saveError && <text fg="red">{saveError}</text>}
 
 			<text fg="gray">
 				Use an API key from your Cline dashboard instead of OAuth login. This

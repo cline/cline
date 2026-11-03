@@ -319,6 +319,8 @@ message ClineRecommendedModelsResponse {
   repeated ClineRecommendedModel recommended = 1;
   repeated ClineRecommendedModel free = 2;
   repeated ClineRecommendedModel cline_pass = 3;
+  // Free models offered only to cloud sessions (ClineFree)
+  repeated ClineRecommendedModel cline_cloud = 4;
 }
 
 // Request for fetching OpenAI models

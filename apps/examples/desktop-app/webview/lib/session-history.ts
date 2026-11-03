@@ -1,8 +1,10 @@
 export type SessionHistoryStatus =
 	| "running"
 	| "completed"
+	| "expired"
 	| "failed"
 	| "cancelled"
+	| "provisioning"
 	| "idle";
 
 export type SessionMetadata = {
@@ -43,17 +45,26 @@ export const PINNED_METADATA_KEY = "pinned";
 
 export interface SessionHistoryItem {
 	sessionId: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	source?: string;
 	status: SessionHistoryStatus;
 	provider: string;
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	environmentId: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+	};
 	parentSessionId?: string;
 	isSubagent?: boolean;
 	prompt?: string;
 	startedAt: string;
 	endedAt?: string;
+	lastActivityAt?: string;
 	metadata?: SessionMetadata;
 }
 

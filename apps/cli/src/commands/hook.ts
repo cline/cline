@@ -18,6 +18,7 @@ async function handleHookPayload(payload: HookEventPayload): Promise<unknown> {
 		case "agent_start":
 		case "agent_resume":
 		case "agent_abort":
+		case "agent_error":
 		case "prompt_submit":
 		case "pre_compact":
 		case "session_shutdown":

@@ -596,13 +596,17 @@ export class CoreSettingsService {
 							continue;
 						}
 						const contribution = contributionByPath.get(plugin.path);
+						const failed = !contribution || contribution.state === "failed";
+						if (plugin.enabled !== false && contribution?.lastError) {
+							plugin.loadError ??= `Failed during ${contribution.lastError.phase}: ${contribution.lastError.message}`;
+						}
 						plugin.contributions = {
 							inspectionStatus:
 								plugin.enabled === false
 									? "disabled"
-									: contribution
-										? "available"
-										: "failed",
+									: failed
+										? "failed"
+										: "available",
 							capabilities: contribution?.capabilities ?? [],
 							tools: contribution?.tools ?? [],
 							skills: [

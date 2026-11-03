@@ -9,16 +9,22 @@ import type {
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	hasRuntimeConfigExtension,
+} from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
 	type AgentPluginPackageDiagnostic,
 	loadAgentPluginPackages,
 } from "../extensions/agent-plugin";
+import type { ConnectorsRequest } from "../extensions/composio/composio-meta-tools";
+import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -60,6 +66,7 @@ import {
 } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
+import { captureDetachedHookRuntime } from "./telemetry/core-events";
 import {
 	createClientScopedTelemetryService,
 	createScopedTelemetryService,
@@ -155,6 +162,27 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
+}
+
+function resolveBootstrapSystemPrompt(
+	config: CoreSessionConfig,
+	workspaceInfo: WorkspaceInfo,
+	workspaceMetadata: string,
+): string {
+	if (config.systemPrompt?.trim()) {
+		return config.systemPrompt;
+	}
+
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: workspaceInfo.rootPath,
+		workspaceName: workspaceInfo.hint,
+		metadata: workspaceMetadata,
+		rules: config.rules,
+		mode: config.mode,
+		providerId: config.providerId,
+		platform: process.platform || "unknown",
+	});
 }
 
 function buildProviderConfig(
@@ -259,7 +287,10 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	 * AI gateway providers can use a custom HTTP implementation.
 	 */
 	defaultFetch?: typeof fetch;
+	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
+	/** A plugin this session uses became degraded or failed after start. */
+	onPluginIssue?: (issue: SessionPluginIssue) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
 		onSubAgentEvent?: (event: AgentEvent) => void;
@@ -288,6 +319,9 @@ export interface LocalRuntimeBootstrap {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	pluginSandboxShutdown?: () => Promise<void>;
+	/** Plugins the session asked for but does not have (failed or disabled). */
+	pluginIssues: SessionPluginIssue[];
+	pluginCommandError?: string;
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
 
@@ -304,7 +338,9 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultCapabilities,
 		defaultToolPolicies,
 		defaultFetch,
+		connectorsRequest,
 		onPluginEvent,
+		onPluginIssue,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
@@ -402,6 +438,11 @@ export async function prepareLocalRuntimeBootstrap(
 				rootSessionId: sessionId,
 				logger: localConfig?.logger,
 				workspaceInfo,
+				// Detached hooks are never awaited, so their runtime is
+				// invisible today. Measuring it is what tells us whether
+				// run-start hooks could safely become blocking.
+				onHookRuntime: (event) =>
+					captureDetachedHookRuntime(extensionContext.telemetry, event),
 			})
 		: undefined;
 	const auditHooks = hasRuntimeHooks(localConfig?.hooks)
@@ -413,9 +454,11 @@ export async function prepareLocalRuntimeBootstrap(
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
+	let pluginCommandError: string | undefined;
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
+	const pluginIssues: SessionPluginIssue[] = [];
 	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
@@ -432,17 +475,43 @@ export async function prepareLocalRuntimeBootstrap(
 				logger: extensionContext.logger,
 				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
+				policy: input.plugins,
+				hookErrorMode: input.config.hookErrorMode,
+				onIssue: onPluginIssue,
 			});
+			pluginIssues.push(...(loadedPlugins.issues ?? []));
+			pluginCommandError = loadedPlugins.failures.length
+				? loadedPlugins.failures.map((f) => f.message).join("; ")
+				: undefined;
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
-				localConfig?.logger,
+				localConfig?.logger ?? extensionContext.logger,
 			);
 		} catch (error) {
+			// The registry reports per-plugin failures itself; reaching this
+			// means discovery as a whole broke. Surface it like a plugin issue
+			// so the client can show it instead of silently dropping plugins.
 			const message = error instanceof Error ? error.message : String(error);
-			localConfig?.logger?.log?.(
-				`plugin loading failed; continuing without plugins (${message})`,
+			(localConfig?.logger ?? extensionContext.logger)?.log(
+				`Plugin loading failed; the session has no plugins: ${message}`,
+				{ severity: "error", sessionId },
 			);
+			pluginCommandError = message;
+			pluginIssues.push({
+				name: "plugins",
+				pluginPath: workspacePath,
+				state: "failed",
+				reason: "error",
+				lastError: {
+					phase: "discover",
+					message,
+					stack: error instanceof Error ? error.stack : undefined,
+					pluginPath: workspacePath,
+					timestamp: Date.now(),
+					sessionId,
+				},
+			});
 		}
 	}
 
@@ -469,7 +538,19 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	const builtInExtensions = fileHookExtension ? [fileHookExtension] : undefined;
+	// Composio registers only search/connect/execute meta tools in-process,
+	// independently of persisted desktop connections. Compiled hosts cannot
+	// spawn the drop-in plugin sandbox.
+	const composioToolsExtension = await createComposioToolsExtension({
+		request: connectorsRequest,
+		logger: localConfig?.logger,
+	});
+	const builtInExtensionList = [
+		...(fileHookExtension ? [fileHookExtension] : []),
+		...(composioToolsExtension ? [composioToolsExtension] : []),
+	];
+	const builtInExtensions =
+		builtInExtensionList.length > 0 ? builtInExtensionList : undefined;
 	const extensions = mergeAgentExtensions(
 		builtInExtensions,
 		mergeAgentExtensions(
@@ -516,6 +597,11 @@ export async function prepareLocalRuntimeBootstrap(
 		...baseConfig,
 		providerConfig,
 		workspaceMetadata,
+		systemPrompt: resolveBootstrapSystemPrompt(
+			baseConfig,
+			workspaceInfo,
+			workspaceMetadata,
+		),
 		hooks,
 	};
 	const toolPolicies =
@@ -546,6 +632,8 @@ export async function prepareLocalRuntimeBootstrap(
 		toolPolicies,
 		requestToolApproval,
 		pluginSandboxShutdown: loadedPlugins?.shutdown,
+		pluginIssues,
+		pluginCommandError,
 		runtimeBuilderInput: {
 			config,
 			hooks,

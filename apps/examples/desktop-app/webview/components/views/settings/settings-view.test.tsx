@@ -30,13 +30,21 @@ beforeEach(() => {
 		IS_REACT_ACT_ENVIRONMENT: true,
 		ResizeObserver: ResizeObserverStub,
 	});
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	window.localStorage.clear();
 	document.documentElement.style.removeProperty("font-size");
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
-	invoke.mockResolvedValue({
-		telemetryOptOut: false,
-		autoUpdateEnabled: true,
+	invoke.mockImplementation(async (command: string) => {
+		if (command === "get_hub_status") {
+			return { url: "ws://127.0.0.1:1234", clients: [], events: [] };
+		}
+		return { telemetryOptOut: false, autoUpdateEnabled: true };
 	});
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -54,7 +62,11 @@ describe("SettingsView font size", () => {
 
 		await act(async () => {
 			root.render(
-				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
 			);
 		});
 

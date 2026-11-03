@@ -9,6 +9,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
+import { type CoreSpawnTelemetryMetadata, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
@@ -24,7 +25,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents" | "skills" | "hooks"
+type TelemetryCategory = "checkpoints" | "browser" | "subagents" | "skills" | "hooks"
 
 /**
  * Terminal type for telemetry differentiation
@@ -91,6 +92,13 @@ export enum TerminalHangStage {
 	BUFFER_STUCK = "buffer_stuck",
 }
 
+/**
+ * Which hook fired `ui.panel_opened`. "sidebar_resolved" / "sidebar_visible" come from
+ * VscodeWebviewProvider and are VS Code-only; "webview_initialized" comes from the webview's
+ * mount-time initializeWebview RPC and fires on every host.
+ */
+export type PanelOpenedSource = "sidebar_resolved" | "sidebar_visible" | "webview_initialized"
+
 export type TelemetryMetadata = {
 	/**
 	 * The extension or cline-core version. JetBrains and CLI have different
@@ -110,6 +118,9 @@ export type TelemetryMetadata = {
 	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
 	 */
 	host_plugin_version?: string
+	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
+	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
+	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -142,7 +153,6 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
-		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
 		["skills", true], // Skills telemetry enabled
 		["hooks", true], // Hooks telemetry enabled
@@ -279,20 +289,6 @@ export class TelemetryService {
 			BROWSER_ERROR: "task.browser_error",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
-			// Tracks when users enable the focus chain feature
-			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
-			// Tracks when users disable the focus chain feature
-			FOCUS_CHAIN_DISABLED: "task.focus_chain_disabled",
-			// Tracks when the first focus chain return is returned by the model
-			FOCUS_CHAIN_PROGRESS_FIRST: "task.focus_chain_progress_first",
-			// Tracks when subsequent focus chain list returns are returned
-			FOCUS_CHAIN_PROGRESS_UPDATE: "task.focus_chain_progress_update",
-			// Tracks the statusn of the focus chain list when the task reaches a task completion state
-			FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION: "task.focus_chain_incomplete_on_completion",
-			// Tracks when users click to open the focus chain markdfown file
-			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
-			// Tracks when users save and write to the focus chain markdown file
-			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
 			// Tracks when a feature is toggled on/off
@@ -324,7 +320,9 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
-			// Tracks when the Cline panel becomes visible
+			// Tracks when the Cline panel becomes visible; `source` (PanelOpenedSource) says
+			// which hook fired. On JetBrains "webview_initialized" also fires on every webview
+			// reload, e.g. after a core restart, so a crash-restart loop emits one per restart.
 			PANEL_OPENED: "ui.panel_opened",
 			// Tracks when the user explicitly starts a new task flow
 			NEW_TASK_CLICKED: "ui.new_task_clicked",
@@ -361,6 +359,7 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
+			...getCoreSpawnTelemetryMetadata(),
 			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
@@ -382,8 +381,19 @@ export class TelemetryService {
 		this.providers.push(provider)
 	}
 
-	public removeProvider(name: string) {
+	public async removeProvider(name: string): Promise<void> {
+		const removed = this.providers.filter((p) => p.name === name)
+		// Stop routing events before waiting for exporters to shut down.
 		this.providers = this.providers.filter((p) => p.name !== name)
+		await Promise.all(
+			removed.map(async (provider) => {
+				try {
+					await provider.dispose()
+				} catch (error) {
+					Logger.error(`[TelemetryService] Failed to dispose provider ${name}`, error)
+				}
+			}),
+		)
 	}
 
 	/**
@@ -403,7 +413,7 @@ export class TelemetryService {
 					.showMessage({
 						type: ShowMessageType.WARNING,
 						message:
-							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+							"Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
 						options: {
 							items: ["Open Settings"],
 						},
@@ -424,7 +434,7 @@ export class TelemetryService {
 	 * this file have no caller on this line but are called on
 	 * `legacy-extension`. They are kept, not deleted: the signals they emit
 	 * originate in this bundle (webview UI, VS Code storage, host terminal,
-	 * checkpoints, focus chain, legacy-task migration), so @cline/core cannot
+	 * checkpoints, legacy-task migration), so @cline/core cannot
 	 * emit them and the missing piece is a call site here. Tracked in
 	 * https://linear.app/cline-bot/issue/ENG-2401
 	 *
@@ -928,7 +938,7 @@ export class TelemetryService {
 		})
 	}
 
-	public capturePanelOpened(source?: string) {
+	public capturePanelOpened(source: PanelOpenedSource) {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.PANEL_OPENED,
 			properties: { source },
@@ -1003,133 +1013,6 @@ export class TelemetryService {
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
-	}
-
-	/**
-	 * Records when focus chain is enabled/disabled by the user
-	 * @param enabled Whether focus chain was enabled (true) or disabled (false)
-	 */
-	public captureFocusChainToggle(enabled: boolean) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: enabled ? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED : TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
-			properties: {
-				enabled,
-			},
-		})
-	}
-
-	/**
-	 * Records when a task progress list is returned by the model for the first time in a task
-	 * @param ulid Unique identifier for the task
-	 * @param totalItems Number of items in the initial focus chain list
-	 */
-	public captureFocusChainProgressFirst(ulid: string, totalItems: number) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_FIRST,
-			properties: {
-				ulid,
-				totalItems,
-			},
-		})
-	}
-
-	/**
-	 * Records when a task progress list is updated by the model mid-task
-	 * @param ulid Unique identifier for the task
-	 * @param totalItems Total number of items in the focus chain list
-	 * @param completedItems Number of completed items in the focus chain list
-	 */
-	public captureFocusChainProgressUpdate(ulid: string, totalItems: number, completedItems: number) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_UPDATE,
-			properties: {
-				ulid,
-				totalItems,
-				completedItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-			},
-		})
-	}
-
-	/**
-	 * Records when a task ends but the task progress list is not complete
-	 * @param ulid Unique identifier for the task
-	 * @param totalItems Total number of items in the focus chain list
-	 * @param completedItems Number of completed items
-	 * @param incompleteItems Number of incomplete items
-	 * @param modelId The model ID being used
-	 * @param provider The API provider being used
-	 */
-	public captureFocusChainIncompleteOnCompletion(
-		ulid: string,
-		totalItems: number,
-		completedItems: number,
-		incompleteItems: number,
-		modelId: string,
-		provider: string,
-	) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION,
-			properties: {
-				ulid,
-				totalItems,
-				completedItems,
-				incompleteItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-				modelId,
-				provider,
-			},
-		})
-	}
-
-	/**
-	 * Records when users click to open the focus chain markdown file
-	 * @param ulid Unique identifier for the task
-	 */
-	public captureFocusChainListOpened(ulid: string) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_OPENED,
-			properties: {
-				ulid,
-			},
-		})
-	}
-
-	/**
-	 * Records when users save and write to the focus chain markdown file
-	 * @param ulid Unique identifier for the task
-	 */
-	public captureFocusChainListWritten(ulid: string) {
-		if (!this.isCategoryEnabled("focus_chain")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
-			properties: {
-				ulid,
-			},
-		})
 	}
 
 	/**
@@ -1240,7 +1123,12 @@ export class TelemetryService {
 	 *   ("backgroundExec");
 	 *   markerlessCause — for method "markerless_heuristic", why the command was
 	 *   considered complete;
-	 *   terminalClosed — the terminal was closed while the command was running
+	 *   terminalClosed — the terminal was closed while the command was running;
+	 *   errorCode — for a failed background execution that produced no exit code,
+	 *   why: the OS code when the shell could not start (ENOENT, EACCES, EFTYPE),
+	 *   "ENOENT_CWD" when the working directory had vanished instead, "signal"
+	 *   or "no_exit_code" for termination, "spawn" when the shell could not start
+	 *   but the error carried no code, "aborted", or "other"
 	 */
 	public captureTerminalExecution(
 		success: boolean,
@@ -1251,6 +1139,7 @@ export class TelemetryService {
 			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 			markerlessCause?: MarkerlessCompletionCause
 			terminalClosed?: boolean
+			errorCode?: string
 		},
 	): void
 	/**
@@ -1267,6 +1156,17 @@ export class TelemetryService {
 		method: StandaloneOutputMethod,
 		details?: { exitCode?: number | null },
 	): void
+	/** Background execution is shared by VS Code and standalone hosts. */
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: TerminalType,
+		method: "child_process",
+		details?: {
+			exitCode?: number | null
+			terminalExecutionMode?: "backgroundExec"
+			errorCode?: string
+		},
+	): void
 	/**
 	 * Implementation of captureTerminalExecution
 	 */
@@ -1279,9 +1179,10 @@ export class TelemetryService {
 			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 			markerlessCause?: MarkerlessCompletionCause
 			terminalClosed?: boolean
+			errorCode?: string
 		},
 	): void {
-		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed } = details ?? {}
+		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed, errorCode } = details ?? {}
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
@@ -1293,6 +1194,7 @@ export class TelemetryService {
 				...(terminalExecutionMode !== undefined && { terminalExecutionMode }),
 				...(markerlessCause !== undefined && { markerlessCause }),
 				...(terminalClosed !== undefined && { terminalClosed }),
+				...(errorCode !== undefined && { errorCode }),
 			},
 		})
 	}

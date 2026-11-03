@@ -16,6 +16,7 @@ import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	CommandExitError,
+	CommandSpawnError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
 } from "./bash";
@@ -639,6 +640,41 @@ describe("createShellExecutor", () => {
 		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();
 	});
 
+	it.skipIf(process.platform === "win32").each([false, true])(
+		"preserves signal termination without an exit code (inherited pipes: %s)",
+		async (inheritedPipes) => {
+			const shell = createShellExecutor({ timeoutMs: 5_000 });
+			const script = [
+				inheritedPipes
+					? `require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 2_000)'], { stdio: ['ignore', 1, 2] }).unref();`
+					: "",
+				"process.stdout.write('before signal', () => process.kill(process.pid, 'SIGTERM'));",
+			].join("\n");
+			const error = await shell(
+				{ command: process.execPath, args: ["-e", script] },
+				process.cwd(),
+				ctx,
+			).catch((caught: unknown) => caught);
+
+			expect(error).toMatchObject({
+				name: "CommandTerminationError",
+				signal: "SIGTERM",
+				output: expect.stringContaining("before signal"),
+			});
+			expect(error).not.toHaveProperty("exitCode");
+			expect(error).toHaveProperty(
+				"output",
+				expect.stringContaining("[Command terminated by signal SIGTERM]"),
+			);
+			if (inheritedPipes) {
+				expect(error).toHaveProperty(
+					"output",
+					expect.stringContaining("background processes still running"),
+				);
+			}
+		},
+	);
+
 	it("includes stdout and exit code on non-zero exit", async () => {
 		const shell = createShellExecutor();
 		let error: unknown;
@@ -951,6 +987,24 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`unwraps a redundant nested ${shell} -Command instead of interpolating it`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const nestedExe = shell === "powershell.exe" ? "powershell" : "pwsh";
+				const output = await executor(
+					`${nestedExe} -NoProfile -Command "'a.ps1','b.txt' | Where-Object { $_ -match '\\.ps1$' }"`,
+					process.cwd(),
+					ctx,
+				);
+				// Before the unwrap, the stdin bootstrap parsed this as outer
+				// PowerShell source and interpolated $_ away, so the nested shell
+				// received `{ -match '\.ps1$' }` and failed with a parse error
+				// instead of filtering the list (GitHub #13284).
+				expect(output.trim()).toBe("a.ps1");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
 			`reports a failed final native command through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });
@@ -1053,17 +1107,22 @@ describe("createShellExecutor with inherited stdio", () => {
 			? "C:\\Program Files\\Git\\bin\\bash.exe"
 			: "/bin/bash";
 	const hasBashShell = existsSync(bashShell);
+	// The command budget only has to stay under Vitest's testTimeout; the
+	// exit-grace path settles ~1s after the shell exits regardless. A cold
+	// Git Bash start on the 2-core Windows runner can take several seconds,
+	// so a tight budget times out before the grace timer ever fires.
+	const commandTimeoutMs = 15_000;
 
 	it.runIf(hasBashShell)(
 		"completes when a background child keeps the stdio pipes open after the shell exits",
 		async () => {
 			const executor = createShellExecutor({
 				shell: bashShell,
-				timeoutMs: 5_000,
+				timeoutMs: commandTimeoutMs,
 			});
-			// sleep outlives the 5s timeout, so without exit-grace completion
+			// sleep outlives the timeout, so without exit-grace completion
 			// this command times out instead of returning the echo output.
-			const output = await executor("sleep 8 & echo done", process.cwd(), ctx);
+			const output = await executor("sleep 30 & echo done", process.cwd(), ctx);
 			expect(output).toContain("done");
 			expect(output).toContain("background processes still running");
 		},
@@ -1074,11 +1133,11 @@ describe("createShellExecutor with inherited stdio", () => {
 		async () => {
 			const executor = createShellExecutor({
 				shell: bashShell,
-				timeoutMs: 5_000,
+				timeoutMs: commandTimeoutMs,
 			});
 			let error: unknown;
 			try {
-				await executor("sleep 8 & echo oops; exit 3", process.cwd(), ctx);
+				await executor("sleep 30 & echo oops; exit 3", process.cwd(), ctx);
 			} catch (caught) {
 				error = caught;
 			}
@@ -1096,9 +1155,13 @@ describe("createShellExecutor with inherited stdio", () => {
 	// shell exits while the backgrounded sleep holds the pipes, so 'close'
 	// never arrives - the exit-grace path must write the exit record and
 	// complete the log instead of leaving it in the active state.
-	it.runIf(hasBashShell)(
-		"finalizes a detached log when the shell exits while a background child holds the pipes",
-		async () => {
+	// Git Bash emulates SIGTERM on Windows, where Node observes a numeric
+	// exit code rather than a POSIX signal. Keep the numeric-exit case there.
+	it
+		.runIf(hasBashShell)
+		.each(process.platform === "win32" ? [false] : [false, true])(
+		"finalizes a detached log when the shell exits while a background child holds the pipes (signal: %s)",
+		async (terminateBySignal) => {
 			const controller = new RunCommandExecutionController();
 			let commandStarted = false;
 			let detachReady = false;
@@ -1126,7 +1189,10 @@ describe("createShellExecutor with inherited stdio", () => {
 			const execution = executor(
 				{
 					command: bashShell,
-					args: ["-c", "sleep 30 & echo started; sleep 1"],
+					args: [
+						"-c",
+						`sleep 30 & echo started; sleep 1; ${terminateBySignal ? "kill -TERM $$" : "exit 0"}`,
+					],
 				},
 				process.cwd(),
 				{
@@ -1158,13 +1224,56 @@ describe("createShellExecutor with inherited stdio", () => {
 			expect(logPath).toBeDefined();
 
 			const completedAtPath = join(dirname(logPath as string), "completed-at");
-			const deadline = Date.now() + 10_000;
-			while (!(await fileExists(completedAtPath)) && Date.now() < deadline) {
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
-			const logText = await readFile(logPath as string, "utf8");
-			expect(logText).toContain("[Command exited with code 0]");
+			await expect
+				.poll(() => readFile(logPath as string, "utf8"), { timeout: 10_000 })
+				.toContain(
+					terminateBySignal
+						? "[Command terminated by signal SIGTERM]"
+						: "[Command exited with code 0]",
+				);
 			expect(await fileExists(completedAtPath)).toBe(true);
 		},
 	);
+});
+
+describe("CommandSpawnError", () => {
+	const context: AgentToolContext = {
+		agentId: "agent-1",
+		conversationId: "conversation-1",
+		iteration: 1,
+	};
+
+	it("reports a shell that cannot be started with the operating system error code", async () => {
+		const executor = createShellExecutor({
+			shell: "cline-definitely-missing-shell",
+		});
+		let error: unknown;
+		try {
+			await executor("echo hi", process.cwd(), context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("executable");
+		// The message is what hosts and users saw before; only the class and
+		// code are new.
+		expect((error as Error).message).toContain("Failed to execute command");
+	});
+
+	it("tells a vanished working directory apart from a missing shell", async () => {
+		// spawn reports ENOENT with the same message in both cases; the class
+		// checks the directory so telemetry does not count one as the other.
+		const gone = join(tmpdir(), `cline-gone-${process.pid}-${Date.now()}`);
+		const executor = createShellExecutor();
+		let error: unknown;
+		try {
+			await executor("echo hi", gone, context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("cwd");
+	});
 });

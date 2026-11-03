@@ -67,6 +67,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.openTelemetryMetricsExporter !== undefined) {
 		transformed.openTelemetryMetricsExporter = remoteConfig.openTelemetryMetricsExporter
 	}
+	if (remoteConfig.openTelemetryTracesExporter !== undefined) {
+		transformed.openTelemetryTracesExporter = remoteConfig.openTelemetryTracesExporter
+	}
 	if (remoteConfig.openTelemetryLogsExporter !== undefined) {
 		transformed.openTelemetryLogsExporter = remoteConfig.openTelemetryLogsExporter
 	}
@@ -243,14 +246,22 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 		if (isOpenTelemetryConfigValid(otelConfig)) {
 			const client = new OpenTelemetryClientProvider(otelConfig)
 
-			if (client.meterProvider || client.loggerProvider) {
-				telemetryService.addProvider(
-					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
-						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
-						bypassUserSettings: true,
-					}).initialize(),
-				)
+			try {
+				if (client.meterProvider || client.loggerProvider || client.tracerProvider) {
+					telemetryService.addProvider(
+						await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+							name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+							bypassUserSettings: true,
+							client,
+						}).initialize(),
+					)
+					return
+				}
+			} catch (error) {
+				await client.dispose()
+				throw error
 			}
+			await client.dispose()
 		}
 	} catch (err) {
 		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
@@ -270,12 +281,12 @@ async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigField
 	}
 }
 
-export function clearRemoteConfig(organizationId?: string) {
+export async function clearRemoteConfig(organizationId?: string): Promise<void> {
 	try {
 		const stateManager = StateManager.get()
 
 		stateManager.clearRemoteConfig()
-		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+		await telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
@@ -314,7 +325,7 @@ export async function applyRemoteConfig(
 	const stateManager = StateManager.get()
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 		return
 	}
 
@@ -350,7 +361,7 @@ export async function applyRemoteConfig(
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)
 
-	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+	await telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// If the existing configured provider is valid, don't update it
 	const apiConfiguration = stateManager.getApiConfiguration()

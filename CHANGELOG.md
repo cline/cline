@@ -1,5 +1,193 @@
 # Changelog
 
+## [4.1.26]
+
+### Added
+
+- Cloud tasks: Settings > API Configuration has a Local | Cloud toggle when cloud sessions are on. Cloud picks the Cline model new cloud tasks run on, saved separately from your local models. Clicking the model label in a cloud session's composer opens it there.
+- Starting or resuming a cloud sandbox shows a progress card with the repo, branch and steps (start sandbox, clone repository, start agent). It collapses once the agent starts.
+
+### Changed
+
+- Cloud sessions hide the Plan/Act toggle and the auto-approve bar instead of showing them disabled.
+- With no model chosen, the Cline provider uses Claude Sonnet 5.5 again, which is back at the top of Cline's recommended list.
+- Model requests retry at most 3 times instead of 5.
+- Kimi K3 now gets `max` reasoning for Extra High and Max, instead of an `xhigh` setting it rejects.
+- Refreshed the model catalog. Adds the CommandCode, Reflection, Liquid Inference and Munito AI providers and drops CrofAI, iFlow and Llama. The Cline free list adds Reflection Beam, Nemotron 3.5 Lightning and Laguna S 2.1 and drops Mimo V2.6 Flash and Muse Spark 1.3 Contributor. ClinePass now defaults to Kimi K3.1 Pro and adds MiniMax M3.1 Flash and DeepSeek V4.1 Flash 1017. Default models change for most other providers, mostly to Kimi K3.1 Pro, MiniMax M3.1 Flash or DeepSeek V4.1 Flash 1017. If you use a provider without pinning a model, expect a different default.
+
+### Fixed
+
+- GPT-6 models (such as `gpt-6-sol` and `gpt-6.1-sol`) work on OpenAI and Azure OpenAI-compatible endpoints, and SAP AI Core no longer rejects requests with "Unsupported parameter: 'max_tokens'". Both now get `max_completion_tokens`.
+- Gemini API keys (the `gemini` provider) no longer send native Google Search. Free-tier keys failed every turn with a 429 quota error on Gemini 3+, and on Gemini 2.x every Cline tool was dropped.
+- Toggling Plan/Act while a task is starting no longer drops your first prompt, and the session no longer keeps running with the other mode's tools.
+- Disabled rules stay disabled.
+- Starting a command no longer moves keyboard focus into the terminal, so text you're typing in the chat no longer lands in the shell.
+- Cancelling a task or opening another one while Cline is asking a question no longer lets your next message get taken as the answer to the old question.
+- A turn whose connection drops after the model has streamed only reasoning is now retried instead of ending the task.
+- Auto-compaction no longer runs for models with an unknown context limit, and it no longer runs again every few tool calls after the first compaction.
+- `ask_question`: the model keeps going after you pick an option, and empty answers are rejected.
+- `run_commands` with an empty command list now returns an error instead of a silent success. On PowerShell, the tool tells the model how quote escaping works and to confirm recursive deletes first.
+- Task header badges wrap instead of hiding the close button, the GitHub connection check no longer flashes a loading indicator, and the Local/Cloud toggle's padding is fixed.
+
+## [4.1.25]
+
+### Added
+
+- Cline Cloud sessions, rolling out gradually: run a task in a hosted sandbox on a GitHub repo and branch you pick. Turn it on in Settings. Cloud tasks show in Recent and History with their status, notify you when they finish, and keep running after you close your editor.
+
+### Changed
+
+- With no model chosen, the Cline provider now uses Gemini 4 Argon, the new first model in Cline's recommended list. OpenRouter stays on Claude Sonnet 5.5.
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- Long requests to local models (LM Studio, Ollama) no longer fail after 5 minutes of silence with `terminated: BodyTimeoutError` while the server is still processing a large prompt.
+- OpenAI Compatible base URLs are used exactly as entered. A host-only URL like `https://abc.com` used to get `/v1` added silently. Host-only URLs saved by earlier versions get `/v1` added once, so existing setups keep working.
+- Images and files attached to an answer to one of Cline's questions now reach the model instead of being dropped.
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn.
+- In JetBrains, the Run task card stays above the Auto-approve bar.
+- Auto Compact and its strategy setting sit together again in Feature settings.
+
+## [4.1.24]
+
+### Changed
+
+- With no model chosen, the Cline and OpenRouter providers now use Claude Sonnet 5.5. For Cline, that's the first model in Cline's recommended list.
+- Selecting ai& shows its own API key and model picker, instead of the generic OpenAI-compatible form with base URL and custom headers.
+- Refreshed the model catalog. Adds Claude Haiku 5.5 and the AI/ML API, LowRouter, and Prime Inference providers. The Cline free list adds Step 5 Preview. The v0 provider now offers only its default model, `v0-1.5-md`, and OpenCode Go uses its new `https://opencode.ai/inference/go/v1` endpoint. Default models change for 302.AI, Cortecs, CrossModel, DevPass, DigitalOcean, Eden AI, GitHub Copilot, Google Vertex AI, LLM Gateway, Meta, Moark, NanoGPT, NEAR AI Cloud, Neuralwatt, Novita AI, Ofox, OpenCode Go, Requesty, Vivgrid, and a few others (most now Claude Haiku 5.5 or Muse Wonder 1.0). If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- Turning reasoning off no longer fails with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5, and now works on every provider. Level-only Gemini models no longer reject the request with a thinking-budget error.
+- An MCP server or hook that exits before reading all of its input no longer crashes the extension host about 3 seconds later.
+- A 404 from a stale or retired model id is no longer shown as a sign-in problem. Cline shows the real error instead of the logged-out card.
+- Errors in the Cline output log keep their details. Production builds used to drop them, so a line like "Cline OAuth login failed:" showed no reason.
+- Deleting a slash command from the input keeps the spacing of the text around it.
+- Screenshots and other images no longer inflate the token estimate, which made auto-compaction run long before the conversation was near its limit.
+- Auto-compaction uses the selected model's context window when the catalog entry has none.
+- Rule files that are symlinks now load, and skills in `.claude/skills` are now discovered.
+- The editor tool no longer receives null in place of the text to replace from some models.
+- Settings migrated from older versions no longer add an empty SAP AI Core provider.
+
+## [4.1.23]
+
+### Changed
+
+- If a model's response ends without a recognized finish reason, Cline asks it to continue once instead of treating the response as complete.
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol, and the free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Default models change for 302.AI, AKI.IO, Blue Claw, CoralBricks, CrossModel, DevPass, DigitalOcean, GMI Cloud, LLM Gateway, Mistral, NanoGPT, Neon, Nvidia, Ofox, Requesty, Subconscious, The Grid AI, Vivgrid, and Vultr. Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- **Generate Commit Message** now follows your `.clinerules`, so conventions like language, format, and ticket references apply to commit messages too.
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error. 4.1.22 started sending an option only Anthropic's own API accepts.
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. Cline picks the closest level the model supports.
+- When an MCP tool returns more output than fits in context, Cline can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost.
+- Approve and Reject on a tool approval work right away, even while the panel is still updating. A late update failure no longer rejects a later, unrelated approval.
+- Old tasks no longer show leftover Focus Chain checklist rows when reopened.
+
+## [4.1.22]
+
+### Added
+
+- New providers: Bee (by HEOSSI) and Pareto Inference (`PARETO_API_KEY`).
+
+### Changed
+
+- Direct Anthropic requests now use Anthropic's server-side refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request.
+- When a response is blocked by a content filter, Cline now says so and suggests rephrasing, instead of "Model returned empty response".
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. The Cline recommended list adds Claude Sonnet 5.5 and Claude Opus 5.5. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- After an API error you can type and send a new message instead of only using Retry. A `/compact` (or `/smol`, `/newtask`) typed during recovery stays in the composer instead of being sent to the model as text.
+- If a new task fails Cline sign-in, signing in and submitting a revised prompt now starts the task with that prompt. Before, nothing happened.
+- **Reset Code** is now disabled when a message has no checkpoint, and no longer stays disabled for a message whose checkpoint exists (seen on slow disks). Changing the Checkpoints setting now applies to the active task, and follow-up messages typed while it applies are kept in order.
+- Canceling right after sending a message now stops the task. A cancel that landed while the turn was still being set up was ignored, and the task kept running.
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged.
+- Amazon Bedrock: GPT-6 and GPT-5.6 route through inference profiles, and India regions (`ap-south-1`, `ap-south-2`) resolve the `in.` profile. OpenAI models behind inference profiles get the reasoning effort setting they support. Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects. A legacy AWS profile setting saved without the "use profile" flag now carries over as profile authentication instead of being dropped.
+- Gateway models on providers that mix endpoints keep their own API protocol instead of falling back to the provider-wide default.
+
+## [4.1.21]
+
+### Added
+
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan.
+
+### Changed
+
+- Refreshed the model catalog to 6,386 models across 209 providers. The resolved default model changes for 19 providers that do not pin one, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without pinning a model, expect a different default.
+- Raised the minimum js-yaml version to 4.3.2 to pick up a security fix in the parser used to read rule and skill frontmatter.
+
+### Fixed
+
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of ending the task. These servers cap generation at whatever context is left, regardless of the output budget you set. If compaction cannot help, the existing concise-retry recovery still runs, and the partial answer is kept.
+- Reopening a task that failed now shows the error with the retry option, instead of presenting it as a completed task.
+- A command that prints nothing no longer shows a raw JSON blob like `[{"query":"git add -A","result":"","success":true}]` as its output.
+- On Windows, @-mention search results now show the right file names. Nested files such as a subfolder's README rendered as `/README.md`, and the same open file could appear twice.
+- Canceling a request while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes.
+
+## [4.1.20]
+
+### Changed
+
+- Sub-agents spawned in the same step now run their tool calls at the same time rather than one after another. Tools that must run in order still do, and the parent still waits for every result before its next turn.
+- Models that advertise a large output limit now get a bigger default output budget — 30% of the limit rather than a flat 32,000 tokens, whichever is larger. Nothing changes for models under roughly 107k output tokens; longer responses can mean higher per-turn cost and latency.
+- Refreshed the model catalog: 203 to 209 providers and 6,079 to 6,237 models. Kimi For Coding splits into separate kimi.com and kimi.ai providers, and AI21 Labs, ainetcafe, Inco, OCI Generative AI, Tempr, and Vispark are new. The resolved default model changes for 36 providers that do not pin one — most landing on DeepSeek V4.1 Flash, GLM 5.3 Flash, or MiMo V2.6 Flash. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- UserPromptSubmit and TaskStart hooks can inject context again. What those hooks returned as `contextModification` was being dropped — only `cancel` survived — so a hook meant to add repository facts or house rules to a task silently did nothing. The context is now delivered as a `<hook_context>` block on the run's first request, the same as before the regression, and the raw block never renders in the transcript. A hook also no longer receives its own previously injected text back as the next turn's prompt.
+- Unsent text in the composer survives Retry. Retry sent no composer content but still ran the same cleanup as approval actions, deleting the only copy of anything typed while a request was in flight. Text, quote context, images, and files are now tracked as one draft that only submitting actions consume.
+- Output from background commands now streams into the command row while the command runs, instead of appearing only when it finishes.
+- The Azure API version configured for a provider is now honored in tasks and mirrored to `providers.json`.
+- Rules are found and shown consistently. The Rules panel listed only `.clinerules` and the Documents global folder, so rules loaded from `.cline/rules`, `~/.cline/rules`, or `~/Cline/Rules` were applied to the model but missing from the panel — and on Windows with a OneDrive-redirected Documents folder, global rules were not found at all.
+- Deleting a task from history now actually removes it. A task whose index entry was missing but whose file on disk survived was reported as deleted and then reappeared on the next refresh.
+- Sub-agents you configure yourself no longer ask you to approve their individual tool calls after you have already approved the delegation.
+- Compaction no longer silently falls back to truncation partway through a long task. The summarizer kept the credentials captured when the task started, so once they refreshed its request failed with an authorization error that was swallowed; it now follows the task's current credentials and model.
+- A model turn that hits its output-token limit before making a tool call no longer ends the task. It is retried up to three times with a reminder to respond concisely and split large work across tool calls.
+
+## [4.1.19]
+
+### Added
+
+- Images attached to a model that cannot read them are now flagged instead of silently discarded. Thumbnails get a warning badge and the composer explains that the images will be ignored, with a button to switch to an image-capable model. Previously the thumbnail looked normal and the image was replaced with a text placeholder just before the request, so there was no way to tell it had been dropped. Model info and the attachment picker also report image support accurately for models that declare text-only input without listing capabilities.
+
+### Changed
+
+- Cline's logo and icons have been refreshed throughout the extension, including the activity bar and panel icons.
+- The W&B Inference provider is now listed as CoreWeave, with its sign-up and API-key links updated to match CoreWeave's current documentation.
+
+### Fixed
+
+- Long tasks now compact when they actually need to rather than running out of room. The trigger compared a character-based estimate of the conversation (~3 characters per token) against the model's context limit, so content that tokenizes far denser than that — disassembly, image dumps, minified sources — could fill the real context window while the estimate stayed under the threshold and compaction never fired; the turn was then squeezed down to a handful of output tokens. The trigger now also uses the token count the provider itself reports, and how much history is kept is scaled by how far off the estimate turned out to be. The summarizer's output budget also doubled, so a model that reasons before answering can no longer spend the whole budget thinking and return no summary at all.
+- On Windows, opening a repository that contains a file named `rg.exe`, `git.exe`, or `powershell.exe` no longer runs that file in place of the real program. Bare program names were resolved through the workspace directory before PATH, so a planted executable ran with your privileges as soon as the workspace was indexed. Cline now sets Windows' `NoDefaultCurrentDirectoryInExePath` opt-out at startup, in both the VS Code extension and the JetBrains core. Processes Cline launches inherit it, so inside a Command Prompt shell a program in the current directory now needs `.\` as it already does in PowerShell.
+- A model turn that fails mid-stream with a transient provider error is now retried up to three times with backoff instead of ending the task. A single rate-limit response forwarded by a gateway previously surfaced as a failed task. A turn that has already streamed output is never retried, so nothing is duplicated.
+- Terminal commands that succeed without printing anything (`git add -A` on a clean tree, for example) are now reported as empty output. They were treated as a shell-integration failure, which fed the model a snapshot of unrelated terminal scrollback prefixed with a warning that the output could not be captured, so silent commands intermittently looked like failures.
+- Checkpoints no longer re-hash every untracked file on each message. In workspaces holding large untracked directories this delayed every message by seconds to minutes; a persistent per-task index now lets git skip files it has already seen.
+- `run_commands` no longer hangs until its timeout after a command that backgrounds a child process. The command had finished, but the backgrounded process held the output pipes open.
+- `apply_patch` no longer silently overwrites an existing file when the model uses "Add File" on a path that already exists. The file's contents were replaced with no error and no record of what was lost.
+- PowerShell commands the model wrapped in another `powershell -Command "..."` are no longer parsed twice. The outer shell consumed `$_` before the inner command ran, so pipelines using it emitted an error for every item processed while still reporting success.
+- Opening your home directory as a workspace no longer drives the extension host to exhaustion. Typing an `@` mention indexed every file beneath it and re-ranked the whole index on each keystroke.
+- The "Supports Images" checkbox in OpenAI Compatible model settings now stays where you put it. The checkbox rendered the last committed value, and the re-sync that arrived during the save round-trip was re-emitted as a change event that wrote the old value back over your edit.
+- The error shown to the model when an `editor` call omits the text to replace now names the file and explains how to recover. The previous message was terse enough that some models re-sent the identical call until the task stopped.
+- Credentials are now stripped of invisible characters when saved, not only when pasted, and the cleanup covers AWS, GCP, and SAP fields and custom header values in addition to API keys.
+- Cline Pass now defaults to a model from your subscription rather than a free one. Its model list contains both tiers and the default was whichever model was published most recently, so a subscriber who never picked a model could be left on the free tier.
+- Cline Pass and free models now show no cost rather than the underlying market price, which is not what you are billed for.
+- Model pickers now fall back to the full Recommended, Free, and Subscribed lists when the models endpoint cannot be reached. The offline fallback was a short hardcoded list with no subscription tier at all.
+- Model lists for providers sharing the built-in catalog now refresh from the live catalog, so newly published models appear without an extension update, with timeouts so an unresponsive provider endpoint cannot stall the list.
+- Claude Code and OpenCode no longer ask for an API key they never read. Both authenticate from their own local CLI's credentials, but they were treated as key-based providers; the workaround was storing a dummy key. A missing CLI on `PATH` now warns rather than blocking, since a configured path or bundled binary also works.
+- The OpenAI Codex (ChatGPT subscription) model list no longer offers models the backend rejects, and Codex context limits are applied to every Codex model instead of being inherited from the OpenAI API catalog, which inflated both the context budget and the usage figures derived from it.
+- Models served by OpenCode Go are now sent over the wire protocol each one actually speaks. Every model was sent over the OpenAI chat-completions adapter, so models on that endpoint speaking other protocols failed or misbehaved.
+- Task history no longer goes blank when a task spawns many subagents. Subagent rows crowded out the tasks that created them, hiding the parent task and everything older.
+- Langfuse tracing, when configured, is now limited to the Cline and Cline Pass providers. The provider was ignored, so prompts and responses sent to third-party and bring-your-own-key providers were exported too.
+
+### Changed
+
+- Web search is now enabled by default on models that support it, outside YOLO mode. It can still be turned off in settings, and a settings file that cannot be read leaves it disabled rather than silently on.
+- The `run_commands` tool description now names the PowerShell edition in use — `Windows PowerShell (powershell.exe)` versus `PowerShell (pwsh.exe)` — quotes its guidance against that executable, and tells the model to run commands directly rather than wrapping them in another shell invocation. It also no longer describes the environment as Windows when `pwsh` is the configured shell on macOS or Linux.
+- Refreshed the built-in model catalog. Adds four providers (Infer by Flow7, Melious, NaN, and Wallaby) and takes the catalog from 5,788 to 6,079 models. This is a wide refresh: the resolved default model changes for 44 providers, most of them landing on DeepSeek V4.1 Flash — among them Hugging Face, Fireworks, Requesty, Nebius, Cortecs, CrossModel, DigitalOcean, Eden AI, and OpenCode Go. Gemini and Vertex now resolve to Gemini 3.8 Flash, GitHub Copilot and Vivgrid to GPT-6 Astra, and NVIDIA to GLM 5.3 Flash. If you use a provider without pinning a model, expect a different default.
+
 ## [4.1.17]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.

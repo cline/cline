@@ -1,5 +1,6 @@
 import {
 	createSessionId,
+	ensureLoopbackProxyBypass,
 	type HubClientRegistration,
 	type HubCommandEnvelope,
 	type HubEventEnvelope,
@@ -9,7 +10,17 @@ import {
 	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
+import { HttpProxyAgent } from "http-proxy-agent";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { getProxyForUrl } from "proxy-from-env";
+// Node loads the npm package; Bun substitutes its own `ws`, which reads the
+// proxy URL and Proxy-Authorization from the same `agent` option. One socket
+// shape therefore serves the extension host, the CLI and the Bun-hosted
+// desktop sidecar. Do not alias the npm package to bypass Bun's substitution:
+// Bun's node:http client has not always emitted `upgrade`, and the npm client
+// then fails the handshake with "Unexpected server response: 101".
 import NodeWebSocket from "ws";
+import corePackage from "../../../package.json";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -32,6 +43,17 @@ import {
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
 	reject: (error: unknown) => void;
+};
+
+type HubCommandOptions = {
+	/** Whether transport recovery may resend a request after dispatch. */
+	retryAfterDispatch?: boolean;
+	timeoutMs?: number | null;
+	/** Synchronous local guard, checked after connection before each dispatch. */
+	beforeDispatch?: () => void;
+	/** Observes this attempt's correlation id after the local guard, before sending.
+	 * Dispatch alone does not confirm that the server accepted the command. */
+	onDispatch?: (requestId: string) => void;
 };
 
 type SubscriptionEntry = {
@@ -65,6 +87,18 @@ function getWebSocketCtor(): WebSocketCtor {
 		);
 	}
 	return ctor;
+}
+
+function resolveWebSocketProxyAgent(url: URL) {
+	const proxyLookupUrl = new URL(url);
+	proxyLookupUrl.protocol = url.protocol === "wss:" ? "https:" : "http:";
+	const proxyUrl = getProxyForUrl(proxyLookupUrl.toString());
+	if (!proxyUrl) {
+		return undefined;
+	}
+	return url.protocol === "wss:"
+		? new HttpsProxyAgent(proxyUrl)
+		: new HttpProxyAgent(proxyUrl);
 }
 
 function decodeSocketData(data: unknown): string {
@@ -170,6 +204,10 @@ export interface HubClientOptions {
 	clientId?: string;
 	clientType?: string;
 	displayName?: string;
+	/** Version reported to the hub; defaults to the @cline/core version. */
+	clientVersion?: string;
+	/** Additional registration metadata; version and pid are owned by the client. */
+	metadata?: Record<string, unknown>;
 	workspaceRoot?: string;
 	cwd?: string;
 	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
@@ -191,6 +229,11 @@ export interface LocalHubResolutionOptions {
 	strategy?: "prefer-hub" | "require-hub";
 	workspaceRoot?: string;
 	cwd?: string;
+	/**
+	 * Called with the error when starting a detached Hub fails. The function
+	 * still resolves `undefined` in that case; this lets a caller report why.
+	 */
+	onStartupError?: (error: unknown) => void;
 }
 
 const GLOBAL_SUBSCRIPTION_KEY = "*";
@@ -418,6 +461,11 @@ export class NodeHubClient {
 					transport: "native",
 					actorKind: "client",
 					capabilities: this.capabilities,
+					metadata: {
+						...this.options.metadata,
+						version: this.options.clientVersion ?? String(corePackage.version),
+						pid: process.pid,
+					},
 					workspaceContext: {
 						workspaceRoot: this.options.workspaceRoot,
 						cwd: this.options.cwd,
@@ -463,9 +511,9 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				if (!this.closedByClient && this.hasActiveSubscriptions()) {
-					this.scheduleReconnect();
-				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}
@@ -531,9 +579,22 @@ export class NodeHubClient {
 			throw error;
 		}
 
+		// Proxy settings and origin headers are resolved for the same connection
+		// attempt so environment and credential changes apply on reconnect.
+		let agent: ReturnType<typeof resolveWebSocketProxyAgent>;
+		try {
+			agent = headers ? resolveWebSocketProxyAgent(url) : undefined;
+		} catch (error) {
+			const transportError = normalizeWebSocketConnectError(error, url);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = transportError;
+			}
+			throw transportError;
+		}
 		const socket = headers
 			? (new NodeWebSocket(url.toString(), {
 					headers: { ...headers },
+					agent,
 				}) as unknown as WebSocketLike)
 			: new (getWebSocketCtor())(
 					url.toString(),
@@ -658,17 +719,31 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
+		let dispatched = false;
+		const dispatchOptions = {
+			...options,
+			onDispatch: (requestId: string) => {
+				dispatched = true;
+				options?.onDispatch?.(requestId);
+			},
+		};
 		const canRecoverTransport =
 			command !== "client.register" && command !== "client.unregister";
 		while (true) {
 			try {
-				return await this.commandOnce(command, payload, sessionId, options);
+				return await this.commandOnce(
+					command,
+					payload,
+					sessionId,
+					dispatchOptions,
+				);
 			} catch (error) {
 				if (
 					!canRecoverTransport ||
+					(dispatched && options?.retryAfterDispatch === false) ||
 					attempt >= 1 ||
 					!(await this.recoverLocalHubTransport(error))
 				) {
@@ -683,13 +758,15 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
 		}
+		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
+		options?.onDispatch?.(requestId);
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
 			options?.timeoutMs,
@@ -1142,6 +1219,12 @@ export interface HubSessionActivity {
 	activeSessionCount: number;
 	/** Distinct client ids attached to those sessions. */
 	participantClientCount: number;
+	/** Plugin command requests executing even without an attached session. */
+	activePluginRequests: number;
+	/** Cloud session commands, such as provisioning, executing in the hub. */
+	activeCloudCommands: number;
+	/** Provider settings and model-file writes accepted by the Hub. */
+	activeProviderMutations: number;
 }
 
 /**
@@ -1188,11 +1271,37 @@ export function summarizeHubSessionActivity(
 			}
 		}
 	}
-	return { activeSessionCount, participantClientCount: clientIds.size };
+	const count = (
+		key:
+			| "activePluginRequests"
+			| "activeCloudCommands"
+			| "activeProviderMutations",
+	) => {
+		const value =
+			payload && typeof payload === "object"
+				? (payload as Record<string, unknown>)[key]
+				: undefined;
+		return typeof value === "number" && Number.isInteger(value) && value > 0
+			? value
+			: 0;
+	};
+	return {
+		activeSessionCount,
+		participantClientCount: clientIds.size,
+		activePluginRequests: count("activePluginRequests"),
+		activeCloudCommands: count("activeCloudCommands"),
+		activeProviderMutations: count("activeProviderMutations"),
+	};
 }
 
 export function hasActiveHubSessions(payload: unknown): boolean {
-	return summarizeHubSessionActivity(payload).activeSessionCount > 0;
+	const activity = summarizeHubSessionActivity(payload);
+	return (
+		activity.activeSessionCount > 0 ||
+		activity.activePluginRequests > 0 ||
+		activity.activeCloudCommands > 0 ||
+		activity.activeProviderMutations > 0
+	);
 }
 
 /**
@@ -1236,7 +1345,12 @@ export async function localHubHasNoActiveSessions(
 ): Promise<boolean> {
 	try {
 		const activity = await queryHubSessionActivity(url, authToken, options);
-		return activity.activeSessionCount === 0;
+		return (
+			activity.activeSessionCount === 0 &&
+			activity.activePluginRequests === 0 &&
+			activity.activeCloudCommands === 0 &&
+			activity.activeProviderMutations === 0
+		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe
 		// idle as safe to stop, so an unanswerable hub reports as busy here.
@@ -1317,7 +1431,8 @@ export async function ensureCompatibleLocalHubUrl(
 			options.workspaceRoot ?? process.cwd(),
 		);
 		return ensured.url;
-	} catch {
+	} catch (error) {
+		options.onStartupError?.(error);
 		return undefined;
 	}
 }
@@ -1337,6 +1452,7 @@ export async function requestHubDrain(
 	reason?: string,
 	options?: { off?: boolean },
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);
@@ -1366,6 +1482,7 @@ export async function requestHubShutdown(
 	url: string,
 	authToken?: string,
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);
@@ -1388,7 +1505,9 @@ export async function requestHubShutdown(
 export async function stopLocalHubServerGracefully(
 	owner: HubOwnerContext = resolveDefaultHubOwnerContext(),
 ): Promise<boolean> {
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const discovery = await readHubDiscovery(owner.discoveryPath, {
+		onError: "throw",
+	});
 	if (!discovery?.url) {
 		return false;
 	}

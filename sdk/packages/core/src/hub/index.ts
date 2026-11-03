@@ -42,6 +42,7 @@ export {
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/managed-hub-build-watcher";
+export { createHubProvidersApi } from "./client/providers";
 export * from "./client/session-client";
 export * from "./client/ui-client";
 export * from "./daemon";
@@ -53,6 +54,7 @@ export * from "./discovery/instance-lock";
 export * from "./discovery/workspace";
 export * from "./server";
 export * from "./server/browser-websocket";
+export * from "./server/cloud-session-service";
 export * from "./server/command-transport";
 export * from "./server/hub-event-log";
 export * from "./server/hub-run-queue";

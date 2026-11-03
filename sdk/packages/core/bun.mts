@@ -21,10 +21,16 @@ const runtimeBuildId = resolveSdkRuntimeBuildId(
 
 // Keep declared runtime packages external so they are not duplicated inside each
 // bundled entrypoint and installed again from package.json.
-const external = Object.keys({
-	...(packageJson.dependencies ?? {}),
-	...(packageJson.peerDependencies ?? {}),
-});
+const external = [
+	"@cline/core/hub/daemon-entry",
+	// Preserve the optional provider boundary; bundling it hoists posthog-node
+	// into every runtime entrypoint even when the local import is dynamic.
+	"@cline/core/services/feature-flags/posthog",
+	...Object.keys({
+		...(packageJson.dependencies ?? {}),
+		...(packageJson.peerDependencies ?? {}),
+	}),
+];
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
@@ -47,6 +53,11 @@ const buildConfig = {
 } as const;
 
 const builds: Parameters<typeof Bun.build>[0][] = [
+	{
+		entrypoints: ["./src/cloud/index.ts"],
+		outdir: "./dist/cloud",
+		...buildConfig,
+	},
 	// Build main exports separately to avoid Bun bundler output path conflicts
 	{
 		entrypoints: ["./src/index.ts"],
@@ -71,13 +82,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: ["./src/services/feature-flags/posthog.ts"],
 		outdir: "./dist/services/feature-flags",
-		...buildConfig,
-	},
-	// The plugin sandbox bootstrap runs in an isolated child process via
-	// SubprocessSandbox and must be emitted as a separate executable entrypoint.
-	{
-		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
-		outdir: "./dist/extensions",
 		...buildConfig,
 	},
 ];

@@ -11,18 +11,12 @@ import { join } from "node:path";
 import type { TeamTeammateSpec } from "@cline/shared";
 import { resolveTeamDataDir } from "@cline/shared/storage";
 import type { AgentTeamsRuntime, TeamEvent } from "../../extensions/tools/team";
+import { sanitizeTeamName } from "../../extensions/tools/team/sanitize-team-name";
 import {
 	type PersistedTeamEnvelope,
 	reviveTeamStateDates,
 	type TeamRuntimeState,
 } from "../models/session-row";
-
-function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-}
 
 export interface FileTeamPersistenceStoreOptions {
 	teamName: string;

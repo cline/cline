@@ -60,21 +60,33 @@ describe("restore_checkpoint", () => {
 			pendingQuestions: new Map(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId,
-					status: "idle",
-					cwd: "/tmp/project",
-					workspaceRoot: "/tmp/project",
-				})),
-				// A restore that reuses the source id is what the hub does today.
-				restore: vi.fn(async () => ({
-					sessionId,
-					messages: restoredMessages,
-					checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-				})),
-				pendingPrompts: { list: vi.fn(async () => []) },
-			},
+			activeEnvironmentId: "local",
+			sessionEnvironmentIds: new Map(),
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						environmentId: "local",
+						kind: "local",
+						workspaceRoot: "/tmp/project",
+						sessionManager: {
+							get: vi.fn(async () => ({
+								sessionId,
+								status: "idle",
+								cwd: "/tmp/project",
+								workspaceRoot: "/tmp/project",
+							})),
+							// A restore that reuses the source id is what the hub does today.
+							restore: vi.fn(async () => ({
+								sessionId,
+								messages: restoredMessages,
+								checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+							})),
+							pendingPrompts: { list: vi.fn(async () => []) },
+						},
+					},
+				],
+			]),
 		} as unknown as SidecarContext;
 
 		await handleChatSessionCommand(ctx, {

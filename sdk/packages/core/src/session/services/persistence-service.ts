@@ -224,7 +224,7 @@ export class UnifiedSessionPersistenceService {
 		prompt?: string | null;
 		metadata?: Record<string, unknown> | null;
 		title?: string | null;
-	}): Promise<{ updated: boolean }> {
+	}): Promise<{ updated: boolean; metadata?: Record<string, unknown> | null }> {
 		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const row = await this.adapter.getSession(input.sessionId);
 			if (!row) return { updated: false };
@@ -281,8 +281,11 @@ export class UnifiedSessionPersistenceService {
 						: (sanitizeMetadata(manifest.metadata) ?? {});
 				if (nextTitle) manifestMeta.title = nextTitle;
 				manifest.metadata =
-					Object.keys(manifestMeta).length > 0 ? manifestMeta : undefined;
+					Object.keys(manifestMeta).length > 0
+						? JSON.parse(JSON.stringify(manifestMeta))
+						: undefined;
 				this.manifestStore.writeSessionManifest(manifestPath, manifest);
+				return { updated: true, metadata: manifest.metadata ?? null };
 			}
 			return { updated: true };
 		}
@@ -584,7 +587,8 @@ export class UnifiedSessionPersistenceService {
 		const id = sessionId.trim();
 		if (!id) throw new Error("session id is required");
 
-		const row = await this.adapter.getSession(id);
+		const indexedRow = await this.adapter.getSession(id);
+		const row = indexedRow ?? this.manifestStore.readSessionRowFromManifest(id);
 		if (!row) return { deleted: false };
 
 		await this.adapter.deleteSession(id, false);
@@ -611,8 +615,14 @@ export class UnifiedSessionPersistenceService {
 			);
 		}
 
-		await deleteCheckpointRefs(row.cwd, id);
+		if (!indexedRow) {
+			// Restored manifests can contain workspace and artifact paths from another
+			// machine. Delete only the canonical directory under the current data root.
+			this.manifestStore.artifacts.removeSessionDir(id);
+			return { deleted: true };
+		}
 
+		await deleteCheckpointRefs(row.cwd, id);
 		unlinkIfExists(row.messagesPath);
 		await this.deleteSessionCompactionStateIfExists(id);
 		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));

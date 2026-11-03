@@ -57,6 +57,7 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 	const apiEndpoint = endpoint.replace("{id}", organizationId)
 	const url = new URL(apiEndpoint, ClineEnv.config().apiBaseUrl).toString()
 	const requestConfig: AxiosRequestConfig = {
+		timeout: 10_000,
 		headers: {
 			Authorization: `Bearer ${authToken}`,
 			"Content-Type": "application/json",

@@ -19,7 +19,9 @@ import type {
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { NodeHubClient } from "../client";
+import { createHubPluginCommandsApi } from "./plugin-commands";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -285,9 +287,9 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
-	private metadataApplied = false;
+	readonly pluginCommands: PluginCommandsApi;
 
-	constructor(private readonly options: HubSessionClientOptions) {
+	constructor(options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
 			url: options.address,
 			authToken: options.authToken,
@@ -296,32 +298,20 @@ export class HubSessionClient {
 			displayName: options.displayName ?? "hub session client",
 			workspaceRoot: options.workspaceRoot,
 			cwd: options.cwd,
+			metadata: options.metadata,
 		});
-	}
-
-	private async ensureMetadataApplied(): Promise<void> {
-		if (this.metadataApplied || !this.options.metadata) {
-			if (!this.options.metadata) {
-				await this.client.connect();
-			}
-			return;
-		}
-		await this.client.connect();
-		await this.client.command("client.update", {
-			metadata: this.options.metadata,
-		});
-		this.metadataApplied = true;
+		this.pluginCommands = createHubPluginCommandsApi(this.client);
 	}
 
 	async connect(): Promise<void> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 	}
 
 	private async taskCommand<TCommand extends HubTypedCommandName>(
 		command: TCommand,
 		input: HubCommandInput<TCommand>,
 	): Promise<HubCommandOutput<TCommand>> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command(
 			command,
 			input as unknown as Record<string, unknown>,
@@ -340,7 +330,7 @@ export class HubSessionClient {
 	async startRuntimeSession(
 		request: ChatStartSessionRequest,
 	): Promise<ChatStartSessionResponse> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.create", {
 			workspaceRoot: request.workspaceRoot,
 			cwd: request.cwd,
@@ -391,11 +381,15 @@ export class HubSessionClient {
 				apiKey: request.apiKey,
 			},
 			toolPolicies: request.toolPolicies,
+			...(request.plugins ? { plugins: request.plugins } : {}),
 		});
 		const row = extractSessionRow(reply.payload);
 		if (!row?.sessionId) {
 			throw new Error("hub session create returned no session id");
 		}
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as ChatStartSessionResponse["pluginIssues"])
+			: undefined;
 		return {
 			sessionId: row.sessionId,
 			startResult: {
@@ -403,6 +397,7 @@ export class HubSessionClient {
 				manifestPath: "",
 				messagesPath: row.messagesPath ?? "",
 			},
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -411,7 +406,7 @@ export class HubSessionClient {
 		request: ChatRunTurnRequest,
 		options?: { timeoutMs?: number | null },
 	): Promise<{ result?: ChatTurnResult }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command(
 			"session.send_input",
 			{
@@ -430,13 +425,13 @@ export class HubSessionClient {
 	}
 
 	async stopRuntimeSession(sessionId: string): Promise<{ applied: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("session.detach", { sessionId }, sessionId);
 		return { applied: true };
 	}
 
 	async abortRuntimeSession(sessionId: string): Promise<{ applied: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("run.abort", { sessionId }, sessionId);
 		return { applied: true };
 	}
@@ -445,7 +440,7 @@ export class HubSessionClient {
 		sessionId: string;
 		metadata?: Record<string, unknown>;
 	}): Promise<{ updated: boolean }> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command(
 			"session.update",
 			{
@@ -458,7 +453,7 @@ export class HubSessionClient {
 	}
 
 	async getSession(sessionId: string): Promise<HubSessionRow | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
 		try {
 			reply = await this.client.command("session.get", undefined, sessionId);
@@ -478,7 +473,7 @@ export class HubSessionClient {
 		if (!target) {
 			return [];
 		}
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command(
 			"session.messages",
 			{ sessionId: target },
@@ -502,7 +497,7 @@ export class HubSessionClient {
 		if (restoreMessages && !input.config) {
 			throw new Error("config is required when restore.messages is true");
 		}
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const request = input.config;
 		const reply = await this.client.command(
 			"session.restore",
@@ -558,6 +553,7 @@ export class HubSessionClient {
 								apiKey: request.apiKey,
 							},
 							toolPolicies: request.toolPolicies,
+							...(request.plugins ? { plugins: request.plugins } : {}),
 						}
 					: {}),
 			},
@@ -589,7 +585,7 @@ export class HubSessionClient {
 	}
 
 	async listSessions(input?: { limit?: number }): Promise<HubSessionRow[]> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.list", {
 			limit: input?.limit ?? 200,
 		});
@@ -606,7 +602,7 @@ export class HubSessionClient {
 		limit?: number;
 		workspaceRoot?: string;
 	}): Promise<HubSessionSearchHit[]> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.search", input);
 		return Array.isArray(reply.payload?.hits)
 			? (reply.payload.hits as unknown as HubSessionSearchHit[])
@@ -617,7 +613,7 @@ export class HubSessionClient {
 		sessionId: string,
 		deleteCheckpointRefs = true,
 	): Promise<boolean> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("session.delete", {
 			sessionId,
 			deleteCheckpointRefs,
@@ -631,7 +627,7 @@ export class HubSessionClient {
 		reason?: string;
 		responderClientId?: string;
 	}): Promise<void> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		await this.client.command("approval.respond", {
 			approvalId: input.approvalId,
 			approved: input.approved,
@@ -657,7 +653,7 @@ export class HubSessionClient {
 			}
 			handlers.onEvent?.(mapped);
 		});
-		void this.ensureMetadataApplied().catch((error) => {
+		void this.client.connect().catch((error) => {
 			handlers.onError?.(
 				error instanceof Error ? error : new Error(String(error)),
 			);
@@ -677,7 +673,7 @@ export class HubSessionClient {
 				event.payload as unknown as TeamProgressProjectionEvent,
 			);
 		});
-		void this.ensureMetadataApplied().catch((error) => {
+		void this.client.connect().catch((error) => {
 			handlers.onError?.(
 				error instanceof Error ? error : new Error(String(error)),
 			);
@@ -688,7 +684,7 @@ export class HubSessionClient {
 	async createSchedule(
 		input: Record<string, unknown>,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.create", input);
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -696,7 +692,7 @@ export class HubSessionClient {
 	async listSchedules(_input?: {
 		limit?: number;
 	}): Promise<ScheduleClientRecord[]> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.list");
 		return Array.isArray(reply.payload?.schedules)
 			? (reply.payload?.schedules as ScheduleClientRecord[])
@@ -706,7 +702,7 @@ export class HubSessionClient {
 	async getSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.get", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -715,7 +711,7 @@ export class HubSessionClient {
 		scheduleId: string,
 		input: Record<string, unknown>,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.update", {
 			scheduleId,
 			...input,
@@ -726,7 +722,7 @@ export class HubSessionClient {
 	async pauseSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.disable", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
@@ -734,13 +730,13 @@ export class HubSessionClient {
 	async resumeSchedule(
 		scheduleId: string,
 	): Promise<ScheduleClientRecord | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.enable", { scheduleId });
 		return reply.payload?.schedule as ScheduleClientRecord | undefined;
 	}
 
 	async deleteSchedule(scheduleId: string): Promise<boolean> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.delete", { scheduleId });
 		return reply.payload?.deleted === true;
 	}
@@ -748,7 +744,7 @@ export class HubSessionClient {
 	async triggerScheduleNow(
 		scheduleId: string,
 	): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.trigger", { scheduleId });
 		return reply.payload?.execution as Record<string, unknown> | undefined;
 	}
@@ -757,7 +753,7 @@ export class HubSessionClient {
 		scheduleId: string,
 		limit?: number,
 	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.list_executions", {
 			scheduleId,
 			limit,
@@ -768,7 +764,7 @@ export class HubSessionClient {
 	}
 
 	async getScheduleStats(): Promise<Record<string, unknown> | undefined> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.stats");
 		return reply.payload?.stats as Record<string, unknown> | undefined;
 	}
@@ -776,7 +772,7 @@ export class HubSessionClient {
 	async getActiveScheduledExecutions(): Promise<
 		Array<Record<string, unknown>>
 	> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.active");
 		return Array.isArray(reply.payload?.executions)
 			? (reply.payload?.executions as Array<Record<string, unknown>>)
@@ -786,7 +782,7 @@ export class HubSessionClient {
 	async getUpcomingScheduledRuns(
 		limit?: number,
 	): Promise<Array<Record<string, unknown>>> {
-		await this.ensureMetadataApplied();
+		await this.client.connect();
 		const reply = await this.client.command("schedule.upcoming", { limit });
 		return Array.isArray(reply.payload?.upcoming)
 			? (reply.payload?.upcoming as Array<Record<string, unknown>>)

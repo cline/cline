@@ -14,6 +14,7 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | `@cline/llms` | Provider settings, model catalogs, manifests, handler creation |
 | `@cline/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
 | `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@cline/core/hub`, `@cline/core/hub/daemon-entry`) |
+| `@cline/ui` | Shared web theme and reusable agent UI React components |
 
 ### Apps
 
@@ -91,7 +92,7 @@ Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
-The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `sdk-v{VERSION}` tag creation.
+The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core → sdk → ui) → optional `sdk-v{VERSION}` tag creation.
 
 ### CLI Release
 
@@ -143,7 +144,7 @@ Nightly release:
 gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
-Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
+Nightly is manual only (no schedule). It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
 
 ### Manual SDK Publish
 
@@ -156,7 +157,7 @@ If you need fine-grained control over individual steps:
 5. `npm login` — ensure you're authenticated with the npm registry.
 6. Publish in dependency order:
    ```sh
-   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../../
+   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../ui && bun publish && cd ../../
    ```
 7. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
 
@@ -185,7 +186,7 @@ bun pm ls @cline/core @cline/agents @cline/llms
 
 ### CI
 
-The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
+The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core → sdk → ui). It supports `nightly` and `latest` channels and is triggered by manual dispatch only. Every CLI and SDK publish job waits for a reviewer to approve the run in the `PublishNPM` GitHub environment.
 
 ### Root Automation Scope
 

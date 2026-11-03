@@ -1,4 +1,5 @@
 import { estimateRequestInputTokens } from "@cline/shared";
+import { resolveConnectionProviderConfig } from "../../services/llms/handler-factory";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
@@ -28,6 +29,7 @@ import {
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
 	findLatestSummaryIndex,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -50,6 +52,12 @@ export interface ContextPipelinePrepareTurnInput {
 	 * successful LLM request.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Actual provider-reported input tokens for the previous request this run,
+	 * used as a floor on the char-based estimate so dense content still triggers
+	 * compaction. See AgentPrepareTurnContext.previousRequestInputTokens.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -85,6 +93,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Overrides layered over `config.compaction`. */
+	compaction?: Partial<CoreCompactionConfig>;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -260,6 +270,9 @@ export function createContextCompactionPrepareTurn(
 		| "providerConfig"
 		| "providerId"
 		| "modelId"
+		| "apiKey"
+		| "baseUrl"
+		| "headers"
 		| "compaction"
 		| "logger"
 		| "telemetry"
@@ -271,17 +284,14 @@ export function createContextCompactionPrepareTurn(
 			context: ContextPipelinePrepareTurnInput,
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
-	const userCompaction = config.compaction;
-	if (userCompaction?.enabled !== true) {
+	const userCompaction: CoreCompactionConfig = {
+		...config.compaction,
+		...options.compaction,
+	};
+	if (userCompaction.enabled !== true) {
 		return undefined;
 	}
 
-	const providerConfig =
-		config.providerConfig ??
-		({
-			providerId: config.providerId,
-			modelId: config.modelId,
-		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -311,16 +321,52 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const maxInputTokens =
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: context.model.info?.maxInputTokens,
-				contextWindow: context.model.info?.contextWindow,
-			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
+			maxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+		});
+		// An unknown model limit is not evidence that the request is full.
+		// Custom models can have any context window; using a guessed limit here
+		// can trigger compaction even on a new session's system prompt/tools.
+		// Manual compaction and provider-confirmed overflow recovery still need
+		// a working budget, so only those modes use the default.
+		if (effectiveMode === "auto" && modelMaxInputTokens === undefined) {
+			return undefined;
+		}
+		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
+		// The char-based estimate under-counts dense content (disassembly, image
+		// dumps, minified sources). When the provider's actual count for the
+		// PREVIOUS request already exceeds our estimate for the (larger) current
+		// transcript, the estimator is demonstrably under-counting, so scale the
+		// whole budget down by that ratio. Scaling the budget rather than just the
+		// trigger keeps every downstream number — trigger, target and the
+		// projection's message costs — in the same estimate units while still
+		// corresponding to the provider's real limit; raising only the trigger
+		// would start a compaction that then retains too much and still overflows.
+		//
+		// Deliberately conservative: it never loosens the budget, engages only on
+		// direct evidence of under-counting, and is capped so a tiny estimate
+		// cannot collapse the budget.
+		const actualPreviousInputTokens =
+			typeof context.previousRequestInputTokens === "number" &&
+			context.previousRequestInputTokens > 0
+				? context.previousRequestInputTokens
+				: 0;
+		const underestimateFactor =
+			actualPreviousInputTokens > 0 && requestInputTokens > 0
+				? Math.min(
+						MAX_INPUT_UNDERESTIMATE_FACTOR,
+						Math.max(1, actualPreviousInputTokens / requestInputTokens),
+					)
+				: 1;
+		const maxInputTokens = rawMaxInputTokens / underestimateFactor;
 		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
 		const messageTriggerTokens = translateRequestBudgetToMessages(
 			requestTriggerTokens,
 			requestOverheadTokens,
 		);
+		// Equivalent to comparing the provider's actual count against the unscaled
+		// trigger, because the budget above already carries the ratio.
 		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode: effectiveMode,
@@ -333,6 +379,9 @@ export function createContextCompactionPrepareTurn(
 			messageInputTokens,
 			requestOverheadTokens,
 			maxInputTokens,
+			rawMaxInputTokens,
+			actualPreviousInputTokens,
+			underestimateFactor,
 			requestTriggerTokens,
 			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
@@ -423,8 +472,11 @@ export function createContextCompactionPrepareTurn(
 
 		const builtinOptions = {
 			context: compactionContext,
+			// Resolved per turn from the live session config, with the same
+			// precedence as the main request, so the summarizer never sends
+			// credentials the host has since refreshed or replaced.
 			providerConfig: {
-				...providerConfig,
+				...resolveConnectionProviderConfig(config),
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
@@ -661,18 +713,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	importedFrom: string;
 	next?: ContextPipelinePrepareTurn;
 }): ContextPipelinePrepareTurn {
-	const summarize = createContextCompactionPrepareTurn(
-		{
-			...input.config,
-			compaction: {
-				...input.config.compaction,
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 0,
-			},
-		},
-		{ mode: "manual" },
-	);
+	// Pass the live config through (not a copy) so the summary uses the
+	// credentials and model current on the resumed turn.
+	const summarize = createContextCompactionPrepareTurn(input.config, {
+		mode: "manual",
+		compaction: { enabled: true, strategy: "agentic", preserveRecentTokens: 0 },
+	});
 	let pending = summarize !== undefined;
 	return async (context) => {
 		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {
@@ -708,6 +754,15 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
+	 * The runtime's provider-request transform (extension message builders +
+	 * `MessageBuilder.buildForApi`), i.e. what produced `context.apiMessages`
+	 * from `context.messages`. Re-compaction swaps in a projected transcript
+	 * and must estimate against its API-safe form, not the raw projection.
+	 */
+	prepareApiMessages: (
+		messages: CoreCompactionContext["messages"],
+	) => Promise<CoreCompactionContext["messages"]>;
+	/**
 	 * Persist a freshly-computed compaction state. `sourceMessages` are the
 	 * exact canonical messages the state's source-prefix hash was computed
 	 * over; hosts must validate projection against these rather than a
@@ -733,7 +788,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: await input.prepareApiMessages(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {

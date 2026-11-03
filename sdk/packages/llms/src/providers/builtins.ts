@@ -12,6 +12,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import { filterImageOutputModels } from "../catalog/model-filters";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -39,13 +40,14 @@ import {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
-import { normalizeProviderId } from "./ids";
+import { BUILT_IN_PROVIDER, normalizeProviderId } from "./ids";
 import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	BUILTIN_TRANSCRIPTION_TRANSPORTS,
 } from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
+import { resolveProviderModelCatalogKeys } from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -61,7 +63,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
-const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.6-terra";
 const NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
 	[{ name: "web_search" }];
 const OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
@@ -397,17 +399,17 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	// Use the catalog's authored order, not release-date order. The cline-pass
-	// block mirrors the recommended-models endpoint, which lists the intended
-	// default subscription model first — the newest model is not necessarily a
-	// safe default.
+	// The generated list is release-date ordered and mixes tiers (cline-pass/*,
+	// cline-free/*, :free). Only a subscribed-tier model is a safe default;
+	// fall back to the first entry only when the catalog has none.
 	const generatedModelList = Object.keys(
 		getGeneratedModelsForProvider(providerId),
 	);
-	if (!generatedModelList.length) {
-		return "";
-	}
-	return generatedModelList[0];
+	return (
+		generatedModelList.find((id) => id.startsWith(`${providerId}/`)) ??
+		generatedModelList[0] ??
+		""
+	);
 }
 
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {
@@ -448,6 +450,26 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 
 function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
+}
+
+/**
+ * Generated catalog models a runtime provider reads from, with that provider's
+ * catalog rules applied. Most runtime providers read their mapped catalog(s)
+ * as-is; the ChatGPT subscription provider shares the OpenAI catalog but only
+ * serves a filtered subset of it.
+ */
+export function getGeneratedModelsForRuntimeProvider(
+	providerId: string,
+): Record<string, ModelInfo> {
+	const models: Record<string, ModelInfo> = Object.assign(
+		{},
+		...resolveProviderModelCatalogKeys(providerId).map((catalogKey) =>
+			getGeneratedModelsForProvider(catalogKey),
+		),
+	);
+	return providerId === BUILT_IN_PROVIDER.OPENAI_CODEX
+		? filterOpenAICodexModels(models)
+		: models;
 }
 
 // Vercel-only model ids surfaced for the Cline provider while the OpenRouter
@@ -497,7 +519,9 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 
 	// Cline's inference backend currently rejects image-output models. Keep
-	// those models in their native OpenRouter and Vercel catalogs.
+	// those models in their native OpenRouter and Vercel catalogs. This filter
+	// is also applied to the merged runtime catalog in mergeKnownModels; remove
+	// both call sites together when the backend gains image-output support.
 	return filterImageOutputModels(models);
 }
 
@@ -561,6 +585,9 @@ function modelInfoToGateway(
 	}
 	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
 		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
+	}
+	if (info.metadata?.apiProtocol) {
+		metadata.apiProtocol = info.metadata.apiProtocol;
 	}
 	return {
 		id: info.id,
@@ -704,7 +731,9 @@ const cline = createClineLikeSpec({
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
-	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+	defaultModelId:
+		GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+		CLINE_DEFAULT_MODEL_ID,
 	defaults: {
 		options: {
 			onResponseError: async (response: Response) => {
@@ -739,6 +768,33 @@ const clinePass = createClineLikeSpec({
  */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
+		// Keep the persisted provider ID and credentials compatible while the
+		// upstream catalog adopts the CoreWeave display name.
+		id: "wandb",
+		name: "CoreWeave",
+		description: "CoreWeave Serverless Inference",
+		docsUrl: "https://docs.wandb.ai/inference/",
+	},
+	{
+		id: "opencode-go",
+		docsUrl: "https://opencode.ai/docs/go/",
+		defaults: {
+			// models.dev lists the OpenAI-only path (/inference/go/openai/v1),
+			// which 404s on /messages. Routing appends per-model protocol
+			// endpoints, so pin the shared root that serves all of them.
+			baseUrl: "https://opencode.ai/inference/go/v1",
+			headers: { "User-Agent": "Cline/SDK" },
+		},
+		metadata: {
+			routing: { modelApiProtocol: true },
+			stickySession: {
+				transport: "header",
+				field: "x-opencode-session",
+				metadataKey: "sessionId",
+			},
+		},
+	},
+	{
 		id: "openai-compatible",
 		name: "OpenAI Compatible",
 		description: "OpenAI-compatible chat completions endpoint",
@@ -748,6 +804,8 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		// Self-hosted endpoints (vLLM, llama.cpp, LM Studio) run without a key.
+		metadata: { apiKeyOptional: true },
 	},
 	cline,
 	clinePass,
@@ -810,6 +868,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "crusoe",
+		name: "Crusoe",
+		description: "Managed inference on renewable-powered GPU infrastructure",
+		family: "openai-compatible",
+		defaultModelId: "zai/GLM-5.2",
+		apiKeyEnv: ["CRUSOE_API_KEY"],
+		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
@@ -823,6 +890,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["LITELLM_API_KEY"],
 		defaults: { baseUrl: "http://localhost:4000/v1" },
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "vercel-ai-gateway",
@@ -849,6 +917,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.v0.dev/v1" },
 	},
 	{
+		id: "aiand",
+		name: "ai&",
+		description: "Sovereign inference for open-weight models served from Japan",
+		family: "openai-compatible",
+		defaultModelId: "zai-org/glm-5.3",
+		apiKeyEnv: ["AIAND_API_KEY"],
+		defaults: { baseUrl: "https://api.aiand.com/v1" },
+	},
+	{
 		id: "aihubmix",
 		name: "AI Hub Mix",
 		description: "AI model aggregator",
@@ -867,6 +944,25 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "hicap-pro",
 		apiKeyEnv: ["HICAP_API_KEY"],
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
+	},
+	{
+		// Refines the models.dev-generated `aimlapi` spec (same id), which
+		// mergeBuiltinSpecs folds this onto rather than registering twice.
+		id: "aimlapi",
+		name: "AI/ML API",
+		description:
+			"Aggregator serving several hundred chat models from multiple vendors behind one OpenAI-compatible endpoint and API key",
+		family: "openai-compatible",
+		// Ranks the provider list and places it in the picker's "Popular"
+		// section: first after Cline's own Usage-Billing (1) and ClinePass (2).
+		popular: 3,
+		defaultModelId: "anthropic/claude-sonnet-5",
+		apiKeyEnv: ["AIMLAPI_API_KEY"],
+		modelsProviderId: "aimlapi",
+		// Attribution is NOT a static default header: that would be sent to any
+		// baseUrl the provider is pointed at. It is added per request, only for
+		// api.aimlapi.com, by wrapFetchForAimlapiAttribution.
+		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
 	},
 	{
 		id: "nousResearch",
@@ -958,7 +1054,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5.2",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
@@ -987,7 +1083,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "anthropic/claude-sonnet-5",
+		defaultModelId: "anthropic/claude-sonnet-5.5",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
@@ -1015,6 +1111,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "http://localhost:11434" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "lmstudio",
@@ -1026,6 +1123,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsProviderId: "lmstudio",
 		defaults: { baseUrl: "http://localhost:1234/v1" },
 		modelsSourceUrl: "http://localhost:1234/v1/models",
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "oca",
@@ -1170,7 +1268,9 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Google Gemini",
 		description: "Google Gemini API",
 		family: "google",
-		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
+		// No native Google Search: free-tier keys have no grounding quota on
+		// Gemini 3+ (every request fails with 429), and Gemini 2.x cannot
+		// combine it with function tools, so the AI SDK drops Cline's tools.
 		popular: 45,
 		capabilities: ["reasoning", "prompt-cache"],
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
@@ -1195,7 +1295,8 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		],
 		modelsFactory: buildVertexModels,
 		configFields: VERTEX_CONFIG_FIELDS,
-		metadata: ANTHROPIC_ROUTING_METADATA,
+		// Application Default Credentials cover the no-key case.
+		metadata: { ...ANTHROPIC_ROUTING_METADATA, apiKeyOptional: true },
 	},
 	{
 		id: "bedrock",
@@ -1214,7 +1315,8 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		],
 		modelsProviderId: "bedrock",
 		configFields: BEDROCK_CONFIG_FIELDS,
-		metadata: BEDROCK_ROUTING_METADATA,
+		// The AWS profile / default credential chain covers the no-key case.
+		metadata: { ...BEDROCK_ROUTING_METADATA, apiKeyOptional: true },
 	},
 	{
 		id: "mistral",
@@ -1234,11 +1336,19 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "OpenCode",
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
-		capabilities: ["reasoning", "oauth"],
+		// local-auth: the spawned `opencode` server authenticates from the
+		// credentials `opencode auth login` stores on this machine. Cline has
+		// no OAuth flow or API key for it.
+		capabilities: ["reasoning", "local-auth"],
 		defaultModelId: "openai/gpt-5.6-sol",
 		modelsProviderId: "opencode",
+		docsUrl: "https://opencode.ai/docs",
 		defaults: { baseUrl: "" },
 		configFields: [],
+		metadata: {
+			// See `resolveProviderLocalCli`.
+			localCliCommand: "opencode",
+		},
 	},
 	{
 		id: "dify",

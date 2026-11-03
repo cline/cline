@@ -69,6 +69,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	if (state.step === "byo_apikey") {
 		return (
 			<OnboardingProviderConfigScreen
+				saveError={state.providerSaveError}
 				activeProviderName={state.activeProviderName}
 				compact={compact}
 				contentWidth={contentWidth}
@@ -86,6 +87,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	if (state.step === "local_cli_setup" && state.localCli) {
 		return (
 			<OnboardingLocalCliScreen
+				saveError={state.providerSaveError}
 				activeProviderName={state.activeProviderName}
 				checking={state.localCliChecking}
 				cli={state.localCli}

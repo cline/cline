@@ -1,6 +1,6 @@
+import { Switch } from "@cline/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
 	DESKTOP_NOTIFICATION_EVENT_TYPES,
 	type DesktopNotificationEventType,

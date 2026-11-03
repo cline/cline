@@ -41,3 +41,24 @@ export function resolveVercelAiGatewayBaseUrl(
 
 	return `${baseUrl}/v4/ai`;
 }
+
+const OFFICIAL_ANTHROPIC_ORIGIN = "https://api.anthropic.com";
+
+/**
+ * Whether a base URL targets Anthropic's own Claude API rather than a gateway
+ * or proxy that serves Claude models (Azure AI Foundry, corporate gateways).
+ * An unset URL means the provider default, which is the official endpoint.
+ * Malformed URLs are treated as custom so official-only options stay off.
+ */
+export function isOfficialAnthropicEndpoint(
+	baseUrl: string | undefined,
+): boolean {
+	if (!baseUrl) {
+		return true;
+	}
+	try {
+		return new URL(baseUrl).origin === OFFICIAL_ANTHROPIC_ORIGIN;
+	} catch {
+		return false;
+	}
+}

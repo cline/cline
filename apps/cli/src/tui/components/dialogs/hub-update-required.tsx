@@ -1,11 +1,9 @@
 // @jsxImportSource @opentui/react
+import { describeOutdatedHubSessions } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useDialogPalette } from "../../hooks/use-theme";
-import {
-	describeOutdatedHubSessions,
-	resolveHubUpdateRequiredKeyAction,
-} from "./hub-update-required-helpers";
+import { resolveHubUpdateRequiredKeyAction } from "./hub-update-required-helpers";
 
 export interface HubUpdateRequiredDetails {
 	hubCoreVersion?: string;

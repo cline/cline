@@ -51,6 +51,8 @@ describe("desktop tray", () => {
 			[
 				{ type: "open-session", sessionId: "session-1" },
 				{ type: "open-settings" },
+				{ type: "check-for-updates" },
+				{ type: "export-diagnostics" },
 				{ type: "zoom-in" },
 				{ type: "zoom-out" },
 				{ type: "zoom-reset" },
@@ -90,6 +92,8 @@ describe("desktop tray", () => {
 				[{ type: "new-session" }],
 				[{ type: "open-session", sessionId: "session-1" }],
 				[{ type: "open-settings" }],
+				[{ type: "check-for-updates" }],
+				[{ type: "export-diagnostics" }],
 				[{ type: "zoom-in" }],
 				[{ type: "zoom-out" }],
 				[{ type: "zoom-reset" }],

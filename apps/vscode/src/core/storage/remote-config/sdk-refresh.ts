@@ -64,7 +64,7 @@ export async function clearSdkRemoteConfig(
 	const workspacePath = await getRemoteConfigWorkspacePath(options.workspacePath)
 	await withPublicationLock(controller, async () => {
 		await clearMaterializedRuntimeBestEffort(workspacePath)
-		clearRemoteConfig(options.organizationId)
+		await clearRemoteConfig(options.organizationId)
 		controller.setRemoteConfigAvailable(false)
 		await controller.setRemoteConfigCoreIntegration(undefined)
 	})
@@ -127,7 +127,7 @@ export async function refreshSdkRemoteConfig(
 					await candidateIntegration?.dispose()
 					candidateIntegration = undefined
 					await clearMaterializedRuntimeBestEffort(workspacePath)
-					clearRemoteConfig()
+					await clearRemoteConfig()
 					await controller.setRemoteConfigCoreIntegration(undefined)
 					shouldPostState = true
 					outcome = "cleared"
@@ -172,7 +172,7 @@ export async function refreshSdkRemoteConfig(
 					}
 					controller.setRemoteConfigAvailable(controlPlane.isRemoteConfigAvailable())
 					await clearMaterializedRuntimeBestEffort(workspacePath)
-					clearRemoteConfig()
+					await clearRemoteConfig()
 					await controller.setRemoteConfigCoreIntegration(undefined)
 					shouldPostState = true
 					outcome = "cleared"

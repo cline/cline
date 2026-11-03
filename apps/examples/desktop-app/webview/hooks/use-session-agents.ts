@@ -12,6 +12,7 @@ const ACTIVE_POLL_INTERVAL_MS = 2500;
  * structurally unreadable rather than something a reset has to remember to clear.
  */
 type RosterState = {
+	environmentId: string | null;
 	sessionId: string | null;
 	entries: SessionAgentEntry[];
 	loading: boolean;
@@ -19,6 +20,7 @@ type RosterState = {
 };
 
 const EMPTY_ROSTER: RosterState = {
+	environmentId: null,
 	sessionId: null,
 	entries: [],
 	loading: false,
@@ -81,10 +83,12 @@ function parseAgentEntries(value: unknown): SessionAgentEntry[] {
  * part worth gating, since it is the only part that costs anything repeatedly.
  */
 export function useSessionAgents({
+	environmentId,
 	sessionId,
 	sessionActive,
 	panelOpen = false,
 }: {
+	environmentId: string;
 	sessionId: string | null;
 	sessionActive: boolean;
 	/** Re-reads when the roster is put on screen; never gates the first read. */
@@ -106,9 +110,11 @@ export function useSessionAgents({
 			const seq = requestSeqRef.current;
 			if (!options?.quiet) {
 				setRoster((prev) =>
+					prev.environmentId === environmentId &&
 					prev.sessionId === targetSessionId
 						? { ...prev, loading: true }
 						: {
+								environmentId,
 								sessionId: targetSessionId,
 								entries: [],
 								loading: true,
@@ -119,12 +125,13 @@ export function useSessionAgents({
 			try {
 				const result = await desktopClient.invoke<unknown>(
 					"list_session_agents",
-					{ sessionId: targetSessionId },
+					{ environmentId, sessionId: targetSessionId },
 				);
 				if (requestSeqRef.current !== seq) {
 					return;
 				}
 				setRoster({
+					environmentId,
 					sessionId: targetSessionId,
 					entries: parseAgentEntries(result),
 					loading: false,
@@ -137,6 +144,7 @@ export function useSessionAgents({
 				const message =
 					err instanceof Error ? err.message : "Could not load agents.";
 				setRoster((prev) => ({
+					environmentId,
 					sessionId: targetSessionId,
 					// A failed read means this attempt learned nothing — not that the
 					// agents are gone. Discarding them would blank a list that had
@@ -148,13 +156,17 @@ export function useSessionAgents({
 					//
 					// Entries from a *different* session are still dropped, so a failure
 					// cannot make the previous session's agents surface under this one.
-					entries: prev.sessionId === targetSessionId ? prev.entries : [],
+					entries:
+						prev.environmentId === environmentId &&
+						prev.sessionId === targetSessionId
+							? prev.entries
+							: [],
 					loading: false,
 					error: message,
 				}));
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	// A roster is only ever read back for the session it was fetched for, so
@@ -163,7 +175,10 @@ export function useSessionAgents({
 	// because mergeAgentActivity prefers a non-empty roster over the
 	// message-derived tally, so a leaked one would render as phantom agents
 	// belonging to the new session.
-	const isCurrent = sessionId !== null && roster.sessionId === sessionId;
+	const isCurrent =
+		sessionId !== null &&
+		roster.environmentId === environmentId &&
+		roster.sessionId === sessionId;
 	const agents = isCurrent ? roster.entries : NO_AGENTS;
 	const loading = isCurrent && roster.loading;
 	const error = isCurrent ? roster.error : null;

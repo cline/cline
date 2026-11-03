@@ -565,6 +565,8 @@ export interface ListRunsOptions {
 }
 
 export interface ClaimRunOptions {
+	/** Database-wide concurrency limit; defaults to 10. Per-spec limits always apply. */
+	maxConcurrency?: number;
 	nowIso: string;
 	leaseMs: number;
 	limit?: number;
@@ -1294,6 +1296,19 @@ export class SqliteCronStore {
 		return count > 0 ? count : undefined;
 	}
 
+	/** Execute synchronous event acceptance and materialization as one atomic write. */
+	public eventTransaction<T>(work: () => T): T {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const result = work();
+			this.db.exec("COMMIT;");
+			return result;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
 	public insertEventLog(
 		event: AutomationEventEnvelope,
 		options: { receivedAtIso?: string } = {},
@@ -1579,6 +1594,32 @@ export class SqliteCronStore {
 		return changes;
 	}
 
+	/**
+	 * Cancels queued cron occurrences superseded by a newer queued occurrence
+	 * of the same spec, so a backlog runs once instead of replaying every
+	 * missed slot back to back.
+	 */
+	public cancelSupersededScheduleRuns(): number {
+		const now = nowIso();
+		return (
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', error = ?, completed_at = ?, updated_at = ?
+						WHERE status = 'queued' AND trigger_kind = 'schedule'
+							AND scheduled_for IS NOT NULL
+							AND EXISTS (
+								SELECT 1 FROM cron_runs newer
+								WHERE newer.spec_id = cron_runs.spec_id
+									AND newer.status = 'queued'
+									AND newer.trigger_kind = 'schedule'
+									AND newer.scheduled_for > cron_runs.scheduled_for
+							)`,
+				)
+				.run("Skipped: superseded by a newer scheduled run", now, now)
+				.changes ?? 0
+		);
+	}
+
 	private cancelQueuedOneOffRunsForSpec(specId: string): number {
 		const changes =
 			this.db
@@ -1601,24 +1642,41 @@ export class SqliteCronStore {
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
-			const rows = this.db
-				.prepare(
-					`SELECT * FROM cron_runs
-						WHERE (
-								status = 'queued'
-								OR (
-									status = 'running'
-									AND claim_until_at IS NOT NULL
-									AND claim_until_at <= ?
-									AND completed_at IS NULL
-								)
-							)
-							AND (scheduled_for IS NULL OR scheduled_for <= ?)
-						ORDER BY COALESCE(scheduled_for, created_at) ASC
-						LIMIT ?`,
+			// Re-evaluate capacity after every claim in the same write transaction.
+			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
+			// Positional parameters only: bun:sqlite binds unprefixed named
+			// parameters as NULL, which silently matches no rows.
+			const nextDueRun = this.db.prepare(`
+				SELECT * FROM cron_runs
+				WHERE (
+					status = 'queued'
+					OR (status = 'running' AND claim_until_at <= ? AND completed_at IS NULL)
 				)
-				.all(referenceIso, referenceIso, limit);
-			for (const row of rows) {
+				AND (scheduled_for IS NULL OR scheduled_for <= ?)
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.status = 'running' AND active.claim_until_at > ?
+				) < ?
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.spec_id = cron_runs.spec_id
+					AND active.status = 'running' AND active.claim_until_at > ?
+				) < COALESCE((
+					SELECT MAX(1, max_parallel) FROM cron_specs WHERE spec_id = cron_runs.spec_id
+				), 1)
+				ORDER BY COALESCE(scheduled_for, created_at) ASC, rowid ASC
+				LIMIT 1
+			`);
+			const capacity = Math.max(1, Math.floor(options.maxConcurrency ?? 10));
+			while (claimed.length < limit) {
+				const row = nextDueRun.get(
+					referenceIso,
+					referenceIso,
+					referenceIso,
+					capacity,
+					referenceIso,
+				);
+				if (!row) break;
 				const runId = asString(row.run_id);
 				if (!runId) continue;
 				const claimToken = `cclaim_${randomUUID()}`;
@@ -1732,6 +1790,8 @@ export class SqliteCronStore {
 		update: ClaimBoundUpdate & {
 			error?: string;
 			scheduledFor?: string;
+			/** Undo the claim's attempt increment when execution never started. */
+			releaseAttempt?: boolean;
 		},
 	): boolean {
 		const updatedAt = nowIso();
@@ -1740,6 +1800,7 @@ export class SqliteCronStore {
 				.prepare(
 					`UPDATE cron_runs SET
 						status = 'queued',
+						attempt_count = MAX(0, attempt_count - ?),
 						claim_started_at = NULL,
 						claim_token = NULL,
 						claim_until_at = NULL,
@@ -1753,6 +1814,7 @@ export class SqliteCronStore {
 					WHERE run_id = ? AND claim_token = ?`,
 				)
 				.run(
+					update.releaseAttempt ? 1 : 0,
 					update.error ?? null,
 					update.scheduledFor ?? null,
 					updatedAt,
@@ -1762,12 +1824,18 @@ export class SqliteCronStore {
 		return changes > 0;
 	}
 
-	public attachSessionIdToRun(runId: string, sessionId: string): void {
-		this.db
-			.prepare(
-				`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ?`,
-			)
-			.run(sessionId, nowIso(), runId);
+	public attachSessionIdToRun(
+		runId: string,
+		sessionId: string,
+		claimToken: string,
+	): boolean {
+		return (
+			(this.db
+				.prepare(
+					`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ? AND claim_token = ? AND status = 'running'`,
+				)
+				.run(sessionId, nowIso(), runId, claimToken).changes ?? 0) === 1
+		);
 	}
 
 	public attachReportPathToRun(runId: string, reportPath: string): void {

@@ -120,6 +120,15 @@ if (process.env.OTEL_LOGS_EXPORTER) {
 if (process.env.OTEL_METRICS_EXPORTER) {
 	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
 }
+if (process.env.OTEL_TRACES_EXPORTER) {
+	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
+}
+if (process.env.CLINE_TRACE_SAMPLE_PERCENT) {
+	buildEnvVars["process.env.CLINE_TRACE_SAMPLE_PERCENT"] = JSON.stringify(process.env.CLINE_TRACE_SAMPLE_PERCENT)
+}
+if (process.env.CLINE_TRACE_RECORD_CONTENT) {
+	buildEnvVars["process.env.CLINE_TRACE_RECORD_CONTENT"] = JSON.stringify(process.env.CLINE_TRACE_RECORD_CONTENT)
+}
 if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
 }
@@ -182,8 +191,20 @@ const e2eBuildConfig = {
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
+/** Copy core's complete plugin runtime; its own package.json provides ESM scope. */
+function copyPluginRuntime() {
+	const source = path.resolve(__dirname, "../../sdk/packages/core/dist/plugin-runtime")
+	if (!fs.existsSync(path.join(source, "plugin-sandbox-bootstrap.js"))) {
+		throw new Error(`[esbuild] ${source} not found; run bun run build:sdk first`)
+	}
+	const destination = path.join(destDir, "plugin-runtime")
+	fs.rmSync(destination, { recursive: true, force: true })
+	fs.cpSync(source, destination, { recursive: true })
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
+	if (!e2eBuild) copyPluginRuntime()
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()

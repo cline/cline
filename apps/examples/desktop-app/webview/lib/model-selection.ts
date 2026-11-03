@@ -60,7 +60,9 @@ export function parseModelSelectionStorage(
 	}
 }
 
-export function readModelSelectionStorageFromWindow(): ModelSelectionStorage {
+export function readModelSelectionStorageFromWindow(
+	scope: ExecutionTarget = "local",
+): ModelSelectionStorage {
 	if (typeof window === "undefined") {
 		return {
 			lastProvider: "",
@@ -68,18 +70,141 @@ export function readModelSelectionStorageFromWindow(): ModelSelectionStorage {
 		};
 	}
 	return parseModelSelectionStorage(
-		window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+		window.localStorage.getItem(modelSelectionStorageKey(scope)),
 	);
 }
 
 export function writeModelSelectionStorageToWindow(
 	value: ModelSelectionStorage,
+	scope: ExecutionTarget = "local",
 ): void {
 	if (typeof window === "undefined") {
 		return;
 	}
 	window.localStorage.setItem(
-		MODEL_SELECTION_STORAGE_KEY,
+		modelSelectionStorageKey(scope),
 		JSON.stringify(value),
 	);
+}
+
+export const MODEL_SELECTION_CHANGED_EVENT = "cline:model-selection-changed";
+
+export type ModelSelectionChangedDetail = {
+	providerId: string;
+	modelId: string;
+};
+
+/**
+ * Makes a model the default for new chats and switches the open composer to
+ * it, for selections made outside the composer (e.g. Settings → Local Models).
+ */
+export function selectChatModel(providerId: string, modelId: string): void {
+	const selection = readModelSelectionStorageFromWindow();
+	writeModelSelectionStorageToWindow({
+		lastProvider: providerId,
+		lastModelByProvider: {
+			...selection.lastModelByProvider,
+			[providerId]: modelId,
+		},
+	});
+	window.dispatchEvent(
+		new CustomEvent<ModelSelectionChangedDetail>(
+			MODEL_SELECTION_CHANGED_EVENT,
+			{ detail: { providerId, modelId } },
+		),
+	);
+}
+
+export const REASONING_SELECTION_STORAGE_KEY =
+	"cline.code.reasoning-selection.v1";
+
+export const REASONING_SELECTION_VALUES = [
+	"none",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+] as const;
+
+export type ReasoningSelectionValue =
+	(typeof REASONING_SELECTION_VALUES)[number];
+
+/** Last reasoning effort picked for each provider, like `lastModelByProvider`. */
+export function readReasoningSelectionStorageFromWindow(): Record<
+	string,
+	ReasoningSelectionValue
+> {
+	if (typeof window === "undefined") {
+		return {};
+	}
+	try {
+		const parsed = JSON.parse(
+			window.localStorage.getItem(REASONING_SELECTION_STORAGE_KEY) ?? "null",
+		) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+		return Object.fromEntries(
+			Object.entries(parsed).filter(
+				(entry): entry is [string, ReasoningSelectionValue] =>
+					(REASONING_SELECTION_VALUES as readonly string[]).includes(
+						entry[1] as string,
+					),
+			),
+		);
+	} catch {
+		return {};
+	}
+}
+
+export function writeReasoningSelectionToWindow(
+	providerId: string,
+	value: ReasoningSelectionValue,
+): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	window.localStorage.setItem(
+		REASONING_SELECTION_STORAGE_KEY,
+		JSON.stringify({
+			...readReasoningSelectionStorageFromWindow(),
+			[providerId]: value,
+		}),
+	);
+}
+
+export type ExecutionTarget = "local" | "cloud";
+export const EXECUTION_TARGET_STORAGE_KEY = "cline.code.execution-target.v1";
+
+function modelSelectionStorageKey(scope: ExecutionTarget): string {
+	// Cloud has a different model catalog; keep the local provider/model intact.
+	return scope === "cloud"
+		? "cline.code.cloud-model-selection.v1"
+		: MODEL_SELECTION_STORAGE_KEY;
+}
+
+export function readExecutionTargetFromWindow(): ExecutionTarget {
+	try {
+		return typeof window !== "undefined" &&
+			JSON.parse(
+				window.localStorage.getItem(EXECUTION_TARGET_STORAGE_KEY) ?? "null",
+			)?.target === "cloud"
+			? "cloud"
+			: "local";
+	} catch {
+		return "local";
+	}
+}
+
+export function writeExecutionTargetToWindow(target: ExecutionTarget): void {
+	try {
+		if (typeof window !== "undefined") {
+			window.localStorage.setItem(
+				EXECUTION_TARGET_STORAGE_KEY,
+				JSON.stringify({ target }),
+			);
+		}
+	} catch {
+		// Ignore localStorage persistence failures.
+	}
 }

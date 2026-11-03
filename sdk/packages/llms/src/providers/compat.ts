@@ -70,6 +70,9 @@ function toGatewayModelDefinition(
 		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
+			...(model.metadata?.apiProtocol
+				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
@@ -137,7 +140,15 @@ function resolveFactory(
 	}
 }
 
-async function resolveProviderRegistration(
+/**
+ * Bridge a provider from the model catalog (builtins routed under a custom id,
+ * providers.json/models.json registrations, host `registerProvider` calls)
+ * into a `GatewayProviderRegistration` the gateway can execute. Returns
+ * `undefined` for builtin ids the gateway already knows and for ids that are
+ * unknown to the catalog, in which case the gateway's own resolution (and
+ * error reporting) applies.
+ */
+export async function resolveGatewayProviderRegistration(
 	config: ProviderConfig,
 ): Promise<GatewayProviderRegistration | undefined> {
 	const providerId = normalizeProviderId(config.providerId);
@@ -203,7 +214,8 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+/** Synchronous variant of {@link resolveGatewayProviderRegistration}. */
+export function resolveGatewayProviderRegistrationSync(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);
@@ -583,7 +595,11 @@ function toApiStreamChunk(
 				success: event.reason !== "error",
 				error: event.error,
 				incompleteReason:
-					event.reason === "max-tokens" ? "max_tokens" : undefined,
+					event.reason === "max-tokens"
+						? "max_tokens"
+						: event.reason === "content-filter"
+							? "content_filter"
+							: undefined,
 			};
 	}
 }
@@ -600,7 +616,7 @@ function resolveModelInfo(config: ProviderConfig): ModelInfo {
 }
 
 class GatewayApiHandler implements ApiHandler {
-	private abortSignal: AbortSignal | undefined;
+	protected abortSignal: AbortSignal | undefined;
 
 	constructor(private readonly config: ProviderConfig) {
 		this.abortSignal = config.abortSignal;
@@ -627,7 +643,7 @@ class GatewayApiHandler implements ApiHandler {
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 			telemetry: this.config.extensionContext?.telemetry,
 		});
-		const registration = resolveProviderRegistrationSync(this.config);
+		const registration = resolveGatewayProviderRegistrationSync(this.config);
 		if (registration) {
 			gateway.registerProvider(registration);
 		}
@@ -681,7 +697,7 @@ export async function createGatewayApiHandlerAsync(
 		logger: config.logger ?? config.extensionContext?.logger,
 		telemetry: config.extensionContext?.telemetry,
 	});
-	const registration = await resolveProviderRegistration(config);
+	const registration = await resolveGatewayProviderRegistration(config);
 	if (registration) {
 		gateway.registerProvider(registration);
 	}
@@ -696,7 +712,10 @@ export async function createGatewayApiHandlerAsync(
 				systemPrompt,
 				messages,
 				tools,
-				config.abortSignal,
+				// `this.abortSignal`, not `config.abortSignal`: the field starts as
+				// the config value but stays live through `setAbortSignal`, which
+				// the captured config value would silently ignore.
+				this.abortSignal,
 			);
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {

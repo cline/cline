@@ -2,10 +2,13 @@
 
 import { Store } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { ComposioConnectorsView } from "./composio-connectors-view";
 import {
 	CustomizationSectionView,
 	invalidateExtensionInventoryCache,
@@ -19,15 +22,23 @@ import { McpServersContent } from "./mcp-view";
  * reached from the sidebar or the header button here.
  */
 
-type CustomizeTab = "skills" | "mcp" | "plugins" | "rules" | "hooks" | "tools";
+type CustomizeTab =
+	| "skills"
+	| "mcp"
+	| "integrations"
+	| "plugins"
+	| "rules"
+	| "hooks"
+	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
-	{ id: "skills", label: "Skills" },
-	{ id: "mcp", label: "MCP" },
-	{ id: "plugins", label: "Plugins" },
-	{ id: "rules", label: "Rules" },
-	{ id: "hooks", label: "Hooks" },
+	{ id: "integrations", label: "Connectors" },
 	{ id: "tools", label: "Tools" },
+	{ id: "plugins", label: "Plugins" },
+	{ id: "skills", label: "Skills" },
+	{ id: "rules", label: "Rules" },
+	{ id: "mcp", label: "MCP" },
+	{ id: "hooks", label: "Hooks" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -47,23 +58,42 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	onOpenModelProviders,
 	onOpenMarketplace,
 }: {
-	onOpenMarketplace?: () => void;
+	onOpenMarketplace?: (filter?: "connector") => void;
+	onOpenModelProviders?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("skills");
+	// Connectors is always the first tab; when the account cannot use them
+	// the tab itself explains why and offers sign-in.
+	const [tab, setTab] = useState<CustomizeTab>("integrations");
 	const [counts, setCounts] = useState<TabCounts>({});
 
 	const refreshCounts = useCallback(async () => {
-		const inventory = await desktopClient
-			.invoke<HubInventoryResponse>("list_user_instruction_configs")
-			.catch(() => null);
+		const [inventory, composioStatus] = await Promise.all([
+			desktopClient
+				.invoke<HubInventoryResponse>("list_user_instruction_configs")
+				.catch(() => null),
+			fetchComposioStatus().catch(() => null),
+		]);
+		const connectedIntegrations = composioStatus?.configured
+			? composioStatus.integrations.filter(
+					(integration) => integration.status === "connected",
+				).length
+			: undefined;
 		if (!inventory) {
+			if (connectedIntegrations !== undefined) {
+				setCounts((previous) => ({
+					...previous,
+					integrations: connectedIntegrations,
+				}));
+			}
 			return;
 		}
 		setCounts({
 			skills: asCount(inventory.skills) + asCount(inventory.workflows),
 			mcp: asCount(inventory.mcp?.servers),
+			integrations: connectedIntegrations,
 			plugins: asCount(inventory.plugins),
 			rules: asCount(inventory.rules),
 			hooks: asCount(inventory.hooks),
@@ -97,7 +127,7 @@ export function CustomizeView({
 				actions={
 					onOpenMarketplace ? (
 						<Button
-							onClick={onOpenMarketplace}
+							onClick={() => onOpenMarketplace()}
 							size="sm"
 							type="button"
 							variant="outline"
@@ -107,7 +137,7 @@ export function CustomizeView({
 						</Button>
 					) : undefined
 				}
-				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
+				description="Extend what Cline can do and how it works. Explore the marketplace for more options."
 				title="Customize"
 			/>
 
@@ -130,6 +160,7 @@ export function CustomizeView({
 							variant="ghost"
 						>
 							{customizeTab.label}
+							{customizeTab.id === "integrations" ? <Badge>Beta</Badge> : null}
 							{typeof count === "number" ? (
 								<span
 									className={cn(
@@ -164,6 +195,12 @@ export function CustomizeView({
 					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
 				/>
+			) : tab === "integrations" ? (
+				<ComposioConnectorsView
+					appendOnScroll
+					onChanged={handleInventoryChanged}
+					variant="installed"
+				/>
 			) : tab === "plugins" ? (
 				<CustomizationSectionView
 					catalogPrimitive="plugin"
@@ -189,6 +226,7 @@ export function CustomizeView({
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 					section="Tools"
+					onOpenModelProviders={onOpenModelProviders}
 				/>
 			)}
 		</PageFrame>

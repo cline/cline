@@ -35,6 +35,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 		<TaskHeader
 			cacheReads={apiMetrics.totalCacheReads}
 			cacheWrites={apiMetrics.totalCacheWrites}
+			compactDisabled={messageHandlers.errorRecoveryAvailable}
+			compactTask={messageHandlers.compactTask}
 			doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
 			onClose={messageHandlers.handleTaskCloseButtonClick}

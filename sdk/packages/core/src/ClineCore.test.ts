@@ -777,6 +777,9 @@ Summarize the local event.
 			expect(result.queuedRuns).toHaveLength(1);
 
 			await core.automation.start();
+			await expect
+				.poll(() => core.automation.listRuns()[0]?.status)
+				.toBe("done");
 			await core.automation.stop();
 			await core.dispose();
 

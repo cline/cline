@@ -1,3 +1,5 @@
+import type { CloudSessionStatus } from "./cloud/cloud-sessions"
+
 export type HistoryItem = {
 	id: string
 	ulid?: string // ULID for better tracking and metrics
@@ -23,4 +25,12 @@ export type HistoryItem = {
 	 */
 	apiProvider?: string
 	isLegacy?: boolean
+
+	/** "cloud" for Cline Cloud sessions; absent/"local" for tasks run in this workspace. */
+	executionTarget?: "local" | "cloud"
+	cloudStatus?: CloudSessionStatus
+	cloudRepoUrl?: string
+	cloudBranch?: string
+	/** True when cloud usage came from an authoritative remote runtime snapshot. */
+	cloudUsageAvailable?: boolean
 }

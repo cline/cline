@@ -10,6 +10,7 @@ import {
 	setConnectorCliLaunchSpec,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
+import { resolveDesktopCliPath } from "./cli-runtime";
 import type { JsonRecord } from "./types";
 
 type ConnectorField = {
@@ -113,9 +114,14 @@ function buildCliConnectCommand(
 	options: {
 		execPath?: string;
 		cliPath?: string;
+		desktopCliPath?: string;
 		exists?: (path: string) => boolean;
 	} = {},
 ): CliConnectCommand {
+	const desktopCliPath = options.desktopCliPath ?? resolveDesktopCliPath();
+	if (desktopCliPath) {
+		return { launcher: desktopCliPath, childArgs: ["connect", ...args] };
+	}
 	const execPath = options.execPath ?? process.execPath;
 	const cliPath =
 		options.cliPath ?? normalize(join(workspaceRoot, "apps/cli/src/index.ts"));

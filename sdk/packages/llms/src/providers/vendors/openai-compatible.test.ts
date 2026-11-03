@@ -11,7 +11,7 @@ import {
 } from "./openai-compatible";
 
 describe("isOpenAIReasoningEraModelId", () => {
-	it("matches o-series and gpt-5-family model ids", () => {
+	it("matches o-series and gpt-5-and-later model ids", () => {
 		for (const modelId of [
 			"o1",
 			"o1-mini",
@@ -32,6 +32,14 @@ describe("isOpenAIReasoningEraModelId", () => {
 			"openai/gpt-5.2",
 			"GPT-5-Mini",
 			"azure-gpt-5-mini",
+			"gpt-5.6-sol",
+			"gpt-6",
+			"gpt-6-sol",
+			"gpt-6.1-sol",
+			"gpt-6-1-sol",
+			"openai/gpt-6-luna",
+			"azure/gpt-6-astra",
+			"gpt-7",
 		]) {
 			expect(isOpenAIReasoningEraModelId(modelId), modelId).toBe(true);
 		}
@@ -57,6 +65,10 @@ describe("isOpenAIReasoningEraModelId", () => {
 			"chatgpt-5",
 			"somegpt-5-custom",
 			"xgpt5",
+			"gpt-35-turbo-16k",
+			"gpt-55",
+			"gpt-6o",
+			"somegpt-6-custom",
 		]) {
 			expect(isOpenAIReasoningEraModelId(modelId), modelId).toBe(false);
 		}
@@ -128,6 +140,17 @@ describe("createOpenAICompatibleProviderModule wire format", () => {
 		expect(requestBody()).toMatchObject({
 			model: "gpt-5.2",
 			max_completion_tokens: 8_192,
+		});
+		expect(requestBody()).not.toHaveProperty("max_tokens");
+	});
+
+	it("sends max_completion_tokens instead of max_tokens for gpt-6 streaming requests", async () => {
+		const { requestBody } = await stream({ modelId: "gpt-6.1-sol" });
+
+		expect(requestBody()).toMatchObject({
+			model: "gpt-6.1-sol",
+			max_completion_tokens: 8_192,
+			stream: true,
 		});
 		expect(requestBody()).not.toHaveProperty("max_tokens");
 	});

@@ -1,5 +1,6 @@
 import { Command, CommanderError, Option } from "commander";
 import { version } from "../../package.json";
+import { CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES } from "../runtime/defaults";
 import {
 	CLI_COMPACTION_MODE_OPTION_DESCRIPTION,
 	parseCliCompactionMode,
@@ -24,6 +25,10 @@ export function addRootOptions(cmd: Command): Command {
 	return (
 		cmd
 			.option("-p, --plan", "Run in plan mode")
+			.option(
+				"-y, --yolo",
+				"Auto-approve a limited tool set for unsupervised runs (benchmarks, CI). DANGEROUS: use only in sandboxed environments.",
+			)
 			.option("--json", "Output messages as JSON instead of styled text")
 			.option(
 				"--auto-approve <boolean>",
@@ -33,7 +38,7 @@ export function addRootOptions(cmd: Command): Command {
 			.option("-c, --cwd <path>", "Working directory")
 			.option(
 				"--thinking <level>",
-				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted leaves provider default.",
+				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level last chosen with /model, or the provider default.",
 			)
 			.option("--compaction <mode>", CLI_COMPACTION_MODE_OPTION_DESCRIPTION)
 			.option(
@@ -42,7 +47,10 @@ export function addRootOptions(cmd: Command): Command {
 			)
 			.option("--id <session-id>", "Resume an existing session by ID")
 			.option("-P, --provider <id>", "Provider id (default: cline)")
-			.option("-k, --key <api-key>", "API key override for this run")
+			.option(
+				"-k, --key <api-key>",
+				"API key for this run, also saved as the provider's key",
+			)
 			.option(
 				"-m, --model <model-id>",
 				"Model to use for the session with the selected provider",
@@ -53,8 +61,8 @@ export function addRootOptions(cmd: Command): Command {
 			)
 			.option("-z, --zen", "Start a session that runs in the background hub")
 			.option(
-				"--retries [value]",
-				"Number of maximum consecutive mistakes (retries) before exiting (default: 6)",
+				"--retries <count>",
+				`Number of maximum consecutive mistakes (retries) before exiting (default: ${CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES})`,
 			)
 			.option(
 				"-t, --timeout <seconds>",
@@ -85,14 +93,6 @@ export function addRootOptions(cmd: Command): Command {
 				// Act mode is the default. Keep the legacy flags accepted for users who
 				// still pass them, but do not advertise them in help output.
 				new Option("-a, --act", "Run in act mode").hideHelp(),
-			)
-			.addOption(
-				// `-y, --yolo` is still accepted (and behaves the same as before) but
-				// hidden from `--help` output.
-				new Option(
-					"-y, --yolo",
-					"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
-				).hideHelp(),
 			)
 			.addOption(
 				// TODO: Refactor teams to resume session without team name

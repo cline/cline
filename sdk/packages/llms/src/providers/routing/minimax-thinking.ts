@@ -53,10 +53,11 @@ export function buildMiniMaxThinkingProviderOptionsPatch(
 	}
 	return {
 		openaiCompatible: thinking,
-		[request.providerId]: thinking,
-		...(providerOptionsKey !== request.providerId
-			? { [providerOptionsKey]: thinking }
-			: {}),
+		...buildProviderAndAliasPatch({
+			providerId: request.providerId,
+			providerOptionsKey: providerOptionsKey,
+			bucketOptions: thinking,
+		}),
 	};
 }
 

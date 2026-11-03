@@ -4,7 +4,7 @@
 		"openai-codex": {
 			"settings": {
 				"provider": "openai-codex",
-				"model": "gpt-5.4",
+				"model": "gpt-5.6-terra",
 				"headers": {
 					"originator": "cline-live-test",
 					"session_id": "llms-live-openai-codex",

@@ -129,6 +129,8 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/tools/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
+export type { WorkerSandboxOptions } from "./runtime/tools/worker-sandbox";
+export { WorkerSandbox } from "./runtime/tools/worker-sandbox";
 export {
 	FeatureFlagsService,
 	type FeatureFlagsServiceOptions,

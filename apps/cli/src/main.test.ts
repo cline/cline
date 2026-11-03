@@ -22,6 +22,8 @@ const originalStdinIsTTY = process.stdin.isTTY;
 const originalStdoutIsTTY = process.stdout.isTTY;
 const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const mockState = vi.hoisted(() => ({
+	coreImports: 0,
+	wizardImports: [] as string[],
 	runAgentImports: 0,
 	runInteractiveImports: 0,
 	runAgentCalls: 0,
@@ -102,6 +104,12 @@ const historyMocks = vi.hoisted(() => ({
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
 }));
+
+const wizardMocks = vi.hoisted(() => ({
+	connect: vi.fn(async () => 0),
+	mcp: vi.fn(async () => 0),
+	schedule: vi.fn(async () => 0),
+}));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
 		core: {
@@ -165,10 +173,16 @@ vi.mock("./runtime/run-interactive", () => {
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", async () => {
+	mockState.coreImports += 1;
+	// Keep dispatch tests independent of the full SDK runtime import graph.
+	// Only persisted-settings behavior needs its real implementation here.
+	const { readGlobalSettings } = await vi.importActual<
+		typeof import("../../../sdk/packages/core/src/services/global-settings")
+	>("../../../sdk/packages/core/src/services/global-settings");
 	return {
-		...(await vi.importActual("@cline/core")),
+		readGlobalSettings,
+		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
-		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
 			start: vi.fn(async () => {}),
 			stop: vi.fn(),
@@ -212,6 +226,18 @@ vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
+vi.mock("./wizards/connect", () => {
+	mockState.wizardImports.push("connect");
+	return { runConnectWizard: wizardMocks.connect };
+});
+vi.mock("./wizards/mcp", () => {
+	mockState.wizardImports.push("mcp");
+	return { runMcpWizard: wizardMocks.mcp };
+});
+vi.mock("./wizards/schedule", () => {
+	mockState.wizardImports.push("schedule");
+	return { runScheduleWizard: wizardMocks.schedule };
+});
 
 describe("runCli lightweight command dispatch", () => {
 	let globalSettingsRoot: string | undefined;
@@ -225,6 +251,12 @@ describe("runCli lightweight command dispatch", () => {
 			globalSettingsRoot,
 			"global-settings.json",
 		);
+		mockState.coreImports = 0;
+		mockState.wizardImports = [];
+		for (const wizard of Object.values(wizardMocks)) {
+			wizard.mockReset();
+			wizard.mockResolvedValue(0);
+		}
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 		mockState.runAgentCalls = 0;
@@ -368,9 +400,52 @@ describe("runCli lightweight command dispatch", () => {
 		const historyListCalls = historyMocks.runHistoryList.mock
 			.calls as unknown as Array<[Record<string, unknown>]>;
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
+		expect(mockState.coreImports).toBe(0);
+		expect(mockState.wizardImports).toEqual([]);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
+
+	it("does not capture an activation event for hub commands", async () => {
+		// The desktop app and the SSH remote flow run `cline hub ensure` on
+		// every launch/connect; those must not count as CLI activations.
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard", "--no-open"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledTimes(1);
+		expect(telemetryMocks.captureCliExtensionActivated).not.toHaveBeenCalled();
+	});
+
+	it("captures an activation event for regular commands", async () => {
+		process.argv = ["bun", "src/index.ts", "history", "--json"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(telemetryMocks.captureCliExtensionActivated).toHaveBeenCalledTimes(
+			1,
+		);
+	});
+
+	it.each([
+		"connect",
+		"mcp",
+		"schedule",
+	] as const)("runs the %s wizard only when its interactive command is selected", async (command) => {
+		process.argv = ["bun", "src/index.ts", command];
+		wizardMocks[command].mockResolvedValue(7);
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(process.exitCode).toBe(7);
+		for (const [name, wizard] of Object.entries(wizardMocks)) {
+			expect(wizard).toHaveBeenCalledTimes(name === command ? 1 : 0);
+		}
+		expect(mockState.runAgentCalls).toBe(0);
+	});
 
 	it("routes connector restart arguments through the restart lifecycle", async () => {
 		process.argv = [
@@ -787,6 +862,9 @@ describe("runCli lightweight command dispatch", () => {
 		const notice = {
 			id: "cline-cli-cline-pass-intro",
 			title: "Try ClinePass",
+			body: "ClinePass body",
+			url: "https://app.cline.bot/dashboard/subscription?personal=true",
+			openLabel: "Open ClinePass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
 		process.argv = ["bun", "src/index.ts"];
@@ -810,7 +888,7 @@ describe("runCli lightweight command dispatch", () => {
 		await options?.onInitialNoticeShown?.(notice);
 		expect(
 			migrationNoticeMocks.markClineCliMigrationNoticeShown,
-		).toHaveBeenCalledTimes(1);
+		).toHaveBeenCalledWith(undefined, notice.id);
 	});
 
 	it("passes the active ClinePass provider into the migration notice gate", async () => {
@@ -1171,6 +1249,9 @@ describe("runCli lightweight command dispatch", () => {
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue({
 			id: "cline-cli-cline-pass-intro",
 			title: "Try ClinePass",
+			body: "ClinePass body",
+			url: "https://app.cline.bot/dashboard/subscription?personal=true",
+			openLabel: "Open ClinePass",
 		});
 		process.argv = ["bun", "src/index.ts", "history"];
 
@@ -1370,17 +1451,28 @@ describe("runCli lightweight command dispatch", () => {
 		expect(process.exitCode).toBe(0);
 	});
 
-	it("runs dashboard before loading runtime modules", async () => {
+	it.each([
+		["hub", "dashboard"],
+		["dashboard"],
+	])("runs %s dashboard before loading runtime modules", async (...command) => {
 		process.argv = [
 			"bun",
 			"src/index.ts",
-			"dashboard",
+			...command,
 			"--config",
 			"/tmp/cline-config",
+			"--cwd",
+			"/tmp/workspace",
 			"--data-dir",
 			".cline-dashboard-data",
+			"--host",
+			"127.0.0.1",
 			"--port",
 			"9090",
+			"--public-url",
+			"https://dashboard.example",
+			"--room-secret",
+			"test-invite-secret",
 			"--no-open",
 		];
 
@@ -1390,8 +1482,12 @@ describe("runCli lightweight command dispatch", () => {
 		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
 			expect.objectContaining({
 				configDir: "/tmp/cline-config",
+				cwd: "/tmp/workspace",
 				dataDir: ".cline-dashboard-data",
+				host: "127.0.0.1",
 				port: "9090",
+				publicUrl: "https://dashboard.example",
+				roomSecret: "test-invite-secret",
 				openBrowser: false,
 				io: expect.any(Object),
 			}),
@@ -1399,6 +1495,27 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 		expect(process.exitCode).toBe(0);
+	});
+
+	it("opens the hub dashboard in a browser by default", async () => {
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard"];
+		const { runCli } = await import("./main");
+		await runCli();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
+			expect.objectContaining({ cwd: process.cwd(), openBrowser: true }),
+		);
+		expect(process.exitCode).toBe(0);
+	});
+
+	it("preserves the hub dashboard failure exit code", async () => {
+		dashboardMocks.runDashboardCommand.mockResolvedValue(1);
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard", "--no-open"];
+		const { runCli } = await import("./main");
+		await runCli();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledTimes(1);
+		expect(process.exitCode).toBe(1);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
 	it("prints an install hint when kanban is missing", async () => {

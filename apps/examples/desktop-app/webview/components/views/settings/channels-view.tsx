@@ -6,6 +6,7 @@ import {
 	type ConnectorChannelsResponse,
 	shouldIncludeConnectorField,
 } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import { Circle, Eye, EyeOff, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -27,7 +28,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
@@ -715,7 +715,7 @@ export function ChannelsContent({
 								</button>
 								<Switch
 									aria-busy={pendingType !== undefined}
-									aria-label={`${isConnected ? "Disconnect" : "Connect"} ${channel.name}`}
+									aria-label={`${channel.name} connection`}
 									checked={isConnected}
 									className="mr-4"
 									disabled={isBusy}

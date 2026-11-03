@@ -4,6 +4,7 @@ import type { HubTransportContext } from "./handlers/context";
 import {
 	createHubClientContributionRuntime,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	parseHubClientContributions,
 } from "./hub-client-contributions";
 
 type ClientContributionRequest = Parameters<
@@ -11,6 +12,37 @@ type ClientContributionRequest = Parameters<
 >[0]["requestCapability"];
 
 describe("hub capability custom tools", () => {
+	it.each([
+		"Keep going.",
+		undefined,
+		42,
+	])("preserves valid success context through parsing and proxy creation: %s", (successContext) => {
+		const contributions = parseHubClientContributions(
+			JSON.parse(
+				JSON.stringify([
+					{
+						kind: "tool",
+						name: "custom_tool",
+						description: "Custom tool",
+						inputSchema: { type: "object" },
+						capabilityName: "custom_tool.custom_tool",
+						successContext,
+					},
+				]),
+			),
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions,
+			requestCapability: vi.fn(async () => ({ result: "done" })),
+		});
+		expect(runtime.localRuntime.extraTools).toHaveLength(1);
+		expect(runtime.localRuntime.extraTools?.[0]?.successContext).toBe(
+			typeof successContext === "string" ? successContext : undefined,
+		);
+	});
+
 	it("proxies custom tool execution to the owning client", async () => {
 		const request: ClientContributionRequest = vi.fn(
 			async (
@@ -264,6 +296,61 @@ describe("hub client runtime capabilities", () => {
 					snapshot,
 				},
 			},
+			"client-1",
+		);
+	});
+
+	it("does not proxy per-chunk stream events to remote onEvent hooks", async () => {
+		const request = vi.fn(async () => ({}));
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{ kind: "hook", name: "onEvent", capabilityName: "hook.onEvent" },
+			],
+			requestCapability: request,
+		});
+		const snapshot = {
+			agentId: "agent-1",
+			runId: "conv-1",
+			status: "running" as const,
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+		const onEvent = runtime.localRuntime.hooks?.onEvent;
+
+		for (let index = 0; index < 100; index += 1) {
+			await onEvent?.({
+				type: "assistant-reasoning-delta",
+				snapshot,
+				iteration: 1,
+				text: "think",
+				accumulatedText: "think".repeat(index + 1),
+			});
+		}
+		await onEvent?.({
+			type: "message-added",
+			snapshot,
+			message: {
+				id: "msg-1",
+				role: "user",
+				content: [{ type: "text", text: "hello" }],
+				createdAt: 0,
+			},
+		});
+
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"hook.onEvent",
+			{ context: expect.objectContaining({ type: "message-added" }) },
 			"client-1",
 		);
 	});
