@@ -62,10 +62,6 @@ import {
 	resolveModelFamily,
 } from "./model-facts";
 import {
-	recordProviderRequestCapture,
-	wrapFetchForProviderRequestCapture,
-} from "./provider-request-capture";
-import {
 	appendRequestId,
 	extractResponseRequestId,
 	findRequestIdHeader,
@@ -2249,11 +2245,7 @@ function createAiSdkProvider(
 					{
 						...config,
 						fetch: wrapFetchForAimlapiAttribution(
-							wrapFetchForStickySession(
-								wrapFetchForProviderRequestCapture(config.fetch, request),
-								request,
-								context,
-							),
+							wrapFetchForStickySession(config.fetch, request, context),
 							request.providerId,
 						),
 					},
@@ -2315,21 +2307,6 @@ function createAiSdkProvider(
 						);
 					}
 					const prompt = resolveImageGenerationPrompt(request, context);
-					recordProviderRequestCapture({
-						stage: "ai_sdk_prompt",
-						request,
-						payload: {
-							operation: "generate_image",
-							prompt:
-								typeof prompt === "string"
-									? prompt
-									: {
-											text: prompt.text,
-											imageCount: prompt.images.length,
-										},
-							providerOptions,
-						},
-					});
 					const result = await generateImage({
 						model: provider.operations.imageGeneration(
 							context.model.id,
@@ -2421,18 +2398,6 @@ function createAiSdkProvider(
 					provider.buildStreamConfig
 						? provider.buildStreamConfig(request, context)
 						: buildAiSdkStreamConfig(request, context);
-				recordProviderRequestCapture({
-					stage: "ai_sdk_prompt",
-					request,
-					payload: {
-						messages,
-						...(useSystemOption ? { system: systemPrompt } : {}),
-						tools,
-						providerOptions,
-						...requestConfig,
-						...(portableReasoning ? { reasoning: portableReasoning } : {}),
-					},
-				});
 				stream = await withAiSdkLangfuseTraceContext(
 					aiSdkTelemetry.isEnabled,
 					request,
