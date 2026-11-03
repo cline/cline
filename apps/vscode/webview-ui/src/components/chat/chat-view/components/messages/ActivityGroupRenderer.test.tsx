@@ -40,17 +40,21 @@ const renderFold = ({
 	turnPhase?: "idle" | "streaming" | "awaiting_approval" | "completed"
 	expandedRows?: Record<number, boolean>
 	onToggleExpand?: (ts: number, options?: { preserveAutoScroll?: boolean; next?: boolean }) => void
-}) =>
-	render(
+}) => {
+	const element = (next: ActivityGroup) => (
 		<ActivityGroupRenderer
 			expandedRows={expandedRows}
-			group={group}
+			group={next}
 			isLastGroup={isLastGroup}
 			onToggleExpand={onToggleExpand}
 			renderItem={(item) => renderItem(item as ClineMessage)}
 			turnPhase={turnPhase}
-		/>,
+		/>
 	)
+	const result = render(element(group))
+	/** Re-renders the same fold with new content, as a streaming update does. */
+	return { ...result, update: (next: ActivityGroup) => result.rerender(element(next)) }
+}
 
 describe("ActivityGroupRenderer", () => {
 	it("folds completed activity into a single summary line", () => {
@@ -113,6 +117,19 @@ describe("ActivityGroupRenderer", () => {
 		const rows = screen.queryAllByTestId("nested-row")
 		expect(rows).toHaveLength(1)
 		expect(rows[0].textContent).toBe("a.ts")
+	})
+
+	it("keeps a finished action on screen while the summary line is visible", () => {
+		const fold = renderFold({ group: buildGroup([command(1, true)]), isLastGroup: true, turnPhase: "streaming" })
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(1)
+
+		// The command completes. Nothing is running any more, but the reader is looking at the
+		// result with the summary line on screen — taking it away would delete the text under their
+		// eyes and drag the summary line back down into view.
+		fold.update(buildGroup([command(1)]))
+
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(1)
+		expect(screen.getByRole("button", { name: /Show all agent activities/ })).toBeInTheDocument()
 	})
 
 	it("reveals everything from the live view", () => {

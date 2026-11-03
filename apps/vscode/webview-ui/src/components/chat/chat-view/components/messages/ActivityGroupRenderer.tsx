@@ -4,17 +4,19 @@ import type React from "react"
 import { Fragment, memo, useCallback, useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useCollapseAnchoring } from "../../hooks/useCollapseAnchoring"
+import { useElementInView } from "../../hooks/useElementInView"
 import {
 	type ActivityGroup,
 	type ActivityGroupMode,
+	activityItemKey,
 	type ChatListItem,
 	getActivityGroupKey,
 	getActivityGroupLabel,
 	getGroupHeadMessage,
 	hasStreamingActivity,
 	isTurnWorking,
-	liveActivityChildren,
 	resolveActivityGroupMode,
+	selectActivityChildren,
 } from "../../utils/activityFolding"
 
 interface ActivityGroupRendererProps {
@@ -37,6 +39,11 @@ interface ActivityGroupRendererProps {
  * folds away as soon as it completes, while the header keeps counting everything the group has
  * done. With nothing in flight the fold is that single summary line. Clicking the header reveals
  * every action that ran in the meantime.
+ *
+ * One thing gates that: the header itself. While the summary line is inside the viewport nothing is
+ * taken away, because collapsing an action the reader is looking at would delete the content under
+ * their eyes and pull the summary line back into the middle of the chat. The fold only tidies up
+ * once the line has scrolled out of view.
  */
 export const ActivityGroupRenderer = memo(
 	({ group, isLastGroup, turnPhase, expandedRows, onToggleExpand, renderItem }: ActivityGroupRendererProps) => {
@@ -50,15 +57,23 @@ export const ActivityGroupRenderer = memo(
 			hasStreamingMessage,
 			turnPhase,
 		})
-		/** `all` = the user asked for everything, `live` = only what is running, `none` = header only. */
+		const headerRef = useRef<HTMLButtonElement>(null)
+		const headerInView = useElementInView(headerRef)
+		/** Rows on screen at the previous commit; kept while the summary line is visible. */
+		const shownKeysRef = useRef<Set<number>>(new Set())
+
+		/** `all` = the user asked for everything, `live` = what is running (plus what is on screen),
+		 * `none` = the summary line alone. */
 		const children = useMemo(() => {
-			if (mode === "all") {
-				return group as ChatListItem[]
-			}
-			return mode === "live"
-				? liveActivityChildren(group as ChatListItem[], { keepTail: turnPhase === "awaiting_approval" })
-				: []
-		}, [group, mode, turnPhase])
+			const next = selectActivityChildren(group as ChatListItem[], {
+				headerInView,
+				keepTail: turnPhase === "awaiting_approval",
+				mode,
+				shownKeys: shownKeysRef.current,
+			})
+			shownKeysRef.current = new Set(next.map(activityItemKey).filter((ts): ts is number => ts !== undefined))
+			return next
+		}, [group, headerInView, mode, turnPhase])
 		const isExpanded = mode !== "none"
 		const isWorking = hasStreamingMessage || (isLastGroup && isTurnWorking(turnPhase))
 		const foldedAway = group.length - children.length
@@ -87,6 +102,7 @@ export const ActivityGroupRenderer = memo(
 						"text-description/80 hover:text-foreground",
 					)}
 					onClick={handleToggle}
+					ref={headerRef}
 					title={
 						mode === "all"
 							? `${label} — fold agent activities`

@@ -264,6 +264,56 @@ export function liveActivityChildren(group: ChatListItem[], { keepTail = false }
 	return running
 }
 
+/** Identity of a rendered list item: the timestamp of its first row. */
+export function activityItemKey(item: ChatListItem): number | undefined {
+	return getGroupHeadMessage(item)?.ts
+}
+
+/**
+ * Which children a fold renders, given what it decided to show and what is already on screen.
+ *
+ * `shownKeys` carries the rows the reader was looking at on the previous commit. While the fold's
+ * summary line is inside the viewport they are kept: collapsing an action the reader can still see
+ * would delete the content under their eyes and drag the summary line back into the middle of the
+ * chat. Once that line has scrolled away, the fold is tidying up something nobody is looking at,
+ * and only what is running stays.
+ */
+export function selectActivityChildren(
+	group: ChatListItem[],
+	{
+		mode,
+		keepTail = false,
+		headerInView = false,
+		shownKeys = new Set<number>(),
+	}: {
+		mode: ActivityGroupMode
+		keepTail?: boolean
+		headerInView?: boolean
+		shownKeys?: Set<number>
+	},
+): ChatListItem[] {
+	if (mode === "all") {
+		return group
+	}
+	if (mode !== "live") {
+		return []
+	}
+	const keys = new Set(
+		liveActivityChildren(group, { keepTail })
+			.map(activityItemKey)
+			.filter((ts): ts is number => ts !== undefined),
+	)
+	if (headerInView) {
+		for (const ts of shownKeys) {
+			keys.add(ts)
+		}
+	}
+	return group.filter((item) => {
+		const ts = activityItemKey(item)
+		return ts !== undefined && keys.has(ts)
+	})
+}
+
 /** How much of a fold is visible: everything, only what is running, or nothing. */
 export type ActivityGroupMode = "all" | "live" | "none"
 
