@@ -165,6 +165,10 @@ function expectVariableOnlyRules(source: string): void {
 	}
 }
 
+function paletteRgb(source: string, token: string): number[] {
+	return colorRgb(tokenColor(declarations(source), token));
+}
+
 function declarations(source: string): Record<string, string> {
 	return Object.fromEntries(
 		Array.from(
@@ -357,6 +361,22 @@ describe("@cline/ui theme contract", () => {
 		);
 		expect(shared).toContain("--ring: var(--focus-ring);");
 		expect(shared).toContain("--destructive: var(--error-solid);");
+	});
+
+	it.each([
+		":root",
+		".dark",
+	])("keeps neutral primary text contrast above 4.5:1 in %s at rest and hover", (selector) => {
+		const palette = block(read("palette.css"), selector);
+		const solid = paletteRgb(palette, "neutral-12");
+		const contrast = paletteRgb(palette, "neutral-1");
+		// Neutral controls use the existing palette endpoints and a 90%/10% hover mix.
+		const hover = solid.map(
+			(value, index) => value * 0.9 + contrast[index] * 0.1,
+		);
+		expect(luminance(solid) < luminance(contrast)).toBe(selector === ":root");
+		expect(contrastRatio(solid, contrast)).toBeGreaterThanOrEqual(4.5);
+		expect(contrastRatio(hover, contrast)).toBeGreaterThanOrEqual(4.5);
 	});
 
 	it.each([
@@ -572,14 +592,14 @@ describe("@cline/ui theme contract", () => {
 		expect(componentCss).not.toContain("var(--chart-2)");
 	});
 
-	it("preserves the switch accent blend and semantic interaction colors", () => {
+	it("uses the switch accent fill and semantic interaction colors", () => {
 		const css = readComponent("switch.css");
 		const states = block(css, "@media (forced-colors: none)");
 		const track = ".cline-ui-switch__track";
 		const input = ".cline-ui-switch__input";
 
 		expect(block(states, `${input}:checked + ${track}`)).toContain(
-			"background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);",
+			"background: var(--primary);",
 		);
 		expect(
 			block(states, `${input}:enabled:checked:hover + ${track}`),

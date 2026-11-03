@@ -13,7 +13,10 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
+	Button, IconButton, Badge,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -82,6 +85,21 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const control of [Button, IconButton, Badge]) {
+ if (!control) throw new Error("packed shared control export is missing");
+}
+const legacyButton = renderToStaticMarkup(createElement(Button, { variant: "fill" }, "Continue"));
+const badge = renderToStaticMarkup(createElement(Badge, { interactive: true, tone: "error" }, "Retry"));
+if (!legacyButton.includes('data-slot="button"') || !legacyButton.includes('type="button"') || !badge.startsWith("<button")) {
+ throw new Error("packed controls did not retain their native semantics");
+}
+const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
+for (const name of ["button"]) {
+ if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl))) || !componentStyles.includes("./components/" + name + ".css")) {
+  throw new Error("packed control stylesheet is missing: " + name);
+ }
+}
+
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
@@ -228,7 +246,16 @@ async function verifyDiffDeclarations(root: string): Promise<void> {
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import type { ComponentProps } from "react";
+import { createElement, createRef, type ComponentProps } from "react";
+import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
+const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
+const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
+createElement(Badge, { ...spanProps, ref: createRef<HTMLSpanElement>() });
+createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
+createElement(Button, { variant: "fill", asChild: true });
+createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
+createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -320,7 +347,7 @@ async function verifyTailwindContract(
 		"leading-none",
 		"max-h-44",
 		"not-last:border-b",
-		"focus-visible:outline-3",
+		"focus-visible:outline-2",
 		"min-h-8",
 		"resize-none",
 		"backdrop-blur-sm",
@@ -356,7 +383,7 @@ async function verifyTailwindContract(
 		"border-style:solid",
 		"font-family:inherit",
 		"margin:.5rem 0 0",
-		"padding-block:0",
+		"padding:0",
 	]) {
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
@@ -386,8 +413,8 @@ try {
 		? resolve(process.argv[2])
 		: await pack(packageRoot, join(temporaryRoot, "pack"));
 	// The packed UI pins @cline/shared to the workspace version, which is not on
-	// npm yet during a release, so both consumers install the local pack. npm
-	// dedupes onto it directly; Bun only resolves it through an override.
+	// the registry yet during a release, so both consumers install the local pack.
+	// npm dedupes onto it directly; Bun needs an override to resolve it.
 	const sharedArchive = await pack(
 		join(packageRoot, "../shared"),
 		join(temporaryRoot, "shared-pack"),
@@ -406,6 +433,7 @@ try {
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.4.0",
 			"@types/react@19.2.14",
+			"@types/react-dom@19.2.3",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
@@ -421,6 +449,7 @@ try {
 		"tailwindcss",
 	]);
 
+	// The workspace uses Bun, but published consumers must also install via npm.
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);
 	await run(
@@ -436,6 +465,7 @@ try {
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
 			"@types/react@18.3.1",
+			"@types/react-dom@18.3.1",
 			"@types/node@22.20.3",
 			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
