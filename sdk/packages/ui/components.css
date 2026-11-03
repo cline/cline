@@ -1,5 +1,6 @@
 @import "./theme/component-theme.css";
 @import "./components/button.css";
+@import "./components/banner.css";
 @import "./components/dialog.css";
 @import "./components/detail-list.css";
 @import "./components/detail-list-item.css";

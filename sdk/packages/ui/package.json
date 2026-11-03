@@ -119,6 +119,8 @@
 		"components/button-control.tsx",
 		"components/button.css",
 		"components/alert-dialog.tsx",
+		"components/banner.css",
+		"components/banner.tsx",
 		"components/detail-list-item.css",
 		"components/detail-list-item.tsx",
 		"components/detail-list.css",

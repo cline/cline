@@ -114,6 +114,12 @@ export {
 } from "./attachment-drop-zone.js";
 export { Badge, type BadgeProps, type InteractiveBadgeProps } from "./badge.js";
 export {
+	Banner,
+	type BannerAction,
+	type BannerProps,
+	type BannerTone,
+} from "./banner.js";
+export {
 	Button,
 	type ButtonIcon,
 	type ButtonProps,
