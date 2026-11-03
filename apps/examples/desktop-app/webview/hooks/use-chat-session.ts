@@ -57,7 +57,10 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
+import {
+	humanizeCloudSessionError,
+	parseCloudSessionError,
+} from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
@@ -676,6 +679,7 @@ export function useChatSession(environmentId: string) {
 	);
 	const hydrationRequestIdRef = useRef(0);
 	const historyPreviewRequestRef = useRef<number | undefined>(undefined);
+	const deferredCloudHydrationRef = useRef<number | undefined>(undefined);
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -2404,10 +2408,6 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
-				if (record.transcriptKnown) {
-					historyPreviewRequestRef.current = undefined;
-					setHistoryPreview([]);
-				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -2513,21 +2513,31 @@ export function useChatSession(environmentId: string) {
 		if (!sessionId || hydratedHistorySessionId !== sessionId) {
 			return;
 		}
-		if (!BUSY_STATUSES.has(status)) {
+		const openingCloudSession =
+			config.executionTarget === "cloud" && isHydratingSession;
+		if (!BUSY_STATUSES.has(status) && !openingCloudSession) {
 			return;
 		}
 		let cancelled = false;
 		let polling = false;
 		const poll = async () => {
-			if (cancelled || polling) {
+			if (
+				cancelled ||
+				polling ||
+				(openingCloudSession &&
+					deferredCloudHydrationRef.current !== hydrationRequestIdRef.current)
+			) {
 				return;
 			}
-			if (Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS) {
+			if (
+				!openingCloudSession &&
+				Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS
+			) {
 				return;
 			}
 			// An assistant bubble mid-stream means the live pipeline works;
 			// canonical history could lag behind it.
-			if (activeAssistantMessageIdRef.current) {
+			if (!openingCloudSession && activeAssistantMessageIdRef.current) {
 				return;
 			}
 			// A locally driven turn is in flight (submit/queue bumps the epoch;
@@ -2547,16 +2557,25 @@ export function useChatSession(environmentId: string) {
 			polling = true;
 			try {
 				const pollStartedAt = Date.now();
+				const hydrationRequestId = hydrationRequestIdRef.current;
 				const statusRevision = authoritativeStatusRevisionRef.current;
 				const isCloudSession = config.executionTarget === "cloud";
+				let historyError: unknown;
 				const readMessages = () =>
 					desktopClient
-						.invoke<ChatMessage[]>("read_session_messages", {
-							environmentId,
-							sessionId,
-							maxMessages: MAX_MESSAGES,
-						})
-						.catch(() => null);
+						.invoke<ChatMessage[]>(
+							"read_session_messages",
+							{
+								environmentId,
+								sessionId,
+								maxMessages: MAX_MESSAGES,
+							},
+							openingCloudSession ? { timeoutMs: null } : undefined,
+						)
+						.catch((error: unknown) => {
+							historyError = error;
+							return null;
+						});
 				const recordPromise = desktopClient
 					.invoke<{ status?: string } | null>("get_discovered_session", {
 						environmentId,
@@ -2568,8 +2587,48 @@ export function useChatSession(environmentId: string) {
 					isCloudSession ? recordPromise.then(readMessages) : readMessages(),
 					recordPromise,
 				]);
+				const nextStatus = record?.status?.trim();
+				const cloudError = openingCloudSession
+					? parseCloudSessionError(errorMessage(historyError))
+					: null;
+				const terminalError =
+					cloudError && cloudError.code !== "request_failed";
+				// A rehydration event can restart this effect before the read replies.
+				// Opening completion belongs to the hydration request, not this poll.
+				if (
+					openingCloudSession &&
+					historyPreviewRequestRef.current === hydrationRequestId &&
+					hydrationRequestIdRef.current === hydrationRequestId &&
+					activeSessionIdRef.current === sessionId &&
+					(terminalError ||
+						nextStatus === "failed" ||
+						nextStatus === "expired" ||
+						(historyMessages !== null &&
+							nextStatus &&
+							nextStatus !== "provisioning"))
+				) {
+					historyPreviewRequestRef.current = undefined;
+					setHistoryPreview([]);
+					setIsHydratingSession(false);
+					if (terminalError) {
+						setError(errorMessage(historyError));
+						setStatus("error");
+						if (cloudError.code === "session_expired")
+							setIsCloudSessionExpired(true);
+						return;
+					}
+					if (nextStatus === "expired") {
+						setIsCloudSessionExpired(true);
+						setError(
+							historyMessages?.length === 0
+								? "This cloud session has expired and no archived history is available. Start a new cloud session to continue."
+								: "This cloud session has expired. Start a new cloud session to continue.",
+						);
+					}
+				}
 				if (
 					cancelled ||
+					hydrationRequestIdRef.current !== hydrationRequestId ||
 					authoritativeStatusRevisionRef.current !== statusRevision ||
 					activeSessionIdRef.current !== sessionId ||
 					// The live stream resumed (or a local turn started) while
@@ -2603,7 +2662,6 @@ export function useChatSession(environmentId: string) {
 				// inference (inferHydratedChatStatus) would misread a mid-run
 				// snapshot ending on assistant narration as finished, hiding
 				// the working indicator and disarming this poll.
-				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
 					const mappedStatus = isCloudSession
 						? mapCloudRuntimeStatus(nextStatus)
@@ -2615,7 +2673,8 @@ export function useChatSession(environmentId: string) {
 						isCloudSession &&
 						mappedStatus === "idle" &&
 						(historyMessages === null ||
-							(status !== "starting" &&
+							(!openingCloudSession &&
+								status !== "starting" &&
 								(nextStatus === "ready" || nextStatus === "active")))
 					) {
 						return;
@@ -2645,6 +2704,7 @@ export function useChatSession(environmentId: string) {
 	}, [
 		config.executionTarget,
 		hydratedHistorySessionId,
+		isHydratingSession,
 		sessionId,
 		status,
 		setPromptsInQueue,
@@ -2786,6 +2846,7 @@ export function useChatSession(environmentId: string) {
 			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
+			historyPreviewRequestRef.current = undefined;
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -4044,6 +4105,17 @@ export function useChatSession(environmentId: string) {
 					session.origin === "cloud" ? { timeoutMs: null } : undefined,
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
+				if (
+					session.origin === "cloud" &&
+					historyMessages.length === 0 &&
+					session.status !== "expired" &&
+					session.status !== "failed"
+				) {
+					// An empty read can mean provisioning. Refresh discovery before
+					// retrying rather than racing the creator's first task with attach.
+					deferredCloudHydrationRef.current = requestId;
+					return;
+				}
 				historyPreviewRequestRef.current = undefined;
 				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
@@ -4172,7 +4244,10 @@ export function useChatSession(environmentId: string) {
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
-				if (hydrationRequestIdRef.current === requestId) {
+				if (
+					hydrationRequestIdRef.current === requestId &&
+					deferredCloudHydrationRef.current !== requestId
+				) {
 					historyPreviewRequestRef.current = undefined;
 					setIsHydratingSession(false);
 				}

@@ -1031,7 +1031,7 @@ export class CloudSessionController {
 			const title = live.title?.trim() || record.title?.trim();
 			return {
 				...projected,
-				status: live.status,
+				status: record.status === "provisioning" ? "provisioning" : live.status,
 				prompt: live.prompt,
 				endedAt:
 					live.endedAt !== undefined
@@ -2123,11 +2123,7 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (
-			known?.status === "failed" ||
-			(known?.status === "provisioning" &&
-				this.pendingInitialTasks.has(outerSessionId))
-		) {
+		if (known?.status === "provisioning" || known?.status === "failed") {
 			return [];
 		}
 		if (known && isExpiredRecord(known)) {

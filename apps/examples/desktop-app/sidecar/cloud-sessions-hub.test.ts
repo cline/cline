@@ -11,6 +11,7 @@ import {
 	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
+	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
@@ -1999,6 +2000,7 @@ describe("CloudSessionManager Hub runtime", () => {
 	it("serves archived history for expired sessions without dialing the sandbox", async () => {
 		const expired: CloudSessionRecord = {
 			...REMOTE_SESSION,
+			status: "expired",
 			expiredAt: "2026-08-04T00:00:00.000Z",
 		};
 		let historyCalls = 0;
@@ -2018,6 +2020,16 @@ describe("CloudSessionManager Hub runtime", () => {
 			},
 		});
 
+		expect(await getCloudSessionManager(ctx).listForDiscovery()).toEqual([
+			expect.objectContaining({ sessionId: expired.id, status: "expired" }),
+		]);
+		await expect(
+			handleCommand(ctx, "read_archived_cloud_messages", {
+				sessionId: expired.id,
+			}),
+		).resolves.toBeNull();
+		expect(historyCalls).toBe(0);
+
 		const attached = await manager.attach(expired.id);
 		expect(attached).toMatchObject({
 			sessionId: expired.id,
@@ -2025,9 +2037,20 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(historyCalls).toBe(1);
 
-		const messages = await manager.readMessages(expired.id);
-		expect(messages).toEqual([{ role: "user", content: "archived" }]);
-		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual(messages);
+		const messages = await handleCommand(ctx, "read_session_messages", {
+			sessionId: expired.id,
+		});
+		expect(messages).toEqual([
+			expect.objectContaining({
+				sessionId: expired.id,
+				role: "user",
+				content: "archived",
+			}),
+		]);
+		expect(historyCalls).toBe(2);
+		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual([
+			{ role: "user", content: "archived" },
+		]);
 
 		await expect(manager.send(expired.id, "hello")).rejects.toMatchObject({
 			code: "session_expired",
@@ -2074,6 +2097,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			sessionId: REMOTE_SESSION.id,
 			status: "provisioning",
 		});
+		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual([]);
 
 		status = "ready";
 		await expect(manager.listForDiscovery()).resolves.toEqual([

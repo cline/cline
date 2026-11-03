@@ -478,6 +478,40 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
+	it("keeps external provisioning visible over a retained runtime status", async () => {
+		const f = resumableFixture();
+		try {
+			await f.controller.attach(record.id);
+			f.emit("session.updated", { session: { status: "running" } });
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "provisioning" },
+			]);
+			f.api.status.mockResolvedValue({ status: "ready" });
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"running",
+			);
+
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"suspended",
+			);
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "provisioning" },
+			]);
+			f.api.status.mockResolvedValue({ status: "provisioning" });
+			expect((await f.controller.listForDiscovery())[0]?.status).toBe(
+				"provisioning",
+			);
+			const commandCount = f.commands.length;
+			expect(await f.controller.readMessages(record.id)).toEqual([]);
+			expect(f.commands).toHaveLength(commandCount);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
 	it.each([
 		[new CloudSessionError("request_failed", "Network unavailable"), true],
 		[
@@ -825,43 +859,6 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
-
-	it("waits for a discovered provisioning session before returning its history", async () => {
-		const f = resumableFixture("provisioning");
-		let release!: () => void;
-		const ready = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		const messages: MessageWithMetadata[] = [
-			{ role: "assistant", content: "Saved reply" },
-		];
-		f.setMessages(messages);
-		f.api.waitUntilReady.mockReturnValue(ready);
-		await f.controller.listForDiscovery();
-		let settled = false;
-		const reading = f.controller.readMessages(record.id).finally(() => {
-			settled = true;
-		});
-		try {
-			await vi.waitFor(() =>
-				expect(f.api.waitUntilReady).toHaveBeenCalledOnce(),
-			);
-			expect(settled).toBe(false);
-			expect(f.commands).toEqual([]);
-			f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
-			release();
-			expect(await reading).toEqual(messages);
-			expect(f.api.resume).not.toHaveBeenCalled();
-			expect(
-				f.commands.some(({ command }) => command === "session.create"),
-			).toBe(false);
-		} finally {
-			release();
-			await reading.catch(() => undefined);
-			await f.controller.dispose();
-		}
-	});
-
 	it("attaches a provisioning receipt without connecting or waiting for readiness", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, status: "provisioning" }]);
