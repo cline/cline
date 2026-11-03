@@ -150,6 +150,11 @@ export {
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
 export { GitHubIcon } from "./github-icon.js";
+export {
+	ItemCard,
+	type ItemCardPrimaryAction,
+	type ItemCardProps,
+} from "./item-card.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
 	SearchCombobox,
