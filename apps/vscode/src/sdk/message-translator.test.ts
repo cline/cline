@@ -96,6 +96,18 @@ describe("MessageTranslatorState", () => {
 		expect(newToolTs).toBeGreaterThan(toolTs)
 	})
 
+	it("reset clears the accumulated streaming reasoning text (#leak: interrupted reasoning must not leak into the next turn)", () => {
+		const state = new MessageTranslatorState()
+		expect(state.appendStreamingReasoning("stale ")).toBe("stale ")
+
+		state.reset()
+
+		// After reset, appending must return only the new delta — reasoning
+		// streams interrupted by an abort/provider error carry no content_end,
+		// so reset() is the only thing that can clear this buffer.
+		expect(state.appendStreamingReasoning("fresh")).toBe("fresh")
+	})
+
 	it("reset clears stale approved tool prompt rows", () => {
 		const state = new MessageTranslatorState()
 		state.recordApprovedToolMessageTs("approved-call", 42)

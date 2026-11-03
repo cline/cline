@@ -262,7 +262,6 @@ export class MessageTranslatorState {
 	clearStreamingReasoning(): number {
 		const ts = this.streamingReasoningTs ?? this.nextTs()
 		this.streamingReasoningTs = undefined
-		this.streamingReasoningText = ""
 		return ts
 	}
 
@@ -546,6 +545,7 @@ export class MessageTranslatorState {
 		this.streamingTextTs = undefined
 		this.streamingText = ""
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
