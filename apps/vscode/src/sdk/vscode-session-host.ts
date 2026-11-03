@@ -12,6 +12,7 @@ import {
 	type ClineCoreStartInput,
 	type CompareCheckpointInput,
 	type CompareCheckpointResult,
+	type ConnectionUpdate,
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
@@ -110,6 +111,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
+	}
+
+	updateSessionConnection?(sessionId: string, updates: ConnectionUpdate): Promise<void> {
+		return this.inner.updateSessionConnection(sessionId, updates)
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
