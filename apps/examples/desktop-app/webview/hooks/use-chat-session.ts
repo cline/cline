@@ -631,7 +631,6 @@ export function useChatSession(environmentId: string) {
 		AskQuestionRequestItem[]
 	>([]);
 	const interactionRevision = useRef({ approvals: 0, questions: 0 });
-	const [interactionsKnown, setInteractionsKnown] = useState(false);
 	const setPendingToolApprovals = useCallback(
 		(value: React.SetStateAction<ToolApprovalRequestItem[]>) => {
 			interactionRevision.current.approvals++;
@@ -1590,7 +1589,6 @@ export function useChatSession(environmentId: string) {
 	]);
 
 	useEffect(() => {
-		setInteractionsKnown(false);
 		if (!sessionId || chatTransportState !== "connected") return;
 		let cancelled = false;
 		const refresh = async (): Promise<void> => {
@@ -1623,9 +1621,6 @@ export function useChatSession(environmentId: string) {
 				storeAskQuestions(
 					questions.value.filter((item) => item.sessionId === sessionId),
 				);
-			setInteractionsKnown(
-				approvals.status === "fulfilled" && questions.status === "fulfilled",
-			);
 		};
 		void refresh();
 		return () => {
@@ -4443,7 +4438,6 @@ export function useChatSession(environmentId: string) {
 		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
-		interactionsKnown,
 		setConfig,
 		setWorkspacePath,
 		start,

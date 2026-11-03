@@ -480,7 +480,6 @@ describe("useChatSession", () => {
 		});
 		await act(async () => snapshot.resolve([old]));
 		expect(current.pendingAskQuestions).toEqual([next]);
-		expect(current.interactionsKnown).toBe(true);
 		await act(async () =>
 			handlerFor("ask_question_answered")({ requestId: "new" }),
 		);
@@ -513,6 +512,7 @@ describe("useChatSession", () => {
 			question: "Continue?",
 			options: [],
 		};
+		const currentApproval = { ...approval, requestId: "current" };
 		let connected = false;
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "chat_session_command")
@@ -523,7 +523,7 @@ describe("useChatSession", () => {
 				};
 			if (command === "poll_tool_approvals") {
 				if (!connected) throw new Error("Disconnected");
-				return [approval];
+				return [currentApproval];
 			}
 			if (command === "poll_ask_questions") return [question];
 			return [];
@@ -531,7 +531,6 @@ describe("useChatSession", () => {
 		await act(async () => {
 			await current.start(current.config);
 		});
-		expect(current.interactionsKnown).toBe(false);
 		expect(current.pendingAskQuestions).toEqual([question]);
 		await act(async () =>
 			handlerFor("tool_approval_state")({
@@ -544,8 +543,7 @@ describe("useChatSession", () => {
 		await act(async () => transport("reconnecting"));
 		connected = true;
 		await act(async () => transport("connected"));
-		expect(current.interactionsKnown).toBe(true);
-		expect(current.pendingToolApprovals).toEqual([approval]);
+		expect(current.pendingToolApprovals).toEqual([currentApproval]);
 	});
 
 	it.each([
