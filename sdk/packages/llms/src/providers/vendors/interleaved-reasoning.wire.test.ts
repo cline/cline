@@ -5,7 +5,6 @@
 // `reasoning_content`, so history that lost its reasoning gets a placeholder.
 import type { AgentMessage, GatewayModelDefinition } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { getGeneratedModelsForProvider } from "../../catalog/catalog.generated-access";
 import { createGateway } from "../gateway";
 
 const history = (assistant: AgentMessage["content"]): AgentMessage[] => [
@@ -105,15 +104,14 @@ describe("interleaved reasoning history", () => {
 		expect(assistant).not.toHaveProperty("reasoning_content");
 	});
 
-	it("fills for Beam on the Cline provider via the catalog overlay", async () => {
-		// Core configures session models from this catalog (handler-factory).
-		const beam = getGeneratedModelsForProvider("cline")["reflection/beam-free"];
-		expect(beam?.metadata?.interleavedReasoningField).toBe("reasoning_content");
+	it.each([
+		"reflection/beam-free",
+		"reflection/beam-1.0-501b-a23b",
+	])("fills for %s on the built-in Cline provider", async (modelId) => {
 		const assistant = await assistantWire({
 			providerId: "cline",
-			modelId: "reflection/beam-free",
+			modelId,
 			assistant: text,
-			metadata: { ...beam?.metadata },
 		});
 		expect(assistant.reasoning_content).toBe(" ");
 	});
