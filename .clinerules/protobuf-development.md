@@ -10,13 +10,13 @@ Cline uses [Protobuf](https://protobuf.dev/) to define a strongly-typed API, ens
 
 -   **File Structure**: Each feature domain should have its own `.proto` file (e.g., `account.proto`, `task.proto`).
 -   **Message Design**:
-    -   For simple, single-value data, use the shared types in `proto/common.proto` (e.g., `StringRequest`, `Empty`, `Int64Request`). This promotes consistency.
+    -   For simple, single-value data, use the shared types in `proto/cline/common.proto` (e.g., `StringRequest`, `Empty`, `Int64Request`). This promotes consistency.
     -   For complex data structures, define custom messages within the feature's `.proto` file (see `task.proto` for examples like `NewTaskRequest`).
 -   **Naming Conventions**:
     -   Services: `PascalCaseService` (e.g., `AccountService`).
-    -   RPCs: `camelCase` (e.g., `accountEmailIdentified`).
+    -   RPCs: `camelCase` (e.g., `accountLoginClicked`).
     -   Messages: `PascalCase` (e.g., `StringRequest`).
--   **Streaming**: For server-to-client streaming, use the `stream` keyword on the response type. See `subscribeToAuthCallback` in `account.proto` for an example.
+-   **Streaming**: For server-to-client streaming, use the `stream` keyword on the response type. See `subscribeToAuthStatusUpdate` in `account.proto` for an example.
 
 ---
 
@@ -28,7 +28,7 @@ Here’s how to add a new RPC, using `scrollToSettings` as an example.
 
 Add your service method to the appropriate file in the `proto/` directory.
 
-**File: `proto/ui.proto`**
+**File: `proto/cline/ui.proto`**
 ```proto
 service UiService {
   // ... other RPCs
@@ -40,7 +40,7 @@ Here, we use the common `StringRequest` and `KeyValuePair` types.
 
 ### 2. Compile Definitions
 
-After editing a `.proto` file, regenerate the TypeScript code. From the project root, run:
+After editing a `.proto` file, regenerate the TypeScript code. From `apps/vscode`, run:
 ```bash
 bun run protos
 ```
@@ -53,7 +53,7 @@ Create the RPC implementation in the backend. Handlers are located in `src/core/
 **File: `src/core/controller/ui/scrollToSettings.ts`**
 ```typescript
 import { Controller } from ".."
-import { StringRequest, KeyValuePair } from "../../../shared/proto/common"
+import { KeyValuePair, StringRequest } from "@shared/proto/cline/common"
 
 /**
  * Executes a scroll to settings action
@@ -75,8 +75,8 @@ Call the new RPC from a React component in `webview-ui/`. The generated client m
 
 **File: `webview-ui/src/components/browser/BrowserSettingsMenu.tsx`** (Example)
 ```tsx
-import { UiServiceClient } from "../../../services/grpc"
-import { StringRequest } from "../../../../shared/proto/common"
+import { UiServiceClient } from "../../services/grpc-client"
+import { StringRequest } from "@shared/proto/cline/common"
 
 // ... inside a React component
 const handleMenuClick = async () => {
