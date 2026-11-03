@@ -3391,6 +3391,7 @@ describe("useChatSession", () => {
 			await act(async () => {
 				opening = current.hydrateSession({
 					sessionId: "ses-cloud",
+					environmentId: "local",
 					origin: "cloud",
 					status: "provisioning",
 					...cloudSessionConfig,
