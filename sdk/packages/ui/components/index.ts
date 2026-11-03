@@ -105,6 +105,10 @@ export {
 	type AgentWelcomeHeroProps,
 } from "./agent-welcome-hero.js";
 export {
+	AlertDialog,
+	type AlertDialogProps,
+} from "./alert-dialog.js";
+export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
@@ -134,6 +138,7 @@ export {
 	DetailListItem,
 	type DetailListItemProps,
 } from "./detail-list-item.js";
+export { Dialog, type DialogProps } from "./dialog.js";
 export {
 	EmptyState,
 	type EmptyStateAction,
