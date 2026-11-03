@@ -43,7 +43,9 @@ export function useScrollBehavior(
 	const disableAutoScrollRef = useRef(false)
 	const layoutSettleScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	/** Row at the top of the viewport, in document space — what the lock keeps where it is. */
-	const anchorRef = useRef<{ ts: string; documentTop: number; distanceFromBottom: number } | undefined>(undefined)
+	const anchorRef = useRef<
+		{ ts: string; documentTop: number; distanceFromBottom: number; scrollHeight: number; firstRenderedTs: string } | undefined
+	>(undefined)
 	/** Until when a programmatic scroll owns the scroller and the lock has to keep its hands off. */
 	const scrollGraceUntilRef = useRef(0)
 
@@ -404,7 +406,8 @@ export function useScrollBehavior(
 		const measure = () => {
 			const viewportTop = scroller.getBoundingClientRect().top
 			const distanceFromBottom = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
-			for (const row of Array.from(scroller.querySelectorAll<HTMLElement>("[data-message-ts]"))) {
+			const rows = Array.from(scroller.querySelectorAll<HTMLElement>("[data-message-ts]"))
+			for (const row of rows) {
 				const box = row.getBoundingClientRect()
 				// First row that still reaches into the viewport, so a partly scrolled-out row keeps
 				// its identity instead of handing the anchor to its successor on the last pixel.
@@ -413,6 +416,9 @@ export function useScrollBehavior(
 						ts: row.dataset.messageTs ?? "",
 						documentTop: box.top - viewportTop + scroller.scrollTop,
 						distanceFromBottom,
+						scrollHeight: scroller.scrollHeight,
+						// Which slice the virtualiser currently holds. See the note below.
+						firstRenderedTs: rows[0]?.dataset.messageTs ?? "",
 					}
 				}
 			}
@@ -423,6 +429,18 @@ export function useScrollBehavior(
 		anchorRef.current = current
 		// Another row at the top means the reader moved, not the content: new baseline, no correction.
 		if (!current || !previous || previous.ts !== current.ts || Date.now() < scrollGraceUntilRef.current) {
+			return
+		}
+		// The virtualiser swapped the slice it renders. Scrolling up is precisely when it measures the
+		// rows above for the first time, and replacing an estimate by a real height moves the whole
+		// document below it — without a single character of new content. Correcting that is what made
+		// the wheel stick and bounce back down, so a swapped slice only ever re-baselines.
+		if (previous.firstRenderedTs !== current.firstRenderedTs) {
+			return
+		}
+		// Nothing anywhere changed height, so any difference in the measurement is rounding or a
+		// sub-pixel scroll offset — never worth moving the reader for.
+		if (previous.scrollHeight === current.scrollHeight) {
 			return
 		}
 		// Pinned to the tail before the content moved: output arriving there is what following is for.

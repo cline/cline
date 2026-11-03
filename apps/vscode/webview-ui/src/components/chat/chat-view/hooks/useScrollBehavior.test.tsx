@@ -74,6 +74,17 @@ function fakeList(rows: Array<{ ts: number; height: number }>, viewport: { clien
 				row.height += by
 			}
 		},
+		/**
+		 * The virtualiser rendered one more row above and measured it for real: the document below it
+		 * moves although no content changed.
+		 */
+		prependRow(ts: number, height: number) {
+			model.unshift({ ts, height })
+			const node = document.createElement("div")
+			node.dataset.messageTs = String(ts)
+			node.getBoundingClientRect = () => rect(documentTop(ts) - scrollTop, height)
+			element.prepend(node)
+		},
 	}
 }
 
@@ -276,6 +287,33 @@ describe("useScrollBehavior", () => {
 		rerender()
 
 		expect(list.scrollTop).toBe(900)
+	})
+
+	it("does not correct a document the virtualiser re-measured", () => {
+		const list = fakeList(THREE_ROWS(), READING)
+		const { rerender } = mountWith(list.element)
+
+		// Scrolling up renders rows above for the first time and replaces their estimated height,
+		// which moves the document below them without any new content. The row at the top is still
+		// the same, so only the rendered slice gives the game away — and correcting that shift is
+		// what made the wheel stick and bounce back down.
+		list.prependRow(0, 30)
+		rerender()
+
+		expect(list.scrollTop).toBe(450)
+	})
+
+	it("does not chase a shift that changed no height", () => {
+		const list = fakeList(THREE_ROWS(), READING)
+		const { rerender } = mountWith(list.element)
+
+		// Row 1 grows while row 3 shrinks by the same amount: the anchor moves, the content does not
+		// get any taller, so this is measurement noise rather than the agent producing output.
+		list.growRow(1, 50)
+		list.growRow(3, -50)
+		rerender()
+
+		expect(list.scrollTop).toBe(450)
 	})
 
 	it("stands down while a programmatic scroll owns the scroller", () => {
