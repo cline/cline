@@ -223,8 +223,12 @@ describe("useMessageHandlers — send routing", () => {
 		)
 	})
 
-	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
-		mockTurnState = { phase: "completed", seq: 7 }
+	it.each([
+		{ phase: "completed", cloud: false },
+		{ phase: "idle", cloud: true },
+	] as const)("routes Enter to the existing conversation after $phase (cloud: $cloud)", async ({ phase, cloud }) => {
+		mockTurnState = { phase, seq: 7 }
+		mockCurrentCloudTask = cloud ? { sessionId: "ses-current", status: "idle" } : undefined
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
 
 		await act(async () => {

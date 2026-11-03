@@ -387,7 +387,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
 					//      does not emit a trailing ask:"completion_result", so clineAsk is
 					//      undefined even when the user can keep talking; turnState is the source
-					//      of truth.
+					//      of truth. An idle cloud task can resubmit a draft whose preparation failed.
 					//   2. Legacy fallback (no turnState): the task looks actively running from the
 					//      message tail.
 					const lastMessage = messages[messages.length - 1]
@@ -396,7 +396,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					const turnAllowsFollowup =
 						turnState?.phase === "completed" ||
 						turnState?.phase === "awaiting_followup" ||
-						turnState?.phase === "streaming"
+						turnState?.phase === "streaming" ||
+						(turnState?.phase === "idle" && !!submittedCloudTask.sessionId)
 
 					if (turnAllowsFollowup || isTaskRunning) {
 						// Continue the conversation / interrupt with feedback.

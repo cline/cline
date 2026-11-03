@@ -1691,10 +1691,11 @@ export class SdkCloudSessionCoordinator {
 	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
 		if (entry.wake || entry.record.status?.toLowerCase() === "suspended") return undefined
 		const record = entry.record
+		const signal = this.scopeAbort.signal
 		try {
 			return await this.connect(entry)
 		} catch (error) {
-			const status = await this.options.cloudSessions.getStatus(record.id).then(
+			const status = await this.options.cloudSessions.getStatus(record.id, signal).then(
 				(live) => live.status?.toLowerCase(),
 				(probeError: unknown) =>
 					probeError instanceof CloudSessionError && probeError.code === "session_expired" ? "expired" : undefined,
