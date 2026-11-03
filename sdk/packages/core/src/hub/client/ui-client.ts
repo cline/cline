@@ -2,6 +2,7 @@ import type {
 	HubClientRecord,
 	HubEventEnvelope,
 	HubSessionSearchHit,
+	HubSessionSearchInput,
 	HubUINotifyPayload,
 	HubUIShowWindowPayload,
 	SessionRecord,
@@ -89,12 +90,10 @@ export class HubUIClient {
 			: [];
 	}
 
-	async searchSessions(input: {
-		query: string;
-		limit?: number;
-		workspaceRoot?: string;
-	}): Promise<HubSessionSearchHit[]> {
-		const reply = await this.client.command("session.search", input);
+	async searchSessions(
+		input: HubSessionSearchInput,
+	): Promise<HubSessionSearchHit[]> {
+		const reply = await this.client.command("session.search", { ...input });
 		return Array.isArray(reply.payload?.hits)
 			? (reply.payload.hits as unknown as HubSessionSearchHit[])
 			: [];
