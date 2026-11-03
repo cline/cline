@@ -3,6 +3,7 @@
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
+	type SVGProps,
 	useState,
 } from "react";
 import { Badge } from "./badge.js";
@@ -40,12 +41,13 @@ function optionLabel(index: number) {
 	return label;
 }
 
-function Spinner() {
+function Spinner({ className, ...props }: SVGProps<SVGSVGElement>) {
 	return (
 		<svg
 			aria-hidden="true"
-			className="cline-ui-agent-ask-question__spinner mr-1 size-3.5 flex-none fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] stroke-2"
+			className={`cline-ui-agent-ask-question__spinner fill-none stroke-2 stroke-current [stroke-linecap:round] [stroke-linejoin:round] ${className ?? ""}`}
 			viewBox="0 0 24 24"
+			{...props}
 		>
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
 		</svg>
@@ -198,6 +200,7 @@ export function AgentAskQuestion({
 									disabled={isPending}
 									key={option}
 									onClick={() => selectOption(option)}
+									pressScale={false}
 									size="sm"
 									tone="neutral"
 									variant="ghost"
@@ -219,7 +222,7 @@ export function AgentAskQuestion({
 						<div className="cline-ui-agent-ask-question__footer flex flex-col gap-2 border-cline-ui-border border-t px-2 py-2">
 							{error ? (
 								<div
-									className="cline-ui-agent-ask-question__error text-cline-ui-destructive text-cline-ui-xs px-2"
+									className="cline-ui-agent-ask-question__error px-2 text-cline-ui-error-text text-cline-ui-xs"
 									role="alert"
 								>
 									{error}
@@ -229,7 +232,7 @@ export function AgentAskQuestion({
 								{item.multiple ? null : (
 									<input
 										aria-label="Custom answer"
-										className="cline-ui-agent-ask-question__custom min-w-0 flex-1 h-8 rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 text-cline-ui-foreground text-cline-ui-sm outline-none focus:border-[color-mix(in_oklab,var(--primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_20%,transparent)]"
+										className="cline-ui-agent-ask-question__custom h-8 min-w-0 flex-1 rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 text-cline-ui-foreground text-cline-ui-sm outline-none focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-solid focus-visible:outline-offset-2"
 										disabled={isPending}
 										onChange={(event) => {
 											const value = event.target.value;
@@ -251,20 +254,14 @@ export function AgentAskQuestion({
 								)}
 								<Button
 									className="cline-ui-agent-ask-question__submit"
+									leadingIcon={isPending ? Spinner : undefined}
 									disabled={!canSubmit || isPending}
 									onClick={submit}
 									size="sm"
 									tone="neutral"
-									variant="fill"
+									variant="primary"
 								>
-									{isPending ? (
-										<>
-											<Spinner />
-											Sending…
-										</>
-									) : (
-										"Submit"
-									)}
+									{isPending ? "Sending…" : "Submit"}
 								</Button>
 							</div>
 						</div>

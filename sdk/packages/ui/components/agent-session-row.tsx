@@ -66,7 +66,7 @@ export const AgentSessionRow = forwardRef<HTMLDivElement, AgentSessionRowProps>(
 				: status === "provisioning"
 					? "animate-pulse bg-cline-ui-warning-solid"
 					: status === "running"
-						? "bg-cline-ui-success-solid"
+						? "bg-cline-ui-success-text"
 						: unread
 							? "bg-cline-ui-info-solid"
 							: "";

@@ -337,7 +337,6 @@ describe("@cline/ui theme contract", () => {
 			["normal", 480],
 			["medium", 560],
 			["semibold", 640],
-			["bold", 640],
 		] as const) {
 			expect(root).toContain(`--font-weight-${token}: ${value};`);
 		}
@@ -349,6 +348,7 @@ describe("@cline/ui theme contract", () => {
 		] as const) {
 			expect(dark).toContain(`--font-weight-${token}: ${value};`);
 		}
+		expect(root).toContain("--font-weight-bold: var(--font-weight-semibold);");
 		for (const token of [
 			"--font-sans:",
 			"--font-mono:",
@@ -576,6 +576,7 @@ describe("@cline/ui theme contract", () => {
 		expect(componentTheme).toContain(
 			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
 		);
+		expect(componentTheme).toContain("--text-cline-ui-xxs: var(--text-xxs);");
 		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
 		expect(componentTheme).toContain("--text-cline-ui-md: var(--text-md);");
 		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
@@ -585,6 +586,12 @@ describe("@cline/ui theme contract", () => {
 		expect(components).toContain('@import "./theme/component-theme.css";');
 		expect(base).toContain(
 			'@import "@cline/ui/components/markdown.css" layer(components);',
+		);
+		expect(block(base, "@layer utilities")).toContain(
+			':is(.markdown, .cline-markdown) [data-streamdown="link"]',
+		);
+		expect(block(base, "@layer utilities")).toContain(
+			"color: var(--accent-foreground);",
 		);
 		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
 		expect(markdown).not.toContain("@apply");
@@ -656,7 +663,6 @@ describe("@cline/ui theme contract", () => {
 			);
 		}
 		expect(componentSources).not.toMatch(/(?<!cline-ui-)dark:/);
-		expect(componentSources).toContain("cline-ui-dark:");
 	});
 
 	it("uses status roles in shared components", () => {

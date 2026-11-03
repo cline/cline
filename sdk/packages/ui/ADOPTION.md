@@ -283,7 +283,7 @@ import { Plus, X } from "lucide-react";
 Pass SVG components through `leadingIcon`, `trailingIcon`, or `icon`; the button
 handles sizing, spacing, and decorative accessibility. Custom icons must forward
 SVG props, including `className`. `IconButton` requires an accessible label.
-Existing icon children remain supported.
+Existing icon children remain supported, including in `MessageAction`.
 
 Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
 the child's native type behavior is preserved, so set `type="button"` explicitly

@@ -1,13 +1,8 @@
-.cline-ui-agent-prompt-queue__toggle,
 .cline-ui-agent-prompt-queue__editor {
 	box-sizing: border-box;
 	font-family: inherit;
 	font-style: inherit;
 	font-variant: inherit;
-}
-
-.cline-ui-agent-prompt-queue__action {
-	font: inherit;
 }
 
 .cline-ui-agent-prompt-queue__editor {

@@ -193,11 +193,6 @@
 		font-size: var(--text-xs);
 	}
 
-	.cline-chat-message-action > svg {
-		width: 0.875rem;
-		height: 0.875rem;
-	}
-
 	/* The timestamp ends flush against the pill border without a trailing
 	 * inset of its own, so give it one. */
 	.cline-chat-message-actions > time {

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
+import { Badge } from "./badge.js";
+import { Button, IconButton } from "./button.js";
 
 export interface AgentPromptQueueItem {
 	attachmentCount?: number;
@@ -25,9 +27,6 @@ type IconName =
 	| "pencil"
 	| "trash"
 	| "x";
-
-const ACTION_CLASS_NAME =
-	"cline-ui-agent-prompt-queue__action inline-flex cursor-pointer items-center justify-center rounded-cline-ui-md border-0 bg-transparent p-1 text-cline-ui-muted-foreground transition-[color,background-color] duration-150 ease-[ease] [&>svg]:size-3.5 enabled:hover:bg-cline-ui-accent enabled:hover:text-cline-ui-foreground focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50";
 
 function Icon({ name, small = false }: { name: IconName; small?: boolean }) {
 	return (
@@ -182,13 +181,16 @@ export function AgentPromptQueue({
 	if (items.length === 0) return null;
 
 	return (
-		<div className="cline-ui-agent-prompt-queue mb-2 border-b border-cline-ui-border pb-0">
-			<button
+		<div className="cline-ui-agent-prompt-queue -mx-4 mb-2 border-b border-cline-ui-border pb-0">
+			<Button
+				size="xs"
+				tone="neutral"
+				variant="ghost"
 				aria-controls={queueId}
 				aria-expanded={hasMultipleItems ? expanded : true}
 				className={
 					hasMultipleItems
-						? "cline-ui-agent-prompt-queue__toggle flex w-full cursor-pointer items-center gap-2 rounded-cline-ui-md border-0 bg-transparent px-0 py-1 text-left font-cline-ui-medium text-cline-ui-foreground text-cline-ui-xs transition-[background-color] duration-150 ease-[ease] hover:bg-cline-ui-accent/60 focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0"
+						? "cline-ui-agent-prompt-queue__toggle h-auto w-full justify-start gap-2 px-4 py-1 text-left text-cline-ui-foreground"
 						: "sr-only"
 				}
 				onClick={() => {
@@ -200,7 +202,7 @@ export function AgentPromptQueue({
 				<span>
 					{items.length} prompt{items.length === 1 ? "" : "s"} queued
 				</span>
-			</button>
+			</Button>
 			<div
 				className="cline-ui-agent-prompt-queue__items flex max-h-[40dvh] flex-col gap-0.5 overflow-y-auto py-0"
 				hidden={hasMultipleItems && !expanded}
@@ -216,12 +218,12 @@ export function AgentPromptQueue({
 					return (
 						<div
 							aria-busy={isPending || undefined}
-							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md px-0 py-1 hover:bg-[color-mix(in_oklab,var(--accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5"
+							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md px-4 py-1 hover:bg-[color-mix(in_oklab,var(--accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5 data-[steer=true]:hover:bg-cline-ui-primary/10"
 							data-steer={item.steer || undefined}
 							key={item.id}
 						>
 							<span
-								className="cline-ui-agent-prompt-queue__status-icon inline-flex size-4 shrink-0 text-cline-ui-muted-foreground data-[steer=true]:text-cline-ui-primary"
+								className="cline-ui-agent-prompt-queue__status-icon inline-flex size-4 shrink-0 text-cline-ui-muted-foreground data-[steer=true]:text-cline-ui-accent-foreground"
 								data-steer={item.steer || undefined}
 							>
 								{item.steer ? (
@@ -234,7 +236,7 @@ export function AgentPromptQueue({
 								{isEditing ? (
 									<textarea
 										aria-label="Edit queued prompt"
-										className="cline-ui-agent-prompt-queue__editor block min-h-8 w-full resize-none rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 py-1.5 text-cline-ui-foreground text-cline-ui-xs leading-4 outline-none focus:border-[color-mix(in_oklab,var(--primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_20%,transparent)]"
+										className="cline-ui-agent-prompt-queue__editor block min-h-8 w-full resize-none rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 py-1.5 text-cline-ui-foreground text-cline-ui-xs leading-4 outline-none focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-solid focus-visible:outline-offset-2"
 										disabled={isPending}
 										onChange={(event) => setEditingValue(event.target.value)}
 										onKeyDown={(event) => {
@@ -266,9 +268,13 @@ export function AgentPromptQueue({
 											</span>
 										) : null}
 										{item.steer ? (
-											<span className="cline-ui-agent-prompt-queue__badge shrink-0 rounded-full bg-cline-ui-primary/10 px-1.5 py-0.5 font-cline-ui-medium text-cline-ui-accent-foreground text-cline-ui-xxs">
+											<Badge
+												className="cline-ui-agent-prompt-queue__badge"
+												size="xxs"
+												tone="accent"
+											>
 												Next turn
-											</span>
+											</Badge>
 										) : null}
 									</div>
 								)}
@@ -284,42 +290,46 @@ export function AgentPromptQueue({
 							<div className="cline-ui-agent-prompt-queue__actions flex shrink-0 items-center gap-0.5">
 								{isEditing ? (
 									<>
-										<button
+										<IconButton
 											aria-label="Save queued prompt"
-											className={ACTION_CLASS_NAME}
+											className="cline-ui-agent-prompt-queue__action"
+											size="xs"
 											disabled={isBusy || editingValue.trim().length === 0}
 											onClick={() => void submitEdit(item)}
 											type="button"
 										>
-											<Icon name="check" />
-										</button>
-										<button
+											<Icon name="check" small />
+										</IconButton>
+										<IconButton
 											aria-label="Cancel editing queued prompt"
-											className={ACTION_CLASS_NAME}
+											className="cline-ui-agent-prompt-queue__action"
+											size="xs"
 											disabled={isBusy}
 											onClick={cancelEdit}
 											type="button"
 										>
-											<Icon name="x" />
-										</button>
+											<Icon name="x" small />
+										</IconButton>
 									</>
 								) : (
 									<>
 										{!item.steer ? (
-											<button
+											<IconButton
 												aria-label="Steer queued prompt"
-												className={ACTION_CLASS_NAME}
+												className="cline-ui-agent-prompt-queue__action"
+												size="xs"
 												disabled={isBusy}
 												onClick={() => void runAction(item, "steer")}
 												title="Steer"
 												type="button"
 											>
-												<Icon name="corner-down-left" />
-											</button>
+												<Icon name="corner-down-left" small />
+											</IconButton>
 										) : null}
-										<button
+										<IconButton
 											aria-label="Edit queued prompt"
-											className={ACTION_CLASS_NAME}
+											className="cline-ui-agent-prompt-queue__action"
+											size="xs"
 											disabled={isBusy}
 											onClick={() => {
 												setEditingId(item.id);
@@ -327,17 +337,18 @@ export function AgentPromptQueue({
 											}}
 											type="button"
 										>
-											<Icon name="pencil" />
-										</button>
-										<button
+											<Icon name="pencil" small />
+										</IconButton>
+										<IconButton
 											aria-label="Remove queued prompt"
-											className={ACTION_CLASS_NAME}
+											className="cline-ui-agent-prompt-queue__action"
+											size="xs"
 											disabled={isBusy}
 											onClick={() => void runAction(item, "remove")}
 											type="button"
 										>
-											<Icon name="trash" />
-										</button>
+											<Icon name="trash" small />
+										</IconButton>
 									</>
 								)}
 							</div>

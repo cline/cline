@@ -30,7 +30,7 @@
  * mode to read as "selected"; step 4 keeps the row unmistakably highlighted
  * in both themes without touching the shared --accent token. */
 .cline-ui-search-combobox__option[aria-selected="true"] {
-	background-color: var(--accent-4, var(--accent));
+	background-color: var(--accent-4);
 }
 
 /* Open animation matching the shadcn/Radix dropdowns (fade + slight zoom,
@@ -38,7 +38,7 @@
 @keyframes cline-ui-search-combobox-open {
 	from {
 		opacity: 0;
-		transform: translateY(var(--cline-ui-search-combobox-slide, 0)) scale(0.97);
+		transform: translateY(var(--cline-ui-search-combobox-slide, 0)) scale(0.98);
 	}
 	to {
 		opacity: 1;

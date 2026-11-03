@@ -1,6 +1,5 @@
 .cline-ui-agent-approval-card,
-.cline-ui-agent-approval-card__detail,
-.cline-ui-agent-approval-card__button {
+.cline-ui-agent-approval-card__detail {
 	box-sizing: border-box;
 	border-style: solid;
 }
@@ -37,24 +36,8 @@
 	margin-top: 0.5rem;
 }
 
-.cline-ui-agent-approval-card__button {
-	padding-block: 0;
-	font-family: inherit;
-	font-size: inherit;
-	font-style: inherit;
-	font-variant: inherit;
-	letter-spacing: inherit;
-	line-height: inherit;
-}
-
 .cline-ui-agent-approval-card__spinner {
 	animation: cline-ui-agent-approval-card-spin 1s linear infinite;
-}
-
-.cline-ui-agent-approval-card__button:has(
-		> .cline-ui-agent-approval-card__spinner
-	) {
-	padding-inline: 0.625rem;
 }
 
 @keyframes cline-ui-agent-approval-card-spin {

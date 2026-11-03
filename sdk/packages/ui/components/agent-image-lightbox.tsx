@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { IconButton } from "./button.js";
 
 export interface AgentImageLightboxContentProps {
 	/** Host-approved image URL; resolve untrusted provider URLs before passing them here. */
@@ -33,15 +34,14 @@ export function AgentImageLightboxContent({
 					className="max-h-full max-w-full rounded-cline-ui-lg object-contain shadow-2xl"
 					src={src}
 				/>
-				<button
+				<IconButton
 					aria-label="Close image viewer"
-					className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-3 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-cline-ui-ring focus-visible:ring-cline-ui-ring/50 focus-visible:ring-[3px] aria-invalid:ring-cline-ui-destructive/20 cline-ui-dark:aria-invalid:ring-cline-ui-destructive/40 aria-invalid:border-cline-ui-destructive bg-cline-ui-secondary text-cline-ui-secondary-foreground hover:bg-cline-ui-surface-hover size-5 pointer-events-auto absolute right-0 top-0 rounded-full"
-					data-slot="button"
+					className="pointer-events-auto absolute right-0 top-0 rounded-full"
+					icon={X}
 					onClick={onClose}
-					type="button"
-				>
-					<X className="h-4 w-4" />
-				</button>
+					size="xs"
+					variant="secondary"
+				/>
 			</div>
 		</>
 	);

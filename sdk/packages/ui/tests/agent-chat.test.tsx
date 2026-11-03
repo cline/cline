@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { Copy } from "lucide-react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,7 @@ import {
 	formatThoughtLabel,
 	formatWorkActivityLabel,
 	Message,
+	MessageAction,
 	MessageContent,
 	Reasoning,
 	ReasoningContent,
@@ -64,6 +66,35 @@ describe("@cline/ui agent chat primitives", () => {
 		const message = container.querySelector(".cline-chat-message");
 		expect(message?.getAttribute("data-role")).toBe("assistant");
 		expect(message?.textContent).toContain("Hello from Cline");
+	});
+
+	it("lets message actions choose the icon while IconButton owns its rendering", async () => {
+		const onClick = vi.fn();
+		await render(
+			<MessageAction icon={Copy} label="Copy message" onClick={onClick} />,
+		);
+		const button = container.querySelector("button");
+		expect(button?.getAttribute("aria-label")).toBe("Copy message");
+		expect(button?.classList.contains("cline-ui-button-xs")).toBe(true);
+		const icon = button?.querySelector(":scope > .cline-ui-button__icon");
+		expect(icon?.getAttribute("data-icon")).toBe("icon");
+		expect(icon?.getAttribute("aria-hidden")).toBe("true");
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+
+	it("preserves existing message actions with icon children", async () => {
+		const onClick = vi.fn();
+		await render(
+			<MessageAction label="Copy message" onClick={onClick}>
+				<Copy aria-hidden="true" className="legacy-icon" />
+			</MessageAction>,
+		);
+		const button = container.querySelector("button");
+		expect(button?.getAttribute("aria-label")).toBe("Copy message");
+		expect(button?.querySelector("svg.legacy-icon")).not.toBeNull();
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
 	});
 
 	it("gives the scrollable conversation log accessible defaults", async () => {
