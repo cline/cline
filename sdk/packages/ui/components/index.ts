@@ -163,6 +163,12 @@ export {
 } from "./item-card.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
+	PillSelector,
+	PillSelectorItem,
+	type PillSelectorItemProps,
+	type PillSelectorProps,
+} from "./pill-selector.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,

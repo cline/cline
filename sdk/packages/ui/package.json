@@ -133,6 +133,8 @@
 		"components/has-content.ts",
 		"components/item-card.css",
 		"components/item-card.tsx",
+		"components/pill-selector.css",
+		"components/pill-selector.tsx",
 		"components/section-heading.css",
 		"components/section-heading.tsx"
 	],
@@ -240,6 +242,7 @@
 		"lucide-react": "^0.564.0",
 		"embla-carousel-react": "^8.6.0",
 		"@radix-ui/react-alert-dialog": "1.1.15",
-		"@radix-ui/react-dialog": "1.1.15"
+		"@radix-ui/react-dialog": "1.1.15",
+		"@radix-ui/react-toggle-group": "1.1.11"
 	}
 }
