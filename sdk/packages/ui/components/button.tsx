@@ -4,10 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import {
 	type ComponentType,
 	cloneElement,
+	type ForwardedRef,
 	forwardRef,
 	isValidElement,
 	type ReactNode,
 	type SVGProps,
+	useCallback,
+	useLayoutEffect,
+	useRef,
 } from "react";
 import { ButtonControl, type ButtonControlProps } from "./button-control.js";
 
@@ -121,6 +125,96 @@ function composeContent(
 	);
 }
 
+/** Animate content-driven width changes without changing the button's DOM or sizing. */
+function useButtonWidthTransition(ref: ForwardedRef<HTMLButtonElement>) {
+	const element = useRef<HTMLButtonElement | null>(null);
+	const previous = useRef<{ node: HTMLElement; width: number } | null>(null);
+	const animation = useRef<Animation | null>(null);
+	const setRef = useCallback(
+		(node: HTMLButtonElement | null) => {
+			element.current = node;
+			if (typeof ref === "function") {
+				const cleanup: unknown = ref(node);
+				if (typeof cleanup === "function") {
+					return () => {
+						element.current = null;
+						cleanup();
+					};
+				}
+			} else if (ref) {
+				ref.current = node;
+			}
+			return undefined;
+		},
+		[ref],
+	);
+
+	useLayoutEffect(() => {
+		const node = element.current;
+		if (!node) return;
+		// Computed width excludes pressScale and other transforms on the button.
+		const measure = () => Number.parseFloat(getComputedStyle(node).width);
+		const last = previous.current;
+		const running =
+			animation.current?.playState === "running" ? animation.current : null;
+		const currentTime = running?.currentTime;
+		const from =
+			last?.node === node ? (running ? measure() : last.width) : undefined;
+		animation.current?.cancel();
+		animation.current = null;
+		const width = measure();
+		previous.current = { node, width };
+		const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+		if (
+			!motion?.matches &&
+			node.animate &&
+			from !== undefined &&
+			from > 0 &&
+			width > 0 &&
+			Number.isFinite(from) &&
+			Number.isFinite(width) &&
+			Math.abs(from - width) > 0.5
+		) {
+			if (running && currentTime != null && last?.width === width) {
+				// Unrelated parent renders must not restart the easing or duration.
+				running.currentTime = currentTime;
+				running.play();
+				animation.current = running;
+			} else {
+				animation.current = node.animate(
+					[
+						{ width: `${from}px`, overflow: "clip" },
+						{ width: `${width}px`, overflow: "clip" },
+					],
+					{ duration: 180, easing: "ease-out" },
+				);
+			}
+		}
+
+		// Keep the baseline current after layout/font changes, without observing
+		// our animation frames as new content widths.
+		const observer =
+			typeof ResizeObserver === "undefined"
+				? undefined
+				: new ResizeObserver(() => {
+						if (animation.current?.playState !== "running") {
+							previous.current = { node, width: measure() };
+						}
+					});
+		observer?.observe(node);
+		const stopForReducedMotion = () => {
+			if (motion?.matches) animation.current?.cancel();
+		};
+		motion?.addEventListener?.("change", stopForReducedMotion);
+		return () => {
+			observer?.disconnect();
+			motion?.removeEventListener?.("change", stopForReducedMotion);
+		};
+	});
+	useLayoutEffect(() => () => animation.current?.cancel(), []);
+	return setRef;
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 	(
 		{
@@ -135,33 +229,36 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			...props
 		},
 		ref,
-	) => (
-		<ButtonControl
-			{...props}
-			asChild={asChild}
-			className={buttonClasses({
-				className: [
-					!leadingIcon && !trailingIcon && "cline-ui-button-legacy-icons",
-					className,
-				],
-				size,
-				tone,
-				variant,
-			})}
-			data-slot="button"
-			ref={ref}
-		>
-			{leadingIcon || trailingIcon
-				? composeContent(children, asChild, (label) => (
-						<>
-							{renderIcon(leadingIcon, "leading")}
-							{label}
-							{renderIcon(trailingIcon, "trailing")}
-						</>
-					))
-				: children}
-		</ButtonControl>
-	),
+	) => {
+		const animatedRef = useButtonWidthTransition(ref);
+		return (
+			<ButtonControl
+				{...props}
+				asChild={asChild}
+				className={buttonClasses({
+					className: [
+						!leadingIcon && !trailingIcon && "cline-ui-button-legacy-icons",
+						className,
+					],
+					size,
+					tone,
+					variant,
+				})}
+				data-slot="button"
+				ref={animatedRef}
+			>
+				{leadingIcon || trailingIcon
+					? composeContent(children, asChild, (label) => (
+							<>
+								{renderIcon(leadingIcon, "leading")}
+								{label}
+								{renderIcon(trailingIcon, "trailing")}
+							</>
+						))
+					: children}
+			</ButtonControl>
+		);
+	},
 );
 Button.displayName = "Button";
 
