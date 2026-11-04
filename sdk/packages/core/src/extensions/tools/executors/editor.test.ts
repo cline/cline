@@ -100,6 +100,32 @@ describe("createEditorExecutor", () => {
 		}
 	});
 
+	it("counts a trailing newline as a terminator, not as an extra line", async () => {
+		await withTempFile("one\ntwo\n", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{ path: filePath, new_text: "tail", insert_line: 4 },
+					dir,
+					context,
+				),
+			).rejects.toThrow(
+				"Invalid insert_line: 4. insert_line must be a positive one-based boundary line in the range 1-3. Use 3 to append at EOF.",
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("one\ntwo\n");
+
+			await editor(
+				{ path: filePath, new_text: "tail", insert_line: 3 },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\ntwo\ntail\n",
+			);
+		});
+	});
+
 	it("emits a minimal diff for an in-place single-line edit", async () => {
 		await withTempFile("a\nb\nc", async (filePath, dir) => {
 			const editor = createEditorExecutor();
