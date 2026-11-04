@@ -29,6 +29,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const successor = { token: "fixture-successor", endpoint: "http://127.0.0.1:2222", organizationId: "org-successor" }
 	let deletionStatus = 204
 	let resumeStatus = 200
+	let resumeRequested = false
 	let readinessStatus = "active"
 	const deleted = new Set<string>()
 	const requests: Array<{ method: string; url: string; token: string | null; body?: string }> = []
@@ -76,6 +77,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				body: typeof init?.body === "string" ? init.body : undefined,
 			})
 			if (method === "POST" && url.endsWith("/resume")) {
+				resumeRequested = true
 				if (resumeStatus !== 200) return Response.json({ error: "resume refused" }, { status: resumeStatus })
 				return Response.json({ data: { ...currentRecord(), status: "provisioning" } })
 			}
@@ -98,6 +100,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				return Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
 			}
 			if (url.endsWith("/status")) {
+				if (!resumeRequested && record.status === "suspended") return Response.json({ data: { status: "suspended" } })
 				await wait(waitPoint === "wakeReadiness" ? "wakeReadiness" : "readiness", init?.signal ?? undefined)
 				return Response.json({ data: { status: readinessStatus } })
 			}
@@ -286,6 +289,7 @@ describe("originating-account cloud cleanup", () => {
 
 		expect(f.requests.map(({ method, url }) => [method, url])).toEqual([
 			["GET", `${f.origin.endpoint}/api/v1/session?organizationId=org-origin`],
+			["GET", `${f.origin.endpoint}/api/v1/session/${f.record.id}/status`],
 			["POST", `${f.origin.endpoint}/api/v1/session/${f.record.id}/resume`],
 			["GET", `${f.origin.endpoint}/api/v1/session/${f.record.id}/status`],
 		])

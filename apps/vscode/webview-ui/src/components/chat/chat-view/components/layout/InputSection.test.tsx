@@ -192,8 +192,12 @@ describe("InputSection", () => {
 		mockCloudState.mockReturnValue({})
 	})
 
-	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
-		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
+	it.each([
+		{ phase: "streaming", disabled: true },
+		{ phase: "resumable", disabled: false },
+		{ phase: "idle", disabled: false },
+	] as const)("gates a provisioning cloud submission in phase $phase", ({ phase, disabled }) => {
+		mockTurnState.mockReturnValue({ phase, seq: 1 })
 		mockCloudState.mockReturnValue({
 			cloudSessionsEnabled: true,
 			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
@@ -203,7 +207,7 @@ describe("InputSection", () => {
 
 		render(
 			<InputSection
-				chatState={makeChatState({ sendingDisabled: true })}
+				chatState={makeChatState({ sendingDisabled: false })}
 				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
 				placeholderText="Type a message"
 				scrollBehavior={makeScrollBehavior()}
@@ -213,9 +217,14 @@ describe("InputSection", () => {
 		)
 
 		const composer = screen.getByLabelText("composer")
-		expect(composer).toBeDisabled()
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).not.toHaveBeenCalled()
+		if (disabled) {
+			expect(composer).toBeDisabled()
+			expect(handleSendMessage).not.toHaveBeenCalled()
+		} else {
+			expect(composer).not.toBeDisabled()
+			expect(handleSendMessage).toHaveBeenCalledOnce()
+		}
 		mockCloudState.mockReturnValue({})
 	})
 

@@ -62,8 +62,6 @@ export interface SdkFollowupCoordinatorOptions {
 }
 
 export class SdkFollowupCoordinator {
-	private cloudFollowupsInFlight = 0
-
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
 	async askResponse(
@@ -84,16 +82,14 @@ export class SdkFollowupCoordinator {
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const cloudFollowup = task ? this.options.beginCloudFollowup?.(task) : undefined
-		// The controller shows streaming during preparation, before a cloud turn exists.
+		// Cloud preparation also shows streaming; only its lifecycle knows whether a turn exists.
 		const submittedDuringActiveTurn =
-			(turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval") &&
-			(!cloudFollowup || this.cloudFollowupsInFlight === 0)
+			!cloudFollowup && (turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval")
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files, cloudFollowup?.isCurrent)
 			return
 		}
 
-		if (cloudFollowup) this.cloudFollowupsInFlight++
 		const sending = this.options.runExclusive(async () => {
 			if (cloudFollowup && !cloudFollowup.isCurrent()) {
 				throw new Error("Cloud follow-up was cancelled because its task changed.")
@@ -141,31 +137,27 @@ export class SdkFollowupCoordinator {
 			Logger.error("[SdkController] askResponse: No active session")
 			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
-		return sending
-			.catch(async (error) => {
-				if (task && cloudFollowup?.isCurrent()) {
-					this.options.messages.appendAndEmit(
-						[
-							{
-								ts: Date.now(),
-								type: "say",
-								say: "error",
-								text: `Could not prepare cloud task: ${error instanceof Error ? error.message : String(error)}`,
-								partial: false,
-							},
-						],
-						{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
-					)
-					// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
-					if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
-					else this.options.onResumeFailed()
-					await this.options.postStateToWebview()
-				}
-				throw error
-			})
-			.finally(() => {
-				if (cloudFollowup) this.cloudFollowupsInFlight--
-			})
+		return sending.catch(async (error) => {
+			if (task && cloudFollowup?.isViewCurrent()) {
+				this.options.messages.appendAndEmit(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Could not prepare cloud task: ${error instanceof Error ? error.message : String(error)}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
+				)
+				// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
+				if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
+				else this.options.onResumeFailed()
+				await this.options.postStateToWebview()
+			}
+			throw error
+		})
 	}
 
 	/** Queue a follow-up onto a session whose turn is still running. */

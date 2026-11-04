@@ -87,7 +87,14 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		getStatus: vi.fn(
 			async (_sessionId: string, _signal?: AbortSignal): Promise<{ status?: string }> => ({ status: "ready" }),
 		),
-		resumeSession: vi.fn(async (_sessionId: string): Promise<void> => undefined),
+		resumeSession: vi.fn(
+			async (
+				_sessionId: string,
+				_onPhase?: (phase: CloudProvisioningPhase) => void,
+				_signal?: AbortSignal,
+			): Promise<void> => undefined,
+		),
+		waitUntilReady: vi.fn(async (_sessionId: string, _signal?: AbortSignal): Promise<void> => undefined),
 		getHistory: vi.fn(async (): Promise<unknown[] | null> => []),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
 		sessionSocketUrl: vi.fn((id: string) => `ws://127.0.0.1/${id}`),
@@ -2122,6 +2129,7 @@ describe("cloud follow-up preparation", () => {
 		fixture.options.getMinter = () => minter
 		fixture.options.messages = new SdkMessageCoordinator({ getTask: fixture.options.getTask, getMinter: () => minter })
 		fixture.cloudSessions.listSessions.mockResolvedValue([initialRecord])
+		fixture.cloudSessions.getStatus.mockResolvedValue({ status: initialRecord.status })
 		await fixture.coordinator.listHistoryRecords()
 		const entries = (
 			fixture.coordinator as unknown as { entries: Map<string, { host?: unknown; record: CloudSessionRecord }> }
@@ -2215,7 +2223,6 @@ describe("cloud follow-up preparation", () => {
 	it.each([
 		[{ status: "failed" }, "has failed", true],
 		[{ status: "expired" }, "has expired", true],
-		[{ status: "provisioning" }, "not ready", false],
 		[{ status: undefined }, "Could not confirm", false],
 		[new Error("status service unavailable"), "status service unavailable", false],
 		[new CloudSessionError("session_expired", "sandbox expired", undefined, 410), "sandbox expired", true],
@@ -2231,33 +2238,6 @@ describe("cloud follow-up preparation", () => {
 		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
 		expect(f.connect).not.toHaveBeenCalled()
 		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
-		await f.coordinator.dispose()
-	})
-
-	it.each([
-		{ label: "failed", status: "failed", probe: { status: "failed" }, message: "has failed" },
-		{ label: "expired", status: "expired", probe: { status: "expired" }, message: "has expired" },
-		{
-			label: "HTTP 410",
-			status: "expired",
-			probe: new CloudSessionError("session_expired", "sandbox expired", undefined, 410),
-			message: "has expired",
-		},
-	] as const)("retires a retained host after its $label connection fallback", async ({ status, probe, message }) => {
-		const f = await idleFollowup()
-		f.sessions.setActiveSession(undefined)
-		f.host.refreshStatus.mockRejectedValue(new Error("connection refused"))
-		const getStatus = f.cloudSessions.getStatus.mockResolvedValueOnce({ status: "ready" })
-		if (probe instanceof CloudSessionError) getStatus.mockRejectedValueOnce(probe)
-		else getStatus.mockResolvedValueOnce(probe)
-
-		await expect(f.preparation.prepare()).rejects.toThrow(message)
-
-		expect(f.entries.get(record.id)?.record.status).toBe(status)
-		expect(f.entries.get(record.id)?.host).toBeUndefined()
-		expect(f.host.dispose).toHaveBeenCalledOnce()
-		expect(f.coordinator.canPrepareFollowup(record.id)).toBe(false)
-		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
 		await f.coordinator.dispose()
 	})
 
@@ -2407,37 +2387,19 @@ describe("cloud follow-up preparation", () => {
 		await f.coordinator.dispose()
 	})
 
-	it("does not wake a terminal sandbox after a failed connection's late suspended response", async () => {
+	it.each(["active", "expired"])("ignores a late History suspension probe after a newer %s record", async (state) => {
 		const f = await idleFollowup()
 		f.sessions.setActiveSession(undefined)
 		f.host.refreshStatus.mockRejectedValue(new Error("connection refused"))
 		const status = deferred<{ status: string }>()
-		f.cloudSessions.getStatus.mockResolvedValueOnce({ status: "ready" }).mockReturnValueOnce(status.promise)
-		const pending = f.preparation.prepare()
-		await vi.waitFor(() => expect(f.cloudSessions.getStatus).toHaveBeenCalledTimes(2))
-		f.cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "expired" }])
+		f.cloudSessions.getStatus.mockReturnValueOnce(status.promise).mockResolvedValue({ status: "active" })
+		const pending = f.coordinator.openCloudTask(record.id)
+		await vi.waitFor(() => expect(f.cloudSessions.getStatus).toHaveBeenCalledOnce())
+		f.cloudSessions.listSessions.mockResolvedValue([{ ...record, status: state }])
 		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
 		status.resolve({ status: "suspended" })
-		await expect(pending).rejects.toThrow("has expired")
-		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
-		expect(f.connect).not.toHaveBeenCalled()
-		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
-		await f.coordinator.dispose()
-	})
-
-	it("does not wake an active sandbox after a failed connection's late suspended response", async () => {
-		const f = await idleFollowup()
-		f.sessions.setActiveSession(undefined)
-		f.host.refreshStatus.mockRejectedValue(new Error("connection refused"))
-		const status = deferred<{ status: string }>()
-		f.cloudSessions.getStatus.mockResolvedValueOnce({ status: "ready" }).mockReturnValueOnce(status.promise)
-		const pending = f.preparation.prepare()
-		await vi.waitFor(() => expect(f.cloudSessions.getStatus).toHaveBeenCalledTimes(2))
-		f.cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "active" }])
-		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
-		status.resolve({ status: "suspended" })
-		await expect(pending).rejects.toThrow("connection refused")
-		expect(f.entries.get(record.id)?.record.status).toBe("active")
+		await pending
+		expect(f.entries.get(record.id)?.record.status).toBe(state)
 		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
 		expect(f.connect).not.toHaveBeenCalled()
 		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
@@ -2462,6 +2424,8 @@ describe("cloud follow-up preparation", () => {
 		expect(f.connect).not.toHaveBeenCalled()
 		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
 		expect(f.entries.get(record.id)?.record.metadata.taskId).toBe("tsk-replacement")
+		expect(f.preparation.isCurrent()).toBe(false)
+		expect(f.preparation.isViewCurrent()).toBe(true)
 		await f.coordinator.dispose()
 	})
 
@@ -2513,7 +2477,7 @@ describe("cloud follow-up preparation", () => {
 		const session = await f.preparation.prepare()
 
 		expect(f.cloudSessions.resumeSession).toHaveBeenCalledOnce()
-		expect(f.cloudSessions.getStatus).toHaveBeenCalledTimes(confirmation === "listed" ? 0 : 1)
+		expect(f.cloudSessions.getStatus).toHaveBeenCalledOnce()
 		expect(f.host.dispose).toHaveBeenCalledWith("sandboxUnavailable")
 		expect(f.sessions.endActiveSessionIfHost).toHaveBeenCalledWith(f.host, "sandboxUnavailable")
 		expect(f.connect).toHaveBeenCalledOnce()
@@ -2571,36 +2535,39 @@ describe("cloud follow-up preparation", () => {
 		await f.coordinator.dispose()
 	})
 
-	it("releases the task-transition lock on cancellation and lets a new submission join the pending wake", async () => {
+	it.each(["provisioning", "ready"])("cancels preparation and rechecks the next submission's %s state", async (status) => {
 		const f = await idleFollowup({ ...record, status: "suspended" })
 		const freshHost = makeHost()
 		f.connect.mockResolvedValue(freshHost)
-		const resumeStarted = deferred<void>()
 		const resumeGate = deferred<void>()
-		f.cloudSessions.resumeSession.mockImplementation(async () => {
-			resumeStarted.resolve()
-			await resumeGate.promise
-		})
+		f.cloudSessions.resumeSession.mockReturnValue(resumeGate.promise)
 		const scheduler = new SdkSessionRebuildScheduler({
 			sessions: { getActiveSession: () => f.sessions.getActiveSession() as never },
 		})
 		const first = scheduler.runExclusive(() => f.coordinator.beginFollowup(f.task, () => true).prepare())
-		await resumeStarted.promise
+		await vi.waitFor(() => expect(f.cloudSessions.resumeSession).toHaveBeenCalledOnce())
+		const oldPreparation = Promise.allSettled([
+			...(f.coordinator as unknown as { scopeOperations: Set<Promise<unknown>> }).scopeOperations,
+		])
+		const signal = f.cloudSessions.resumeSession.mock.calls[0][2]!
 		f.coordinator.cancelPendingFollowup()
 		await expect(first).rejects.toThrow("cancelled")
+		expect(signal.aborted).toBe(true)
 
 		const reselectedTask = createTaskProxy(record.id, vi.fn(), vi.fn())
 		await scheduler.runTaskTransition(async () => {
 			f.options.setTask(reselectedTask)
 		})
-		expect(f.options.getTask()).toBe(reselectedTask)
-
-		const second = scheduler.runExclusive(() => f.coordinator.beginFollowup(reselectedTask, () => true).prepare())
-
+		f.cloudSessions.getStatus.mockResolvedValue({ status })
+		const prepared = await scheduler.runExclusive(() => f.coordinator.beginFollowup(reselectedTask, () => true).prepare())
 		resumeGate.resolve()
-		const prepared = await second
+		await oldPreparation
+
 		expect(prepared.sdkHost).toBe(freshHost)
-		expect(f.cloudSessions.getStatus).not.toHaveBeenCalled()
+		expect(f.entries.get(record.id)?.host).toBe(freshHost)
+		expect(f.entries.get(record.id)?.record.status).toBe("ready")
+		expect(f.cloudSessions.getStatus).toHaveBeenCalledTimes(2)
+		expect(f.cloudSessions.waitUntilReady).toHaveBeenCalledTimes(status === "provisioning" ? 1 : 0)
 		expect(f.cloudSessions.resumeSession).toHaveBeenCalledOnce()
 		expect(f.connect).toHaveBeenCalledOnce()
 		expect(f.sessions.attachExistingSession).toHaveBeenCalledOnce()

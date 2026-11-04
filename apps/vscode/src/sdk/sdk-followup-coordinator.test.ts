@@ -84,7 +84,7 @@ describe("SdkFollowupCoordinator", () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		activeSession.sessionId = "ses-queued"
 		const prepare = vi.fn(async () => makeActiveSession())
-		const beginCloudFollowup = vi.fn(() => ({ prepare, isCurrent: () => true }))
+		const beginCloudFollowup = vi.fn(() => ({ prepare, isCurrent: () => true, isViewCurrent: () => true }))
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task: makeTask(activeSession.sessionId),
@@ -115,7 +115,7 @@ describe("SdkFollowupCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task: makeTask(activeSession.sessionId),
-			beginCloudFollowup: () => ({ prepare, isCurrent: () => true }),
+			beginCloudFollowup: () => ({ prepare, isCurrent: () => true, isViewCurrent: () => true }),
 		})
 		options.resolveContextMentions.mockImplementation(async () => {
 			options.sessions.getActiveSession.mockReturnValue(replacement ? makeActiveSession({ isRunning: true }) : undefined)
@@ -129,14 +129,22 @@ describe("SdkFollowupCoordinator", () => {
 		expect(prepare).not.toHaveBeenCalled()
 	})
 
-	it("rejects cloud preparation before echo or send so the submitted draft can be restored", async () => {
+	it.each(["connection", "canonical"])("restores the unsent draft after a cloud %s preparation failure", async (failure) => {
 		const task = makeTask("ses-cloud")
 		const error = new Error("pre-dispatch connection failed")
 		const activeSession = makeActiveSession()
 		activeSession.sessionId = task.taskId
+		let targetCurrent = true
 		const preparation = {
-			prepare: vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(activeSession),
-			isCurrent: () => true,
+			prepare: vi
+				.fn()
+				.mockImplementationOnce(async () => {
+					if (failure === "canonical") targetCurrent = false
+					throw error
+				})
+				.mockResolvedValueOnce(activeSession),
+			isCurrent: () => targetCurrent,
+			isViewCurrent: () => true,
 		}
 		const { coordinator, options } = makeCoordinator({ task, activeSession, beginCloudFollowup: () => preparation })
 
@@ -148,6 +156,7 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
+		targetCurrent = true
 		await coordinator.askResponse("keep this draft", ["image.png"], ["file.ts"], "messageResponse", "idle")
 
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
@@ -163,7 +172,11 @@ describe("SdkFollowupCoordinator", () => {
 	it("keeps Retry after a bare cloud resume preparation fails", async () => {
 		const task = makeTask("ses-cloud")
 		const error = new Error("resume could not be prepared")
-		const preparation = { prepare: vi.fn(async () => Promise.reject(error)), isCurrent: () => true }
+		const preparation = {
+			prepare: vi.fn(async () => Promise.reject(error)),
+			isCurrent: () => true,
+			isViewCurrent: () => true,
+		}
 		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
 
 		await expect(coordinator.askResponse(undefined, undefined, undefined, "yesButtonClicked", "resumable")).rejects.toBe(
@@ -182,7 +195,7 @@ describe("SdkFollowupCoordinator", () => {
 		const pendingPreparation = Promise.withResolvers<ActiveSession>()
 		let current = true
 		const prepare = vi.fn(() => pendingPreparation.promise)
-		const preparation = { prepare, isCurrent: () => current }
+		const preparation = { prepare, isCurrent: () => current, isViewCurrent: () => current }
 		const { coordinator, options } = makeCoordinator({ task, beginCloudFollowup: () => preparation })
 
 		const sending = coordinator.askResponse("old task prompt")
@@ -206,7 +219,7 @@ describe("SdkFollowupCoordinator", () => {
 		const pendingPreparation = Promise.withResolvers<ActiveSession>()
 		const prepare = vi.fn(() => pendingPreparation.promise)
 		const events: string[] = []
-		const preparation = { prepare, isCurrent: () => true }
+		const preparation = { prepare, isCurrent: () => true, isViewCurrent: () => true }
 		const { coordinator, options } = makeCoordinator({
 			activeSession: oldSession,
 			task,
