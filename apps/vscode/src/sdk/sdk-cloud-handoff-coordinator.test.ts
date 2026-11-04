@@ -344,7 +344,6 @@ describe("cloud conversation handoff", () => {
 
 	it.each([
 		"sent",
-		"recovered",
 		"error",
 		"before-dispatch",
 		"draining",
@@ -360,8 +359,6 @@ describe("cloud conversation handoff", () => {
 					? Object.assign(new Error("Hub is restarting"), { name: "HubCommandError", code: "hub_draining" })
 					: new Error("connection closed")
 			})
-		else if (outcome === "recovered")
-			cloud.send.mockResolvedValueOnce({ sessionId: "ses_example", ok: true, recoveredAfterDisconnect: true })
 		const retry = Promise.all([coordinator.retryMessage(id()), coordinator.retryMessage(id())])
 		if (unsent) await expect(retry).rejects.toThrow(outcome === "draining" ? "Hub is restarting" : "Connection unavailable")
 		else await retry

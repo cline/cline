@@ -38,7 +38,7 @@ export function CloudHandoff({ error: preparationError, onRestoreDraft, onDiscar
 	const sessionId = view && (view.phase === "complete" || view.phase === "launching") ? view.sessionId : undefined
 	return (
 		<CloudHandoffNotice
-			key={JSON.stringify([currentTaskItem?.id, view?.id, view?.phase, sessionId])}
+			key={JSON.stringify([currentTaskItem?.id, view?.id, sessionId])}
 			onDiscardDraft={onDiscardDraft}
 			onRestoreDraft={onRestoreDraft}
 			preparationError={preparationError}

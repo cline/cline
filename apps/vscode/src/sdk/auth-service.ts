@@ -1037,15 +1037,21 @@ export class AuthService {
 							id: accountId,
 							email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
 						})
-			if (this._clineAuthInfo !== authBeforeProfile || readClineCredentials()?.accessToken !== validCredentials.access)
+			const currentCredentials = readClineCredentials()
+			if (
+				this._clineAuthInfo !== authBeforeProfile ||
+				!currentCredentials ||
+				(currentCredentials.accessToken !== validCredentials.access &&
+					(!accountId || currentCredentials.accountId !== accountId))
+			)
 				return
 			this._clineAuthInfo = {
-				idToken: validCredentials.access,
-				refreshToken: validCredentials.refresh,
-				expiresAt: validCredentials.expires ? validCredentials.expires / 1000 : undefined,
+				idToken: currentCredentials.accessToken,
+				refreshToken: currentCredentials.refreshToken,
+				expiresAt: currentCredentials.expiresAt ? currentCredentials.expiresAt / 1000 : undefined,
 				userInfo,
 				provider: restoredAuthInfo.provider,
-				startedAt: restoredAuthInfo.startedAt,
+				startedAt: currentCredentials.sessionStartedAtMs ?? restoredAuthInfo.startedAt,
 			}
 			this._authenticated = true
 

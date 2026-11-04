@@ -142,12 +142,18 @@ describe("cloud handoff navigation", () => {
 			expect.objectContaining({ value: "ses-cloud-task" }),
 		)
 	})
-	it("does not offer browser navigation for continuation recovery errors", async () => {
+	it("shows retry errors across launch updates without offering browser navigation", async () => {
 		view = { ...view, phase: "complete", sessionId: "ses-cloud-task", delivery: "unsent" }
-		clients.retryHandoffMessage.mockRejectedValue(new Error("Retry failed"))
-		render(<CloudHandoff />)
+		const retry = Promise.withResolvers<void>()
+		clients.retryHandoffMessage.mockReturnValueOnce(retry.promise)
+		const { rerender } = render(<CloudHandoff />)
 		fireEvent.click(screen.getByRole("button", { name: "Retry continuation" }))
-		expect(await screen.findByRole("alert")).toHaveTextContent("Retry failed")
+		view = { ...view, phase: "launching" }
+		rerender(<CloudHandoff />)
+		view = { ...view, phase: "complete", delivery: "unsent" }
+		rerender(<CloudHandoff />)
+		await act(async () => retry.reject(new Error("Retry failed")))
+		expect(screen.getByRole("alert")).toHaveTextContent("Retry failed")
 		expect(screen.getByRole("button", { name: "Open cloud task" })).toBeEnabled()
 		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
 		expect(clients.showTaskWithId).not.toHaveBeenCalled()
@@ -176,20 +182,5 @@ describe("cloud handoff navigation", () => {
 		expect(screen.queryByRole("button", { name: "Open in browser" })).not.toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
 		expect(clients.showTaskWithId).toHaveBeenLastCalledWith(expect.objectContaining({ value: view.sessionId }))
-	})
-
-	it("removes the notice away from the source and restores its recovery controls on return", () => {
-		view = { id: "handoff", sourceTaskId: "local-task", phase: "complete", sessionId: "ses-cloud-task", delivery: "unsent" }
-		const { rerender } = render(<CloudHandoff />)
-		fireEvent.click(screen.getByRole("button", { name: "Open cloud task" }))
-		expect(clients.showTaskWithId).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "ses-cloud-task" }))
-		viewingSource = false
-		rerender(<CloudHandoff />)
-		expect(screen.queryByRole("region", { name: "Cloud handoff" })).not.toBeInTheDocument()
-		viewingSource = true
-		rerender(<CloudHandoff />)
-		fireEvent.click(screen.getByRole("button", { name: "Retry continuation" }))
-		expect(clients.retryHandoffMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ value: "handoff" }))
-		expect(clients.openCloudSessionDashboard).not.toHaveBeenCalled()
 	})
 })

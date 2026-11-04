@@ -11,6 +11,7 @@ import {
 import { createMediaBudgetState, validateAndReserveImageMedia } from "@cline/shared"
 import type { CloudHandoffView } from "@shared/cloud/cloud-handoff"
 import { CLOUD_SESSION_MODE } from "@shared/cloud/cloud-sessions"
+import { isClineManagedProvider } from "@shared/utils/cline"
 import { Logger } from "@/shared/services/Logger"
 import { getProviderSettingsManager } from "./provider-migration"
 
@@ -139,7 +140,7 @@ export class SdkCloudHandoffCoordinator {
 			}).resolveProviderApiKey({ providerId: source.config.providerId })
 			this.assertCurrent(attempt)
 			if (
-				(source.config.providerId === "cline" || source.config.providerId === "cline-pass") &&
+				isClineManagedProvider(source.config.providerId) &&
 				(credentials
 					? credentials.accountId !== account.accountId
 					: source.config.apiKey?.trim().toLowerCase().startsWith("workos:"))

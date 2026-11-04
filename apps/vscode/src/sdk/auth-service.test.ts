@@ -685,6 +685,47 @@ describe("AuthService", () => {
 
 	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
 		it.each([
+			{ storedAccountId: "user-123", removed: false, expectedUser: "user-123", expectedToken: "workos:rotated-token" },
+			{ storedAccountId: "other-user", removed: false, expectedUser: undefined, expectedToken: null },
+			{ storedAccountId: undefined, removed: false, expectedUser: undefined, expectedToken: null },
+			{ storedAccountId: undefined, removed: true, expectedUser: undefined, expectedToken: null },
+		])("isolates credentials changed during profile loading for $storedAccountId (removed: $removed)", async ({
+			storedAccountId,
+			removed,
+			expectedUser,
+			expectedToken,
+		}) => {
+			const previous = createTestAuthInfo()
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "stored-token", refreshToken: "r", accountId: previous.userInfo.id },
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				...createTestOAuthCredentials(),
+				accountId: previous.userInfo.id,
+			})
+			const profile = Promise.withResolvers<{ data: { data: ClineAuthInfo["userInfo"] } }>()
+			vi.mocked(axios.get).mockReturnValueOnce(profile.promise)
+			const restoring = authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			await vi.waitFor(() => expect(axios.get).toHaveBeenCalledOnce())
+			const auth = removed
+				? undefined
+				: {
+						accessToken: "workos:rotated-token",
+						refreshToken: "rotated-refresh",
+						accountId: storedAccountId,
+						expiresAt: Date.now() + 3_600_000,
+					}
+			mockProviderSettings.set("cline", { provider: "cline", auth })
+			profile.resolve({ data: { data: previous.userInfo } })
+			await restoring
+			expect(authService.getInfo().user?.uid).toBe(expectedUser)
+			expect(await authService.getAuthToken()).toBe(expectedToken)
+			expect(mockProviderSettings.get("cline")?.auth).toEqual(auth)
+			if (expectedUser) expect(testAccess(authService)._clineAuthInfo?.refreshToken).toBe("rotated-refresh")
+		})
+
+		it.each([
 			true,
 			false,
 		])("does not restore a signed-out account after a pending profile lookup (warm: %s)", async (warm) => {
