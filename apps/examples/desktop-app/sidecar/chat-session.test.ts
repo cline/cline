@@ -7,7 +7,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +33,7 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import * as sessionPaths from "./paths";
+import { sharedSessionMessagesPath } from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
@@ -178,6 +179,8 @@ describe("starting SSH sessions", () => {
 			expect.objectContaining({ initialMessages: transcript }),
 		);
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
+		// The remote Hub keeps its own store, so it always gets the history inline.
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
 	});
 
 	it("propagates other read failures without creating a session", async () => {
@@ -208,6 +211,117 @@ describe("starting SSH sessions", () => {
 		expect(
 			(start.mock.calls[0]?.[0] as { config: object }).config,
 		).not.toHaveProperty("initialMessages");
+	});
+});
+
+describe("starting local sessions from a saved transcript", () => {
+	const sessionId = "session-saved-local";
+	const transcript = [
+		{ role: "user" as const, content: "earlier prompt" },
+		{ role: "assistant" as const, content: "earlier reply" },
+	];
+	let dataDir = "";
+	let previousSessionDataDir: string | undefined;
+
+	beforeEach(() => {
+		dataDir = mkdtempSync(join(tmpdir(), "cline-saved-local-"));
+		previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		const messagesPath = sharedSessionMessagesPath(sessionId);
+		mkdirSync(dirname(messagesPath), { recursive: true });
+		writeFileSync(messagesPath, JSON.stringify(transcript));
+	});
+
+	afterEach(() => {
+		if (previousSessionDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+		}
+		rmSync(dataDir, { recursive: true, force: true });
+	});
+
+	function setup() {
+		const start = vi.fn(async (_input: Record<string, unknown>) => ({
+			sessionId,
+			manifest: { cwd: "/workspace", workspace_root: "/workspace" },
+			manifestPath: "/tmp/session.json",
+			messagesPath: "/tmp/session.messages.json",
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext({ start }),
+			telemetryUser: { distinctId: "account-1" },
+		} as unknown as SidecarContext;
+		const config = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			enableTools: true,
+		};
+		return { ctx, config, start };
+	}
+
+	it("asks the hub to load the stored transcript instead of sending it", async () => {
+		const { ctx, config, start } = setup();
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, sessionId },
+		});
+
+		// The transcript stays in memory for the UI, and the hub is told it may
+		// load the same transcript itself so a long one never exceeds the hub's
+		// inbound frame limit.
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: transcript,
+				resumeFromStore: true,
+			}),
+		);
+		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
+	});
+
+	it("sends messages the caller supplied without claiming they are the stored ones", async () => {
+		const { ctx, config, start } = setup();
+		const supplied = [{ role: "user" as const, content: "a forked prompt" }];
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, sessionId, initialMessages: supplied },
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: supplied }),
+		);
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
+	});
+
+	it("does not ask for a stored transcript when starting a new session", async () => {
+		const { ctx, config, start } = setup();
+
+		await handleChatSessionCommand(ctx, { action: "start", config });
+
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("initialMessages");
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
+	});
+
+	it("starts the chat as before when the saved file has no messages", async () => {
+		const { ctx, config, start } = setup();
+		writeFileSync(
+			sharedSessionMessagesPath(sessionId),
+			JSON.stringify({ messages: [] }),
+		);
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, sessionId },
+		});
+
+		// The Hub answers an empty history with session_messages_not_found, so
+		// asking it to resume would fail where this used to start an empty chat.
+		expect(start).toHaveBeenCalledOnce();
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("resumeFromStore");
 	});
 });
 
