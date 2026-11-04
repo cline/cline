@@ -122,29 +122,8 @@ describe("side reference capture", () => {
 									},
 								},
 							],
-						}),
-					},
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "structured",
-						name: "structured_result",
-						content: JSON.stringify({
-							content: [
-								{
-									type: "text",
-									text: "cline://cache/parent/output\nRECOVERY_CODE=ultramarine",
-								},
-								{
-									type: "file",
-									path: "cline://cache/parent/attachment.txt",
-									content: "cline://cache/parent/source\nATTACHMENT_FACT=preserved",
-								},
-							],
+							"cline://cache/parent/key": "Cache-key evidence",
+							"data:image/png;base64,QUJD": "Media-key evidence",
 						}),
 					},
 				],
@@ -168,10 +147,9 @@ describe("side reference capture", () => {
 		expect(capture.content).toContain("Resource evidence");
 		expect(capture.content).toContain("Cache fact survives");
 		expect(capture.content).toContain("Media fact survives");
-		expect(capture.content).toContain("RECOVERY_CODE=ultramarine");
-		expect(capture.content).toContain("ATTACHMENT_FACT=preserved");
+		expect(capture.content).toContain("Cache-key evidence");
+		expect(capture.content).toContain("Media-key evidence");
 		expect(capture.content).toContain("incomplete question");
-		expect(capture.content).not.toContain("cline://cache/parent/");
 		expect(capture.content).toContain("result not yet available");
 		expect(capture.content).not.toMatch(
 			/cline:\/\/cache|data:image|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
@@ -282,7 +260,7 @@ describe("current context and provider request", () => {
 							content: JSON.stringify([
 								{
 									type: "file",
-									path: "notes.txt",
+									path: "cline://cache/parent/attachment.txt",
 									content:
 										"Nested requirement cline://cache/private/note\nNested fact survives",
 									source: "attachment",
@@ -410,9 +388,9 @@ describe("current context and provider request", () => {
 				],
 			},
 		});
-		expect(String(repeatedUnconfirmed.content).match(/\brepeat\b/g)).toHaveLength(
-			3,
-		);
+		expect(
+			String(repeatedUnconfirmed.content).match(/\brepeat\b/g),
+		).toHaveLength(3);
 		expect(repeatedUnconfirmed.content).toContain("submission unconfirmed");
 	});
 

@@ -27,6 +27,9 @@ The initial reference is capped at 16 KiB and each excerpt at 4 KiB. A supplied
 this optional supplement from their visible conversation at creation time;
 there is no continuous synchronization.
 
+Compaction can summarize or remove the starting reference. Use
+`read_parent_history` to retrieve parent context afterward.
+
 `read_parent_history` supports `recent`, `search`, and `read`, using the parent
 bound when the tool is created. Results include saved-history limitations and
 separately read parent status. Stale read references are rejected. Neither
