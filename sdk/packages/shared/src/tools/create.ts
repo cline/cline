@@ -80,6 +80,7 @@ function normalizeToolInputSchema(
 
 export function createTool<TInput, TOutput>(config: {
 	name: string;
+	policyDependencies?: AgentTool["policyDependencies"];
 	resultPolicy?: AgentTool["resultPolicy"];
 	description: string;
 	inputSchema: Record<string, unknown>;
@@ -93,6 +94,7 @@ export function createTool<TInput, TOutput>(config: {
 }): AgentTool<TInput, TOutput>;
 export function createTool<TSchema extends z.ZodTypeAny, TOutput>(config: {
 	name: string;
+	policyDependencies?: AgentTool["policyDependencies"];
 	resultPolicy?: AgentTool["resultPolicy"];
 	description: string;
 	inputSchema: TSchema;
@@ -109,6 +111,7 @@ export function createTool<TSchema extends z.ZodTypeAny, TOutput>(config: {
 }): AgentTool<z.infer<TSchema>, TOutput>;
 export function createTool<TInput, TOutput>(config: {
 	name: string;
+	policyDependencies?: AgentTool["policyDependencies"];
 	resultPolicy?: AgentTool["resultPolicy"];
 	description: string;
 	inputSchema: Record<string, unknown> | z.ZodTypeAny;
@@ -128,6 +131,7 @@ export function createTool<TInput, TOutput>(config: {
 
 	return {
 		name: config.name,
+		policyDependencies: config.policyDependencies,
 		resultPolicy: config.resultPolicy,
 		description: config.description,
 		inputSchema,

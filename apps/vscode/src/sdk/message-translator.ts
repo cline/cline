@@ -475,11 +475,6 @@ export class MessageTranslatorState {
 		return this.spawnAgentEntries.size > 0
 	}
 
-	/** Whether any registered spawn_agent call has not finished yet. */
-	hasRunningSpawnAgents(): boolean {
-		return this.getSpawnAgentItems().some((entry) => entry.status === "running" || entry.status === "pending")
-	}
-
 	/** Get all spawn_agent entries as an ordered array */
 	getSpawnAgentItems(): SubagentStatusItem[] {
 		return Array.from(this.spawnAgentEntries.values()).sort((a, b) => a.index - b.index)
@@ -2086,22 +2081,13 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
-			// Sub-agent events should NOT produce ClineMessages in the main chat.
-			// The sub-agent's work is represented by the parent's spawn_agent tool
-			// events (content_start/update/end), which we translate into the rich
-			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
-			// text output, iteration, and usage event floods the main chat.
+			// Worker progress belongs to the parent's delegation tool. Worker text,
+			// tool calls, and completion must not become parent chat/turn events.
 			const agentEvent = event.payload.event
-			const isToolLifecycleEvent =
-				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
-			const isSpawnAgentToolEvent =
-				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
-
-			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
-			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
-			// flight we also suppress every non-spawn_agent event. This preserves the
-			// parent spawn_agent status updates while hiding sub-agent internals.
-			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
+			// Core stamps identity on every event, including locally adapted events.
+			// Filter by ancestry so every delegation tool is handled consistently
+			// and concurrent work by the parent remains visible.
+			if (agentEvent.parentAgentId) {
 				break
 			}
 

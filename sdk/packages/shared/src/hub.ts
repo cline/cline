@@ -1,4 +1,4 @@
-import type { AgentMessage } from "./agent";
+import type { AgentMessage, AgentTool } from "./agent";
 import type {
 	PluginUiInvokeInput,
 	PluginUiInvokeResult,
@@ -1011,6 +1011,8 @@ export interface HubClientToolExecutorContribution
 
 export interface HubClientToolContribution extends HubClientContributionBase {
 	successContext?: string;
+	policyDependencies?: readonly string[];
+	executionMode?: AgentTool["executionMode"];
 	kind: "tool";
 	name: string;
 	description: string;

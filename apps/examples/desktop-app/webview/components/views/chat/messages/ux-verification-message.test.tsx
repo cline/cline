@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
+import type { MessageWithMetadata } from "@cline/shared";
+import type { UxVerificationReport } from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ChatMessage } from "@/lib/chat-schema";
-import { ToolMessageBlock } from "./tool-message-block";
+import { type ChatMessage, ChatMessageSchema } from "@/lib/chat-schema";
+import { readSessionMessagesSync } from "../../../../../sidecar/session-data/messages";
 import { ChatMessages } from "../chat-messages";
-import { isUxVerificationMessage } from "./ux-verification-message";
+import { ToolMessageBlock } from "./tool-message-block";
+import {
+	getReportedArtifacts,
+	isUxVerificationMessage,
+} from "./tool-summaries";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -42,7 +48,7 @@ const report = {
 			},
 		},
 	],
-};
+} satisfies UxVerificationReport;
 function message(result: unknown = report): ChatMessage {
 	return {
 		id: "report",
@@ -222,8 +228,67 @@ it("recognizes report semantics without requiring a particular tool name", () =>
 		false,
 	);
 });
-it("renders the report from the main chat using its existing work disclosure", async () => {
+it("uses only valid completed reports and scopes their artifact references to the session", () => {
+	const valid = message(JSON.stringify(report));
+	const invalid = message({ ...report, checks: [] });
+	const failed = {
+		...valid,
+		content: JSON.stringify({ result: report, isError: true }),
+	};
+	const pending = { ...valid, meta: { hookEventName: "tool_call_start" } };
+	expect(getReportedArtifacts([invalid, failed, pending]).size).toBe(0);
+	expect(
+		getReportedArtifacts([valid, { ...valid, sessionId: "ses-two" }]),
+	).toEqual(
+		new Map([
+			["ses-one", new Set([" frame/雪 "])],
+			["ses-two", new Set([" frame/雪 "])],
+		]),
+	);
+});
+it("does not reprocess settled rows when report references are unchanged", async () => {
 	const input = message();
+	const parse = vi.spyOn(JSON, "parse");
+	async function update() {
+		const reportedArtifacts = getReportedArtifacts([input]);
+		parse.mockClear();
+		await act(async () =>
+			root.render(
+				<ToolMessageBlock
+					messages={[input]}
+					isRunActive={false}
+					reportedArtifacts={reportedArtifacts}
+				/>,
+			),
+		);
+	}
+	await update();
+	expect(parse.mock.calls.some(([value]) => value === input.content)).toBe(
+		true,
+	);
+	await update();
+	expect(parse.mock.calls.some(([value]) => value === input.content)).toBe(
+		false,
+	);
+});
+it.each([
+	"none",
+	"reported",
+	"mixed",
+])("keeps verification visible with %s publication files", async (publication) => {
+	const input = message();
+	const files = [
+		{ path: "/tmp/menu.png", artifactId: " frame/雪 " },
+		...(publication === "mixed"
+			? [
+					{ path: "/tmp/other.png", artifactId: "other" },
+					{
+						path: "/tmp/missing.png",
+						error: { code: "NOT_FOUND", message: "File missing" },
+					},
+				]
+			: []),
+	];
 	await act(async () =>
 		root.render(
 			<ChatMessages
@@ -238,6 +303,18 @@ it("renders the report from the main chat using its existing work disclosure", a
 						role: "user",
 						content: "Check the navigation",
 					},
+					...(publication === "none"
+						? []
+						: [
+								{
+									...input,
+									id: "publication",
+									content: JSON.stringify({
+										toolName: "publish_artifacts",
+										result: { files },
+									}),
+								},
+							]),
 					input,
 					{
 						...input,
@@ -256,16 +333,130 @@ it("renders the report from the main chat using its existing work disclosure", a
 	);
 	const work = container.querySelector<HTMLButtonElement>(
 		"button.cline-chat-work-trigger",
-	)!;
-	expect(work).not.toBeNull();
-	expect(container.textContent).toContain("Completed checks");
-	expect(mocks.invoke).not.toHaveBeenCalled();
-	await act(async () => work.click());
-	await revealImages();
+	);
+	if (publication === "reported") {
+		expect(work?.getAttribute("aria-expanded")).toBe("false");
+	} else {
+		expect(work).toBeNull();
+	}
 	expect(container.textContent).toContain("Verified navigation");
+	const publishedImages = container.querySelector(
+		'[aria-label="Published images"]',
+	);
+	if (publication === "mixed") {
+		expect(
+			publishedImages?.querySelector('[aria-label="other.png"]'),
+		).not.toBeNull();
+		expect(
+			publishedImages?.querySelector('[aria-label="menu.png"]'),
+		).toBeNull();
+		expect(container.textContent).toContain("File missing");
+		expect(
+			Array.from(container.querySelectorAll("button")).filter(
+				(button) => button.textContent === "Download",
+			),
+		).toHaveLength(2);
+	} else {
+		expect(publishedImages).toBeNull();
+	}
+	await revealImages();
 	expect(mainImage()?.src).toContain(
 		"https://storage.example/image.png?signature=",
 	);
+	if (publication === "reported") {
+		await act(async () => work?.click());
+		expect(container.textContent).toContain("menu.png");
+		expect(
+			Array.from(container.querySelectorAll("button")).some(
+				(button) => button.textContent === "Download",
+			),
+		).toBe(true);
+	}
+});
+it.each([
+	"final",
+	"between",
+	"next turn",
+])("selects the screenshot carousel for %s history", async (placement) => {
+	const tool = (
+		id: string,
+		name: string,
+		result: unknown,
+	): MessageWithMetadata[] => [
+		{ role: "assistant", content: [{ type: "tool_use", id, name, input: {} }] },
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: id,
+					name,
+					content: JSON.stringify(result),
+				},
+			],
+		},
+	];
+	const attachment: MessageWithMetadata = {
+		role: "assistant",
+		content: [
+			{ type: "text", text: "Here is the screenshot" },
+			{
+				type: "image",
+				mediaType: "image/png",
+				data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1z8AAAAASUVORK5CYII=",
+			},
+		],
+	};
+	const source: MessageWithMetadata[] = [
+		{ role: "user", content: "Verify the navigation" },
+		...tool("publish", "publish_artifacts", {
+			files: [{ path: "/tmp/menu.png", artifactId: " frame/雪 " }],
+		}),
+		...(placement !== "final" ? [attachment] : []),
+		...(placement === "next turn"
+			? [
+					{
+						role: "user",
+						content: "Show the report",
+					} satisfies MessageWithMetadata,
+				]
+			: []),
+		...tool("verify", "present_results", report),
+		placement === "final" ? attachment : { role: "assistant", content: "Done" },
+	];
+	const messages = readSessionMessagesSync(
+		{ liveSessions: new Map() },
+		"ses-one",
+		800,
+		source,
+	).map((value) => ChatMessageSchema.parse(value));
+	await act(async () =>
+		root.render(
+			<ChatMessages
+				sessionId="ses-one"
+				status="completed"
+				chatTransportState="connected"
+				error={null}
+				messages={messages}
+				pendingAskQuestions={[]}
+				pendingToolApprovals={[]}
+				onAnswerAskQuestion={vi.fn()}
+				onApproveToolApproval={vi.fn()}
+				onRejectToolApproval={vi.fn()}
+			/>,
+		),
+	);
+	expect(container.textContent).toContain("Verified navigation");
+	expect(container.textContent).toContain("Here is the screenshot");
+	expect(
+		container.querySelector('[aria-label="Published images"]') !== null,
+	).toBe(placement === "next turn");
+	expect(container.textContent).toContain("menu.png");
+	expect(
+		Array.from(container.querySelectorAll("button")).some(
+			(button) => button.textContent === "Download",
+		),
+	).toBe(true);
 });
 it("keeps failed thumbnails non-interactive while retaining Retry in the main image", async () => {
 	mocks.invoke.mockRejectedValue(new Error("Artifact access denied"));

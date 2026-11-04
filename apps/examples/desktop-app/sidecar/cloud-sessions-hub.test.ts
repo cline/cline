@@ -13,6 +13,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { handleCommand } from "./commands";
 import { createSidecarContext } from "./context";
 import type { SidecarContext } from "./types";
 
@@ -234,6 +235,41 @@ async function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it.each([
+		200, 404,
+	])("reads an optional archive through the Hub without starting the cloud runtime (%s)", async (status) => {
+		const messages = [{ role: "assistant", content: "Saved reply" }];
+		const fetch = vi.fn(async () =>
+			jsonResponse({ version: 1, messages }, status),
+		);
+		const { ctx, hub } = await createFixture({
+			api: new CloudSessionApi({
+				apiBaseUrl: "https://api.example",
+				appBaseUrl: "https://app.example",
+				getAuthToken: async () => "synthetic-token",
+				fetch,
+			}),
+		});
+		const result = await handleCommand(ctx, "read_archived_cloud_messages", {
+			sessionId: "ses-outer",
+		});
+		if (status === 404) expect(result).toBeNull();
+		else
+			expect(result).toEqual([
+				expect.objectContaining({
+					role: "assistant",
+					content: "Saved reply",
+					sessionId: "ses-outer",
+				}),
+			]);
+		expect(fetch).toHaveBeenCalledWith(
+			"https://api.example/api/v1/session/ses-outer/history",
+			expect.anything(),
+		);
+		expect(hub.commands).toEqual([]);
+		expect(ctx.liveSessions.size).toBe(0);
+	});
+
 	it.each([
 		"once",
 		"always",

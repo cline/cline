@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -168,9 +169,11 @@ interface ProcessContext {
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	// Anthropic's own API expects bare ids, so use the Anthropic-format
+	// equivalent of CLINE_DEFAULT_MODEL_ID rather than the prefixed id.
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.3-codex"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-2.5-pro"],
 };
 

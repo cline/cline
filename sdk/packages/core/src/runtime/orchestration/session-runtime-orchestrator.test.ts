@@ -223,6 +223,37 @@ function withCapturingFakeRuntime(script: FakeAgentRuntimeScript = {}): {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime construction", () => {
+	it.each([
+		undefined,
+		"lead-agent",
+	])("identifies every locally adapted event with parent %s", async (parentAgentId) => {
+		const model: AgentModel = {
+			async *stream() {
+				yield { type: "text-delta", text: "Observed the UI" };
+				yield { type: "finish", reason: "stop" };
+			},
+		};
+		const session = new SessionRuntime(makeAgentConfig({ parentAgentId }), {
+			createAgentRuntimeImpl: (config) =>
+				createAgentRuntime({ ...config, model }),
+		});
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		try {
+			await session.run("Check the UI");
+			expect(events.some((event) => event.type === "content_start")).toBe(true);
+			expect(events.some((event) => event.type === "done")).toBe(true);
+			for (const event of events)
+				expect(event).toMatchObject({
+					agentId: session.getAgentId(),
+					conversationId: session.getConversationId(),
+					parentAgentId: parentAgentId ?? null,
+				});
+		} finally {
+			await session.shutdown();
+		}
+	});
+
 	it("wires agentId, conversationId, and canStartRun", () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		expect(session.getAgentId()).toMatch(/^agent_/);

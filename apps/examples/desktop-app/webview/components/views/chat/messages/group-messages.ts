@@ -1,6 +1,12 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { parseToolPayload } from "./tool-summaries";
+import {
+	getPublishedArtifacts,
+	getReportedArtifacts,
+	isUxVerificationMessage,
+	parseToolPayload,
+	type ReportedArtifacts,
+} from "./tool-summaries";
 
 export type ChatRenderItem =
 	| {
@@ -9,7 +15,11 @@ export type ChatRenderItem =
 			message: ChatMessage;
 			reasoningMessages: ChatMessage[];
 	  }
-	| { type: "tools"; messages: ChatMessage[] }
+	| {
+			type: "tools";
+			messages: ChatMessage[];
+			reportedArtifacts?: ReportedArtifacts;
+	  }
 	| {
 			type: "work";
 			/** Stable per-run key: the id of the first collapsed message. */
@@ -148,6 +158,14 @@ function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
 	);
 }
 
+function isUserTurnBoundary(item: ChatRenderItem): boolean {
+	return (
+		item.type === "message" &&
+		item.message.role === "user" &&
+		!isSystemSteeringMessage(item.message)
+	);
+}
+
 function firstTimestamp(item: ChatRenderItem): number | undefined {
 	if (item.type === "tools") return item.messages[0]?.createdAt;
 	if (item.type === "message") {
@@ -208,26 +226,16 @@ export function collapseCompletedWork(
 	items: ChatRenderItem[],
 	{ collapseTrailingRun }: CollapseWorkOptions,
 ): ChatRenderItem[] {
-	let lastUserIndex = -1;
-	for (let index = items.length - 1; index >= 0; index--) {
-		const item = items[index];
-		if (
-			item.type === "message" &&
-			item.message.role === "user" &&
-			!isSystemSteeringMessage(item.message)
-		) {
-			lastUserIndex = index;
-			break;
-		}
-	}
-
 	const out: ChatRenderItem[] = [];
 	let span: ChatRenderItem[] = [];
 	// When the span directly follows a user message, "Worked for" counts from
 	// that message so the label reflects the whole run, not just row deltas.
 	let runStartTimestamp: number | undefined;
 
-	const flushSpan = (nextIndex: number) => {
+	const flushSpan = (
+		reportedArtifacts: ReportedArtifacts,
+		hasNextTurn: boolean,
+	) => {
 		if (span.length === 0) return;
 		// "Done" means the run ended on its deliverable: assistant text not
 		// followed by more tool calls, or a submit_and_exit call carrying the
@@ -261,8 +269,7 @@ export function collapseCompletedWork(
 		// ended on an answer — a cancelled or failed tail keeps its rows
 		// visible so the user can see where the run stopped.
 		const complete =
-			nextIndex <= lastUserIndex ||
-			(collapseTrailingRun && answer !== undefined);
+			hasNextTurn || (collapseTrailingRun && answer !== undefined);
 		const collapsed = complete && answer ? workRows : span;
 		const toolCallCount = collapsed.reduce(
 			(count, item) =>
@@ -277,8 +284,14 @@ export function collapseCompletedWork(
 			// no tool work to group and keep normal spacing. A trailing submit
 			// row stays inside the group here — it only pops out once the run
 			// actually collapses.
+			const visibleSpan =
+				reportedArtifacts.size > 0
+					? span.map((item) =>
+							item.type === "tools" ? { ...item, reportedArtifacts } : item,
+						)
+					: span;
 			const messageAnswer = answer?.type === "message" ? answer : undefined;
-			const body = messageAnswer ? span.slice(0, -1) : span;
+			const body = messageAnswer ? visibleSpan.slice(0, -1) : visibleSpan;
 			const firstBody = body[0];
 			const hasToolWork = body.some((item) => item.type === "tools");
 			if (body.length >= 2 && hasToolWork && firstBody !== undefined) {
@@ -291,7 +304,7 @@ export function collapseCompletedWork(
 					out.push(messageAnswer);
 				}
 			} else {
-				out.push(...span);
+				out.push(...visibleSpan);
 			}
 		} else {
 			const startTimestamp =
@@ -318,13 +331,47 @@ export function collapseCompletedWork(
 				endTimestamp >= startTimestamp
 					? endTimestamp - startTimestamp
 					: undefined;
-			out.push({
-				type: "work",
-				id: firstMessageId(firstCollapsed) ?? "work",
-				items: collapsed,
-				durationMilliseconds,
-				toolCallCount,
-			});
+			const hidden: ChatRenderItem[] = [];
+			const deliverables: ChatMessage[] = [];
+			for (const item of collapsed) {
+				if (item.type !== "tools") {
+					hidden.push(item);
+					continue;
+				}
+				const messages: ChatMessage[] = [];
+				for (const message of item.messages) {
+					const files = getPublishedArtifacts(message);
+					const reportedIds = message.sessionId
+						? reportedArtifacts.get(message.sessionId)
+						: undefined;
+					if (
+						files?.some(
+							(file) => file.error || !reportedIds?.has(file.artifactId),
+						) ||
+						isUxVerificationMessage(message)
+					) {
+						deliverables.push(message);
+					} else {
+						messages.push(message);
+					}
+				}
+				if (messages.length > 0) hidden.push({ type: "tools", messages });
+			}
+			if (hidden.length > 0) {
+				out.push({
+					type: "work",
+					id: firstMessageId(firstCollapsed) ?? "work",
+					items: hidden,
+					durationMilliseconds,
+					toolCallCount,
+				});
+			}
+			if (deliverables.length > 0)
+				out.push({
+					type: "tools",
+					messages: deliverables,
+					...(reportedArtifacts.size > 0 ? { reportedArtifacts } : {}),
+				});
 			if (answer) {
 				out.push(answer);
 			}
@@ -332,20 +379,37 @@ export function collapseCompletedWork(
 		span = [];
 	};
 
-	for (let index = 0; index < items.length; index++) {
-		const item = items[index];
-		if (isCollapsibleWorkItem(item)) {
-			span.push(item);
-			continue;
+	for (let turnStart = 0; turnStart < items.length; ) {
+		let turnEnd = turnStart + 1;
+		while (turnEnd < items.length && !isUserTurnBoundary(items[turnEnd])) {
+			turnEnd++;
 		}
-		flushSpan(index);
-		out.push(item);
-		runStartTimestamp =
-			item.type === "message" && item.message.role === "user"
-				? item.message.createdAt
-				: undefined;
+		const hasNextTurn = turnEnd < items.length;
+		// Attachments split display spans, but reports refer to the whole user turn.
+		const reportedArtifacts: ReportedArtifacts =
+			hasNextTurn || collapseTrailingRun
+				? getReportedArtifacts(
+						items
+							.slice(turnStart, turnEnd)
+							.flatMap((item) => (item.type === "tools" ? item.messages : [])),
+					)
+				: new Map();
+		for (let index = turnStart; index < turnEnd; index++) {
+			const item = items[index];
+			if (isCollapsibleWorkItem(item)) {
+				span.push(item);
+				continue;
+			}
+			flushSpan(reportedArtifacts, hasNextTurn);
+			out.push(item);
+			runStartTimestamp =
+				item.type === "message" && item.message.role === "user"
+					? item.message.createdAt
+					: undefined;
+		}
+		flushSpan(reportedArtifacts, hasNextTurn);
+		turnStart = turnEnd;
 	}
-	flushSpan(items.length);
 	return out;
 }
 
