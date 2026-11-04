@@ -1423,6 +1423,7 @@ export class SdkCloudSessionCoordinator {
 		const generation = this.scopeGeneration
 		const signal = this.pendingFollowup.signal
 		const entry = this.entries.get(task.taskId)
+		const canonicalTaskId = entry?.record.metadata.taskId?.trim()
 		const isCurrent = () =>
 			!this.disposed &&
 			!this.scopeTransition &&
@@ -1430,7 +1431,8 @@ export class SdkCloudSessionCoordinator {
 			!signal.aborted &&
 			isViewCurrent() &&
 			this.options.getTask() === task &&
-			this.entries.get(task.taskId) === entry
+			this.entries.get(task.taskId) === entry &&
+			entry?.record.metadata.taskId?.trim() === canonicalTaskId
 		const assertCurrent = () => {
 			if (!isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
 		}
@@ -1465,8 +1467,9 @@ export class SdkCloudSessionCoordinator {
 							this.assertSandboxNotTerminated(entry)
 							if (
 								(status !== "active" && status !== "ready") ||
-								entry.record.status?.toLowerCase() !== status ||
-								entry.record.metadata.taskId?.trim() !== checkedRecord.metadata.taskId?.trim()
+								(entry.record.status?.toLowerCase() !== "active" &&
+									entry.record.status?.toLowerCase() !== "ready") ||
+								entry.record.metadata.taskId?.trim() !== canonicalTaskId
 							) {
 								throw new Error("Cloud sandbox status changed. Send your message again.")
 							}
@@ -1489,7 +1492,7 @@ export class SdkCloudSessionCoordinator {
 						return active
 					entry.pinned++
 					try {
-						let host = await this.connectUnlessSuspended(entry)
+						let host = await this.connectUnlessSuspended(entry, canonicalTaskId)
 						if (!host) {
 							assertCurrent()
 							await this.wake(entry)
@@ -1690,9 +1693,16 @@ export class SdkCloudSessionCoordinator {
 	 * plane has suspended it. The listed record may predate the suspension, so
 	 * a refused connection asks the control plane for the live status.
 	 */
-	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
+	private async connectUnlessSuspended(
+		entry: CloudSessionEntry,
+		expectedTaskId = entry.record.metadata.taskId?.trim(),
+	): Promise<CloudSessionHost | undefined> {
 		if (entry.wake || entry.record.status?.toLowerCase() === "suspended") return undefined
 		const record = entry.record
+		const ownsRecord = () =>
+			this.entries.get(record.id) === entry &&
+			entry.record === record &&
+			entry.record.metadata.taskId?.trim() === expectedTaskId
 		const signal = this.scopeAbort.signal
 		try {
 			return await this.connect(entry)
@@ -1702,11 +1712,22 @@ export class SdkCloudSessionCoordinator {
 				(probeError: unknown) =>
 					probeError instanceof CloudSessionError && probeError.code === "session_expired" ? "expired" : undefined,
 			)
+			const ownsEntry = this.entries.get(record.id) === entry
+			const ownsCurrentRecord = ownsRecord()
 			if (status === "suspended" || status === "failed" || status === "expired") {
-				if (this.entries.get(record.id) === entry && entry.record === record) {
+				if (ownsCurrentRecord) {
 					this.upsertRecord({ ...record, status })
 				}
-				if (status === "suspended") return undefined
+				if (status === "suspended") {
+					if (
+						ownsEntry &&
+						entry.record.metadata.taskId?.trim() === expectedTaskId &&
+						(ownsCurrentRecord || entry.record.status?.toLowerCase() === "suspended")
+					) {
+						return undefined
+					}
+					this.assertSandboxNotTerminated(entry)
+				}
 			}
 			this.assertSandboxNotTerminated(entry)
 			throw error

@@ -2280,21 +2280,33 @@ describe("cloud follow-up preparation", () => {
 	})
 
 	it.each([
-		{ status: "active", taskId: "tsk-stale", outcome: "reuse" },
-		{ status: "ready", taskId: "tsk-stale", outcome: "reuse" },
-		{ status: "failed", taskId: "tsk-stale", outcome: "has failed" },
-		{ status: "suspended", taskId: "tsk-stale", outcome: "status changed" },
-		{ status: "active", taskId: "tsk-replaced", outcome: "status changed" },
-	])("preserves the newer $status/$taskId record during a live status lookup", async ({ status, taskId, outcome }) => {
+		{ status: "active", liveStatus: "active", taskId: "tsk-stale", outcome: "reuse" },
+		{ status: "ready", liveStatus: "ready", taskId: "tsk-stale", outcome: "reuse" },
+		{ status: "active", liveStatus: "ready", taskId: "tsk-stale", outcome: "reuse" },
+		{ status: "ready", liveStatus: "active", taskId: "tsk-stale", outcome: "reuse" },
+		{ status: "failed", liveStatus: "active", taskId: "tsk-stale", outcome: "has failed" },
+		{ status: "suspended", liveStatus: "active", taskId: "tsk-stale", outcome: "status changed" },
+		{ status: "active", liveStatus: "active", taskId: "tsk-replaced", outcome: "task changed" },
+	])("preserves the newer $status/$taskId record during a live status lookup", async ({
+		status,
+		liveStatus,
+		taskId,
+		outcome,
+	}) => {
 		const f = await idleFollowup()
 		const live = deferred<{ status: string }>()
 		f.cloudSessions.getStatus.mockReturnValue(live.promise)
 		const pending = f.preparation.prepare()
 		await vi.waitFor(() => expect(f.cloudSessions.getStatus).toHaveBeenCalledOnce())
-		const newer = { ...record, status, updatedAt: new Date(10_000).toISOString(), metadata: { ...record.metadata, taskId } }
+		const newer = {
+			...record,
+			status,
+			updatedAt: new Date(10_000).toISOString(),
+			metadata: { ...record.metadata, taskId },
+		}
 		f.cloudSessions.listSessions.mockResolvedValue([newer])
 		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
-		live.resolve({ status: status === "ready" ? "ready" : "active" })
+		live.resolve({ status: liveStatus })
 		if (outcome === "reuse") expect((await pending).sdkHost).toBe(f.host)
 		else await expect(pending).rejects.toThrow(outcome)
 		expect(f.entries.get(record.id)?.record).toBe(newer)
@@ -2410,6 +2422,46 @@ describe("cloud follow-up preparation", () => {
 		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
 		expect(f.connect).not.toHaveBeenCalled()
 		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
+		await f.coordinator.dispose()
+	})
+
+	it("does not wake an active sandbox after a failed connection's late suspended response", async () => {
+		const f = await idleFollowup()
+		f.sessions.setActiveSession(undefined)
+		f.host.refreshStatus.mockRejectedValue(new Error("connection refused"))
+		const status = deferred<{ status: string }>()
+		f.cloudSessions.getStatus.mockResolvedValueOnce({ status: "ready" }).mockReturnValueOnce(status.promise)
+		const pending = f.preparation.prepare()
+		await vi.waitFor(() => expect(f.cloudSessions.getStatus).toHaveBeenCalledTimes(2))
+		f.cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "active" }])
+		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		status.resolve({ status: "suspended" })
+		await expect(pending).rejects.toThrow("connection refused")
+		expect(f.entries.get(record.id)?.record.status).toBe("active")
+		expect(f.cloudSessions.resumeSession).not.toHaveBeenCalled()
+		expect(f.connect).not.toHaveBeenCalled()
+		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
+		await f.coordinator.dispose()
+	})
+
+	it("rejects a follow-up when the canonical task changes during wake", async () => {
+		const f = await idleFollowup({ ...record, status: "suspended" })
+		const resumed = deferred<void>()
+		f.cloudSessions.resumeSession.mockReturnValue(resumed.promise)
+		const pending = f.preparation.prepare()
+		await vi.waitFor(() => expect(f.cloudSessions.resumeSession).toHaveBeenCalledOnce())
+		const replacement = {
+			...record,
+			status: "active",
+			metadata: { ...record.metadata, taskId: "tsk-replacement" },
+		}
+		f.cloudSessions.listSessions.mockResolvedValue([replacement])
+		await (f.coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		resumed.resolve()
+		await expect(pending).rejects.toThrow("Cloud follow-up was cancelled because its task changed.")
+		expect(f.connect).not.toHaveBeenCalled()
+		expect(f.sessions.attachExistingSession).not.toHaveBeenCalled()
+		expect(f.entries.get(record.id)?.record.metadata.taskId).toBe("tsk-replacement")
 		await f.coordinator.dispose()
 	})
 
