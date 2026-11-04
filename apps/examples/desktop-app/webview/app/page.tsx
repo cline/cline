@@ -1538,6 +1538,7 @@ function ChatThreadPane({
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
+		initialAttachments?: File[],
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
