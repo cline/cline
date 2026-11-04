@@ -790,6 +790,45 @@ export function resolveSummarizerConfig(options: {
 	});
 }
 
+/**
+ * The summarizer config with every reasoning setting removed, so the request
+ * carries the model's own default. The disable in `resolveSummarizerConfig`
+ * is sent blind to models the catalog does not describe, and some endpoints
+ * reject it outright.
+ */
+export function withModelDefaultReasoning(
+	config: ProviderConfig,
+): ProviderConfig {
+	const {
+		thinking: _thinking,
+		reasoningEffort: _reasoningEffort,
+		thinkingBudgetTokens: _thinkingBudgetTokens,
+		...rest
+	} = config;
+	return rest;
+}
+
+export function isCompactionCancellation(
+	error: unknown,
+	abortSignal: AbortSignal | undefined,
+): boolean {
+	if (abortSignal?.aborted) {
+		return true;
+	}
+	return (
+		error instanceof Error &&
+		(error.name === "AbortError" || error.name === "AgentRuntimeAbortError")
+	);
+}
+
+export function describeCompactionError(
+	error: unknown,
+): Record<string, unknown> {
+	return error instanceof Error
+		? { errorName: error.name, errorMessage: error.message }
+		: { errorMessage: String(error) };
+}
+
 export function buildSummaryMessage(options: {
 	summary: string;
 	fileOps: FileOperationSummary;

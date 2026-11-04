@@ -13,6 +13,7 @@ import {
 import {
 	buildSummaryMessage,
 	buildSummaryRequest,
+	describeCompactionError,
 	type EstimateMessageTokens,
 	ensureFilesSection,
 	estimateTokens,
@@ -20,9 +21,11 @@ import {
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
+	isCompactionCancellation,
 	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
+	withModelDefaultReasoning,
 } from "./compaction-shared";
 import { generateSummary } from "./summary-generation";
 
@@ -186,12 +189,37 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const summaryResult = await generateSummary({
-		providerConfig: summarizerProviderConfig,
-		systemPrompt:
-			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
-		request: summaryRequest,
-	});
+	const summarySystemPrompt =
+		"Summarize the provided coding session into a concise continuation note with detailed next steps.";
+	let summaryResult: Awaited<ReturnType<typeof generateSummary>>;
+	try {
+		summaryResult = await generateSummary({
+			providerConfig: summarizerProviderConfig,
+			systemPrompt: summarySystemPrompt,
+			request: summaryRequest,
+		});
+	} catch (error) {
+		// Whether the reasoning disable is what the endpoint rejected cannot be
+		// told from the error, so any failure gets one retry without it; an
+		// unrelated failure fails there as well.
+		if (isCompactionCancellation(error, options.context.abortSignal)) {
+			throw error;
+		}
+		options.logger?.log(
+			"Agentic compaction summarizer request failed; retrying with the model's default reasoning",
+			{
+				severity: "warn",
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				...describeCompactionError(error),
+			},
+		);
+		summaryResult = await generateSummary({
+			providerConfig: withModelDefaultReasoning(summarizerProviderConfig),
+			systemPrompt: summarySystemPrompt,
+			request: summaryRequest,
+		});
+	}
 	options.logger?.debug("Generated compaction summary", {
 		outputChars: summaryResult.text.length,
 		reasoningChars: summaryResult.reasoningChars,

@@ -2004,6 +2004,90 @@ describe("createContextCompactionPrepareTurn", () => {
 				},
 			}),
 		).rejects.toBe(providerError);
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(log).not.toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.anything(),
+		);
+	});
+
+	it("retries the summarizer with the model's default reasoning when the request fails", async () => {
+		const providerError = new Error(
+			"400 Function tools with reasoning_effort are not supported for this model. Please set reasoning_effort to 'none'.",
+		);
+		const createMessage = vi
+			.fn()
+			.mockImplementationOnce(() => {
+				throw providerError;
+			})
+			.mockImplementationOnce(() =>
+				streamChunks([
+					{ type: "text", id: "summary-1", text: "## Goal\nShip it" },
+					{ type: "done", id: "summary-1", success: true },
+				]),
+			);
+		createHandlerMock.mockReturnValue({ createMessage });
+		const log = vi.fn();
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: `Old answer ${"x".repeat(500)}` },
+			{ role: "user", content: "Older follow-up" },
+			{ role: "assistant", content: "Older response" },
+			{ role: "user", content: "Latest request" },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "gpt-6-astra",
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "gpt-6-astra",
+				thinking: true,
+				reasoningEffort: "high",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: { debug: vi.fn(), log },
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "gpt-6-astra",
+				provider: "openai-compatible",
+				info: { id: "gpt-6-astra", maxInputTokens: 10 },
+			},
+		});
+
+		expect(result?.messages[0]?.metadata?.kind).toBe("compaction_summary");
+		expect(createHandlerMock).toHaveBeenCalledTimes(2);
+		const [[firstConfig], [retryConfig]] = createHandlerMock.mock.calls;
+		expect(firstConfig).toMatchObject({ thinking: false });
+		expect(retryConfig).not.toHaveProperty("thinking");
+		expect(retryConfig).not.toHaveProperty("reasoningEffort");
+		expect(retryConfig).not.toHaveProperty("thinkingBudgetTokens");
+		expect(retryConfig).toMatchObject({
+			providerId: "openai-compatible",
+			modelId: "gpt-6-astra",
+			maxOutputTokens: firstConfig.maxOutputTokens,
+		});
+		expect(log).toHaveBeenCalledWith(
+			"Agentic compaction summarizer request failed; retrying with the model's default reasoning",
+			expect.objectContaining({
+				severity: "warn",
+				errorMessage: providerError.message,
+			}),
+		);
 		expect(log).not.toHaveBeenCalledWith(
 			"Agentic compaction failed; falling back to basic compaction",
 			expect.anything(),

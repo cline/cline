@@ -28,7 +28,9 @@ import {
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
+	describeCompactionError,
 	findLatestSummaryIndex,
+	isCompactionCancellation,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
@@ -98,25 +100,6 @@ export interface ContextCompactionPrepareTurnOptions {
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
-
-function isCompactionCancellation(
-	error: unknown,
-	abortSignal: AbortSignal,
-): boolean {
-	if (abortSignal.aborted) {
-		return true;
-	}
-	return (
-		error instanceof Error &&
-		(error.name === "AbortError" || error.name === "AgentRuntimeAbortError")
-	);
-}
-
-function describeCompactionError(error: unknown): Record<string, unknown> {
-	return error instanceof Error
-		? { errorName: error.name, errorMessage: error.message }
-		: { errorMessage: String(error) };
-}
 
 function safeJsonSize(value: unknown): number {
 	try {
