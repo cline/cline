@@ -290,6 +290,11 @@ the child's native type behavior is preserved, so set `type="button"` explicitly
 when needed. Custom composed children must forward props, refs, and children;
 place Radix slot triggers outside the control.
 
+When a `Button` label or icon changes (for example, from “Save” to a loading
+spinner and “Saving…”), its width transitions over 180 ms. Fixed and full-width
+buttons retain their sizing. Reduced-motion preferences disable the transition.
+The host continues to own loading state, labels, and disabled behavior.
+
 Use `className` to override component styles and `pressScale={false}` to disable
 press feedback. See the button stories for more examples.
 

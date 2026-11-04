@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	ChevronDown as ChevronIcon,
+	LoaderCircle,
 	Plus as PlusIcon,
 	Trash2 as TrashIcon,
 } from "lucide-react";
-import { Fragment, type SVGProps } from "react";
+import { Fragment, type SVGProps, useState } from "react";
 import { fn } from "storybook/test";
 import { Button, IconButton } from "../components/button";
 
@@ -324,3 +325,48 @@ export const Disabled = () => (
 		))}
 	</div>
 );
+
+function LoadingIcon(props: SVGProps<SVGSVGElement>) {
+	return (
+		<LoaderCircle
+			{...props}
+			className={`${props.className ?? ""} motion-safe:animate-spin`}
+		/>
+	);
+}
+
+export const LoadingWidth = () => {
+	const [loading, setLoading] = useState(false);
+	return (
+		<div className="space-y-6 p-8">
+			<p className="text-muted-foreground text-sm">
+				Toggle loading to compare natural and fixed widths. Width changes
+				respect reduced motion.
+			</p>
+			<Button
+				variant="secondary"
+				tone="neutral"
+				onClick={() => setLoading(!loading)}
+			>
+				Toggle loading
+			</Button>
+			<div className="flex items-center gap-4">
+				<Button
+					aria-busy={loading}
+					disabled={loading}
+					leadingIcon={loading ? LoadingIcon : undefined}
+				>
+					{loading ? "Saving changes…" : "Save"}
+				</Button>
+				<Button
+					aria-busy={loading}
+					disabled={loading}
+					leadingIcon={loading ? LoadingIcon : undefined}
+					style={{ width: 200 }}
+				>
+					{loading ? "Saving changes…" : "Save"}
+				</Button>
+			</div>
+		</div>
+	);
+};

@@ -442,3 +442,160 @@ describe("shared button press feedback", () => {
 		expect(container.querySelector("button")).toBeNull();
 	});
 });
+
+describe("Button content width transitions", () => {
+	type WidthAnimation = {
+		playState: AnimationPlayState;
+		currentTime: number | null;
+		width: number;
+		cancel: ReturnType<typeof vi.fn>;
+		play: ReturnType<typeof vi.fn>;
+	};
+	let naturalWidth: number;
+	let activeAnimation: WidthAnimation | undefined;
+	let animations: WidthAnimation[];
+	let animate: ReturnType<typeof vi.fn<Element["animate"]>>;
+	let originalAnimate: PropertyDescriptor | undefined;
+	let motion: EventTarget & { matches: boolean };
+
+	beforeEach(() => {
+		naturalWidth = 100;
+		activeAnimation = undefined;
+		animations = [];
+		motion = Object.assign(new EventTarget(), { matches: false });
+		vi.stubGlobal(
+			"matchMedia",
+			vi.fn(() => motion),
+		);
+		vi.stubGlobal(
+			"getComputedStyle",
+			vi.fn(() => ({
+				width: `${activeAnimation?.playState === "running" ? activeAnimation.width : naturalWidth}px`,
+			})),
+		);
+		animate = vi.fn<Element["animate"]>((keyframes) => {
+			const firstFrame = (keyframes as Keyframe[])[0];
+			const animation: WidthAnimation = {
+				playState: "running",
+				currentTime: 0,
+				width: Number.parseFloat(String(firstFrame.width)),
+				cancel: vi.fn(() => {
+					animation.playState = "idle";
+					animation.currentTime = null;
+				}),
+				play: vi.fn(() => {
+					animation.playState = "running";
+				}),
+			};
+			animations.push(animation);
+			activeAnimation = animation;
+			return animation as unknown as Animation;
+		});
+		originalAnimate = Object.getOwnPropertyDescriptor(
+			Element.prototype,
+			"animate",
+		);
+		Object.defineProperty(Element.prototype, "animate", {
+			configurable: true,
+			value: animate,
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		if (originalAnimate) {
+			Object.defineProperty(Element.prototype, "animate", originalAnimate);
+		} else {
+			Reflect.deleteProperty(Element.prototype, "animate");
+		}
+	});
+
+	it("keeps the initial render at its natural width", async () => {
+		await render(<Button>Save</Button>);
+		expect(animate).not.toHaveBeenCalled();
+		expect(container.querySelector("button")?.style.width).toBe("");
+	});
+
+	it("expands and contracts when a loading label changes the content width", async () => {
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		expect(animate.mock.calls[0]?.[0]).toEqual([
+			expect.objectContaining({ width: "100px" }),
+			expect.objectContaining({ width: "160px" }),
+		]);
+		animations[0].playState = "finished";
+		naturalWidth = 100;
+		await render(<Button>Save</Button>);
+		expect(animate.mock.calls[1]?.[0]).toEqual([
+			expect.objectContaining({ width: "160px" }),
+			expect.objectContaining({ width: "100px" }),
+		]);
+		expect(container.querySelector("button")?.style.width).toBe("");
+	});
+
+	it("continues from the visible width when loading changes before the animation finishes", async () => {
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		animations[0].width = 125;
+		naturalWidth = 100;
+		await render(<Button>Save</Button>);
+		expect(animations[0].cancel).toHaveBeenCalledOnce();
+		expect(animate.mock.calls[1]?.[0]).toEqual([
+			expect.objectContaining({ width: "125px" }),
+			expect.objectContaining({ width: "100px" }),
+		]);
+	});
+
+	it("preserves animation progress when the same loading content rerenders", async () => {
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		animations[0].width = 125;
+		animations[0].currentTime = 75;
+		await render(<Button disabled>Saving changes…</Button>);
+		expect(animate).toHaveBeenCalledOnce();
+		expect(animations[0].currentTime).toBe(75);
+		expect(animations[0].playState).toBe("running");
+	});
+
+	it("changes content immediately when reduced motion is preferred", async () => {
+		motion.matches = true;
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		expect(animate).not.toHaveBeenCalled();
+		expect(container.querySelector("button")?.textContent).toBe(
+			"Saving changes…",
+		);
+	});
+
+	it("cancels an active transition when reduced motion is enabled", async () => {
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		motion.matches = true;
+		motion.dispatchEvent(new Event("change"));
+		expect(animations[0].cancel).toHaveBeenCalledOnce();
+	});
+
+	it("leaves a consumer's fixed width unchanged when its label changes", async () => {
+		await render(<Button style={{ width: 100 }}>Save</Button>);
+		await render(
+			<Button disabled style={{ width: 100 }}>
+				Saving…
+			</Button>,
+		);
+		expect(animate).not.toHaveBeenCalled();
+		expect(container.querySelector("button")?.style.width).toBe("100px");
+	});
+
+	it("cancels the animation when the button unmounts", async () => {
+		await render(<Button>Save</Button>);
+		naturalWidth = 160;
+		await render(<Button disabled>Saving changes…</Button>);
+		await render(null);
+		expect(animations[0].cancel).toHaveBeenCalledOnce();
+	});
+});
