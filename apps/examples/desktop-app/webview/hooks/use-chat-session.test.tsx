@@ -531,13 +531,12 @@ describe("useChatSession", () => {
 
 		it.each([
 			"messages",
-			"empty",
 			"failure",
 		])("ignores late archives after live history returns %s", async (outcome) => {
 			await act(async () => {
 				if (outcome === "failure")
 					live.reject(new Error("Live history unavailable"));
-				else live.resolve(outcome === "empty" ? [] : latest);
+				else live.resolve(latest);
 				await hydration;
 			});
 			const canonical = current.messages;
@@ -546,6 +545,25 @@ describe("useChatSession", () => {
 			expect(current.messages).toEqual(canonical);
 			if (outcome === "failure")
 				expect(current.error).toContain("Live history unavailable");
+		});
+
+		it("ignores a late archive while attaching a session with empty live history", async () => {
+			const attachment = Promise.withResolvers<{
+				sessionId: string;
+				status: string;
+			}>();
+			invokeMock.mockImplementation(async (command: string) =>
+				command === "chat_session_command" ? attachment.promise : [],
+			);
+			await act(async () => live.resolve([]));
+			expect(current.isHydratingSession).toBe(true);
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual([]);
+			await act(async () => {
+				attachment.resolve({ sessionId: session.sessionId, status: "idle" });
+				await hydration;
+			});
 		});
 
 		it("ignores pending history after selecting another session", async () => {
