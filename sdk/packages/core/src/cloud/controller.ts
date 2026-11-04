@@ -1114,16 +1114,13 @@ export class CloudSessionController {
 			settle();
 			return { ...target, initialSend: send };
 		} catch (error) {
+			const rejectedBeforeExecution =
+				error instanceof Error &&
+				error.name === "HubCommandError" &&
+				"code" in error &&
+				error.code === "hub_draining";
 			const send: CloudSendFailure = {
-				// Draining refuses execution even if the command frame was written.
-				dispatched:
-					dispatched &&
-					!(
-						error instanceof Error &&
-						error.name === "HubCommandError" &&
-						"code" in error &&
-						error.code === "hub_draining"
-					),
+				dispatched: dispatched && !rejectedBeforeExecution,
 				message: error instanceof Error ? error.message : String(error),
 				...(error instanceof Error &&
 				"detail" in error &&
