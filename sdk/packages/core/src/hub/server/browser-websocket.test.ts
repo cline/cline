@@ -147,38 +147,26 @@ describe("BrowserWebSocketHubAdapter history", () => {
 			} else socket.emitClose();
 			await vi.advanceTimersByTimeAsync(30_001);
 			expect(errors).not.toHaveBeenCalled();
-			if (mode !== "close") {
-				for (let i = 0; i < 3; i++)
-					expect(response(`history-${i}`)).toMatchObject({
+			for (let i = 0; i < 3; i++) {
+				const reply = response(`history-${i}`);
+				if (mode === "close") expect(reply).toBeUndefined();
+				else {
+					expect(reply).toMatchObject({
 						ok: false,
 						error: { code: "history_transfer_closed" },
 					});
+					expect(reply?.payload).toBeUndefined();
+				}
 			}
+			const repliesBeforeLateRead = [...socket.sent];
 			for (const finish of finishers)
 				finish({
 					version: "v1",
 					ok: true,
 					payload: { messages: ["x".repeat(200_000)] },
 				});
-			if (mode !== "close") {
-				await vi.waitFor(() =>
-					expect(
-						[0, 1, 2].every((i) => response(`history-${i}`) !== undefined),
-					).toBe(true),
-				);
-				for (let i = 0; i < 3; i++) {
-					expect(response(`history-${i}`)).toMatchObject({
-						ok: false,
-						error: { code: "history_transfer_closed" },
-					});
-					expect(response(`history-${i}`)?.payload).toBeUndefined();
-				}
-			} else {
-				await vi.advanceTimersByTimeAsync(0);
-				for (let i = 0; i < 3; i++) {
-					expect(response(`history-${i}`)).toBeUndefined();
-				}
-			}
+			await vi.advanceTimersByTimeAsync(0);
+			expect(socket.sent).toEqual(repliesBeforeLateRead);
 			expect(finishers).toHaveLength(2);
 		} finally {
 			detach();

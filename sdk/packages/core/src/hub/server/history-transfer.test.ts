@@ -172,55 +172,14 @@ describe("HistoryTransferPool", () => {
 
 	it.each([
 		"close",
-		"abort",
-		"expire",
-	] as const)("discards a late read after %s and frees admission", async (mode) => {
-		vi.useFakeTimers();
-		const pool = new HistoryTransferPool();
-		const owner = {};
-		const abort = new AbortController();
-		let finish!: (reply: HubReplyEnvelope) => void;
-		const pending = pool.command(
-			envelope,
-			owner,
-			() =>
-				new Promise((resolve) => {
-					finish = resolve;
-				}),
-			abort.signal,
-		);
-		if (mode === "close") pool.close(owner);
-		if (mode === "abort") abort.abort();
-		if (mode === "expire") await vi.advanceTimersByTimeAsync(5 * 60_000);
-		finish({ version: "v1", ok: true, payload: { messages: [] } });
-		await expect(pending).resolves.toEqual({
-			version: "v1",
-			requestId: "history-1",
-			ok: false,
-			error: {
-				code: "history_transfer_closed",
-				message: "History transfer closed",
-			},
-		});
-		await expect(
-			pool.command(
-				envelope,
-				owner,
-				async () => ({ version: "v1", ok: true, payload: { messages: [] } }),
-				signal(),
-			),
-		).resolves.toMatchObject({ payload: { historyChunk: "[]" } });
-		await pool.close(owner);
-	});
-
-	it.each([
-		"close",
 		"cancel",
+		"abort",
 		"expire",
 	] as const)("%s retains admission until uncancellable producers settle", async (mode) => {
 		if (mode === "expire") vi.useFakeTimers();
 		const pool = new HistoryTransferPool();
 		const owner = {};
+		const abort = new AbortController();
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
 		const read = vi.fn(
 			() =>
@@ -228,16 +187,21 @@ describe("HistoryTransferPool", () => {
 					finishers.push(resolve);
 				}),
 		);
-		const first = pool.command(envelope, owner, read, signal());
+		const first = pool.command(envelope, owner, read, abort.signal);
 		const second = pool.command(
 			{ ...envelope, requestId: "history-2" },
 			owner,
 			read,
-			signal(),
+			abort.signal,
 		);
 		const queuedRead = vi.fn(() => read());
 		const queuedEnvelope = { ...envelope, requestId: "history-queued" };
-		const queued = pool.command(queuedEnvelope, owner, queuedRead, signal());
+		const queued = pool.command(
+			queuedEnvelope,
+			owner,
+			queuedRead,
+			abort.signal,
+		);
 		const queuedReply = vi.fn();
 		void queued.then(queuedReply);
 		await expect(pool.command(envelope, owner, read, signal())).rejects.toThrow(
@@ -258,6 +222,7 @@ describe("HistoryTransferPool", () => {
 		expect(thirdRead).not.toHaveBeenCalled();
 		expect(read).toHaveBeenCalledTimes(2);
 		if (mode === "close") void pool.close(owner);
+		else if (mode === "abort") abort.abort();
 		else if (mode === "expire") {
 			await vi.advanceTimersByTimeAsync(1);
 			expect(queuedReply).toHaveBeenCalledWith(
@@ -275,9 +240,14 @@ describe("HistoryTransferPool", () => {
 			ok: false,
 			error: { code: "history_transfer_closed" },
 		});
-		await expect(first).resolves.toMatchObject({
+		await expect(first).resolves.toEqual({
+			version: "v1",
+			requestId: "history-1",
 			ok: false,
-			error: { code: "history_transfer_closed" },
+			error: {
+				code: "history_transfer_closed",
+				message: "History transfer closed",
+			},
 		});
 		await expect(second).resolves.toMatchObject({
 			ok: false,
@@ -292,6 +262,9 @@ describe("HistoryTransferPool", () => {
 		});
 		expect(thirdRead).toHaveBeenCalledTimes(1);
 		expect(queuedRead).not.toHaveBeenCalled();
+		await expect(
+			pool.command(envelope, owner, thirdRead, signal()),
+		).resolves.toMatchObject({ payload: { historyChunk: "[]" } });
 		await pool.close(owner);
 	});
 
