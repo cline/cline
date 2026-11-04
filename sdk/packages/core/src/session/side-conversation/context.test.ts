@@ -126,6 +126,29 @@ describe("side reference capture", () => {
 					},
 				],
 			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "structured",
+						name: "structured_result",
+						content: JSON.stringify({
+							content: [
+								{
+									type: "text",
+									text: "cline://cache/parent/output\nRECOVERY_CODE=ultramarine",
+								},
+								{
+									type: "file",
+									path: "cline://cache/parent/attachment.txt",
+									content: "cline://cache/parent/source\nATTACHMENT_FACT=preserved",
+								},
+							],
+						}),
+					},
+				],
+			},
 			{ role: "assistant", content: "described" },
 			{ role: "user", content: "incomplete question" },
 			{
@@ -145,7 +168,10 @@ describe("side reference capture", () => {
 		expect(capture.content).toContain("Resource evidence");
 		expect(capture.content).toContain("Cache fact survives");
 		expect(capture.content).toContain("Media fact survives");
+		expect(capture.content).toContain("RECOVERY_CODE=ultramarine");
+		expect(capture.content).toContain("ATTACHMENT_FACT=preserved");
 		expect(capture.content).toContain("incomplete question");
+		expect(capture.content).not.toContain("cline://cache/parent/");
 		expect(capture.content).toContain("result not yet available");
 		expect(capture.content).not.toMatch(
 			/cline:\/\/cache|data:image|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
@@ -369,6 +395,25 @@ describe("current context and provider request", () => {
 		expect(uncertain.content).toContain(
 			"chronology relative to saved history is unconfirmed and content may overlap",
 		);
+		const repeatedUnconfirmed = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: {
+				...visible,
+				excerpts: [
+					visible.excerpts[0],
+					{
+						...visible.excerpts[0],
+						messageId: "unconfirmed-repeat",
+						submission: "unconfirmed",
+					},
+				],
+			},
+		});
+		expect(String(repeatedUnconfirmed.content).match(/\brepeat\b/g)).toHaveLength(
+			3,
+		);
+		expect(repeatedUnconfirmed.content).toContain("submission unconfirmed");
 	});
 
 	it("delivers active PR evidence to the actual API-handler request as text without parent tool protocol or usage", async () => {

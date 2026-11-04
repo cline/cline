@@ -170,7 +170,8 @@ export function captureSideReference({
 	const duplicates = new Map<number, number>();
 	const visibleBlocks = (visibleContext?.excerpts ?? []).map(
 		(excerpt, index) => {
-			const duplicate = matchedRun
+			const duplicate =
+				matchedRun && excerpt.submission === "observed"
 				? blocks.findIndex(
 						(block) =>
 							block.sourceIndex >= (latestUserIndex ?? 0) &&

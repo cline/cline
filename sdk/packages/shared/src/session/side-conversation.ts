@@ -44,13 +44,16 @@ export function serializeReferenceData(
 	value: unknown,
 	onOmittedMedia?: () => void,
 ): string {
-	return sanitizeReferenceText(
+	return (
 		JSON.stringify(value, (_key, item: unknown) => {
+			if (typeof item === "string") return sanitizeReferenceText(item);
 			if (item && typeof item === "object" && "type" in item) {
 				if (item.type === "file") {
 					const file = TextFileSchema.safeParse(item);
 					if (file.success)
-						return formatFileContentBlock(file.data.path, file.data.content);
+						return sanitizeReferenceText(
+							formatFileContentBlock(file.data.path, file.data.content),
+						);
 				}
 				if (
 					["image", "audio", "media", "file"].includes(String(item.type)) ||
@@ -68,7 +71,7 @@ export function serializeReferenceData(
 					return "[provider reasoning omitted]";
 			}
 			return item;
-		}) ?? "",
+		}) ?? ""
 	);
 }
 
