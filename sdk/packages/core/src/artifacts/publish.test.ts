@@ -51,6 +51,7 @@ test("publishes through an injected store without cloud credentials and preserve
 	);
 	assert.equal(batches, 1);
 	assert.ok(!("error" in files[0]));
+	assert.equal(files[0].artifactId, "report.txt");
 	assert.deepEqual(stored.get(files[0].artifactId), Buffer.from("report"));
 	assert.ok("error" in files[1]);
 	assert.equal(files[1].error.code, "FILE_NOT_FOUND");

@@ -11,6 +11,7 @@ import {
 	normalizeModelsDevProviderModels,
 	normalizeModelsDevProviderSpecs,
 	resolveMaxInputTokens,
+	withInterleavedReasoningOverlay,
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
@@ -50,6 +51,44 @@ describe("models-dev-catalog", () => {
 		expect(result["opencode-go"].unknownQwen.metadata).toBeUndefined();
 		expect(result["opencode-go"].glm.metadata).toBeUndefined();
 		expect(result["other-gateway"].qwen.metadata).toBeUndefined();
+	});
+
+	it("keeps models.dev interleaved fields", () => {
+		const result = normalizeModelsDevProviderModels({
+			"opencode-go": {
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					deepseek: {
+						tool_call: true,
+						interleaved: { field: "reasoning_content" },
+					},
+					anthropicStyle: { tool_call: true, interleaved: true },
+				},
+			},
+		});
+		expect(
+			result["opencode-go"].deepseek.metadata?.interleavedReasoningField,
+		).toBe("reasoning_content");
+		expect(
+			result["opencode-go"].anthropicStyle.metadata?.interleavedReasoningField,
+		).toBeUndefined();
+	});
+
+	it("overlays Cline routing facts and lets upstream data win", () => {
+		const beam = { id: "reflection/beam-free" };
+		expect(
+			withInterleavedReasoningOverlay("cline", beam.id, beam).metadata
+				?.interleavedReasoningField,
+		).toBe("reasoning_content");
+		expect(
+			withInterleavedReasoningOverlay("cline", beam.id, {
+				...beam,
+				metadata: { interleavedReasoningField: "reasoning_details" },
+			}).metadata?.interleavedReasoningField,
+		).toBe("reasoning_details");
+		expect(
+			withInterleavedReasoningOverlay("vercel-ai-gateway", beam.id, beam),
+		).toBe(beam);
 	});
 
 	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
@@ -1257,6 +1296,42 @@ describe("models-dev-catalog", () => {
 			maxTokens: 32_000,
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
+	});
+
+	it("marks live Cline Beam models as needing interleaved reasoning", async () => {
+		const fetcher = vi.fn(async (url: string) => ({
+			ok: true,
+			json: async () =>
+				url === "https://models.dev/api.json"
+					? ({
+							openrouter: {
+								models: {
+									"reflection/beam-1.0-501b-a23b": { tool_call: true },
+								},
+							},
+						} satisfies ModelsDevPayload)
+					: {
+							free: [{ id: "reflection/beam-1.0-501b-a23b" }],
+							clinePass: [{ id: "reflection/beam-1.0-501b-a23b" }],
+						},
+		}));
+
+		const result = await fetchLiveProviderModels(
+			"https://models.dev/api.json",
+			fetcher as unknown as typeof fetch,
+		);
+
+		for (const providerId of ["cline", "cline-pass"]) {
+			expect(
+				result[providerId]?.["reflection/beam-1.0-501b-a23b"]?.metadata
+					?.interleavedReasoningField,
+				providerId,
+			).toBe("reasoning_content");
+		}
+		// The overlay is Cline routing data; OpenRouter itself is untouched.
+		expect(
+			result.openrouter?.["reflection/beam-1.0-501b-a23b"]?.metadata,
+		).toBeUndefined();
 	});
 
 	it("keeps models.dev live models when Cline recommended models fail", async () => {

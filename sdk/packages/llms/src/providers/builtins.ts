@@ -1,4 +1,5 @@
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	type GatewayModelDefinition,
 	type GatewayModelOperationCapability,
@@ -12,6 +13,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { withInterleavedReasoningOverlay } from "../catalog/catalog-live";
 import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import { filterImageOutputModels } from "../catalog/model-filters";
 import {
@@ -477,6 +479,7 @@ export function getGeneratedModelsForRuntimeProvider(
 // Remove an id once the OpenRouter catalog lists it.
 const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
+	"reflection/beam-free",
 ];
 
 function buildElevenLabsModels(): Record<string, ModelInfo> {
@@ -522,7 +525,12 @@ function buildClineModels(): Record<string, ModelInfo> {
 	// those models in their native OpenRouter and Vercel catalogs. This filter
 	// is also applied to the merged runtime catalog in mergeKnownModels; remove
 	// both call sites together when the backend gains image-output support.
-	return filterImageOutputModels(models);
+	return Object.fromEntries(
+		Object.entries(filterImageOutputModels(models)).map(([modelId, model]) => [
+			modelId,
+			withInterleavedReasoningOverlay("cline", modelId, model),
+		]),
+	);
 }
 
 function buildVertexModels(): Record<string, ModelInfo> {
@@ -588,6 +596,10 @@ function modelInfoToGateway(
 	}
 	if (info.metadata?.apiProtocol) {
 		metadata.apiProtocol = info.metadata.apiProtocol;
+	}
+	if (info.metadata?.interleavedReasoningField) {
+		metadata.interleavedReasoningField =
+			info.metadata.interleavedReasoningField;
 	}
 	return {
 		id: info.id,
@@ -1083,7 +1095,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: CLINE_DEFAULT_MODEL_ID,
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
@@ -1223,7 +1235,11 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
 		popular: 15,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "claude-sonnet-5",
+		// Anthropic's first-party API uses bare, dash-separated model ids
+		// (`claude-sonnet-5-5`) while gateways use the prefixed, dotted form
+		// (`anthropic/claude-sonnet-5.5`). Keep this in sync with
+		// CLINE_DEFAULT_MODEL_ID — it is the same model in Anthropic format.
+		defaultModelId: ANTHROPIC_DEFAULT_MODEL_ID,
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
 		defaults: { baseUrl: "https://api.anthropic.com/v1" },

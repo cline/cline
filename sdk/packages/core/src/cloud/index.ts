@@ -10,6 +10,10 @@ export {
 	inspectHandoffGit,
 	previewHandoffGit,
 } from "../services/cloud-handoff/git-preparation";
+export {
+	type PublishedHandoffInput,
+	publishCloudHandoff,
+} from "../services/cloud-handoff/publication";
 export * from "./api";
 export * from "./controller";
 export * from "./hub-client";

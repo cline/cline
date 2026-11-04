@@ -24,6 +24,7 @@ export interface ModelsDevModel {
 	tool_call?: boolean;
 	reasoning?: boolean;
 	reasoning_options?: ModelInfo["reasoningOptions"];
+	interleaved?: boolean | { field?: string };
 	structured_output?: boolean;
 	temperature?: boolean;
 	release_date?: string;
@@ -323,6 +324,19 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const apiProtocol = model.provider?.npm
 		? MODEL_API_PROTOCOLS[model.provider.npm]
 		: undefined;
+	const interleavedField =
+		typeof model.interleaved === "object" ? model.interleaved.field : undefined;
+	const interleavedReasoningField:
+		| NonNullable<ModelInfo["metadata"]>["interleavedReasoningField"]
+		| undefined =
+		interleavedField === "reasoning_content" ||
+		interleavedField === "reasoning_details"
+			? interleavedField
+			: undefined;
+	const metadata = {
+		...(apiProtocol ? { apiProtocol } : {}),
+		...(interleavedReasoningField ? { interleavedReasoningField } : {}),
+	};
 
 	return {
 		id: modelId,
@@ -346,7 +360,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		...(operation !== "language" ? { operation } : {}),
 		...(operationModes ? { operationModes } : {}),
 		...(modalities !== undefined ? { modalities } : {}),
-		...(apiProtocol ? { metadata: { apiProtocol } } : {}),
+		...(Object.keys(metadata).length > 0 ? { metadata } : {}),
 	};
 }
 
@@ -362,6 +376,40 @@ const MODEL_API_PROTOCOLS: Record<
 
 function isDeprecatedModel(model: ModelsDevModel): boolean {
 	return model.status === "deprecated";
+}
+
+// Cline routing facts models.dev cannot express. Without `interleaved`,
+// history that lost reasoning (compaction, a model switch) is sent without
+// `reasoning_content` and Beam rejects the whole request. Upstream data wins.
+const INTERLEAVED_REASONING_OVERLAYS: Record<
+	string,
+	Record<string, "reasoning_content">
+> = {
+	// The Cline API routes both Beam ids through Vercel, including the
+	// OpenRouter-style id its catalog borrows from OpenRouter.
+	cline: {
+		"reflection/beam-free": "reasoning_content",
+		"reflection/beam-1.0-501b-a23b": "reasoning_content",
+	},
+	"cline-pass": {
+		"reflection/beam-free": "reasoning_content",
+		"reflection/beam-1.0-501b-a23b": "reasoning_content",
+	},
+};
+
+export function withInterleavedReasoningOverlay(
+	providerId: string,
+	modelId: string,
+	model: ModelInfo,
+): ModelInfo {
+	const field = INTERLEAVED_REASONING_OVERLAYS[providerId]?.[modelId];
+	if (!field || model.metadata?.interleavedReasoningField) {
+		return model;
+	}
+	return {
+		...model,
+		metadata: { ...model.metadata, interleavedReasoningField: field },
+	};
 }
 
 export function normalizeModelsDevProviderModels(
@@ -417,7 +465,11 @@ export function normalizeModelsDevProviderModels(
 			) {
 				continue;
 			}
-			models[modelId] = info;
+			models[modelId] = withInterleavedReasoningOverlay(
+				targetProviderId,
+				modelId,
+				info,
+			);
 		}
 
 		if (Object.keys(models).length > 0) {
@@ -549,13 +601,25 @@ export async function fetchLiveProviderModels(
 		),
 		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
 	]);
-	const clineRecommended = clineRecommendedPayload
-		? normalizeClineRecommendedProviderModels(
-				clineRecommendedPayload,
-				providerModels,
-				options,
-			)
-		: {};
+	const clineRecommended = Object.fromEntries(
+		Object.entries(
+			clineRecommendedPayload
+				? normalizeClineRecommendedProviderModels(
+						clineRecommendedPayload,
+						providerModels,
+						options,
+					)
+				: {},
+		).map(([providerId, models]) => [
+			providerId,
+			Object.fromEntries(
+				Object.entries(models).map(([modelId, model]) => [
+					modelId,
+					withInterleavedReasoningOverlay(providerId, modelId, model),
+				]),
+			),
+		]),
+	);
 
 	return {
 		...providerModels,

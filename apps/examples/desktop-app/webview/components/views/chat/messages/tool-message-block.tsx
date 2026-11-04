@@ -24,21 +24,18 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
-import {
-	isUxVerificationMessage,
-	UxVerificationMessage,
-} from "./ux-verification-message";
-import {
-	PublishedArtifacts,
-	parsePublishedArtifacts,
-} from "./published-artifacts";
+import { PublishedArtifacts } from "./published-artifacts";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
 	extractSubmitSummaryText,
 	formatToolValue,
+	getPublishedArtifacts,
+	isUxVerificationMessage,
+	type ReportedArtifacts,
 } from "./tool-summaries";
+import { UxVerificationMessage } from "./ux-verification-message";
 
 type ProceedWhileRunningHandler = (
 	sessionId: string,
@@ -69,11 +66,13 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	reportedArtifactIds,
 	isRunActive,
 	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	reportedArtifactIds?: ReadonlySet<string>;
 	isRunActive: boolean;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
@@ -161,13 +160,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const otherOutputMedia = summary.outputMedia.filter(
 		(media) => media.modality !== "image",
 	);
-	const publishedFiles =
-		toolName === "publish_artifacts" &&
-		!inProgress &&
-		!payload?.isError &&
-		message.sessionId
-			? parsePublishedArtifacts(payload?.result)
-			: undefined;
+	const publishedFiles = getPublishedArtifacts(message);
 	const shouldAutoOpen =
 		Boolean(publishedFiles) ||
 		hasFileDiffs ||
@@ -277,6 +270,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				{publishedFiles && message.sessionId ? (
 					<PublishedArtifacts
 						files={publishedFiles}
+						reportedArtifactIds={reportedArtifactIds}
 						sessionId={message.sessionId}
 					/>
 				) : commandOutput ? (
@@ -364,14 +358,29 @@ const ToolCallRow = memo(function ToolCallRow({
 	);
 });
 
+function sameReportedArtifacts(a?: ReportedArtifacts, b?: ReportedArtifacts) {
+	if (a === b) return true;
+	if (!a || !b || a.size !== b.size) return false;
+	for (const [sessionId, ids] of a) {
+		const other = b.get(sessionId);
+		if (!other || ids.size !== other.size) return false;
+		for (const id of ids) {
+			if (!other.has(id)) return false;
+		}
+	}
+	return true;
+}
+
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		reportedArtifacts,
 		isRunActive,
 		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		reportedArtifacts?: ReportedArtifacts;
 		isRunActive: boolean;
 		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
@@ -387,6 +396,11 @@ export const ToolMessageBlock = memo(
 							isRunActive={isRunActive}
 							key={message.id}
 							message={message}
+							reportedArtifactIds={
+								message.sessionId
+									? reportedArtifacts?.get(message.sessionId)
+									: undefined
+							}
 							onExpandImage={onExpandImage}
 							onProceedWhileRunning={onProceedWhileRunning}
 						/>
@@ -397,6 +411,7 @@ export const ToolMessageBlock = memo(
 	},
 	(prev, next) =>
 		prev.isRunActive === next.isRunActive &&
+		sameReportedArtifacts(prev.reportedArtifacts, next.reportedArtifacts) &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
 		prev.onExpandImage === next.onExpandImage &&
