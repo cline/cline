@@ -62,6 +62,8 @@ export interface SdkFollowupCoordinatorOptions {
 }
 
 export class SdkFollowupCoordinator {
+	private cloudSubmissionGeneration = 0
+
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
 	async askResponse(
@@ -82,11 +84,20 @@ export class SdkFollowupCoordinator {
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const cloudFollowup = task ? this.options.beginCloudFollowup?.(task) : undefined
+		const cloudSubmissionGeneration = cloudFollowup ? ++this.cloudSubmissionGeneration : undefined
 		// Cloud preparation also shows streaming; only its lifecycle knows whether a turn exists.
 		const submittedDuringActiveTurn =
 			!cloudFollowup && (turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval")
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files, cloudFollowup?.isCurrent)
+			await this.queueToActiveSession(
+				activeSession,
+				task?.taskId,
+				prompt,
+				images,
+				files,
+				cloudFollowup?.isCurrent,
+				cloudSubmissionGeneration,
+			)
 			return
 		}
 
@@ -108,7 +119,15 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files, cloudFollowup?.isCurrent)
+				await this.queueToActiveSession(
+					currentSession,
+					task?.taskId,
+					prompt,
+					images,
+					files,
+					cloudFollowup?.isCurrent,
+					cloudSubmissionGeneration,
+				)
 				return
 			}
 
@@ -151,9 +170,12 @@ export class SdkFollowupCoordinator {
 					],
 					{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
 				)
-				// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
-				if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
-				else this.options.onResumeFailed()
+				// Older submissions still report errors, but only the newest owns the shared phase.
+				if (cloudSubmissionGeneration === this.cloudSubmissionGeneration) {
+					// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
+					if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
+					else this.options.onResumeFailed()
+				}
 				await this.options.postStateToWebview()
 			}
 			throw error
@@ -168,6 +190,7 @@ export class SdkFollowupCoordinator {
 		images?: string[],
 		files?: string[],
 		isCurrent?: () => boolean,
+		cloudSubmissionGeneration?: number,
 	): Promise<void> {
 		const { sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
@@ -180,17 +203,27 @@ export class SdkFollowupCoordinator {
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
 		if (isCurrent && !isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
 		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
-			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
+			await this.abandonFollowUp(
+				`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`,
+				cloudSubmissionGeneration,
+			)
 			return
 		}
 
 		const currentSession = this.options.sessions.getActiveSession()
 		if (isCurrent && currentSession !== activeSession) {
-			if (!currentSession) await this.abandonFollowUp("Cloud connection ended before the follow-up could be queued")
+			if (!currentSession)
+				await this.abandonFollowUp(
+					"Cloud connection ended before the follow-up could be queued",
+					cloudSubmissionGeneration,
+				)
 			throw new Error("Cloud session connection was superseded")
 		}
 		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
-			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
+			await this.abandonFollowUp(
+				"askResponse: Session ended before the follow-up could be queued",
+				cloudSubmissionGeneration,
+			)
 			return
 		}
 		this.options.sessions.fireAndForgetSend(
@@ -376,9 +409,11 @@ export class SdkFollowupCoordinator {
 	}
 
 	/** Settle the pre-set streaming phase for a follow-up that started no turn. */
-	private async abandonFollowUp(detail: string): Promise<void> {
+	private async abandonFollowUp(detail: string, cloudSubmissionGeneration?: number): Promise<void> {
 		Logger.log(`[SdkController] ${detail}`)
-		this.options.onFollowUpAbandoned()
+		if (cloudSubmissionGeneration === undefined || cloudSubmissionGeneration === this.cloudSubmissionGeneration) {
+			this.options.onFollowUpAbandoned()
+		}
 		await this.options.postStateToWebview()
 	}
 
