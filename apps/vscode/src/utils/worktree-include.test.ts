@@ -94,6 +94,27 @@ describe("Worktree Include Utilities", () => {
 			txtExists.should.be.false()
 		})
 
+		it("should copy file patterns alongside included directories", async () => {
+			const src = path.join(tmpDir, "mixed-pattern-src")
+			const tgt = path.join(tmpDir, "mixed-pattern-tgt")
+
+			await fs.mkdir(path.join(src, "node_modules", "pkg"), { recursive: true })
+			await fs.mkdir(tgt, { recursive: true })
+			await fs.writeFile(path.join(src, ".worktreeinclude"), "node_modules/\n*.log")
+			await fs.writeFile(path.join(src, ".gitignore"), "node_modules/\n*.log")
+			await fs.writeFile(path.join(src, "node_modules", "pkg", "index.js"), "module code")
+			await fs.writeFile(path.join(src, "app.log"), "log content")
+
+			const result = await copyWorktreeIncludeFiles(src, tgt)
+
+			result.copiedCount.should.equal(2)
+			result.errors.should.be.empty()
+			const copiedModule = await fs.readFile(path.join(tgt, "node_modules", "pkg", "index.js"), "utf-8")
+			const copiedLog = await fs.readFile(path.join(tgt, "app.log"), "utf-8")
+			copiedModule.should.equal("module code")
+			copiedLog.should.equal("log content")
+		})
+
 		it("should copy entire directories using native cp", async () => {
 			const src = path.join(tmpDir, "dir-copy-src")
 			const tgt = path.join(tmpDir, "dir-copy-tgt")
