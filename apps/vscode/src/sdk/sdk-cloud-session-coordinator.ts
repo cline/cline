@@ -675,9 +675,11 @@ export class SdkCloudSessionCoordinator {
 	private upsertRecord(record: CloudSessionRecord): CloudSessionEntry {
 		const existing = this.entries.get(record.id)
 		if (existing) {
+			const taskChanged = existing.record.metadata.taskId?.trim() !== record.metadata.taskId?.trim()
 			existing.record = record
 			const status = record.status?.toLowerCase()
-			if (status === "suspended" || status === "failed" || isCloudSessionExpired(record)) this.retireTransport(existing)
+			if (taskChanged || status === "suspended" || status === "failed" || isCloudSessionExpired(record))
+				this.retireTransport(existing)
 			// A retained host is not proof of continuous observation. Revalidate
 			// settled outcomes against the record just as we do after restart.
 			if (existing.agentStatus && isSettled(existing.agentStatus)) {
@@ -1488,8 +1490,8 @@ export class SdkCloudSessionCoordinator {
 					entry.pinned++
 					try {
 						let host = await this.connectUnlessSuspended(entry)
-						assertCurrent()
 						if (!host) {
+							assertCurrent()
 							await this.wake(entry)
 							assertCurrent()
 							host = await this.connect(entry)
@@ -1742,6 +1744,30 @@ export class SdkCloudSessionCoordinator {
 			try {
 				await this.options.cloudSessions.resumeSession(suspended.id, undefined, signal)
 			} catch (error) {
+				if (
+					isCurrent() &&
+					entry.record === resuming &&
+					error instanceof CloudSessionError &&
+					error.code === "request_failed"
+				) {
+					// Readiness can report expiry as a generic provisioning failure.
+					const status = await this.options.cloudSessions.getStatus(suspended.id, signal).then(
+						(live) => live.status?.trim().toLowerCase(),
+						(probeError: unknown) => {
+							if (probeError instanceof CloudSessionError) {
+								if (probeError.code === "session_expired") return "expired"
+								if (probeError.code === "session_failed") return "failed"
+							}
+							return undefined
+						},
+					)
+					if (isCurrent() && entry.record === resuming && (status === "expired" || status === "failed")) {
+						error = new CloudSessionError(
+							status === "expired" ? "session_expired" : "session_failed",
+							`This cloud sandbox has ${status}. Start a new cloud task to continue.`,
+						)
+					}
+				}
 				if (entry.record === resuming) {
 					if (
 						isCurrent() &&

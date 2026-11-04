@@ -236,9 +236,10 @@ afterEach(() => {
 
 describe("originating-account cloud cleanup", () => {
 	it.each([
-		{ resumeStatus: 409, readinessStatus: "failed", expectedStatus: "failed", expectedCode: "session_failed" },
-		{ resumeStatus: 409, readinessStatus: "expired", expectedStatus: "expired", expectedCode: "session_expired" },
+		{ resumeStatus: 409, readinessStatus: "FAILED", expectedStatus: "failed", expectedCode: "session_failed" },
+		{ resumeStatus: 409, readinessStatus: "EXPIRED", expectedStatus: "expired", expectedCode: "session_expired" },
 		{ resumeStatus: 200, readinessStatus: "failed", expectedStatus: "failed", expectedCode: "session_failed" },
+		{ resumeStatus: 200, readinessStatus: "expired", expectedStatus: "expired", expectedCode: "session_expired" },
 		{ resumeStatus: 410, readinessStatus: "active", expectedStatus: "expired", expectedCode: "session_expired" },
 	] as const)("records terminal wake result after resume HTTP $resumeStatus and status $readinessStatus", async (scenario) => {
 		const f = fixture("create")

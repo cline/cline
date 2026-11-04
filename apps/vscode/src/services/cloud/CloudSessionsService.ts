@@ -297,11 +297,11 @@ export class CloudSessionsService {
 	): Promise<void> {
 		let status: string | undefined
 		try {
-			status = (await this.withApi((api) => api.resume(sessionId, signal)))?.status
+			status = (await this.withApi((api) => api.resume(sessionId, signal)))?.status?.trim().toLowerCase()
 		} catch (error) {
 			// Another client may have resumed it first, or resume may still be in flight.
 			if (!(error instanceof CloudSessionError) || error.status !== 409) throw error
-			status = (await this.getStatus(sessionId, signal)).status
+			status = (await this.getStatus(sessionId, signal)).status?.trim().toLowerCase()
 			if (status === "failed" || status === "expired") {
 				throw new CloudSessionError(
 					status === "expired" ? "session_expired" : "session_failed",

@@ -143,22 +143,19 @@ export class SdkFollowupCoordinator {
 		})
 		return sending
 			.catch(async (error) => {
-				if (cloudFollowup?.isCurrent()) {
-					const task = this.options.getTask()
-					if (task) {
-						this.options.messages.appendAndEmit(
-							[
-								{
-									ts: Date.now(),
-									type: "say",
-									say: "error",
-									text: `Could not prepare cloud task: ${error instanceof Error ? error.message : String(error)}`,
-									partial: false,
-								},
-							],
-							{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
-						)
-					}
+				if (task && cloudFollowup?.isCurrent()) {
+					this.options.messages.appendAndEmit(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Could not prepare cloud task: ${error instanceof Error ? error.message : String(error)}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
+					)
 					// Bare Resume remains retryable; an unsent draft is resubmitted from the composer.
 					if (prompt?.trim() || images?.length || files?.length) this.options.onFollowUpAbandoned()
 					else this.options.onResumeFailed()

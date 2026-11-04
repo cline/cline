@@ -224,9 +224,11 @@ describe("useMessageHandlers — send routing", () => {
 	})
 
 	it.each([
-		{ phase: "completed", cloud: false },
-		{ phase: "idle", cloud: true },
-	] as const)("routes Enter to the existing conversation after $phase (cloud: $cloud)", async ({ phase, cloud }) => {
+		{ phase: "completed", cloud: false, sends: true },
+		{ phase: "idle", cloud: true, sends: true },
+		{ phase: "resumable", cloud: true, sends: true },
+		{ phase: "resumable", cloud: false, sends: false },
+	] as const)("routes Enter after $phase (cloud: $cloud)", async ({ phase, cloud, sends }) => {
 		mockTurnState = { phase, seq: 7 }
 		mockCurrentCloudTask = cloud ? { sessionId: "ses-current", status: "idle" } : undefined
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
@@ -236,7 +238,8 @@ describe("useMessageHandlers — send routing", () => {
 		})
 
 		expect(newTask).not.toHaveBeenCalled()
-		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledTimes(sends ? 1 : 0)
+		if (!sends) return
 		expect(askResponse).toHaveBeenCalledWith(
 			expect.objectContaining({ responseType: "messageResponse", text: "another question" }),
 		)
