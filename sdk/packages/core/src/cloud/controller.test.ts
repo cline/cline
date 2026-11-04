@@ -1169,6 +1169,92 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it.each([
+		{
+			label: "a drain refusal from another bundle",
+			error: Object.assign(new Error("Hub is draining"), {
+				name: "HubCommandError",
+				code: "hub_draining",
+			}),
+			dispatched: false,
+		},
+		{
+			label: "an unrelated error with a drain code",
+			error: Object.assign(new Error("Send failed"), { code: "hub_draining" }),
+			dispatched: true,
+		},
+		{
+			label: "a generic command failure",
+			error: new HubCommandError(
+				"session.send_input",
+				"command_failed",
+				"Send failed",
+			),
+			dispatched: true,
+		},
+		{
+			label: "a command timeout",
+			error: new HubCommandError(
+				"session.send_input",
+				"hub_command_timeout",
+				"Reply timed out",
+			),
+			dispatched: true,
+		},
+		{
+			label: "a lost connection",
+			error: Object.assign(new Error("Connection closed"), {
+				name: "HubTransportError",
+				code: "hub_connection_closed",
+			}),
+			dispatched: true,
+		},
+	])("classifies the initial prompt after $label", async ({
+		error,
+		dispatched,
+	}) => {
+		const f = fixture();
+		const original = f.command.getMockImplementation()!;
+		let refuse = true;
+		f.command.mockImplementation(async (...args) => {
+			const reply = await original(...args);
+			if (args[0] === "session.send_input" && refuse) {
+				refuse = false;
+				throw error;
+			}
+			return reply;
+		});
+		try {
+			const created = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialMessage: { text: "Continue from this summary" },
+			});
+			expect(created.initialSend).toMatchObject({ dispatched });
+			expect(f.api.create).toHaveBeenCalledOnce();
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toHaveLength(1);
+			expect(
+				f.events.filter((event) => event.type === "prompt_accepted"),
+			).toEqual([]);
+			if (!dispatched) {
+				await expect(
+					f.controller.send(
+						created.sessionId,
+						"Continue from this summary",
+						"queue",
+					),
+				).resolves.toMatchObject({ ok: true });
+				expect(f.api.create).toHaveBeenCalledOnce();
+				expect(
+					f.commands.filter((entry) => entry.command === "session.send_input"),
+				).toHaveLength(2);
+			}
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("keeps initialPrompt metadata without submitting a message", async () => {
 		const f = fixture();
 		try {

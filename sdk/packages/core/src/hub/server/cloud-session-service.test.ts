@@ -952,6 +952,72 @@ describe("cloud RPC over a shared hub socket", () => {
 		}
 	});
 
+	it("preserves only nested send drain refusals across the cloud RPC socket", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
+		const client = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "cloud-viewer",
+			workspaceRoot: root,
+		});
+		const viewer = new HubCloudSessionClient(async () => {
+			await client.connect();
+			return client;
+		});
+		try {
+			await viewer.connect();
+			const controller = f.controllers[0].controller;
+			const draining = Object.assign(new Error("Hub is draining"), {
+				name: "HubCommandError",
+				code: "hub_draining",
+			});
+			for (const { error, code } of [
+				{ error: draining, code: "hub_draining" },
+				{
+					error: new HubCommandError(
+						"session.send_input",
+						"hub_command_timeout",
+						"Reply timed out",
+					),
+					code: "cloud_command_failed",
+				},
+				{ error: new Error("Send failed"), code: "cloud_command_failed" },
+				{
+					error: Object.assign(new Error("Send failed"), {
+						code: "hub_draining",
+					}),
+					code: "cloud_command_failed",
+				},
+			]) {
+				controller.send.mockRejectedValueOnce(error);
+				await expect(
+					viewer.send("ses-one", "Continue", "queue"),
+				).rejects.toMatchObject({ name: "HubCommandError", code });
+			}
+			controller.create.mockRejectedValueOnce(draining);
+			await expect(
+				viewer.create({
+					modelId: "model",
+					repoUrl: "https://github.com/example/project",
+					initialMessage: { text: "Continue" },
+				}),
+			).rejects.toMatchObject({ code: "cloud_command_failed" });
+			await expect(
+				viewer.send("ses-one", "Explicit retry", "queue"),
+			).resolves.toMatchObject({ ok: true });
+			expect(controller.send).toHaveBeenCalledTimes(5);
+			expect(controller.create).toHaveBeenCalledOnce();
+			expect((await client.command("hub.status")).payload).toMatchObject({
+				activeCloudCommands: 0,
+			});
+		} finally {
+			await viewer.dispose();
+			await client.dispose();
+			await server.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
 	it("hydrates another desktop client, preserves ownership on disconnect, and refuses new work while draining", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);

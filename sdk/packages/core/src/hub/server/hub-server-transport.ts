@@ -96,6 +96,7 @@ import {
 } from "./handlers/run-handlers";
 import {
 	drainingReply,
+	HUB_DRAINING_ERROR_CODE,
 	HubRunExecutor,
 	handleRunEnqueue,
 	handleRunList,
@@ -927,9 +928,15 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 				return okReply(envelope, result);
 			} catch (error) {
+				const sendRefused =
+					envelope.payload?.operation === "send" &&
+					error instanceof Error &&
+					error.name === "HubCommandError" &&
+					"code" in error &&
+					error.code === HUB_DRAINING_ERROR_CODE;
 				return errorReply(
 					envelope,
-					"cloud_command_failed",
+					sendRefused ? HUB_DRAINING_ERROR_CODE : "cloud_command_failed",
 					error instanceof Error ? error.message : String(error),
 				);
 			}

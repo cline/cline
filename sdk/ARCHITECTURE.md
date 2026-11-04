@@ -144,6 +144,7 @@ Design rules:
 - Hosts own archived-history previews. The Hub supplies snapshot data through `readArchivedMessages`.
 - The cloud controller resumes suspended sessions and restores saved tasks. The Hub's [`session.resume`](./DOC.md#starting-a-runtime-from-saved-hub-history) reuses the `session.create` startup path.
 - Hosts capture and confirm Git snapshots. For `create` with `localGit` and `initialMessage`, the Hub owns publication, verification, creation, and initial send through viewer disconnects. Requests stay pinned to the prepared account; overlapping calls with the same `requestId` share that work.
+- A `hub_draining` refusal marks the initial prompt as unsent; cloud send RPC preserves that refusal code for explicit retry, while timeouts and disconnects remain unconfirmed.
 - The hub retains pending first-task creation options with its controller across desktop viewer disconnects and reconnects. The controller consumes that intent when an inner task exists or is created. Account changes dispose the old scope and its intent.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
