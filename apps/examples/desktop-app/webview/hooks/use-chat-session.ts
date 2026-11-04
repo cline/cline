@@ -3978,8 +3978,6 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					// The Hub sends the replacement and live updates before the read reply.
-					// Applying that reply again would replace active message IDs.
 					if (cloudSnapshotRevisionRef.current === cloudSnapshotRevision) {
 						applyCloudSnapshotMessages({
 							sessionId: session.sessionId,
