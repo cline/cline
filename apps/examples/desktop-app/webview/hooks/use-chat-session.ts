@@ -655,7 +655,7 @@ export function useChatSession(environmentId: string) {
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
-	const cloudSnapshotRevisionRef = useRef(0);
+	const cloudSnapshotHydrationIdRef = useRef<number | null>(null);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
 	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
@@ -2403,7 +2403,7 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
-				cloudSnapshotRevisionRef.current += 1;
+				cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -3927,7 +3927,6 @@ export function useChatSession(environmentId: string) {
 			}
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
-			const cloudSnapshotRevision = cloudSnapshotRevisionRef.current;
 			hydrationRequestIdRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
@@ -3978,7 +3977,7 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					if (cloudSnapshotRevisionRef.current === cloudSnapshotRevision) {
+					if (cloudSnapshotHydrationIdRef.current !== requestId) {
 						applyCloudSnapshotMessages({
 							sessionId: session.sessionId,
 							messages: msgs,
