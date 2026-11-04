@@ -33,9 +33,9 @@ export function referenceExcerpt(
 
 export function sanitizeReferenceText(text: string): string {
 	return text
-		.replace(/cline:\/\/cache\/[^\s"'<>]+/g, "[parent cache handle omitted]")
+		.replace(/cline:\/\/cache\/[^\s"'<>\\]+/g, "[parent cache handle omitted]")
 		.replace(
-			/data:(?:image|audio|video)\/[^\s"'<>]+/g,
+			/data:(?:image|audio|video)\/[^\s"'<>\\]+/g,
 			"[binary media omitted]",
 		);
 }

@@ -342,7 +342,16 @@ describe("side parent history tool", () => {
 		expect(after.ok).toBe(true);
 	});
 
-	it("returns sanitized provider evidence and stable pending-tool text", async () => {
+	it.each([
+		{
+			uri: "cline://cache/parent/result",
+			redaction: "[parent cache handle omitted]",
+		},
+		{
+			uri: "data:image/png;base64,QUJD",
+			redaction: "[binary media omitted]",
+		},
+	])("recovers provider evidence after $uri", async ({ uri, redaction }) => {
 		const { tool } = fixture([
 			{
 				role: "assistant",
@@ -356,7 +365,9 @@ describe("side parent history tool", () => {
 							toolName: "web_search",
 							execution: "provider",
 							input: {},
-							output: { text: "Public evidence cline://cache/parent/result" },
+							output: {
+								text: `Public evidence ${uri}\nRecovery fact\t"quoted fact"`,
+							},
 						},
 					],
 				},
@@ -366,18 +377,29 @@ describe("side parent history tool", () => {
 		expect(recent.ok).toBe(true);
 		const text = JSON.stringify(recent);
 		expect(text).toContain("provider tool observation");
-		expect(text).toContain("Public evidence [parent cache handle omitted]");
+		expect(text).toContain(`Public evidence ${redaction}`);
+		expect(text).toContain("Recovery fact");
 		expect(text).toContain("Tool call read_files (pending)");
-		expect(text).not.toMatch(/cline:\/\/cache|result not yet available/);
+		expect(text).not.toMatch(
+			/cline:\/\/cache|data:image|result not yet available/,
+		);
+		const search = await tool.execute(
+			{ operation: "search", query: "Recovery fact" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected matches");
+		expect(search.result.matches).toHaveLength(1);
 		expect(
 			await tool.execute(
-				{ operation: "search", query: "Public evidence" },
+				{ operation: "read", reference: search.result.matches[0].reference },
 				context,
 			),
 		).toMatchObject({
 			ok: true,
 			result: {
-				matches: [{ preview: expect.stringContaining("Public evidence") }],
+				operation: "read",
+				text: expect.stringContaining("Recovery fact"),
 			},
 		});
 	});

@@ -88,7 +88,7 @@ describe("side reference capture", () => {
 						content: [
 							{
 								type: "text",
-								text: "preview cline://cache/parent/b.result.txt",
+								text: "preview cline://cache/parent/b.result.txt\nCache fact survives",
 							},
 							{ type: "image", data: "TOOL_IMAGE", mediaType: "image/png" },
 						],
@@ -118,7 +118,7 @@ describe("side reference capture", () => {
 									resource: {
 										uri: "fixture:text",
 										mimeType: "text/plain",
-										text: "Resource evidence",
+										text: "Resource evidence data:image/png;base64,QUJD\nMedia fact survives",
 									},
 								},
 							],
@@ -143,10 +143,12 @@ describe("side reference capture", () => {
 		expect(capture.content).toContain("4 media items omitted");
 		expect(capture.content).toContain("[parent cache handle omitted]");
 		expect(capture.content).toContain("Resource evidence");
+		expect(capture.content).toContain("Cache fact survives");
+		expect(capture.content).toContain("Media fact survives");
 		expect(capture.content).toContain("incomplete question");
 		expect(capture.content).toContain("result not yet available");
 		expect(capture.content).not.toMatch(
-			/cline:\/\/cache|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
+			/cline:\/\/cache|data:image|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
 		);
 	});
 
@@ -255,7 +257,8 @@ describe("current context and provider request", () => {
 								{
 									type: "file",
 									path: "notes.txt",
-									content: "Nested requirement cline://cache/private/note",
+									content:
+										"Nested requirement cline://cache/private/note\nNested fact survives",
 									source: "attachment",
 								},
 								{
@@ -274,6 +277,7 @@ describe("current context and provider request", () => {
 		expect(capture.content).toContain("END");
 		expect(capture.content).not.toContain("MIDDLE");
 		expect(capture.content).toContain("Nested requirement");
+		expect(capture.content).toContain("Nested fact survives");
 		expect(capture.content).toContain("1 media items omitted");
 		expect(capture.content).not.toMatch(/BINARY_FILE|cline:\/\/cache/);
 		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
