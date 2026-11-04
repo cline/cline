@@ -11,6 +11,23 @@ describe("builtin tool catalog", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.some((entry) => entry.id === "spawn_agent")).toBe(true);
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
+		expect(catalog.some((entry) => entry.id === "ux_verifier")).toBe(true);
+	});
+
+	it.each([
+		true,
+		false,
+	])("enables UX delegation only when spawning is enabled (%s)", (enableSpawnAgent) => {
+		expect(
+			getCoreBuiltinToolCatalog({ enableSpawnAgent }).find(
+				(entry) => entry.id === "ux_verifier",
+			)?.defaultEnabled,
+		).toBe(enableSpawnAgent);
+		expect(
+			getCoreBuiltinToolCatalog({
+				disabledToolIds: new Set(["spawn_agent"]),
+			}).find((entry) => entry.id === "ux_verifier")?.defaultEnabled,
+		).toBe(false);
 	});
 
 	it("includes the unified tasks tool outside yolo mode", () => {

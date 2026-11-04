@@ -1,8 +1,13 @@
-import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
+import type {
+	AgentEvent,
+	AgentToolContext,
+	HubEventEnvelope,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
+import type { CoreSessionEvent } from "../../types/events";
 import type { HubTransportContext } from "../server/handlers/context";
 import { projectSessionEvent } from "../server/handlers/session-event-projector";
 
@@ -73,6 +78,169 @@ function agentDoneEvents(events: unknown[]) {
 }
 
 describe("HubRuntimeHost", () => {
+	it("round-trips worker identity without consuming the parent's completion", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: CoreSessionEvent[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+		const ctx = {
+			buildEvent: (event, payload, sessionId) => ({
+				version: "v1",
+				event,
+				payload,
+				sessionId,
+			}),
+			publish: (event: HubEventEnvelope) =>
+				onEvent?.(JSON.parse(JSON.stringify(event))),
+		} as HubTransportContext;
+		const workerEvents: AgentEvent[] = [
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "text",
+				text: "Worker observation",
+			},
+			{ type: "content_end", contentType: "text", text: "Worker observation" },
+			{
+				type: "content_start",
+				contentType: "reasoning",
+				reasoning: "Checking UI",
+			},
+			{
+				type: "content_end",
+				contentType: "reasoning",
+				reasoning: "Checked UI",
+			},
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				input: {},
+			},
+			{
+				type: "content_update",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				update: { progress: "reading" },
+			},
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				output: "captured",
+			},
+			{
+				type: "done",
+				reason: "completed",
+				text: "Worker complete",
+				iterations: 1,
+			},
+		];
+		for (const event of workerEvents)
+			await projectSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						...event,
+						agentId: "worker",
+						conversationId: "worker-conversation",
+						parentAgentId: "lead",
+					},
+				},
+			});
+		for (const hookEventName of ["tool_call", "tool_result"] as const)
+			await projectSessionEvent(ctx, {
+				type: "hook",
+				payload: {
+					sessionId: "sess-1",
+					hookEventName,
+					agentId: "worker",
+					conversationId: "worker-conversation",
+					parentAgentId: "lead",
+					toolName: "read_files",
+				},
+			});
+		const workerFrames = events.filter((event) => event.type === "agent_event");
+		expect(workerFrames).toHaveLength(workerEvents.length + 2);
+		for (const frame of workerFrames)
+			if (frame.type === "agent_event")
+				expect(frame.payload.event).toMatchObject({
+					agentId: "worker",
+					conversationId: "worker-conversation",
+					parentAgentId: "lead",
+				});
+		const parentEvents: AgentEvent[] = [
+			{
+				type: "content_start",
+				contentType: "text",
+				text: "Combining findings",
+			},
+			{
+				type: "done",
+				reason: "completed",
+				text: "Parent complete",
+				iterations: 2,
+			},
+		];
+		for (const event of parentEvents)
+			await projectSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						...event,
+						agentId: "lead",
+						conversationId: "parent-conversation",
+						parentAgentId: null,
+					},
+				},
+			});
+		onEvent?.({
+			version: "v1",
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { reason: "completed" },
+		});
+		expect(agentDoneEvents(events).map((event) => event.payload.event)).toEqual(
+			[
+				expect.objectContaining({
+					text: "Worker complete",
+					parentAgentId: "lead",
+				}),
+				expect.objectContaining({
+					text: "Parent complete",
+					parentAgentId: null,
+				}),
+			],
+		);
+		expect(events.filter((event) => event.type === "ended")).toHaveLength(1);
+	});
+
 	afterEach(() => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();
@@ -726,6 +894,8 @@ describe("HubRuntimeHost", () => {
 						description: "Custom tool",
 						inputSchema: { type: "object" },
 						successContext: "Keep going.",
+						policyDependencies: ["delegate_tool"],
+						executionMode: "sequential",
 						execute: async () => "done",
 					},
 				],
@@ -744,6 +914,8 @@ describe("HubRuntimeHost", () => {
 						kind: "tool",
 						name: "custom_tool",
 						successContext: "Keep going.",
+						policyDependencies: ["delegate_tool"],
+						executionMode: "sequential",
 					},
 				],
 			},
