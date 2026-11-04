@@ -11,7 +11,7 @@
 		grid-template-columns: minmax(0, 1fr) auto;
 	}
 	.cline-ui-detail-list-item:where([data-has-trailing-text="true"]) {
-		grid-template-columns: fit-content(25%) minmax(0, 1fr);
+		grid-template-columns: minmax(0, auto) minmax(0, auto);
 	}
 	.cline-ui-detail-list-item__title {
 		min-width: 0;
