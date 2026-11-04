@@ -1,5 +1,9 @@
 import type { MessageWithMetadata } from "@cline/llms";
-import { SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
+import {
+	SIDE_REFERENCE_BUDGET_BYTES,
+	type SideVisibleContext,
+	SideVisibleContextSchema,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
@@ -8,6 +12,16 @@ const exchange = (question: string, answer: string): MessageWithMetadata[] => [
 	{ role: "user", content: question },
 	{ role: "assistant", content: answer },
 ];
+
+const visibleContext = (excerpts: SideVisibleContext["excerpts"]) =>
+	SideVisibleContextSchema.parse({
+		sessionId: "parent",
+		environmentId: "local",
+		capturedAt: "2026-10-28T12:00:00Z",
+		omittedExcerptCount: 0,
+		omittedMediaCount: 0,
+		excerpts,
+	});
 
 describe("side reference capture", () => {
 	it("captures active user/tool observations, excludes display-only notices, and preserves the source", () => {
@@ -354,6 +368,19 @@ describe("current context and provider request", () => {
 		expect(matched.content).not.toContain(
 			"chronology relative to saved history is unconfirmed",
 		);
+		const live = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				visible.excerpts[0],
+				{
+					...visible.excerpts[1],
+					text: "new answer completed PLUS_VISIBLE_FACT",
+				},
+			]),
+		});
+		expect(live.content).toContain("PLUS_VISIBLE_FACT");
+		expect(live.content).toContain("matched to the latest saved run");
 		const uncertain = captureSideReference({
 			messages: source,
 			activeParentTurn: true,
@@ -392,6 +419,104 @@ describe("current context and provider request", () => {
 			String(repeatedUnconfirmed.content).match(/\brepeat\b/g),
 		).toHaveLength(3);
 		expect(repeatedUnconfirmed.content).toContain("submission unconfirmed");
+		const repeatedObserved = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				visible.excerpts[0],
+				{ ...visible.excerpts[0], messageId: "next-user", runCount: 3 },
+				{ ...visible.excerpts[1], messageId: "next-answer", runCount: 3 },
+			]),
+		});
+		expect(String(repeatedObserved.content).match(/\brepeat\b/g)).toHaveLength(
+			3,
+		);
+		expect(repeatedObserved.content).toContain(
+			"[visible assistant]\nnew answer",
+		);
+		expect(repeatedObserved.content).toContain(
+			"chronology relative to saved history is unconfirmed",
+		);
+	});
+
+	it("keeps visible facts missing from a clipped saved block", () => {
+		const answer = `${"a".repeat(2500)} UNIQUE_RETAINED_FACT ${"b".repeat(6000)}`;
+		const capture = captureSideReference({
+			messages: exchange("question", answer),
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				{
+					messageId: "user",
+					role: "user",
+					text: "question",
+					runCount: 1,
+					submission: "observed",
+					omittedBytes: 0,
+				},
+				{
+					messageId: "answer",
+					role: "assistant",
+					text: answer.slice(0, 3000),
+					runCount: 1,
+					submission: "observed",
+					omittedBytes: 0,
+				},
+			]),
+		});
+		expect(capture.content).toContain("UNIQUE_RETAINED_FACT");
+		expect(capture.content).toContain("0 visible excerpts omitted");
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
+	});
+
+	it("falls back to the smaller visible excerpt when its saved block cannot fit", () => {
+		const excerpt = {
+			messageId: "user",
+			role: "user",
+			text: "latest request",
+			runCount: 2,
+			submission: "observed",
+			omittedBytes: 0,
+		} satisfies SideVisibleContext["excerpts"][number];
+		const capture = captureSideReference({
+			messages: [
+				...exchange("first".repeat(1500), "old answer"),
+				{
+					id: "user",
+					role: "user",
+					content: `latest request ${"u".repeat(6000)}`,
+				},
+				{ role: "assistant", content: `FALLBACK_FACT ${"a".repeat(3400)}` },
+			],
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				excerpt,
+				{
+					...excerpt,
+					messageId: "answer",
+					role: "assistant",
+					text: "FALLBACK_FACT",
+				},
+				{
+					...excerpt,
+					messageId: "other-1",
+					role: "tool",
+					text: "x".repeat(2800),
+				},
+				{
+					...excerpt,
+					messageId: "other-2",
+					role: "tool",
+					text: "y".repeat(2800),
+				},
+			]),
+		});
+		expect(capture.content).toContain("FALLBACK_FACT");
+		expect(capture.content).toContain("0 visible excerpts omitted");
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
 	});
 
 	it("delivers active PR evidence to the actual API-handler request as text without parent tool protocol or usage", async () => {

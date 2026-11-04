@@ -53,7 +53,9 @@ works with local and Hub-backed core instances without a separate Hub command.
 `@cline/shared` owns browser-safe reference limits, text projection utilities,
 and the optional visible-context contract. A host may supply recent unsaved
 observations; they remain labeled and are reconciled with saved history rather
-than treated as a replacement for it.
+than treated as a replacement for it. Deduplication never treats clipped-out
+saved text as represented. Tool-result numbers retain their original JSON
+tokens during projection.
 
 Hosts own session creation and retention policy, current composer selections,
 and presentation. Desktop composes these helpers with its existing start/send

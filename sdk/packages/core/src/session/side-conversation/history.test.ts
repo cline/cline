@@ -1,6 +1,8 @@
 import type { MessageWithMetadata } from "@cline/llms";
 import { describe, expect, it, vi } from "vitest";
 import type { ClineCore } from "../../ClineCore";
+import { toPersistedToolResultContent } from "../persisted-tool-result-content";
+import { captureSideReference } from "./context";
 import { createSideHistoryTool } from "./history";
 
 const context = { agentId: "side", iteration: 0 };
@@ -33,6 +35,78 @@ function fixture(messages: MessageWithMetadata[]) {
 }
 
 describe("side parent history tool", () => {
+	it("preserves numeric source tokens alongside redacted media in snapshots and history", async () => {
+		const raw = `{
+			"integer":9007199254740993,"decimal":1.0000000000000001,
+			"exponent":1e400,"negativeZero":-0,"tiny":1e-400,
+			"typed":{"type":123,"name":"Numeric discriminator"},
+			"content":[
+				{"type":"image","data":"BINARY_SECRET","mimeType":"image/png"},
+				{"type":"image","source":{"type":"base64","data":"SOURCE_SECRET"}},
+				{"type":"media","media":{"id":"generated","modality":"image","mediaType":"image/png","source":{"type":"artifact","artifactId":"HIDDEN_ARTIFACT"}}},
+				{"type":"file","path":"note.txt","content":"Text attachment"}
+			],
+			"entries":[
+				{"type":"file","name":"metadata.txt","mimeType":"text/plain"},
+				{"type":"image","name":"cover.png","mimeType":"image/png"}
+			],
+			"cline://cache/parent/result":"Key fact"
+		}`;
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "custom_report",
+						tool_use_id: "report",
+						content: toPersistedToolResultContent(raw),
+					},
+				],
+			},
+		];
+		const original = structuredClone(messages);
+		const capture = captureSideReference({ messages, activeParentTurn: false });
+		const { tool } = fixture(messages);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		const search = await tool.execute(
+			{ operation: "search", query: "9007199254740993" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected numeric match");
+		expect(search.result.matches).toHaveLength(1);
+		const read = await tool.execute(
+			{ operation: "read", reference: search.result.matches[0].reference },
+			context,
+		);
+		if (!read.ok || read.result.operation !== "read")
+			throw new Error("Expected exact reference text");
+		for (const text of [
+			String(capture.content),
+			JSON.stringify(recent),
+			read.result.text,
+		]) {
+			for (const token of [
+				"9007199254740993",
+				"1.0000000000000001",
+				"1e400",
+				"-0",
+				"1e-400",
+				"Text attachment",
+				"Numeric discriminator",
+				"metadata.txt",
+				"cover.png",
+				"Key fact",
+			])
+				expect(text).toContain(token);
+			expect(text).not.toMatch(
+				/BINARY_SECRET|SOURCE_SECRET|HIDDEN_ARTIFACT|cline:\/\/cache/,
+			);
+		}
+		expect(messages).toEqual(original);
+	});
+
 	it.each([
 		"recent",
 		"search",

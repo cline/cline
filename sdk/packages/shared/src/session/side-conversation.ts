@@ -1,7 +1,13 @@
 import { z } from "zod";
+import { GeneratedMediaSourceSchema } from "../llms/media";
 import { formatFileContentBlock } from "../prompt/format";
 
 const TextFileSchema = z.object({ path: z.string(), content: z.string() });
+const MediaPayloadSchema = z.union([
+	z.object({ data: z.string() }),
+	z.object({ source: GeneratedMediaSourceSchema }),
+	z.object({ media: z.object({ source: GeneratedMediaSourceSchema }) }),
+]);
 
 export const SIDE_REFERENCE_KIND = "desktop_side_reference";
 
@@ -53,7 +59,9 @@ export function serializeReferenceData(
 						return formatFileContentBlock(file.data.path, file.data.content);
 				}
 				if (
-					["image", "audio", "media", "file"].includes(String(item.type)) ||
+					(typeof item.type === "string" &&
+						["image", "audio", "media", "file"].includes(item.type) &&
+						MediaPayloadSchema.safeParse(item).success) ||
 					(item.type === "resource" &&
 						"resource" in item &&
 						item.resource !== null &&
