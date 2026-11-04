@@ -1,12 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute } from "node:path";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
-import {
-	createMediaBudgetState,
-	FeatureFlag,
-	getClineEnvironmentConfig,
-	validateAndReserveImageMedia,
-} from "@cline/shared";
+import { FeatureFlag, getClineEnvironmentConfig } from "@cline/shared";
 import { z } from "zod";
 import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
@@ -26,10 +21,7 @@ import {
 	RuntimeOAuthTokenManager,
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
 import { normalizeGitHubRemoteUrl } from "../../services/cloud-handoff/git-preflight";
-import {
-	applyHandoffGit,
-	verifyPublishedHandoffGit,
-} from "../../services/cloud-handoff/git-preparation";
+import { publishCloudHandoff } from "../../services/cloud-handoff/publication";
 import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { captureAuthRefreshSoftFailure } from "../../services/telemetry/core-events";
@@ -93,20 +85,24 @@ const createInput = creationOptions
 		localGit: localGitPlan.optional(),
 	})
 	.strict()
-	.superRefine((input, ctx) => {
-		if (!input.localGit) return;
-		if (input.organizationId === undefined)
+	.transform((input, ctx) => {
+		if (!input.localGit) return { ...input, localGit: undefined };
+		if (input.organizationId === undefined) {
 			ctx.addIssue({
 				code: "custom",
 				path: ["organizationId"],
 				message:
 					"Local Git publication requires organizationId from preparation, or null for Personal",
 			});
-		if (!input.requestId || !input.initialMessage)
+			return z.NEVER;
+		}
+		if (!input.requestId || !input.initialMessage) {
 			ctx.addIssue({
 				code: "custom",
 				message: "Local Git publication requires requestId and initialMessage",
 			});
+			return z.NEVER;
+		}
 		if (
 			input.repoUrl !== input.localGit.repoUrl ||
 			input.branch !== input.localGit.branch ||
@@ -117,6 +113,13 @@ const createInput = creationOptions
 				code: "custom",
 				message: "Cloud workspace must match the approved Git preparation",
 			});
+		return {
+			...input,
+			localGit: input.localGit,
+			organizationId: input.organizationId,
+			requestId: input.requestId,
+			initialMessage: input.initialMessage,
+		};
 	});
 const schemas = {
 	create: z.tuple([createInput]),
@@ -518,11 +521,11 @@ export class HubCloudSessionService {
 		input: z.infer<typeof createInput>,
 	): ReturnType<CloudSessionController["create"]> {
 		const { localGit, ...creation } = input;
-		if (!localGit) return controller.create(creation);
+		if (!input.localGit) return controller.create(creation);
 		const key = `${this.scopeGeneration}:${input.requestId}`;
 		const existing = this.publications.get(key);
 		if (existing) {
-			if (existing.planId !== localGit.id)
+			if (existing.planId !== input.localGit.id)
 				throw new Error("The request already has a different Git preparation");
 			return existing.result;
 		}
@@ -532,39 +535,9 @@ export class HubCloudSessionService {
 				throw new Error("Cline account changed during cloud publication");
 		};
 		const result = Promise.resolve()
-			.then(async () => {
-				assertCurrent();
-				const images = input.initialMessage?.images ?? [];
-				const budget = createMediaBudgetState();
-				for (const image of images) {
-					const validation = validateAndReserveImageMedia(
-						undefined,
-						image,
-						{},
-						budget,
-					);
-					if (!validation.ok) throw new Error(validation.message);
-				}
-				const { organizationId } = await controller.prepareHandoffRepository(
-					localGit.repoUrl,
-				);
-				assertCurrent();
-				if ((organizationId ?? null) !== (creation.organizationId ?? null))
-					throw new Error("The cloud organization changed before publication");
-				const models = await controller.listModels();
-				assertCurrent();
-				if (!models.some((model) => model.id === input.modelId))
-					throw new Error(
-						"The selected model is not available in Cline Cloud for this account",
-					);
-				const headSha = await applyHandoffGit(localGit);
-				assertCurrent();
-				await verifyPublishedHandoffGit(localGit, headSha);
-				assertCurrent();
-				return controller.create(creation);
-			})
+			.then(() => publishCloudHandoff({ controller, input, assertCurrent }))
 			.finally(() => this.publications.delete(key));
-		this.publications.set(key, { planId: localGit.id, result });
+		this.publications.set(key, { planId: input.localGit.id, result });
 		return result;
 	}
 	async dispose(): Promise<void> {

@@ -118,13 +118,22 @@ URLs and a fresh-token callback; feature gating and account selection stay in th
 host. Importing this subpath does not start a local agent.
 
 `createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
-`publish_artifacts` tool. It validates batches and local file paths, assigns missing
-IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
-receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+`publish_artifacts` tool. It validates batches and local file paths, defaults IDs
+to the filename including its extension, and returns ordered per-file IDs or errors.
+Reusing an ID replaces the session's file; use distinct filenames to preserve
+separate outputs. The injected `ArtifactPublisher` receives prepared files
+(`path`, `artifactId`, `size`, `modifiedAt`) and an abort
 signal, and returns one result per file in input order. Storage-specific policy
 and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
 be published; the tool itself does not restrict paths to a workspace.
+
+`createUxVerificationReportTool()` from `@cline/core` creates the opt-in
+`report_ux_verification` tool. It returns a UX verification report with captions,
+observed passed/failed/blocked results, and screenshot references (`artifactId`,
+`mediaType`). Passed and failed checks require a screenshot; blocked checks may
+omit one. Hosts register it explicitly. It does not upload files or check artifact
+availability.
 
 For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
@@ -257,6 +266,13 @@ unreachable without interrupting existing cloud work.
 
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
 models. Handoff requires the selected model; it never substitutes another.
+
+`publishCloudHandoff({ controller, input, assertCurrent })` from `@cline/core/cloud`
+publishes a confirmed Git snapshot and creates the cloud task with its initial
+message, defaulting to a resumable sandbox. Hosts prevent duplicate confirmation
+and supply `assertCurrent`, which throws if the account changes or the host is
+disposed. Git work already underway can finish; the guard prevents subsequent
+creation. The function provides no automatic retry or rollback.
 
 Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
 an existing target. Persist target IDs and dispatch markers through the callbacks;
@@ -447,14 +463,17 @@ await mcp.delete("local");
 `ensureSettings()` creates the settings file without rewriting an existing file;
 `install(args)` accepts marketplace MCP install arguments using the existing
 parser and registers the transport without opening a connection. Callers cannot choose a settings path. Invalid requests fail before
-writing. Deletion uses the exact stored key, including whitespace and reserved
-names, so malformed entries remain removable. Catalog responses include invalid entries with configuration errors and
+writing. Deletion and rename-source lookup use the exact stored key, including
+whitespace and reserved names, so malformed entries remain removable or repairable.
+New names still follow creation-name validation. Catalog responses include invalid entries with configuration errors and
 OAuth readiness, without OAuth token state. Static environment/header values are
 available only to authenticated clients for editing.
 
 Remote enable and changed-endpoint Settings saves passively probe existing credentials;
-failed probes leave the server disabled and never open a browser. Same-endpoint
-edits retain OAuth credentials and metadata; endpoint changes discard those
+failed probes leave the server disabled and never open a browser.
+URL connection deadlines cover transport startup and initialization, closing the
+in-flight transport on timeout so a stalled SSE endpoint cannot hold the shared
+queue or shutdown open. Same-endpoint edits retain OAuth credentials and metadata; endpoint changes discard those
 credentials. MCP requests are not replayed after dispatch. Mutations and probes
 are serialized, accepted work keeps the Hub busy, draining rejects new work, and
 shutdown waits for accepted operations. Lock acquisition yields the event loop,

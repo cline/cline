@@ -43,6 +43,50 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 });
 describe("MCP management completion", () => {
+	it.each([
+		" foo ",
+		"",
+	])("preserves stored key %j when renaming from Settings", async (previousName) => {
+		const catalog = {
+			settingsPath: "/hub/settings.json",
+			hasSettingsFile: true,
+			servers: [
+				{
+					name: previousName,
+					transportType: "stdio",
+					command: "node",
+					disabled: true,
+				},
+			],
+		};
+		invoke.mockResolvedValue(catalog);
+		await act(async () => root.render(<McpServersContent chrome="embedded" />));
+		await act(async () => vi.advanceTimersByTimeAsync(0));
+		const edit = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.getAttribute("aria-label") === `Edit ${previousName}`,
+		);
+		expect(edit).toBeDefined();
+		await act(async () => edit?.click());
+		const input = document.querySelector<HTMLInputElement>("#mcp-name");
+		expect(input).not.toBeNull();
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set?.call(input, "renamed");
+			input?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		const save = Array.from(document.querySelectorAll("button")).find(
+			(button) => button.textContent === "Save changes",
+		);
+		expect(save).toBeDefined();
+		await act(async () => save?.click());
+		expect(invoke).toHaveBeenCalledWith(
+			"mcp.servers.upsert",
+			expect.objectContaining({ name: "renamed", previousName }),
+		);
+	});
+
 	it("waits for a queued toggle beyond the normal deadline and applies its completion", async () => {
 		const server = {
 			name: "remote",

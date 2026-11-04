@@ -358,7 +358,10 @@ export {
 	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export {
+	ANTHROPIC_DEFAULT_MODEL_ID,
+	CLINE_DEFAULT_MODEL_ID,
+} from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
@@ -644,6 +647,5 @@ export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
-
 export * from "./ux-verifier";
 export { initVcr } from "./vcr";

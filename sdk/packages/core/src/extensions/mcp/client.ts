@@ -818,9 +818,22 @@ class SdkUrlMcpClient implements McpServerClient {
 				restrictConfiguredHeadersToOrigin:
 					this.options.restrictConfiguredHeadersToOrigin,
 			});
-			await client.connect(transport, {
+			const connecting = client.connect(transport, {
 				timeout: this.connectAttemptTimeoutMs,
 			});
+			// The SDK's request timeout starts after transport.start(). SSE startup
+			// can wait forever for an endpoint, so bound the whole connection too.
+			// The catch path closes the in-flight client/transport on expiry.
+			if (!(await settlesWithin(connecting, this.connectAttemptTimeoutMs))) {
+				throw new Error(
+					formatMcpTimeoutErrorMessage(
+						this.registration.name,
+						this.connectAttemptTimeoutMs,
+						"connect",
+					),
+				);
+			}
+			await connecting;
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
