@@ -232,13 +232,15 @@ describe("useMessageHandlers — send routing", () => {
 	})
 
 	it.each([
-		"failed",
-		"unconfirmed",
-		"unsent",
-		"sent",
-		"cancelled",
-		"preparation-failed",
-	] as const)("preserves local edits and offers the appropriate recovery after %s", async (outcome) => {
+		["failed", false],
+		["unconfirmed", false],
+		["unsent", false],
+		["sent", false],
+		["cancelled", false],
+		["preparation-failed", false],
+		["failed", true],
+		["unconfirmed", true],
+	] as const)("recovers after %s (edited during preparation: %s)", async (outcome, editedDuringPreparation) => {
 		mockTaskId = "local-task"
 		let { result, rerender, unmount } = renderConversation()
 		act(() => {
@@ -249,6 +251,12 @@ describe("useMessageHandlers — send routing", () => {
 		await act(async () => result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], []))
 		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
 		rerender()
+		if (editedDuringPreparation)
+			act(() => {
+				result.current.chatState.setInputValue("Newer draft")
+				result.current.chatState.setActiveQuote("newer quote")
+				result.current.chatState.setSelectedImages(["newer image"])
+			})
 		if (outcome === "cancelled" || outcome === "preparation-failed") {
 			mockHandoff = outcome === "cancelled" ? undefined : { ...mockHandoff, phase: "failed", message: "Preparation failed" }
 			rerender()
@@ -258,9 +266,9 @@ describe("useMessageHandlers — send routing", () => {
 		}
 		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "launching" }
 		rerender()
-		expect(result.current.chatState.inputValue).toBe("")
-		expect(result.current.chatState.activeQuote).toBeNull()
-		expect(result.current.chatState.selectedImages).toEqual([])
+		expect(result.current.chatState.inputValue).toBe(editedDuringPreparation ? "Newer draft" : "")
+		expect(result.current.chatState.activeQuote).toBe(editedDuringPreparation ? "newer quote" : null)
+		expect(result.current.chatState.selectedImages).toEqual(editedDuringPreparation ? ["newer image"] : [])
 		act(() => result.current.chatState.setInputValue("Continue locally"))
 		mockHandoff = { ...mockHandoff, sessionId: "ses_example" }
 		rerender()

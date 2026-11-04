@@ -105,7 +105,7 @@ export function useCloudHandoff(chatState: ChatState) {
 		const sent = cloudHandoff.phase === "complete" && cloudHandoff.delivery === "sent"
 		if (cloudHandoff.phase === "launching" || sent) {
 			try {
-				if (!submitted.cleared && chatState.getDraftSnapshot().revision === submitted.draft.revision) {
+				if (!submitted.cleared) {
 					if (!sent) setDrafts((current) => new Map(current).set(sourceTaskId, { ...submitted, cleared: true }))
 					chatState.consumeDraftSnapshot(submitted.draft)
 				}
@@ -122,7 +122,7 @@ export function useCloudHandoff(chatState: ChatState) {
 				})
 			}
 		}
-	}, [cloudHandoff, sourceTaskId, drafts, removeDraft, setDrafts, chatState.consumeDraftSnapshot, chatState.getDraftSnapshot])
+	}, [cloudHandoff, sourceTaskId, drafts, removeDraft, setDrafts, chatState.consumeDraftSnapshot])
 
 	const prepare = useCallback(
 		async (instruction: string, draft: DraftSnapshot) => {
