@@ -516,6 +516,7 @@ describe("cloud handoff TUI", () => {
 		const {
 			session,
 			statePath,
+			stateDir,
 			acceptCloudSend,
 			emitLateCloudSnapshot,
 			release,
@@ -558,11 +559,56 @@ describe("cloud handoff TUI", () => {
 			waitFor: () => readState(statePath).cloudSends?.length === 1,
 			timeout,
 		});
-		acceptCloudSend(1);
-		await session.text({
-			waitFor: () => readState(statePath).acceptedCloudSends?.length === 1,
-			timeout,
-		});
+		if (transition === "history") {
+			const queuedPrompt = "queue a prompt before opening History";
+			const queuedImage = createSyntheticImage(stateDir);
+			await session.type(`${queuedPrompt} `);
+			await pasteSyntheticImage(session, queuedImage.imagePath);
+			await session.press("enter");
+			await session.type("/history");
+			await session.waitForText("View session history", { timeout });
+			await session.press("tab");
+			await session.waitForText("Synthetic history session A", { timeout });
+			await session.press("enter");
+			await session.text({
+				waitFor: (screen) =>
+					screen.includes("Synthetic history conversation") ||
+					screen.includes("Failed to resume session") ||
+					screen.includes("Wait for cloud to accept your message"),
+				timeout,
+			});
+			expect(readState(statePath).resumeCalls).toBeUndefined();
+			expect(readState(statePath).attachedSessions).toEqual([
+				"synthetic-cloud-session-1",
+			]);
+			expect(await session.text()).toContain(
+				"Synthetic attached cloud transcript",
+			);
+
+			acceptCloudSend(1);
+			await session.text({
+				waitFor: () => readState(statePath).cloudSends?.length === 2,
+				timeout,
+			});
+			acceptCloudSend(2);
+			await session.text({
+				waitFor: () => readState(statePath).acceptedCloudSends?.length === 2,
+				timeout,
+			});
+			expect(readState(statePath).cloudSends?.[1]).toEqual({
+				sessionId: "synthetic-cloud-session-1",
+				modelId: "synthetic-cloud-model",
+				prompt: `${queuedPrompt} [Image 1]`,
+				delivery: "queue",
+				images: [queuedImage.dataUrl],
+			});
+		} else {
+			acceptCloudSend(1);
+			await session.text({
+				waitFor: () => readState(statePath).acceptedCloudSends?.length === 1,
+				timeout,
+			});
+		}
 
 		const resumedSessionId =
 			transition === "history" ? "synthetic-session-a" : "synthetic-session-b";
@@ -615,15 +661,16 @@ describe("cloud handoff TUI", () => {
 
 		emitLateCloudSnapshot();
 		await session.text({
-			waitFor: () => readState(statePath).lateSnapshotsEmitted === 1,
+			waitFor: () =>
+				readState(statePath).lateSnapshotsEmitted ===
+				(transition === "history" ? 2 : 1),
 			timeout,
 		});
 		release();
 		await session.text({
 			waitFor: () =>
-				readState(statePath).settledCloudSends?.includes(
-					"held synthetic cloud follow-up",
-				) === true,
+				readState(statePath).settledCloudSends?.length ===
+				(transition === "history" ? 2 : 1),
 			timeout,
 		});
 		const localScreen = await session.text();
@@ -634,6 +681,111 @@ describe("cloud handoff TUI", () => {
 		await session.press(["ctrl", "p"]);
 		await session.waitForText("Command Palette", { timeout });
 		await session.waitForText("Change Model", { timeout });
+	});
+
+	it.each([
+		{
+			scenario: "held-local-completion",
+			attached: true,
+			attachResult: "succeeds",
+		},
+		{
+			scenario: "held-local-attach-failure",
+			attached: false,
+			attachResult: "fails",
+		},
+	] as const)("keeps a late local completion scoped correctly when attach $attachResult", async ({
+		scenario,
+		attached,
+	}) => {
+		const {
+			session,
+			statePath,
+			acceptCloudSend,
+			emitLateCloudSnapshot,
+			release,
+			releaseLocal,
+		} = await launch({ scenario });
+		await session.waitForText("Plan something...", { timeout });
+		await session.type("/cloud create the synthetic task");
+		await session.press("enter");
+		await session.waitForText("Continue in cloud?", { timeout });
+		await session.press("enter");
+		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+		await session.type("start a held synthetic cloud task");
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 1,
+			timeout,
+		});
+		acceptCloudSend(1);
+		await session.text({
+			waitFor: () => readState(statePath).acceptedCloudSends?.length === 1,
+			timeout,
+		});
+		await session.text({
+			waitFor: () => readState(statePath).runningChanges?.at(-1) === true,
+			timeout,
+		});
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Cloud task started", { timeout });
+		await session.type("hold the synthetic local completion");
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).localDoneEmitted === true,
+			timeout,
+		});
+		await session.press(["ctrl", "o"]);
+		if (attached) {
+			await session.waitForText("Synthetic attached cloud transcript", {
+				timeout,
+			});
+			await session.text({
+				waitFor: () => readState(statePath).attachedSessions?.length === 2,
+				timeout,
+			});
+		} else {
+			await session.waitForText("Synthetic attach failure", { timeout });
+			await session.text({
+				waitFor: () => readState(statePath).attachAttempts?.length === 2,
+				timeout,
+			});
+		}
+		releaseLocal();
+		await session.text({
+			waitFor: () => readState(statePath).localSettled === true,
+			timeout,
+		});
+		await session.waitIdle({ timeout: 5_000 });
+		const screen = await session.text();
+		expect(readState(statePath).modeChangeCalls).toBeUndefined();
+		if (attached) {
+			expect(screen).toContain("Synthetic attached cloud transcript");
+			expect(screen).not.toContain("1,234 tokens");
+			expect(screen).not.toContain("5 iterations");
+			expect(readState(statePath).runningChanges?.at(-1)).toBe(true);
+			await session.press(["ctrl", "o"]);
+			await session.waitForText("● Plan ○ Act (Tab)", { timeout });
+		} else {
+			expect(screen).toContain("● Plan ○ Act (Tab)");
+			expect(screen).toContain("1,234 tokens");
+			expect(screen).toContain("5 iterations");
+			expect(readState(statePath).runningChanges?.at(-1)).toBe(false);
+		}
+		emitLateCloudSnapshot();
+		await session.text({
+			waitFor: () => readState(statePath).lateSnapshotsEmitted === 1,
+			timeout,
+		});
+		release();
+		await session.text({
+			waitFor: () => readState(statePath).settledCloudSends?.length === 1,
+			timeout,
+		});
 	});
 
 	it("keeps the paired local return action when the attached cloud task is removed", async () => {
@@ -695,6 +847,22 @@ describe("cloud handoff TUI", () => {
 		expect(await session.text()).toContain("Open in browser");
 		expect(readState(statePath).attachedSessions).toEqual([
 			"synthetic-cloud-session-1",
+		]);
+		await session.press(["ctrl", "p"]);
+		await session.waitForText("Command Palette", { timeout });
+		const busyPalette = await session.text();
+		expect(busyPalette).toContain("Open cloud task in browser");
+		expect(busyPalette).not.toContain("Change Model");
+		expect(busyPalette).not.toContain("Session History");
+		await session.type("Open cloud task in browser");
+		await session.waitForText("Open cloud task in browser", { timeout });
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).openedUrls?.length === 1,
+			timeout,
+		});
+		expect(readState(statePath).openedUrls).toEqual([
+			"https://app.cline.bot/agents?sessionId=synthetic-cloud-session-1",
 		]);
 	});
 
@@ -764,7 +932,9 @@ describe("cloud handoff TUI", () => {
 		});
 
 		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", { timeout });
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 		expect(readState(statePath).attachedSessions).toEqual([
 			"synthetic-cloud-session-1",
 		]);
@@ -779,7 +949,9 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
 		expect(await session.text()).not.toContain("Open in browser");
 		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", { timeout });
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 		expect(readState(statePath).localPrompts).toBeUndefined();
 	});
 
@@ -818,7 +990,9 @@ describe("cloud handoff TUI", () => {
 		await session.waitIdle({ timeout: 2_000 });
 		expect(await session.text()).toContain("Cloud task started");
 		await session.click("Open cloud task");
-		await session.waitForText("Synthetic attached cloud transcript", { timeout });
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 		expect(readState(statePath).openedUrls).toBeUndefined();
 		expect(await session.text()).toContain("Back to local (Ctrl+O)");
 		await session.press(["ctrl", "o"]);
@@ -826,7 +1000,9 @@ describe("cloud handoff TUI", () => {
 		await session.click("Hide");
 		expect(await session.text()).not.toContain("Cloud task started");
 		await runPaletteAction(session, "Open cloud task");
-		await session.waitForText("Synthetic attached cloud transcript", { timeout });
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 		expect(readState(statePath).openedUrls).toBeUndefined();
 		await session.press(["ctrl", "o"]);
 		await session.waitForText(localPrompt, { timeout });
@@ -1038,7 +1214,9 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Cloud task started", { timeout });
 		expect(await session.text()).not.toContain("Open in browser");
 		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", { timeout });
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
 		expect(readState(statePath).openedUrls).toBeUndefined();
 		expect(readState(statePath).preparations).toHaveLength(4);
 	});

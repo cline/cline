@@ -30,6 +30,8 @@ export const fixtureStateSchema = z.object({
 	lateSnapshotsEmitted: z.number().optional(),
 	runningChanges: z.array(z.boolean()).optional(),
 	localSettled: z.boolean().optional(),
+	localDoneEmitted: z.boolean().optional(),
+	modeChangeCalls: z.number().optional(),
 	removedSessions: z.array(z.string()).optional(),
 	openedUrls: z.array(z.string()).optional(),
 	cloudSends: z
@@ -39,6 +41,7 @@ export const fixtureStateSchema = z.object({
 				modelId: z.string(),
 				prompt: z.string(),
 				delivery: z.enum(["queue", "steer"]).optional(),
+				images: z.array(z.string()).optional(),
 			}),
 		)
 		.optional(),
@@ -53,6 +56,8 @@ export type FixtureScenario =
 	| "held-success"
 	| "held-failure"
 	| "held-cloud-send"
+	| "held-local-completion"
+	| "held-local-attach-failure"
 	| "removed-cloud-session"
 	| "retry"
 	| "attach-failure"

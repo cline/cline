@@ -1,6 +1,10 @@
 import { mock } from "bun:test";
 import { existsSync, writeFileSync } from "node:fs";
-import { CoreSessionService, SqliteSessionStore } from "@cline/core";
+import {
+	type AgentEvent,
+	CoreSessionService,
+	SqliteSessionStore,
+} from "@cline/core";
 import type {
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -30,6 +34,10 @@ mock.module("../../utils/open", () => ({
 }));
 
 const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
+const holdsLocalCompletion =
+	scenario === "held-local-completion" ||
+	scenario === "held-local-attach-failure";
+const holdsCloudSend = scenario === "held-cloud-send" || holdsLocalCompletion;
 async function waitForRelease(signalName = "CLOUD_HANDOFF_FIXTURE_RELEASE") {
 	const releasePath = process.env[signalName];
 	if (!releasePath) throw new Error(`${signalName} is required`);
@@ -47,6 +55,7 @@ const cloudSessionId = "synthetic-cloud-session-1";
 let activeSessionId = "synthetic-session-a";
 const sessionListeners = new Set<() => void>();
 const cloudListeners = new Set<(event: CloudSessionEvent) => void>();
+let onAgentEvent: ((event: AgentEvent) => void) | undefined;
 const setActiveSession = (sessionId: string) => {
 	activeSessionId = sessionId;
 	record("activeSessionId", sessionId);
@@ -92,9 +101,9 @@ const config: Config = {
 	workspaceRoot: cwd,
 	providerId,
 	modelId: "synthetic-model",
-	mode: "act",
+	mode: holdsLocalCompletion ? "plan" : "act",
 	thinking: false,
-	verbose: false,
+	verbose: holdsLocalCompletion,
 	toolPolicies: { "*": { autoApprove: false } },
 	knownModels: {},
 	defaultToolAutoApprove: false,
@@ -136,9 +145,33 @@ const props = {
 		tools: [],
 		workflowSlashCommands: [],
 	}),
-	subscribeToEvents: () => () => {},
+	subscribeToEvents: (handlers) => {
+		onAgentEvent = handlers.onAgentEvent;
+		return () => {
+			if (onAgentEvent === handlers.onAgentEvent) onAgentEvent = undefined;
+		};
+	},
 	onSubmit: async (prompt: string) => {
 		record("localPrompts", [...(state.localPrompts ?? []), prompt]);
+		if (
+			holdsLocalCompletion &&
+			prompt.includes("hold the synthetic local completion")
+		) {
+			onAgentEvent?.({
+				type: "done",
+				reason: "completed",
+				text: "Synthetic local completion",
+				iterations: 5,
+			});
+			record("localDoneEmitted", true);
+			await waitForRelease("CLOUD_HANDOFF_FIXTURE_LOCAL_RELEASE");
+			record("localSettled", true);
+			return {
+				usage: { inputTokens: 11, outputTokens: 17, totalCost: 0.25 },
+				currentContextSize: 1234,
+				iterations: 5,
+			};
+		}
 		if (
 			scenario === "held-cloud-send" &&
 			prompt.includes("local work while cloud send is pending")
@@ -161,7 +194,9 @@ const props = {
 	onAutoApproveChange: () => {},
 	onCompactionModeChange: noop,
 	onModelChange: noop,
-	onModeChange: noop,
+	onModeChange: async () => {
+		record("modeChangeCalls", (state.modeChangeCalls ?? 0) + 1);
+	},
 	onNewSession: async () => setActiveSession("synthetic-session-b"),
 	onSessionRestart: noop,
 	onAccountChange: noop,
@@ -192,7 +227,11 @@ const props = {
 		scope: { serviceId: "synthetic-cloud-service", scopeGeneration: 1 },
 		attach: async (sessionId: string) => {
 			record("attachAttempts", [...(state.attachAttempts ?? []), sessionId]);
-			if (scenario === "attach-failure" && state.attachAttempts?.length === 1)
+			if (
+				(scenario === "attach-failure" && state.attachAttempts?.length === 1) ||
+				(scenario === "held-local-attach-failure" &&
+					state.attachAttempts?.length === 2)
+			)
 				throw new Error("Synthetic attach failure");
 			record("attachedSessions", [
 				...(state.attachedSessions ?? []),
@@ -224,12 +263,24 @@ const props = {
 		create: async () => {
 			throw new Error("Not used by handoff fixture");
 		},
-		send: async (sessionId: string, prompt: string, delivery, modelId) => {
+		send: async (
+			sessionId: string,
+			prompt: string,
+			delivery,
+			modelId,
+			images,
+		) => {
 			record("cloudSends", [
 				...(state.cloudSends ?? []),
-				{ sessionId, modelId: modelId ?? "", prompt, delivery },
+				{
+					sessionId,
+					modelId: modelId ?? "",
+					prompt,
+					delivery,
+					...(images ? { images } : {}),
+				},
 			]);
-			if (scenario === "held-cloud-send") {
+			if (holdsCloudSend) {
 				await waitForRelease(
 					delivery === "queue"
 						? "CLOUD_HANDOFF_FIXTURE_ACCEPT_SECOND"
@@ -286,8 +337,8 @@ const props = {
 						],
 						promptsInQueue: [],
 						busy:
-							scenario === "held-cloud-send" &&
-							(state.cloudSends?.length ?? 0) > 0,
+							scenario === "approval" ||
+							(holdsCloudSend && (state.cloudSends?.length ?? 0) > 0),
 						startedAt: 0,
 						status: "running",
 						approvals:

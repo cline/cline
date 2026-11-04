@@ -350,6 +350,7 @@ function App(props: TuiProps) {
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
 		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
+		onBeforeOpenExisting: () => invalidatePendingSubmissionsRef.current(),
 		onEnterCloud: () => {
 			if (session.uiMode === "plan") toggleMode();
 		},
@@ -392,10 +393,18 @@ function App(props: TuiProps) {
 			session.setIsRunning(false);
 		}
 	}
-	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
+	const {
+		reset: resetCloudSession,
+		detach: detachCloudSession,
+		hasUnacceptedPrompts,
+	} = cloud;
 	const propsOnResumeSession = props.onResumeSession;
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
+			if (hasUnacceptedPrompts())
+				throw new Error(
+					"Wait for cloud to accept your message before returning locally.",
+				);
 			const result = await propsOnResumeSession(sessionId);
 			invalidatePendingSubmissionsRef.current();
 			localHandoffViewRef.current = undefined;
@@ -406,7 +415,7 @@ function App(props: TuiProps) {
 			session.setIsStreaming(false);
 			return result;
 		},
-		[detachCloudSession, propsOnResumeSession, session],
+		[detachCloudSession, hasUnacceptedPrompts, propsOnResumeSession, session],
 	);
 	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
 	const openTargetModelSelector = useCallback(
@@ -1154,23 +1163,26 @@ function App(props: TuiProps) {
 	);
 
 	const commandPaletteOpenRef = useRef(false);
-	const globalPaletteItems = useMemo(
-		() =>
-			buildCommandPaletteItems({
-				canForkSession,
-				handoff: handoff.status,
-				cloudSessionUrl: cloud.statusBar?.dashboardUrl,
-				canHideHandoff: handoff.canHide,
-				canReturnToLocal,
-			}),
-		[
+	const globalPaletteItems = useMemo(() => {
+		const items = buildCommandPaletteItems({
 			canForkSession,
-			cloud.statusBar?.dashboardUrl,
-			handoff.status,
-			handoff.canHide,
+			handoff: handoff.status,
+			cloudSessionUrl: cloud.statusBar?.dashboardUrl,
+			canHideHandoff: handoff.canHide,
 			canReturnToLocal,
-		],
-	);
+		});
+		return cloud.active && session.isRunning
+			? items.filter((item) => item.result.action === "cloud-browser")
+			: items;
+	}, [
+		canForkSession,
+		cloud.active,
+		cloud.statusBar?.dashboardUrl,
+		handoff.status,
+		handoff.canHide,
+		canReturnToLocal,
+		session.isRunning,
+	]);
 	const openCommandPalette = useCallback(async () => {
 		if (commandPaletteOpenRef.current) return;
 		commandPaletteOpenRef.current = true;

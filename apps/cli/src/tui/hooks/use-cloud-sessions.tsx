@@ -77,6 +77,7 @@ export function useCloudSessions(input: {
 	modelId: string;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
+	onBeforeOpenExisting: () => void;
 	/** Cloud sessions run in Act mode, so a Plan-mode UI switches over. */
 	onEnterCloud: () => void;
 	loadClineAccount: TuiProps["loadClineAccount"];
@@ -394,6 +395,7 @@ export function useCloudSessions(input: {
 			const branch =
 				snapshot?.record?.repoContext.branch ??
 				(typeof attached.branch === "string" ? attached.branch : undefined);
+			inputRef.current.onBeforeOpenExisting();
 			reset();
 			abortRequestedRef.current = false;
 			sessionIdRef.current = id;

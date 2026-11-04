@@ -91,6 +91,7 @@ describe("cloud target keybinds", () => {
 	const keyboardInput = (handlers: {
 		onToggleCloudTarget?: () => void;
 		onChangeCloudRepo?: () => void;
+		onOpenCommandPalette?: () => Promise<void>;
 	}) =>
 		({
 			isDialogOpen: false,
@@ -147,5 +148,23 @@ describe("cloud target keybinds", () => {
 		useRootKeyboard(keyboardInput({}));
 		expect(pressCtrl("o")).not.toHaveBeenCalled();
 		expect(pressCtrl("k")).not.toHaveBeenCalled();
+	});
+
+	it("opens the command palette during a busy cloud session only", () => {
+		const openLocalPalette = vi.fn(async () => {});
+		useRootKeyboard(keyboardInput({ onOpenCommandPalette: openLocalPalette }));
+		pressCtrl("p");
+		expect(openLocalPalette).not.toHaveBeenCalled();
+
+		const openCloudPalette = vi.fn(async () => {});
+		const onCommandPaletteShortcut = vi.fn(() => false);
+		useRootKeyboard({
+			...keyboardInput({ onOpenCommandPalette: openCloudPalette }),
+			isCloudTarget: true,
+			onCommandPaletteShortcut,
+		});
+		pressCtrl("p");
+		expect(openCloudPalette).toHaveBeenCalledOnce();
+		expect(onCommandPaletteShortcut).not.toHaveBeenCalled();
 	});
 });
