@@ -532,7 +532,8 @@ describe("createContextCompactionPrepareTurn", () => {
 	it("keeps structured tool results when serializing compaction input", () => {
 		// run_commands and read_files persist their output as an array of
 		// untyped result objects, not as text blocks.
-		const longOutput = "y".repeat(TOOL_RESULT_CHAR_LIMIT + 100);
+		const omittedTail = "TAIL_SHOULD_NOT_SURVIVE_TRUNCATION";
+		const longOutput = "y".repeat(TOOL_RESULT_CHAR_LIMIT + 100) + omittedTail;
 		const serialized = serializeMessage({
 			role: "user",
 			content: [
@@ -552,7 +553,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(serialized).toContain("README.md\\nsrc\\n");
 		expect(serialized).toContain('"query":"cat big.log"');
 		expect(serialized).toContain("...[truncated ");
-		expect(serialized.length).toBeLessThan(longOutput.length);
+		expect(serialized).not.toContain(omittedTail);
 	});
 
 	it("returns no result when the transcript has no typed user prompt", () => {
