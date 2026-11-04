@@ -2072,6 +2072,9 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "session.pending_prompts": {
+				const discarded = Array.isArray(event.payload?.discarded)
+					? (event.payload.discarded as SessionPendingPrompt[])
+					: [];
 				this.events.emit({
 					type: "pending_prompts",
 					payload: {
@@ -2079,6 +2082,7 @@ export class HubRuntimeHost implements RuntimeHost {
 						prompts: Array.isArray(event.payload?.prompts)
 							? (event.payload.prompts as SessionPendingPrompt[])
 							: [],
+						...(discarded.length ? { discarded } : {}),
 					},
 				});
 				return;
