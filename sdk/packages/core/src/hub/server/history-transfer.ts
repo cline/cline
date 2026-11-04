@@ -25,6 +25,7 @@ type Transfer = {
 	sessionId: string;
 	snapshot: Promise<Snapshot | undefined>;
 	cancelled: boolean;
+	cancelPending: () => void;
 	timer: ReturnType<typeof setTimeout>;
 	cleanup?: Promise<void>;
 };
@@ -57,7 +58,7 @@ export class HistoryTransferPool {
 				transfer.initialRequestId === requestId &&
 				transfer.sessionId === sessionId
 			) {
-				void this.release(owner, key);
+				void this.cancelTransfer(owner, key);
 			}
 		}
 	}
@@ -77,10 +78,10 @@ export class HistoryTransferPool {
 				throw new Error("History transfer expired or cursor is invalid");
 			}
 			const cancel = () => {
-				void this.release(owner, key);
+				void this.cancelTransfer(owner, key);
 			};
 			if (signal.aborted) {
-				await this.release(owner, key);
+				await this.cancelTransfer(owner, key);
 				return closedReply(envelope);
 			}
 			signal.addEventListener("abort", cancel, { once: true });
@@ -138,13 +139,18 @@ export class HistoryTransferPool {
 		const prepared = new Promise<Snapshot | undefined>((resolve) => {
 			resolveSnapshot = resolve;
 		});
+		let cancelPending!: () => void;
+		const cancelledReply = new Promise<HubReplyEnvelope>((resolve) => {
+			cancelPending = () => resolve(closedReply(envelope));
+		});
 		const transfer: Transfer = {
 			initialRequestId,
 			sessionId,
 			snapshot: prepared,
 			cancelled: false,
+			cancelPending,
 			timer: setTimeout(() => {
-				void this.release(owner, key);
+				void this.cancelTransfer(owner, key);
 			}, deadline - Date.now()),
 		};
 		transfer.timer.unref();
@@ -152,11 +158,11 @@ export class HistoryTransferPool {
 		this.owners.set(owner, entries);
 		entries.set(key, transfer);
 		const cancel = () => {
-			void this.release(owner, key);
+			void this.cancelTransfer(owner, key);
 		};
 		boundedSignal.addEventListener("abort", cancel, { once: true });
 		let snapshot: Snapshot | undefined;
-		try {
+		const response = (async (): Promise<HubReplyEnvelope> => {
 			let reply: HubReplyEnvelope;
 			try {
 				reply = await read();
@@ -188,6 +194,9 @@ export class HistoryTransferPool {
 				return reply;
 			}
 			return await this.chunk(envelope, owner, key, transfer);
+		})();
+		try {
+			return await Promise.race([response, cancelledReply]);
 		} finally {
 			boundedSignal.removeEventListener("abort", cancel);
 		}
@@ -199,7 +208,7 @@ export class HistoryTransferPool {
 		}
 		await Promise.all(
 			Array.from(this.owners.get(owner)?.keys() ?? [], (key) =>
-				this.release(owner, key),
+				this.cancelTransfer(owner, key),
 			),
 		);
 	}
@@ -303,6 +312,11 @@ export class HistoryTransferPool {
 		} finally {
 			snapshot.reading = false;
 		}
+	}
+
+	private cancelTransfer(owner: object, key: string): Promise<void> {
+		this.owners.get(owner)?.get(key)?.cancelPending();
+		return this.release(owner, key);
 	}
 
 	private release(owner: object, key: string): Promise<void> {

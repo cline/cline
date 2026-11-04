@@ -262,11 +262,6 @@ describe("HistoryTransferPool", () => {
 			ok: false,
 			error: { code: "history_transfer_closed" },
 		});
-		await new Promise<void>((resolve) => setImmediate(resolve));
-		expect(thirdRead).not.toHaveBeenCalled();
-		expect(queuedRead).not.toHaveBeenCalled();
-		for (const finish of finishers)
-			finish({ version: "v1", ok: true, payload: { messages: [] } });
 		await expect(first).resolves.toMatchObject({
 			ok: false,
 			error: { code: "history_transfer_closed" },
@@ -275,6 +270,10 @@ describe("HistoryTransferPool", () => {
 			ok: false,
 			error: { code: "history_transfer_closed" },
 		});
+		expect(thirdRead).not.toHaveBeenCalled();
+		expect(queuedRead).not.toHaveBeenCalled();
+		for (const finish of finishers)
+			finish({ version: "v1", ok: true, payload: { messages: [] } });
 		await expect(third).resolves.toMatchObject({
 			payload: { historyChunk: "[]" },
 		});

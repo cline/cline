@@ -58,9 +58,12 @@ describe("BrowserWebSocketHubAdapter", () => {
 		vi.stubEnv("CLINE_DATA_DIR", directory);
 	});
 	it.each([
+		"cancel",
 		"unregister",
 		"close",
 	] as const)("%s cancels queued history and never sends an abandoned full reply", async (mode) => {
+		vi.useFakeTimers();
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
 		const transport = {
 			command: vi.fn(
@@ -110,17 +113,36 @@ describe("BrowserWebSocketHubAdapter", () => {
 			for (let i = 0; i < 3; i++)
 				send(`history-${i}`, "session.messages", { chunkHistory: true });
 			expect(finishers).toHaveLength(2);
-			if (mode === "unregister") {
+			if (mode === "cancel") {
+				for (let i = 0; i < 3; i++)
+					socket.emitMessage(
+						JSON.stringify({
+							kind: "history.cancel",
+							clientId: "client-1",
+							sessionId: "session-1",
+							requestId: `history-${i}`,
+						}),
+					);
+			} else if (mode === "unregister") {
 				send("unregister", "client.unregister");
 				await vi.waitFor(() => expect(response("unregister")?.ok).toBe(true));
 			} else socket.emitClose();
+			await vi.advanceTimersByTimeAsync(30_001);
+			expect(errors).not.toHaveBeenCalled();
+			if (mode !== "close") {
+				for (let i = 0; i < 3; i++)
+					expect(response(`history-${i}`)).toMatchObject({
+						ok: false,
+						error: { code: "history_transfer_closed" },
+					});
+			}
 			for (const finish of finishers)
 				finish({
 					version: "v1",
 					ok: true,
 					payload: { messages: ["x".repeat(200_000)] },
 				});
-			if (mode === "unregister") {
+			if (mode !== "close") {
 				await vi.waitFor(() =>
 					expect(
 						[0, 1, 2].every((i) => response(`history-${i}`) !== undefined),
@@ -134,7 +156,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 					expect(response(`history-${i}`)?.payload).toBeUndefined();
 				}
 			} else {
-				await new Promise<void>((resolve) => setImmediate(resolve));
+				await vi.advanceTimersByTimeAsync(0);
 				for (let i = 0; i < 3; i++) {
 					expect(response(`history-${i}`)).toBeUndefined();
 				}
