@@ -1,4 +1,4 @@
-import type { TeamProgressProjectionEvent } from "@cline/shared";
+import type { AgentEvent, TeamProgressProjectionEvent } from "@cline/shared";
 import type { SessionUsageSummary } from "../../../runtime/host/runtime-host";
 import type {
 	CoreSessionEvent,
@@ -10,6 +10,36 @@ import {
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
 } from "./context";
+
+/**
+ * Identity block attached to projected content events so clients can tell a
+ * team lead's content apart from a teammate's. The hub stream is lossy (a
+ * teammate's content_start collapses to the same assistant.delta as the
+ * lead's), so this is the only place to preserve teamRole/teamAgentId
+ * across the hub boundary; clients re-stamp it back on the reconstructed
+ * CoreSessionEvent.
+ */
+function contentAgentIdentity(
+	teamRole: "lead" | "teammate" | undefined,
+	teamAgentId: string | undefined,
+	agentEvent: AgentEvent,
+): Record<string, unknown> {
+	return {
+		// Matches the agent.kind on session.notice: teammate, else subagent
+		// when a parent agent id is present, else lead.
+		kind:
+			teamRole === "teammate"
+				? "teammate"
+				: agentEvent.parentAgentId
+					? "subagent"
+					: "lead",
+		agentId: agentEvent.agentId,
+		conversationId: agentEvent.conversationId,
+		parentAgentId: agentEvent.parentAgentId,
+		teamAgentId,
+		teamRole,
+	};
+}
 
 /**
  * Translates internal `CoreSessionEvent`s emitted by the session host into the
@@ -135,6 +165,8 @@ async function projectAgentEvent(
 	event: Extract<CoreSessionEvent, { type: "agent_event" }>,
 ): Promise<void> {
 	const { sessionId, event: agentEvent } = event.payload;
+	const teamRole = event.payload.teamRole;
+	const teamAgentId = event.payload.teamAgentId;
 	if (agentEvent.type === "iteration_start") {
 		ctx.publish(
 			ctx.buildEvent(
@@ -166,7 +198,14 @@ async function projectAgentEvent(
 			agentEvent.text.length > 0
 		) {
 			ctx.publish(
-				ctx.buildEvent("assistant.delta", { text: agentEvent.text }, sessionId),
+				ctx.buildEvent(
+					"assistant.delta",
+					{
+						text: agentEvent.text,
+						agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
+					},
+					sessionId,
+				),
 			);
 			return;
 		}
@@ -175,7 +214,11 @@ async function projectAgentEvent(
 				ctx.publish(
 					ctx.buildEvent(
 						"reasoning.delta",
-						{ text: "", redacted: true },
+						{
+							text: "",
+							redacted: true,
+							agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
+						},
 						sessionId,
 					),
 				);
@@ -191,6 +234,7 @@ async function projectAgentEvent(
 						{
 							text: agentEvent.reasoning,
 							redacted: agentEvent.redacted === true,
+							agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
 						},
 						sessionId,
 					),
@@ -206,6 +250,7 @@ async function projectAgentEvent(
 						toolCallId: agentEvent.toolCallId,
 						toolName: agentEvent.toolName,
 						input: agentEvent.input,
+						agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
 					},
 					sessionId,
 				),
@@ -224,6 +269,7 @@ async function projectAgentEvent(
 					toolCallId: agentEvent.toolCallId,
 					toolName: agentEvent.toolName,
 					update: agentEvent.update,
+					agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
 				},
 				sessionId,
 			),
@@ -236,7 +282,10 @@ async function projectAgentEvent(
 				ctx.publish(
 					ctx.buildEvent(
 						"assistant.finished",
-						{ text: agentEvent.text },
+						{
+							text: agentEvent.text,
+							agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
+						},
 						sessionId,
 					),
 				);
@@ -246,7 +295,10 @@ async function projectAgentEvent(
 					ctx.publish(
 						ctx.buildEvent(
 							"assistant.media",
-							{ media: agentEvent.media },
+							{
+								media: agentEvent.media,
+								agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
+							},
 							sessionId,
 						),
 					);
@@ -256,7 +308,10 @@ async function projectAgentEvent(
 				ctx.publish(
 					ctx.buildEvent(
 						"reasoning.finished",
-						{ reasoning: agentEvent.reasoning },
+						{
+							reasoning: agentEvent.reasoning,
+							agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
+						},
 						sessionId,
 					),
 				);
@@ -270,6 +325,7 @@ async function projectAgentEvent(
 							toolName: agentEvent.toolName,
 							output: agentEvent.output,
 							error: agentEvent.error,
+							agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
 						},
 						sessionId,
 					),
@@ -367,6 +423,11 @@ async function projectAgentEvent(
 					text: agentEvent.text,
 					iterations: agentEvent.iterations,
 					usage: agentEvent.usage,
+					// A teammate's completion message must survive the hub
+					// boundary like its other content; without the identity
+					// block it lands on the lead's transcript instead of the
+					// teammate's child session.
+					agent: contentAgentIdentity(teamRole, teamAgentId, agentEvent),
 				},
 				sessionId,
 			),

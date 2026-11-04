@@ -553,6 +553,45 @@ function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 	};
 }
 
+/**
+ * Recover the teamRole/teamAgentId the hub projector carries in the
+ * content event's agent block, so the reconstructed CoreSessionEvent keeps
+ * the same team identity the session host attached locally. Without it, a
+ * teammate's content is indistinguishable from the lead's and lands in the
+ * wrong transcript.
+ */
+function contentAgentTagsFromPayload(
+	payload: Record<string, unknown> | undefined,
+): {
+	teamAgentId?: string;
+	teamRole?: "lead" | "teammate";
+} {
+	const agent =
+		payload?.agent && typeof payload.agent === "object"
+			? (payload.agent as Record<string, unknown>)
+			: undefined;
+	const teamAgentId =
+		typeof agent?.teamAgentId === "string" ? agent.teamAgentId : undefined;
+	const teamRole =
+		agent?.teamRole === "teammate" || agent?.teamRole === "lead"
+			? agent.teamRole
+			: undefined;
+	return { teamAgentId, teamRole };
+}
+
+/**
+ * Identity discriminator used to dedupe a session's `done` events per agent.
+ * Teammates are distinguished by teamAgentId; a lead/subagent (no teamAgentId)
+ * falls back to its kind so the lead's `done` is never conflated with a
+ * teammate's that carries no id.
+ */
+function agentDoneDedupKey(
+	payload: Record<string, unknown> | undefined,
+): string {
+	const { teamAgentId, teamRole } = contentAgentTagsFromPayload(payload);
+	return teamAgentId ?? (teamRole === "teammate" ? "teammate" : "primary");
+}
+
 function doneEventFromPayload(
 	payload: Record<string, unknown> | undefined,
 ): AgentEvent {
@@ -787,7 +826,19 @@ export class HubRuntimeHost implements RuntimeHost {
 	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
-	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
+	/**
+	 * Agents that already produced a `done` for the current run of a session,
+	 * keyed by sessionId. A run's terminal event (`run.completed`/`run.failed`/
+	 * `run.aborted`) re-emits `agent.done`, so the second occurrence is
+	 * dropped. In agent teams the lead and every teammate emit `done` under
+	 * the same root sessionId, so the dedup key must include the agent's
+	 * identity (teamAgentId, falling back to kind) — otherwise only the
+	 * first agent's `done` in a team run is ever delivered.
+	 */
+	private readonly agentDoneEmittedForCurrentRunBySession = new Map<
+		string,
+		Set<string>
+	>();
 	private readonly activeCapabilityAbortControllers = new Map<
 		string,
 		AbortController
@@ -1676,11 +1727,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		toolCallId?: string;
 		toolName?: string;
 		toolInput?: unknown;
+		teamAgentId?: string;
+		teamRole?: "lead" | "teammate";
 	}): void {
 		this.events.emit({
 			type: "agent_event",
 			payload: {
 				sessionId: input.sessionId,
+				teamAgentId: input.teamAgentId,
+				teamRole: input.teamRole,
 				event: {
 					type: "content_start",
 					contentType: "tool",
@@ -1696,17 +1751,29 @@ export class HubRuntimeHost implements RuntimeHost {
 		sessionId: string;
 		payload: Record<string, unknown> | undefined;
 	}): void {
-		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
+		// A run's terminal event re-emits `agent.done`; drop the second one.
+		// Keyed per agent (see agentDoneDedupKey) so a teammate's completion
+		// is not swallowed by — or swallowed into — the lead's terminal event.
+		const dedupKey = agentDoneDedupKey(input.payload);
+		let emittedForSession = this.agentDoneEmittedForCurrentRunBySession.get(
 			input.sessionId,
 		);
-		if (alreadyEmitted) {
+		if (!emittedForSession) {
+			emittedForSession = new Set<string>();
+			this.agentDoneEmittedForCurrentRunBySession.set(
+				input.sessionId,
+				emittedForSession,
+			);
+		}
+		if (emittedForSession.has(dedupKey)) {
 			return;
 		}
-		this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
+		emittedForSession.add(dedupKey);
 		this.events.emit({
 			type: "agent_event",
 			payload: {
 				sessionId: input.sessionId,
+				...contentAgentTagsFromPayload(input.payload),
 				event: doneEventFromPayload(input.payload),
 			},
 		});
@@ -1865,6 +1932,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_start",
 							contentType: "text",
@@ -1888,6 +1956,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_end",
 							contentType: "media",
@@ -1902,6 +1971,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_end",
 							contentType: "text",
@@ -1925,6 +1995,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_start",
 							contentType: "reasoning",
@@ -1940,6 +2011,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_end",
 							contentType: "reasoning",
@@ -1980,9 +2052,12 @@ export class HubRuntimeHost implements RuntimeHost {
 				if (toolCallId && this.pendingApprovalToolCallIds.delete(toolCallId)) {
 					return;
 				}
+				const toolTags = contentAgentTagsFromPayload(event.payload);
 				this.emitToolCallContentStart({
 					sessionId,
 					toolCallId,
+					teamAgentId: toolTags.teamAgentId,
+					teamRole: toolTags.teamRole,
 					toolName:
 						typeof event.payload?.toolName === "string"
 							? event.payload.toolName
@@ -1996,6 +2071,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_update",
 							contentType: "tool",
@@ -2025,6 +2101,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...contentAgentTagsFromPayload(event.payload),
 						event: {
 							type: "content_end",
 							contentType: "tool",
