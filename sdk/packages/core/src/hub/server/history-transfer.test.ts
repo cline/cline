@@ -216,7 +216,9 @@ describe("HistoryTransferPool", () => {
 	it.each([
 		"close",
 		"cancel",
+		"expire",
 	] as const)("%s retains admission until uncancellable producers settle", async (mode) => {
+		if (mode === "expire") vi.useFakeTimers();
 		const pool = new HistoryTransferPool();
 		const owner = {};
 		const finishers: Array<(reply: HubReplyEnvelope) => void> = [];
@@ -236,6 +238,8 @@ describe("HistoryTransferPool", () => {
 		const queuedRead = vi.fn(() => read());
 		const queuedEnvelope = { ...envelope, requestId: "history-queued" };
 		const queued = pool.command(queuedEnvelope, owner, queuedRead, signal());
+		const queuedReply = vi.fn();
+		void queued.then(queuedReply);
 		await expect(pool.command(envelope, owner, read, signal())).rejects.toThrow(
 			"Duplicate live history request ID",
 		);
@@ -249,11 +253,20 @@ describe("HistoryTransferPool", () => {
 				payload: { messages: [] },
 			}),
 		);
+		if (mode === "expire") await vi.advanceTimersByTimeAsync(5 * 60_000 - 1);
 		const third = pool.command(envelope, {}, thirdRead, signal());
 		expect(thirdRead).not.toHaveBeenCalled();
 		expect(read).toHaveBeenCalledTimes(2);
 		if (mode === "close") void pool.close(owner);
-		else {
+		else if (mode === "expire") {
+			await vi.advanceTimersByTimeAsync(1);
+			expect(queuedReply).toHaveBeenCalledWith(
+				expect.objectContaining({
+					ok: false,
+					error: expect.objectContaining({ code: "history_transfer_closed" }),
+				}),
+			);
+		} else {
 			pool.cancel(owner, "history-queued", "session-1");
 			pool.cancel(owner, "history-1", "session-1");
 			pool.cancel(owner, "history-2", "session-1");
@@ -279,6 +292,47 @@ describe("HistoryTransferPool", () => {
 		});
 		expect(thirdRead).toHaveBeenCalledTimes(1);
 		expect(queuedRead).not.toHaveBeenCalled();
+		await pool.close(owner);
+	});
+
+	it("expires a paused cursor after the initial reply", async () => {
+		vi.useFakeTimers();
+		const pool = new HistoryTransferPool();
+		const owner = {};
+		const read = vi.fn(
+			async (): Promise<HubReplyEnvelope> => ({
+				version: "v1",
+				ok: true,
+				payload: { messages: ["x".repeat(200_000)] },
+			}),
+		);
+		const first = await pool.command(envelope, owner, read, signal());
+		expect(first.payload?.historyCursor).toBeTypeOf("string");
+		await vi.advanceTimersByTimeAsync(5 * 60_000);
+		const [result] = await Promise.allSettled([
+			pool.command(
+				{
+					...envelope,
+					payload: { historyCursor: first.payload?.historyCursor },
+				},
+				owner,
+				read,
+				signal(),
+			),
+		]);
+		if (result.status === "fulfilled") {
+			expect(result.value).toMatchObject({
+				ok: false,
+				error: { code: "history_transfer_closed" },
+			});
+		} else {
+			const error: unknown = result.reason;
+			expect(error).toBeInstanceOf(Error);
+			expect(error instanceof Error ? error.message : "").toContain(
+				"cursor is invalid",
+			);
+		}
+		expect(read).toHaveBeenCalledTimes(1);
 		await pool.close(owner);
 	});
 

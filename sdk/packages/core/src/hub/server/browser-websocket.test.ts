@@ -51,7 +51,45 @@ function createSocket() {
 	};
 }
 
-describe("BrowserWebSocketHubAdapter", () => {
+function createHistorySocket() {
+	const socket = createSocket();
+	return {
+		...socket,
+		command(
+			requestId: string,
+			command: HubCommandEnvelope["command"],
+			payload: Record<string, unknown> = {},
+			fields: Record<string, unknown> = {},
+		) {
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						clientId: "client-1",
+						sessionId: "session-1",
+						requestId,
+						command,
+						payload,
+						...fields,
+					},
+				}),
+			);
+		},
+		reply(requestId: string): HubReplyEnvelope | undefined {
+			return socket.sent
+				.map((frame) => JSON.parse(frame).envelope as HubReplyEnvelope)
+				.find((reply) => reply.requestId === requestId);
+		},
+	};
+}
+
+afterEach(() => {
+	vi.useRealTimers();
+	vi.restoreAllMocks();
+});
+
+describe("BrowserWebSocketHubAdapter history", () => {
 	let directory: string;
 	beforeEach(async () => {
 		directory = await mkdtemp(join(tmpdir(), "hub-browser-history-"));
@@ -83,30 +121,10 @@ describe("BrowserWebSocketHubAdapter", () => {
 			),
 			subscribe: vi.fn(),
 		};
-		const socket = createSocket();
+		const socket = createHistorySocket();
 		const detach = new BrowserWebSocketHubAdapter(transport).attach(socket);
-		const send = (
-			requestId: string,
-			command: HubCommandEnvelope["command"],
-			payload = {},
-		) =>
-			socket.emitMessage(
-				JSON.stringify({
-					kind: "command",
-					envelope: {
-						version: "v1",
-						clientId: "client-1",
-						sessionId: "session-1",
-						requestId,
-						command,
-						payload,
-					},
-				}),
-			);
-		const response = (id: string): HubReplyEnvelope | undefined =>
-			socket.sent
-				.map((frame) => JSON.parse(frame).envelope as HubReplyEnvelope)
-				.find((reply) => reply.requestId === id);
+		const send = socket.command;
+		const response = socket.reply;
 		try {
 			send("register", "client.register", { clientId: "client-1" });
 			await vi.waitFor(() => expect(response("register")?.ok).toBe(true));
@@ -180,7 +198,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			),
 			subscribe: vi.fn(),
 		};
-		const socket = createSocket();
+		const socket = createHistorySocket();
 		const detach = new BrowserWebSocketHubAdapter(transport).attach(socket);
 		const send = async (
 			command: HubCommandEnvelope["command"],
@@ -192,20 +210,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			} = {},
 		) => {
 			const count = socket.sent.length;
-			socket.emitMessage(
-				JSON.stringify({
-					kind: "command",
-					envelope: {
-						version: "v1",
-						requestId: `req-${count}`,
-						clientId: "client-1",
-						sessionId: "session-1",
-						command,
-						payload,
-						...fields,
-					},
-				}),
-			);
+			socket.command(`req-${count}`, command, payload, fields);
 			await vi.waitFor(() => expect(socket.sent.length).toBe(count + 1));
 			return JSON.parse(socket.sent[count]).envelope as HubReplyEnvelope;
 		};
@@ -276,8 +281,8 @@ describe("BrowserWebSocketHubAdapter", () => {
 				},
 			),
 		};
-		const socket = createSocket();
-		const foreign = createSocket();
+		const socket = createHistorySocket();
+		const foreign = createHistorySocket();
 		const adapter = new BrowserWebSocketHubAdapter(transport);
 		const detach = adapter.attach(socket);
 		const detachForeign = adapter.attach(foreign);
@@ -288,29 +293,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 				firstReplyDropped = true;
 			} else sendFrame(data);
 		});
-		const send = (
-			target: ReturnType<typeof createSocket>,
-			requestId: string,
-			command: HubCommandEnvelope["command"],
-			payload: Record<string, unknown> = {},
-		) =>
-			target.emitMessage(
-				JSON.stringify({
-					kind: "command",
-					envelope: {
-						version: "v1",
-						clientId: "client-1",
-						sessionId: "session-1",
-						requestId,
-						command,
-						payload,
-					},
-				}),
-			);
-		const response = (id: string): HubReplyEnvelope | undefined =>
-			socket.sent
-				.map((frame) => JSON.parse(frame).envelope as HubReplyEnvelope)
-				.find((reply) => reply.requestId === id);
+		const response = socket.reply;
 		const cancel = (
 			target: ReturnType<typeof createSocket>,
 			overrides: Record<string, unknown> = {},
@@ -325,22 +308,22 @@ describe("BrowserWebSocketHubAdapter", () => {
 				}),
 			);
 		try {
-			send(socket, "register", "client.register", { clientId: "client-1" });
+			socket.command("register", "client.register", { clientId: "client-1" });
 			await vi.waitFor(() => expect(response("register")?.ok).toBe(true));
 			socket.emitMessage(
 				JSON.stringify({ kind: "stream.subscribe", clientId: "client-1" }),
 			);
-			send(socket, "history-1", "session.messages", { chunkHistory: true });
-			send(socket, "history-2", "session.messages", { chunkHistory: true });
+			socket.command("history-1", "session.messages", { chunkHistory: true });
+			socket.command("history-2", "session.messages", { chunkHistory: true });
 			await vi.waitFor(() => {
 				expect(firstReplyDropped).toBe(true);
 				expect(response("history-2")?.payload?.historyCursor).toBeTypeOf(
 					"string",
 				);
 			});
-			send(socket, "history-3", "session.messages", { chunkHistory: true });
+			socket.command("history-3", "session.messages", { chunkHistory: true });
 			cancel(foreign);
-			send(foreign, "foreign-register", "client.register", {
+			foreign.command("foreign-register", "client.register", {
 				clientId: "client-1",
 			});
 			await vi.waitFor(() => expect(foreign.sent).toHaveLength(1));
@@ -354,7 +337,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 				{ requestId: 42 },
 			])
 				cancel(socket, overrides);
-			send(socket, "status", "session.get");
+			socket.command("status", "session.get");
 			await vi.waitFor(() => expect(response("status")?.ok).toBe(true));
 			expect(response("history-3")).toBeUndefined();
 			expect(
@@ -381,7 +364,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			);
 			cancel(socket);
 			for (const id of ["history-2", "history-3"]) {
-				send(socket, `${id}-next`, "session.messages", {
+				socket.command(`${id}-next`, "session.messages", {
 					chunkHistory: true,
 					historyCursor: response(id)?.payload?.historyCursor,
 				});
@@ -400,12 +383,12 @@ describe("BrowserWebSocketHubAdapter", () => {
 	});
 
 	afterEach(async () => {
-		vi.useRealTimers();
-		vi.restoreAllMocks();
 		vi.unstubAllEnvs();
 		await rm(directory, { recursive: true, force: true });
 	});
+});
 
+describe("BrowserWebSocketHubAdapter", () => {
 	it("ignores malformed websocket frames instead of throwing", async () => {
 		const transport = {
 			command: vi.fn(),

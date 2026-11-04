@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { TextDecoder } from "node:util";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
-import { extractSessionId } from "./handlers/context";
+import { errorReply, extractSessionId, okReply } from "./handlers/context";
 import { logHubMessage } from "./hub-server-logging";
 
 // Leave room for the UTF-8 decoder's carry without exceeding 128 Ki code units.
@@ -33,15 +33,11 @@ type Transfer = {
 type WaitingTransfer = { sessionId: string; abort: AbortController };
 
 function closedReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
-	return {
-		version: envelope.version,
-		requestId: envelope.requestId,
-		ok: false,
-		error: {
-			code: "history_transfer_closed",
-			message: "History transfer closed",
-		},
-	};
+	return errorReply(
+		envelope,
+		"history_transfer_closed",
+		"History transfer closed",
+	);
 }
 
 export class HistoryTransferPool {
@@ -110,12 +106,12 @@ export class HistoryTransferPool {
 		const waitingAbort = new AbortController();
 		this.waiting.set(owner, waitingEntries);
 		waitingEntries.set(initialRequestId, { sessionId, abort: waitingAbort });
-		const deadline = Date.now() + TRANSFER_TIMEOUT_MS;
-		const boundedSignal = AbortSignal.any([
-			signal,
-			waitingAbort.signal,
-			AbortSignal.timeout(TRANSFER_TIMEOUT_MS),
-		]);
+		const timer = setTimeout(
+			() => this.cancel(owner, initialRequestId, sessionId),
+			TRANSFER_TIMEOUT_MS,
+		);
+		timer.unref();
+		const boundedSignal = AbortSignal.any([signal, waitingAbort.signal]);
 		try {
 			boundedSignal.throwIfAborted();
 			while (
@@ -126,6 +122,7 @@ export class HistoryTransferPool {
 				boundedSignal.throwIfAborted();
 			}
 		} catch (error) {
+			clearTimeout(timer);
 			if (boundedSignal.aborted) return closedReply(envelope);
 			throw error;
 		} finally {
@@ -149,11 +146,8 @@ export class HistoryTransferPool {
 			snapshot: prepared,
 			cancelled: false,
 			cancelPending,
-			timer: setTimeout(() => {
-				void this.cancelTransfer(owner, key);
-			}, deadline - Date.now()),
+			timer,
 		};
-		transfer.timer.unref();
 		const entries = this.owners.get(owner) ?? new Map<string, Transfer>();
 		this.owners.set(owner, entries);
 		entries.set(key, transfer);
@@ -298,12 +292,10 @@ export class HistoryTransferPool {
 					? `${key}:${snapshot.offset}`
 					: undefined;
 			if (!historyCursor) await this.release(owner, key);
-			return {
-				version: envelope.version,
-				requestId: envelope.requestId,
-				ok: true,
-				payload: { historyChunk, ...(historyCursor ? { historyCursor } : {}) },
-			};
+			return okReply(envelope, {
+				historyChunk,
+				...(historyCursor ? { historyCursor } : {}),
+			});
 		} catch (error) {
 			const cancelled = transfer.cancelled;
 			await this.release(owner, key);
