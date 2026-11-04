@@ -2403,9 +2403,7 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
-				if (record.messages.length > 0 || record.transcriptKnown !== false) {
-					cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
-				}
+				cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -3973,13 +3971,17 @@ export function useChatSession(environmentId: string) {
 			const applyHydratedMessages = (
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
+				source: "history" | "prompt",
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					if (cloudSnapshotHydrationIdRef.current !== requestId) {
+					if (
+						source === "prompt" ||
+						cloudSnapshotHydrationIdRef.current !== requestId
+					) {
 						applyCloudSnapshotMessages({
 							sessionId: session.sessionId,
 							messages: msgs,
@@ -4025,7 +4027,7 @@ export function useChatSession(environmentId: string) {
 				if (hydrationRequestIdRef.current !== requestId) return;
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
-					applyHydratedMessages(historyMessages, session.status);
+					applyHydratedMessages(historyMessages, session.status, "history");
 					setIsHydratingSession(false);
 				}
 
@@ -4141,6 +4143,7 @@ export function useChatSession(environmentId: string) {
 				applyHydratedMessages(
 					synthesized,
 					(attached?.status || session.status) as SessionHistoryStatus,
+					"prompt",
 				);
 			} catch (err) {
 				if (hydrationRequestIdRef.current !== requestId) return;

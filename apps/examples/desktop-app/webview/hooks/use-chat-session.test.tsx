@@ -733,7 +733,15 @@ describe("useChatSession", () => {
 			: [];
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === failedCommand) throw new Error("offline");
-			if (command === "read_session_messages") return history;
+			if (command === "read_session_messages") {
+				handlerFor("cloud_session_rehydrated")({
+					sessionId: "expired-cloud",
+					status: "expired",
+					transcriptKnown: true,
+					messages: history,
+				});
+				return history;
+			}
 			if (command === "chat_session_command")
 				return { sessionId: "expired-cloud", status: "expired" };
 			return [];
@@ -743,7 +751,10 @@ describe("useChatSession", () => {
 				sessionId: "expired-cloud",
 				environmentId: "local",
 				origin: "cloud",
-				status: failedCommand ? "expired" : "completed",
+				status: failedCommand
+					? "expired"
+					: normalizeDiscoveredStatus("expired", "Initial cloud prompt"),
+				prompt: "Initial cloud prompt",
 				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
@@ -762,7 +773,16 @@ describe("useChatSession", () => {
 		} else {
 			expect(current.error).toContain("This cloud session has expired");
 			expect(current.error?.includes("no archived history")).toBe(!hasHistory);
-			expect(current.messages).toEqual(history);
+			expect(current.messages).toEqual(
+				hasHistory
+					? history
+					: [
+							expect.objectContaining({
+								role: "user",
+								content: "Initial cloud prompt",
+							}),
+						],
+			);
 		}
 		invokeMock.mockClear();
 		await act(async () => {
