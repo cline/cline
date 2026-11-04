@@ -13,6 +13,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { withInterleavedReasoningOverlay } from "../catalog/catalog-live";
 import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import { filterImageOutputModels } from "../catalog/model-filters";
 import {
@@ -478,6 +479,7 @@ export function getGeneratedModelsForRuntimeProvider(
 // Remove an id once the OpenRouter catalog lists it.
 const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
+	"reflection/beam-free",
 ];
 
 function buildElevenLabsModels(): Record<string, ModelInfo> {
@@ -523,7 +525,12 @@ function buildClineModels(): Record<string, ModelInfo> {
 	// those models in their native OpenRouter and Vercel catalogs. This filter
 	// is also applied to the merged runtime catalog in mergeKnownModels; remove
 	// both call sites together when the backend gains image-output support.
-	return filterImageOutputModels(models);
+	return Object.fromEntries(
+		Object.entries(filterImageOutputModels(models)).map(([modelId, model]) => [
+			modelId,
+			withInterleavedReasoningOverlay("cline", modelId, model),
+		]),
+	);
 }
 
 function buildVertexModels(): Record<string, ModelInfo> {
@@ -589,6 +596,10 @@ function modelInfoToGateway(
 	}
 	if (info.metadata?.apiProtocol) {
 		metadata.apiProtocol = info.metadata.apiProtocol;
+	}
+	if (info.metadata?.interleavedReasoningField) {
+		metadata.interleavedReasoningField =
+			info.metadata.interleavedReasoningField;
 	}
 	return {
 		id: info.id,
