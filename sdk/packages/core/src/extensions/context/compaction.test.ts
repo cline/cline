@@ -735,6 +735,69 @@ describe("createContextCompactionPrepareTurn", () => {
 		expectNoOrphanedToolPairs(compacted);
 	});
 
+	it.each([
+		{
+			name: "apply_patch",
+			input: {
+				input: [
+					"*** Begin Patch",
+					"*** Update File: old.ts",
+					"*** Move to: new.ts",
+					"@@",
+					"-old text",
+					"+changed text",
+					"*** Add File: notes.txt",
+					"+*** Delete File: example-only.ts",
+					"*** Delete File: unused.ts",
+					"*** End Patch",
+				].join("\n"),
+			},
+			summary: "Files edited:\nold.ts\nnew.ts\nnotes.txt\nunused.ts",
+		},
+		{
+			name: "read_files",
+			input: { paths: ["/repo/first.ts", { filePath: "/repo/second.ts" }] },
+			summary: "Files read:\n/repo/first.ts\n/repo/second.ts",
+		},
+	])("retains $name paths when dropping the tool exchange", ({
+		name,
+		input,
+		summary,
+	}) => {
+		const messages: MessageWithMetadata[] = [
+			{ id: "u1", role: "user", content: "Make the change" },
+			{
+				id: "a1",
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call", name, input }],
+			},
+			{
+				id: "r1",
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "call", name, content: "Done" },
+				],
+			},
+			{ id: "u2", role: "user", content: "Continue" },
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 1);
+		expect(collectToolPairPresence(compacted).size).toBe(0);
+		const notice =
+			compacted
+				.flatMap((message) =>
+					Array.isArray(message.content)
+						? message.content.flatMap((part) =>
+								part.type === "text" ? [part.text] : [],
+							)
+						: [],
+				)
+				.find((text) => text.startsWith("<SYSTEM_NOTICE>")) ?? "";
+		expect(notice).toContain(summary);
+		expect(notice).not.toContain("changed text");
+		expect(notice).not.toContain("example-only.ts");
+	});
+
 	it("bridges merged user turns with dropped-work summaries and drops stale metrics", () => {
 		const grepCommand =
 			'grep -rn "sidebarItem\\|sidebarText\\|sidebar:\\|variant" /repo/webview/components/ui/button.tsx --include "*.tsx" --color=never';
