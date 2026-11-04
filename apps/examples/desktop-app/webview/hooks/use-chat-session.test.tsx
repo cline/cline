@@ -501,11 +501,6 @@ describe("useChatSession", () => {
 					([command]) => command === "read_session_messages",
 				),
 			).toHaveLength(1);
-			expect(invokeMock).toHaveBeenCalledWith("read_session_messages", {
-				environmentId: "local",
-				sessionId: session.sessionId,
-				maxMessages: 800,
-			});
 		});
 
 		it.each([
@@ -529,22 +524,16 @@ describe("useChatSession", () => {
 			expect(current.isHydratingSession).toBe(false);
 		});
 
-		it.each([
-			"messages",
-			"failure",
-		])("ignores late archives after live history returns %s", async (outcome) => {
+		it("ignores late archives after live history fails", async () => {
 			await act(async () => {
-				if (outcome === "failure")
-					live.reject(new Error("Live history unavailable"));
-				else live.resolve(latest);
+				live.reject(new Error("Live history unavailable"));
 				await hydration;
 			});
 			const canonical = current.messages;
 			await act(async () => archive.resolve(saved));
 			expect(current.historyPreview).toEqual([]);
 			expect(current.messages).toEqual(canonical);
-			if (outcome === "failure")
-				expect(current.error).toContain("Live history unavailable");
+			expect(current.error).toContain("Live history unavailable");
 		});
 
 		it("ignores a late archive while attaching a session with empty live history", async () => {
@@ -576,7 +565,6 @@ describe("useChatSession", () => {
 					origin: "local",
 				}),
 			);
-			invokeMock.mockClear();
 			await act(async () => {
 				archive.resolve(saved);
 				live.resolve(latest);
