@@ -315,6 +315,14 @@ describe("BrowserWebSocketHubAdapter history", () => {
 				clientId: "client-1",
 			});
 			await vi.waitFor(() => expect(foreign.sent).toHaveLength(1));
+			foreign.command("foreign-history", "session.messages", {
+				chunkHistory: true,
+			});
+			await vi.waitFor(() =>
+				expect(
+					foreign.reply("foreign-history")?.payload?.historyCursor,
+				).toBeTypeOf("string"),
+			);
 			cancel(foreign);
 			for (const overrides of [
 				{ clientId: "other-client" },
@@ -332,7 +340,7 @@ describe("BrowserWebSocketHubAdapter history", () => {
 				transport.command.mock.calls.filter(
 					([request]) => request.command === "session.messages",
 				),
-			).toHaveLength(2);
+			).toHaveLength(3);
 			const event: HubEventEnvelope = {
 				version: "v1",
 				event: "run.completed",
@@ -363,7 +371,7 @@ describe("BrowserWebSocketHubAdapter history", () => {
 				transport.command.mock.calls.filter(
 					([request]) => request.command === "session.messages",
 				),
-			).toHaveLength(3);
+			).toHaveLength(4);
 		} finally {
 			detach();
 			detachForeign();

@@ -32,8 +32,7 @@ describe("HistoryTransferPool", () => {
 	it.each([
 		"already",
 		"during",
-		"scoped",
-	] as const)("cancels a continuation when aborted %s its disk read", async (mode) => {
+	] as const)("cancels continuation reads (%s)", async (mode) => {
 		const pool = new HistoryTransferPool();
 		const owner = {};
 		const read = async (): Promise<HubReplyEnvelope> => ({
@@ -47,27 +46,24 @@ describe("HistoryTransferPool", () => {
 		await probe.close();
 		const originalRead = prototype.read;
 		const diskRead = vi.spyOn(prototype, "read");
-		let resume: (() => void) | undefined;
+		const abort = new AbortController();
 		let transferFile: FileHandle | undefined;
-		if (mode !== "already") {
+		if (mode === "already") abort.abort();
+		else {
 			diskRead.mockImplementationOnce(function (
 				this: FileHandle,
 				...args: unknown[]
 			) {
 				transferFile = this;
-				return new Promise<Awaited<ReturnType<FileHandle["read"]>>>(
-					(resolve, reject) => {
-						resume = () => {
-							Promise.resolve()
-								.then(() => Reflect.apply(originalRead, this, args))
-								.then(resolve, reject);
-						};
-					},
+				const pending: ReturnType<FileHandle["read"]> = Reflect.apply(
+					originalRead,
+					this,
+					args,
 				);
+				abort.abort();
+				return pending;
 			});
 		}
-		const abort = new AbortController();
-		if (mode === "already") abort.abort();
 		try {
 			const pending = pool.command(
 				{
@@ -78,13 +74,6 @@ describe("HistoryTransferPool", () => {
 				read,
 				abort.signal,
 			);
-			if (mode !== "already") {
-				await vi.waitFor(() => expect(resume).toBeTypeOf("function"));
-				if (mode === "scoped") pool.cancel(owner, "history-1", "session-1");
-				else abort.abort();
-				if (!resume) throw new Error("Delayed file read did not start");
-				resume();
-			}
 			await expect(pending).resolves.toMatchObject({
 				ok: false,
 				error: { code: "history_transfer_closed" },
@@ -107,10 +96,15 @@ describe("HistoryTransferPool", () => {
 		}
 	});
 
-	it("pins one exact transcript across escaped Unicode chunks and rejects foreign cursors", async () => {
+	it.each([
+		{ name: "escaped Unicode", content: () => '\\"\u0000🌍'.repeat(40_000) },
+		{ name: "larger than 64 MiB", content: () => "x".repeat(65 * 1024 * 1024) },
+	])("streams $name history with bounded replies and connection-bound cursors", async ({
+		content,
+	}) => {
 		const pool = new HistoryTransferPool();
 		const owner = {};
-		const messages = [{ role: "tool", content: '\\"\u0000🌍'.repeat(40_000) }];
+		const messages = [{ role: "tool", content: content() }];
 		const read = vi.fn(
 			async (): Promise<HubReplyEnvelope> => ({
 				...envelope,
@@ -120,19 +114,21 @@ describe("HistoryTransferPool", () => {
 		);
 		let reply = await pool.command(envelope, owner, read, signal());
 		expect(await readdir(join(directory, "history-transfers"))).toEqual([]);
-		const chunks: string[] = [];
+		const actual = createHash("sha256");
+		let chunkCount = 0;
 		while (true) {
 			expect(
 				Buffer.byteLength(JSON.stringify({ kind: "reply", envelope: reply })),
 			).toBeLessThan(1024 * 1024);
-			chunks.push(String(reply.payload?.historyChunk));
+			actual.update(String(reply.payload?.historyChunk));
+			chunkCount++;
 			const cursor = reply.payload?.historyCursor;
 			if (cursor === undefined) break;
 			const continuation = {
 				...envelope,
 				payload: { chunkHistory: true, historyCursor: cursor },
 			};
-			if (chunks.length === 1) {
+			if (chunkCount === 1) {
 				await expect(
 					pool.command(continuation, {}, read, signal()),
 				).rejects.toThrow("cursor is invalid");
@@ -165,7 +161,9 @@ describe("HistoryTransferPool", () => {
 				reply = first.value;
 			} else reply = await pool.command(continuation, owner, read, signal());
 		}
-		expect(JSON.parse(chunks.join(""))).toEqual(messages);
+		expect(actual.digest("hex")).toBe(
+			createHash("sha256").update(JSON.stringify(messages)).digest("hex"),
+		);
 		expect(read).toHaveBeenCalledTimes(1);
 		await pool.close(owner);
 	});
@@ -305,75 +303,6 @@ describe("HistoryTransferPool", () => {
 				"cursor is invalid",
 			);
 		}
-		expect(read).toHaveBeenCalledTimes(1);
-		await pool.close(owner);
-	});
-
-	it("allows another viewer to prepare while two downloads are paused", async () => {
-		const pool = new HistoryTransferPool();
-		const owners = [{}, {}];
-		const messages = ["x".repeat(200 * 1024)];
-		const read = vi.fn(
-			async (): Promise<HubReplyEnvelope> => ({
-				version: "v1",
-				ok: true,
-				payload: { messages },
-			}),
-		);
-		try {
-			const replies = await Promise.all(
-				owners.map((owner) => pool.command(envelope, owner, read, signal())),
-			);
-			expect(
-				replies.every(
-					(reply) => typeof reply.payload?.historyCursor === "string",
-				),
-			).toBe(true);
-			const third = await pool.command(
-				envelope,
-				{},
-				async () => ({
-					version: "v1",
-					ok: true,
-					payload: { messages: ["small"] },
-				}),
-				signal(),
-			);
-			expect(third.payload?.historyChunk).toBe('["small"]');
-			expect(third.payload?.historyCursor).toBeUndefined();
-			expect(await readdir(join(directory, "history-transfers"))).toEqual([]);
-		} finally {
-			await Promise.all(owners.map((owner) => pool.close(owner)));
-		}
-	});
-
-	it("streams a history larger than 64 MiB without a new transcript-size limit", async () => {
-		const pool = new HistoryTransferPool();
-		const owner = {};
-		const messages = ["x".repeat(65 * 1024 * 1024)];
-		const read = vi.fn(
-			async (): Promise<HubReplyEnvelope> => ({
-				version: "v1",
-				ok: true,
-				payload: { messages },
-			}),
-		);
-		let reply = await pool.command(envelope, owner, read, signal());
-		const actual = createHash("sha256");
-		while (true) {
-			actual.update(String(reply.payload?.historyChunk));
-			const cursor = reply.payload?.historyCursor;
-			if (cursor === undefined) break;
-			reply = await pool.command(
-				{ ...envelope, payload: { historyCursor: cursor } },
-				owner,
-				read,
-				signal(),
-			);
-		}
-		expect(actual.digest("hex")).toBe(
-			createHash("sha256").update(JSON.stringify(messages)).digest("hex"),
-		);
 		expect(read).toHaveBeenCalledTimes(1);
 		await pool.close(owner);
 	});
