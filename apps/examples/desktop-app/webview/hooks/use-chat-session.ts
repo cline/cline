@@ -3979,7 +3979,7 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
-						preserveLiveRouting: sessionStatus === "running",
+						preserveLiveRouting: true,
 					});
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
