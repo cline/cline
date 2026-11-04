@@ -4,11 +4,9 @@ import type React from "react"
 import { Fragment, memo, useCallback, useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useCollapseAnchoring } from "../../hooks/useCollapseAnchoring"
-import { useElementInView } from "../../hooks/useElementInView"
 import {
 	type ActivityGroup,
 	type ActivityGroupMode,
-	activityItemKey,
 	type ChatListItem,
 	getActivityGroupKey,
 	getActivityGroupLabel,
@@ -16,7 +14,6 @@ import {
 	hasStreamingActivity,
 	isTurnWorking,
 	resolveActivityGroupMode,
-	selectActivityChildren,
 } from "../../utils/activityFolding"
 
 interface ActivityGroupRendererProps {
@@ -33,17 +30,13 @@ interface ActivityGroupRendererProps {
 }
 
 /**
- * Collapsible fold for a run of agent activities.
+ * Collapsible fold for a run of agent activities — the live canvas.
  *
- * Only the action that is running right now is on screen: a command, read, diff or thinking block
- * folds away as soon as it completes, while the header keeps counting everything the group has
- * done. With nothing in flight the fold is that single summary line. Clicking the header reveals
- * every action that ran in the meantime.
- *
- * One thing gates that: the header itself. While the summary line is inside the viewport nothing is
- * taken away, because collapsing an action the reader is looking at would delete the content under
- * their eyes and pull the summary line back into the middle of the chat. The fold only tidies up
- * once the line has scrolled out of view.
+ * While the agent works the fold shows everything it has done and only ever grows: taking finished
+ * actions away again collapsed the height under the reader and dragged the summary line back into
+ * the middle of the chat. The summary line sticks below the pinned prompt instead, so it stays
+ * readable from the first action to the last. When the turn ends, the canvas is torn down to that
+ * one line; clicking it shows the whole run again.
  */
 export const ActivityGroupRenderer = memo(
 	({ group, isLastGroup, turnPhase, expandedRows, onToggleExpand, renderItem }: ActivityGroupRendererProps) => {
@@ -57,40 +50,25 @@ export const ActivityGroupRenderer = memo(
 			hasStreamingMessage,
 			turnPhase,
 		})
-		const headerRef = useRef<HTMLButtonElement>(null)
-		const headerInView = useElementInView(headerRef)
-		/** Rows on screen at the previous commit; kept while the summary line is visible. */
-		const shownKeysRef = useRef<Set<number>>(new Set())
-
-		/** `all` = the user asked for everything, `live` = what is running (plus what is on screen),
-		 * `none` = the summary line alone. */
-		const children = useMemo(() => {
-			const next = selectActivityChildren(group as ChatListItem[], {
-				headerInView,
-				keepTail: turnPhase === "awaiting_approval",
-				mode,
-				shownKeys: shownKeysRef.current,
-			})
-			shownKeysRef.current = new Set(next.map(activityItemKey).filter((ts): ts is number => ts !== undefined))
-			return next
-		}, [group, headerInView, mode, turnPhase])
+		/** The canvas keeps every row it has: the fold never shrinks while the agent is working. */
+		const children = mode === "none" ? [] : (group as ChatListItem[])
 		const isExpanded = mode !== "none"
 		const isWorking = hasStreamingMessage || (isLastGroup && isTurnWorking(turnPhase))
-		const foldedAway = group.length - children.length
 
 		const rootRef = useRef<HTMLDivElement>(null)
 		useCollapseAnchoring(rootRef, isExpanded)
 
 		const handleToggle = useCallback(() => {
-			// From the live view a click reveals everything; from the revealed list it folds away.
-			onToggleExpand(key, { preserveAutoScroll: true, next: mode !== "all" })
+			// From either open state a click folds the canvas away; from the bare summary line it
+			// reveals the whole run again.
+			onToggleExpand(key, { preserveAutoScroll: true, next: mode === "none" })
 		}, [onToggleExpand, key, mode])
 
 		if (group.length === 0) {
 			return null
 		}
 
-		const action = mode === "all" ? "Collapse" : mode === "live" ? "Show all" : "Expand"
+		const action = isExpanded ? "Collapse" : "Expand"
 
 		return (
 			<div className="min-w-0" data-activity-group={key} data-expanded={isExpanded} ref={rootRef}>
@@ -98,15 +76,17 @@ export const ActivityGroupRenderer = memo(
 					aria-expanded={isExpanded}
 					aria-label={`${action} agent activities (${label})`}
 					className={cn(
-						"flex w-full min-w-0 items-center gap-1.5 px-4 py-1 text-left text-[12px] leading-tight select-none cursor-pointer",
+						"sticky z-[1] flex w-full min-w-0 items-center gap-1.5 px-4 py-1 text-left text-[12px] leading-tight select-none cursor-pointer",
+						// Sticks under the pinned prompt: the summary line is the reader's anchor for
+						// the whole canvas, so it may reach the top of the window but never scroll out.
+						"bg-background top-[var(--chat-sticky-height,0px)]",
 						"text-description/80 hover:text-foreground",
 					)}
 					onClick={handleToggle}
-					ref={headerRef}
 					title={
-						mode === "all"
-							? `${label} — fold agent activities`
-							: `${label} — show all agent activities${foldedAway > 0 ? ` (${foldedAway} folded away)` : ""}`
+						mode === "none"
+							? `${label} — show all agent activities (${group.length} rows)`
+							: `${label} — fold agent activities`
 					}
 					type="button">
 					{isExpanded ? (
@@ -116,7 +96,6 @@ export const ActivityGroupRenderer = memo(
 					)}
 					<WrenchIcon className="size-3 shrink-0 opacity-60" />
 					<span className="truncate">{label}</span>
-					{mode === "live" && foldedAway > 0 && <span className="shrink-0 opacity-60">+{foldedAway}</span>}
 					{isWorking && <LoaderCircleIcon className="size-3 shrink-0 animate-spin opacity-70" />}
 				</button>
 				{isExpanded && (

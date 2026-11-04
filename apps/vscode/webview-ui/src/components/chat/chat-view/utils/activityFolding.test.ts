@@ -1,7 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
-	activityItemKey,
 	flattenActivityGroup,
 	formatActivityDuration,
 	getActivityGroupKey,
@@ -13,11 +12,9 @@ import {
 	hasStreamingActivity,
 	isActivityGroup,
 	isAgentActivityMessage,
-	liveActivityChildren,
 	markTurnFinalAnswers,
 	resolveActivityGroupExpansion,
 	resolveActivityGroupMode,
-	selectActivityChildren,
 } from "./activityFolding"
 
 const reasoning = (ts: number, text = "thinking", partial = false): ClineMessage => ({
@@ -226,45 +223,6 @@ describe("resolveActivityGroupMode", () => {
 	it("stays the boolean `expansion` for anything that only asks whether rows show at all", () => {
 		expect(resolveActivityGroupExpansion({ isLastGroup: true, hasStreamingMessage: true, turnPhase: "streaming" })).toBe(true)
 		expect(resolveActivityGroupExpansion({ isLastGroup: true, hasStreamingMessage: false, turnPhase: "idle" })).toBe(false)
-	})
-})
-
-describe("liveActivityChildren", () => {
-	it("keeps exactly the rows that are still in flight", () => {
-		const group = [reasoning(1), reasoning(2, "still streaming", true), tool(3, "readFile")]
-		expect(liveActivityChildren(group).map((item) => (item as ClineMessage).ts)).toEqual([2])
-	})
-
-	it("keeps a nested tool group whole while any of its rows streams", () => {
-		const nested = toolGroup([tool(1, "readFile"), reasoning(2, "streaming", true)])
-		expect(liveActivityChildren([nested])).toEqual([nested])
-	})
-
-	it("keeps the tail row only while an approval is pending", () => {
-		const group = [command(1), tool(2, "readFile")]
-		// A pending approval is not streaming, and hiding it would hide its buttons.
-		expect(liveActivityChildren(group, { keepTail: true }).map((item) => (item as ClineMessage).ts)).toEqual([2])
-		expect(liveActivityChildren(group)).toEqual([])
-	})
-})
-
-describe("selectActivityChildren", () => {
-	const group = () => [command(1), reasoning(2, "running", true), tool(3, "readFile")]
-
-	it("keeps what is already on screen while the summary line is visible", () => {
-		const visible = selectActivityChildren(group(), { headerInView: true, mode: "live", shownKeys: new Set([1]) })
-		expect(visible.map(activityItemKey)).toEqual([1, 2])
-	})
-
-	it("drops it once the summary line has scrolled away", () => {
-		const visible = selectActivityChildren(group(), { headerInView: false, mode: "live", shownKeys: new Set([1]) })
-		expect(visible.map(activityItemKey)).toEqual([2])
-	})
-
-	it("is ruled by the user override in both directions", () => {
-		const items = group()
-		expect(selectActivityChildren(items, { mode: "all" })).toBe(items)
-		expect(selectActivityChildren(items, { headerInView: true, mode: "none", shownKeys: new Set([1, 2]) })).toEqual([])
 	})
 })
 

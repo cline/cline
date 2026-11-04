@@ -91,58 +91,54 @@ describe("ActivityGroupRenderer", () => {
 		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: false })
 	})
 
-	it("shows only the running action and counts the finished ones away", () => {
-		const group = buildGroup([reasoning(1), tool(2, "readFile", "a.ts"), command(3, true)])
+	it("keeps every action of the live canvas on screen while the agent works", () => {
+		const fold = renderFold({
+			group: buildGroup([reasoning(1), tool(2, "readFile", "a.ts"), command(3, true)]),
+			isLastGroup: true,
+			turnPhase: "streaming",
+		})
 
-		renderFold({ group, isLastGroup: true, turnPhase: "streaming" })
+		// The canvas only grows: nothing is taken away, so no height collapses under the reader and the
+		// summary line is never dragged back into the middle of the chat.
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(3)
+		expect(screen.getByRole("button", { name: /Collapse agent activities/ })).toHaveTextContent(
+			"1 command · 1 file read · 1× thinking",
+		)
 
-		// The finished thinking block and read folded themselves away; the command is still running.
-		const rows = screen.queryAllByTestId("nested-row")
-		expect(rows).toHaveLength(1)
-		expect(rows[0].textContent).toBe("command")
-
-		// The header keeps the running total of the whole group, plus how much is hidden.
-		const button = screen.getByRole("button", { name: /Show all agent activities/ })
-		expect(button).toHaveTextContent("1 command · 1 file read · 1× thinking")
-		expect(button.textContent).toContain("+2")
+		// The command finishes mid-turn: the run stays exactly as long as it was.
+		fold.update(buildGroup([reasoning(1), tool(2, "readFile", "a.ts"), command(3)]))
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(3)
 	})
 
-	it("keeps a pending approval visible although it is not streaming", () => {
-		const group = buildGroup([command(1), tool(2, "readFile", "a.ts")])
+	it("keeps a pending approval visible", () => {
+		renderFold({
+			group: buildGroup([command(1), tool(2, "readFile", "a.ts")]),
+			isLastGroup: true,
+			turnPhase: "awaiting_approval",
+		})
 
-		renderFold({ group, isLastGroup: true, turnPhase: "awaiting_approval" })
-
-		// An approval row is finished as content; hiding it would hide the buttons that unblock
-		// the agent, so the tail stays on screen while the turn waits.
-		const rows = screen.queryAllByTestId("nested-row")
-		expect(rows).toHaveLength(1)
-		expect(rows[0].textContent).toBe("a.ts")
+		// The buttons that unblock the agent must never be folded away.
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(2)
 	})
 
-	it("keeps a finished action on screen while the summary line is visible", () => {
+	it("is torn down with the turn, not with the last action", () => {
 		const fold = renderFold({ group: buildGroup([command(1, true)]), isLastGroup: true, turnPhase: "streaming" })
 		expect(screen.queryAllByTestId("nested-row")).toHaveLength(1)
 
-		// The command completes. Nothing is running any more, but the reader is looking at the
-		// result with the summary line on screen — taking it away would delete the text under their
-		// eyes and drag the summary line back down into view.
 		fold.update(buildGroup([command(1)]))
-
 		expect(screen.queryAllByTestId("nested-row")).toHaveLength(1)
-		expect(screen.getByRole("button", { name: /Show all agent activities/ })).toBeInTheDocument()
 	})
 
-	it("reveals everything from the live view", () => {
+	it("folds the live canvas away when the reader clicks it", () => {
 		const group = buildGroup([command(1), tool(2, "readFile", "a.ts")])
 		const key = getActivityGroupKey(group as unknown as ClineMessage[])
 		const onToggleExpand = vi.fn()
 
-		// Nothing in flight: the fold is the summary line alone, even mid-turn.
 		renderFold({ group, isLastGroup: true, onToggleExpand, turnPhase: "streaming" })
-		expect(screen.queryAllByTestId("nested-row")).toHaveLength(0)
+		expect(screen.queryAllByTestId("nested-row")).toHaveLength(2)
 
-		fireEvent.click(screen.getByRole("button", { name: /Show all agent activities/ }))
-		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: true })
+		fireEvent.click(screen.getByRole("button", { name: /Collapse agent activities/ }))
+		expect(onToggleExpand).toHaveBeenCalledWith(key, { preserveAutoScroll: true, next: false })
 	})
 
 	it("folds the tail group away once the turn is over", () => {

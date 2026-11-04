@@ -6,11 +6,14 @@
  * of consecutive activity rows into a single foldable "activity group" so that the actual
  * conversation (user prompts + assistant answers) stays scannable.
  *
- * A group shows only what is happening right now: every row that is still streaming renders, and
- * each of them folds away the moment it completes, so the fold never grows into a wall of finished
- * bookkeeping. Its header carries the running total of everything the group has done. Users can
- * always override a fold by clicking its header; the override is remembered per group (keyed by
- * {@link getActivityGroupKey}).
+ * While the agent works, the group is a **canvas**: it only ever grows, and its summary line sticks
+ * to the top of the chat window, so the reader watches the actions pile up below a line that never
+ * moves and never disappears. Nothing is taken away mid-turn — removing rows from under a reader is
+ * what made the view jump back before. The canvas is torn down when the turn ends, collapsing to the
+ * summary line alone.
+ *
+ * Users can always override a fold by clicking its header; the override is remembered per group
+ * (keyed by {@link getActivityGroupKey}).
  *
  * The grouping runs *after* `groupLowStakesTools`, so an activity group may contain nested
  * groups (tool groups). Everything that consumes the rendered list must therefore use the
@@ -238,92 +241,17 @@ export function hasStreamingActivity(group: ChatListItem[]): boolean {
 	return flattenActivityGroup(group).some((message) => message.partial === true)
 }
 
-/** Whether one child of a fold — a row or a nested tool group — is still in flight. */
-function isStreamingItem(item: ChatListItem): boolean {
-	return Array.isArray(item) ? hasStreamingActivity(item as ChatListItem[]) : item.partial === true
-}
-
-/**
- * The children a fold shows on its own: the ones still running.
- *
- * A command, a read, a diff or a thinking block is interesting while it happens and bookkeeping
- * afterwards. Folding each row individually the moment its `partial` flag clears is what keeps a
- * long turn at one summary line plus the action in flight, instead of an ever-growing open list.
- * Nested tool groups stay whole while any of their rows streams: splitting them would separate a
- * tool call from the result it belongs to.
- *
- * @param options.keepTail while the agent is blocked on an approval, keep the last row even though
- *   it is not streaming — a pending approval prompt is finished as content and still the one thing
- *   the user has to see, and hiding its buttons would deadlock the turn.
- */
-export function liveActivityChildren(group: ChatListItem[], { keepTail = false }: { keepTail?: boolean } = {}): ChatListItem[] {
-	const running = group.filter(isStreamingItem)
-	if (running.length === 0 && keepTail && group.length > 0) {
-		return [group[group.length - 1]]
-	}
-	return running
-}
-
-/** Identity of a rendered list item: the timestamp of its first row. */
-export function activityItemKey(item: ChatListItem): number | undefined {
-	return getGroupHeadMessage(item)?.ts
-}
-
-/**
- * Which children a fold renders, given what it decided to show and what is already on screen.
- *
- * `shownKeys` carries the rows the reader was looking at on the previous commit. While the fold's
- * summary line is inside the viewport they are kept: collapsing an action the reader can still see
- * would delete the content under their eyes and drag the summary line back into the middle of the
- * chat. Once that line has scrolled away, the fold is tidying up something nobody is looking at,
- * and only what is running stays.
- */
-export function selectActivityChildren(
-	group: ChatListItem[],
-	{
-		mode,
-		keepTail = false,
-		headerInView = false,
-		shownKeys = new Set<number>(),
-	}: {
-		mode: ActivityGroupMode
-		keepTail?: boolean
-		headerInView?: boolean
-		shownKeys?: Set<number>
-	},
-): ChatListItem[] {
-	if (mode === "all") {
-		return group
-	}
-	if (mode !== "live") {
-		return []
-	}
-	const keys = new Set(
-		liveActivityChildren(group, { keepTail })
-			.map(activityItemKey)
-			.filter((ts): ts is number => ts !== undefined),
-	)
-	if (headerInView) {
-		for (const ts of shownKeys) {
-			keys.add(ts)
-		}
-	}
-	return group.filter((item) => {
-		const ts = activityItemKey(item)
-		return ts !== undefined && keys.has(ts)
-	})
-}
-
-/** How much of a fold is visible: everything, only what is running, or nothing. */
+/** How much of a fold is visible: the whole canvas, or the summary line alone. */
 export type ActivityGroupMode = "all" | "live" | "none"
 
 /**
  * Decide what a fold shows.
  *
  * 1. an explicit user override always wins (`true` = everything, `false` = nothing),
- * 2. otherwise a group with a row in flight shows exactly that row — finished actions fold away,
- * 3. the tail group does the same while the agent is mid-turn or blocked on an approval,
- * 4. with nothing running and the turn over, the fold is the summary line alone.
+ * 2. while the group is the live canvas — a row in flight, or the agent mid-turn at the tail — it
+ *    shows **everything it has done**: the canvas only ever grows, and the summary line above it is
+ *    sticky, so nothing is taken away and no height collapses under the reader,
+ * 3. once the turn is over the canvas is torn down to the summary line alone.
  */
 export function resolveActivityGroupMode({
 	override,

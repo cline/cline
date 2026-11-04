@@ -71,6 +71,29 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		notifyProgrammaticScroll,
 	} = scrollBehavior
 
+	/**
+	 * Publishes the pinned prompt's height to the list, so a sticky fold header can sit *under* it
+	 * instead of sliding behind it. Measured rather than assumed: the prompt is one line or two
+	 * depending on its text and the width of the panel.
+	 */
+	const stickyHeaderRef = useRef<HTMLDivElement>(null)
+	useEffect(() => {
+		const sticky = stickyHeaderRef.current
+		const host = scrollContainerRef.current
+		if (!sticky || !host) {
+			return
+		}
+		const apply = () =>
+			host.style.setProperty("--chat-sticky-height", `${Math.round(sticky.getBoundingClientRect().height)}px`)
+		apply()
+		if (typeof ResizeObserver === "undefined") {
+			return
+		}
+		const observer = new ResizeObserver(apply)
+		observer.observe(sticky)
+		return () => observer.disconnect()
+	}, [scrollContainerRef])
+
 	// Find the index of the scrolled past user message for scrolling
 	const scrolledPastUserMessageIndex = useMemo(() => {
 		if (!scrolledPastUserMessage) {
@@ -253,7 +276,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					"absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px] bg-background",
 					scrolledPastUserMessage && "pb-2",
 				)}
-				data-sticky-header="">
+				data-sticky-header=""
+				ref={stickyHeaderRef}>
 				<StickyUserMessage
 					isVisible={!!scrolledPastUserMessage}
 					lastUserMessage={scrolledPastUserMessage}

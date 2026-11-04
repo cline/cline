@@ -109,25 +109,26 @@ describe("createMessageRenderer with activity folding", () => {
 		expect(screen.getByTestId("chat-row-4")).toBeInTheDocument()
 	})
 
-	it("keeps a running nested tool group rendered while its finished siblings fold away", () => {
+	it("renders a nested tool group inside the live canvas", () => {
 		renderList({ messages: [toolGroup([tool(1), tool(2, "searchFiles", "b.ts", true)]), answer(3)], turnPhase: "streaming" })
 
 		expect(screen.getByTestId("tool-group")).toHaveTextContent("live")
 	})
 
-	it("shows the running action of the tail fold and folds its finished rows away", () => {
+	it("keeps the whole live canvas of the tail fold on screen", () => {
 		renderList({ messages: [answer(1), reasoning(2), command(3, true)], turnPhase: "streaming" })
 
+		expect(screen.getByTestId("chat-row-2")).toBeInTheDocument()
 		expect(screen.getByTestId("chat-row-3")).toBeInTheDocument()
-		expect(screen.queryByTestId("chat-row-2")).not.toBeInTheDocument()
 	})
 
-	it("folds a finished action away even while the turn is still working", () => {
+	it("keeps the canvas open after the last action, until the turn ends", () => {
 		renderList({ messages: [answer(1), reasoning(2), command(3)], turnPhase: "streaming" })
 
-		// Nothing in flight: the summary line is all that remains until the next action starts.
-		expect(screen.queryByTestId("chat-row-3")).not.toBeInTheDocument()
-		expect(screen.getByRole("button", { name: /Show all agent activities/ })).toBeInTheDocument()
+		// Tearing the canvas down is the turn's job, not the last action's: removing rows here is what
+		// used to collapse the height under the reader.
+		expect(screen.getByTestId("chat-row-3")).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Collapse agent activities/ })).toBeInTheDocument()
 	})
 
 	it("folds the tail group away once the turn is over", () => {

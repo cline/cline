@@ -344,6 +344,45 @@ export function useScrollBehavior(
 		}
 	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
+	/**
+	 * The final answer being written at the tail, while it is still arriving.
+	 *
+	 * The fork streams an answer as `say: "text"` with `partial` and retags it to a completion
+	 * result when the turn ends, so both spellings mean the same thing here.
+	 */
+	const answerDraft = useMemo(() => {
+		const last = groupedMessages.at(-1)
+		if (!last || Array.isArray(last) || last.partial !== true) {
+			return undefined
+		}
+		return last.say === "text" || last.say === "completion_result" || last.say === "plan_completion_result" ? last : undefined
+	}, [groupedMessages])
+
+	/**
+	 * Never let the beginning of the final answer scroll out of the window.
+	 *
+	 * Following the tail is right while the agent works and wrong for the answer: the reader wants to
+	 * start reading it, not watch it being typed past the bottom. So following may scroll down to the
+	 * answer's first line and no further. Only while it is still arriving and only for a reader who
+	 * never left the tail — scrolling through the text by hand is never corrected.
+	 */
+	useLayoutEffect(() => {
+		if (!answerDraft || disableAutoScrollRef.current) {
+			return
+		}
+		const scroller = resolveChatScroller(scrollContainerRef.current)
+		const row = scroller?.querySelector<HTMLElement>(`[data-message-ts="${answerDraft.ts}"]`)
+		if (!scroller || !row) {
+			return
+		}
+		const sticky = scroller.parentElement?.querySelector<HTMLElement>("[data-sticky-header]")
+		const below = sticky ? Math.round(sticky.getBoundingClientRect().height) : 0
+		const limit = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - below
+		if (scroller.scrollTop > limit) {
+			scroller.scrollTop = Math.max(0, limit)
+		}
+	})
+
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
