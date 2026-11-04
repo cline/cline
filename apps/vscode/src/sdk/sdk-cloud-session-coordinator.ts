@@ -440,12 +440,6 @@ export class SdkCloudSessionCoordinator {
 			// composer disables submit on this status instead of queueing.
 			status:
 				this.pendingStart && task === this.pendingStartTask ? "provisioning" : entry ? this.statusOf(entry) : "unknown",
-			unavailableReason:
-				entry && isCloudSessionExpired(entry.record)
-					? "expired"
-					: entry?.record.status?.toLowerCase() === "failed"
-						? "failed"
-						: undefined,
 		}
 	}
 

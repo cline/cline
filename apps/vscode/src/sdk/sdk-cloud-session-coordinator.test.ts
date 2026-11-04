@@ -1215,7 +1215,6 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			await coordinator.openCloudTask(finished.id)
 
 			expect(cloudSessions.resumeSession).toHaveBeenCalledTimes(recordStatus === "suspended" ? 1 : 0)
-			expect(coordinator.getCurrentTaskInfo()?.unavailableReason).toBeUndefined()
 			// The resume notice is brought in front of History; a plain open leaves navigation to the caller.
 			expect(options.showChatView).toHaveBeenCalledTimes(recordStatus === "suspended" ? 1 : 0)
 			expect(connect).toHaveBeenCalledOnce()
@@ -1226,15 +1225,12 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		})
 
 		it.each([
-			{ status: "suspended", unavailableReason: undefined },
-			{ status: "suspended", expiredAt: new Date(0).toISOString(), unavailableReason: "expired" },
-			{ status: "failed", unavailableReason: "failed" },
-			{ status: "EXPIRED", unavailableReason: "expired" },
-			{ status: "active", expiredAt: new Date(0).toISOString(), unavailableReason: "expired" },
-		])("retires the retained transport on $status ($expiredAt) without resuming", async ({
-			unavailableReason,
-			...terminal
-		}) => {
+			{ status: "suspended" },
+			{ status: "suspended", expiredAt: new Date(0).toISOString() },
+			{ status: "failed" },
+			{ status: "EXPIRED" },
+			{ status: "active", expiredAt: new Date(0).toISOString() },
+		])("retires the retained transport on $status ($expiredAt) without resuming", async (terminal) => {
 			const before = {
 				status: "completed",
 				readMessages: async () => [{ role: "user", content: "original prompt" }],
@@ -1270,7 +1266,6 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(task?.messageStateHandler.getClineMessages()).toContainEqual(
 				expect.objectContaining({ text: "original prompt" }),
 			)
-			expect(coordinator.getCurrentTaskInfo()?.unavailableReason).toBe(unavailableReason)
 			const resumable = terminal.status === "suspended" && !terminal.expiredAt
 			expect(coordinator.canPrepareFollowup(finished.id)).toBe(resumable)
 			expect(cloudSessions.resumeSession).not.toHaveBeenCalled()

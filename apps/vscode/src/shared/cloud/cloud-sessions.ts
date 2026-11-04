@@ -74,8 +74,6 @@ export interface CurrentCloudTaskInfo {
 	repoUrl?: string
 	branch?: string
 	status: CloudSessionStatus
-	/** Confirmed sandbox retirement, distinct from the last agent turn's status. */
-	unavailableReason?: "failed" | "expired"
 }
 
 export const CLOUD_WORKSPACE_ROOT = "/workspace"

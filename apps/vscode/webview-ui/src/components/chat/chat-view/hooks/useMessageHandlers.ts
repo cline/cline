@@ -62,7 +62,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// provider failures reach the error phase without an anchor message, so the
 	// anchor only refines the button set (mistake_limit_reached shows Proceed).
 	const recoverySeq =
-		!currentCloudTask?.unavailableReason &&
 		turnState?.phase === "error" &&
 		buttonsForPhase(turnState, getTurnStateMessage(messages, turnState)).primaryAction === "retry"
 			? turnState.seq
@@ -499,7 +498,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		async (invocation: ButtonActionInvocation) => {
 			switch (invocation.type) {
 				case "retry": {
-					if (currentCloudTask?.unavailableReason || !claimErrorRecovery()) {
+					if (!claimErrorRecovery()) {
 						return false
 					}
 					// For API retry (api_req_failed), always send simple approval without content
@@ -542,7 +541,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "new_task":
-					if (clineAsk === "new_task" && !currentCloudTask?.unavailableReason) {
+					if (clineAsk === "new_task") {
 						// Reset context from the old task before the first await. A quote
 						// selected while New Task is in flight belongs to the new draft.
 						setActiveQuote(null)
@@ -608,7 +607,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			clineAsk,
 			lastMessage,
 			startNewTask,
-			currentCloudTask?.unavailableReason,
 			chatState,
 			backgroundCommandRunning,
 			claimErrorRecovery,

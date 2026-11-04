@@ -4,7 +4,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
-import { BUTTON_CONFIGS, type ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
+import { type ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, DraftSnapshot, MessageHandlers } from "../../types/chatTypes"
 
 function createActionInvocation(action: ButtonActionType, getDraftSnapshot: () => DraftSnapshot): ButtonActionInvocation {
@@ -31,8 +31,7 @@ interface ActionButtonsProps {
  */
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState, mode, messageHandlers }) => {
 	const { getDraftSnapshot, setSendingDisabled } = chatState
-	const { turnState, foregroundCommandRunning, currentCloudTask } = useExtensionState()
-	const unavailableReason = currentCloudTask?.unavailableReason
+	const { turnState, foregroundCommandRunning } = useExtensionState()
 
 	// Tracks the ask the user last acted on. Clicking a footer button latches this so the
 	// buttons disable immediately (and survive the trailing bookkeeping re-renders before the
@@ -50,9 +49,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	// buttons immune to trailing bookkeeping messages and never disagree with the thinking
 	// indicator (RC1).
 	const buttonConfig = useMemo(() => {
-		if (unavailableReason) return { ...BUTTON_CONFIGS.completion_result, sendingDisabled: true }
 		return getButtonConfigFromState(messages, turnState, mode, foregroundCommandRunning)
-	}, [messages, turnState, mode, foregroundCommandRunning, unavailableReason])
+	}, [messages, turnState, mode, foregroundCommandRunning])
 
 	// Identity of the ask that currently owns the footer buttons. The button config objects are
 	// shared singletons (e.g. BUTTON_CONFIGS.tool_approve), so two consecutive identical asks
@@ -134,16 +132,11 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	const opacity = canInteract || isStreaming ? 1 : 0.5
 
 	return (
-		<div className={unavailableReason ? "flex items-center gap-1.5 px-3.5" : "flex px-3.5"} style={{ opacity }}>
-			{unavailableReason && (
-				<span className="min-w-0 flex-1 truncate text-xs text-description" role="status">
-					Sandbox {unavailableReason}.
-				</span>
-			)}
+		<div className="flex px-3.5" style={{ opacity }}>
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					className={unavailableReason ? "shrink-0" : secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
+					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(createActionInvocation(primaryAction, getDraftSnapshot))}>
 					{primaryText}
