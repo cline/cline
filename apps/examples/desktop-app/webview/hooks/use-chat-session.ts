@@ -609,10 +609,13 @@ export function useChatSession(environmentId: string) {
 	);
 	// Swap in the live feed's first free model once it arrives, only while the
 	// config is still the untouched new-user default. Never blocks the UI.
+	// A restored or running session keeps the model it has.
+	const hasSessionRef = useRef(false);
+	hasSessionRef.current = sessionId !== null;
 	useEffect(() => {
 		let cancelled = false;
 		void loadLiveClineDefaultModelId().then((model) => {
-			if (cancelled || !model) return;
+			if (cancelled || !model || hasSessionRef.current) return;
 			setConfig((prev) =>
 				isUntouchedDefaultModel(prev) ? { ...prev, model } : prev,
 			);

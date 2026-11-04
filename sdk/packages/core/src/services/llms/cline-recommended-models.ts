@@ -139,13 +139,12 @@ async function fetchWithTimeout(
 	timeoutMs: number,
 	headers: Record<string, string>,
 ): Promise<Response> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		return await fetchImpl(input, { headers, signal: controller.signal });
-	} finally {
-		clearTimeout(timer);
-	}
+	// The signal stays armed after headers arrive, so a stalled body read
+	// (resp.json()) aborts at the same deadline instead of hanging.
+	return await fetchImpl(input, {
+		headers,
+		signal: AbortSignal.timeout(timeoutMs),
+	});
 }
 
 // The featured pickers render these names next to their own FREE chips and
