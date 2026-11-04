@@ -2263,8 +2263,6 @@ export async function handleCommand(
 	if (command === "read_archived_cloud_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);
-		if (cloud.getCachedDiscoveryRecord(sessionId)?.status === "expired")
-			return null;
 		const messages = await cloud.readArchivedMessages(sessionId);
 		return messages === null
 			? null

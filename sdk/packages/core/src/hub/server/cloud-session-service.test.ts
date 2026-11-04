@@ -107,7 +107,6 @@ function fixture() {
 				organizationId: "org-one",
 			})),
 			listModels: vi.fn(async (): Promise<CloudModel[]> => []),
-			readMessages: vi.fn(async (_sessionId: string): Promise<unknown[]> => []),
 			restoreCreationOptions: vi.fn(async () => {}),
 			getArtifactDownloadUrl: vi.fn(async () => ({
 				url: "https://storage.example/image.png",
@@ -824,7 +823,7 @@ describe("cloud RPC over a shared hub socket", () => {
 		}
 	});
 
-	it("preserves preparation, send results, and slow history reads over the socket", async () => {
+	it("preserves repository preparation and ordinary send results over the socket", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -871,27 +870,7 @@ describe("cloud RPC over a shared hub socket", () => {
 				"ses-one",
 				"Short arguments",
 			);
-			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-			const history = deferred<unknown[]>();
-			controller.readMessages.mockReturnValueOnce(history.promise);
-			let settled = false;
-			const reading = viewer
-				.readMessages("ses-one")
-				.finally(() => {
-					settled = true;
-				})
-				.catch((error: unknown) => error);
-			await vi.waitFor(() =>
-				expect(controller.readMessages).toHaveBeenCalled(),
-			);
-			await vi.advanceTimersByTimeAsync(30_001);
-			expect(settled).toBe(false);
-			const messages = [{ role: "assistant", content: "Saved reply" }];
-			history.resolve(messages);
-			vi.useRealTimers();
-			expect(await reading).toEqual(messages);
 		} finally {
-			vi.useRealTimers();
 			await viewer.dispose();
 			await client.dispose();
 			await server.close();

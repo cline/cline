@@ -11,7 +11,6 @@ import {
 	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
-	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
@@ -2019,16 +2018,6 @@ describe("CloudSessionManager Hub runtime", () => {
 			},
 		});
 
-		expect(await getCloudSessionManager(ctx).listForDiscovery()).toEqual([
-			expect.objectContaining({ sessionId: expired.id, status: "expired" }),
-		]);
-		await expect(
-			handleCommand(ctx, "read_archived_cloud_messages", {
-				sessionId: expired.id,
-			}),
-		).resolves.toBeNull();
-		expect(historyCalls).toBe(0);
-
 		const attached = await manager.attach(expired.id);
 		expect(attached).toMatchObject({
 			sessionId: expired.id,
@@ -2036,20 +2025,9 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(historyCalls).toBe(1);
 
-		const messages = await handleCommand(ctx, "read_session_messages", {
-			sessionId: expired.id,
-		});
-		expect(messages).toEqual([
-			expect.objectContaining({
-				sessionId: expired.id,
-				role: "user",
-				content: "archived",
-			}),
-		]);
-		expect(historyCalls).toBe(2);
-		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual([
-			{ role: "user", content: "archived" },
-		]);
+		const messages = await manager.readMessages(expired.id);
+		expect(messages).toEqual([{ role: "user", content: "archived" }]);
+		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual(messages);
 
 		await expect(manager.send(expired.id, "hello")).rejects.toMatchObject({
 			code: "session_expired",

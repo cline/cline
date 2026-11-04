@@ -370,7 +370,7 @@ export function cloudSessionToDiscoveryRecord(
 		sessionId: record.id,
 		origin: "cloud",
 		executionTarget: "cloud",
-		status: isExpiredRecord(record) ? "expired" : record.status,
+		status: record.status,
 		provider: "cline",
 		model: record.metadata.modelId ?? "",
 		cwd: cloudSessionCwd(record),
@@ -705,28 +705,15 @@ export class CloudSessionController {
 	async getCrossScopeDiscoveryRecord(
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
-		const record = this.knownSessions.get(sessionId);
-		if (!record) {
+		const cached = this.getCachedDiscoveryRecord(sessionId);
+		if (!cached) {
 			return undefined;
 		}
 		try {
 			const status = await this.options.api.status(sessionId);
-			if (
-				this.disposed ||
-				this.deletingSessions.has(sessionId) ||
-				this.knownSessions.get(sessionId) !== record
-			)
-				return undefined;
 			const value = status.status?.trim();
-			if (value) record.status = value;
-			return cloudSessionToDiscoveryRecord(record);
+			return value ? { ...cached, status: value } : cached;
 		} catch (error) {
-			if (
-				this.disposed ||
-				this.deletingSessions.has(sessionId) ||
-				this.knownSessions.get(sessionId) !== record
-			)
-				return undefined;
 			if (
 				error instanceof CloudSessionError &&
 				(error.code === "session_not_found" || error.code === "session_expired")
@@ -737,7 +724,7 @@ export class CloudSessionController {
 				return undefined;
 			}
 			// A scope/auth/network failure cannot prove the cached session is gone.
-			return cloudSessionToDiscoveryRecord(record);
+			return cached;
 		}
 	}
 
@@ -1044,11 +1031,7 @@ export class CloudSessionController {
 			const title = live.title?.trim() || record.title?.trim();
 			return {
 				...projected,
-				status:
-					record.status === "provisioning" &&
-					!this.connections.get(record.id)?.innerSessionId
-						? "provisioning"
-						: live.status,
+				status: live.status,
 				prompt: live.prompt,
 				endedAt:
 					live.endedAt !== undefined
@@ -1435,11 +1418,7 @@ export class CloudSessionController {
 			throw new Error("Cloud viewer detached during attachment");
 		if (!this.sessions.has(outerSessionId))
 			this.sessions.set(outerSessionId, this.stateFromRecord(known));
-		if (
-			known.status === "failed" ||
-			(known.status === "provisioning" &&
-				!this.connections.get(outerSessionId)?.innerSessionId)
-		) {
+		if (known.status === "provisioning" || known.status === "failed") {
 			return attachResultPayload(
 				known,
 				known.status,
@@ -2012,10 +1991,7 @@ export class CloudSessionController {
 	}
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
-		if (
-			this.knownSessions.get(outerSessionId)?.status === "provisioning" &&
-			!this.connections.get(outerSessionId)?.innerSessionId
-		) {
+		if (this.knownSessions.get(outerSessionId)?.status === "provisioning") {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
 		}
 		const connection = await this.ensureConnection(outerSessionId);
@@ -2147,11 +2123,7 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (
-			known?.status === "failed" ||
-			(known?.status === "provisioning" &&
-				!this.connections.get(outerSessionId)?.innerSessionId)
-		) {
+		if (known?.status === "provisioning" || known?.status === "failed") {
 			return [];
 		}
 		if (known && isExpiredRecord(known)) {

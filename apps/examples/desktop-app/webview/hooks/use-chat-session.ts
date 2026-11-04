@@ -57,10 +57,7 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
-import {
-	humanizeCloudSessionError,
-	parseCloudSessionError,
-} from "@/lib/cloud-session-error";
+import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
@@ -127,7 +124,6 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 // and re-check at this interval while it stays quiet.
 const STALE_STREAM_QUIET_MS = 5_000;
 const STALE_STREAM_POLL_INTERVAL_MS = 3_000;
-const CLOUD_HISTORY_RETRY_WINDOW_MS = 15 * 60_000;
 
 type PendingToolOutput = {
 	text: string;
@@ -679,17 +675,6 @@ export function useChatSession(environmentId: string) {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
-	const historyPreviewRequestRef = useRef<number | undefined>(undefined);
-	const pendingCloudHistoryRef = useRef<
-		| {
-				requestId: number;
-				startedAt: number;
-				polling: boolean;
-				resolve: (messages: ChatMessage[]) => void;
-				reject: (error: unknown) => void;
-		  }
-		| undefined
-	>(undefined);
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -2523,30 +2508,21 @@ export function useChatSession(environmentId: string) {
 		if (!sessionId || hydratedHistorySessionId !== sessionId) {
 			return;
 		}
-		const openingCloudSession =
-			config.executionTarget === "cloud" && isHydratingSession;
-		if (!BUSY_STATUSES.has(status) && !openingCloudSession) {
+		if (!BUSY_STATUSES.has(status)) {
 			return;
 		}
 		let cancelled = false;
 		let polling = false;
 		const poll = async () => {
-			const pendingHistory = pendingCloudHistoryRef.current;
-			if (
-				cancelled ||
-				polling ||
-				(openingCloudSession && (!pendingHistory || pendingHistory.polling))
-			)
+			if (cancelled || polling) {
 				return;
-			if (
-				!openingCloudSession &&
-				Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS
-			) {
+			}
+			if (Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS) {
 				return;
 			}
 			// An assistant bubble mid-stream means the live pipeline works;
 			// canonical history could lag behind it.
-			if (!openingCloudSession && activeAssistantMessageIdRef.current) {
+			if (activeAssistantMessageIdRef.current) {
 				return;
 			}
 			// A locally driven turn is in flight (submit/queue bumps the epoch;
@@ -2558,35 +2534,24 @@ export function useChatSession(environmentId: string) {
 			// (schedules, other clients) — stay inert until the local turn
 			// settles.
 			if (
-				!openingCloudSession &&
-				(turnEpochRef.current !== turnSettledEpochRef.current ||
-					outstandingOptimisticUserIdsRef.current.size > 0)
+				turnEpochRef.current !== turnSettledEpochRef.current ||
+				outstandingOptimisticUserIdsRef.current.size > 0
 			) {
 				return;
 			}
 			polling = true;
-			if (openingCloudSession && pendingHistory) pendingHistory.polling = true;
 			try {
 				const pollStartedAt = Date.now();
-				const hydrationRequestId = hydrationRequestIdRef.current;
 				const statusRevision = authoritativeStatusRevisionRef.current;
 				const isCloudSession = config.executionTarget === "cloud";
-				let historyError: unknown;
 				const readMessages = () =>
 					desktopClient
-						.invoke<ChatMessage[]>(
-							"read_session_messages",
-							{
-								environmentId,
-								sessionId,
-								maxMessages: MAX_MESSAGES,
-							},
-							openingCloudSession ? { timeoutMs: null } : undefined,
-						)
-						.catch((error: unknown) => {
-							historyError = error;
-							return null;
-						});
+						.invoke<ChatMessage[]>("read_session_messages", {
+							environmentId,
+							sessionId,
+							maxMessages: MAX_MESSAGES,
+						})
+						.catch(() => null);
 				const recordPromise = desktopClient
 					.invoke<{ status?: string } | null>("get_discovered_session", {
 						environmentId,
@@ -2598,46 +2563,8 @@ export function useChatSession(environmentId: string) {
 					isCloudSession ? recordPromise.then(readMessages) : readMessages(),
 					recordPromise,
 				]);
-				const nextStatus = record?.status?.trim();
-				if (openingCloudSession && pendingHistory) {
-					if (
-						pendingCloudHistoryRef.current !== pendingHistory ||
-						hydrationRequestIdRef.current !== pendingHistory.requestId
-					)
-						return;
-					const cloudError = parseCloudSessionError(errorMessage(historyError));
-					if (
-						historyMessages !== null &&
-						(historyMessages.length > 0 ||
-							(nextStatus && nextStatus !== "provisioning"))
-					) {
-						pendingCloudHistoryRef.current = undefined;
-						pendingHistory.resolve(historyMessages);
-					} else if (
-						(cloudError && cloudError.code !== "request_failed") ||
-						nextStatus === "failed" ||
-						nextStatus === "expired" ||
-						Date.now() - pendingHistory.startedAt >=
-							CLOUD_HISTORY_RETRY_WINDOW_MS
-					) {
-						pendingCloudHistoryRef.current = undefined;
-						if (
-							nextStatus === "expired" ||
-							cloudError?.code === "session_expired"
-						)
-							setIsCloudSessionExpired(true);
-						pendingHistory.reject(
-							historyError ??
-								new Error(
-									"This session is taking too long to open. Try opening it again.",
-								),
-						);
-					}
-					return;
-				}
 				if (
 					cancelled ||
-					hydrationRequestIdRef.current !== hydrationRequestId ||
 					authoritativeStatusRevisionRef.current !== statusRevision ||
 					activeSessionIdRef.current !== sessionId ||
 					// The live stream resumed (or a local turn started) while
@@ -2671,6 +2598,7 @@ export function useChatSession(environmentId: string) {
 				// inference (inferHydratedChatStatus) would misread a mid-run
 				// snapshot ending on assistant narration as finished, hiding
 				// the working indicator and disarming this poll.
+				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
 					const mappedStatus = isCloudSession
 						? mapCloudRuntimeStatus(nextStatus)
@@ -2699,8 +2627,6 @@ export function useChatSession(environmentId: string) {
 				}
 			} finally {
 				polling = false;
-				if (pendingCloudHistoryRef.current === pendingHistory && pendingHistory)
-					pendingHistory.polling = false;
 			}
 		};
 		const interval = window.setInterval(
@@ -2714,7 +2640,6 @@ export function useChatSession(environmentId: string) {
 	}, [
 		config.executionTarget,
 		hydratedHistorySessionId,
-		isHydratingSession,
 		sessionId,
 		status,
 		setPromptsInQueue,
@@ -2729,11 +2654,6 @@ export function useChatSession(environmentId: string) {
 			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
-			pendingCloudHistoryRef.current?.reject(
-				new Error("Session selection changed"),
-			);
-			pendingCloudHistoryRef.current = undefined;
-			setHistoryPreview([]);
 			setIsHydratingSession(false);
 			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
@@ -2861,8 +2781,6 @@ export function useChatSession(environmentId: string) {
 			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
-			historyPreviewRequestRef.current = undefined;
-			setHistoryPreview([]);
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3922,11 +3840,6 @@ export function useChatSession(environmentId: string) {
 
 	const reset = useCallback(async () => {
 		hydrationRequestIdRef.current += 1;
-		pendingCloudHistoryRef.current?.reject(
-			new Error("Session selection changed"),
-		);
-		pendingCloudHistoryRef.current = undefined;
-		setHistoryPreview([]);
 		const activeSessionId = sessionId;
 		setSessionId(null);
 		setStatus("idle");
@@ -4014,11 +3927,6 @@ export function useChatSession(environmentId: string) {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
-			pendingCloudHistoryRef.current?.reject(
-				new Error("Session selection changed"),
-			);
-			pendingCloudHistoryRef.current = undefined;
-			historyPreviewRequestRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
 			);
@@ -4073,7 +3981,7 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
-						preserveLiveRouting: true,
+						preserveLiveRouting: sessionStatus === "running",
 					});
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
@@ -4101,6 +4009,7 @@ export function useChatSession(environmentId: string) {
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
+			let loadingHistory = true;
 			if (session.origin === "cloud" && session.status !== "expired") {
 				void desktopClient
 					.invoke<ChatMessage[] | null>("read_archived_cloud_messages", {
@@ -4109,7 +4018,7 @@ export function useChatSession(environmentId: string) {
 					.then((preview) => {
 						if (
 							hydrationRequestIdRef.current !== requestId ||
-							historyPreviewRequestRef.current !== requestId ||
+							!loadingHistory ||
 							!preview?.length
 						)
 							return;
@@ -4120,42 +4029,21 @@ export function useChatSession(environmentId: string) {
 					});
 			}
 			try {
-				let historyMessages = await desktopClient.invoke<ChatMessage[]>(
+				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
 					{
 						environmentId,
 						sessionId: session.sessionId,
 						maxMessages: MAX_MESSAGES,
 					},
-					session.origin === "cloud" ? { timeoutMs: null } : undefined,
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
-				if (
-					session.origin === "cloud" &&
-					historyMessages.length === 0 &&
-					session.status !== "expired" &&
-					session.status !== "failed"
-				) {
-					// Activity pauses the existing refresh while this pane is hidden.
-					historyMessages = await new Promise<ChatMessage[]>(
-						(resolve, reject) => {
-							pendingCloudHistoryRef.current = {
-								requestId,
-								startedAt: Date.now(),
-								polling: false,
-								resolve,
-								reject,
-							};
-						},
-					);
-					if (hydrationRequestIdRef.current !== requestId) return;
-				}
-				historyPreviewRequestRef.current = undefined;
+				loadingHistory = false;
 				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
-					if (session.origin !== "cloud") setIsHydratingSession(false);
+					setIsHydratingSession(false);
 				}
 
 				const attached = await desktopClient
@@ -4278,8 +4166,9 @@ export function useChatSession(environmentId: string) {
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
+				loadingHistory = false;
 				if (hydrationRequestIdRef.current === requestId) {
-					historyPreviewRequestRef.current = undefined;
+					setHistoryPreview([]);
 					setIsHydratingSession(false);
 				}
 			}

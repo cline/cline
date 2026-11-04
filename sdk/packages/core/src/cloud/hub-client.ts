@@ -155,9 +155,7 @@ export class HubCloudSessionClient {
 		let dispatched = false;
 		const reply = await client
 			.command("cloud.command", { operation, args, scope }, undefined, {
-				timeoutMs: ["create", "send", "attach", "readMessages"].includes(
-					operation,
-				)
+				timeoutMs: ["create", "send", "attach"].includes(operation)
 					? null
 					: undefined,
 				beforeDispatch: () => {
@@ -255,6 +253,7 @@ export class HubCloudSessionClient {
 	): Promise<CloudHubResult<"readArchivedMessages">> {
 		return this.call("readArchivedMessages", args);
 	}
+
 	getArtifactDownloadUrl(
 		...args: CloudHubArgs<"getArtifactDownloadUrl">
 	): Promise<CloudHubResult<"getArtifactDownloadUrl">> {

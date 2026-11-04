@@ -3,7 +3,7 @@
 import type { HandoffGitPreview } from "@cline/core/cloud";
 import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
-import { Loader2, SquareTerminal } from "lucide-react";
+import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	Activity,
@@ -358,6 +358,20 @@ type OpenSessionOptions = {
 	silent?: boolean;
 	expectedActiveThreadId?: string;
 };
+
+function CloudProvisioningPane({ phase }: { phase: string }) {
+	return (
+		<div className="px-6 py-6">
+			<div
+				aria-live="polite"
+				className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"
+			>
+				<LoaderCircle className="h-4 w-4 animate-spin" />
+				<span className="cline-chat-streaming-title">{phase}</span>
+			</div>
+		</div>
+	);
+}
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
@@ -3068,7 +3082,6 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
-	const isOpeningCloudSession = isCloudSession && displayedIsSwitching;
 	// Existing empty sessions are loading or empty, never a fresh prompt.
 	const isWelcomeState =
 		displayedMessages.length === 0 &&
@@ -3264,7 +3277,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			sessionId={sessionId}
-			readOnly={isCloudSessionExpired || isOpeningCloudSession}
+			readOnly={isCloudSessionExpired || showingHistoryPreview}
 			attachments={attachmentList}
 			cloudHandoffAvailable={cloudAgentsEnabled}
 			environmentId={environmentId}
@@ -3298,11 +3311,7 @@ function ChatThreadPane({
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
-			placeholder={
-				isCloudSession && displayedIsSwitching
-					? "Getting session ready…"
-					: undefined
-			}
+			placeholder={showingHistoryPreview ? "Getting session ready…" : undefined}
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
@@ -3348,7 +3357,7 @@ function ChatThreadPane({
 								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				disabled={isCloudSessionExpired || isOpeningCloudSession}
+				disabled={isCloudSessionExpired || showingHistoryPreview}
 				description={
 					isCloudSession
 						? "Images will be added to your next message"
@@ -3401,9 +3410,9 @@ function ChatThreadPane({
 					body={
 						isCloudSession &&
 						displayedIsSwitching &&
-						displayedMessages.length === 0 &&
-						!displayedError ? (
-							<output className="sr-only">Getting session ready…</output>
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
+							<CloudProvisioningPane phase="Opening session..." />
 						) : (
 							<ChatMessages
 								onAnswerAskQuestion={handleAnswerAskQuestion}
@@ -3448,12 +3457,12 @@ function ChatThreadPane({
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
 								streamingMessageId={activeAssistantMessageId}
-								isHistoryPreview={isOpeningCloudSession}
-								isSessionSwitching={displayedIsSwitching && !isCloudSession}
+								isHistoryPreview={showingHistoryPreview}
+								isSessionSwitching={
+									displayedIsSwitching && !showingHistoryPreview
+								}
 								status={
-									isProvisioningCloudSession || showingHistoryPreview
-										? "starting"
-										: displayedStatus
+									isProvisioningCloudSession ? "starting" : displayedStatus
 								}
 							/>
 						)
