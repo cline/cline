@@ -337,7 +337,9 @@ export function mergeCloudSnapshotWithLive(
 		return `${message.role}\u0000${content}\u0000${message.reasoning ?? ""}`;
 	};
 	const hydratedIndexesByKey = new Map<string, number[]>();
+	const hydratedIndexesById = new Map<string, number>();
 	for (const [index, message] of hydrated.entries()) {
+		hydratedIndexesById.set(message.id, index);
 		const key = messageKey(message);
 		const indexes = hydratedIndexesByKey.get(key) ?? [];
 		indexes.push(index);
@@ -348,6 +350,23 @@ export function mergeCloudSnapshotWithLive(
 			? [{ index, text: message.content }]
 			: [],
 	);
+	const consumeHydrated = (index: number) => {
+		const target = hydrated[index];
+		hydratedIndexesById.delete(target.id);
+		const key = messageKey(target);
+		const indexes = hydratedIndexesByKey.get(key);
+		if (indexes) {
+			indexes.splice(indexes.indexOf(index), 1);
+			if (indexes.length === 0) hydratedIndexesByKey.delete(key);
+		}
+		if (target.role === "assistant" && target.content) {
+			const assistantIndex = unmatchedHydratedAssistants.findIndex(
+				(candidate) => candidate.index === index,
+			);
+			if (assistantIndex >= 0)
+				unmatchedHydratedAssistants.splice(assistantIndex, 1);
+		}
+	};
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
@@ -362,29 +381,31 @@ export function mergeCloudSnapshotWithLive(
 			optimistic.push(message);
 			continue;
 		}
-		const key = messageKey(message);
-		const matchingHydratedIndexes = hydratedIndexesByKey.get(key);
-		if (matchingHydratedIndexes?.length) {
-			const matchingIndex = matchingHydratedIndexes.shift();
+		const preserveAssistant =
+			message.role === "assistant" &&
+			options.preserveLiveMessageIds?.has(message.id);
+		const matchingIndex =
+			hydratedIndexesById.get(message.id) ??
+			(preserveAssistant
+				? undefined
+				: hydratedIndexesByKey.get(messageKey(message))?.[0]);
+		if (matchingIndex !== undefined) {
 			mergeImagesIntoHydrated(matchingIndex, message);
-			if (matchingHydratedIndexes.length === 0) {
-				hydratedIndexesByKey.delete(key);
-			}
-			if (message.role === "assistant" && message.content) {
-				const index = unmatchedHydratedAssistants.findIndex(
-					(candidate) => candidate.text === message.content,
-				);
-				if (index >= 0) unmatchedHydratedAssistants.splice(index, 1);
-			}
+			consumeHydrated(matchingIndex);
+			continue;
+		}
+		if (preserveAssistant) {
+			// Repeated text cannot establish which history row owns a live stream.
+			liveOnly.push(message);
 			continue;
 		}
 		if (message.role === "assistant" && message.content) {
-			const index = unmatchedHydratedAssistants.findIndex((candidate) =>
+			const match = unmatchedHydratedAssistants.find((candidate) =>
 				candidate.text.includes(message.content),
 			);
-			if (index >= 0) {
-				const [match] = unmatchedHydratedAssistants.splice(index, 1);
-				mergeImagesIntoHydrated(match?.index, message);
+			if (match) {
+				mergeImagesIntoHydrated(match.index, message);
+				consumeHydrated(match.index);
 				continue;
 			}
 		}
