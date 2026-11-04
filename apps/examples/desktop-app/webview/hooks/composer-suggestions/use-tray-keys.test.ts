@@ -27,6 +27,7 @@ import {
 	typeInto,
 	unmountAll,
 } from "./test-support/harness";
+import type { ComposerSuggestionsOptions } from "./types";
 
 const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
 
@@ -57,6 +58,17 @@ const NOT_TAKEN_BACK = "Couldn't take it back yet — try again";
 
 function actions(verb: string) {
 	return invokedActions(verb).map(({ action }) => action);
+}
+
+/** By identity: `toEqual` counts any two jsdom Files as equal. */
+function expectSameFiles(
+	actual: readonly File[] | undefined,
+	expected: readonly File[],
+) {
+	expect(actual).toHaveLength(expected.length);
+	for (const [index, file] of expected.entries()) {
+		expect(actual?.[index]).toBe(file);
+	}
 }
 
 async function mountReady(
@@ -359,12 +371,12 @@ describe("useSuggestionTrayKeys", () => {
 
 		expect(tray.options().onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
 		expect(tray.composer().value).toBe(SENT_PROMPT);
-		expect(tray.options().onAttachFiles).toHaveBeenCalledExactlyOnceWith([
-			notes,
-		]);
+		const onAttachFiles = vi.mocked(tray.options().onAttachFiles);
+		expect(onAttachFiles).toHaveBeenCalledOnce();
+		expectSameFiles(onAttachFiles.mock.calls[0]?.[0], [notes]);
 	});
 
-	it("Ctrl+3 forks a running sent prompt with only the files that went with it", async () => {
+	it("Ctrl+3 forks a started sent prompt with only the files that went with it", async () => {
 		const verdict = deferred<unknown>();
 		scriptHub({
 			states: { [SESSION_ID]: [envelope(readyState("r1"))] },
@@ -373,7 +385,9 @@ describe("useSuggestionTrayKeys", () => {
 		});
 		const notes = new File(["hello"], "notes.txt");
 		const pasted = new File(["png"], "screenshot.png", { type: "image/png" });
-		const onUndoTurn = vi.fn(async () => undefined);
+		const onUndoTurn = vi.fn<ComposerSuggestionsOptions["onUndoTurn"]>(
+			async () => undefined,
+		);
 		const tray = await mountTray({ onUndoTurn, pendingAttachments: [notes] });
 		await settle(400);
 		await press(tray.composer(), SEND);
@@ -396,8 +410,9 @@ describe("useSuggestionTrayKeys", () => {
 			"m-sent",
 			SENT_PROMPT,
 			1,
-			[notes],
+			expect.any(Array),
 		);
+		expectSameFiles(onUndoTurn.mock.calls[0]?.[3], [notes]);
 	});
 
 	it("takes a queued sent prompt back once when Undo is pressed again while the removal is in flight", async () => {
