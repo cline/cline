@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubReplyEnvelope } from "@cline/shared";
@@ -73,6 +74,100 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 describe("Hub MCP management", () => {
+	it.each([
+		"constructor",
+		"prototype",
+		"__proto__",
+		" foo ",
+		"",
+	])("renames the exact stored key %j while preserving its neighbor", async (previousName) => {
+		const neighbor = { transport: { type: "stdio", command: "neighbor" } };
+		await seed({
+			foo: neighbor,
+			[previousName]: {
+				transport: { type: "stdio", command: "node" },
+				disabled: true,
+			},
+		});
+		await api.upsert({
+			name: "renamed",
+			previousName,
+			transportType: "stdio",
+			command: "node",
+			disabled: true,
+		});
+		const settings = JSON.parse(await readFile(path, "utf8"));
+		expect(Object.hasOwn(settings.mcpServers, previousName)).toBe(false);
+		expect(settings.mcpServers.foo).toEqual(neighbor);
+		expect(settings.mcpServers.renamed).toMatchObject({
+			transport: { type: "stdio", command: "node" },
+		});
+	});
+
+	it("times out an SSE stream without an endpoint, releases queued edits, and drains on shutdown", async () => {
+		const opened = deferred<void>();
+		const closed = deferred<void>();
+		const server = createServer((_request, response) => {
+			response.writeHead(200, { "content-type": "text/event-stream" });
+			response.write(": connected\n\n");
+			response.on("close", () => closed.resolve());
+			opened.resolve();
+		});
+		await new Promise<void>((resolve) =>
+			server.listen(0, "127.0.0.1", resolve),
+		);
+		const address = server.address();
+		if (!address || typeof address === "string")
+			throw new Error("Expected TCP address");
+		// Bound cleanup even if a regression prevents the client deadline firing.
+		const watchdog = setTimeout(() => server.closeAllConnections(), 5_000);
+		try {
+			await seed({
+				remote: {
+					transport: {
+						type: "sse",
+						url: `http://127.0.0.1:${address.port}/sse`,
+					},
+					timeout: 1,
+					disabled: true,
+				},
+				local: {
+					transport: { type: "stdio", command: "node" },
+					disabled: false,
+				},
+			});
+			const enabling = api.setDisabled("remote", false);
+			await opened.promise;
+			const disabling = api.setDisabled("local", true);
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "session.list",
+			});
+			expect(status.payload?.activeMcpRequests).toBe(2);
+			const stopping = transport.stop();
+			const [result, disabled] = await Promise.all([
+				enabling,
+				disabling,
+				stopping,
+			]);
+			stopped = true;
+			await closed.promise;
+			expect(
+				result.servers.find((entry) => entry.name === "remote"),
+			).toMatchObject({
+				disabled: true,
+				oauthStatus: { lastError: expect.stringMatching(/timed out/) },
+			});
+			expect(
+				disabled.servers.find((entry) => entry.name === "local")?.disabled,
+			).toBe(true);
+		} finally {
+			clearTimeout(watchdog);
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
+	});
+
 	it("uses the shared settings resolver and registers, disables, renames, and removes a stdio server", async () => {
 		expect(await api.list()).toMatchObject({
 			settingsPath: path,

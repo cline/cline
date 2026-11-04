@@ -208,15 +208,16 @@ for (const scenario of [
 	});
 }
 
-test("reuses the supplied ID and rereads the file on a later call", async (t) => {
+test("publishing the same filename again replaces its contents", async (t) => {
 	const f = await fixture(t);
 	const tool = f.tool;
-	const input = { files: [{ path: f.filePath, artifactId: "same" }] };
-	assert.deepEqual((await tool.execute(input, f.context())).files, input.files);
+	const input = { files: [{ path: f.filePath }] };
+	const expected = [{ path: f.filePath, artifactId: "hello 世界.txt" }];
+	assert.deepEqual((await tool.execute(input, f.context())).files, expected);
 	await writeFile(f.filePath, "changed");
-	assert.deepEqual((await tool.execute(input, f.context())).files, input.files);
+	assert.deepEqual((await tool.execute(input, f.context())).files, expected);
 	assert.equal(f.stored.size, 1);
-	assert.equal(f.stored.get("same")?.toString(), "changed");
+	assert.equal(f.stored.get("hello 世界.txt")?.toString(), "changed");
 });
 
 for (const scenario of ["auth", "forbidden", "unavailable"] as const) {
