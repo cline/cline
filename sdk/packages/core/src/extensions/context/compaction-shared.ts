@@ -123,9 +123,6 @@ export function flattenToolResultContent(
 				case "image":
 					return `[image:${block.mediaType}]`;
 				default:
-					// Structured tool outputs, such as the run_commands and read_files
-					// results, are persisted as arrays of plain objects with no block
-					// type. Keep them as JSON so the summarizer still sees the output.
 					return truncateText(
 						stringifyToolResultBlock(block),
 						TOOL_RESULT_CHAR_LIMIT,
