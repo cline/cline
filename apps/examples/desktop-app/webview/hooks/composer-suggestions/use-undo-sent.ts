@@ -57,7 +57,8 @@ export function useUndoSent({
 	 * A sent prompt the queue still holds comes back into the box with the files
 	 * that went with it and no verb, since no turn ran. Otherwise, including when
 	 * the runtime started it before the removal landed, the turn is forked away
-	 * from before the sent message, after stopping a run the fork would refuse.
+	 * from before the sent message, after stopping a run the fork would refuse,
+	 * and the fork's draft gets the prompt and those files back.
 	 */
 	const undoSent = useCallback(
 		async (composer: SuggestionComposer) => {
@@ -116,6 +117,7 @@ export function useUndoSent({
 					target.messageId,
 					sent.prompt,
 					target.runCount,
+					sendSnapshotRef.current.attachments,
 				);
 			} catch (error) {
 				toast({

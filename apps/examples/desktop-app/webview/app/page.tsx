@@ -2719,6 +2719,7 @@ function ChatThreadPane({
 		(
 			result: Awaited<ReturnType<typeof forkSession>>,
 			editedPrompt?: string,
+			attachments?: readonly File[],
 		) => {
 			if (!onOpenSession) {
 				return;
@@ -2741,7 +2742,11 @@ function ChatThreadPane({
 					},
 				},
 			};
-			onOpenSession(forkedHistorySession, editedPrompt);
+			onOpenSession(
+				forkedHistorySession,
+				editedPrompt,
+				attachments?.length ? [...attachments] : undefined,
+			);
 		},
 		[config, onOpenSession],
 	);
@@ -2762,9 +2767,14 @@ function ChatThreadPane({
 	);
 
 	const handleEditMessage = useCallback(
-		async (_messageId: string, content: string, runCount: number) => {
+		async (
+			_messageId: string,
+			content: string,
+			runCount: number,
+			attachments?: readonly File[],
+		) => {
 			const result = await forkSession({ beforeRunCount: runCount });
-			openForkedSession(result, content);
+			openForkedSession(result, content, attachments);
 		},
 		[forkSession, openForkedSession],
 	);

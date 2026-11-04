@@ -301,7 +301,7 @@ describe("useSuggestionTrayKeys", () => {
 
 		expect(abort).toHaveBeenCalledTimes(1);
 		expect(onUndoTurn).toHaveBeenCalledTimes(1);
-		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3);
+		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3, []);
 	});
 
 	it("Ctrl+3 is inert while only an earlier copy of the sent prompt exists", async () => {
@@ -362,6 +362,42 @@ describe("useSuggestionTrayKeys", () => {
 		expect(tray.options().onAttachFiles).toHaveBeenCalledExactlyOnceWith([
 			notes,
 		]);
+	});
+
+	it("Ctrl+3 forks a running sent prompt with only the files that went with it", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: { [SESSION_ID]: [envelope(readyState("r1"))] },
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const notes = new File(["hello"], "notes.txt");
+		const pasted = new File(["png"], "screenshot.png", { type: "image/png" });
+		const onUndoTurn = vi.fn(async () => undefined);
+		const tray = await mountTray({ onUndoTurn, pendingAttachments: [notes] });
+		await settle(400);
+		await press(tray.composer(), SEND);
+		await tray.update({ pendingAttachments: [notes, pasted] });
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await emitState(
+			envelope(readyState("r2", { status: "loading", items: [] }), { seq: 2 }),
+		);
+		await tray.update({
+			pendingAttachments: [pasted],
+			messages: [
+				userMessage("m-sent", `${SENT_PROMPT}\n\n[attached 1 file]`, 1),
+			],
+		});
+
+		await press(tray.composer(), UNDO);
+		await settle(100);
+
+		expect(onUndoTurn).toHaveBeenCalledExactlyOnceWith(
+			"m-sent",
+			SENT_PROMPT,
+			1,
+			[notes],
+		);
 	});
 
 	it("takes a queued sent prompt back once when Undo is pressed again while the removal is in flight", async () => {
@@ -428,7 +464,7 @@ describe("useSuggestionTrayKeys", () => {
 		expect(actions("undo")).toEqual([
 			{ verb: "undo", revision: "r1", itemId: "verify" },
 		]);
-		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 1);
+		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 1, []);
 		expect(abort.mock.invocationCallOrder[0]).toBeLessThan(
 			invokedActions("undo")[0]?.order ?? 0,
 		);
@@ -454,7 +490,7 @@ describe("useSuggestionTrayKeys", () => {
 				action: { verb: "undo", revision: "r1", itemId: "verify" },
 			},
 		]);
-		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3);
+		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3, []);
 		const undoOrder =
 			invokedActions("undo")[0]?.order ?? Number.POSITIVE_INFINITY;
 		expect(undoOrder).toBeLessThan(onUndoTurn.mock.invocationCallOrder[0] ?? 0);
@@ -495,7 +531,7 @@ describe("useSuggestionTrayKeys", () => {
 
 		expect(actions("undo")).toHaveLength(1);
 		expect(forkWhileBusy).not.toHaveBeenCalled();
-		expect(forkWhenIdle).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 1);
+		expect(forkWhenIdle).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 1, []);
 		expect(toastMock).not.toHaveBeenCalled();
 	});
 

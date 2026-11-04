@@ -56,11 +56,12 @@ export type ComposerSuggestionsOptions = {
 	 * text typed and files added during the verdict wait stay in it.
 	 */
 	onSend: (prompt: string, attachments: readonly File[]) => void;
-	/** Forks the session from before `runCount` with `content` as the new draft. */
+	/** Forks the session from before `runCount` with `content` and `attachments` as the new draft. */
 	onUndoTurn: (
 		messageId: string,
 		content: string,
 		runCount: number,
+		attachments: readonly File[],
 	) => Promise<void>;
 	/** Resolves the prompt it took out of the queue, or undefined when it was no longer queued. */
 	onRemoveQueuedPrompt: (
