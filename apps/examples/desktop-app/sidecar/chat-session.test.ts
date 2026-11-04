@@ -33,7 +33,6 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import * as sessionPaths from "./paths";
-import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -1156,45 +1155,17 @@ describe("first-send connection updates", () => {
 		};
 	}
 
-	it("blocks handoff while a local prompt is still being prepared", async () => {
-		enableCloudHandoffGates();
-		const { ctx, sessionId, send } = createContext({
-			config: { ...baseConfig, cwd: "/workspace/project/child" },
+	it("sends the Hub-expanded prompt while preserving the display prompt", async () => {
+		const { ctx, sessionId, send } = createContext();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/custom",
+			runtimePrompt: "expanded prompt",
 		});
-		const preparing = Promise.withResolvers<void>();
-		const prepared = Promise.withResolvers<void>();
-		const command = vi
-			.spyOn(pluginCommands, "runPluginSlashCommand")
-			.mockImplementationOnce(async () => {
-				preparing.resolve();
-				await prepared.promise;
-				return { submitPrompt: "expanded prompt" };
-			});
-		try {
-			const result = handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId,
-				prompt: "/custom",
-			});
-			await preparing.promise;
-			await expect(
-				handleChatSessionCommand(ctx, {
-					action: "handoff",
-					operation: "prepare",
-					sessionId,
-				}),
-			).rejects.toThrow(
-				"Wait for the current send to finish before using /cloud.",
-			);
-			prepared.resolve();
-			await result;
-			expect(send).toHaveBeenCalledWith(
-				expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
-			);
-		} finally {
-			prepared.resolve();
-			command.mockRestore();
-		}
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
+		);
 	});
 
 	it("skips an identical update for a locally-created session", async () => {
@@ -2380,115 +2351,6 @@ Follow the desktop send workflow instructions.`,
 			}),
 		);
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
-	});
-
-	it.each([
-		"local",
-		"ssh",
-	] as const)("dispatches plugin commands through the owning %s hub", async (kind) => {
-		const workspace = createWorkspaceWithSkill();
-		const { ctx, send, sessionId } = createContext(workspace);
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("Missing test binding");
-		binding.kind = kind;
-		const liveSession = ctx.liveSessions.get(sessionId);
-		if (liveSession) liveSession.config.apiKey = "test-key";
-		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
-		const command = vi.fn(async (name: string) => ({
-			version: "v1" as const,
-			ok: true,
-			payload:
-				name === "plugins.commands.list"
-					? goalCatalog(workspace)
-					: {
-							result: {
-								reply: "Goal set",
-								submitPrompt: "expanded  goal\nnext line",
-							},
-						},
-		}));
-		binding.hubClient.command = command;
-		const result = await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/goal original",
-		});
-		expect(result).toMatchObject({
-			result: { finishReason: "completed", text: "done" },
-		});
-		expect(command).toHaveBeenCalledWith(
-			"plugins.commands.run",
-			expect.objectContaining({
-				workspacePath: workspace,
-				sessionId,
-				prompt: "/goal original",
-			}),
-			sessionId,
-			{ timeoutMs: null, retryAfterDispatch: false },
-		);
-		expect(send).toHaveBeenCalledWith(
-			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
-		);
-	});
-
-	it("targets the session's workspace root when its cwd is a subdirectory", async () => {
-		const workspace = createWorkspaceWithSkill();
-		const { ctx, session, sessionId } = createContext(workspace);
-		Object.assign(session.config, {
-			cwd: join(workspace, "packages", "app"),
-			workspaceRoot: workspace,
-		});
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("Missing test binding");
-		const command = vi.fn(async (name: string) => ({
-			version: "v1" as const,
-			ok: true,
-			payload:
-				name === "plugins.commands.list"
-					? goalCatalog(workspace)
-					: { result: { reply: "Goal set" } },
-		}));
-		binding.hubClient.command = command;
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/goal original",
-		});
-		expect(command).toHaveBeenCalledWith(
-			"plugins.commands.run",
-			expect.objectContaining({ workspacePath: workspace, sessionId }),
-			sessionId,
-			{ timeoutMs: null, retryAfterDispatch: false },
-		);
-	});
-
-	it("still sends a skill command when the plugin catalog cannot be read", async () => {
-		const workspace = createWorkspaceWithSkill();
-		const { ctx, send, sessionId } = createContext(workspace);
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("Missing test binding");
-		const command = vi.fn(async () => {
-			throw new Error("hub connection closed");
-		});
-		binding.hubClient.command = command;
-
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/desktop-send-skill write the docs",
-		});
-
-		expect(command).not.toHaveBeenCalledWith(
-			"plugins.commands.run",
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-		);
-		expect(send).toHaveBeenCalledWith(
-			expect.objectContaining({
-				prompt: "/desktop-send-skill write the docs",
-			}),
-		);
 	});
 
 	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {

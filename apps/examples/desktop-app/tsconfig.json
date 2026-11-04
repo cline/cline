@@ -21,6 +21,9 @@
 		"paths": {
 			"@/*": ["./*"],
 			"@cline/agents": ["../../../sdk/packages/agents/src/index.ts"],
+			"@cline/core/hub/browser": [
+				"../../../sdk/packages/core/src/hub/browser.ts"
+			],
 			"@cline/core": ["../../../sdk/packages/core/src/index.ts"],
 			"@cline/core/cloud": ["../../../sdk/packages/core/src/cloud/index.ts"],
 			"@cline/core/hub": ["../../../sdk/packages/core/src/hub/index.ts"],

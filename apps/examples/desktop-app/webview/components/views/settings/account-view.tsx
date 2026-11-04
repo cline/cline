@@ -1,4 +1,5 @@
 "use client";
+import { hubAccount, hubProviders } from "@/lib/hub-client";
 
 import type {
 	ClineAccountBalance,
@@ -8,8 +9,8 @@ import type {
 	ClineAccountPaymentTransaction,
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
-	UserCurrentPlan,
 } from "@cline/core";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared/browser";
 import {
 	getClineEnvironmentConfig,
 	resolveClineAppUrl,
@@ -34,8 +35,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
-import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { openExternalUrl } from "@/lib/desktop-client";
 import { buildModelPickerData } from "@/lib/featured-models";
 import {
 	invalidateProviderCatalogCache,
@@ -58,11 +58,7 @@ const CLINE_PASS_URL =
 
 function normalizeAccountViewError(error: unknown): Error {
 	const message = error instanceof Error ? error.message : String(error);
-	if (message.includes("unsupported desktop command: cline_account")) {
-		return new Error(
-			"The desktop sidecar is running an older build that does not support account commands. Restart the sidecar or reload the app, then try again.",
-		);
-	}
+
 	return error instanceof Error ? error : new Error(message);
 }
 
@@ -79,18 +75,27 @@ function isAccountAuthError(message: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Data fetching helpers via sidecar command
+// Data fetching helpers via Hub
 // ---------------------------------------------------------------------------
 
+async function fetchSignedInAccount<
+	T extends Parameters<typeof hubAccount.account>[0],
+>(request: T) {
+	const result = await hubAccount.account(request);
+	if (isClineAccountNotAuthenticatedResult(result))
+		throw new Error("No Cline account auth token found");
+	return result;
+}
+
 async function fetchAccountUser(): Promise<ClineAccountUser> {
-	return await desktopClient.invoke<ClineAccountUser>("cline_account", {
+	return await fetchSignedInAccount({
 		action: "clineAccount",
 		operation: "fetchMe",
 	});
 }
 
 async function fetchAccountBalance(): Promise<ClineAccountBalance> {
-	return await desktopClient.invoke<ClineAccountBalance>("cline_account", {
+	return await fetchSignedInAccount({
 		action: "clineAccount",
 		operation: "fetchBalance",
 	});
@@ -99,73 +104,58 @@ async function fetchAccountBalance(): Promise<ClineAccountBalance> {
 async function fetchAccountOrganizations(): Promise<
 	ClineAccountOrganization[]
 > {
-	return await desktopClient.invoke<ClineAccountOrganization[]>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchUserOrganizations",
-		},
-	);
+	return await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchUserOrganizations",
+	});
 }
 
 async function fetchOrganizationBalance(
 	organizationId: string,
 ): Promise<ClineAccountOrganizationBalance> {
-	return await desktopClient.invoke<ClineAccountOrganizationBalance>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchOrganizationBalance",
-			organizationId,
-		},
-	);
+	return await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchOrganizationBalance",
+		organizationId,
+	});
 }
 
 async function fetchUsageTransactions(): Promise<
 	ClineAccountUsageTransaction[]
 > {
-	return await desktopClient.invoke<ClineAccountUsageTransaction[]>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchUsageTransactions",
-		},
-	);
+	return await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchUsageTransactions",
+	});
 }
 
 async function fetchOrganizationUsageTransactions(
 	organizationId: string,
 	memberId?: string,
 ): Promise<ClineAccountOrganizationUsageTransaction[]> {
-	return await desktopClient.invoke<ClineAccountOrganizationUsageTransaction[]>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchOrganizationUsageTransactions",
-			organizationId,
-			...(memberId?.trim() ? { memberId: memberId.trim() } : {}),
-		},
-	);
+	return await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchOrganizationUsageTransactions",
+		organizationId,
+		...(memberId?.trim() ? { memberId: memberId.trim() } : {}),
+	});
 }
 
 async function fetchPaymentTransactions(): Promise<
 	ClineAccountPaymentTransaction[]
 > {
-	return await desktopClient.invoke<ClineAccountPaymentTransaction[]>(
-		"cline_account",
-		{
-			action: "clineAccount",
-			operation: "fetchPaymentTransactions",
-		},
-	);
+	return await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchPaymentTransactions",
+	});
 }
 
 /** The models a ClinePass subscription includes, or null without one. */
 async function fetchClinePassModels(): Promise<string[] | null> {
-	const plan = await desktopClient.invoke<UserCurrentPlan | undefined>(
-		"cline_account",
-		{ action: "clineAccount", operation: "fetchCurrentUserPlan" },
-	);
+	const plan = await fetchSignedInAccount({
+		action: "clineAccount",
+		operation: "fetchCurrentUserPlan",
+	});
 	const entitlements = plan?.plan?.entitlements as
 		| { cline_pass?: { enabled?: boolean } }
 		| undefined;
@@ -181,7 +171,7 @@ async function fetchClinePassModels(): Promise<string[] | null> {
 async function switchActiveAccount(
 	organizationId: string | null,
 ): Promise<void> {
-	await desktopClient.invoke("cline_account", {
+	await fetchSignedInAccount({
 		action: "clineAccount",
 		operation: "switchAccount",
 		organizationId,
@@ -345,16 +335,10 @@ export function AccountView() {
 	const signOut = async () => {
 		setSigningOut(true);
 		try {
-			await desktopClient.invoke("save_provider_settings", {
-				provider: "cline",
-				api_key: "",
-				settings: {
-					auth: {
-						accessToken: "",
-						refreshToken: "",
-						accountId: "",
-					},
-				},
+			await hubProviders.saveSettings({
+				providerId: "cline",
+				apiKey: "",
+				auth: { accessToken: "", refreshToken: "", accountId: "" },
 			});
 			resetAccountData();
 			setActiveTab("overview");

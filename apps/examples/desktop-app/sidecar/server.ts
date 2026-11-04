@@ -3,16 +3,15 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
-import { abandonComposioConnectsForOwner } from "./composio";
+import { getDesktopHubConnection } from "./hub-bootstrap";
 import { fetchMarketplaceCatalog } from "./marketplace";
-import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
-import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -220,6 +219,28 @@ export function createFetchHandler(
 			return new Response(null, { status: 204, headers: corsHeaders(req) });
 		}
 
+		if (url.pathname === "/hub/connection") {
+			// Plain-browser development only; packaged clients use native IPC.
+			if (process.env.CLINE_DESKTOP_DEV_WEB !== "1")
+				return new Response(null, { status: 404 });
+			const origin = readOrigin(req);
+			if (
+				req.method !== "GET" ||
+				!origin ||
+				!TRUSTED_BROWSER_ORIGINS.has(origin)
+			)
+				return new Response(null, { status: 403 });
+			const connection = getDesktopHubConnection(
+				url.searchParams.get("environmentId") ?? "local",
+			);
+			return new Response(
+				JSON.stringify(connection ?? { error: "Hub is not ready" }),
+				{
+					status: connection ? 200 : 503,
+					headers: { ...jsonHeaders(req), "cache-control": "no-store" },
+				},
+			);
+		}
 		if (url.pathname === "/health") {
 			return new Response(
 				JSON.stringify({
@@ -408,8 +429,7 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			// Browser OAuth flows are interactive: if the connection that started
 			// one goes away (webview reload, transport drop), cancel its callback
 			// wait so the sidecar cannot retain an abandoned authorization attempt.
-			cancelProviderOAuthLoginsForOwner(ws);
-			cancelMcpOAuthAuthorizationsForOwner(ws);
+
 			// Composio connects finish in the external browser; abandon (revoke
 			// + tombstone) any this connection started so a flow completed after
 			// the webview is gone cannot materialize connector tools.

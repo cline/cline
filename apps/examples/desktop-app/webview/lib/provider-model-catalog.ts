@@ -1,4 +1,5 @@
 "use client";
+import { hubProviders } from "@/lib/hub-client";
 
 import type { CloudModel } from "@cline/core/cloud";
 import {
@@ -231,8 +232,8 @@ export function fetchProviderCatalog(options?: {
 	) {
 		return providerCatalogCache.promise;
 	}
-	const promise = desktopClient
-		.invoke<ProviderCatalogResponse>("list_provider_catalog")
+	const promise = hubProviders
+		.list({ isClinePassEnabled: true })
 		.then((payload) => {
 			if (providerCatalogCache?.promise === promise)
 				providerCatalogPayload = payload;
@@ -408,11 +409,6 @@ export function loadTranscriptionModels(
 export async function loadProviderModels(
 	providerId: string,
 ): Promise<ProviderModel[]> {
-	const payload = await desktopClient.invoke<ProviderModelsResponse>(
-		"list_provider_models",
-		{
-			provider: providerId,
-		},
-	);
+	const payload = await hubProviders.listModels({ providerId });
 	return filterChatModels(payload.models);
 }

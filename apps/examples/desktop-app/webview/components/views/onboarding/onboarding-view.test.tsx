@@ -137,13 +137,16 @@ describe("OnboardingView", () => {
 		Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 		window.localStorage.clear();
 		invoke.mockReset();
+		login
+			.mockReset()
+			.mockResolvedValue({ provider: "cline", accountId: "account" });
 		// AccountProvider fetches the account on mount; unresolved auth means
 		// the signed-out variant of the connect step renders.
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				throw new Error("No Cline account auth token found");
 			}
-			if (command === "list_provider_catalog") {
+			if (command === "providers.list") {
 				return {
 					providers: [
 						makeProvider(),
@@ -392,16 +395,16 @@ describe("OnboardingView", () => {
 			JSON.stringify({ lastProvider: "anthropic", lastModelByProvider: {} }),
 		);
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				return { email: "dev@example.com", displayName: "Dev" };
 			}
-			if (command === "list_provider_catalog") {
+			if (command === "providers.list") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
 			if (command === "get_feature_flags") {
 				return GITHUB_STEP_ENABLED_FLAGS;
 			}
-			if (command === "list_cline_recommended_models") {
+			if (command === "providers.models.recommended") {
 				return {
 					recommended: [],
 					free: [
@@ -460,13 +463,13 @@ describe("OnboardingView", () => {
 
 	it("skips the GitHub step silently when the integration is already connected", async () => {
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				return { email: "dev@example.com", displayName: "Dev" };
 			}
 			if (command === "cline_integrations") {
 				return [{ provider: "github" }];
 			}
-			if (command === "list_provider_catalog") {
+			if (command === "providers.list") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
 			if (command === "get_feature_flags") {
@@ -487,10 +490,10 @@ describe("OnboardingView", () => {
 
 	it("bypasses the GitHub step when the rollout flag is off", async () => {
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				return { email: "dev@example.com", displayName: "Dev" };
 			}
-			if (command === "list_provider_catalog") {
+			if (command === "providers.list") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
 			// get_feature_flags falls through to the empty snapshot, which is
@@ -515,21 +518,19 @@ describe("OnboardingView", () => {
 			buttonByText("Get started").click();
 		});
 
-		let rejectLogin!: (error: Error) => void;
+		login.mockImplementation(
+			(_provider, _callbacks, signal) =>
+				new Promise((_, reject) =>
+					signal.addEventListener("abort", () =>
+						reject(new DOMException("cancelled", "AbortError")),
+					),
+				),
+		);
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "run_provider_oauth_login") {
-				return await new Promise((_, reject) => {
-					rejectLogin = reject;
-				});
-			}
-			if (command === "cancel_provider_oauth_login") {
-				rejectLogin(new Error("Sign-in cancelled"));
-				return { cancelled: true };
-			}
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				throw new Error("No Cline account auth token found");
 			}
-			if (command === "list_provider_catalog") {
+			if (command === "providers.list") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
 			return {};
@@ -546,22 +547,21 @@ describe("OnboardingView", () => {
 		expect(buttonByText("Sign in")).toBeDefined();
 		// Cancelling must also stop the backend browser round-trip so a
 		// later-completed authorization can never persist credentials.
-		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(login.mock.calls[0][2].aborted).toBe(true);
 	});
 
 	it("stays on Welcome when sign-in completes after Back", async () => {
 		await render();
 		await act(async () => buttonByText("Get started").click());
 		let finishLogin!: () => void;
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "run_provider_oauth_login") {
-				return await new Promise<void>((resolve) => {
+		login.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
 					finishLogin = resolve;
-				});
-			}
-			if (command === "cline_account") {
+				}),
+		);
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "providers.account.action") {
 				return { email: "dev@example.com", displayName: "Dev" };
 			}
 			return {};
@@ -576,9 +576,7 @@ describe("OnboardingView", () => {
 		await act(async () => finishLogin());
 		expect(buttonByText("Get started")).toBeDefined();
 		expect(container.textContent).not.toContain("Connect GitHub");
-		expect(invoke).not.toHaveBeenCalledWith("cancel_provider_oauth_login", {
-			provider: "cline",
-		});
+
 		await act(async () => buttonByText("Get started").click());
 		expect(container.textContent).toContain("Signed in as");
 	});
@@ -588,7 +586,7 @@ describe("OnboardingView", () => {
 		await act(async () => buttonByText("Get started").click());
 		let finishRefresh!: (user: { email: string; displayName: string }) => void;
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				return await new Promise((resolve) => {
 					finishRefresh = resolve;
 				});
@@ -623,10 +621,10 @@ describe("OnboardingView", () => {
 
 		invoke.mockClear();
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "save_provider_settings") {
+			if (command === "providers.settings.save") {
 				return { providerId: "cline", enabled: true };
 			}
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				return { email: "dev@example.com", displayName: "Dev" };
 			}
 			return {};
@@ -644,10 +642,10 @@ describe("OnboardingView", () => {
 			buttonByText("Connect").click();
 		});
 
-		expect(invoke).toHaveBeenCalledWith("save_provider_settings", {
-			provider: "cline",
+		expect(invoke).toHaveBeenCalledWith("providers.settings.save", {
+			providerId: "cline",
 			enabled: true,
-			api_key: "cline_key_123",
+			apiKey: "cline_key_123",
 		});
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {
@@ -683,11 +681,11 @@ describe("OnboardingView", () => {
 		invoke.mockClear();
 		invoke.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "save_provider_settings") {
-					savedKeys.push(args?.api_key as string | undefined);
+				if (command === "providers.settings.save") {
+					savedKeys.push(args?.apiKey as string | undefined);
 					return { providerId: "cline", enabled: true };
 				}
-				if (command === "cline_account") {
+				if (command === "providers.account.action") {
 					throw new Error("Cline account request failed with status 401");
 				}
 				return {};
@@ -740,10 +738,7 @@ describe("OnboardingView", () => {
 				?.click();
 		});
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "run_provider_oauth_login") {
-				return { provider: "cline", accessToken: "token" };
-			}
-			if (command === "cline_account") {
+			if (command === "providers.account.action") {
 				throw new Error("No Cline account auth token found");
 			}
 			return {};
@@ -751,12 +746,10 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith(
-			"run_provider_oauth_login",
-			{ provider: "cline" },
-			// The browser round-trip must get the extended OAuth deadline, not
-			// the default 120s command deadline (cline/cline#14201).
-			{ timeoutMs: 15 * 60_000, signal: expect.any(AbortSignal) },
+		expect(login).toHaveBeenCalledWith(
+			"cline",
+			expect.any(Object),
+			expect.any(AbortSignal),
 		);
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {
@@ -775,3 +768,12 @@ describe("OnboardingView", () => {
 		expect(onComplete).toHaveBeenCalledTimes(1);
 	});
 });
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const apis = mockHubApis(invoke);
+	apis.hubAccount.login = login;
+	return apis;
+});
+
+const { login } = vi.hoisted(() => ({ login: vi.fn() }));

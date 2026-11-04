@@ -22,38 +22,22 @@ import {
 } from "node:path";
 import { promisify } from "node:util";
 import type {
-	ClineAccountActionRequest,
 	CoreSettingsSnapshot,
-	ProviderCapability,
-	ProviderClient,
 	ProviderConfig,
-	ProviderProtocol,
 	RemoteEnvironmentConnection,
 	RemoteEnvironmentInput,
-	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
-	ClineAccountService,
-	type ClineAccountUser,
-	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
-	createHubMcpApi,
-	createHubProvidersApi,
 	createUserInstructionConfigService,
-	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalTranscriptionModels,
-	getProviderAuthHandler,
-	identifyAccount,
 	isModelToolEnabledGlobally,
 	listHookConfigFiles,
-	normalizeOAuthProvider,
 	ProviderSettingsManager,
-	persistClineAccountTelemetryIdentity,
 	RemoteEnvironmentService,
 	readGlobalSettings,
 	readSessionCheckpointHistory,
-	resolveClineAccountTelemetryIdentity,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SESSION_IMPORT_TOOLS,
@@ -70,6 +54,7 @@ import {
 import { CloudSessionApi } from "@cline/core/cloud";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT,
 	CLINE_DEFAULT_MODEL_ID,
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
@@ -83,18 +68,13 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir } from "@cline/shared/storage";
 import { z } from "zod";
 import packageJson from "../package.json";
-import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
-import { resolveDesktopTelemetryUser } from "./client-context";
 import {
 	getClineAccountId,
 	getClineApiBaseUrl,
 	resolveFreshClineAuthToken,
 } from "./cline-auth";
-import {
-	getCloudSessionManager,
-	resetCloudSessionManager,
-} from "./cloud-sessions";
+import { getCloudSessionManager } from "./cloud-sessions";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -127,7 +107,6 @@ import {
 } from "./context";
 import { writeDiagnosticsReport } from "./diagnostics";
 import {
-	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
@@ -150,21 +129,12 @@ import {
 } from "./marketplace";
 
 import {
-	cancelMcpOAuthAuthorization,
-	runMcpOAuthAuthorization,
-} from "./mcp-oauth";
-import {
-	cancelProviderOAuthLogin,
-	runCancellableProviderOAuthLogin,
-} from "./oauth-login";
-import {
 	findArtifactUnderDir,
 	readSessionManifest,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import { listPluginCommands } from "./plugin-commands";
 import {
 	listProjectEntries,
 	readLocalProjectFile,
@@ -428,11 +398,6 @@ async function getCommandSessionBinding(
 		: await findSessionRuntimeBinding(ctx, sessionId);
 }
 
-// Strict allowlist: the opener hands the URL to the OS protocol handler, so
-// anything broader (file:, custom app schemes) would let webview content
-// launch arbitrary local handlers.
-const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
-
 // Fall back to cached rows rather than stall the sidebar on the cloud API.
 const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
@@ -481,16 +446,6 @@ function openUrlInDefaultBrowser(url: string): Promise<void> {
 	});
 }
 
-function readProviderSettingsUpdate(
-	args: Record<string, unknown> | undefined,
-): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
-	return args?.settings && typeof args.settings === "object"
-		? (args.settings as Partial<
-				Omit<SaveProviderSettingsActionRequest, "action" | "providerId">
-			>)
-		: {};
-}
-
 function removePathIfExists(
 	path: string,
 	options?: { recursive?: boolean },
@@ -503,69 +458,6 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
-}
-
-function syncAccountContextFromResult(
-	ctx: SidecarContext,
-	manager: ProviderSettingsManager,
-	operation: string,
-	result: unknown,
-): void {
-	if (operation === "fetchMe") {
-		const user = result as ClineAccountUser | undefined;
-		if (user?.id) {
-			const identity = resolveClineAccountTelemetryIdentity(user);
-			ctx.telemetryUser = resolveDesktopTelemetryUser({
-				accountId: identity.id,
-				email: identity.email,
-				organizationId: identity.organizationId,
-			});
-			identifyAccount(ctx.telemetry, identity);
-			persistClineAccountTelemetryIdentity(manager, identity);
-			void identifyDesktopFeatureFlagsAccount(
-				{ id: user.id, email: user.email },
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
-		}
-		return;
-	}
-}
-
-function syncAccountContextFromSettings(
-	ctx: SidecarContext,
-	manager: ProviderSettingsManager,
-): void {
-	const auth = manager.getProviderSettings("cline")?.auth;
-	const accountId = auth?.accountId?.trim();
-	if (!auth || !accountId) {
-		syncSignedOutAccountContext(ctx);
-		return;
-	}
-	ctx.telemetryUser = resolveDesktopTelemetryUser({
-		accountId,
-		organizationId: auth.organizationId,
-	});
-	identifyAccount(ctx.telemetry, {
-		id: accountId,
-		provider: "cline",
-		organizationId: auth.organizationId,
-		organizationName: auth.organizationName,
-		memberId: auth.memberId,
-	});
-	void identifyDesktopFeatureFlagsAccount(
-		{ id: accountId },
-		{ logger: ctx.logger, telemetry: ctx.telemetry },
-	);
-}
-
-function syncSignedOutAccountContext(ctx: SidecarContext): void {
-	const telemetryUser = resolveDesktopTelemetryUser();
-	ctx.telemetryUser = telemetryUser;
-	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
-	void identifyDesktopFeatureFlagsAccount(
-		{},
-		{ logger: ctx.logger, telemetry: ctx.telemetry },
-	);
 }
 
 function mergePersistedSessionRecord(
@@ -1724,7 +1616,7 @@ async function listUserInstructionConfigs(
 			})),
 		],
 		hooks: loadHooks(),
-		mcp: await createHubMcpApi(await ensureSharedHubClient(ctx)).list(),
+
 		warnings,
 	};
 }
@@ -1736,9 +1628,12 @@ async function listUserInstructionConfigs(
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
 	const cmd =
-		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-	const cmdArgs =
-		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
+		platform === "darwin"
+			? "open"
+			: platform === "win32"
+				? "explorer.exe"
+				: "xdg-open";
+	const cmdArgs = [filePath];
 	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
 	// An unhandled child error event would crash the sidecar process.
 	child.once("error", () => {});
@@ -2918,69 +2813,7 @@ export async function handleCommand(
 	}
 
 	// ── External links ─────────────────────────────────────────────────
-	if (command === "open_external_url") {
-		const rawUrl = String(args?.url ?? "").trim();
-		let parsed: URL;
-		try {
-			parsed = new URL(rawUrl);
-		} catch {
-			throw new Error(`invalid url: ${rawUrl}`);
-		}
-		if (!OPENABLE_URL_PROTOCOLS.has(parsed.protocol)) {
-			throw new Error(
-				"only http(s), mailto and tel urls can be opened externally",
-			);
-		}
-		await openUrlInDefaultBrowser(parsed.toString());
-		return { opened: true };
-	}
 
-	// ── Cline account ──────────────────────────────────────────────────
-	if (command === "cline_account") {
-		const operation = String(args?.operation ?? "").trim();
-		if (!operation) throw new Error("operation is required");
-		const manager = new ProviderSettingsManager();
-		// Signed out is an expected state, not a command failure: resolve the
-		// token up front and return a typed result the webview can act on
-		// instead of letting the account service throw a generic error that
-		// would be captured as error telemetry and shown raw to the user.
-		const authToken = await resolveFreshClineAuthToken(manager, ctx);
-		if (!authToken) {
-			// Backstop for credentials that go away without a settings write —
-			// an expired or server-revoked token. Explicit sign-out is handled
-			// at its source in `save_provider_settings`; this catches the rest
-			// so a stale account never keeps serving its rollout cohort.
-			syncSignedOutAccountContext(ctx);
-			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
-		}
-		const settings = manager.getProviderSettings("cline");
-		const accountService = new ClineAccountService({
-			apiBaseUrl:
-				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => authToken,
-		});
-		const result = await executeClineAccountAction(
-			args as ClineAccountActionRequest,
-			accountService,
-		);
-		if (operation === "switchAccount") {
-			await resetCloudSessionManager(ctx);
-			if (isCloudAgentsEnabled()) {
-				try {
-					await getCloudSessionManager(ctx).refreshOrganization();
-				} catch (error) {
-					ctx.logger?.error?.(
-						"Failed to refresh cloud organization after account switch",
-						{ error },
-					);
-				}
-			}
-		}
-		syncAccountContextFromResult(ctx, manager, operation, result);
-		return result;
-	}
-
-	// ── Cline integrations (GitHub App) ────────────────────────────────
 	if (command === "cline_integrations") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
@@ -3059,10 +2892,7 @@ export async function handleCommand(
 	}
 
 	// ── Provider management ────────────────────────────────────────────
-	if (command === "list_provider_catalog") {
-		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
-		return await providers.list({ isClinePassEnabled: true });
-	}
+
 	if (command === "list_transcription_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
@@ -3071,17 +2901,7 @@ export async function handleCommand(
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
 		);
 	}
-	if (command === "list_provider_models") {
-		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
-		return await providers.listModels({
-			providerId: String(args?.provider ?? "").trim(),
-		});
-	}
-	if (command === "list_cline_recommended_models") {
-		return await createHubProvidersApi(
-			await ensureSharedHubClient(ctx),
-		).recommendedModels();
-	}
+
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();
 		const selection = manager.getVoiceInputSettings();
@@ -3217,113 +3037,6 @@ export async function handleCommand(
 		});
 		return result;
 	}
-	if (command === "save_provider_settings") {
-		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
-		const { clineCredentialsChanged, ...saved } = await providers.saveSettings({
-			...readProviderSettingsUpdate(args),
-			providerId: String(args?.provider ?? "").trim(),
-			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
-			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
-			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
-		});
-		if (clineCredentialsChanged) {
-			// Reset also notifies viewers; ordinary preference changes keep the view.
-			await resetCloudSessionManager(ctx);
-		}
-		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			// Sign-out clears auth through this command rather than an account action.
-			// Update identity immediately instead of waiting for the next account fetch.
-			syncAccountContextFromSettings(ctx, new ProviderSettingsManager());
-		}
-		return saved;
-	}
-	if (command === "add_provider") {
-		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
-		return await providers.add({
-			providerId: String(args?.provider_id ?? ""),
-			name: String(args?.name ?? ""),
-			baseUrl: String(args?.base_url ?? ""),
-			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
-			headers:
-				args?.headers && typeof args.headers === "object"
-					? (args.headers as Record<string, string>)
-					: undefined,
-			timeoutMs:
-				typeof args?.timeout_ms === "number" ? args.timeout_ms : undefined,
-			models: Array.isArray(args?.models)
-				? (args.models as string[])
-				: undefined,
-			defaultModelId:
-				typeof args?.default_model_id === "string"
-					? args.default_model_id
-					: undefined,
-			modelsSourceUrl:
-				typeof args?.models_source_url === "string"
-					? args.models_source_url
-					: undefined,
-			protocol:
-				typeof args?.protocol === "string"
-					? (args.protocol as ProviderProtocol)
-					: undefined,
-			client:
-				typeof args?.client === "string"
-					? (args.client as ProviderClient)
-					: undefined,
-			capabilities: Array.isArray(args?.capabilities)
-				? (args.capabilities as ProviderCapability[])
-				: undefined,
-		});
-	}
-	if (command === "update_provider_models") {
-		const providers = createHubProvidersApi(await ensureSharedHubClient(ctx));
-		return await providers.updateModels({
-			providerId: String(args?.provider ?? "").trim(),
-			models: Array.isArray(args?.models)
-				? (args.models as string[])
-				: undefined,
-		});
-	}
-	if (command === "run_provider_oauth_login") {
-		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		const manager = new ProviderSettingsManager();
-		const result = await runCancellableProviderOAuthLogin(
-			manager,
-			providerId,
-			(url) => {
-				// The OAuth helper's openUrl callback is fire-and-forget; surface
-				// opener failures in the log instead of an unhandled rejection.
-				openUrlInDefaultBrowser(url).catch((error) => {
-					console.warn(
-						`[sidecar] ${error instanceof Error ? error.message : error}`,
-					);
-				});
-			},
-			{
-				owner: options?.connection,
-				// Push the device sign-in confirmation code so the webview can
-				// show it while the user confirms it in the browser.
-				onUserCode: (userCode) =>
-					broadcastEvent(ctx, "provider_oauth_user_code", {
-						provider: providerId,
-						userCode,
-					}),
-			},
-		);
-		const storageProviderId =
-			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
-		if (storageProviderId === "cline") {
-			// Re-scope cached cloud sessions after sign-in.
-			await resetCloudSessionManager(ctx);
-		}
-		return result;
-	}
-	if (command === "cancel_provider_oauth_login") {
-		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		return {
-			provider: providerId,
-			cancelled: cancelProviderOAuthLogin(providerId),
-		};
-	}
 
 	// ── Global settings ────────────────────────────────────────────────
 	if (command === "get_global_settings") {
@@ -3385,54 +3098,6 @@ export async function handleCommand(
 	}
 
 	// ── MCP server management ─────────────────────────────────────────
-	if (command === "list_mcp_servers") {
-		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
-	}
-
-	if (command === "authorize_mcp_server_oauth") {
-		return runMcpOAuthAuthorization(
-			ctx,
-			String(args?.name ?? "").trim(),
-			options?.connection ?? ctx,
-			openUrlInDefaultBrowser,
-		);
-	}
-	if (command === "cancel_mcp_server_oauth") {
-		cancelMcpOAuthAuthorization(
-			String(args?.name ?? "").trim(),
-			options?.connection ?? ctx,
-		);
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).list();
-	}
-
-	if (command === "set_mcp_server_disabled") {
-		const name = String(args?.name ?? "").trim();
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).setDisabled(
-			name,
-			args?.disabled as boolean,
-		);
-	}
-	if (command === "upsert_mcp_server") {
-		const input = args?.input ?? args;
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).upsert(
-			input as import("@cline/shared").McpServerConfigInput,
-		);
-	}
-	if (command === "delete_mcp_server") {
-		const name = args?.name;
-		if (typeof name !== "string") throw new Error("server name is required");
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).delete(name);
-	}
-	if (command === "ensure_mcp_settings_file") {
-		return (
-			await createHubMcpApi(await ensureSharedHubClient(ctx)).ensureSettings()
-		).settingsPath;
-	}
-	if (command === "inspect_mcp_server") {
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).inspect(
-			String(args?.name ?? "").trim(),
-		);
-	}
 
 	// ── Git operations ─────────────────────────────────────────────────
 	if (command === "capture_pull_request_event") {
@@ -3711,18 +3376,7 @@ export async function handleCommand(
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
 	}
-	if (command === "list_plugin_commands") {
-		// Same workspace the session will execute in (handleSend), so the menu
-		// only offers commands that can actually run there.
-		const workspacePath =
-			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await listPluginCommands(
-			ctx,
-			workspacePath,
-			typeof args?.sessionId === "string" ? args.sessionId : undefined,
-			requestedEnvironmentId(args),
-		);
-	}
+
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
@@ -3730,20 +3384,15 @@ export async function handleCommand(
 		);
 	}
 	if (command === "install_marketplace_entry") {
-		const result = await installMarketplaceEntryForDesktopCommand(args, {
-			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
-		});
+		const result = await installMarketplaceEntryForDesktopCommand(args, {});
 		return result;
 	}
 	if (command === "uninstall_marketplace_entry") {
-		const result = await uninstallMarketplaceEntryForDesktopCommand(args, {
-			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
-		});
+		const result = await uninstallMarketplaceEntryForDesktopCommand(args, {});
 		return result;
 	}
 	if (command === "uninstall_local_primitive") {
 		const result = await uninstallLocalPrimitive(args, {
-			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
 			workspaceRoot: ctx.localWorkspaceRoot,
 		});
 		return result;
@@ -3849,16 +3498,17 @@ export async function handleCommand(
 		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") return null;
 		return await pickWorkspaceDirectory();
 	}
-	if (command === "open_mcp_settings_file") {
-		const path = (
-			await createHubMcpApi(await ensureSharedHubClient(ctx)).ensureSettings()
-		).settingsPath;
-		openFileInEditor(path);
-		return path;
-	}
+
 	if (command === "list_available_editors") {
 		return await listAvailableCodeEditors();
 	}
+	if (command === "open_local_path") {
+		const path = typeof args?.path === "string" ? args.path : "";
+		if (!isAbsolute(path)) throw new Error("Expected an absolute local path");
+		openFileInEditor(path);
+		return { opened: true };
+	}
+
 	if (command === "open_file_in_editor") {
 		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") {
 			throw new Error(

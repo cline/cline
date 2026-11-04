@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isProviderConnected } from "./provider-connection";
 import type { Provider } from "./provider-schema";
 
@@ -55,5 +55,61 @@ describe("isProviderConnected", () => {
 		expect(
 			isProviderConnected(makeProvider({ id: "sapaicore", enabled: true })),
 		).toBe(false);
+	});
+});
+
+const { login, openExternalUrl } = vi.hoisted(() => ({
+	login: vi.fn(),
+	openExternalUrl: vi.fn(),
+}));
+vi.mock("./hub-client", () => ({ hubAccount: { login } }));
+vi.mock("@/lib/desktop-client", () => ({ openExternalUrl }));
+
+describe("direct Hub provider OAuth", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		login.mockReset();
+		openExternalUrl.mockReset();
+	});
+	it("opens the browser and clears device codes after completion", async () => {
+		const { runProviderOAuthLogin } = await import("./provider-connection");
+		const { getOAuthUserCode } = await import("./oauth-user-code");
+		openExternalUrl.mockResolvedValue(undefined);
+		login.mockImplementation(async (_provider, callbacks) => {
+			callbacks.onAuth({ url: "https://example.test/auth" });
+			callbacks.onUserCode("CODE");
+			expect(getOAuthUserCode()).toBe("CODE");
+			return { provider: "cline", accountId: "account" };
+		});
+		await expect(runProviderOAuthLogin("cline")).resolves.toMatchObject({
+			accountId: "account",
+		});
+		expect(openExternalUrl).toHaveBeenCalledWith("https://example.test/auth");
+		expect(getOAuthUserCode()).toBeNull();
+	});
+	it("waits for cancellation cleanup before allowing another screen to sign in", async () => {
+		const { runProviderOAuthLogin, cancelClineOAuthLogin } = await import(
+			"./provider-connection"
+		);
+		let finish!: (value: unknown) => void;
+		login
+			.mockImplementationOnce(
+				(_provider, _callbacks, signal) =>
+					new Promise((resolve) => {
+						finish = resolve;
+						signal.addEventListener("abort", () => {});
+					}),
+			)
+			.mockResolvedValue({ provider: "cline", accountId: "account" });
+		const first = runProviderOAuthLogin("cline");
+		await vi.waitFor(() => expect(login).toHaveBeenCalledTimes(1));
+		const cancel = cancelClineOAuthLogin();
+		const next = runProviderOAuthLogin("cline");
+		expect(login.mock.calls[0][2].aborted).toBe(true);
+		await Promise.resolve();
+		expect(login).toHaveBeenCalledTimes(1);
+		finish({ provider: "cline" });
+		await Promise.all([first, cancel, next]);
+		expect(login).toHaveBeenCalledTimes(2);
 	});
 });

@@ -34,10 +34,27 @@ vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
 		getTransportError: vi.fn(() => null),
 		getTransportState: vi.fn(() => "connected"),
-		invoke: invokeMock,
+		invoke: (
+			...args: [string, Record<string, unknown>?, { onDispatch?: () => void }?]
+		) => {
+			const result = invokeMock(...args);
+			args[2]?.onDispatch?.();
+			return result;
+		},
 		subscribe: subscribeMock,
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
+}));
+
+const { pluginListMock, pluginRunMock } = vi.hoisted(() => ({
+	pluginListMock: vi.fn(),
+	pluginRunMock: vi.fn(),
+}));
+vi.mock("@/lib/hub-client", async () => ({
+	...(await vi.importActual<typeof import("@/lib/hub-client")>(
+		"@/lib/hub-client",
+	)),
+	hubPlugins: () => ({ list: pluginListMock, run: pluginRunMock }),
 }));
 
 type ChatSessionHook = ReturnType<typeof useChatSession>;
@@ -411,6 +428,8 @@ beforeEach(async () => {
 	document.body.appendChild(container);
 	root = createRoot(container);
 	invokeMock.mockReset();
+	pluginListMock.mockReset().mockResolvedValue({ commands: [] });
+	pluginRunMock.mockReset();
 	subscribeMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
@@ -2143,7 +2162,7 @@ describe("useChatSession", () => {
 					prompt: "Start the task",
 				}),
 			},
-			{ timeoutMs: null },
+			expect.objectContaining({ timeoutMs: null }),
 		);
 	});
 
@@ -2340,6 +2359,8 @@ describe("useChatSession", () => {
 		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
 		let releaseWorktree: (() => void) | undefined;
 		const sends: string[] = [];
+		pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+		pluginRunMock.mockResolvedValue({ submitPrompt: "expanded goal" });
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "create_git_worktree") {
@@ -2375,7 +2396,7 @@ describe("useChatSession", () => {
 		let second: Promise<boolean> | undefined;
 		await act(async () => {
 			first = current.sendPrompt("First", [], { inNewWorktree: true });
-			second = current.sendPrompt("Second", [], { inNewWorktree: true });
+			second = current.sendPrompt("/goal", [], { inNewWorktree: true });
 			await Promise.resolve();
 		});
 		expect(releaseWorktree).toBeDefined();
@@ -2397,10 +2418,18 @@ describe("useChatSession", () => {
 						"start",
 			),
 		).toHaveLength(1);
-		expect(sends).toEqual([
-			"session-worktree:First",
-			"session-worktree:Second",
-		]);
+		expect(pluginListMock).toHaveBeenCalledWith({
+			workspacePath: worktreePath,
+			sessionId: "session-worktree",
+		});
+		expect(pluginRunMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workspacePath: worktreePath,
+				sessionId: "session-worktree",
+				prompt: "/goal",
+			}),
+		);
+		expect(sends).toEqual(["session-worktree:First", "session-worktree:/goal"]);
 	});
 
 	it("removes the new worktree when the session fails to start in it", async () => {
@@ -7607,4 +7636,161 @@ describe("cloud snapshot replay", () => {
 		});
 		expect(users.map((m) => m.id)).toEqual(["canonical-first", secondId]);
 	});
+});
+
+it("orders plugin preparation before a follow-up without waiting for the first agent turn", async () => {
+	const plugin = deferred<{ submitPrompt: string }>();
+	const firstTurn = deferred<unknown>();
+	pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+	pluginRunMock.mockReturnValue(plugin.promise);
+	const sends: string[] = [];
+	invokeMock.mockImplementation(
+		async (command: string, args?: Record<string, unknown>) => {
+			if (command !== "chat_session_command") return [];
+			const request = args?.request as {
+				action: string;
+				prompt: string;
+				runtimePrompt?: string;
+				config: { sessionId: string };
+			};
+			if (request.action === "start")
+				return { sessionId: request.config.sessionId };
+			if (request.action === "send") {
+				sends.push(request.prompt);
+				if (request.prompt === "/goal") return firstTurn.promise;
+				return { ok: true, queued: true, promptsInQueue: [] };
+			}
+			return [];
+		},
+	);
+	let first: Promise<boolean> | undefined;
+	let second: Promise<boolean> | undefined;
+	await act(async () => {
+		first = current.sendPrompt("/goal");
+		await Promise.resolve();
+	});
+	await vi.waitFor(() => expect(pluginRunMock).toHaveBeenCalled());
+	await act(async () => {
+		second = current.sendPrompt("follow-up");
+		await Promise.resolve();
+	});
+	expect(sends).toEqual([]);
+	await act(async () => {
+		plugin.resolve({ submitPrompt: "expanded goal" });
+		await second;
+	});
+	expect(sends).toEqual(["/goal", "follow-up"]);
+	await act(async () => {
+		firstTurn.resolve({
+			ok: true,
+			result: { text: "done", finishReason: "completed" },
+		});
+		await first;
+	});
+});
+
+it("lets a new prompt dispatch after Stop while the old plugin is still pending", async () => {
+	const plugin = deferred<{ submitPrompt: string }>();
+	pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+	pluginRunMock.mockReturnValue(plugin.promise);
+	const sends: string[] = [];
+	invokeMock.mockImplementation(
+		async (command: string, args?: Record<string, unknown>) => {
+			if (command !== "chat_session_command") return [];
+			const request = args?.request as {
+				action: string;
+				prompt: string;
+				runtimePrompt?: string;
+				config: { sessionId: string };
+			};
+			if (request.action === "start")
+				return { sessionId: request.config.sessionId };
+			if (request.action === "send") {
+				sends.push(request.prompt);
+				return {
+					ok: true,
+					result: { text: "done", finishReason: "completed" },
+				};
+			}
+			if (request.action === "abort") return { ok: true };
+			return [];
+		},
+	);
+	let first: Promise<boolean> | undefined;
+	await act(async () => {
+		first = current.sendPrompt("/goal");
+		await Promise.resolve();
+	});
+	await vi.waitFor(() => expect(pluginRunMock).toHaveBeenCalled());
+	await act(async () => {
+		await current.abort();
+		await first;
+	});
+	expect(sends).toEqual([]);
+	await act(async () => {
+		await current.sendPrompt("new prompt");
+	});
+	expect(sends).toEqual(["new prompt"]);
+	await act(async () => {
+		plugin.resolve({ submitPrompt: "late instructions" });
+		await Promise.resolve();
+	});
+	expect(sends).toEqual(["new prompt"]);
+});
+
+it("discards prepared plugin instructions stopped before reconnect dispatch", async () => {
+	const { desktopClient } = await import("@/lib/desktop-client");
+	const plugin = deferred<{ submitPrompt: string }>();
+	const reconnect = deferred<void>();
+	const waiting = deferred<void>();
+	pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+	pluginRunMock.mockReturnValue(plugin.promise);
+	const sends: string[] = [];
+	vi.spyOn(desktopClient, "invoke").mockImplementation(
+		async (command, args, options) => {
+			if (command !== "chat_session_command") return [] as never;
+			const request = args?.request as {
+				action: string;
+				prompt: string;
+				config: { sessionId: string };
+			};
+			if (request.action === "start")
+				return { sessionId: request.config.sessionId } as never;
+			if (request.action === "send") {
+				if (request.prompt === "/goal") {
+					waiting.resolve();
+					await reconnect.promise;
+				}
+				options?.signal?.throwIfAborted();
+				sends.push(request.prompt);
+				options?.onDispatch?.();
+				return {
+					ok: true,
+					result: { text: "done", finishReason: "completed" },
+				} as never;
+			}
+			return { ok: true } as never;
+		},
+	);
+	let first: Promise<boolean> | undefined;
+	await act(async () => {
+		first = current.sendPrompt("/goal");
+	});
+	await vi.waitFor(() => expect(pluginRunMock).toHaveBeenCalled());
+	await act(async () => {
+		plugin.resolve({ submitPrompt: "prepared instructions" });
+		await waiting.promise;
+	});
+	await act(async () => {
+		await current.abort();
+	});
+	await act(async () => {
+		reconnect.resolve();
+		await first;
+	});
+	expect(sends).toEqual([]);
+	await act(async () => {
+		await current.sendPrompt("new prompt");
+	});
+	expect(sends).toEqual(["new prompt"]);
 });

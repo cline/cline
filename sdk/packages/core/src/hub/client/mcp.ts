@@ -3,10 +3,10 @@ import type {
 	HubCommandOutputMap,
 	HubMcpCommandName,
 } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
-import { HubCommandError, type NodeHubClient } from "./index";
+import { createSessionId } from "@cline/shared/browser";
+import { type HubCommandClient, HubCommandError } from "./command-client";
 /** Uses the registered local Hub, including when Desktop is viewing a remote workspace. */
-export function createHubMcpApi(client: Pick<NodeHubClient, "command">) {
+export function createHubMcpApi(client: HubCommandClient) {
 	async function command<T extends HubMcpCommandName>(
 		name: T,
 		input: HubCommandInput<T>,
@@ -28,6 +28,7 @@ export function createHubMcpApi(client: Pick<NodeHubClient, "command">) {
 			name: string,
 			options: {
 				openUrl: (url: string) => void | Promise<void>;
+				/** Abort with reason "disconnected" when the viewer is retired; ordinary abort means user cancellation. */
 				signal?: AbortSignal;
 			},
 		) {

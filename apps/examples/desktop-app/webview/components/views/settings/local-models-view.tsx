@@ -1,4 +1,5 @@
 "use client";
+import { hubProviders } from "@/lib/hub-client";
 
 import {
 	Download,
@@ -504,9 +505,10 @@ export function LocalModelsContent() {
 				? Math.min(preferredContextWindow, limit)
 				: preferredContextWindow;
 			const provider = shownRuntime;
-			await desktopClient.invoke("save_provider_settings", {
-				provider,
-				settings: { model, contextWindow },
+			await hubProviders.saveSettings({
+				providerId: provider,
+				model,
+				contextWindow,
 			});
 			// The composer only offers providers whose models it knows about.
 			publishProviderModels(provider, await loadProviderModels(provider));

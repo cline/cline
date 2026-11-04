@@ -417,7 +417,7 @@ describe("ChatInputBar", () => {
 
 	it("retains skills and workflows when plugin discovery rejects", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
-			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			if (name === "plugins.commands.list") throw new Error("hub unavailable");
 			return {
 				runtimeCommands: [
 					{
@@ -441,7 +441,7 @@ describe("ChatInputBar", () => {
 	it("re-reads plugin commands when the slash menu reopens after a failure", async () => {
 		let available = false;
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
-			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (name !== "plugins.commands.list") return { runtimeCommands: [] };
 			if (!available) throw new Error("hub connection lost");
 			return {
 				workspacePath: "/workspace/cline",
@@ -473,7 +473,7 @@ describe("ChatInputBar", () => {
 	it("does not show another session's plugin commands", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(
 			async (name, payload) => {
-				if (name !== "list_plugin_commands") return {};
+				if (name !== "plugins.commands.list") return {};
 				if ((payload as { sessionId?: string }).sessionId === "session-b")
 					throw new Error("hub connection closed");
 				return {
@@ -502,7 +502,7 @@ describe("ChatInputBar", () => {
 		const invoke = vi
 			.spyOn(desktopClient, "invoke")
 			.mockImplementation(async (name) =>
-				name === "list_plugin_commands"
+				name === "plugins.commands.list"
 					? { status: "ready", commands: [] }
 					: {
 							runtimeCommands: [
@@ -539,7 +539,7 @@ describe("ChatInputBar", () => {
 		const firstPluginLoad = deferred<unknown>();
 		let pluginRequests = 0;
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
-			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (name !== "plugins.commands.list") return { runtimeCommands: [] };
 			pluginRequests++;
 			return pluginRequests === 1
 				? firstPluginLoad.promise
@@ -577,7 +577,7 @@ describe("ChatInputBar", () => {
 		const invoke = vi
 			.spyOn(desktopClient, "invoke")
 			.mockImplementation(async (name) => {
-				if (name === "list_plugin_commands")
+				if (name === "plugins.commands.list")
 					return {
 						status: "ready",
 						commands: [
@@ -620,7 +620,7 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).toContain("Plugin suggestion");
 		expect(instructionRequests).toBe(2);
 		expect(
-			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+			invoke.mock.calls.filter(([name]) => name === "plugins.commands.list"),
 		).toHaveLength(2);
 		await act(async () =>
 			updated.resolve({
@@ -3721,4 +3721,10 @@ describe("ChatInputBar compact layout", () => {
 			vi.unstubAllGlobals();
 		}
 	});
+});
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const { desktopClient } = await import("@/lib/desktop-client");
+	return mockHubApis((...args) => desktopClient.invoke(...args));
 });

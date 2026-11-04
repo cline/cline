@@ -75,6 +75,7 @@ describe("Cline account telemetry identity", () => {
 				provider: "cline",
 				auth: {
 					accountId: "user-1",
+					email: "user@example.com",
 					accessToken: "secret",
 					organizationId: "org-1",
 					organizationName: "Acme",

@@ -3,10 +3,10 @@ import type {
 	HubCommandOutputMap,
 	HubProviderCommandName,
 } from "@cline/shared";
-import { HubCommandError, type NodeHubClient } from "./index";
+import { type HubCommandClient, HubCommandError } from "./command-client";
 
 /** Uses the caller's registered local Hub connection; mutations are never retried after dispatch. */
-export function createHubProvidersApi(client: Pick<NodeHubClient, "command">) {
+export function createHubProvidersApi(client: HubCommandClient) {
 	async function command<T extends HubProviderCommandName>(
 		name: T,
 		input: HubCommandInput<T>,

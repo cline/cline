@@ -111,63 +111,6 @@ afterEach(() => {
 });
 
 describe("DesktopClient command deadlines", () => {
-	it.each([
-		"success",
-		"failure",
-	])("waits for queued Cline cancellation %s before another screen signs in", async (outcome) => {
-		const { cancelClineOAuthLogin, runProviderOAuthLogin } = await import(
-			"./provider-connection"
-		);
-		const controller = new AbortController();
-		const oldLogin = runProviderOAuthLogin("cline", controller.signal);
-		const rejected = expect(oldLogin).rejects.toMatchObject({
-			name: "AbortError",
-		});
-		await vi.advanceTimersByTimeAsync(0);
-		controller.abort();
-		const cancel = cancelClineOAuthLogin();
-		const cancelled =
-			outcome === "success"
-				? expect(cancel).resolves.toEqual({
-						provider: "cline",
-						cancelled: false,
-					})
-				: expect(cancel).rejects.toThrow("Cancellation failed");
-		await vi.advanceTimersByTimeAsync(100);
-		const socket = await connectLatestSocket();
-		await rejected;
-
-		// A fresh screen shares the cancellation even though its local hook is idle.
-		const newLogin = runProviderOAuthLogin("cline");
-		await vi.advanceTimersByTimeAsync(0);
-		expect(socket.sent).toHaveLength(0);
-		await vi.advanceTimersByTimeAsync(400);
-		expect(socket.sent.map((raw) => JSON.parse(raw).command)).toEqual([
-			"cancel_provider_oauth_login",
-		]);
-		if (outcome === "success") {
-			socket.respond({ provider: "cline", cancelled: false });
-		} else {
-			socket.onmessage?.({
-				data: JSON.stringify({
-					type: "response",
-					id: socket.lastRequest().id,
-					ok: false,
-					error: "Cancellation failed",
-				}),
-			});
-		}
-		await cancelled;
-		await vi.advanceTimersByTimeAsync(0);
-		expect(socket.sent.map((raw) => JSON.parse(raw).command)).toEqual([
-			"cancel_provider_oauth_login",
-			"run_provider_oauth_login",
-		]);
-		const result = { provider: "cline", accessToken: "test-token" };
-		socket.respond(result);
-		await expect(newLogin).resolves.toEqual(result);
-	});
-
 	it("sends the displayed revision for Agenda approval, cancellation, and run", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const approval = desktopClient.approveAgendaTask({
@@ -477,7 +420,7 @@ describe("DesktopClient endpoint resolution", () => {
 
 		let settled = false;
 		const invocation = desktopClient
-			.invoke<{ ok: boolean }>("run_provider_oauth_login", {
+			.invoke<{ ok: boolean }>("long_running_test_command", {
 				provider: "cline",
 			})
 			.finally(() => {
@@ -496,7 +439,7 @@ describe("DesktopClient endpoint resolution", () => {
 		socket?.open();
 		await vi.waitFor(() => expect(socket?.sent.length ?? 0).toBeGreaterThan(0));
 		expect(socket?.lastRequest()).toMatchObject({
-			command: "run_provider_oauth_login",
+			command: "long_running_test_command",
 			args: { provider: "cline" },
 		});
 		socket?.respond({ ok: true });
@@ -509,7 +452,7 @@ describe("DesktopClient endpoint resolution", () => {
 		);
 		const { desktopClient } = await import("./desktop-client");
 
-		const invocation = desktopClient.invoke("run_provider_oauth_login", {
+		const invocation = desktopClient.invoke("long_running_test_command", {
 			provider: "cline",
 		});
 		const rejection = expect(invocation).rejects.toThrow(
@@ -664,4 +607,55 @@ describe("writeDesktopDebugLog", () => {
 
 		expect(debugSpy).not.toHaveBeenCalled();
 	});
+});
+
+it("cancels an undispatched command without cancelling the shared connection", async () => {
+	const { desktopClient } = await import("./desktop-client");
+	const controller = new AbortController();
+	const onDispatch = vi.fn();
+	const cancelled = desktopClient.invoke(
+		"chat_session_command",
+		{},
+		{
+			signal: controller.signal,
+			onDispatch,
+		},
+	);
+	const rejected = expect(cancelled).rejects.toMatchObject({
+		name: "AbortError",
+	});
+	const next = desktopClient.invoke("get_process_context");
+	await vi.waitFor(() => expect(sockets).toHaveLength(1));
+	controller.abort();
+	await rejected;
+	expect(onDispatch).not.toHaveBeenCalled();
+	const socket = await connectLatestSocket();
+	expect(socket.sent).toHaveLength(1);
+	expect(socket.lastRequest().command).toBe("get_process_context");
+	socket.respond({ ok: true });
+	await expect(next).resolves.toEqual({ ok: true });
+});
+
+it("reports actual socket dispatch independently of a long-running response", async () => {
+	const { desktopClient } = await import("./desktop-client");
+	const controller = new AbortController();
+	const onDispatch = vi.fn();
+	const response = desktopClient.invoke(
+		"chat_session_command",
+		{ request: { action: "send" } },
+		{ timeoutMs: null, onDispatch, signal: controller.signal },
+	);
+	expect(onDispatch).not.toHaveBeenCalled();
+	const socket = await connectLatestSocket();
+	expect(socket.sent).toHaveLength(1);
+	expect(onDispatch).toHaveBeenCalledTimes(1);
+	controller.abort();
+	let completed = false;
+	void response.then(() => {
+		completed = true;
+	});
+	await Promise.resolve();
+	expect(completed).toBe(false);
+	socket.respond({ ok: true });
+	await response;
 });

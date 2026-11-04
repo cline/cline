@@ -70,7 +70,6 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
-import { runPluginSlashCommand } from "./plugin-commands";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
@@ -1654,31 +1653,8 @@ async function handleSendOnce(
 		});
 		return { sessionId, ok: true, commandHandled: true };
 	}
-	const pluginCommand =
-		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
-			? await runPluginSlashCommand(ctx, {
-					workspacePath,
-					prompt,
-					sessionId,
-					environmentId: binding.environmentId,
-				})
-			: undefined;
-	if (pluginCommand) {
-		if (pluginCommand.reply) {
-			sendEvent(ctx, "chat_command_output", {
-				sessionId,
-				command: commandName,
-				text: pluginCommand.reply,
-			});
-		}
-		if (!pluginCommand.submitPrompt) {
-			return { sessionId, ok: true, commandHandled: true };
-		}
-	}
-	// Dispatch the expanded or rewritten instructions, but keep the raw
-	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		pluginCommand?.submitPrompt ??
+		request.runtimePrompt ??
 		(binding.kind === "ssh"
 			? prompt
 			: await resolveDesktopRuntimePrompt(

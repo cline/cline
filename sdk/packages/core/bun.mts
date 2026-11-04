@@ -54,6 +54,12 @@ const buildConfig = {
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
+		entrypoints: ["./src/hub/browser.ts"],
+		outdir: "./dist/hub",
+		...buildConfig,
+		target: "browser",
+	},
+	{
 		entrypoints: ["./src/cloud/index.ts"],
 		outdir: "./dist/cloud",
 		...buildConfig,

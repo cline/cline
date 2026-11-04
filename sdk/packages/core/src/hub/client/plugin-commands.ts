@@ -4,18 +4,18 @@ import type {
 	PluginCommandResult,
 	PluginCommandsApi,
 } from "../../services/plugin-command-api";
-import { HubCommandError, type NodeHubClient } from "./index";
+import { type HubCommandClient, HubCommandError } from "./command-client";
 
 /**
  * A Hub that predates plugin command RPCs, kept alive while it has active
  * work, answers unsupported_command. Resolves undefined for that Hub.
  */
 async function commandIfSupported(
-	client: Pick<NodeHubClient, "command">,
+	client: HubCommandClient,
 	command: HubCommandEnvelope["command"],
 	payload: Record<string, unknown>,
 	sessionId: string | undefined,
-	options: Parameters<NodeHubClient["command"]>[3],
+	options: Parameters<HubCommandClient["command"]>[3],
 ): Promise<HubReplyEnvelope | undefined> {
 	try {
 		return await client.command(command, payload, sessionId, options);
@@ -31,7 +31,7 @@ async function commandIfSupported(
 
 /** Uses the caller's existing connection. */
 export function createHubPluginCommandsApi(
-	client: Pick<NodeHubClient, "command">,
+	client: HubCommandClient,
 ): PluginCommandsApi {
 	return {
 		async list(target) {

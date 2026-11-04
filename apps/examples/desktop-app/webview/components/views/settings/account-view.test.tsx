@@ -20,6 +20,9 @@ let root: Root;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invoke.mockReset();
+	login
+		.mockReset()
+		.mockResolvedValue({ provider: "cline", accountId: "account" });
 	openExternalUrl.mockReset();
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -87,24 +90,18 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it("recovers from a failed cancel and restores Sign in without reloading the overview", async () => {
-		let rejectLogin!: (error: Error) => void;
-		let failCancel = true;
-		invoke.mockImplementation(async (command) => {
-			if (command === "run_provider_oauth_login") {
-				return await new Promise((_, reject) => {
-					rejectLogin = reject;
-				});
-			}
-			if (command === "cancel_provider_oauth_login") {
-				if (failCancel) {
-					failCancel = false;
-					throw new Error("Connection unavailable");
-				}
-				rejectLogin(new Error("Sign-in cancelled"));
-				return { cancelled: true };
-			}
-			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+	it("cancels the Hub login and restores Sign in without reloading the overview", async () => {
+		login.mockImplementation(
+			(_provider, _callbacks, signal) =>
+				new Promise((_, reject) =>
+					signal.addEventListener("abort", () =>
+						reject(new DOMException("cancelled", "AbortError")),
+					),
+				),
+		);
+		invoke.mockResolvedValue({
+			signedIn: false,
+			code: "ACCOUNT_NOT_AUTHENTICATED",
 		});
 		await act(async () => root.render(<AccountView />));
 		const button = (label: string) => {
@@ -118,16 +115,14 @@ describe("AccountView signed-out state", () => {
 		expect(button("Signing in").disabled).toBe(true);
 		expect(container.textContent).not.toContain("Create account");
 		await act(async () => button("Cancel").click());
-		expect(container.textContent).toContain("Could not cancel sign-in");
-		expect(button("Signing in").disabled).toBe(true);
-		expect(button("Cancel").disabled).toBe(false);
-		await act(async () => button("Cancel").click());
 		expect(container.textContent).not.toContain("Could not cancel sign-in");
 		expect(button("Sign in").disabled).toBe(false);
 		expect(button("Create account").disabled).toBe(false);
 		expect(container.textContent).not.toContain("Sign-in cancelled");
 		expect(
-			invoke.mock.calls.filter(([command]) => command === "cline_account"),
+			invoke.mock.calls.filter(
+				([command]) => command === "providers.account.action",
+			),
 		).toHaveLength(1);
 	});
 
@@ -150,10 +145,13 @@ describe("AccountView signed-out state", () => {
 		// The auth state gates the rest of the overview: signed out means the
 		// balance/organization commands are never fired.
 		const accountCalls = invoke.mock.calls.filter(
-			([command]) => command === "cline_account",
+			([command]) => command === "providers.account.action",
 		);
 		expect(accountCalls).toEqual([
-			["cline_account", { action: "clineAccount", operation: "fetchMe" }],
+			[
+				"providers.account.action",
+				{ action: "clineAccount", operation: "fetchMe" },
+			],
 		]);
 	});
 
@@ -285,3 +283,12 @@ describe("AccountView privacy settings", () => {
 		expect(await renderSignedIn(undefined)).toBeNull();
 	});
 });
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const apis = mockHubApis(invoke);
+	apis.hubAccount.login = login;
+	return apis;
+});
+
+const { login } = vi.hoisted(() => ({ login: vi.fn() }));

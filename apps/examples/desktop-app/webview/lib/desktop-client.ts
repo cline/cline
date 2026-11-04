@@ -103,6 +103,8 @@ type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
 
 export type DesktopInvokeOptions = {
+	/** Called once after the request is written to the socket, independently of its response. */
+	onDispatch?: () => void;
 	/** Prevent sending a queued command after cancellation. Does not cancel a sent command. */
 	signal?: AbortSignal;
 	/**
@@ -172,12 +174,22 @@ function raceDeadline<T>(
 	promise: Promise<T>,
 	timeoutMs: number,
 	onTimeout: () => Error,
+	signal?: AbortSignal,
 ): Promise<T> {
+	signal?.throwIfAborted();
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let onAbort: (() => void) | undefined;
 	const timeout = new Promise<never>((_, reject) => {
 		timer = setTimeout(() => reject(onTimeout()), timeoutMs);
+		if (signal) {
+			onAbort = () => reject(signal.reason);
+			signal.addEventListener("abort", onAbort, { once: true });
+		}
 	});
-	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+	return Promise.race([promise, timeout]).finally(() => {
+		clearTimeout(timer);
+		if (onAbort) signal?.removeEventListener("abort", onAbort);
+	});
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -271,7 +283,8 @@ export function writeDesktopDebugLog(payload: unknown): void {
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
-	"open_mcp_settings_file",
+	"open_local_path",
+	"open_external_url",
 	"get_update_status",
 	"restart_to_apply_update",
 	"check_for_update_now",
@@ -576,28 +589,36 @@ class DesktopClient {
 	private async connectForCommand(
 		command: string,
 		timeoutMs: number,
+		signal?: AbortSignal,
 	): Promise<void> {
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 		for (;;) {
+			signal?.throwIfAborted();
 			const remaining = deadline - Date.now();
 			if (remaining <= 0) {
 				break;
 			}
 			let timedOut = false;
 			try {
-				await raceDeadline(this.ensureConnected(), remaining, () => {
-					timedOut = true;
-					const cause = this.transportError ?? "still connecting";
-					return new Error(
-						`Desktop backend transport did not become ready within ${timeoutMs}ms (${cause})`,
-					);
-				});
+				await raceDeadline(
+					this.ensureConnected(),
+					remaining,
+					() => {
+						timedOut = true;
+						const cause = this.transportError ?? "still connecting";
+						return new Error(
+							`Desktop backend transport did not become ready within ${timeoutMs}ms (${cause})`,
+						);
+					},
+					signal,
+				);
 				if (this.socket?.readyState === WebSocket.OPEN) {
 					return;
 				}
 				lastError = new Error("Desktop backend transport unavailable");
 			} catch (error) {
+				signal?.throwIfAborted();
 				lastError = error;
 				if (timedOut) {
 					break;
@@ -651,6 +672,7 @@ class DesktopClient {
 		await this.connectForCommand(
 			command,
 			options?.connectTimeoutMs ?? CONNECT_WAIT_TIMEOUT_MS,
+			options?.signal,
 		);
 		options?.signal?.throwIfAborted();
 		const socket = this.socket;
@@ -705,6 +727,7 @@ class DesktopClient {
 			});
 			try {
 				socket.send(JSON.stringify(request));
+				options?.onDispatch?.();
 			} catch (error) {
 				this.takePending(id);
 				this.reportError({
@@ -844,8 +867,7 @@ export const desktopClient = new DesktopClient();
 /**
  * Open a URL in the user's default browser. Inside the Tauri shell,
  * `target="_blank"` anchors are silently dropped (no window opener is
- * configured), so external links must be routed through the sidecar, which
- * runs on the host and can spawn the platform opener. In plain web mode the
+ * configured), so external links use the native shell’s platform opener. In plain web mode the
  * browser handles it directly.
  */
 export async function openExternalUrl(url: string): Promise<void> {

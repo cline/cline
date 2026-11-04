@@ -170,38 +170,4 @@ describe("desktop settings commands", () => {
 		expect(discovery).not.toHaveBeenCalled();
 		expect(ctx.liveSessions.has("cloud")).toBe(true);
 	});
-
-	it("routes local model discovery through the local hub without cloud-only models", async () => {
-		const { ctx } = createContext();
-		const command = vi.fn().mockResolvedValue({
-			ok: true,
-			payload: { providerId: "cline", models: [] },
-		});
-		ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
-			hubClient: { command },
-		} as unknown as SessionRuntimeBinding);
-		ctx.activeEnvironmentId = "ssh-remote";
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		await handleCommand(ctx, "list_provider_models", {
-			provider: "cline",
-			includeCloudModels: true,
-		});
-		expect(command).toHaveBeenLastCalledWith(
-			"providers.models.list",
-			{ providerId: "cline" },
-			undefined,
-			{ retryAfterDispatch: false },
-		);
-		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-		await handleCommand(ctx, "list_provider_models", {
-			provider: "cline",
-			includeCloudModels: true,
-		});
-		expect(command).toHaveBeenLastCalledWith(
-			"providers.models.list",
-			{ providerId: "cline" },
-			undefined,
-			{ retryAfterDispatch: false },
-		);
-	});
 });

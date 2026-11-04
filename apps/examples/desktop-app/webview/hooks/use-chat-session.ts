@@ -61,6 +61,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import { runPluginSlashCommand } from "@/lib/plugin-commands";
 import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
@@ -588,6 +589,8 @@ function dispatchCoreLog(chunk: string): void {
 // Hook
 // ---------------------------------------------------------------------------
 
+type StartedSession = { sessionId: string; workspaceRoot: string; cwd: string };
+
 export function useChatSession(environmentId: string) {
 	const subscribeToEnvironment = useCallback(
 		(name: string, listener: (payload: unknown) => void) =>
@@ -675,7 +678,7 @@ export function useChatSession(environmentId: string) {
 	);
 	const hydrationRequestIdRef = useRef(0);
 	const workspaceSelectionRequestRef = useRef(0);
-	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
+	const sessionStartPromiseRef = useRef<Promise<StartedSession> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
@@ -1079,36 +1082,114 @@ export function useChatSession(environmentId: string) {
 		};
 	}, []);
 
+	// Stop owns plugin preparation and reconnect waits until socket dispatch.
+	const pendingPromptControllersRef = useRef(
+		new Map<string, Set<AbortController>>(),
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(
-		async (body: Record<string, unknown>) => {
+		async (body: Record<string, unknown>, onDispatch?: () => void) => {
+			const sessionId = String(body.sessionId);
+			if (body.action === "abort" || body.action === "reset") {
+				for (const controller of pendingPromptControllersRef.current.get(
+					sessionId,
+				) ?? [])
+					controller.abort();
+			}
 			const bodyConfig =
 				body.config &&
 				typeof body.config === "object" &&
 				!Array.isArray(body.config)
 					? (body.config as Record<string, unknown>)
 					: {};
-			const request = {
-				request: {
-					...body,
-					config: { ...bodyConfig, environmentId },
-				},
+			const controller =
+				body.action === "send" && bodyConfig.executionTarget !== "cloud"
+					? new AbortController()
+					: undefined;
+			const releasePendingPrompt = () => {
+				if (!controller) return;
+				const controllers = pendingPromptControllersRef.current.get(sessionId);
+				controllers?.delete(controller);
+				if (!controllers?.size)
+					pendingPromptControllersRef.current.delete(sessionId);
 			};
-			if (
-				body.action === "send" ||
-				(body.action === "start" && bodyConfig.executionTarget === "cloud")
-			) {
+			if (controller) {
+				const controllers =
+					pendingPromptControllersRef.current.get(sessionId) ??
+					new Set<AbortController>();
+				pendingPromptControllersRef.current.set(sessionId, controllers);
+				controllers.add(controller);
+			}
+			try {
+				if (controller && typeof body.prompt === "string") {
+					const result = await runPluginSlashCommand(
+						environmentId,
+						{
+							workspacePath: String(
+								bodyConfig.workspaceRoot ?? bodyConfig.cwd ?? "",
+							),
+							sessionId,
+							prompt: body.prompt,
+						},
+						controller.signal,
+					);
+					if (result) {
+						if (result.reply)
+							toast({
+								description: createElement(
+									"span",
+									{ className: "whitespace-pre-line" },
+									result.reply,
+								),
+							});
+						if (!result.submitPrompt)
+							return {
+								sessionId: String(body.sessionId),
+								ok: true,
+								commandHandled: true,
+							};
+						body = { ...body, runtimePrompt: result.submitPrompt };
+					}
+				}
+
+				const request = {
+					request: {
+						...body,
+						config: { ...bodyConfig, environmentId },
+					},
+				};
+				if (
+					body.action === "send" ||
+					(body.action === "start" && bodyConfig.executionTarget === "cloud")
+				) {
+					return await desktopClient.invoke<ChatSessionCommandResponse>(
+						"chat_session_command",
+						request,
+						{
+							timeoutMs: null,
+							...(controller
+								? {
+										signal: controller.signal,
+										onDispatch: () => {
+											releasePendingPrompt();
+											onDispatch?.();
+										},
+									}
+								: onDispatch
+									? { onDispatch }
+									: {}),
+						},
+					);
+				}
 				return await desktopClient.invoke<ChatSessionCommandResponse>(
 					"chat_session_command",
 					request,
-					{ timeoutMs: null },
 				);
+			} finally {
+				releasePendingPrompt();
 			}
-			return await desktopClient.invoke<ChatSessionCommandResponse>(
-				"chat_session_command",
-				request,
-			);
 		},
 		[environmentId],
 	);
@@ -2651,7 +2732,7 @@ export function useChatSession(environmentId: string) {
 		async (
 			validatedConfig: ChatSessionConfig,
 			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
-		): Promise<string> => {
+		): Promise<StartedSession> => {
 			hydrationRequestIdRef.current += 1;
 			setIsHydratingSession(false);
 			const boundConfig = { ...validatedConfig, environmentId };
@@ -2704,7 +2785,7 @@ export function useChatSession(environmentId: string) {
 				workspaceRoot,
 			});
 			setHydratedHistorySessionId(null);
-			return id;
+			return { sessionId: id, workspaceRoot, cwd };
 		},
 		[addMessage, environmentId, postSession],
 	);
@@ -2739,7 +2820,7 @@ export function useChatSession(environmentId: string) {
 			setPromptsInQueue([]);
 
 			try {
-				const id = await startSession(parsed);
+				const { sessionId: id } = await startSession(parsed);
 				addMessage({
 					id: makeId("status"),
 					sessionId: id,
@@ -2943,7 +3024,13 @@ export function useChatSession(environmentId: string) {
 			try {
 				if (pendingSessionStart) {
 					try {
-						activeSessionId = await pendingSessionStart;
+						const started = await pendingSessionStart;
+						activeSessionId = started.sessionId;
+						parsed = {
+							...parsed,
+							workspaceRoot: started.workspaceRoot,
+							cwd: started.cwd,
+						};
 					} catch (err) {
 						if (optimisticQueuedPromptId) {
 							setPromptsInQueue((prev) =>
@@ -2968,7 +3055,13 @@ export function useChatSession(environmentId: string) {
 					);
 					sessionStartPromiseRef.current = startPromise;
 					try {
-						activeSessionId = await startPromise;
+						const started = await startPromise;
+						activeSessionId = started.sessionId;
+						parsed = {
+							...parsed,
+							workspaceRoot: started.workspaceRoot,
+							cwd: started.cwd,
+						};
 					} catch (err) {
 						markCloudOptimisticFailed();
 						reportSessionStartFailure(err, activeSessionId);
@@ -3031,7 +3124,13 @@ export function useChatSession(environmentId: string) {
 								);
 					sessionStartPromiseRef.current = startPromise;
 					try {
-						activeSessionId = await startPromise;
+						const started = await startPromise;
+						activeSessionId = started.sessionId;
+						parsed = {
+							...parsed,
+							workspaceRoot: started.workspaceRoot,
+							cwd: started.cwd,
+						};
 					} catch (err) {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
@@ -3106,14 +3205,26 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.add(activeSessionId);
 				}
-				sendTask = postSession({
-					action: "send",
-					sessionId: activeSessionId,
-					prompt: trimmed,
-					delivery: shouldQueue ? "queue" : undefined,
-					config: parsed,
-					attachments: hasAttachments ? serializedAttachments : undefined,
+				let onDispatched!: () => void;
+				const dispatched = new Promise<void>((resolve) => {
+					onDispatched = resolve;
 				});
+				sendTask = postSession(
+					{
+						action: "send",
+						sessionId: activeSessionId,
+						prompt: trimmed,
+						delivery: shouldQueue ? "queue" : undefined,
+						config: parsed,
+						attachments: hasAttachments ? serializedAttachments : undefined,
+					},
+					onDispatched,
+				);
+				void sendTask.then(
+					() => onDispatched(),
+					() => onDispatched(),
+				);
+				await dispatched;
 			} finally {
 				releasePromptDispatch();
 			}
@@ -3143,8 +3254,8 @@ export function useChatSession(environmentId: string) {
 				const payload = await sendTask;
 				if (payload.ok && payload.commandHandled) {
 					// A plugin slash command (e.g. `/goal status`) was handled by
-					// the sidecar without a turn: its reply arrives as a
-					// chat_command_output toast, so retract the optimistic
+					// the Hub without a turn: its reply is shown as a toast,
+					// so retract the optimistic
 					// bubble/queue entry and hand status back to the prior turn.
 					if (optimisticQueuedPromptId) {
 						setPromptsInQueue((prev) =>

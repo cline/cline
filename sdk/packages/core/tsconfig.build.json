@@ -12,6 +12,7 @@
 	"include": [
 		"src/index.ts",
 		"src/hub/index.ts",
+		"src/hub/browser.ts",
 		"src/cloud/index.ts",
 		"src/hub/daemon/entry.ts",
 		"src/services/telemetry/index.ts",

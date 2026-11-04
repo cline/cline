@@ -15,7 +15,7 @@ import {
 	RefreshCw,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -52,7 +52,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { hubMcp } from "@/lib/hub-client";
 import { cn } from "@/lib/utils";
 import {
 	MarketplaceEntrySetupDetails,
@@ -183,6 +184,14 @@ export function McpServersContent({
 	/** Invoked whenever the server list is (re)loaded or mutated. */
 	onInventoryChanged?: () => void;
 } = {}) {
+	const authorizations = useRef(new Map<string, AbortController>());
+	useEffect(
+		() => () => {
+			for (const controller of authorizations.current.values())
+				controller.abort("disconnected");
+		},
+		[],
+	);
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
@@ -193,9 +202,9 @@ export function McpServersContent({
 		Record<string, string>
 	>({});
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
-	const [authorizingServerName, setAuthorizingServerName] = useState<
-		string | null
-	>(null);
+	const [authorizingServers, setAuthorizingServers] = useState(
+		new Set<string>(),
+	);
 	const [editorOpen, setEditorOpen] = useState(false);
 	const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
 	const [formState, setFormState] = useState<McpServerFormState>(() =>
@@ -236,8 +245,7 @@ export function McpServersContent({
 		setIsLoading(true);
 		setErrorMessage(null);
 		try {
-			const response =
-				await desktopClient.invoke<McpServersResponse>("list_mcp_servers");
+			const response = await hubMcp.list();
 			applyResponse(response);
 			setServerActionErrors({});
 		} catch (error) {
@@ -271,14 +279,7 @@ export function McpServersContent({
 		setErrorMessage(null);
 		setServerActionError(server.name);
 		try {
-			const response = await desktopClient.invoke<McpServersResponse>(
-				"set_mcp_server_disabled",
-				{
-					name: server.name,
-					disabled,
-				},
-				{ timeoutMs: null },
-			);
+			const response = await hubMcp.setDisabled(server.name, disabled);
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -292,13 +293,7 @@ export function McpServersContent({
 		setBusyServerName(input.previousName ?? input.name);
 		setErrorMessage(null);
 		try {
-			const response = await desktopClient.invoke<McpServersResponse>(
-				"upsert_mcp_server",
-				{
-					input,
-				},
-				{ timeoutMs: null },
-			);
+			const response = await hubMcp.upsert(input);
 			applyResponse(response);
 		} finally {
 			setBusyServerName(null);
@@ -310,13 +305,7 @@ export function McpServersContent({
 		setErrorMessage(null);
 		setServerActionError(serverName);
 		try {
-			const response = await desktopClient.invoke<McpServersResponse>(
-				"delete_mcp_server",
-				{
-					name: serverName,
-				},
-				{ timeoutMs: null },
-			);
+			const response = await hubMcp.delete(serverName);
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -327,40 +316,37 @@ export function McpServersContent({
 	};
 
 	const authorizeOAuth = async (serverName: string) => {
-		setAuthorizingServerName(serverName);
+		if (authorizations.current.has(serverName)) return;
+		const controller = new AbortController();
+		authorizations.current.set(serverName, controller);
+		setAuthorizingServers((current) => new Set(current).add(serverName));
 		setErrorMessage(null);
 		setServerActionError(serverName);
 		try {
-			const response = await desktopClient.invoke<McpServersResponse>(
-				"authorize_mcp_server_oauth",
-				{ name: serverName },
-				{ timeoutMs: null },
-			);
+			const response = await hubMcp.authorize(serverName, {
+				openUrl: openExternalUrl,
+				signal: controller.signal,
+			});
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			await refreshServers();
 			setServerActionError(serverName, message);
 		} finally {
-			setAuthorizingServerName(null);
+			authorizations.current.delete(serverName);
+			setAuthorizingServers((current) => {
+				const next = new Set(current);
+				next.delete(serverName);
+				return next;
+			});
 		}
 	};
 
-	const cancelOAuth = async (serverName: string) => {
+	const cancelOAuth = (serverName: string) => {
 		setErrorMessage(null);
 		setServerActionError(serverName);
-		try {
-			const response = await desktopClient.invoke<McpServersResponse>(
-				"cancel_mcp_server_oauth",
-				{ name: serverName },
-			);
-			applyResponse(response);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setServerActionError(serverName, message);
-		} finally {
-			setAuthorizingServerName(null);
-		}
+		// Keep the attempt busy until Hub cleanup and the final inventory read settle.
+		authorizations.current.get(serverName)?.abort();
 	};
 
 	const buildServerInput = useCallback((form: McpServerFormState) => {
@@ -447,11 +433,8 @@ export function McpServersContent({
 		setIsOpeningSettingsFile(true);
 		setErrorMessage(null);
 		try {
-			const openedPath = await desktopClient.invoke<string>(
-				"open_mcp_settings_file",
-				undefined,
-				{ timeoutMs: null },
-			);
+			const { settingsPath: openedPath } = await hubMcp.ensureSettings();
+			await desktopClient.invoke("open_local_path", { path: openedPath });
 			if (openedPath.trim().length > 0) {
 				setSettingsPath(openedPath);
 				setHasSettingsFile(true);
@@ -519,7 +502,7 @@ export function McpServersContent({
 
 	const renderServerManagementActions = (server: McpServer) => {
 		const isBusy = busyServerName === server.name;
-		const isAuthorizing = authorizingServerName === server.name;
+		const isAuthorizing = authorizingServers.has(server.name);
 		return (
 			<div className="flex items-center gap-1">
 				<Button
@@ -588,7 +571,7 @@ export function McpServersContent({
 		context?: MarketplaceLocalInstalledItemRenderContext,
 	) => {
 		const isBusy = busyServerName === server.name;
-		const isAuthorizing = authorizingServerName === server.name;
+		const isAuthorizing = authorizingServers.has(server.name);
 		const serverError =
 			serverActionErrors[server.name] ??
 			(server.disabled ? undefined : server.oauthStatus?.lastError);

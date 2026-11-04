@@ -254,3 +254,71 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 }
 
 export { EMPTY_CATALOG, MARKETPLACE_CATALOG_URL };
+
+/** Standalone MCP entries are managed directly; other marketplace primitives retain their current host. */
+export async function installMarketplaceItem(entry: MarketplaceEntry) {
+	const { hubMcp } = await import("./hub-client");
+	if (entry.type === "mcp") {
+		const result = await hubMcp.install(entry.install.args);
+		return {
+			id: entry.id,
+			type: entry.type,
+			status: "installed" as const,
+			message: `Installed ${entry.name}.`,
+			output: result.warnings.join("\n"),
+		};
+	}
+	const { desktopClient } = await import("./desktop-client");
+	return desktopClient.invoke<{
+		status: "installed";
+		message: string;
+		output?: string;
+	}>("install_marketplace_entry", { entry }, { timeoutMs: 10 * 60_000 });
+}
+export async function uninstallMarketplaceItem(entry: MarketplaceEntry) {
+	if (entry.type === "mcp") {
+		const { hubMcp } = await import("./hub-client");
+		await hubMcp.delete(entry.install.args[0]?.trim() ?? entry.id);
+		return {
+			status: "uninstalled" as const,
+			message: `Uninstalled ${entry.name}.`,
+		};
+	}
+	const { desktopClient } = await import("./desktop-client");
+	return desktopClient.invoke<{ status: "uninstalled"; message: string }>(
+		"uninstall_marketplace_entry",
+		{ entry },
+		{ timeoutMs: 10 * 60_000 },
+	);
+}
+export async function listMarketplaceInstalledItems(
+	entries: MarketplaceEntry[],
+) {
+	const local = entries.filter((entry) => entry.type !== "mcp");
+	const { desktopClient } = await import("./desktop-client");
+	const { hubMcp } = await import("./hub-client");
+	const [other, mcp] = await Promise.all([
+		local.length
+			? desktopClient.invoke<{ installedKeys: string[] }>(
+					"list_marketplace_installed_entries",
+					{ entries: local },
+				)
+			: { installedKeys: [] },
+		entries.some((entry) => entry.type === "mcp")
+			? hubMcp.list()
+			: { servers: [] },
+	]);
+	const names = new Set(mcp.servers.map((server) => server.name));
+	return {
+		installedKeys: [
+			...other.installedKeys,
+			...entries
+				.filter(
+					(entry) =>
+						entry.type === "mcp" &&
+						names.has(entry.install.args[0]?.trim() ?? entry.id),
+				)
+				.map((entry) => `mcp:${entry.id}`),
+		],
+	};
+}

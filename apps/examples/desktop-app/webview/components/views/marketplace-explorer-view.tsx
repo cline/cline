@@ -29,6 +29,9 @@ import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
+	installMarketplaceItem,
+	uninstallMarketplaceItem,
+	listMarketplaceInstalledItems,
 	type MarketplaceCatalog,
 	type MarketplaceEntry,
 	type MarketplacePrimitiveType,
@@ -197,11 +200,7 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 		let cancelled = false;
 		void (async () => {
 			try {
-				const response =
-					await desktopClient.invoke<MarketplaceInstallStatusResult>(
-						"list_marketplace_installed_entries",
-						{ entries: catalog.entries },
-					);
+				const response = await listMarketplaceInstalledItems(catalog.entries);
 				if (!cancelled) {
 					setInstalledKeys(new Set(response.installedKeys));
 				}
@@ -243,11 +242,7 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 		}
 		setEntryState(entry, { status: "installing" });
 		try {
-			const result = await desktopClient.invoke<MarketplaceInstallResult>(
-				"install_marketplace_entry",
-				{ entry },
-				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
-			);
+			const result = await installMarketplaceItem(entry);
 			setEntryState(entry, { status: "installed", message: result.message });
 			setInstalledKeys((prev) => new Set(prev).add(key));
 		} catch (error) {
@@ -269,11 +264,7 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 		}
 		setEntryState(entry, { status: "uninstalling" });
 		try {
-			const result = await desktopClient.invoke<MarketplaceInstallResult>(
-				"uninstall_marketplace_entry",
-				{ entry },
-				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
-			);
+			const result = await uninstallMarketplaceItem(entry);
 			setEntryState(entry, { status: "uninstalled", message: result.message });
 			setInstalledKeys((prev) => {
 				const next = new Set(prev);

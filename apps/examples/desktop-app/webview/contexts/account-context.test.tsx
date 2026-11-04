@@ -113,7 +113,7 @@ describe("account context", () => {
 			expect(probeText("account-name")).toBe("Beatrix");
 			expect(probeText("account-org")).toBe("Cline Bot Inc");
 		});
-		expect(invoke).toHaveBeenCalledWith("cline_account", {
+		expect(invoke).toHaveBeenCalledWith("providers.account.action", {
 			action: "clineAccount",
 			operation: "fetchMe",
 		});
@@ -198,4 +198,9 @@ describe("account context", () => {
 			window.localStorage.getItem(ACCOUNT_IDENTITY_STORAGE_KEY),
 		).not.toBeNull();
 	});
+});
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	return mockHubApis(invoke);
 });

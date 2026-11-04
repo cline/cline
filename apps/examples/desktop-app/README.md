@@ -308,7 +308,9 @@ Startup flow:
    shared Cline Hub on loopback or starts one (the Hub daemon is the same CLI
    binary). The backend then attaches to the Hub and exposes one websocket
    transport (`/transport`) for desktop commands, queries, and pushed events.
-3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
+3. The React app uses `lib/hub-client.ts` for provider/model management, provider OAuth and account actions, MCP management/OAuth, and plugin commands. These commands go directly to a registered, authenticated Hub WebSocket through `@cline/core/hub/browser`. Remaining features use `lib/desktop-client.ts` and the sidecar transport.
+   The sidecar publishes Hub connection records on its native control stream after registration; Rust consumes them without logging credentials. The webview obtains the current endpoint/token through `get_desktop_hub_connection` IPC, keeps credentials in memory, and authenticates with the WebSocket subprotocol. It obtains a fresh bootstrap on reconnect and never replays a dispatched mutation. Local settings/account/MCP use the local Hub; plugin commands use their selected environment's Hub.
+   Browser development (`dev:sidecar` or `dev:headless`) explicitly enables `CLINE_DESKTOP_DEV_WEB=1`, which exposes a no-store `/hub/connection` endpoint only to trusted development browser origins. Packaged builds use native IPC. Native shell commands open browser URLs and local settings paths; the Hub creates the MCP settings file. Account-change Hub events keep Desktop telemetry, feature flags, and cloud views synchronized.
 4. Tool approval updates are pushed from the backend instead of polled from the UI.
 5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
 

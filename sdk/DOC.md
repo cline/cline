@@ -409,7 +409,41 @@ cannot restore the removed credentials. `saveSettings` returns
 `clineCredentialsChanged` alongside the saved provider id, enabled state, and
 settings path, allowing hosts to update account and cloud views. Provider API
 calls do not automatically resend dispatched requests after a connection loss.
-OAuth login and audio transcription remain separate APIs.
+Audio transcription remains a separate API.
+
+### Hub provider OAuth and account actions
+
+`createHubProviderAuthApi(client)` reuses a registered, token-authenticated Hub
+connection. Desktop uses its local Hub, including while viewing SSH tasks.
+
+```ts
+const auth = createHubProviderAuthApi(client);
+const result = await auth.login("cline", {
+  onAuth: ({ url }) => openBrowser(url),
+  onUserCode: code => showDeviceCode(code),
+  onPrompt: prompt => askUser(prompt.message),
+}, abortSignal);
+// result: { provider, accountId?, email? }; credentials remain in the Hub.
+const user = await auth.account({ action: "clineAccount", operation: "fetchMe" });
+```
+
+`providers.oauth.start/next/respond/cancel` own the login lifecycle. Interaction
+polls and cancellation are bound to the initiating client. Hub disconnects and
+webview cancellation discard late results. Dispatched commands are not retried;
+manual prompts do not block delivery of a completed browser callback. OAuth work
+keeps the Hub busy during upgrades; shutdown cancels attempts and closes their
+callback servers. `providers.account.action` validates the existing account-action
+union, refreshes credentials inside the Hub, and returns the shared
+`CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT` when signed out. Account identity metadata
+is persisted in the Hub; hosts may use results to update their own telemetry and
+feature flags. This migration changes Desktop; other clients retain their
+existing authentication entry points.
+
+### Browser Hub clients
+
+Import `BrowserHubClient` and the typed provider/account/MCP/plugin APIs from `@cline/core/hub/browser`. Supply a bootstrap callback returning `{ url, authToken, workspaceRoot }`; it runs on each new connection so native hosts can rotate endpoints and credentials. The client authenticates using the WebSocket subprotocol and registers before sending commands. Close the client with `dispose()` when the view is retired. Socket loss rejects pending commands; callers may initiate a new request, but dispatched mutations are never replayed automatically. This entry point contains no Node transport, discovery, filesystem, or process imports.
+
+Desktop bootstraps through native IPC, uses the local Hub for settings/account/MCP and the selected environment's Hub for plugin commands. OAuth callback servers and credential persistence remain in the Hub, while the browser client opens authorization URLs and displays device codes. Hub `account.changed` events carry invalidation flags only, allowing Desktop observers to refresh identity and cloud state without owning the account action.
 
 ### Hub MCP management
 

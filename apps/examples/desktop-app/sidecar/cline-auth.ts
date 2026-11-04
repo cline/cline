@@ -10,7 +10,8 @@ import { getClineEnvironmentConfig } from "@cline/shared";
 
 /**
  * Shared Cline-account auth for the sidecar: one refresh-aware OAuth manager
- * for every caller (account requests, integrations, the connectors proxy).
+ * for remaining API callers (integrations and the connectors proxy).
+ * Account actions resolve and refresh credentials in the shared Hub.
  * The singleton coalesces local callers; RuntimeOAuthTokenManager also locks
  * refresh/read/save across processes sharing the provider settings file.
  */

@@ -29,9 +29,12 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
+	installMarketplaceItem,
+	uninstallMarketplaceItem,
+	listMarketplaceInstalledItems,
 	type MarketplaceCatalog,
 	type MarketplaceEntry,
 	type MarketplacePrimitiveType,
@@ -724,11 +727,7 @@ export function MarketplaceView({
 		const requestVersion = installedStatusVersionRef.current;
 		void (async () => {
 			try {
-				const response =
-					await desktopClient.invoke<MarketplaceInstallStatusResult>(
-						"list_marketplace_installed_entries",
-						{ entries: catalog.entries },
-					);
+				const response = await listMarketplaceInstalledItems(catalog.entries);
 				if (
 					!cancelled &&
 					installedStatusVersionRef.current === requestVersion
@@ -1065,11 +1064,7 @@ export function MarketplaceView({
 		setExpandedEntryKey(key);
 		setEntryState(entry, { status: "installing" });
 		try {
-			const result = await desktopClient.invoke<MarketplaceInstallResult>(
-				"install_marketplace_entry",
-				{ entry },
-				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
-			);
+			const result = await installMarketplaceItem(entry);
 			setEntryState(entry, {
 				status: "installed",
 				message: result.message,
@@ -1096,11 +1091,7 @@ export function MarketplaceView({
 		setExpandedEntryKey(key);
 		setEntryState(entry, { status: "uninstalling" });
 		try {
-			const result = await desktopClient.invoke<MarketplaceInstallResult>(
-				"uninstall_marketplace_entry",
-				{ entry },
-				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
-			);
+			const result = await uninstallMarketplaceItem(entry);
 			setEntryState(entry, {
 				status: "uninstalled",
 				message: result.message,

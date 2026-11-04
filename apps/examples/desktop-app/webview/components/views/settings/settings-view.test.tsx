@@ -11,7 +11,7 @@ import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	isTauriAvailable: vi.fn(() => false),
 	openExternalUrl: vi.fn(),
 }));
@@ -40,6 +40,9 @@ beforeEach(() => {
 	document.documentElement.style.removeProperty("font-size");
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
+	login
+		.mockReset()
+		.mockResolvedValue({ provider: "cline", accountId: "account" });
 	invoke.mockImplementation(async (command: string) => {
 		if (command === "get_hub_status") {
 			return { url: "ws://127.0.0.1:1234", clients: [], events: [] };
@@ -114,3 +117,75 @@ describe("SettingsView font size", () => {
 		expect(increaseButton?.disabled).toBe(true);
 	});
 });
+
+describe("SettingsView provider OAuth", () => {
+	it("refreshes the catalog after metadata-only login completion", async () => {
+		let connected = false;
+		login.mockImplementation(async () => {
+			connected = true;
+			return { provider: "cline", accountId: "account" };
+		});
+		const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "providers.list")
+				return {
+					providers: [
+						{
+							id: "cline",
+							name: "Cline",
+							models: 0,
+							modelList: [],
+							color: "#000",
+							letter: "C",
+							enabled: connected,
+							oauthAccessTokenPresent: connected,
+						},
+					],
+				};
+
+			if (command === "providers.models.list") return { models: [] };
+			return {};
+		});
+		try {
+			await act(async () =>
+				root.render(
+					<SettingsView
+						section="Providers"
+						onNavigateSection={vi.fn()}
+						onExportDiagnostics={vi.fn()}
+					/>,
+				),
+			);
+			await act(async () => {
+				await new Promise((resolve) => window.setTimeout(resolve, 0));
+			});
+			const signIn = Array.from(container.querySelectorAll("button")).find(
+				(button) => button.textContent?.includes("Sign in with browser"),
+			);
+			expect(signIn).toBeDefined();
+			await act(async () => signIn?.click());
+			expect(login).toHaveBeenCalledWith(
+				"cline",
+				expect.any(Object),
+				expect.any(AbortSignal),
+			);
+
+			expect(
+				invoke.mock.calls.filter(([command]) => command === "providers.list"),
+			).toHaveLength(2);
+			expect(container.textContent).toContain("Sign out");
+			expect(alert).not.toHaveBeenCalled();
+		} finally {
+			alert.mockRestore();
+		}
+	});
+});
+
+vi.mock("@/lib/hub-client", async () => {
+	const { mockHubApis } = await import("@/lib/test-helpers/hub-api");
+	const apis = mockHubApis(invoke);
+	apis.hubAccount.login = login;
+	return apis;
+});
+
+const { login } = vi.hoisted(() => ({ login: vi.fn() }));

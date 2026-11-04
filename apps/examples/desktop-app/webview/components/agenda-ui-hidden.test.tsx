@@ -22,7 +22,10 @@ const desktopMocks = vi.hoisted(() => ({
 	subscribe: vi.fn(() => () => undefined),
 	subscribeTransportState: vi.fn(() => () => undefined),
 }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: desktopMocks }));
+vi.mock("@/lib/desktop-client", () => ({
+	openExternalUrl: vi.fn(),
+	desktopClient: desktopMocks,
+}));
 
 let container: HTMLDivElement;
 let root: Root;

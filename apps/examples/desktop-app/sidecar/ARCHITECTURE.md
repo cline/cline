@@ -133,20 +133,25 @@ from storage.
 ### 3. Provider Management — Shared Hub Commands
 
 Provider catalog/model discovery, recommended models, provider settings, custom
-provider creation, and model overrides use `createHubProvidersApi` over the
-existing local Hub connection. Credential mutations and sign-out cleanup belong
-to the daemon. Desktop retains cloud-view and account-context reactions.
-Provider OAuth and voice operations still use their existing sidecar services.
+provider creation, and model overrides use `createHubProvidersApi` from the
+webview's direct authenticated local Hub client. Credential mutations and
+sign-out cleanup belong to the daemon. Provider OAuth and Cline account actions
+use `createHubProviderAuthApi` on that same connection. The Hub owns login
+attempts, callback servers, credential writes/refresh, and account requests.
+The webview opens authorization URLs, displays device codes, and cancels its
+interaction when its view unmounts. The native shell supplies connection
+bootstrap data and opens external URLs. Results contain completion metadata,
+not credentials. Hub account invalidations drive Desktop telemetry, feature
+flags, and cloud views. Voice operations retain their sidecar services.
 
-MCP registration, listing, enable/disable, deletion, settings-file creation and
-on-demand connection/tool inspection use `createHubMcpApi` on the local Hub.
-Marketplace MCP installation/removal uses the same API. The Hub resolves the
-settings path and owns writes, passive probes and interactive OAuth. The
-sidecar's OAuth adapter only opens owner-scoped browser URLs and aborts its
-viewer interaction on cancellation/disconnect. Callback listeners, attempts,
-credential persistence and enable-state restoration belong to the Hub. Desktop
-keeps OS editor opening. Session tool runtimes continue to own their own MCP
-connections.
+MCP registration, listing, enable/disable, deletion, settings-file creation,
+on-demand inspection, Marketplace installation/removal, and OAuth use
+`createHubMcpApi` from the webview's direct local Hub connection. The Hub owns
+settings writes, probes, callbacks, credentials, and enable-state restoration.
+The webview opens owner-scoped URLs and distinguishes explicit user cancellation
+from view unmount/disconnection; disconnection leaves the server disabled.
+The native shell opens Hub-created settings paths, with a sidecar host action
+for plain-browser development. Session runtimes own their MCP tool connections.
 
 ### 4. Session Storage — Direct SqliteSessionStore
 
@@ -231,7 +236,7 @@ Supported commands:
 | `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | shared Hub `providers.settings.save` |
 | `add_provider` | shared Hub `providers.add` |
-| `run_provider_oauth_login` | `loginLocalProvider` |
+| `run_provider_oauth_login` | shared Hub OAuth lifecycle via `createHubProviderAuthApi` |
 | `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs), whether Ollama and LM Studio are running or installed, and for the requested runtime its free disk space (`statfs`) and models (`ollama` SDK `list`/`ps`, or LM Studio `GET /api/v1/models`) |
 | `start_local_runtime` | Ollama: launches the app (or `ollama serve`) detached. LM Studio: `lms server start`, or opens the app. Then waits for it to answer |
 | `show_local_model` | `ollama` SDK `show` (architecture, capabilities, default parameters, template, license), or the LM Studio model and its loaded instance's config |

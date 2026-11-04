@@ -52,6 +52,7 @@ export function persistClineAccountTelemetryIdentity(
 				auth: {
 					...persisted.auth,
 					accountId: identity.id,
+					email: identity.email,
 					organizationId: identity.organizationId,
 					organizationName: identity.organizationName,
 					memberId: identity.memberId,
