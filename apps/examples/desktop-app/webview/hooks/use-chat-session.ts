@@ -2403,7 +2403,9 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
-				cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
+				if (record.messages.length > 0 || record.transcriptKnown !== false) {
+					cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
+				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC

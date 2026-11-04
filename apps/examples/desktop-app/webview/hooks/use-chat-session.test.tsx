@@ -2688,7 +2688,15 @@ describe("useChatSession", () => {
 					return { sessionId: "cloud-transition", status: discoveredStatus };
 				}
 				if (command === "read_session_messages") {
-					if (discoveredStatus === "provisioning") return [];
+					if (discoveredStatus === "provisioning") {
+						handlerFor("cloud_session_rehydrated")({
+							sessionId: "cloud-transition",
+							status: "provisioning",
+							transcriptKnown: false,
+							messages: [],
+						});
+						return [];
+					}
 					readyReads += 1;
 					if (
 						outcome === "failed" ||
