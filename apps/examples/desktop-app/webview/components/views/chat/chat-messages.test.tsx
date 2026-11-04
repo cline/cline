@@ -258,6 +258,12 @@ describe("ChatMessages tool disclosures", () => {
 		};
 		await renderMessages([tool], { status: "completed" });
 		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], {
+			status: "starting",
+			isHistoryPreview: true,
+		});
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
 		await renderMessages([tool], { status: "running" });
 		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
 		await renderMessages(
@@ -2340,6 +2346,27 @@ describe("ChatMessages thinking indicator", () => {
 				.find((element) => element.textContent === "Thinking...")
 				?.classList.contains("cline-chat-streaming-title"),
 		).toBe(true);
+	});
+
+	it("keeps archived messages readable without a transcript startup indicator", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "assistant-1",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Previous answer",
+					createdAt: 2,
+				},
+			],
+			{ status: "starting", isHistoryPreview: true },
+		);
+		expect(container.textContent).toContain("Previous answer");
+		expect(container.textContent).not.toContain("Thinking...");
+		expect(
+			container.querySelector('button[aria-label="Copy assistant message"]'),
+		).not.toBeNull();
 	});
 
 	it("keeps showing while running until the first assistant output arrives", async () => {

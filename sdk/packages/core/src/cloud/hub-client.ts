@@ -248,6 +248,12 @@ export class HubCloudSessionClient {
 	): Promise<CloudHubResult<"readMessages">> {
 		return this.call("readMessages", args);
 	}
+	readArchivedMessages(
+		...args: CloudHubArgs<"readArchivedMessages">
+	): Promise<CloudHubResult<"readArchivedMessages">> {
+		return this.call("readArchivedMessages", args);
+	}
+
 	getArtifactDownloadUrl(
 		...args: CloudHubArgs<"getArtifactDownloadUrl">
 	): Promise<CloudHubResult<"getArtifactDownloadUrl">> {

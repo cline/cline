@@ -604,6 +604,7 @@ export function useChatSession(environmentId: string) {
 		getInitialChatConfig(environmentId),
 	);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [historyPreview, setHistoryPreview] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [toolCalls, setToolCalls] = useState(0);
@@ -3932,6 +3933,7 @@ export function useChatSession(environmentId: string) {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			setHistoryPreview([]);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -4007,6 +4009,25 @@ export function useChatSession(environmentId: string) {
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
+			let loadingHistory = true;
+			if (session.origin === "cloud" && session.status !== "expired") {
+				void desktopClient
+					.invoke<ChatMessage[] | null>("read_archived_cloud_messages", {
+						sessionId: session.sessionId,
+					})
+					.then((preview) => {
+						if (
+							hydrationRequestIdRef.current !== requestId ||
+							!loadingHistory ||
+							!preview?.length
+						)
+							return;
+						setHistoryPreview(preview);
+					})
+					.catch(() => {
+						// Archives are optional; live history owns startup errors.
+					});
+			}
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
@@ -4017,6 +4038,8 @@ export function useChatSession(environmentId: string) {
 					},
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
+				loadingHistory = false;
+				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
@@ -4143,7 +4166,9 @@ export function useChatSession(environmentId: string) {
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
+				loadingHistory = false;
 				if (hydrationRequestIdRef.current === requestId) {
+					setHistoryPreview([]);
 					setIsHydratingSession(false);
 				}
 			}
@@ -4330,6 +4355,7 @@ export function useChatSession(environmentId: string) {
 		activityLabel,
 		config,
 		messages,
+		historyPreview: isHydratingSession ? historyPreview : [],
 		rawTranscript,
 		error,
 		summary,
