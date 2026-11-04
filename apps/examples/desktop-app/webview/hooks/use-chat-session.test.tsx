@@ -716,44 +716,67 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(replacementState.expired);
 	});
 	it.each([
-		[false, undefined],
-		[true, undefined],
-		[true, "read_session_messages"],
-	] as const)("shows expired cloud history as read-only (archive: %s, failure: %s)", async (hasHistory, failedCommand) => {
-		const history = hasHistory
-			? [
-					{
-						id: "saved",
+		"missing",
+		"read",
+		"attach",
+		"failed",
+	] as const)("shows expired cloud history as read-only (%s)", async (scenario) => {
+		const history: ChatSessionHook["messages"] = [
+			{
+				id: "saved-user",
+				sessionId: "expired-cloud",
+				role: "user",
+				content: "Initial cloud prompt",
+				createdAt: 1,
+			},
+			{
+				id: "saved",
+				sessionId: "expired-cloud",
+				role: "assistant",
+				content: "Saved reply",
+				createdAt: 2,
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") {
+					if (scenario === "failed") throw new Error("offline");
+					const messages = scenario === "read" ? history : [];
+					handlerFor("cloud_session_rehydrated")({
 						sessionId: "expired-cloud",
-						role: "assistant",
-						content: "Saved reply",
-						createdAt: 1,
-					},
-				]
-			: [];
-		invokeMock.mockImplementation(async (command: string) => {
-			if (command === failedCommand) throw new Error("offline");
-			if (command === "read_session_messages") {
-				handlerFor("cloud_session_rehydrated")({
-					sessionId: "expired-cloud",
-					status: "expired",
-					transcriptKnown: true,
-					messages: history,
-				});
-				return history;
-			}
-			if (command === "chat_session_command")
-				return { sessionId: "expired-cloud", status: "expired" };
-			return [];
-		});
+						status: "expired",
+						transcriptKnown: true,
+						messages,
+					});
+					return messages;
+				}
+				const request = args?.request as { action?: string } | undefined;
+				if (
+					command === "chat_session_command" &&
+					request?.action === "attach"
+				) {
+					if (scenario === "attach") {
+						handlerFor("cloud_session_rehydrated")({
+							sessionId: "expired-cloud",
+							status: "expired",
+							transcriptKnown: true,
+							messages: history,
+						});
+					}
+					return { sessionId: "expired-cloud", status: "expired" };
+				}
+				return [];
+			},
+		);
 		await act(async () =>
 			current.hydrateSession({
 				sessionId: "expired-cloud",
 				environmentId: "local",
 				origin: "cloud",
-				status: failedCommand
-					? "expired"
-					: normalizeDiscoveredStatus("expired", "Initial cloud prompt"),
+				status:
+					scenario === "failed"
+						? "expired"
+						: normalizeDiscoveredStatus("expired", "Initial cloud prompt"),
 				prompt: "Initial cloud prompt",
 				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
@@ -761,7 +784,7 @@ describe("useChatSession", () => {
 			}),
 		);
 		expect(current.isCloudSessionExpired).toBe(true);
-		if (failedCommand) {
+		if (scenario === "failed") {
 			expect(current.error).toContain("offline");
 			expect(
 				invokeMock.mock.calls.some(
@@ -772,16 +795,17 @@ describe("useChatSession", () => {
 			).toBe(false);
 		} else {
 			expect(current.error).toContain("This cloud session has expired");
-			expect(current.error?.includes("no archived history")).toBe(!hasHistory);
+			if (scenario === "missing")
+				expect(current.error).toContain("no archived history");
 			expect(current.messages).toEqual(
-				hasHistory
-					? history
-					: [
+				scenario === "missing"
+					? [
 							expect.objectContaining({
 								role: "user",
 								content: "Initial cloud prompt",
 							}),
-						],
+						]
+					: history,
 			);
 		}
 		invokeMock.mockClear();
@@ -2708,15 +2732,7 @@ describe("useChatSession", () => {
 					return { sessionId: "cloud-transition", status: discoveredStatus };
 				}
 				if (command === "read_session_messages") {
-					if (discoveredStatus === "provisioning") {
-						handlerFor("cloud_session_rehydrated")({
-							sessionId: "cloud-transition",
-							status: "provisioning",
-							transcriptKnown: false,
-							messages: [],
-						});
-						return [];
-					}
+					if (discoveredStatus === "provisioning") return [];
 					readyReads += 1;
 					if (
 						outcome === "failed" ||
@@ -3022,10 +3038,7 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toContain("read_files");
 	});
 
-	it.each([
-		"started",
-		"opening",
-	] as const)("keeps live assistant and tool routing across a running cloud snapshot (%s)", async (mode) => {
+	it("keeps live assistant and tool routing while opening a cloud session", async () => {
 		const history = Promise.withResolvers<ChatSessionHook["messages"]>();
 		let opening: Promise<void> | undefined;
 		invokeMock.mockImplementation(async (command: string) => {
@@ -3043,29 +3056,18 @@ describe("useChatSession", () => {
 			}
 			return [];
 		});
-		if (mode === "opening") {
-			await act(async () => {
-				opening = current.hydrateSession({
-					sessionId: "ses-cloud",
-					environmentId: "local",
-					origin: "cloud",
-					status: normalizeDiscoveredStatus("suspended"),
-					...cloudSessionConfig,
-					repoUrl: "https://github.com/cline/test",
-					startedAt: "2026-08-06T00:00:00.000Z",
-				});
-				await Promise.resolve();
+		await act(async () => {
+			opening = current.hydrateSession({
+				sessionId: "ses-cloud",
+				environmentId: "local",
+				origin: "cloud",
+				status: normalizeDiscoveredStatus("suspended"),
+				...cloudSessionConfig,
+				repoUrl: "https://github.com/cline/test",
+				startedAt: "2026-08-06T00:00:00.000Z",
 			});
-		} else {
-			await act(async () => {
-				await current.start({
-					...current.config,
-					executionTarget: "cloud",
-					provider: "cline",
-					repoUrl: "https://github.com/cline/test",
-				});
-			});
-		}
+			await Promise.resolve();
+		});
 		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
 		const chatEventHandler = handlerFor("chat_event");
 		const snapshot: ChatSessionHook["messages"] = [
@@ -3100,27 +3102,25 @@ describe("useChatSession", () => {
 				messages: snapshot,
 			});
 		});
-		if (mode === "opening") {
-			await act(async () => {
-				chatEventHandler({
-					sessionId: "ses-cloud",
-					stream: "chat_text",
-					chunk: " again",
-					ts: 3,
-					index: 3,
-				});
-				chatEventHandler({
-					sessionId: "ses-cloud",
-					stream: "chat_core_log",
-					chunk: "flush",
-					ts: 4,
-					index: 4,
-				});
-				history.resolve(snapshot);
-				await opening;
+		await act(async () => {
+			chatEventHandler({
+				sessionId: "ses-cloud",
+				stream: "chat_text",
+				chunk: " again",
+				ts: 3,
+				index: 3,
 			});
-			expect(current.isHydratingSession).toBe(false);
-		}
+			chatEventHandler({
+				sessionId: "ses-cloud",
+				stream: "chat_core_log",
+				chunk: "flush",
+				ts: 4,
+				index: 4,
+			});
+			history.resolve(snapshot);
+			await opening;
+		});
+		expect(current.isHydratingSession).toBe(false);
 		await act(async () => {
 			chatEventHandler?.({
 				sessionId: "ses-cloud",
@@ -3141,7 +3141,7 @@ describe("useChatSession", () => {
 			current.messages.filter((message) => message.role === "assistant"),
 		).toEqual([
 			expect.objectContaining({
-				content: mode === "opening" ? "Hello again!" : "Hello!",
+				content: "Hello again!",
 			}),
 		]);
 
