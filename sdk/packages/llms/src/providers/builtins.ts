@@ -938,6 +938,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.aiand.com/v1" },
 	},
 	{
+		id: "modular",
+		name: "Modular",
+		description: "Open models on Modular Cloud, served by MAX",
+		family: "openai-compatible",
+		defaultModelId: "google/gemma-4-31b-it",
+		apiKeyEnv: ["MODULAR_API_KEY"],
+		defaults: { baseUrl: "https://api.modular.com/v1" },
+	},
+	{
 		id: "aihubmix",
 		name: "AI Hub Mix",
 		description: "AI model aggregator",

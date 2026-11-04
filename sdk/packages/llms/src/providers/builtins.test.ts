@@ -444,6 +444,13 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("registers Modular with its endpoint and default model", async () => {
+		await expect(getProvider("modular")).resolves.toMatchObject({
+			baseUrl: "https://api.modular.com/v1",
+			defaultModelId: "google/gemma-4-31b-it",
+		});
+	});
+
 	it("serves the ai& default model from the catalog instead of the stub fallback", async () => {
 		const provider = await getProvider("aiand");
 		const models = await getModelsForProvider("aiand");
