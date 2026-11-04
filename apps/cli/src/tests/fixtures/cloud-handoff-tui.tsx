@@ -2,6 +2,7 @@ import { mock } from "bun:test";
 import { existsSync, writeFileSync } from "node:fs";
 import {
 	type AgentEvent,
+	type ClineAccountOrganization,
 	CoreSessionService,
 	SqliteSessionStore,
 } from "@cline/core";
@@ -36,7 +37,8 @@ mock.module("../../utils/open", () => ({
 const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
 const holdsLocalCompletion =
 	scenario === "held-local-completion" ||
-	scenario === "held-local-attach-failure";
+	scenario === "held-local-attach-failure" ||
+	scenario === "paired-account-change";
 const holdsCloudSend = scenario === "held-cloud-send" || holdsLocalCompletion;
 async function waitForRelease(signalName = "CLOUD_HANDOFF_FIXTURE_RELEASE") {
 	const releasePath = process.env[signalName];
@@ -53,6 +55,14 @@ const cwd = process.cwd();
 const providerId = process.env.CLOUD_HANDOFF_FIXTURE_PROVIDER ?? "cline";
 const cloudSessionId = "synthetic-cloud-session-1";
 let activeSessionId = "synthetic-session-a";
+const syntheticOrganization: ClineAccountOrganization = {
+	active: false,
+	memberId: "synthetic-member",
+	name: "Synthetic Organization",
+	organizationId: "synthetic-org",
+	roles: ["owner"],
+};
+let activeOrganizationId: string | null = null;
 const sessionListeners = new Set<() => void>();
 const cloudListeners = new Set<(event: CloudSessionEvent) => void>();
 let onAgentEvent: ((event: AgentEvent) => void) | undefined;
@@ -117,23 +127,43 @@ const noop = async () => undefined;
 const props = {
 	config,
 	startupTarget: "chat",
-	loadClineAccount: async () => ({
-		user: {
-			id: "synthetic-user",
-			email: "synthetic@example.com",
-			displayName: "Synthetic User",
-			photoUrl: "",
-			createdAt: "",
-			updatedAt: "",
-			organizations: [],
-		},
-		balance: { balance: 0, userId: "synthetic-user" },
-		organizationBalance: null,
-		organizations: [],
-		activeOrganization: null,
-		displayedBalance: 0,
-	}),
-	switchClineAccount: noop,
+	loadClineAccount: async () => {
+		const organizations =
+			scenario === "account-change" || scenario === "paired-account-change"
+				? [
+						{
+							...syntheticOrganization,
+							active:
+								activeOrganizationId === syntheticOrganization.organizationId,
+						},
+					]
+				: [];
+		return {
+			user: {
+				id: "synthetic-user",
+				email: "synthetic@example.com",
+				displayName: "Synthetic User",
+				photoUrl: "",
+				createdAt: "",
+				updatedAt: "",
+				organizations,
+			},
+			balance: { balance: 0, userId: "synthetic-user" },
+			organizationBalance: null,
+			organizations,
+			activeOrganization:
+				organizations.find((organization) => organization.active) ?? null,
+			displayedBalance: 0,
+		};
+	},
+	switchClineAccount: async (organizationId) => {
+		activeOrganizationId = organizationId ?? null;
+		if (scenario === "account-change" || scenario === "paired-account-change")
+			record("accountSwitches", [
+				...(state.accountSwitches ?? []),
+				organizationId ?? "personal",
+			]);
+	},
 	loadConfigData: async () => ({
 		workflows: [],
 		rules: [],
@@ -199,7 +229,10 @@ const props = {
 	},
 	onNewSession: async () => setActiveSession("synthetic-session-b"),
 	onSessionRestart: noop,
-	onAccountChange: noop,
+	onAccountChange: async () => {
+		if (scenario === "account-change" || scenario === "paired-account-change")
+			record("accountChanges", (state.accountChanges ?? 0) + 1);
+	},
 	onResumeSession: async (sessionId: string) => {
 		record("resumeCalls", [...(state.resumeCalls ?? []), sessionId]);
 		setActiveSession(sessionId);

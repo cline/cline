@@ -81,16 +81,20 @@ export function useCloudHandoff(input: {
 			input.showError("Start a local conversation before using /cloud.");
 			return false;
 		}
+		const prepare = input.prepare;
+		if (!prepare) {
+			input.showError("Enable CLINE_CLOUD_SESSIONS=1 to use /cloud.");
+			return false;
+		}
+		if (input.isLocalBusy) {
+			input.showError(
+				"Wait for the current run and queued prompts before using /cloud.",
+			);
+			return false;
+		}
 		const attempt = begin(sourceId);
 		let started = false;
 		try {
-			const prepare = input.prepare;
-			if (!prepare)
-				throw new Error("Enable CLINE_CLOUD_SESSIONS=1 to use /cloud.");
-			if (input.isLocalBusy)
-				throw new Error(
-					"Wait for the current run and queued prompts before using /cloud.",
-				);
 			const prepared = await withLoadingDialog(
 				input.dialog,
 				"Capturing the local conversation and Git snapshot…",

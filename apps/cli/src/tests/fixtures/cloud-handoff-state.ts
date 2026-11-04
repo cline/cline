@@ -32,6 +32,8 @@ export const fixtureStateSchema = z.object({
 	localSettled: z.boolean().optional(),
 	localDoneEmitted: z.boolean().optional(),
 	modeChangeCalls: z.number().optional(),
+	accountChanges: z.number().optional(),
+	accountSwitches: z.array(z.string()).optional(),
 	removedSessions: z.array(z.string()).optional(),
 	openedUrls: z.array(z.string()).optional(),
 	cloudSends: z
@@ -61,4 +63,6 @@ export type FixtureScenario =
 	| "removed-cloud-session"
 	| "retry"
 	| "attach-failure"
-	| "approval";
+	| "approval"
+	| "account-change"
+	| "paired-account-change";

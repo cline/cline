@@ -373,25 +373,30 @@ describe("summary cloud handoff", () => {
 				ok: true,
 				recoveredAfterDisconnect: true,
 			});
-		const retried = await initial.retrySend?.();
-		expect(retried?.sessionId).toBe("ses-example");
-		expect(retried?.dashboardUrl).toBe(initial.dashboardUrl);
-		if (outcome === "draining") {
-			expect(retried?.retrySend).toBeTypeOf("function");
-			expect(retried?.warning).toContain("not sent");
-			const delivered = await retried?.retrySend?.();
-			expect(delivered?.sessionId).toBe("ses-example");
-			expect(delivered?.retrySend).toBeUndefined();
-			expect(input.cloud.send).toHaveBeenCalledTimes(2);
-			expect(input.cloud.send.mock.calls[1]).toEqual(
-				input.cloud.send.mock.calls[0],
+		if (outcome === "scope-changed") {
+			await expect(initial.retrySend?.()).rejects.toThrow(
+				"cloud account changed",
 			);
+			expect(input.cloud.send).not.toHaveBeenCalled();
 		} else {
-			expect(retried?.warning).toContain("before resending");
-			expect(retried?.retrySend).toBeUndefined();
-			expect(input.cloud.send).toHaveBeenCalledTimes(
-				outcome === "scope-changed" ? 0 : 1,
-			);
+			const retried = await initial.retrySend?.();
+			expect(retried?.sessionId).toBe("ses-example");
+			expect(retried?.dashboardUrl).toBe(initial.dashboardUrl);
+			if (outcome === "draining") {
+				expect(retried?.retrySend).toBeTypeOf("function");
+				expect(retried?.warning).toContain("not sent");
+				const delivered = await retried?.retrySend?.();
+				expect(delivered?.sessionId).toBe("ses-example");
+				expect(delivered?.retrySend).toBeUndefined();
+				expect(input.cloud.send).toHaveBeenCalledTimes(2);
+				expect(input.cloud.send.mock.calls[1]).toEqual(
+					input.cloud.send.mock.calls[0],
+				);
+			} else {
+				expect(retried?.warning).toContain("before resending");
+				expect(retried?.retrySend).toBeUndefined();
+				expect(input.cloud.send).toHaveBeenCalledTimes(1);
+			}
 		}
 		expect(helpers.summarize).toHaveBeenCalledOnce();
 		expect(input.cloud.create).toHaveBeenCalledOnce();

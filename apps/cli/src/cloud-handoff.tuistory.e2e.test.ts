@@ -37,6 +37,37 @@ async function runPaletteAction(session: Session, label: string) {
 	await session.press("enter");
 }
 
+async function switchToSyntheticOrganization(
+	session: Session,
+	statePath: string,
+) {
+	await session.type("/account");
+	await session.press("enter");
+	await session.waitForText("Cline Account", { timeout });
+	await session.press("down");
+	await session.press("enter");
+	await session.waitForText("Change Account", { timeout });
+	await session.press("down");
+	await session.press("enter");
+	await session.text({
+		waitFor: (screen) =>
+			screen.includes("Active account") &&
+			screen.includes("Synthetic Organization") &&
+			readState(statePath).accountSwitches?.at(-1) === "synthetic-org" &&
+			readState(statePath).accountChanges === 1,
+		timeout,
+	});
+	await session.press("escape");
+}
+
+async function startCloudHandoff(session: Session, instruction: string) {
+	await session.type(`/cloud ${instruction}`);
+	await session.press("enter");
+	await session.waitForText("Continue in cloud?", { timeout });
+	await session.press("enter");
+	await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+}
+
 function launch({
 	provider = "cline",
 	scenario = "success",
@@ -148,6 +179,105 @@ describe("cloud handoff TUI", () => {
 		const screen = await session.text();
 		expect(screen).toContain("/clo");
 		expect(screen.includes("/cloud")).toBe(visible);
+	});
+
+	it("keeps Cloud setup usable without resuming an unpaired local session after an account change", async () => {
+		const { session, statePath } = await launch({ scenario: "account-change" });
+		await session.waitForText("Ask anything...", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Choose a repository", { timeout });
+		await session.press("escape");
+		await session.clickAt(20, 36);
+
+		await switchToSyntheticOrganization(session, statePath);
+
+		expect(readState(statePath).accountSwitches).toEqual(["synthetic-org"]);
+		expect(readState(statePath).accountChanges).toBe(1);
+		expect(readState(statePath).resumeCalls).toBeUndefined();
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("● Local", { timeout });
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Choose a repository", { timeout });
+	});
+
+	it("restores the paired local view after a cloud account change and routes the next prompt locally", async () => {
+		const { session, statePath, releaseLocal } = await launch({
+			scenario: "paired-account-change",
+		});
+		await session.waitForText("Plan something...", { timeout });
+		const sourcePrompt = "hold the synthetic local completion";
+		await session.type(sourcePrompt);
+		await session.press("enter");
+		await session.text({
+			waitFor: () => readState(statePath).localDoneEmitted === true,
+			timeout,
+		});
+		releaseLocal();
+		await session.text({
+			waitFor: () => readState(statePath).localSettled === true,
+			timeout,
+		});
+		await session.waitForText("5 iterations", { timeout });
+
+		await startCloudHandoff(session, "create the synthetic task");
+		await session.press(["ctrl", "o"]);
+		await session.waitForText("Synthetic attached cloud transcript", {
+			timeout,
+		});
+
+		await switchToSyntheticOrganization(session, statePath);
+
+		const localScreen = await session.text();
+		expect(readState(statePath).resumeCalls).toBeUndefined();
+		expect(localScreen).toContain(sourcePrompt);
+		expect(localScreen).toContain("● Plan ○ Act (Tab)");
+		expect(localScreen).toContain("1,234 tokens");
+		expect(localScreen).toContain("5 iterations");
+		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
+
+		const followUp = "continue locally after the synthetic account change";
+		await session.type(followUp);
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(followUp) === true,
+			timeout,
+		});
+		expect(readState(statePath).cloudSends).toBeUndefined();
+	});
+
+	it("keeps a busy local draft without creating a sticky handoff notice", async () => {
+		const { session, statePath, releaseLocal } = await launch({
+			scenario: "held-cloud-send",
+		});
+		await session.waitForText("Ask anything...", { timeout });
+		await session.type("local work while cloud send is pending");
+		await session.press("enter");
+		await session.text({
+			waitFor: () =>
+				readState(statePath).localPrompts?.includes(
+					"local work while cloud send is pending",
+				) === true,
+			timeout,
+		});
+
+		try {
+			const draft = "/cloud wait until the local run is finished";
+			await session.type(draft);
+			await session.press("enter");
+			await session.waitForText("Wait for the current run", { timeout });
+			const screen = await session.text();
+			expect(screen).toContain(draft);
+			expect(screen).not.toContain("Cloud handoff:");
+			expect(screen).not.toContain("Restore draft");
+			expect(readState(statePath).preparations).toBeUndefined();
+		} finally {
+			releaseLocal();
+		}
+		await session.text({
+			waitFor: () => readState(statePath).localSettled === true,
+			timeout,
+		});
 	});
 
 	it("rejects /cloud in Cloud mode without consuming the draft", async () => {
@@ -326,11 +456,7 @@ describe("cloud handoff TUI", () => {
 				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
 			timeout,
 		});
-		await session.type("/cloud continue the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "continue the synthetic task");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -420,11 +546,7 @@ describe("cloud handoff TUI", () => {
 				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
 			timeout,
 		});
-		await session.type("/cloud start the synthetic handoff");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "start the synthetic handoff");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -544,11 +666,7 @@ describe("cloud handoff TUI", () => {
 			timeout,
 		});
 
-		await session.type("/cloud start the synthetic handoff");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "start the synthetic handoff");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -707,11 +825,7 @@ describe("cloud handoff TUI", () => {
 			releaseLocal,
 		} = await launch({ scenario });
 		await session.waitForText("Plan something...", { timeout });
-		await session.type("/cloud create the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "create the synthetic task");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -801,11 +915,7 @@ describe("cloud handoff TUI", () => {
 				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
 			timeout,
 		});
-		await session.type("/cloud create the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "create the synthetic task");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -834,11 +944,7 @@ describe("cloud handoff TUI", () => {
 	it("keeps approval requests in cloud and offers the browser action", async () => {
 		const { session, statePath } = await launch({ scenario: "approval" });
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("/cloud continue the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "continue the synthetic task");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Approval needed. Open in browser to respond.", {
 			timeout,
@@ -869,11 +975,7 @@ describe("cloud handoff TUI", () => {
 	it("returns to local history with the cloud handoff still available", async () => {
 		const { session } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("/cloud continue the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "continue the synthetic task");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -899,11 +1001,7 @@ describe("cloud handoff TUI", () => {
 	it("offers browser only after native open fails and resets after recovery", async () => {
 		const { session, statePath } = await launch({ scenario: "attach-failure" });
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("/cloud continue the synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "continue the synthetic task");
 
 		const draft = "keep this local draft";
 		await session.type(draft);
@@ -942,11 +1040,7 @@ describe("cloud handoff TUI", () => {
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Ask anything...", { timeout });
 
-		await session.type("/cloud start a new synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "start a new synthetic task");
 		expect(await session.text()).not.toContain("Open in browser");
 		await session.press(["ctrl", "o"]);
 		await session.waitForText("Synthetic attached cloud transcript", {
@@ -969,11 +1063,7 @@ describe("cloud handoff TUI", () => {
 				readState(statePath).localPrompts?.includes(localPrompt) === true,
 			timeout,
 		});
-		await session.type("/cloud open this synthetic task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await startCloudHandoff(session, "open this synthetic task");
 		if (cols < 120) session.resize({ cols, rows: 40 });
 		const screen = await session.text();
 		expect(screen).toContain("Open cloud task (Ctrl+O)");

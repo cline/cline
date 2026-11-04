@@ -283,6 +283,19 @@ describe("createInteractiveSessionRuntime", () => {
 		await runtime.cleanup();
 	});
 
+	it("refuses to resume a session with no messages", async () => {
+		const manager = makeManager();
+		manager.get.mockResolvedValue({ sessionId: "empty-session" });
+		loadInteractiveResumeMessagesMock.mockResolvedValueOnce([]);
+		const runtime = await makeRuntime(manager);
+
+		await expect(runtime.resumeSession("empty-session")).rejects.toThrow(
+			"Session empty-session has no messages to resume.",
+		);
+		expect(manager.start).not.toHaveBeenCalled();
+		await runtime.cleanup();
+	});
+
 	it("awaits and disposes plugin-only initialization during cleanup", async () => {
 		const manager = makeManager();
 		const runtime = await makeRuntime(manager);

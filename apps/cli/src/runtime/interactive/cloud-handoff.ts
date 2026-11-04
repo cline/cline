@@ -14,6 +14,7 @@ import {
 import {
 	createMediaBudgetState,
 	getClineEnvironmentConfig,
+	isClineProvider,
 	type MessageWithMetadata,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
@@ -71,9 +72,7 @@ export async function prepareCloudHandoff(input: {
 	await cloud.connect();
 	const observedScope = cloud.scope;
 	if (!observedScope) throw new Error("Cloud account is unavailable.");
-	const isCline =
-		input.connection.providerId === "cline" ||
-		input.connection.providerId === "cline-pass";
+	const isCline = isClineProvider(input.connection.providerId);
 	const scope = {
 		...observedScope,
 		...(isCline &&
@@ -226,8 +225,8 @@ export async function prepareCloudHandoff(input: {
 									"Delivery is unconfirmed. Check the cloud task before resending.",
 							};
 						const retrySend = async (): Promise<CloudHandoffResult> => {
+							assertAccount();
 							try {
-								assertAccount();
 								const sent = await cloud.send(
 									result.sessionId,
 									prompt,

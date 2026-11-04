@@ -5,7 +5,7 @@ import {
 	upgradeManagedHub,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { formatDisplayUserInput } from "@cline/shared";
+import { formatDisplayUserInput, isClineProvider } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -173,8 +173,7 @@ function App(props: TuiProps) {
 		cloudEnabled:
 			!!props.cloudSessions &&
 			!!props.onPrepareCloudHandoff &&
-			(props.config.providerId === "cline" ||
-				props.config.providerId === "cline-pass"),
+			isClineProvider(props.config.providerId),
 	});
 
 	const autocomplete = useAutocomplete({
@@ -361,6 +360,23 @@ function App(props: TuiProps) {
 		showToast,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+	const restoreLocalHandoffView = useCallback(
+		(localView: NonNullable<typeof localHandoffViewRef.current>) => {
+			cloud.detach();
+			localHandoffViewRef.current = undefined;
+			session.closeInlineStream();
+			session.replaceEntries(localView.entries);
+			session.setHasSubmitted(localView.hasSubmitted);
+			session.setUiMode(localView.uiMode);
+			session.setLastTotalTokens(localView.lastTotalTokens);
+			session.setLastTotalCost(localView.lastTotalCost);
+			session.setIsRunning(false);
+			session.setIsStreaming(false);
+			setAppView(localView.appView);
+			refocusTextareaRef.current();
+		},
+		[cloud.detach, session],
+	);
 	const handoff = useCloudHandoff({
 		prepare: props.onPrepareCloudHandoff,
 		activeSession: props.activeSession,
@@ -371,10 +387,10 @@ function App(props: TuiProps) {
 		showError: (message) => showToast(message, "error"),
 	});
 	async function handleAccountChange() {
+		const wasCloudActive = cloud.active;
+		const localView = wasCloudActive ? localHandoffViewRef.current : undefined;
 		invalidatePendingSubmissionsRef.current();
 		localHandoffViewRef.current = undefined;
-		const sourceId = props.activeSession?.getId();
-		const wasCloudActive = cloud.active;
 		handoff.reset();
 		cloud.reset();
 		if (wasCloudActive) {
@@ -385,13 +401,8 @@ function App(props: TuiProps) {
 			session.setIsStreaming(false);
 		}
 		await props.onAccountChange();
-		if (wasCloudActive && sourceId) {
-			const result = await resumeSession(sourceId);
-			const entries = hydrateSessionMessages(result.messages);
-			session.replaceEntries(entries);
-			session.setHasSubmitted(entries.length > 0);
-			session.setIsRunning(false);
-		}
+		if (localView && props.activeSession?.getId() === localView.sourceId)
+			restoreLocalHandoffView(localView);
 	}
 	const {
 		reset: resetCloudSession,
@@ -1068,18 +1079,7 @@ function App(props: TuiProps) {
 			return;
 		}
 		promptInput.invalidatePendingSubmissions();
-		cloud.detach();
-		localHandoffViewRef.current = undefined;
-		session.closeInlineStream();
-		session.replaceEntries(localView.entries);
-		session.setHasSubmitted(localView.hasSubmitted);
-		session.setUiMode(localView.uiMode);
-		session.setLastTotalTokens(localView.lastTotalTokens);
-		session.setLastTotalCost(localView.lastTotalCost);
-		session.setIsRunning(false);
-		session.setIsStreaming(false);
-		setAppView(localView.appView);
-		promptInput.refocusTextarea();
+		restoreLocalHandoffView(localView);
 	}, [
 		canReturnToLocal,
 		cloud,
@@ -1087,7 +1087,7 @@ function App(props: TuiProps) {
 		isRuntimeInteractionOpen,
 		promptInput,
 		props.activeSession,
-		session,
+		restoreLocalHandoffView,
 		showToast,
 	]);
 	const restoreCloudDraft = useCallback(

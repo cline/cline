@@ -7,7 +7,7 @@ import {
 	setToolAutoApproveGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core";
-import { formatModeSwitchNotice } from "@cline/shared";
+import { formatModeSwitchNotice, isClineProvider } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import { exportHistorySession } from "../session/history-export";
@@ -556,8 +556,7 @@ export async function runInteractive(
 								providerSettingsManager,
 							),
 							// ClinePass uses the shared Cline login, not its saved model settings' auth.
-							...((config.providerId === "cline" ||
-								config.providerId === "cline-pass") && {
+							...(isClineProvider(config.providerId) && {
 								accountId:
 									providerSettingsManager.getProviderSettings("cline")?.auth
 										?.accountId,
