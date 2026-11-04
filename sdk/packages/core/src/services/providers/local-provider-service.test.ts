@@ -2012,7 +2012,7 @@ describe("models.json model overlays", () => {
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
 				defaultModelId:
-					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 					CLINE_DEFAULT_MODEL_ID,
 			});
 

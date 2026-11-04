@@ -16,7 +16,11 @@ import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	getInitialChatConfig,
+	isUntouchedDefaultModel,
+	loadLiveClineDefaultModelId,
+} from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
 	credentialFailureMeta,
@@ -603,6 +607,20 @@ export function useChatSession(environmentId: string) {
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
 	);
+	// Swap in the live feed's first free model once it arrives, only while the
+	// config is still the untouched new-user default. Never blocks the UI.
+	useEffect(() => {
+		let cancelled = false;
+		void loadLiveClineDefaultModelId().then((model) => {
+			if (cancelled || !model) return;
+			setConfig((prev) =>
+				isUntouchedDefaultModel(prev) ? { ...prev, model } : prev,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [historyPreview, setHistoryPreview] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");

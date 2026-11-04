@@ -743,8 +743,10 @@ const cline = createClineLikeSpec({
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
+	// A new user has no credits yet, so the offline default is the first free
+	// model. Core's resolveProviderConfig prefers the live feed's first free.
 	defaultModelId:
-		GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+		GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 		CLINE_DEFAULT_MODEL_ID,
 	defaults: {
 		options: {

@@ -9,6 +9,7 @@ import type {
 	ClineRecommendedModelsData,
 } from "@cline/shared";
 import {
+	CLINE_DEFAULT_MODEL_ID,
 	getClineEnvironmentConfig,
 	type ProviderModel,
 	type ProviderModelFeaturedTier,
@@ -352,6 +353,22 @@ export function peekClineRecommendedModels(): ClineRecommendedModelsData {
 		return cloneRecommendedModels(feedCache.data);
 	}
 	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+}
+
+/**
+ * Default model for a Cline user with no saved choice: the first free model
+ * from the live feed, else the first bundled free model, else the Cline
+ * default. The fetch already falls back to the bundled list when offline.
+ */
+export async function resolveClineDefaultModelId(
+	options: FetchClineRecommendedModelsOptions = {},
+): Promise<string> {
+	const live = await getCachedClineRecommendedModels(options);
+	return (
+		live.free[0]?.id ??
+		FALLBACK_CLINE_RECOMMENDED_MODELS.free[0]?.id ??
+		CLINE_DEFAULT_MODEL_ID
+	);
 }
 
 export function resetClineRecommendedModelsCacheForTests(): void {
