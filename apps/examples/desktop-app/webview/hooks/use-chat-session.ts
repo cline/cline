@@ -337,9 +337,7 @@ export function mergeCloudSnapshotWithLive(
 		return `${message.role}\u0000${content}\u0000${message.reasoning ?? ""}`;
 	};
 	const hydratedIndexesByKey = new Map<string, number[]>();
-	const hydratedIndexesById = new Map<string, number>();
 	for (const [index, message] of hydrated.entries()) {
-		hydratedIndexesById.set(message.id, index);
 		const key = messageKey(message);
 		const indexes = hydratedIndexesByKey.get(key) ?? [];
 		indexes.push(index);
@@ -350,23 +348,6 @@ export function mergeCloudSnapshotWithLive(
 			? [{ index, text: message.content }]
 			: [],
 	);
-	const consumeHydrated = (index: number) => {
-		const target = hydrated[index];
-		hydratedIndexesById.delete(target.id);
-		const key = messageKey(target);
-		const indexes = hydratedIndexesByKey.get(key);
-		if (indexes) {
-			indexes.splice(indexes.indexOf(index), 1);
-			if (indexes.length === 0) hydratedIndexesByKey.delete(key);
-		}
-		if (target.role === "assistant" && target.content) {
-			const assistantIndex = unmatchedHydratedAssistants.findIndex(
-				(candidate) => candidate.index === index,
-			);
-			if (assistantIndex >= 0)
-				unmatchedHydratedAssistants.splice(assistantIndex, 1);
-		}
-	};
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
@@ -381,31 +362,29 @@ export function mergeCloudSnapshotWithLive(
 			optimistic.push(message);
 			continue;
 		}
-		const preserveAssistant =
-			message.role === "assistant" &&
-			options.preserveLiveMessageIds?.has(message.id);
-		const matchingIndex =
-			hydratedIndexesById.get(message.id) ??
-			(preserveAssistant
-				? undefined
-				: hydratedIndexesByKey.get(messageKey(message))?.[0]);
-		if (matchingIndex !== undefined) {
+		const key = messageKey(message);
+		const matchingHydratedIndexes = hydratedIndexesByKey.get(key);
+		if (matchingHydratedIndexes?.length) {
+			const matchingIndex = matchingHydratedIndexes.shift();
 			mergeImagesIntoHydrated(matchingIndex, message);
-			consumeHydrated(matchingIndex);
-			continue;
-		}
-		if (preserveAssistant) {
-			// Repeated text cannot establish which history row owns a live stream.
-			liveOnly.push(message);
+			if (matchingHydratedIndexes.length === 0) {
+				hydratedIndexesByKey.delete(key);
+			}
+			if (message.role === "assistant" && message.content) {
+				const index = unmatchedHydratedAssistants.findIndex(
+					(candidate) => candidate.text === message.content,
+				);
+				if (index >= 0) unmatchedHydratedAssistants.splice(index, 1);
+			}
 			continue;
 		}
 		if (message.role === "assistant" && message.content) {
-			const match = unmatchedHydratedAssistants.find((candidate) =>
+			const index = unmatchedHydratedAssistants.findIndex((candidate) =>
 				candidate.text.includes(message.content),
 			);
-			if (match) {
-				mergeImagesIntoHydrated(match.index, message);
-				consumeHydrated(match.index);
+			if (index >= 0) {
+				const [match] = unmatchedHydratedAssistants.splice(index, 1);
+				mergeImagesIntoHydrated(match?.index, message);
 				continue;
 			}
 		}
@@ -676,6 +655,7 @@ export function useChatSession(environmentId: string) {
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
+	const cloudSnapshotRevisionRef = useRef(0);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
 	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
@@ -2423,6 +2403,7 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
+				cloudSnapshotRevisionRef.current += 1;
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -3946,6 +3927,7 @@ export function useChatSession(environmentId: string) {
 			}
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
+			const cloudSnapshotRevision = cloudSnapshotRevisionRef.current;
 			hydrationRequestIdRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
@@ -3996,12 +3978,16 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					applyCloudSnapshotMessages({
-						sessionId: session.sessionId,
-						messages: msgs,
-						preserveUnmatchedLive: true,
-						preserveLiveRouting: true,
-					});
+					// The Hub sends the replacement and live updates before the read reply.
+					// Applying that reply again would replace active message IDs.
+					if (cloudSnapshotRevisionRef.current === cloudSnapshotRevision) {
+						applyCloudSnapshotMessages({
+							sessionId: session.sessionId,
+							messages: msgs,
+							preserveUnmatchedLive: true,
+							preserveLiveRouting: sessionStatus === "running",
+						});
+					}
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: msgs,

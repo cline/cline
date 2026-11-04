@@ -102,23 +102,6 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(merged.map((item) => item.id)).toEqual(["saved-old", "live-new"]);
 	});
 
-	it("uses stable identity before repeated assistant text", () => {
-		const older = message("older", "assistant", "Hello", 1);
-		const newer = message("newer", "assistant", "Hello", 2);
-		expect(
-			mergeCloudSnapshotWithLive(
-				[older, newer],
-				[newer],
-				snapshotOptions({
-					preserveLiveMessageIds: new Set([newer.id]),
-				}),
-			).map(({ id, content }) => ({ id, content })),
-		).toEqual([
-			{ id: older.id, content: older.content },
-			{ id: newer.id, content: newer.content },
-		]);
-	});
-
 	it("keeps optimistic images while a cloud snapshot is temporarily text-only", () => {
 		const optimisticStates = new Map([
 			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
@@ -3012,12 +2995,9 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
-		["started", "Hello"],
-		["opening", "Hello"],
-		["opening", "Hello from an earlier turn"],
-		["partial", "Hello"],
-		["snapshot-first", "Hello"],
-	] as const)("keeps live assistant and tool routing across a running cloud snapshot (%s, %s)", async (mode, oldReply) => {
+		"started",
+		"opening",
+	] as const)("keeps live assistant and tool routing across a running cloud snapshot (%s)", async (mode) => {
 		const history = Promise.withResolvers<ChatSessionHook["messages"]>();
 		let opening: Promise<void> | undefined;
 		invokeMock.mockImplementation(async (command: string) => {
@@ -3035,7 +3015,7 @@ describe("useChatSession", () => {
 			}
 			return [];
 		});
-		if (mode !== "started") {
+		if (mode === "opening") {
 			await act(async () => {
 				opening = current.hydrateSession({
 					sessionId: "ses-cloud",
@@ -3062,61 +3042,19 @@ describe("useChatSession", () => {
 		const chatEventHandler = handlerFor("chat_event");
 		const snapshot: ChatSessionHook["messages"] = [
 			{
-				id: "saved-user",
-				sessionId: "ses-cloud",
-				role: "user",
-				content: "Earlier prompt",
-				createdAt: 0,
-			},
-			{
 				id: "saved-assistant",
 				sessionId: "ses-cloud",
 				role: "assistant",
-				content: oldReply,
+				content: "Hello",
 				createdAt: 1,
 			},
 		];
-		const newUser: ChatSessionHook["messages"][number] = {
-			id: "new-user",
-			sessionId: "ses-cloud",
-			role: "user",
-			content: "A different prompt",
-			createdAt: 2,
-		};
-		const newReply: ChatSessionHook["messages"][number] = {
-			id: "new-reply",
-			sessionId: "ses-cloud",
-			role: "assistant",
-			content: "Hello!",
-			createdAt: 3,
-		};
-		const replayMessages =
-			mode === "partial"
-				? [...snapshot, newUser, { ...newReply, content: "Hello" }]
-				: snapshot;
-		const replaySnapshot = () =>
-			rehydratedHandler({
-				sessionId: "ses-cloud",
-				status: "running",
-				transcriptKnown: true,
-				messages: replayMessages,
-			});
+
 		await act(async () => {
-			if (mode === "snapshot-first") replaySnapshot();
-			chatEventHandler({
-				sessionId: "ses-cloud",
-				stream: "chat_queued_prompt_start",
-				chunk: JSON.stringify({
-					promptId: "new-prompt",
-					prompt: "A different prompt",
-				}),
-				ts: 0,
-				index: 0,
-			});
 			chatEventHandler?.({
 				sessionId: "ses-cloud",
 				stream: "chat_text",
-				chunk: mode === "partial" ? "Hel" : "Hello",
+				chunk: "Hel",
 				ts: 1,
 				index: 1,
 			});
@@ -3127,11 +3065,30 @@ describe("useChatSession", () => {
 				ts: 2,
 				index: 2,
 			});
-			if (mode !== "snapshot-first") replaySnapshot();
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: snapshot,
+			});
 		});
-		if (mode !== "started") {
+		if (mode === "opening") {
 			await act(async () => {
-				history.resolve(replayMessages);
+				chatEventHandler({
+					sessionId: "ses-cloud",
+					stream: "chat_text",
+					chunk: " again",
+					ts: 3,
+					index: 3,
+				});
+				chatEventHandler({
+					sessionId: "ses-cloud",
+					stream: "chat_core_log",
+					chunk: "flush",
+					ts: 4,
+					index: 4,
+				});
+				history.resolve(snapshot);
 				await opening;
 			});
 			expect(current.isHydratingSession).toBe(false);
@@ -3141,26 +3098,22 @@ describe("useChatSession", () => {
 				sessionId: "ses-cloud",
 				stream: "chat_text",
 				chunk: "!",
-				ts: 3,
-				index: 3,
+				ts: 5,
+				index: 5,
 			});
 			chatEventHandler?.({
 				sessionId: "ses-cloud",
 				stream: "chat_core_log",
 				chunk: "flush",
-				ts: 4,
-				index: 4,
+				ts: 6,
+				index: 6,
 			});
 		});
 		expect(
 			current.messages.filter((message) => message.role === "assistant"),
 		).toEqual([
-			expect.objectContaining({ id: "saved-assistant", content: oldReply }),
-			...(mode === "partial"
-				? [expect.objectContaining({ id: newReply.id, content: "Hello" })]
-				: []),
 			expect.objectContaining({
-				content: mode === "partial" ? "Hel!" : "Hello!",
+				content: mode === "opening" ? "Hello again!" : "Hello!",
 			}),
 		]);
 
@@ -3173,15 +3126,21 @@ describe("useChatSession", () => {
 					toolName: "read_files",
 					input: { paths: ["README.md"] },
 				}),
-				ts: 5,
-				index: 5,
+				ts: 7,
+				index: 7,
 			});
 			rehydratedHandler?.({
 				sessionId: "ses-cloud",
 				status: "running",
 				transcriptKnown: true,
 				messages: [
-					...replayMessages,
+					{
+						id: "saved-assistant",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "Hello",
+						createdAt: 1,
+					},
 					{
 						id: "saved-tool",
 						sessionId: "ses-cloud",
@@ -3208,8 +3167,8 @@ describe("useChatSession", () => {
 					toolName: "read_files",
 					output: "done",
 				}),
-				ts: 6,
-				index: 6,
+				ts: 8,
+				index: 8,
 			});
 		});
 		expect(current.messages.find((message) => message.role === "tool")).toEqual(
@@ -3217,29 +3176,6 @@ describe("useChatSession", () => {
 				meta: expect.objectContaining({ hookEventName: "tool_call_end" }),
 			}),
 		);
-		const completedHistory: ChatSessionHook["messages"] = [
-			...snapshot,
-			newUser,
-			newReply,
-			...current.messages.filter((message) => message.role === "tool"),
-		];
-		invokeMock.mockImplementation(async (command: string) =>
-			command === "read_session_messages" ? completedHistory : [],
-		);
-		vi.useFakeTimers();
-		try {
-			await act(async () => {
-				handlerFor("chat_session_ended")({
-					sessionId: "ses-cloud",
-					reason: "completed",
-				});
-				await vi.advanceTimersByTimeAsync(300);
-			});
-			expect(current.messages).toEqual(completedHistory);
-			expect(current.status).toBe("completed");
-		} finally {
-			vi.useRealTimers();
-		}
 	});
 
 	it("keeps an attached running cloud session running after hydration", async () => {
