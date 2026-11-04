@@ -78,7 +78,6 @@ export class SdkCloudHandoffCoordinator {
 			getAccount(): { key: string; accountId: string; organizationId: string | null; organizationName: string } | undefined
 			assertEnabled(): void
 			changed(): Promise<void>
-			summarize?: typeof summarizeConversation
 		},
 	) {}
 
@@ -147,7 +146,7 @@ export class SdkCloudHandoffCoordinator {
 			)
 				throw new Error("The cloud account does not match the signed-in account. Run /cloud again.")
 			const summary = (
-				await (this.options.summarize ?? summarizeConversation)({
+				await summarizeConversation({
 					messages: source.messages,
 					config: { ...source.config, ...(credentials && { apiKey: credentials.apiKey }) },
 					signal: AbortSignal.any([attempt.abort.signal, AbortSignal.timeout(120_000)]),

@@ -1,3 +1,4 @@
+import { summarizeConversation } from "@cline/core"
 import { type CloudSessionController, CloudSessionError, publishCloudHandoff } from "@cline/core/cloud"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
@@ -5,6 +6,7 @@ import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cl
 const resolveCredentials = vi.hoisted(() => vi.fn())
 vi.mock("@cline/core", async (original) => ({
 	...(await original<typeof import("@cline/core")>()),
+	summarizeConversation: vi.fn(),
 	RuntimeOAuthTokenManager: class {
 		resolveProviderApiKey = resolveCredentials
 	},
@@ -14,8 +16,10 @@ vi.mock("@cline/core/cloud", async (original) => ({
 	publishCloudHandoff: vi.fn(),
 }))
 const publish = vi.mocked(publishCloudHandoff)
+const summarize = vi.mocked(summarizeConversation)
 beforeEach(() => {
 	resolveCredentials.mockReset().mockResolvedValue(null)
+	summarize.mockReset().mockResolvedValue("Widget implemented; tests remain.")
 	publish.mockReset().mockResolvedValue({
 		sessionId: "ses_example",
 		status: "running",
@@ -66,7 +70,6 @@ function setup() {
 		subscribe: vi.fn<CloudSessionController["subscribe"]>(() => () => {}),
 	}
 	const capture = vi.fn(async () => source)
-	const summarize = vi.fn(async () => "Widget implemented; tests remain.")
 	const changed = vi.fn(async () => {})
 	const coordinator = new SdkCloudHandoffCoordinator({
 		capture,
@@ -74,7 +77,6 @@ function setup() {
 		getAccount: () => account,
 		assertEnabled: () => {},
 		changed,
-		summarize,
 	})
 	const id = () => {
 		const view = coordinator.viewFor(input.sourceTaskId)

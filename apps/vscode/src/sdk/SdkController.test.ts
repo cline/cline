@@ -970,8 +970,8 @@ describe("cloud handoff source capture", () => {
 		return { controller, session, host, messages, inspect, capture, plan }
 	}
 
-	it("allows local work during Git inspection and rejects a subsequent turn change", async () => {
-		const { controller, inspect, capture, plan } = setup()
+	it("returns the captured snapshot when local work follows Git snapshot capture", async () => {
+		const { controller, inspect, capture, plan, messages, session } = setup()
 		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
 		controller.sessionRebuilds = scheduler
 		const inspecting = Promise.withResolvers<void>()
@@ -994,7 +994,8 @@ describe("cloud handoff source capture", () => {
 			finishInspection.resolve()
 			await followup
 		}
-		expect(await outcome).toEqual(expect.objectContaining({ message: expect.stringContaining("conversation changed") }))
+		const snapshot = await outcome
+		expect(snapshot).toEqual({ messages, config: session.startConfig, plan })
 	})
 
 	it("disposes the temporary history host before Git inspection and still rejects cancellation", async () => {

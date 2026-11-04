@@ -1827,7 +1827,7 @@ export class Controller {
 			}
 		})
 		const plan = await inspectHandoffGit(cwd, assertIdle)
-		assertIdle()
+		signal.throwIfAborted()
 		return { messages, config, plan }
 	}
 
@@ -2439,7 +2439,6 @@ export class Controller {
 	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
 		await this.changeHandoffAccount(async () => {
 			await this.cloud.reset(() => this.authService.handleAuthCallback(customToken, provider ?? "cline"))
-			// Fetch enterprise policies before publishing the authenticated state.
 			await this.refreshRemoteConfig()
 		})
 	}
