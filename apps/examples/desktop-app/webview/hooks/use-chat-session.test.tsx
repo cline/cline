@@ -7737,3 +7737,60 @@ it("lets a new prompt dispatch after Stop while the old plugin is still pending"
 	});
 	expect(sends).toEqual(["new prompt"]);
 });
+
+it("discards prepared plugin instructions stopped before reconnect dispatch", async () => {
+	const { desktopClient } = await import("@/lib/desktop-client");
+	const plugin = deferred<{ submitPrompt: string }>();
+	const reconnect = deferred<void>();
+	const waiting = deferred<void>();
+	pluginListMock.mockResolvedValue({ commands: [{ name: "goal" }] });
+	pluginRunMock.mockReturnValue(plugin.promise);
+	const sends: string[] = [];
+	vi.spyOn(desktopClient, "invoke").mockImplementation(
+		async (command, args, options) => {
+			if (command !== "chat_session_command") return [] as never;
+			const request = args?.request as {
+				action: string;
+				prompt: string;
+				config: { sessionId: string };
+			};
+			if (request.action === "start")
+				return { sessionId: request.config.sessionId } as never;
+			if (request.action === "send") {
+				if (request.prompt === "/goal") {
+					waiting.resolve();
+					await reconnect.promise;
+				}
+				options?.signal?.throwIfAborted();
+				sends.push(request.prompt);
+				options?.onDispatch?.();
+				return {
+					ok: true,
+					result: { text: "done", finishReason: "completed" },
+				} as never;
+			}
+			return { ok: true } as never;
+		},
+	);
+	let first: Promise<boolean> | undefined;
+	await act(async () => {
+		first = current.sendPrompt("/goal");
+	});
+	await vi.waitFor(() => expect(pluginRunMock).toHaveBeenCalled());
+	await act(async () => {
+		plugin.resolve({ submitPrompt: "prepared instructions" });
+		await waiting.promise;
+	});
+	await act(async () => {
+		await current.abort();
+	});
+	await act(async () => {
+		reconnect.resolve();
+		await first;
+	});
+	expect(sends).toEqual([]);
+	await act(async () => {
+		await current.sendPrompt("new prompt");
+	});
+	expect(sends).toEqual(["new prompt"]);
+});

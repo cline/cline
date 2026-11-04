@@ -609,18 +609,47 @@ describe("writeDesktopDebugLog", () => {
 	});
 });
 
+it("cancels an undispatched command without cancelling the shared connection", async () => {
+	const { desktopClient } = await import("./desktop-client");
+	const controller = new AbortController();
+	const onDispatch = vi.fn();
+	const cancelled = desktopClient.invoke(
+		"chat_session_command",
+		{},
+		{
+			signal: controller.signal,
+			onDispatch,
+		},
+	);
+	const rejected = expect(cancelled).rejects.toMatchObject({
+		name: "AbortError",
+	});
+	const next = desktopClient.invoke("get_process_context");
+	await vi.waitFor(() => expect(sockets).toHaveLength(1));
+	controller.abort();
+	await rejected;
+	expect(onDispatch).not.toHaveBeenCalled();
+	const socket = await connectLatestSocket();
+	expect(socket.sent).toHaveLength(1);
+	expect(socket.lastRequest().command).toBe("get_process_context");
+	socket.respond({ ok: true });
+	await expect(next).resolves.toEqual({ ok: true });
+});
+
 it("reports actual socket dispatch independently of a long-running response", async () => {
 	const { desktopClient } = await import("./desktop-client");
+	const controller = new AbortController();
 	const onDispatch = vi.fn();
 	const response = desktopClient.invoke(
 		"chat_session_command",
 		{ request: { action: "send" } },
-		{ timeoutMs: null, onDispatch },
+		{ timeoutMs: null, onDispatch, signal: controller.signal },
 	);
 	expect(onDispatch).not.toHaveBeenCalled();
 	const socket = await connectLatestSocket();
 	expect(socket.sent).toHaveLength(1);
 	expect(onDispatch).toHaveBeenCalledTimes(1);
+	controller.abort();
 	let completed = false;
 	void response.then(() => {
 		completed = true;

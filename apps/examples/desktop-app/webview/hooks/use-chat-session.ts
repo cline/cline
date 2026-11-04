@@ -1082,7 +1082,8 @@ export function useChatSession(environmentId: string) {
 		};
 	}, []);
 
-	const pluginPreparationControllersRef = useRef(
+	// Stop owns plugin preparation and reconnect waits until socket dispatch.
+	const pendingPromptControllersRef = useRef(
 		new Map<string, Set<AbortController>>(),
 	);
 
@@ -1092,7 +1093,7 @@ export function useChatSession(environmentId: string) {
 		async (body: Record<string, unknown>, onDispatch?: () => void) => {
 			const sessionId = String(body.sessionId);
 			if (body.action === "abort" || body.action === "reset") {
-				for (const controller of pluginPreparationControllersRef.current.get(
+				for (const controller of pendingPromptControllersRef.current.get(
 					sessionId,
 				) ?? [])
 					controller.abort();
@@ -1103,20 +1104,27 @@ export function useChatSession(environmentId: string) {
 				!Array.isArray(body.config)
 					? (body.config as Record<string, unknown>)
 					: {};
-			if (
-				body.action === "send" &&
-				bodyConfig.executionTarget !== "cloud" &&
-				typeof body.prompt === "string"
-			) {
-				const controller = new AbortController();
+			const controller =
+				body.action === "send" && bodyConfig.executionTarget !== "cloud"
+					? new AbortController()
+					: undefined;
+			const releasePendingPrompt = () => {
+				if (!controller) return;
+				const controllers = pendingPromptControllersRef.current.get(sessionId);
+				controllers?.delete(controller);
+				if (!controllers?.size)
+					pendingPromptControllersRef.current.delete(sessionId);
+			};
+			if (controller) {
 				const controllers =
-					pluginPreparationControllersRef.current.get(sessionId) ??
+					pendingPromptControllersRef.current.get(sessionId) ??
 					new Set<AbortController>();
-				pluginPreparationControllersRef.current.set(sessionId, controllers);
+				pendingPromptControllersRef.current.set(sessionId, controllers);
 				controllers.add(controller);
-				let result: Awaited<ReturnType<typeof runPluginSlashCommand>>;
-				try {
-					result = await runPluginSlashCommand(
+			}
+			try {
+				if (controller && typeof body.prompt === "string") {
+					const result = await runPluginSlashCommand(
 						environmentId,
 						{
 							workspacePath: String(
@@ -1127,50 +1135,61 @@ export function useChatSession(environmentId: string) {
 						},
 						controller.signal,
 					);
-				} finally {
-					controllers.delete(controller);
-					if (!controllers.size)
-						pluginPreparationControllersRef.current.delete(sessionId);
+					if (result) {
+						if (result.reply)
+							toast({
+								description: createElement(
+									"span",
+									{ className: "whitespace-pre-line" },
+									result.reply,
+								),
+							});
+						if (!result.submitPrompt)
+							return {
+								sessionId: String(body.sessionId),
+								ok: true,
+								commandHandled: true,
+							};
+						body = { ...body, runtimePrompt: result.submitPrompt };
+					}
 				}
-				if (result) {
-					if (result.reply)
-						toast({
-							description: createElement(
-								"span",
-								{ className: "whitespace-pre-line" },
-								result.reply,
-							),
-						});
-					if (!result.submitPrompt)
-						return {
-							sessionId: String(body.sessionId),
-							ok: true,
-							commandHandled: true,
-						};
-					body = { ...body, runtimePrompt: result.submitPrompt };
-				}
-			}
 
-			const request = {
-				request: {
-					...body,
-					config: { ...bodyConfig, environmentId },
-				},
-			};
-			if (
-				body.action === "send" ||
-				(body.action === "start" && bodyConfig.executionTarget === "cloud")
-			) {
+				const request = {
+					request: {
+						...body,
+						config: { ...bodyConfig, environmentId },
+					},
+				};
+				if (
+					body.action === "send" ||
+					(body.action === "start" && bodyConfig.executionTarget === "cloud")
+				) {
+					return await desktopClient.invoke<ChatSessionCommandResponse>(
+						"chat_session_command",
+						request,
+						{
+							timeoutMs: null,
+							...(controller
+								? {
+										signal: controller.signal,
+										onDispatch: () => {
+											releasePendingPrompt();
+											onDispatch?.();
+										},
+									}
+								: onDispatch
+									? { onDispatch }
+									: {}),
+						},
+					);
+				}
 				return await desktopClient.invoke<ChatSessionCommandResponse>(
 					"chat_session_command",
 					request,
-					{ timeoutMs: null, ...(onDispatch ? { onDispatch } : {}) },
 				);
+			} finally {
+				releasePendingPrompt();
 			}
-			return await desktopClient.invoke<ChatSessionCommandResponse>(
-				"chat_session_command",
-				request,
-			);
 		},
 		[environmentId],
 	);

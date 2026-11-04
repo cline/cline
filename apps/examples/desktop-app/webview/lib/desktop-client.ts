@@ -174,12 +174,22 @@ function raceDeadline<T>(
 	promise: Promise<T>,
 	timeoutMs: number,
 	onTimeout: () => Error,
+	signal?: AbortSignal,
 ): Promise<T> {
+	signal?.throwIfAborted();
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let onAbort: (() => void) | undefined;
 	const timeout = new Promise<never>((_, reject) => {
 		timer = setTimeout(() => reject(onTimeout()), timeoutMs);
+		if (signal) {
+			onAbort = () => reject(signal.reason);
+			signal.addEventListener("abort", onAbort, { once: true });
+		}
 	});
-	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+	return Promise.race([promise, timeout]).finally(() => {
+		clearTimeout(timer);
+		if (onAbort) signal?.removeEventListener("abort", onAbort);
+	});
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -579,28 +589,36 @@ class DesktopClient {
 	private async connectForCommand(
 		command: string,
 		timeoutMs: number,
+		signal?: AbortSignal,
 	): Promise<void> {
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 		for (;;) {
+			signal?.throwIfAborted();
 			const remaining = deadline - Date.now();
 			if (remaining <= 0) {
 				break;
 			}
 			let timedOut = false;
 			try {
-				await raceDeadline(this.ensureConnected(), remaining, () => {
-					timedOut = true;
-					const cause = this.transportError ?? "still connecting";
-					return new Error(
-						`Desktop backend transport did not become ready within ${timeoutMs}ms (${cause})`,
-					);
-				});
+				await raceDeadline(
+					this.ensureConnected(),
+					remaining,
+					() => {
+						timedOut = true;
+						const cause = this.transportError ?? "still connecting";
+						return new Error(
+							`Desktop backend transport did not become ready within ${timeoutMs}ms (${cause})`,
+						);
+					},
+					signal,
+				);
 				if (this.socket?.readyState === WebSocket.OPEN) {
 					return;
 				}
 				lastError = new Error("Desktop backend transport unavailable");
 			} catch (error) {
+				signal?.throwIfAborted();
 				lastError = error;
 				if (timedOut) {
 					break;
@@ -654,6 +672,7 @@ class DesktopClient {
 		await this.connectForCommand(
 			command,
 			options?.connectTimeoutMs ?? CONNECT_WAIT_TIMEOUT_MS,
+			options?.signal,
 		);
 		options?.signal?.throwIfAborted();
 		const socket = this.socket;
