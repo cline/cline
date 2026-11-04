@@ -106,6 +106,38 @@ export const CORE_SPAWN_REASONS = [
 ] as const;
 export type CoreSpawnReason = (typeof CORE_SPAWN_REASONS)[number];
 
+/**
+ * Facts about the IDE host that core cannot see from inside: `os_type` is `win32` whether the
+ * project sits on `C:` or on a `\\wsl$\` share, and `linux` whether the IDE runs on a server or
+ * inside a WSL distro behind Gateway. The JetBrains plugin sets them via `CLINE_HOST_*` env at
+ * spawn; keep in sync with its `HostEnvironment`.
+ */
+export const HOST_WORKSPACE_PATH_KINDS = [
+	"local",
+	"wsl",
+	"unc_other",
+	"unknown",
+] as const;
+export type HostWorkspacePathKind = (typeof HOST_WORKSPACE_PATH_KINDS)[number];
+
+export const HOST_TERMINAL_SHELL_KINDS = [
+	"wsl",
+	"powershell",
+	"cmd",
+	"posix",
+	"other",
+	"none",
+] as const;
+export type HostTerminalShellKind = (typeof HOST_TERMINAL_SHELL_KINDS)[number];
+
+export const HOST_IDE_MODES = [
+	"local",
+	"remote_dev_host",
+	"jetbrains_client",
+	"unknown",
+] as const;
+export type HostIdeMode = (typeof HOST_IDE_MODES)[number];
+
 export interface TelemetryMetadata {
 	extension_version: string;
 	/**
@@ -128,6 +160,15 @@ export interface TelemetryMetadata {
 	 */
 	core_spawn_ordinal?: number;
 	core_spawn_reason?: CoreSpawnReason;
+	/**
+	 * Host facts stated at spawn by the JetBrains plugin: where the project lives, which shell
+	 * the IDE terminal opens, which Remote Development process this is, and whether the IDE
+	 * itself runs inside WSL. Absent on in-process hosts.
+	 */
+	host_workspace_path_kind?: HostWorkspacePathKind;
+	host_terminal_shell_kind?: HostTerminalShellKind;
+	host_ide_mode?: HostIdeMode;
+	host_in_wsl?: boolean;
 }
 
 export interface ITelemetryService {
