@@ -52,7 +52,9 @@ export function isUntouchedDefaultModel(config: ChatSessionConfig): boolean {
 	return (
 		config.provider === DEFAULT_CHAT_CONFIG.provider &&
 		config.model === BUNDLED_DEFAULT_MODEL_ID &&
-		!readModelSelectionStorageFromWindow().lastModelByProvider[config.provider]
+		// Cloud picks are stored under their own scope.
+		!readModelSelectionStorageFromWindow(config.executionTarget)
+			.lastModelByProvider[config.provider]
 	);
 }
 

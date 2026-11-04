@@ -51,4 +51,22 @@ describe("live Cline default model", () => {
 		});
 		expect(c.isUntouchedDefaultModel(c.getInitialChatConfig("local"))).toBe(false);
 	});
+
+	it("does not treat a saved cloud model as untouched", async () => {
+		const c = await load();
+		const { writeModelSelectionStorageToWindow } = await import(
+			"@/lib/model-selection"
+		);
+		writeModelSelectionStorageToWindow(
+			{
+				lastProvider: "cline",
+				lastModelByProvider: {
+					cline: GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ?? "",
+				},
+			},
+			"cloud",
+		);
+		const cloud = c.getInitialChatConfig("local", { executionTarget: "cloud" });
+		expect(c.isUntouchedDefaultModel(cloud)).toBe(false);
+	});
 });

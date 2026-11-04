@@ -222,9 +222,12 @@ async function resolveSdkModels(
 		configFingerprint: fingerprint,
 		models,
 		// Match the session factory, which starts a Cline user with no saved
-		// model on the live feed's first free model.
+		// model on the live feed's first free model. Users with a saved model
+		// never use the default, so they skip the feed wait.
 		defaultModelId: chooseDefaultModelId(
-			sdkProviderId === "cline" ? await resolveClineDefaultModelId().catch(() => resolved?.modelId) : resolved?.modelId,
+			sdkProviderId === "cline" && !selection?.modelId
+				? await resolveClineDefaultModelId().catch(() => resolved?.modelId)
+				: resolved?.modelId,
 			models,
 		),
 		source: "sdk-dynamic",
