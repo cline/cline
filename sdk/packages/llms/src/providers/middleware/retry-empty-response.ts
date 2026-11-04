@@ -297,6 +297,7 @@ export function createRetryEmptyResponseMiddleware(
 						let pendingFinish: FinishPart | null = null;
 						let streamFailure: unknown;
 						let streamFailed = false;
+						let errorPartForwarded = false;
 
 						try {
 							while (true) {
@@ -329,6 +330,9 @@ export function createRetryEmptyResponseMiddleware(
 								}
 								if (accepted) {
 									controller.enqueue(value);
+									if (value.type === "error") {
+										errorPartForwarded = true;
+									}
 								} else {
 									buffered.push(value);
 								}
@@ -338,6 +342,22 @@ export function createRetryEmptyResponseMiddleware(
 							streamFailure = error;
 						} finally {
 							reader.releaseLock();
+						}
+
+						if (streamFailed && errorPartForwarded) {
+							// The provider already reported the outcome as an error
+							// part; a transport failure after it adds nothing. Ending
+							// the stream cleanly keeps the AI SDK's stream retry
+							// reachable: its read-ahead would otherwise see the
+							// failure while `onError` is pending, its reader cancel
+							// then rejects, and the retry is skipped (vercel/ai#23762).
+							if (pendingFinish) {
+								controller.enqueue(
+									withAggregatedUsage(pendingFinish, discardedUsage),
+								);
+							}
+							controller.close();
+							return;
 						}
 
 						if (streamFailed) {

@@ -36,6 +36,11 @@ export interface StreamRetryBackoff {
  * re-dialing, so the wait lives there: provider overloads mostly clear within
  * a few seconds, and an immediate re-dial meets the same overload.
  *
+ * Waiting inside `onError` relies on the attempt ending cleanly after its
+ * error part. If the provider stream fails during the wait instead, the SDK
+ * skips the retry (vercel/ai#23762); `retry-empty-response` closes such an
+ * attempt cleanly for that reason.
+ *
  * Errors that reach `onError` without a stream retry following them get no
  * wait: a `RetryError` (request-start retries exhausted), a transport failure
  * (the reader rejects, which ends the stream), and a tool-choice violation.

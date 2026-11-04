@@ -39,7 +39,29 @@ const textSse =
 	chunk({}, "stop") +
 	"data: [DONE]\n\n";
 
-function queuedFetch(bodies: string[]) {
+/** Delivers the frame, then fails the way a reset connection does. */
+function resetAfter(frame: string) {
+	let sent = false;
+	return new ReadableStream<Uint8Array>(
+		{
+			pull(controller) {
+				if (sent) {
+					controller.error(
+						Object.assign(new Error("terminated"), { code: "UND_ERR_SOCKET" }),
+					);
+					return;
+				}
+				sent = true;
+				controller.enqueue(new TextEncoder().encode(frame));
+			},
+		},
+		{ highWaterMark: 0 },
+	);
+}
+
+type Body = string | ReadableStream<Uint8Array>;
+
+function queuedFetch(bodies: Body[]) {
 	let call = 0;
 	return vi.fn(
 		async () =>
@@ -64,7 +86,7 @@ async function collect(
 }
 
 async function run(input: {
-	bodies: string[];
+	bodies: Body[];
 	signal?: AbortSignal;
 	emitStatusNotice: ReturnType<typeof vi.fn>;
 }) {
@@ -142,6 +164,29 @@ describe("stream retry backoff over the OpenAI-compatible wire format", () => {
 		const finish = events.find((event) => event.type === "finish");
 		expect(finish).toMatchObject({ requestId: "request-2" });
 		expect(finish).not.toMatchObject({ reason: "error" });
+	});
+
+	it("still retries when the connection resets right after the error frame", async () => {
+		// The SDK reads ahead while `onError` runs; if the provider stream fails
+		// before the SDK cancels it, the retry is skipped (vercel/ai#23762).
+		// Keeping `onError` synchronous and sleeping in `fetch` avoids that.
+		const emitStatusNotice = vi.fn();
+		const { fetchMock, events, elapsedMs } = await run({
+			bodies: [resetAfter(overloadedSse), textSse],
+			emitStatusNotice,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(emitStatusNotice).toHaveBeenCalledTimes(1);
+		expect(elapsedMs).toBeGreaterThanOrEqual(900);
+		expect(
+			events.some(
+				(event) => event.type === "text-delta" && event.text.includes("hello"),
+			),
+		).toBe(true);
+		expect(events.find((event) => event.type === "finish")).not.toMatchObject({
+			reason: "error",
+		});
 	});
 
 	it("ends promptly when the request is cancelled during the wait", async () => {
