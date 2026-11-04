@@ -1190,6 +1190,50 @@ describe("CloudSessionController neutral host contract", () => {
 		}
 	});
 	it.each([
+		"hub_draining",
+		"operation_failed",
+	])("classifies an initial %s rejection without replaying the prompt", async (code) => {
+		const f = fixture();
+		const command = f.command.getMockImplementation()!;
+		let refused = false;
+		f.command.mockImplementation(async (...args) => {
+			const reply = await command(...args);
+			if (args[0] === "session.send_input" && !refused) {
+				refused = true;
+				throw new HubCommandError(args[0], code, "Initial prompt rejected");
+			}
+			return reply;
+		});
+		try {
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialMessage: { text: "Initial continuation" },
+			});
+			expect(result.initialSend).toMatchObject({
+				dispatched: code !== "hub_draining",
+			});
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBe(
+				"Initial continuation",
+			);
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toHaveLength(1);
+			if (code === "hub_draining") {
+				await f.controller.send(record.id, "Initial continuation", "queue");
+				expect(
+					f.commands.filter((entry) => entry.command === "session.send_input"),
+				).toEqual([
+					expect.objectContaining({ sessionId: "inner" }),
+					expect.objectContaining({ sessionId: "inner" }),
+				]);
+			}
+			expect(f.api.create).toHaveBeenCalledOnce();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it.each([
 		"creation",
 		"initial send",
 	])("shares overlapping creation and initial prompt delivery during %s", async (stage) => {
