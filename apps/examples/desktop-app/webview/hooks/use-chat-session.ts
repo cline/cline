@@ -1,5 +1,4 @@
 "use client";
-import { runPluginSlashCommand } from "@/lib/plugin-commands";
 
 import {
 	formatDisplayUserInput,
@@ -62,6 +61,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import { runPluginSlashCommand } from "@/lib/plugin-commands";
 import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
@@ -1114,7 +1114,7 @@ export function useChatSession(environmentId: string) {
 					new Set<AbortController>();
 				pluginPreparationControllersRef.current.set(sessionId, controllers);
 				controllers.add(controller);
-				let result;
+				let result: Awaited<ReturnType<typeof runPluginSlashCommand>>;
 				try {
 					result = await runPluginSlashCommand(
 						environmentId,

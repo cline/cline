@@ -228,7 +228,7 @@ export function WelcomeScreen({
 			}
 			await openPersonalGitHubInstallUrl(fallbackUrl);
 		},
-		[activeOrganization, openExternalUrl],
+		[activeOrganization],
 	);
 
 	const cloudModeActive =
