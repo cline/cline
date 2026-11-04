@@ -322,6 +322,9 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		// silently disabling tool calling at the runtime gate (#13463).
 		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
 		setCapability("tools", supportsTools !== false)
+		// Likewise "reasoning": the gateway skips an explicit reasoning disable
+		// for a list without it. Only supportsReasoning: false denies it.
+		if (modelInfo.supportsReasoning === undefined) setCapability("reasoning", true)
 	}
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
