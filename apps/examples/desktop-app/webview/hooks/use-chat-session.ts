@@ -681,7 +681,9 @@ export function useChatSession(environmentId: string) {
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
 	const manualCompactionSessionIdRef = useRef<string | null>(null);
-	const [compactionActive, setCompactionActive] = useState(false);
+	const [compactionSessionId, setCompactionSessionId] = useState<string | null>(
+		null,
+	);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -734,6 +736,11 @@ export function useChatSession(environmentId: string) {
 	useEffect(() => {
 		activeSessionIdRef.current = sessionId;
 	}, [sessionId]);
+	useEffect(() => {
+		setCompactionSessionId((current) =>
+			current === sessionId && BUSY_STATUSES.has(status) ? current : null,
+		);
+	}, [sessionId, status]);
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
@@ -3116,7 +3123,7 @@ export function useChatSession(environmentId: string) {
 					// Manual compaction has no run-start event to enable Stop.
 					if (isManualCompaction) {
 						manualCompactionSessionIdRef.current = activeSessionId;
-						setCompactionActive(true);
+						setCompactionSessionId(activeSessionId);
 					}
 					setStatus(isManualCompaction ? "running" : "starting");
 				}
@@ -3632,7 +3639,7 @@ export function useChatSession(environmentId: string) {
 					// A compaction we lost track of (reload, remount) is still
 					// running in the sidecar: show Stop again instead of an error.
 					promptTaken = withdrawPrompt();
-					setCompactionActive(true);
+					setCompactionSessionId(activeSessionId);
 					setStatus("running");
 				} else {
 					setErrorState(errorMessage(err), activeSessionId);
@@ -3643,6 +3650,9 @@ export function useChatSession(environmentId: string) {
 					!shouldQueue
 				) {
 					manualCompactionSessionIdRef.current = null;
+					setCompactionSessionId((current) =>
+						current === activeSessionId ? null : current,
+					);
 				}
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
@@ -4388,7 +4398,8 @@ export function useChatSession(environmentId: string) {
 		activeAssistantMessageId,
 		activityLabel,
 		isCompacting:
-			compactionActive &&
+			compactionSessionId !== null &&
+			compactionSessionId === sessionId &&
 			(status === "starting" || status === "running" || status === "stopping"),
 		config,
 		messages,
