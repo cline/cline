@@ -1711,7 +1711,7 @@ export class Controller {
 			this.authService.getInfo().user &&
 			!this.authService.getUserOrganizations()
 		) {
-			await this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			await this.authService.refreshMissingUserInfo()
 			if (this.authService.getInfo().user && !this.authService.getUserOrganizations()) {
 				throw new Error("Could not verify the cloud organization. Check your connection and run /cloud again.")
 			}

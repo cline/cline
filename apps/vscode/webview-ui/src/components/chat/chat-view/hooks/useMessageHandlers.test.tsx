@@ -330,6 +330,41 @@ describe("useMessageHandlers — send routing", () => {
 		expect(nativeState.value).toEqual({ anotherFeature: "keep", cloudHandoffDrafts: {} })
 	})
 
+	it("explains a retry after cancellation while the original preparation is still pending", async () => {
+		mockTaskId = "local-task"
+		const preparation = Promise.withResolvers<void>()
+		prepareHandoff.mockImplementationOnce(() => preparation.promise)
+		const { result, rerender } = renderConversation()
+		act(() => result.current.chatState.setInputValue("/cloud original"))
+		let submission: Promise<void> | undefined
+		await act(async () => {
+			submission = result.current.handlers.handleSendMessage("/cloud original", [], [])
+		})
+		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		rerender()
+		mockHandoff = undefined
+		rerender()
+		act(() => result.current.chatState.setInputValue("/cloud retry"))
+		try {
+			await act(async () => result.current.handlers.handleSendMessage("/cloud retry", [], []))
+			expect(result.current.handlers.handoffError).toBe(
+				"The previous cloud preparation is still pending. Wait for it to finish, then run /cloud again.",
+			)
+			expect(prepareHandoff).toHaveBeenCalledOnce()
+			expect(result.current.chatState.inputValue).toBe("/cloud retry")
+			expect(askResponse).not.toHaveBeenCalled()
+			expect(newTask).not.toHaveBeenCalled()
+		} finally {
+			await act(async () => {
+				preparation.resolve()
+				await submission
+			})
+		}
+		await act(async () => result.current.handlers.handleSendMessage("/cloud retry", [], []))
+		expect(prepareHandoff).toHaveBeenCalledTimes(2)
+		expect(result.current.handlers.handoffError).toBeUndefined()
+	})
+
 	it("does not acknowledge a saved submission with a replacement composer's revision", async () => {
 		mockTaskId = "local-task"
 		const original = renderConversation()

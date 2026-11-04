@@ -502,6 +502,72 @@ export class AuthService {
 		return this._clineAuthInfo?.userInfo?.organizations
 	}
 
+	async refreshMissingUserInfo(): Promise<void> {
+		const auth = this._clineAuthInfo
+		if (!this._authenticated || !auth || auth.userInfo.organizations) return
+		const stored = readClineCredentials()
+		const changed = () => new Error("The signed-in account or credentials changed. Try again.")
+		if (
+			!stored ||
+			(auth.userInfo.id && stored.accountId && stored.accountId !== auth.userInfo.id) ||
+			(stored.accessToken !== auth.idToken && (!auth.userInfo.id || stored.accountId !== auth.userInfo.id))
+		)
+			throw changed()
+		const assertCurrent = (expectedAuth: ClineAuthInfo, expected: NonNullable<ReturnType<typeof readClineCredentials>>) => {
+			const current = readClineCredentials()
+			if (
+				this._clineAuthInfo !== expectedAuth ||
+				!current ||
+				current.accessToken !== expected.accessToken ||
+				current.refreshToken !== expected.refreshToken ||
+				current.accountId !== expected.accountId
+			)
+				throw changed()
+		}
+		const accountId = auth.userInfo.id || stored.accountId
+		const credentials = await this.resolveValidClineCredentials({
+			...auth,
+			idToken: stored.accessToken,
+			refreshToken: stored.refreshToken,
+			expiresAt: stored.expiresAt ? stored.expiresAt / 1000 : undefined,
+			userInfo: { ...auth.userInfo, id: accountId ?? "" },
+		})
+		assertCurrent(auth, stored)
+		if (!credentials) {
+			this._authenticated = false
+			this._clineAuthInfo = null
+			clearClineCredentials()
+			await this.sendAuthStatusUpdate()
+			return
+		}
+		if (accountId && credentials.accountId && credentials.accountId !== accountId) throw changed()
+		const startedAt = readSessionStartedAtMs(credentials.metadata) ?? stored.sessionStartedAtMs ?? auth.startedAt
+		const refreshed = {
+			...auth,
+			idToken: credentials.access,
+			refreshToken: credentials.refresh,
+			expiresAt: credentials.expires ? credentials.expires / 1000 : undefined,
+			startedAt,
+		}
+		const persisted = {
+			accessToken: credentials.access,
+			refreshToken: credentials.refresh,
+			expiresAt: credentials.expires,
+			accountId: credentials.accountId ?? accountId,
+			metadata: credentials.metadata,
+			sessionStartedAtMs: startedAt,
+		}
+		// Keep rotated credentials even if the profile request times out; unknown scope stays unknown.
+		writeClineCredentials(persisted)
+		this._clineAuthInfo = refreshed
+		const userInfo = await this.fetchUserInfoFromApi(credentials.access)
+		assertCurrent(refreshed, persisted)
+		if (!userInfo) return
+		if (persisted.accountId && userInfo.id !== persisted.accountId) throw changed()
+		this._clineAuthInfo = { ...refreshed, userInfo }
+		await this.sendAuthStatusUpdate()
+	}
+
 	/**
 	 * Gets the provider name for the current authentication.
 	 */

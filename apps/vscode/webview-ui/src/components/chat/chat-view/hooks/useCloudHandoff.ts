@@ -143,7 +143,13 @@ export function useCloudHandoff(chatState: ChatState) {
 				})
 				return
 			}
-			if (preparing.current.has(sourceTaskId)) return
+			if (preparing.current.has(sourceTaskId)) {
+				setFailure({
+					sourceTaskId,
+					message: "The previous cloud preparation is still pending. Wait for it to finish, then run /cloud again.",
+				})
+				return
+			}
 			const submitted = { draft }
 			const next = new Map(draftsRef.current).set(sourceTaskId, submitted)
 			const capacityError = draftCapacityError(next)

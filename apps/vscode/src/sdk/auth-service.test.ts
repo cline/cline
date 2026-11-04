@@ -683,6 +683,162 @@ describe("AuthService", () => {
 		})
 	})
 
+	describe("refreshMissingUserInfo()", () => {
+		async function restoreMissingProfile(uid = "user-123") {
+			const accountId = uid || undefined
+			const credentials = { ...createTestOAuthCredentials(), accountId }
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: credentials.access,
+					refreshToken: credentials.refresh,
+					expiresAt: credentials.expires,
+					accountId,
+				},
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue(credentials)
+			vi.mocked(axios.get).mockRejectedValueOnce(new Error("Profile unavailable"))
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			expect(authService.getInfo().user?.uid).toBe(accountId ?? "")
+			expect(authService.getUserOrganizations()).toBeUndefined()
+			return credentials
+		}
+
+		it("keeps warm identity through a transient near-expiry refresh and recovers without signing in again", async () => {
+			const credentials = await restoreMissingProfile()
+			const stored = mockProviderSettings.get("cline")?.auth
+			const realClineAuthModulePath = path.resolve(import.meta.dirname, "../../../../sdk/packages/core/src/auth/cline.ts")
+			const { getValidClineCredentials: resolveCredentials } = (await import(
+				/* @vite-ignore */ realClineAuthModulePath
+			)) as { getValidClineCredentials: typeof getValidClineCredentials }
+			vi.mocked(getValidClineCredentials).mockImplementation(resolveCredentials)
+			const refresh = vi.fn(async () => new Response("Unavailable", { status: 503 }))
+			vi.stubGlobal("fetch", refresh)
+			const clock = vi.spyOn(Date, "now").mockReturnValue(credentials.expires - 10_000)
+			try {
+				await expect(authService.refreshMissingUserInfo()).rejects.toThrow()
+				expect(refresh).toHaveBeenCalledOnce()
+				expect(authService.getInfo().user?.uid).toBe("user-123")
+				expect(authService.getUserOrganizations()).toBeUndefined()
+				expect(mockProviderSettings.get("cline")?.auth).toEqual(stored)
+			} finally {
+				clock.mockRestore()
+				vi.unstubAllGlobals()
+			}
+			vi.mocked(axios.get).mockResolvedValueOnce({ data: { data: createTestAuthInfo().userInfo } })
+			await authService.refreshMissingUserInfo()
+			expect(authService.getUserOrganizations()).toEqual(createTestAuthInfo().userInfo.organizations)
+			expect(await authService.getAuthToken()).toBe(`workos:${credentials.access}`)
+		})
+
+		it("retains rotated credentials when the missing profile is still unavailable", async () => {
+			await restoreMissingProfile()
+			const rotated = {
+				...createTestOAuthCredentials(),
+				access: "rotated-access",
+				refresh: "rotated-refresh",
+				accountId: "user-123",
+			}
+			vi.mocked(getValidClineCredentials).mockResolvedValue(rotated)
+			vi.mocked(axios.get).mockRejectedValueOnce(new Error("Profile timed out"))
+			await authService.refreshMissingUserInfo()
+			expect(authService.getInfo().user?.uid).toBe("user-123")
+			expect(authService.getUserOrganizations()).toBeUndefined()
+			expect(await authService.getAuthToken()).toBe("workos:rotated-access")
+			expect(mockProviderSettings.get("cline")?.auth).toMatchObject({
+				accessToken: "workos:rotated-access",
+				refreshToken: "rotated-refresh",
+			})
+			vi.mocked(axios.get).mockResolvedValueOnce({ data: { data: createTestAuthInfo().userInfo } })
+			await authService.refreshMissingUserInfo()
+			expect(authService.getActiveOrganizationId()).toBe("org-personal")
+		})
+
+		it.each(["user-123", ""])("recovers legacy credentials without a stored account ID for uid %j", async (uid) => {
+			const credentials = await restoreMissingProfile(uid)
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: credentials.access, refreshToken: credentials.refresh, expiresAt: credentials.expires },
+			})
+			vi.mocked(axios.get).mockResolvedValueOnce({ data: { data: createTestAuthInfo().userInfo } })
+			await authService.refreshMissingUserInfo()
+			expect(authService.getInfo().user?.uid).toBe("user-123")
+			expect(authService.getActiveOrganizationId()).toBe("org-personal")
+		})
+
+		it("clears a rejected token but does not restore a signed-out identity", async () => {
+			await restoreMissingProfile()
+			vi.mocked(getValidClineCredentials).mockResolvedValueOnce(null)
+			await authService.refreshMissingUserInfo()
+			expect(authService.getInfo().user).toBeUndefined()
+			expect(await authService.getAuthToken()).toBeNull()
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			vi.mocked(getValidClineCredentials).mockClear()
+			await authService.refreshMissingUserInfo()
+			expect(getValidClineCredentials).not.toHaveBeenCalled()
+		})
+
+		it.each([
+			{ stage: "credentials", change: "signout" },
+			{ stage: "credentials", change: "rotation" },
+			{ stage: "credentials", change: "signin" },
+			{ stage: "profile", change: "signout" },
+			{ stage: "profile", change: "rotation" },
+			{ stage: "profile", change: "signin" },
+		])("does not overwrite $change during $stage recovery", async ({ stage, change }) => {
+			const credentials = await restoreMissingProfile()
+			const token = Promise.withResolvers<OAuthCredentials | null>()
+			const profile = Promise.withResolvers<{ data: { data: ClineAuthInfo["userInfo"] } }>()
+			vi.mocked(axios.get).mockClear()
+			if (stage === "credentials") vi.mocked(getValidClineCredentials).mockReturnValueOnce(token.promise)
+			else vi.mocked(axios.get).mockReturnValueOnce(profile.promise)
+			const refreshing = expect(authService.refreshMissingUserInfo()).rejects.toThrow("changed")
+			if (stage === "profile") await vi.waitFor(() => expect(axios.get).toHaveBeenCalledOnce())
+			if (change === "signout") await authService.handleDeauth(LogoutReason.USER_INITIATED)
+			else if (change === "signin") await restoreMissingProfile("other-user")
+			else
+				mockProviderSettings.set("cline", {
+					provider: "cline",
+					auth: {
+						accessToken: "workos:other-window-token",
+						refreshToken: "other-window-refresh",
+						accountId: "user-123",
+					},
+				})
+			const stored = mockProviderSettings.get("cline")?.auth
+			token.resolve(null)
+			profile.resolve({ data: { data: createTestAuthInfo().userInfo } })
+			await refreshing
+			expect(mockProviderSettings.get("cline")?.auth).toEqual(stored)
+			expect(authService.getUserOrganizations()).toBeUndefined()
+			expect(authService.getInfo().user?.uid).toBe(
+				change === "signout" ? undefined : change === "signin" ? "other-user" : credentials.accountId,
+			)
+		})
+
+		it.each([
+			"storage",
+			"credentials",
+			"profile",
+		])("refuses another account's %s during profile recovery", async (boundary) => {
+			const credentials = await restoreMissingProfile()
+			const other = { ...credentials, accountId: "other-user" }
+			if (boundary === "storage") {
+				mockProviderSettings.set("cline", {
+					provider: "cline",
+					auth: { accessToken: credentials.access, refreshToken: credentials.refresh, accountId: other.accountId },
+				})
+			} else if (boundary === "credentials") vi.mocked(getValidClineCredentials).mockResolvedValueOnce(other)
+			else
+				vi.mocked(axios.get).mockResolvedValueOnce({
+					data: { data: { ...createTestAuthInfo().userInfo, id: other.accountId } },
+				})
+			await expect(authService.refreshMissingUserInfo()).rejects.toThrow("changed")
+			expect(authService.getInfo().user?.uid).toBe("user-123")
+			expect(authService.getUserOrganizations()).toBeUndefined()
+		})
+	})
+
 	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
 		it.each([
 			{ storedAccountId: "user-123", removed: false, expectedUser: "user-123", expectedToken: "workos:rotated-token" },

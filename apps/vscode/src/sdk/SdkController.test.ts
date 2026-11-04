@@ -1130,7 +1130,7 @@ describe("cloud handoff controller", () => {
 			authService: {
 				getInfo: () => ({ user: { uid: identity.accountId } }),
 				getActiveOrganizationId: () => identity.organizationId,
-				restoreRefreshTokenAndRetrieveAuthInfo: vi.fn(async () => {}),
+				refreshMissingUserInfo: vi.fn(async () => {}),
 				getUserOrganizations: () =>
 					!identity.organizationsKnown
 						? undefined
@@ -1184,15 +1184,15 @@ describe("cloud handoff controller", () => {
 			expect(controller.cloudHandoff.reset).not.toHaveBeenCalled()
 			await expect(prepareHandoff(controller as never, input)).rejects.toThrow("Could not verify the cloud organization")
 			expect(controller.cloudHandoff.prepare).not.toHaveBeenCalled()
-			expect(controller.authService.restoreRefreshTokenAndRetrieveAuthInfo).toHaveBeenCalledOnce()
-			controller.authService.restoreRefreshTokenAndRetrieveAuthInfo.mockImplementation(async () => {
+			expect(controller.authService.refreshMissingUserInfo).toHaveBeenCalledOnce()
+			controller.authService.refreshMissingUserInfo.mockImplementation(async () => {
 				identity.organizationsKnown = true
 				identity.accountId = "user-1"
 			})
 			await prepareHandoff(controller as never, input)
 			expect(controller.cloudHandoff.prepare).toHaveBeenCalledWith(input)
 			await prepareHandoff(controller as never, input)
-			expect(controller.authService.restoreRefreshTokenAndRetrieveAuthInfo).toHaveBeenCalledTimes(2)
+			expect(controller.authService.refreshMissingUserInfo).toHaveBeenCalledTimes(2)
 		} finally {
 			vi.unstubAllEnvs()
 			await cloud.dispose()
