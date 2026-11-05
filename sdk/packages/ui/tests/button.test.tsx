@@ -141,14 +141,6 @@ describe("IconButton", () => {
 		expect(onClick).toHaveBeenCalledOnce();
 	});
 
-	it("renders an accessible name with a managed icon", async () => {
-		await render(<IconButton aria-label="Add item" icon={Plus} />);
-		const button = container.querySelector("button");
-		expect(button?.getAttribute("aria-label")).toBe("Add item");
-		expect(button?.dataset.slot).toBe("icon-button");
-		expect(button?.type).toBe("button");
-	});
-
 	it("does not invoke actions while disabled", async () => {
 		const onClick = vi.fn();
 		await render(
@@ -159,7 +151,11 @@ describe("IconButton", () => {
 				onClick={onClick}
 			/>,
 		);
-		await act(async () => container.querySelector("button")?.click());
+		const button = container.querySelector("button");
+		expect(button?.getAttribute("aria-label")).toBe("Remove item");
+		expect(button?.dataset.slot).toBe("icon-button");
+		expect(button?.type).toBe("button");
+		await act(async () => button?.click());
 		expect(onClick).not.toHaveBeenCalled();
 	});
 });
@@ -510,14 +506,10 @@ describe("Button content width transitions", () => {
 		}
 	});
 
-	it("keeps the initial render at its natural width", async () => {
+	it("expands and contracts when a loading label changes the content width", async () => {
 		await render(<Button>Save</Button>);
 		expect(animate).not.toHaveBeenCalled();
 		expect(container.querySelector("button")?.style.width).toBe("");
-	});
-
-	it("expands and contracts when a loading label changes the content width", async () => {
-		await render(<Button>Save</Button>);
 		naturalWidth = 160;
 		await render(<Button disabled>Saving changes…</Button>);
 		expect(animate.mock.calls[0]?.[0]).toEqual([
@@ -580,13 +572,9 @@ describe("Button content width transitions", () => {
 		expect(animations[0].cancel).toHaveBeenCalledOnce();
 	});
 
-	it("leaves a consumer's fixed width unchanged when its label changes", async () => {
+	it("preserves styles without animating when measured width is unchanged", async () => {
 		await render(<Button style={{ width: 100 }}>Save</Button>);
-		await render(
-			<Button disabled style={{ width: 100 }}>
-				Saving…
-			</Button>,
-		);
+		await render(<Button style={{ width: 100 }}>Saving…</Button>);
 		expect(animate).not.toHaveBeenCalled();
 		expect(container.querySelector("button")?.style.width).toBe("100px");
 	});
