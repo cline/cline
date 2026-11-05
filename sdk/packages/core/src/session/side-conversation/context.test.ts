@@ -46,6 +46,7 @@ describe("side reference capture", () => {
 					tool_use_id: id,
 					name: "read_files",
 					content: `${id} contents`,
+					is_error: id === "b",
 				})),
 			},
 			{ role: "assistant", content: "both inspected" },
@@ -63,6 +64,7 @@ describe("side reference capture", () => {
 		});
 		expect(capture.content).toContain("1 saved messages omitted");
 		expect(capture.content).toContain("b contents");
+		expect(capture.content).toContain("Tool result read_files (b) [failed]:");
 		expect(capture.content).toContain("active task");
 		expect(capture.content).toContain("still streaming");
 		expect(capture.content).toContain("may be partial");
@@ -195,7 +197,7 @@ describe("side reference capture", () => {
 });
 
 describe("current context and provider request", () => {
-	it("retains provider-owned structured search results and ordinary tools as inert text", () => {
+	it("retains provider-owned structured search results as inert text", () => {
 		const source: MessageWithMetadata[] = [
 			{ role: "user", content: "Explain synthetic PR 42" },
 			{
@@ -219,24 +221,6 @@ describe("current context and provider request", () => {
 					],
 				},
 			},
-			{
-				role: "assistant",
-				content: [
-					{ type: "tool_use", id: "custom", name: "custom_report", input: {} },
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "custom",
-						name: "custom_report",
-						content: "Adds a maximum attempt count",
-						is_error: true,
-					},
-				],
-			},
 		];
 		const original = structuredClone(source);
 		const capture = captureSideReference({
@@ -244,12 +228,8 @@ describe("current context and provider request", () => {
 			activeParentTurn: true,
 		});
 		expect(capture.content).toContain("PR 42 changes retry scheduling");
-		expect(capture.content).toContain("Adds a maximum attempt count");
 		expect(capture.content).toContain(
 			"Tool result web_search (search) [failed]:",
-		);
-		expect(capture.content).toContain(
-			"Tool result custom_report (custom) [failed]:",
 		);
 		expect(capture.content).toContain("0 saved messages omitted");
 		expect(source).toEqual(original);
@@ -332,31 +312,24 @@ describe("current context and provider request", () => {
 			...exchange("repeat", "old answer"),
 			...exchange("repeat", "new answer completed"),
 		];
-		const visible = {
-			sessionId: "parent",
-			environmentId: "local",
-			capturedAt: "2026-10-28T12:00:00Z",
-			omittedExcerptCount: 0,
-			omittedMediaCount: 0,
-			excerpts: [
-				{
-					messageId: "latest-user",
-					role: "user" as const,
-					text: "repeat",
-					runCount: 2,
-					submission: "observed" as const,
-					omittedBytes: 0,
-				},
-				{
-					messageId: "latest-answer",
-					role: "assistant" as const,
-					text: "new answer",
-					runCount: 2,
-					submission: "observed" as const,
-					omittedBytes: 0,
-				},
-			],
-		};
+		const visible = visibleContext([
+			{
+				messageId: "latest-user",
+				role: "user",
+				text: "repeat",
+				runCount: 2,
+				submission: "observed",
+				omittedBytes: 0,
+			},
+			{
+				messageId: "latest-answer",
+				role: "assistant",
+				text: "new answer",
+				runCount: 2,
+				submission: "observed",
+				omittedBytes: 0,
+			},
+		]);
 		const matched = captureSideReference({
 			messages: source,
 			activeParentTurn: true,
