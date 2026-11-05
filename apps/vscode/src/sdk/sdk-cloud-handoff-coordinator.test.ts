@@ -152,16 +152,17 @@ describe("cloud conversation handoff", () => {
 	})
 
 	it.each([
-		"cline",
-		"cline-pass",
-	])("rejects %s credentials from another account while the window account is unchanged", async (providerId) => {
+		{ providerId: "cline", accountId: "other-user", message: expect.stringContaining("account") },
+		{ providerId: "cline-pass", accountId: "other-user", message: expect.stringContaining("account") },
+		{ providerId: "cline", accountId: undefined, message: "Sign out of Cline and sign in again, then run /cloud." },
+	])("rejects $providerId credentials with account ID $accountId", async ({ providerId, accountId, message }) => {
 		const { coordinator, source, summarize } = setup()
 		source.config.providerId = providerId
-		resolveCredentials.mockResolvedValue({ apiKey: "other-account-token", accountId: "other-user", refreshed: false })
+		resolveCredentials.mockResolvedValue({ apiKey: "provider-token", accountId, refreshed: false })
 		await coordinator.prepare(input)
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
 			phase: "failed",
-			message: expect.stringContaining("account"),
+			message,
 		})
 		expect(summarize).not.toHaveBeenCalled()
 		expect(publish).not.toHaveBeenCalled()
@@ -175,18 +176,6 @@ describe("cloud conversation handoff", () => {
 		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
 			phase: "failed",
 			message: expect.stringContaining("account"),
-		})
-		expect(summarize).not.toHaveBeenCalled()
-		expect(publish).not.toHaveBeenCalled()
-	})
-
-	it("explains how to refresh legacy credentials without a verified account ID", async () => {
-		const { coordinator, summarize } = setup()
-		resolveCredentials.mockResolvedValue({ apiKey: "legacy-token", refreshed: false })
-		await coordinator.prepare(input)
-		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
-			phase: "failed",
-			message: "Sign out of Cline and sign in again, then run /cloud.",
 		})
 		expect(summarize).not.toHaveBeenCalled()
 		expect(publish).not.toHaveBeenCalled()
