@@ -77,6 +77,11 @@ unless a `type` is specified; a native button without a type submits its form.
 `IconButton` requires an accessible `aria-label`, and both components support
 Radix-style composition through `asChild`.
 
+Both controls share heights and corner radii per size: `xs`/`sm` use
+`--radius-md`, and `md`/`lg` use `--radius-lg`. At default spacing their heights
+are 1.75rem, 2rem, 2.25rem, and 2.5rem respectively; icon buttons are square.
+See the [button sizing table](./ADOPTION.md#buttons).
+
 ```tsx
 import { Button, IconButton } from "@cline/ui";
 

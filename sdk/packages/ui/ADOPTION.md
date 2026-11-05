@@ -271,6 +271,18 @@ Both controls support `accent`, `neutral`, and `destructive` tones and
 `xs`, `sm`, `md`, and `lg` sizes. `Button` defaults to primary/accent/md;
 `IconButton` defaults to ghost/neutral/sm.
 
+Both controls use the same height and corner radius for each size:
+
+| Size | Height with `--spacing: 0.25rem` | Corner radius |
+| --- | --- | --- |
+| `xs` | `1.75rem` | `--radius-md` |
+| `sm` | `2rem` | `--radius-md` |
+| `md` | `2.25rem` | `--radius-lg` |
+| `lg` | `2.5rem` | `--radius-lg` |
+
+Heights use 7, 8, 9, and 10 spacing units respectively. Icon buttons use the
+same dimension for width, keeping them square.
+
 ```tsx
 import { Button, IconButton } from "@cline/ui";
 import { Plus, X } from "lucide-react";
