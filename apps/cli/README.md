@@ -352,13 +352,17 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 
 ## Continue a local conversation in Cloud
 
-With `CLINE_CLOUD_SESSIONS=1`, enter `/cloud` or `/cloud <next instruction>` in an idle local conversation. You can include up to five pasted images. The selected model must be available to your signed-in Cline Cloud account.
+With `CLINE_CLOUD_SESSIONS=1`, use `/cloud [next instruction]` in an idle local Cline or ClinePass conversation. You can attach up to five pasted images. The selected model must be available to your Cline Cloud account.
 
-Review the repository, proposed branch, changed files, and unpublished commits, then choose **Push and continue**. Cline summarizes the captured conversation and asks the shared Hub to publish the approved Git snapshot and start the cloud task. Creating the snapshot leaves your local branch, files, and staging unchanged. Pre-push hooks run locally and may modify them. Cancel keeps the input and its images.
+Review the Git snapshot, then choose **Push and continue**. The shared Hub publishes the approved snapshot and starts a cloud task with the conversation summary, instruction, and images. Later local messages and edits stay local. Cancel keeps your draft.
 
-The cloud task receives the summary, optional instruction, and attached images. Progress appears below the chat while you keep working locally. Later local messages and edits are not sent to that task. After the handoff finishes, use `Ctrl+O` or **Open cloud task** to continue in the cloud task. If opening fails, **Open in browser** replaces that action. Opening in the TUI requires an idle local conversation and an empty draft. From that cloud task, `Ctrl+O` or **Back to local** returns to the original local conversation while cloud work continues. Send or clear a draft before switching in either direction. Returning locally also waits for submitted cloud messages to be accepted. `/history` can open other local conversations. If the cloud task needs tool approval, use **Open cloud task in browser** in `Ctrl+P` to respond. Use `Ctrl+P` to find cloud actions, including restoring a failed draft, retrying a confirmed unsent prompt, connecting GitHub, and hiding the notice. **Hide** removes only the notice; `Ctrl+P` and `Ctrl+O` still open the linked task. Notices with an unsent draft or a saved prompt to retry cannot be hidden. These actions are also clickable in the footer. Restoring a draft does not overwrite newer input. A retry sends to the existing task; uncertain delivery requires checking that task before resending.
+When ready, use `Ctrl+O` or **Open cloud task** to continue inside the TUI. `Ctrl+O` returns to the paired local conversation while cloud work continues. Switching requires an empty draft and accepted submissions. Native opening also requires an idle local run. If opening fails, the action becomes **Open in browser**. Cloud tool approvals require the browser action in `Ctrl+P`.
 
-Summary preparation requires Cline to stay open. Once the launch request reaches the shared Hub, publication and cloud launch can finish after the TUI closes. Unsent drafts and retry actions are kept in memory and are lost when the TUI exits. Snapshot commits are unsigned and skip commit and checkout hooks.
+Use `Ctrl+P` for draft recovery, continuation retry, and GitHub setup. Recovery preserves newer input. Retry targets the existing cloud task. Check that task before resending an uncertain delivery. Drafts and retries are kept in memory and lost on exit.
+
+Hiding a notice keeps its task accessible with `Ctrl+O`. Notices with an unsent draft or continuation to retry cannot be hidden.
+
+Keep Cline open during summary preparation. Once the launch request reaches the shared Hub, launch can finish after the TUI closes. Snapshot creation preserves your local branch, files, and staging. Snapshot commits are unsigned and skip commit and checkout hooks. Pre-push hooks run locally and may modify files.
 
 ## Environment variables
 

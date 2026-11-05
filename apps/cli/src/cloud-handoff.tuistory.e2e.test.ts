@@ -68,6 +68,28 @@ async function startCloudHandoff(session: Session, instruction: string) {
 	await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
 }
 
+async function sendLocalPrompt(
+	session: Session,
+	statePath: string,
+	prompt: string,
+) {
+	await session.type(prompt);
+	await session.press("enter");
+	await session.text({
+		waitFor: (screen) =>
+			screen.includes(prompt) &&
+			readState(statePath).localPrompts?.includes(prompt) === true,
+		timeout,
+	});
+}
+
+async function openCloudTask(session: Session) {
+	await session.press(["ctrl", "o"]);
+	await session.waitForText("Synthetic attached cloud transcript", {
+		timeout,
+	});
+}
+
 function launch({
 	provider = "cline",
 	scenario = "success",
@@ -220,10 +242,7 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("5 iterations", { timeout });
 
 		await startCloudHandoff(session, "create the synthetic task");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		for (const width of [36, 60, 120]) {
 			session.resize({ cols: width, rows: 40 });
 			await session.waitIdle({ timeout: 2_000 });
@@ -247,13 +266,7 @@ describe("cloud handoff TUI", () => {
 		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
 
 		const followUp = "continue locally after the synthetic account change";
-		await session.type(followUp);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(followUp) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, followUp);
 		expect(readState(statePath).cloudSends).toBeUndefined();
 	});
 
@@ -474,18 +487,9 @@ describe("cloud handoff TUI", () => {
 		const { session, statePath } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
 		const sourcePrompt = "original local conversation to restore";
-		await session.type(sourcePrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, sourcePrompt);
 		await startCloudHandoff(session, "continue the synthetic task");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		const cloudScreen = await session.text();
 		expect(cloudScreen).toContain("Working in Cline Cloud");
 		expect(cloudScreen).toContain("Back to local (Ctrl+O)");
@@ -542,10 +546,7 @@ describe("cloud handoff TUI", () => {
 			"local follow-up while cloud keeps running",
 		]);
 		expect(readState(statePath).abortedSessions).toBeUndefined();
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		expect(readState(statePath).attachedSessions).toEqual([
 			"synthetic-cloud-session-1",
 			"synthetic-cloud-session-1",
@@ -564,18 +565,9 @@ describe("cloud handoff TUI", () => {
 		} = await launch({ scenario: "held-cloud-send" });
 		await session.waitForText("Ask anything...", { timeout });
 		const sourcePrompt = "seed source before held cloud send";
-		await session.type(sourcePrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, sourcePrompt);
 		await startCloudHandoff(session, "start the synthetic handoff");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 
 		await session.type("held synthetic cloud follow-up");
 		await session.press("enter");
@@ -617,13 +609,7 @@ describe("cloud handoff TUI", () => {
 		expect(await session.text()).toContain(sourcePrompt);
 
 		const localFollowUp = "local work while cloud send is pending";
-		await session.type(localFollowUp);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(localFollowUp) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, localFollowUp);
 		await session.text({
 			waitFor: () => readState(statePath).runningChanges?.at(-1) === true,
 			timeout,
@@ -683,19 +669,10 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("What can I do for you?", { timeout });
 		const activePrompt = "Seed the active local conversation";
-		await session.type(activePrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(activePrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, activePrompt);
 
 		await startCloudHandoff(session, "start the synthetic handoff");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		await session.type("held synthetic cloud follow-up");
 		await session.press("enter");
 		await session.text({
@@ -851,10 +828,7 @@ describe("cloud handoff TUI", () => {
 		} = await launch({ scenario });
 		await session.waitForText("Plan something...", { timeout });
 		await startCloudHandoff(session, "create the synthetic task");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		await session.type("start a held synthetic cloud task");
 		await session.press("enter");
 		await session.text({
@@ -958,18 +932,9 @@ describe("cloud handoff TUI", () => {
 		});
 		await session.waitForText("Ask anything...", { timeout });
 		const sourcePrompt = "original conversation paired with removed cloud task";
-		await session.type(sourcePrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(sourcePrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, sourcePrompt);
 		await startCloudHandoff(session, "create the synthetic task");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 
 		removeCloudSession();
 		await session.text({
@@ -1026,10 +991,7 @@ describe("cloud handoff TUI", () => {
 		const { session } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
 		await startCloudHandoff(session, "continue the synthetic task");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 
 		await session.type("/history");
 		await session.press("enter");
@@ -1079,10 +1041,7 @@ describe("cloud handoff TUI", () => {
 			timeout,
 		});
 
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		expect(readState(statePath).attachedSessions).toEqual([
 			"synthetic-cloud-session-1",
 		]);
@@ -1092,40 +1051,28 @@ describe("cloud handoff TUI", () => {
 
 		await startCloudHandoff(session, "start a new synthetic task");
 		expect(await session.text()).not.toContain("Open in browser");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		expect(readState(statePath).localPrompts).toBeUndefined();
 	});
 
-	it.each([
-		60, 120,
-	])("keeps the native cloud action visible at %i columns", async (cols) => {
+	it("keeps the native cloud action visible at narrow and wide widths", async () => {
 		const { session, statePath } = await launch();
 		await session.waitForText("Ask anything...", { timeout });
 		const localPrompt = "seed an established local conversation";
-		await session.type(localPrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: (screen) =>
-				screen.includes(localPrompt) &&
-				readState(statePath).localPrompts?.includes(localPrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, localPrompt);
 		await startCloudHandoff(session, "open this synthetic task");
-		if (cols < 120) session.resize({ cols, rows: 40 });
-		const screen = await session.text();
-		expect(screen).toContain("Open cloud task (Ctrl+O)");
-		expect(screen).not.toContain("Open in browser");
-		expect(screen).toContain("Cloud task started");
-		expect(screen).not.toContain("https://app.cline.bot/tasks/");
-		const footerRow = screen
-			.split("\n")
-			.find((line) => line.includes("Cloud task started"));
-		expect(footerRow).toContain("Open cloud task (Ctrl+O)");
-		expect(footerRow).not.toContain("Open in browser");
-		expect(footerRow).toContain("Hide");
+		for (const cols of [60, 120]) {
+			session.resize({ cols, rows: 40 });
+			await session.waitIdle({ timeout: 2_000 });
+			const screen = await session.text();
+			const footerRow = screen
+				.split("\n")
+				.find((line) => line.includes("Cloud task started"));
+			expect(footerRow).toContain("Open cloud task (Ctrl+O)");
+			expect(footerRow).toContain("Hide");
+			expect(screen).not.toContain("Open in browser");
+			expect(screen).not.toContain("https://app.cline.bot/tasks/");
+		}
 		await session.press(["alt", "d"]);
 		await session.waitIdle({ timeout: 2_000 });
 		expect(await session.text()).toContain("Cloud task started");
@@ -1374,10 +1321,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Cloud task started", { timeout });
 		expect(await session.text()).not.toContain("Open in browser");
-		await session.press(["ctrl", "o"]);
-		await session.waitForText("Synthetic attached cloud transcript", {
-			timeout,
-		});
+		await openCloudTask(session);
 		expect(readState(statePath).openedUrls).toBeUndefined();
 		expect(readState(statePath).preparations).toHaveLength(4);
 	});
