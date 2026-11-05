@@ -1076,6 +1076,7 @@ export {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
+	resolveClineDefaultModelId,
 } from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,

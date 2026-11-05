@@ -16,6 +16,7 @@ import {
 	getProviderAuthHandler,
 	type ProviderSettings,
 	readCompactionStrategyGlobally,
+	resolveClineDefaultModelId,
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
@@ -1004,6 +1005,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 		modelId = modelId || ""
 	} else {
+		// A Cline user with no saved model starts on the first free model
+		// (live feed, else bundled list, else the Cline default).
+		if (!modelId && providerId === "cline") {
+			modelId = await resolveClineDefaultModelId().catch(() => undefined)
+		}
 		modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
 	}
 	if (!apiKey && apiConfig) {
