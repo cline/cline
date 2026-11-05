@@ -109,8 +109,7 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const submittedDuringActiveTurn =
-			!prepareCloud && (turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval")
+		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (!prepareCloud && activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
 			return
