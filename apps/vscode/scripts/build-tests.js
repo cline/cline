@@ -70,8 +70,7 @@ fs.rmSync(path.join(__dirname, "..", "out", "packages"), { recursive: true, forc
 // runner does not provide. Generate a tsconfig that excludes them so the
 // integration compile only ever sees mocha-owned tests.
 const projectRoot = path.join(__dirname, "..")
-const nonMochaTestImport =
-	/from\s+["'](?:bun:test|vitest(?:\/[^"']*)?|@vitest\/[^"']*)["']/
+const nonMochaTestImport = /from\s+["'](?:bun:test|vitest(?:\/[^"']*)?|@vitest\/[^"']*)["']/
 function collectNonMochaTestFiles(dir, acc) {
 	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 		if (entry.name === "node_modules") continue

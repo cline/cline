@@ -118,9 +118,7 @@ describe("MessageTranslatorState", () => {
 
 		const endTs = state.clearStreamingReasoning()
 
-		expect(state.appendStreamingReasoning("second attempt reasoning")).toBe(
-			"second attempt reasoning",
-		)
+		expect(state.appendStreamingReasoning("second attempt reasoning")).toBe("second attempt reasoning")
 		// The follow-up response renders as a fresh row, not the finalized one.
 		expect(state.getStreamingReasoningTs()).not.toBe(endTs)
 	})
