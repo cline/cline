@@ -15,6 +15,24 @@ describe("SdkFollowupCoordinator", () => {
 		vi.clearAllMocks()
 	})
 
+	it("does not resume a cloud task locally when its connection closes while waiting for the rebuild boundary", async () => {
+		const task = makeTask("ses-deleted")
+		const { coordinator, options } = makeCoordinator({
+			task,
+			activeSession: { ...makeActiveSession(), sessionId: task.taskId },
+			runExclusive: vi.fn(async (operation) => {
+				options.sessions.getActiveSession.mockReturnValue(undefined)
+				await operation()
+			}),
+		})
+
+		await expect(coordinator.askResponse("unsent follow-up")).rejects.toThrow("no longer running")
+		expect(options.createTempSessionHost).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+	})
+
 	it("resolves pending tool approvals without sending a follow-up", async () => {
 		const { coordinator, options } = makeCoordinator()
 		options.interactions.resolvePendingToolApproval.mockReturnValue(true)

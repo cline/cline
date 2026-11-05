@@ -176,6 +176,7 @@ export class CloudSessionHost implements SdkSessionHost {
 
 	/** Attach only to the canonical conversation named by the control plane. */
 	private async discoverInnerSession(): Promise<void> {
+		this.assertOpen()
 		const observation = this.statusObservation
 		const sessions = await this.host.listSessions(100)
 		if (this.disposed || this.statusObservation !== observation) return
@@ -248,6 +249,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	}
 
 	private toInner(sessionId: string): string {
+		this.assertOpen()
 		if (sessionId !== this.outerSessionId && sessionId !== this.innerSessionId) {
 			Logger.warn(`[CloudSessionHost] Unexpected session id ${sessionId} for cloud session ${this.outerSessionId}`)
 		}
@@ -255,6 +257,10 @@ export class CloudSessionHost implements SdkSessionHost {
 			throw new Error("This cloud session has no conversation yet.")
 		}
 		return this.innerSessionId
+	}
+
+	private assertOpen(): void {
+		if (this.disposed) throw new Error("This cloud session's connection is closed.")
 	}
 
 	private remap(event: CoreSessionEvent): CoreSessionEvent | undefined {
@@ -267,6 +273,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	// ---- SdkSessionHost ----
 
 	async start(input: StartSessionInput): Promise<StartSessionResult> {
+		this.assertOpen()
 		if (this.innerSessionId) {
 			throw new Error("This cloud session already has a conversation.")
 		}
@@ -322,9 +329,11 @@ export class CloudSessionHost implements SdkSessionHost {
 			await this.host.updateSessionConnection(sessionId, {})
 		} catch (error) {
 			if (!isMissingSessionError(error, sessionId)) throw error
+			this.assertOpen()
 			const initialMessages = await this.host.readSessionMessages(sessionId)
 			if (initialMessages.length === 0) throw new Error("This cloud session's saved conversation is unavailable.")
 			const config = this.sandboxSessionConfig(await restoreConfig(), sessionId)
+			this.assertOpen()
 			try {
 				await this.host.startSession({ config, initialMessages, interactive: true, toolPolicies: AUTO_APPROVE_ALL })
 			} catch (restoreError) {
@@ -339,6 +348,7 @@ export class CloudSessionHost implements SdkSessionHost {
 		const sessionId = this.toInner(input.sessionId)
 		const { restoreConfig } = this.options
 		if (restoreConfig && !this.innerSessionLive) await this.ensureInnerSessionLive(sessionId, restoreConfig)
+		this.assertOpen()
 		this.setStatus("running")
 		try {
 			return await this.host.runTurn({
@@ -448,6 +458,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
+		this.assertOpen()
 		return this.host.dispatchHookEvent(payload)
 	}
 
