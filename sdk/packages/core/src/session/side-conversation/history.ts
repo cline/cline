@@ -113,11 +113,12 @@ export function createSideHistoryTool({
 				request.operation === "read"
 					? Number(request.reference.split(":")[0])
 					: undefined;
-			const grouped = new Map<number, string[]>();
-			for (const block of projectSideReferenceBlocks(messages, {
+			const projection = projectSideReferenceBlocks(messages, {
 				mode: "history",
 				sourceIndex,
-			}).blocks) {
+			});
+			const grouped = new Map<number, string[]>();
+			for (const block of projection.blocks) {
 				const texts = grouped.get(block.sourceIndex) ?? [];
 				texts.push(block.text);
 				grouped.set(block.sourceIndex, texts);
@@ -134,7 +135,11 @@ export function createSideHistoryTool({
 			};
 			const header = {
 				parentStatus: parent.status,
-				note: SOURCE_NOTE,
+				note:
+					SOURCE_NOTE +
+					(projection.incompleteSources.size > 0
+						? " Some tool-result content exceeded reference projection limits and was omitted."
+						: ""),
 			};
 			if (request.operation === "read") {
 				const entry = entries.find((item) => item.index === sourceIndex);

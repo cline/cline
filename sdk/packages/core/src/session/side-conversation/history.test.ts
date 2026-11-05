@@ -1,6 +1,9 @@
 import type { MessageWithMetadata } from "@cline/llms";
+import { createTool, SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { ClineCore } from "../../ClineCore";
+import { toPersistedToolResultContent } from "../persisted-tool-result-content";
+import { captureSideReference } from "./context";
 import { createSideHistoryTool } from "./history";
 
 const context = { agentId: "side", iteration: 0 };
@@ -33,6 +36,170 @@ function fixture(messages: MessageWithMetadata[]) {
 }
 
 describe("side parent history tool", () => {
+	it("preserves numeric source tokens alongside redacted media in snapshots and history", async () => {
+		const raw = `{
+			"integer":9007199254740993,"decimal":1.0000000000000001,
+			"exponent":1e400,"negativeZero":-0,"tiny":1e-400,
+			"typed":{"type":123,"name":"Numeric discriminator"},
+			"content":[
+				{"type":"image","data":"BINARY_SECRET","mimeType":"image/png"},
+				{"type":"image","source":{"type":"base64","data":"SOURCE_SECRET"}},
+				{"type":"media","media":{"id":"generated","modality":"image","mediaType":"image/png","source":{"type":"artifact","artifactId":"HIDDEN_ARTIFACT"}}},
+				{"type":"file","path":"note.txt","content":"Text attachment"}
+			],
+			"entries":[
+				{"type":"file","name":"metadata.txt","mimeType":"text/plain"},
+				{"type":"image","name":"cover.png","mimeType":"image/png"}
+			],
+			"cline://cache/parent/result":"Key fact"
+		}`;
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "custom_report",
+						tool_use_id: "report",
+						content: toPersistedToolResultContent(raw),
+					},
+				],
+			},
+		];
+		const original = structuredClone(messages);
+		const capture = captureSideReference({ messages, activeParentTurn: false });
+		const { tool } = fixture(messages);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		const search = await tool.execute(
+			{ operation: "search", query: "9007199254740993" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected numeric match");
+		expect(search.result.matches).toHaveLength(1);
+		const read = await tool.execute(
+			{ operation: "read", reference: search.result.matches[0].reference },
+			context,
+		);
+		if (!read.ok || read.result.operation !== "read")
+			throw new Error("Expected exact reference text");
+		for (const text of [
+			String(capture.content),
+			JSON.stringify(recent),
+			read.result.text,
+		]) {
+			for (const token of [
+				"9007199254740993",
+				"1.0000000000000001",
+				"1e400",
+				"-0",
+				"1e-400",
+				"Text attachment",
+				"Numeric discriminator",
+				"metadata.txt",
+				"cover.png",
+				"Key fact",
+			])
+				expect(text).toContain(token);
+			expect(text).not.toMatch(
+				/BINARY_SECRET|SOURCE_SECRET|HIDDEN_ARTIFACT|cline:\/\/cache/,
+			);
+		}
+		expect(messages).toEqual(original);
+	});
+
+	it("keeps other parent facts available when a tool result exceeds projection limits", async () => {
+		const raw = `{"id":9007199254740995,"fact":"DEEP_ONLY_FACT","nested":${"[".repeat(20_000)}null${"]".repeat(20_000)},"media":{"type":"image","data":"NESTED_SECRET"}}`;
+		const producer = createTool({
+			name: "deep_report",
+			description: "Synthetic nested result",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => raw,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Parent goal remains" },
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "deep_report",
+						tool_use_id: "deep",
+						content: toPersistedToolResultContent(
+							await producer.execute({}, context),
+						),
+					},
+					{
+						type: "tool_result",
+						name: "healthy_report",
+						tool_use_id: "healthy",
+						content: toPersistedToolResultContent('{"id":9007199254740993}'),
+					},
+				],
+			},
+			{ role: "assistant", content: "Later fact remains" },
+		];
+		const original = structuredClone(messages);
+		const marker = "content omitted: reference projection limit exceeded";
+		const capture = captureSideReference({ messages, activeParentTurn: false });
+		const text = String(capture.content);
+		expect(text).toContain("Parent goal remains");
+		expect(text).toContain("Later fact remains");
+		expect(text).toContain("9007199254740993");
+		expect(text).toContain("1 saved messages partly represented");
+		expect(text).not.toContain("NESTED_SECRET");
+		// Engine depth limits vary; safe projection and explicit omission are valid.
+		expect(text.includes("9007199254740995") || text.includes(marker)).toBe(
+			true,
+		);
+		expect(Buffer.byteLength(text)).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
+
+		const { tool } = fixture(messages);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		if (!recent.ok || recent.result.operation === "read")
+			throw new Error("Expected recent history");
+		const deep = recent.result.matches.find((match) =>
+			match.preview.includes("deep_report"),
+		);
+		expect(deep).toBeDefined();
+		expect(
+			deep?.preview.includes("9007199254740995") ||
+				deep?.preview.includes(marker),
+		).toBe(true);
+		const missing = await tool.execute(
+			{ operation: "search", query: "no such fact" },
+			context,
+		);
+		if (!missing.ok || missing.result.operation === "read")
+			throw new Error("Expected empty search");
+		expect(missing.result.matches).toEqual([]);
+		if (deep?.preview.includes(marker)) {
+			expect(recent.note).toContain("tool-result content");
+			expect(missing.note).toContain("tool-result content");
+		}
+		const search = await tool.execute(
+			{ operation: "search", query: "9007199254740993" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected healthy result");
+		expect(search.result.matches).toHaveLength(1);
+		const match = search.result.matches[0];
+		const read = await tool.execute(
+			{ operation: "read", reference: match.reference, offset: match.offset },
+			context,
+		);
+		if (!read.ok || read.result.operation !== "read")
+			throw new Error("Expected healthy text");
+		expect(read.result.text).toContain("9007199254740993");
+		expect(JSON.stringify([recent, missing, search, read])).not.toContain(
+			"NESTED_SECRET",
+		);
+		expect(messages).toEqual(original);
+	});
+
 	it.each([
 		"recent",
 		"search",
@@ -342,7 +509,16 @@ describe("side parent history tool", () => {
 		expect(after.ok).toBe(true);
 	});
 
-	it("returns sanitized provider evidence and stable pending-tool text", async () => {
+	it.each([
+		{
+			uri: "cline://cache/parent/result",
+			redaction: "[parent cache handle omitted]",
+		},
+		{
+			uri: "data:image/png;base64,QUJD",
+			redaction: "[binary media omitted]",
+		},
+	])("recovers provider evidence after $uri", async ({ uri, redaction }) => {
 		const { tool } = fixture([
 			{
 				role: "assistant",
@@ -356,7 +532,9 @@ describe("side parent history tool", () => {
 							toolName: "web_search",
 							execution: "provider",
 							input: {},
-							output: { text: "Public evidence cline://cache/parent/result" },
+							output: {
+								text: `Public evidence ${uri}\nRecovery fact\t"quoted fact"`,
+							},
 						},
 					],
 				},
@@ -366,18 +544,29 @@ describe("side parent history tool", () => {
 		expect(recent.ok).toBe(true);
 		const text = JSON.stringify(recent);
 		expect(text).toContain("provider tool observation");
-		expect(text).toContain("Public evidence [parent cache handle omitted]");
+		expect(text).toContain(`Public evidence ${redaction}`);
+		expect(text).toContain("Recovery fact");
 		expect(text).toContain("Tool call read_files (pending)");
-		expect(text).not.toMatch(/cline:\/\/cache|result not yet available/);
+		expect(text).not.toMatch(
+			/cline:\/\/cache|data:image|result not yet available/,
+		);
+		const search = await tool.execute(
+			{ operation: "search", query: "Recovery fact" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected matches");
+		expect(search.result.matches).toHaveLength(1);
 		expect(
 			await tool.execute(
-				{ operation: "search", query: "Public evidence" },
+				{ operation: "read", reference: search.result.matches[0].reference },
 				context,
 			),
 		).toMatchObject({
 			ok: true,
 			result: {
-				matches: [{ preview: expect.stringContaining("Public evidence") }],
+				operation: "read",
+				text: expect.stringContaining("Recovery fact"),
 			},
 		});
 	});

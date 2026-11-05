@@ -1,5 +1,9 @@
 import type { MessageWithMetadata } from "@cline/llms";
-import { SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
+import {
+	SIDE_REFERENCE_BUDGET_BYTES,
+	type SideVisibleContext,
+	SideVisibleContextSchema,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
@@ -8,6 +12,16 @@ const exchange = (question: string, answer: string): MessageWithMetadata[] => [
 	{ role: "user", content: question },
 	{ role: "assistant", content: answer },
 ];
+
+const visibleContext = (excerpts: SideVisibleContext["excerpts"]) =>
+	SideVisibleContextSchema.parse({
+		sessionId: "parent",
+		environmentId: "local",
+		capturedAt: "2026-10-28T12:00:00Z",
+		omittedExcerptCount: 0,
+		omittedMediaCount: 0,
+		excerpts,
+	});
 
 describe("side reference capture", () => {
 	it("captures active user/tool observations, excludes display-only notices, and preserves the source", () => {
@@ -88,7 +102,7 @@ describe("side reference capture", () => {
 						content: [
 							{
 								type: "text",
-								text: "preview cline://cache/parent/b.result.txt",
+								text: "preview cline://cache/parent/b.result.txt\nCache fact survives",
 							},
 							{ type: "image", data: "TOOL_IMAGE", mediaType: "image/png" },
 						],
@@ -118,10 +132,12 @@ describe("side reference capture", () => {
 									resource: {
 										uri: "fixture:text",
 										mimeType: "text/plain",
-										text: "Resource evidence",
+										text: "Resource evidence data:image/png;base64,QUJD\nMedia fact survives",
 									},
 								},
 							],
+							"cline://cache/parent/key": "Cache-key evidence",
+							"data:image/png;base64,QUJD": "Media-key evidence",
 						}),
 					},
 				],
@@ -143,10 +159,14 @@ describe("side reference capture", () => {
 		expect(capture.content).toContain("4 media items omitted");
 		expect(capture.content).toContain("[parent cache handle omitted]");
 		expect(capture.content).toContain("Resource evidence");
+		expect(capture.content).toContain("Cache fact survives");
+		expect(capture.content).toContain("Media fact survives");
+		expect(capture.content).toContain("Cache-key evidence");
+		expect(capture.content).toContain("Media-key evidence");
 		expect(capture.content).toContain("incomplete question");
 		expect(capture.content).toContain("result not yet available");
 		expect(capture.content).not.toMatch(
-			/cline:\/\/cache|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
+			/cline:\/\/cache|data:image|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
 		);
 	});
 
@@ -254,8 +274,9 @@ describe("current context and provider request", () => {
 							content: JSON.stringify([
 								{
 									type: "file",
-									path: "notes.txt",
-									content: "Nested requirement cline://cache/private/note",
+									path: "cline://cache/parent/attachment.txt",
+									content:
+										"Nested requirement cline://cache/private/note\nNested fact survives",
 									source: "attachment",
 								},
 								{
@@ -274,6 +295,7 @@ describe("current context and provider request", () => {
 		expect(capture.content).toContain("END");
 		expect(capture.content).not.toContain("MIDDLE");
 		expect(capture.content).toContain("Nested requirement");
+		expect(capture.content).toContain("Nested fact survives");
 		expect(capture.content).toContain("1 media items omitted");
 		expect(capture.content).not.toMatch(/BINARY_FILE|cline:\/\/cache/);
 		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
@@ -346,6 +368,19 @@ describe("current context and provider request", () => {
 		expect(matched.content).not.toContain(
 			"chronology relative to saved history is unconfirmed",
 		);
+		const live = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				visible.excerpts[0],
+				{
+					...visible.excerpts[1],
+					text: "new answer completed PLUS_VISIBLE_FACT",
+				},
+			]),
+		});
+		expect(live.content).toContain("PLUS_VISIBLE_FACT");
+		expect(live.content).toContain("matched to the latest saved run");
 		const uncertain = captureSideReference({
 			messages: source,
 			activeParentTurn: true,
@@ -364,6 +399,123 @@ describe("current context and provider request", () => {
 		expect(uncertain.content).toContain("submission unconfirmed");
 		expect(uncertain.content).toContain(
 			"chronology relative to saved history is unconfirmed and content may overlap",
+		);
+		const repeatedUnconfirmed = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: {
+				...visible,
+				excerpts: [
+					visible.excerpts[0],
+					{
+						...visible.excerpts[0],
+						messageId: "unconfirmed-repeat",
+						submission: "unconfirmed",
+					},
+				],
+			},
+		});
+		expect(
+			String(repeatedUnconfirmed.content).match(/\brepeat\b/g),
+		).toHaveLength(3);
+		expect(repeatedUnconfirmed.content).toContain("submission unconfirmed");
+		const repeatedObserved = captureSideReference({
+			messages: source,
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				visible.excerpts[0],
+				{ ...visible.excerpts[0], messageId: "next-user", runCount: 3 },
+				{ ...visible.excerpts[1], messageId: "next-answer", runCount: 3 },
+			]),
+		});
+		expect(String(repeatedObserved.content).match(/\brepeat\b/g)).toHaveLength(
+			3,
+		);
+		expect(repeatedObserved.content).toContain(
+			"[visible assistant]\nnew answer",
+		);
+		expect(repeatedObserved.content).toContain(
+			"chronology relative to saved history is unconfirmed",
+		);
+	});
+
+	it("keeps visible facts missing from a clipped saved block", () => {
+		const answer = `${"a".repeat(2500)} UNIQUE_RETAINED_FACT ${"b".repeat(6000)}`;
+		const capture = captureSideReference({
+			messages: exchange("question", answer),
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				{
+					messageId: "user",
+					role: "user",
+					text: "question",
+					runCount: 1,
+					submission: "observed",
+					omittedBytes: 0,
+				},
+				{
+					messageId: "answer",
+					role: "assistant",
+					text: answer.slice(0, 3000),
+					runCount: 1,
+					submission: "observed",
+					omittedBytes: 0,
+				},
+			]),
+		});
+		expect(capture.content).toContain("UNIQUE_RETAINED_FACT");
+		expect(capture.content).toContain("0 visible excerpts omitted");
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
+	});
+
+	it("falls back to the smaller visible excerpt when its saved block cannot fit", () => {
+		const excerpt = {
+			messageId: "user",
+			role: "user",
+			text: "latest request",
+			runCount: 2,
+			submission: "observed",
+			omittedBytes: 0,
+		} satisfies SideVisibleContext["excerpts"][number];
+		const capture = captureSideReference({
+			messages: [
+				...exchange("first".repeat(1500), "old answer"),
+				{
+					id: "user",
+					role: "user",
+					content: `latest request ${"u".repeat(6000)}`,
+				},
+				{ role: "assistant", content: `FALLBACK_FACT ${"a".repeat(3400)}` },
+			],
+			activeParentTurn: true,
+			visibleContext: visibleContext([
+				excerpt,
+				{
+					...excerpt,
+					messageId: "answer",
+					role: "assistant",
+					text: "FALLBACK_FACT",
+				},
+				{
+					...excerpt,
+					messageId: "other-1",
+					role: "tool",
+					text: "x".repeat(2800),
+				},
+				{
+					...excerpt,
+					messageId: "other-2",
+					role: "tool",
+					text: "y".repeat(2800),
+				},
+			]),
+		});
+		expect(capture.content).toContain("FALLBACK_FACT");
+		expect(capture.content).toContain("0 visible excerpts omitted");
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
 		);
 	});
 
