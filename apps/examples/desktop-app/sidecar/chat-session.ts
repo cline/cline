@@ -14,9 +14,11 @@ import {
 	findCheckpointForRun,
 	formatSessionPluginIssue,
 	getCoreBuiltinToolCatalog,
+	HubCommandError,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
 	ProviderSettingsManager,
+	parseSessionCompactionState,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
@@ -1223,9 +1225,35 @@ async function createSideConversation(
 			Boolean(liveParent && hasActiveWorkspaceTurn(liveParent)) ||
 			parent.status === "running" ||
 			parent.status === "pending";
-		const compactionState = await manager.readSessionCompactionState(
-			request.sessionId,
-		);
+		const compactionState = await manager
+			.readSessionCompactionState(request.sessionId)
+			.catch((error: unknown) => {
+				if (
+					!(error instanceof HubCommandError) ||
+					error.command !== "session.compaction.get" ||
+					error.code !== "session_wrong_client"
+				)
+					throw error;
+				// Local viewers can read saved context without claiming the parent runtime.
+				const manifest = readSessionManifest(request.sessionId);
+				const path =
+					(typeof manifest?.compaction_path === "string" &&
+						manifest.compaction_path.trim()) ||
+					join(
+						sharedSessionDataDir(),
+						request.sessionId,
+						`${request.sessionId}.compaction.json`,
+					);
+				if (!existsSync(path)) return undefined;
+				try {
+					return parseSessionCompactionState(
+						JSON.parse(readFileSync(path, "utf8")),
+					);
+				} catch (error) {
+					if (error instanceof SyntaxError) return undefined;
+					throw error;
+				}
+			});
 		const messages = await manager.readMessages(request.sessionId);
 		const parentTitle =
 			typeof parent.metadata?.title === "string"

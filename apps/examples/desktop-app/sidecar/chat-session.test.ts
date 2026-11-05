@@ -12,6 +12,7 @@ import * as core from "@cline/core";
 import {
 	type ClineCore,
 	createSessionCompactionState,
+	HubCommandError,
 	SessionNotFoundError,
 	type SessionRecord,
 	SIDE_SCOPE_INSTRUCTIONS,
@@ -3980,22 +3981,38 @@ describe("side conversation lifecycle", () => {
 		expect(discoverChatSessions({ liveSessions: new Map() })).toEqual([]);
 	});
 
-	it("seeds the side chat from existing parent compaction and the complete recent tail", async () => {
+	it.each([
+		"live",
+		"reopened",
+	])("seeds the side chat from %s parent compaction and the complete recent tail", async (source) => {
 		const { create, transcripts, start, readSessionCompactionState } =
 			setup(false);
 		const earlier = transcripts.get(parentId) ?? [];
-		readSessionCompactionState.mockResolvedValueOnce(
-			createSessionCompactionState({
-				sourceMessages: earlier,
-				compactedMessages: [
-					{
-						role: "user",
-						content: "Existing parent summary",
-						metadata: { kind: "compaction_summary", userRunSpan: 1 },
-					},
-				],
-			}),
-		);
+		const compaction = createSessionCompactionState({
+			sourceMessages: earlier,
+			systemPrompt: "Parent-only system instruction",
+			compactedMessages: [
+				{
+					role: "user",
+					content: "Existing parent summary",
+					metadata: { kind: "compaction_summary", userRunSpan: 1 },
+				},
+			],
+		});
+		if (source === "live") {
+			readSessionCompactionState.mockResolvedValueOnce(compaction);
+		} else {
+			const path = join(directory, "saved-compaction.json");
+			writeSessionManifest(parentId, { compaction_path: path });
+			writeFileSync(path, JSON.stringify(compaction));
+			readSessionCompactionState.mockRejectedValueOnce(
+				new HubCommandError(
+					"session.compaction.get",
+					"session_wrong_client",
+					"Session has no owner",
+				),
+			);
+		}
 		const answer = `START ${"x".repeat(9000)} MIDDLE_FACT ${"y".repeat(9000)} END`;
 		transcripts.set(parentId, [
 			...earlier,
@@ -4003,14 +4020,45 @@ describe("side conversation lifecycle", () => {
 			{ role: "assistant", content: answer },
 		]);
 		await create();
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(start.mock.calls[0][0].config.sessionId).toBe(sideId);
 		const seed = start.mock.calls[0][0].initialMessages?.[0];
 		expect(seed?.content).toContain("Existing parent summary");
 		expect(seed?.content).toContain("Latest parent question");
 		expect(seed?.content).toContain(answer);
 		expect(seed?.content).not.toContain("Earlier answer");
+		expect(seed?.content).not.toContain("Parent-only system instruction");
 		expect(readSessionCompactionState).toHaveBeenCalledExactlyOnceWith(
 			parentId,
 		);
+	});
+
+	it("opens a new side for a reopened parent without a compaction file", async () => {
+		const { create, start, readSessionCompactionState } = setup(false);
+		readSessionCompactionState.mockRejectedValueOnce(
+			new HubCommandError(
+				"session.compaction.get",
+				"session_wrong_client",
+				"Session has no owner",
+			),
+		);
+		await create();
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(start.mock.calls[0][0].initialMessages?.[0].content).toContain(
+			"Earlier answer",
+		);
+	});
+
+	it("preserves transport errors while reading parent compaction", async () => {
+		const { create, start, readSessionCompactionState } = setup(false);
+		const error = new HubCommandError(
+			"session.compaction.get",
+			"hub_command_timeout",
+			"Compaction read timed out",
+		);
+		readSessionCompactionState.mockRejectedValueOnce(error);
+		await expect(create()).rejects.toBe(error);
+		expect(start).not.toHaveBeenCalled();
 	});
 
 	it("validates visible source identity and keeps a lagging first-turn snapshot immutable across retry and follow-up", async () => {
