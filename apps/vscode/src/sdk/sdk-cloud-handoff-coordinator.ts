@@ -138,6 +138,8 @@ export class SdkCloudHandoffCoordinator {
 				providerSettingsManager: getProviderSettingsManager(),
 			}).resolveProviderApiKey({ providerId: source.config.providerId })
 			this.assertCurrent(attempt)
+			if (isClineManagedProvider(source.config.providerId) && credentials && !credentials.accountId)
+				throw new Error("Sign out of Cline and sign in again, then run /cloud.")
 			if (
 				isClineManagedProvider(source.config.providerId) &&
 				(credentials

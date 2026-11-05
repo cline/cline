@@ -180,6 +180,18 @@ describe("cloud conversation handoff", () => {
 		expect(publish).not.toHaveBeenCalled()
 	})
 
+	it("explains how to refresh legacy credentials without a verified account ID", async () => {
+		const { coordinator, summarize } = setup()
+		resolveCredentials.mockResolvedValue({ apiKey: "legacy-token", refreshed: false })
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			phase: "failed",
+			message: "Sign out of Cline and sign in again, then run /cloud.",
+		})
+		expect(summarize).not.toHaveBeenCalled()
+		expect(publish).not.toHaveBeenCalled()
+	})
+
 	it("allows another provider's OAuth identity without comparing it to the cloud account", async () => {
 		const { coordinator, source, summarize } = setup()
 		source.config.providerId = "openai-codex"
