@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 describe("summary cloud handoff", () => {
-	it("previews without publishing, then starts once from the approved capture while local work can change", async () => {
+	it("starts in Act from local Plan using the approved capture while local work can change", async () => {
 		const input = fixture();
 		const prepared = await prepareCloudHandoff(input);
 		expect(prepared.git).toMatchObject({
@@ -121,7 +121,7 @@ describe("summary cloud handoff", () => {
 				},
 				branch: plan.branch,
 				workspaceRelativePath: "packages/app",
-				mode: "plan",
+				mode: "act",
 				autoApproveTools: false,
 				organizationId: "org-example",
 				initialMessage: {
@@ -131,6 +131,7 @@ describe("summary cloud handoff", () => {
 			}),
 			{ serviceId: "hub", scopeGeneration: 1 },
 		);
+		expect(input.creationOptions.mode).toBe("plan");
 		expect(result.dashboardUrl).toContain("ses-example");
 		expect(result.sessionId).toBe("ses-example");
 		expect(input.readSource).toHaveBeenCalledTimes(2);

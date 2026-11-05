@@ -541,7 +541,6 @@ export async function runInteractive(
 						cloud: cloudSessions.client,
 						draft,
 						creationOptions: {
-							mode: config.mode,
 							autoApproveTools: autoApproveAllRef.current,
 							thinking: config.thinking,
 							reasoningEffort:

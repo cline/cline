@@ -193,6 +193,7 @@ export async function prepareCloudHandoff(input: {
 							modelId,
 							organizationId: organizationId ?? null,
 							...input.creationOptions,
+							mode: "act",
 							workspaceRelativePath: plan.workspaceRelativePath || undefined,
 							initialMessage: { text: prompt, images: draft.images },
 						},
