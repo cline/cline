@@ -295,6 +295,21 @@ it("finishes the requested download when the carousel moves to another screensho
 		artifactId: "second.png",
 	});
 	expect(mocks.open).toHaveBeenLastCalledWith(secondDownload.url);
+	const focusedDownload = download();
+	await act(async () => focusedDownload.focus());
+	await act(async () =>
+		focusedDownload.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+		),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 1:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	expect(document.activeElement).toBe(
+		container.querySelector('[aria-roledescription="carousel"]'),
+	);
 });
 it("hides old images during account readiness changes and reloads under the new account", async () => {
 	const input = message();

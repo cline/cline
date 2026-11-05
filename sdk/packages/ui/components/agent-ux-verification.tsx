@@ -203,6 +203,12 @@ export function AgentUxVerification({
 					if (event.altKey || event.ctrlKey || event.metaKey) return;
 					if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
 						setPlaying(false);
+						if (
+							event.target instanceof HTMLElement &&
+							event.target.closest(".cline-ui-ux-evidence-actions > div")
+						) {
+							event.currentTarget.focus();
+						}
 					}
 					// Buttons keep their native Space activation; the focused carousel
 					// uses Space to toggle playback without scrolling the page.
