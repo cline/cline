@@ -200,7 +200,6 @@ export function AgentUxVerification({
 				onPointerDown={() => setPlaying(false)}
 				aria-keyshortcuts="ArrowLeft ArrowRight Space"
 				onKeyDownCapture={(event) => {
-					if (event.altKey || event.ctrlKey || event.metaKey) return;
 					if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
 						setPlaying(false);
 						if (
@@ -210,6 +209,7 @@ export function AgentUxVerification({
 							event.currentTarget.focus();
 						}
 					}
+					if (event.altKey || event.ctrlKey || event.metaKey) return;
 					// Buttons keep their native Space activation; the focused carousel
 					// uses Space to toggle playback without scrolling the page.
 					if (

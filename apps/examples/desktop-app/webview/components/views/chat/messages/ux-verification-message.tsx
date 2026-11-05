@@ -2,7 +2,7 @@
 
 import type { UxVerificationCheck } from "@cline/shared/browser";
 import { AgentUxVerification } from "@cline/ui";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -18,67 +18,30 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 	const payload = parseToolPayload(message.content);
 	const [expanded, setExpanded] = useState<UxVerificationCheck | null>(null);
 	const opener = useRef<HTMLElement | null>(null);
-	const download = (check: UxVerificationCheck) =>
-		check.screenshot?.source.type === "artifact" && message.sessionId ? (
-			<ArtifactDownload
-				sessionId={message.sessionId}
-				artifactId={check.screenshot.source.artifactId}
-				iconOnly
-				className="cline-ui-ux-evidence-download"
-			/>
-		) : null;
-	return (
-		<>
-			<AgentUxVerification
-				output={normalizeDisplayValue(payload?.result)}
-				state={payload?.isError ? "error" : "completed"}
-				error={
-					payload?.isError
-						? "The UX verification report could not be completed."
-						: undefined
-				}
-				renderScreenshot={(check, className, presentation) =>
-					check.screenshot?.source.type === "artifact" ? (
-						<ArtifactImage
-							media={check.screenshot}
-							sessionId={message.sessionId}
-							className={className}
-							interactive={presentation !== "thumbnail"}
-						/>
-					) : undefined
-				}
-				onExpandScreenshot={(check) => {
-					opener.current =
-						document.activeElement instanceof HTMLElement
-							? document.activeElement
-							: null;
-					setExpanded(check);
-				}}
-				renderScreenshotActions={download}
-			/>
+	const viewer = (check: UxVerificationCheck, control?: ReactNode) =>
+		expanded?.id === check.id ? (
 			<Dialog
-				open={expanded !== null}
+				open
 				onOpenChange={(open) => {
 					if (!open) setExpanded(null);
 				}}
 			>
 				<DialogContent
 					className="sm:max-w-5xl"
+					onKeyDown={(event) => event.stopPropagation()}
 					onCloseAutoFocus={(event) => {
 						event.preventDefault();
 						opener.current?.focus();
 					}}
 				>
-					<DialogTitle>{expanded?.title}</DialogTitle>
-					<DialogDescription>{expanded?.subtitle}</DialogDescription>
-					{expanded?.screenshot && (
+					<DialogTitle>{check.title}</DialogTitle>
+					<DialogDescription>{check.subtitle}</DialogDescription>
+					{check.screenshot && (
 						<div className="relative">
-							<div className="absolute right-3 top-3 z-10">
-								{download(expanded)}
-							</div>
+							<div className="absolute right-3 top-3 z-10">{control}</div>
 							<ArtifactImage
-								key={expanded.id}
-								media={expanded.screenshot}
+								key={check.id}
+								media={check.screenshot}
 								sessionId={message.sessionId}
 								className="max-h-[70vh] w-full object-contain"
 							/>
@@ -86,6 +49,47 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 					)}
 				</DialogContent>
 			</Dialog>
-		</>
+		) : null;
+	const download = (check: UxVerificationCheck) =>
+		check.screenshot?.source.type === "artifact" && message.sessionId ? (
+			<ArtifactDownload
+				sessionId={message.sessionId}
+				artifactId={check.screenshot.source.artifactId}
+				iconOnly
+				className="cline-ui-ux-evidence-download"
+			>
+				{(control) => viewer(check, control)}
+			</ArtifactDownload>
+		) : (
+			viewer(check)
+		);
+	return (
+		<AgentUxVerification
+			output={normalizeDisplayValue(payload?.result)}
+			state={payload?.isError ? "error" : "completed"}
+			error={
+				payload?.isError
+					? "The UX verification report could not be completed."
+					: undefined
+			}
+			renderScreenshot={(check, className, presentation) =>
+				check.screenshot?.source.type === "artifact" ? (
+					<ArtifactImage
+						media={check.screenshot}
+						sessionId={message.sessionId}
+						className={className}
+						interactive={presentation !== "thumbnail"}
+					/>
+				) : undefined
+			}
+			onExpandScreenshot={(check) => {
+				opener.current =
+					document.activeElement instanceof HTMLElement
+						? document.activeElement
+						: null;
+				setExpanded(check);
+			}}
+			renderScreenshotActions={download}
+		/>
 	);
 }

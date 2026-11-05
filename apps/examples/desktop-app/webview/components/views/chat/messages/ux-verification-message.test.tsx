@@ -206,28 +206,98 @@ it("downloads the report screenshot from the carousel and expanded viewer", asyn
 	expand.focus();
 	await act(async () => expand.click());
 	await revealImages();
-	const dialog = document.querySelector('[role="dialog"]')!;
+	let dialog = document.querySelector('[role="dialog"]')!;
 	expect(dialog.textContent).toContain("Menu opens");
 	expect(dialog.textContent).toContain("The navigation menu is visible");
 	expect(dialog.querySelector("img")?.src).toContain(
 		"https://storage.example/image.png?signature=",
 	);
+	const initialRequests = mocks.invoke.mock.calls.length;
+	vi.spyOn(Date, "now").mockReturnValue(Date.parse("2031-01-01T00:00:00Z"));
+	const downloadUrl = "https://storage.example/pending-download.png";
+	const pending = Promise.withResolvers<{
+		url: string;
+		expiresAt: string;
+	}>();
+	mocks.invoke.mockImplementationOnce(() => pending.promise);
 	await act(async () =>
 		dialog.querySelector<HTMLButtonElement>('[aria-label="Download"]')!.click(),
 	);
+	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 1);
 	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
 		sessionId: "ses-one",
 		artifactId: " frame/雪 ",
 	});
-	expect(mocks.open).toHaveBeenCalledTimes(2);
+	const pendingDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Preparing…"]',
+	)!;
+	expect(pendingDownload.disabled).toBe(true);
 	await act(async () =>
 		(
 			dialog.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
 		).click(),
 	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
+	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+	await act(async () => expand.click());
+	dialog = document.querySelector('[role="dialog"]')!;
+	const stillPreparing = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Preparing…"]',
+	)!;
+	expect(stillPreparing.disabled).toBe(true);
+	await act(async () =>
+		(
+			dialog.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
+		).click(),
+	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
+	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+	await act(async () =>
+		pending.resolve({
+			url: downloadUrl,
+			expiresAt: "2040-01-01T00:00:00Z",
+		}),
+	);
+	await vi.waitFor(() => expect(mocks.open).toHaveBeenCalledTimes(2));
+	expect(mocks.open).toHaveBeenLastCalledWith(downloadUrl);
+	await act(async () => expand.click());
+	dialog = document.querySelector('[role="dialog"]')!;
+	const readyDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	const resolvedRequestCount = mocks.invoke.mock.calls.length;
+	await act(async () => readyDownload.click());
+	expect(mocks.invoke).toHaveBeenCalledTimes(resolvedRequestCount);
+	expect(mocks.open).toHaveBeenCalledTimes(3);
+	expect(mocks.open).toHaveBeenLastCalledWith(downloadUrl);
+	const dialogClose = dialog.querySelector<HTMLButtonElement>(
+		'[data-slot="dialog-close"]',
+	)!;
+	await act(async () => readyDownload.focus());
+	const shiftTab = new KeyboardEvent("keydown", {
+		key: "Tab",
+		shiftKey: true,
+		bubbles: true,
+		cancelable: true,
+	});
+	await act(async () => readyDownload.dispatchEvent(shiftTab));
+	expect(shiftTab.defaultPrevented).toBe(true);
+	expect(document.activeElement).toBe(dialogClose);
+	await act(async () => readyDownload.focus());
+	await act(async () =>
+		readyDownload.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+		),
+	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
 	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
 });
-it("finishes the requested download when the carousel moves to another screenshot", async () => {
+it.each([
+	["unmodified", {}],
+	["Ctrl", { ctrlKey: true }],
+	["Alt", { altKey: true }],
+	["Meta", { metaKey: true }],
+])("finishes the requested download and preserves focus with %s ArrowLeft", async (_label, modifiers) => {
 	vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(640);
 	vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(400);
 	vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(
@@ -299,7 +369,11 @@ it("finishes the requested download when the carousel moves to another screensho
 	await act(async () => focusedDownload.focus());
 	await act(async () =>
 		focusedDownload.dispatchEvent(
-			new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+			new KeyboardEvent("keydown", {
+				key: "ArrowLeft",
+				bubbles: true,
+				...modifiers,
+			}),
 		),
 	);
 	expect(
@@ -310,6 +384,36 @@ it("finishes the requested download when the carousel moves to another screensho
 	expect(document.activeElement).toBe(
 		container.querySelector('[aria-roledescription="carousel"]'),
 	);
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Next screenshot"]')!
+			.click(),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Expand screenshot"]')!
+			.click(),
+	);
+	const dialog = document.querySelector('[role="dialog"]')!;
+	const dialogDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	await act(async () => dialogDownload.focus());
+	await act(async () =>
+		dialogDownload.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+		),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
 });
 it("hides old images during account readiness changes and reloads under the new account", async () => {
 	const input = message();

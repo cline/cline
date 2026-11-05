@@ -1,6 +1,7 @@
 "use client";
 
 import { Download, LoaderCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useArtifactResource } from "@/hooks/use-artifact-resource";
 
@@ -9,11 +10,13 @@ export function ArtifactDownload({
 	artifactId,
 	iconOnly = false,
 	className,
+	children,
 }: {
 	sessionId: string;
 	artifactId: string;
 	iconOnly?: boolean;
 	className?: string;
+	children?: (control: ReactNode) => ReactNode;
 }) {
 	const { accountReady, state, open } = useArtifactResource({
 		sessionId,
@@ -22,7 +25,7 @@ export function ArtifactDownload({
 	const busy = state.status === "loading";
 	const failed = state.status === "error";
 	const label = busy ? "Preparing…" : failed ? "Retry download" : "Download";
-	return (
+	const control = (
 		<>
 			<Button
 				type="button"
@@ -55,6 +58,13 @@ export function ArtifactDownload({
 					Could not download this file.
 				</output>
 			)}
+		</>
+	);
+	return (
+		<>
+			{control}
+			{/* Closing the viewer removes its button, not the shared download request. */}
+			{children?.(control)}
 		</>
 	);
 }
