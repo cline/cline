@@ -34,6 +34,12 @@
 	);
 }
 
+.cline-ui-switch-sm {
+	--cline-ui-switch-width: 1.8rem;
+	--cline-ui-switch-height: 1rem;
+	--cline-ui-switch-padding: 0.13rem;
+}
+
 .cline-ui-switch-neutral {
 	--cline-ui-switch-on-background: var(--neutral-12);
 	--cline-ui-switch-on-hover-background: color-mix(
