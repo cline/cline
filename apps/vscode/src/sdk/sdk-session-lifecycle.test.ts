@@ -264,6 +264,49 @@ describe("SdkSessionLifecycle", () => {
 		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
 	})
 
+	it("waits for the active session's turn send to settle, even when it is aborted", async () => {
+		let rejectSend: (error: Error) => void = () => {}
+		const sdkHost = makeSdkHost({
+			send: vi.fn(
+				() =>
+					new Promise<void>((_, reject) => {
+						rejectSend = reject
+					}),
+			),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+		const session = lifecycle.getActiveSession() as NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
+
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "first")
+		let settled = false
+		const wait = lifecycle.waitForTurnSend(session).then((result) => {
+			settled = true
+			return result
+		})
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(settled).toBe(false)
+
+		const abortError = new Error("aborted")
+		abortError.name = "AbortError"
+		rejectSend(abortError)
+		await expect(wait).resolves.toBe(true)
+		expect(settled).toBe(true)
+	})
+
+	it("reports a turn send that is still in flight after the timeout", async () => {
+		const sdkHost = makeSdkHost({ send: vi.fn(() => new Promise<void>(() => {})) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+		const session = lifecycle.getActiveSession() as NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
+
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "first")
+
+		await expect(lifecycle.waitForTurnSend(session, 10)).resolves.toBe(false)
+	})
+
 	it("treats an emptied prompt queue on an idle session as becoming idle", async () => {
 		const onDidBecomeIdle = vi.fn()
 		const sdkHost = makeSdkHost()

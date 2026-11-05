@@ -118,7 +118,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		stateManager: {
 			getApiConfiguration: () => ({ actModeApiProvider: "cline", actModeClineModelId: "fixture-model" }),
 			getGlobalSettingsKey: () => "act",
-			getGlobalStateKey: () => ({}),
+			getGlobalStateKey: (key: string) => (key === "cloudSessionStatuses" ? {} : undefined),
 			setGlobalState: vi.fn(),
 		},
 		sessionConfigBuilder: {

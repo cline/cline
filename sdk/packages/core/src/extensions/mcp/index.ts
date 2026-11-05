@@ -69,6 +69,14 @@ export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 } from "./policies";
+export type {
+	CreateMcpAppsRuntimeOptions,
+	McpAppResourceReadRequest,
+	McpAppsRuntime,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+} from "./session-apps";
+export { createMcpAppsRuntime } from "./session-apps";
 export { augmentMcpTimeoutError } from "./timeout";
 export { createMcpTools } from "./tools";
 export type {

@@ -30,7 +30,7 @@ describe("resolvePortableReasoning", () => {
 		[{ effort: "medium" }, "medium"],
 		[{ effort: "high" }, "high"],
 		[{ effort: "xhigh" }, "xhigh"],
-		[{ effort: "max" }, "xhigh"],
+		[{ effort: "max" }, "max"],
 		[{ enabled: true }, "medium"],
 	] as const)("maps %o to %s", (reasoning, expected) => {
 		expect(resolvePortableReasoning(request(reasoning))).toBe(expected);
@@ -154,7 +154,7 @@ describe("resolvePortableReasoning", () => {
 });
 
 function wire(
-	adapter: "cline" | "openai-compatible" | "anthropic",
+	adapter: "cline" | "openai-compatible" | "openai" | "anthropic",
 	reasoningOptions: readonly ModelReasoningOption[] | undefined,
 ) {
 	return {
@@ -178,10 +178,8 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 		[{ effort: "medium" }, "high"],
 		[{ effort: "high" }, "high"],
 		[{ enabled: true }, "high"],
-		// The nearest advertised level is max, which the portable setting
-		// cannot carry, so the requested level is kept instead of lowered.
-		[{ effort: "xhigh" }, "xhigh"],
-		[{ effort: "max" }, "xhigh"],
+		[{ effort: "xhigh" }, "max"],
+		[{ effort: "max" }, "max"],
 	] as const)("snaps %o to %s for a verbatim adapter", (reasoning, expected) => {
 		expect(
 			resolvePortableReasoning(
@@ -200,6 +198,15 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 		).toBe("low");
 	});
 
+	it("sends a model without max its top advertised level for max", () => {
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "cline" },
+				wire("cline", throughXhigh),
+			),
+		).toBe("xhigh");
+	});
+
 	it("leaves the level to adapters that map effort per model themselves", () => {
 		expect(
 			resolvePortableReasoning(
@@ -207,6 +214,37 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 				wire("anthropic", [{ type: "effort", values: ["low", "high"] }]),
 			),
 		).toBe("medium");
+	});
+
+	it("sends native OpenAI models whose ladder stops at xhigh that level for max", () => {
+		// GPT-5.4's catalog ladder. The OpenAI adapter forwards the level
+		// unchanged for every model but the GPT-6 Sol/Luna family.
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "openai-native" },
+				wire("openai", [
+					{
+						type: "effort",
+						values: ["none", "low", "medium", "high", "xhigh"],
+					},
+				]),
+			),
+		).toBe("xhigh");
+	});
+
+	it("sends native OpenAI models that advertise max that level", () => {
+		// GPT-6.1 Sol's catalog ladder.
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ effort: "max" }), providerId: "openai-native" },
+				wire("openai", [
+					{
+						type: "effort",
+						values: ["low", "medium", "high", "xhigh", "max"],
+					},
+				]),
+			),
+		).toBe("max");
 	});
 
 	it.each([

@@ -241,6 +241,17 @@ export class SdkModeCoordinator {
 			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
 		}
 
+		// The replacement is seeded from the session's messages, which miss a
+		// prompt until its turn ends: a toggle right after a send (one made while
+		// the task was starting) aborts before Core has added it. If the turn is
+		// still in flight, keep the session, which gets the prompt when the turn
+		// ends, and the mode it was built for.
+		if (!(await this.options.sessions.waitForTurnSend(activeSession))) {
+			this.options.stateManager.setGlobalState("mode", previousMode)
+			await this.options.postStateToWebview()
+			return false
+		}
+
 		let autoContinueStarted = false
 		let continuationSent = false
 		let sessionReplaced = false

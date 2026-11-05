@@ -1,4 +1,5 @@
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	type GatewayModelDefinition,
 	type GatewayModelOperationCapability,
@@ -12,6 +13,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { withInterleavedReasoningOverlay } from "../catalog/catalog-live";
 import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import { filterImageOutputModels } from "../catalog/model-filters";
 import {
@@ -477,6 +479,7 @@ export function getGeneratedModelsForRuntimeProvider(
 // Remove an id once the OpenRouter catalog lists it.
 const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
+	"reflection/beam-free",
 ];
 
 function buildElevenLabsModels(): Record<string, ModelInfo> {
@@ -522,7 +525,12 @@ function buildClineModels(): Record<string, ModelInfo> {
 	// those models in their native OpenRouter and Vercel catalogs. This filter
 	// is also applied to the merged runtime catalog in mergeKnownModels; remove
 	// both call sites together when the backend gains image-output support.
-	return filterImageOutputModels(models);
+	return Object.fromEntries(
+		Object.entries(filterImageOutputModels(models)).map(([modelId, model]) => [
+			modelId,
+			withInterleavedReasoningOverlay("cline", modelId, model),
+		]),
+	);
 }
 
 function buildVertexModels(): Record<string, ModelInfo> {
@@ -588,6 +596,10 @@ function modelInfoToGateway(
 	}
 	if (info.metadata?.apiProtocol) {
 		metadata.apiProtocol = info.metadata.apiProtocol;
+	}
+	if (info.metadata?.interleavedReasoningField) {
+		metadata.interleavedReasoningField =
+			info.metadata.interleavedReasoningField;
 	}
 	return {
 		id: info.id,
@@ -731,8 +743,10 @@ const cline = createClineLikeSpec({
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
+	// A new user has no credits yet, so the offline default is the first free
+	// model. Core's resolveClineDefaultModelId prefers the live feed's first free.
 	defaultModelId:
-		GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+		GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 		CLINE_DEFAULT_MODEL_ID,
 	defaults: {
 		options: {
@@ -877,6 +891,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "wally",
+		name: "Wally",
+		description: "Fast inference for open-weight models from RunAnywhere",
+		family: "openai-compatible",
+		defaultModelId: "deepseek-v4.1-flash",
+		apiKeyEnv: ["WALLY_API_KEY"],
+		defaults: { baseUrl: "https://inference.runanywhere.ai/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
@@ -944,6 +967,25 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "hicap-pro",
 		apiKeyEnv: ["HICAP_API_KEY"],
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
+	},
+	{
+		// Refines the models.dev-generated `aimlapi` spec (same id), which
+		// mergeBuiltinSpecs folds this onto rather than registering twice.
+		id: "aimlapi",
+		name: "AI/ML API",
+		description:
+			"Aggregator serving several hundred chat models from multiple vendors behind one OpenAI-compatible endpoint and API key",
+		family: "openai-compatible",
+		// Ranks the provider list and places it in the picker's "Popular"
+		// section: first after Cline's own Usage-Billing (1) and ClinePass (2).
+		popular: 3,
+		defaultModelId: "anthropic/claude-sonnet-5",
+		apiKeyEnv: ["AIMLAPI_API_KEY"],
+		modelsProviderId: "aimlapi",
+		// Attribution is NOT a static default header: that would be sent to any
+		// baseUrl the provider is pointed at. It is added per request, only for
+		// api.aimlapi.com, by wrapFetchForAimlapiAttribution.
+		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
 	},
 	{
 		id: "nousResearch",
@@ -1035,7 +1077,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5.2",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
@@ -1064,7 +1106,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: CLINE_DEFAULT_MODEL_ID,
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
@@ -1204,7 +1246,11 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
 		popular: 15,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "claude-sonnet-5",
+		// Anthropic's first-party API uses bare, dash-separated model ids
+		// (`claude-sonnet-5-5`) while gateways use the prefixed, dotted form
+		// (`anthropic/claude-sonnet-5.5`). Keep this in sync with
+		// CLINE_DEFAULT_MODEL_ID — it is the same model in Anthropic format.
+		defaultModelId: ANTHROPIC_DEFAULT_MODEL_ID,
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
 		defaults: { baseUrl: "https://api.anthropic.com/v1" },

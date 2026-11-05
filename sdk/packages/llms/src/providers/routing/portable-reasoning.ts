@@ -1,7 +1,6 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
-	ReasoningEffort,
 } from "@cline/shared";
 import type { CallSettings } from "ai";
 import {
@@ -24,12 +23,15 @@ export interface PortableReasoningWire {
 
 /**
  * Adapters that put the top-level `reasoning` value on the request unchanged
- * (`@ai-sdk/openai-compatible` sends it as `reasoning_effort`). The other
- * adapters translate the portable level through their own per-model effort
- * maps, so the gateway leaves the level to them.
+ * (`@ai-sdk/openai-compatible` sends it as `reasoning_effort`, `@ai-sdk/openai`
+ * as `reasoning.effort`; the latter validates the level itself only for the
+ * GPT-6 Sol/Luna family). The other adapters translate the portable level
+ * through their own per-model effort maps, so the gateway leaves the level to
+ * them.
  */
 const VERBATIM_REASONING_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
 	"cline",
+	"openai",
 	"openai-compatible",
 ]);
 
@@ -41,17 +43,9 @@ const NON_PORTABLE_REASONING_PROVIDERS = new Set([
 	"sapaicore",
 ]);
 
-function toPortableLevel(effort: ReasoningEffort): AiSdkReasoning {
-	// TODO: pass "max" through once the AI SDK portable reasoning setting
-	// accepts it (vercel/ai#22043).
-	return effort === "max" ? "xhigh" : effort;
-}
-
 /**
  * Snap a level to the model's advertised effort ladder when the adapter sends
- * it verbatim, since endpoints reject levels outside their ladder. When the
- * nearest advertised level cannot be expressed portably ("max"), keep the
- * requested level rather than send less effort than the user picked.
+ * it verbatim, since endpoints reject levels outside their ladder.
  */
 function snapToAdvertisedEffort(
 	level: AiSdkReasoning,
@@ -71,8 +65,7 @@ function snapToAdvertisedEffort(
 	if (!efforts?.length) {
 		return level;
 	}
-	const nearest = normalizeReasoningEffort(level, efforts);
-	return nearest === undefined || nearest === "max" ? level : nearest;
+	return normalizeReasoningEffort(level, efforts) ?? level;
 }
 
 /**
@@ -152,7 +145,7 @@ function resolvePortableLevel(
 		if (NON_PORTABLE_REASONING_PROVIDERS.has(request.providerId)) {
 			return undefined;
 		}
-		return toPortableLevel(reasoning.effort);
+		return reasoning.effort;
 	}
 	return reasoning.enabled === true &&
 		!NON_PORTABLE_REASONING_PROVIDERS.has(request.providerId)

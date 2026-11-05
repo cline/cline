@@ -63,6 +63,7 @@ export interface ClineAccountUserInfo {
 	organizations: ClineAccountOrganization[]
 	appBaseUrl?: string
 	subject?: string
+	dataPrivacyPath?: string
 }
 
 export interface ClineAccountOrganization {
@@ -528,6 +529,7 @@ export class AuthService {
 				email: userInfo?.email,
 				photoUrl: undefined,
 				appBaseUrl: userInfo?.appBaseUrl,
+				dataPrivacyPath: userInfo?.dataPrivacyPath,
 			})
 			return AuthState.create({ user })
 		}

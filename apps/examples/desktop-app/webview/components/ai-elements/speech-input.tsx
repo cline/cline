@@ -297,6 +297,10 @@ export function SpeechInput({
 			for (const track of streamRef.current?.getTracks() ?? []) {
 				track.stop();
 			}
+			// A hidden Activity keeps this state; the cancelled recording can no
+			// longer reset it, which would leave the composer read-only.
+			setIsListening(false);
+			setIsProcessing(false);
 		};
 	}, []);
 

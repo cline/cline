@@ -298,6 +298,60 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		// no task.provider_api_error is ever reported for it.
 		expect(finishes[0]).not.toMatchObject({ reason: "error" });
 	}, 15_000); // The retry waits out the real default backoff (2s).
+
+	it("hands a network death after streamed reasoning to the turn-level retry", async () => {
+		// Bun's fetch shape for a connection the other side dropped mid-body.
+		const socketClosed = new Error(
+			"The socket connection was closed unexpectedly.",
+		);
+		(socketClosed as Error & { code?: string }).code = "ConnectionClosed";
+		const encoder = new TextEncoder();
+		let sentReasoning = false;
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						async pull(controller) {
+							if (sentReasoning) {
+								// Let the reasoning chunk drain through the SSE
+								// pipeline first; an immediate error discards it.
+								await new Promise((resolve) => setTimeout(resolve, 50));
+								controller.error(socketClosed);
+								return;
+							}
+							sentReasoning = true;
+							controller.enqueue(
+								encoder.encode(
+									chunk({ role: "assistant", reasoning_content: "thinking" }),
+								),
+							);
+						},
+					}),
+					{ status: 200, headers: { "content-type": "text/event-stream" } },
+				),
+		);
+		const config = {
+			providerId: "openai-compatible",
+			apiKey: "test-key",
+			baseUrl: "http://fake.local/v1",
+			fetch: fetchMock as unknown as typeof fetch,
+		};
+		const provider = await createOpenAICompatibleProvider(config);
+		const events = await collect(
+			await provider.stream(
+				streamRequest(),
+				providerContext("openai-compatible", config),
+			),
+		);
+
+		// The middleware does not replay output it already let through...
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(events.some((event) => event.type === "reasoning-delta")).toBe(true);
+		// ...so the finish marks it retryable for the agent loop instead.
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({ reason: "error", errorRetryable: true }),
+		]);
+	});
 });
 
 describe("anthropic wire format", () => {

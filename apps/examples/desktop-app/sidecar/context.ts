@@ -30,6 +30,7 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
+import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -936,6 +937,12 @@ export function handleHubLiveEvent(
 		});
 		return;
 	}
+	// Schedules can fail before creating a session. Relay their lifecycle
+	// events independently of the live-chat/session projection as well.
+	if (event.event.startsWith("schedule.")) {
+		sendEvent(ctx, event.event, event.payload ?? {});
+		return;
+	}
 	if (event.event === "settings.changed") {
 		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
@@ -1289,6 +1296,12 @@ async function handleHubApprovalRequest(
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
+	// A retried startup must not replace (and leak) a manager that an earlier
+	// attempt installed before its final readiness sync failed.
+	if (ctx.runtimeBindings.has(LOCAL_ENVIRONMENT_ID)) {
+		await syncSidecarApprovalReadiness(ctx);
+		return;
+	}
 	setHomeDirIfUnset(homedir());
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
@@ -1528,6 +1541,7 @@ export async function ensureSharedHubClient(
 		try {
 			await client.connect();
 			client.subscribe((event) => {
+				recordHubActivity(getSidecarContextOwner(ctx), event);
 				handleHubLiveEvent(
 					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
 					event,

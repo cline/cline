@@ -37,6 +37,7 @@ import { useSize } from "react-use"
 import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
+import { CloudProvisioningRow } from "@/components/cloud/CloudProvisioningRow"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
@@ -1042,6 +1043,8 @@ export const ChatRowContent = memo(
 						)
 					case "compaction":
 						return <CompactionRow message={message} />
+					case "cloud_provisioning":
+						return <CloudProvisioningRow active={lastModifiedMessage?.ts === message.ts} message={message} />
 					default:
 						return (
 							<div>

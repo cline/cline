@@ -249,7 +249,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 |------|-------------|
 | `-s, --system <prompt>` | Override the system prompt |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
-| `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-4.6`) |
+| `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-5.5`) |
 | `-k, --key <api-key>` | API key for this run, also saved as the provider's key |
 | `-p, --plan` | Run in plan mode (default is act mode) |
 | `-i, --tui` | Interactive TUI multi-turn mode |
@@ -372,6 +372,7 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_PATH` - Runtime log file path (default `<CLINE_DATA_DIR>/logs/cline.log`)
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
 - `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
+- `CLINE_CLOUD_SESSIONS` - Set to `1`/`true` to enable the experimental Local/Cloud toggle (`Ctrl+O`) for running tasks in Cline Cloud sandboxes
 
 `--key` takes precedence over environment variables.
 

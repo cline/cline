@@ -73,6 +73,11 @@ function toGatewayModelDefinition(
 			...(model.metadata?.apiProtocol
 				? { apiProtocol: model.metadata.apiProtocol }
 				: {}),
+			...(model.metadata?.interleavedReasoningField
+				? {
+						interleavedReasoningField: model.metadata.interleavedReasoningField,
+					}
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,

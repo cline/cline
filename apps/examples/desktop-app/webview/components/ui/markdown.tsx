@@ -1,3 +1,4 @@
+import { agentComposerTokenClassName } from "@cline/ui";
 import {
 	agentMarkdownControls,
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
@@ -12,9 +13,10 @@ import type {
 	PointerEvent,
 	ReactNode,
 } from "react";
-import { isValidElement, memo, useRef, useState } from "react";
+import { isValidElement, memo, useMemo, useRef, useState } from "react";
 import {
 	type Components,
+	defaultRemarkPlugins,
 	type ExtraProps,
 	type LinkSafetyModalProps,
 	Streamdown,
@@ -31,6 +33,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "./alert-dialog";
+import { CHIP_TOKEN_TAG, remarkChipTokens } from "./markdown-chip-tokens";
 
 /**
  * Mermaid is an owned block, not Streamdown's built-in: Streamdown consults
@@ -371,15 +374,26 @@ function useDiagramLinkTarget() {
 	};
 }
 
+const chipTokenComponents = {
+	...markdownComponents,
+	[CHIP_TOKEN_TAG]: ({ children }: { children?: ReactNode }) => (
+		<span className={agentComposerTokenClassName}>{children}</span>
+	),
+} as Components;
+const chipTokenAllowedTags = { [CHIP_TOKEN_TAG]: [] };
+
 export const MemoizedMarkdown = memo(
 	({
 		content,
 		classNames,
 		streaming = false,
+		chipTokens,
 	}: {
 		content: string;
 		streaming?: boolean;
 		classNames?: string;
+		/** Exact `/command` and `@path` tokens to render as composer chips. */
+		chipTokens?: ReadonlySet<string>;
 	}) => {
 		const {
 			captureDiagramLink,
@@ -387,6 +401,16 @@ export const MemoizedMarkdown = memo(
 			recordDiagramLinkPress,
 			setPendingUrl,
 		} = useDiagramLinkTarget();
+		const remarkPlugins = useMemo(
+			() =>
+				chipTokens?.size
+					? [
+							...Object.values(defaultRemarkPlugins),
+							[remarkChipTokens, { tokens: [...chipTokens] }],
+						]
+					: undefined,
+			[chipTokens],
+		);
 
 		return (
 			// `contents` keeps the wrapper out of layout while still receiving
@@ -399,8 +423,9 @@ export const MemoizedMarkdown = memo(
 				onPointerDownCapture={recordDiagramLinkPress}
 			>
 				<Streamdown
+					allowedTags={remarkPlugins ? chipTokenAllowedTags : undefined}
 					className={cn("cline-markdown", classNames)}
-					components={markdownComponents}
+					components={remarkPlugins ? chipTokenComponents : markdownComponents}
 					controls={agentMarkdownControls}
 					dir="auto"
 					isAnimating={streaming}
@@ -409,6 +434,7 @@ export const MemoizedMarkdown = memo(
 					normalizeHtmlIndentation
 					parseIncompleteMarkdown={streaming}
 					plugins={streamdownPlugins}
+					remarkPlugins={remarkPlugins}
 				>
 					{content}
 				</Streamdown>

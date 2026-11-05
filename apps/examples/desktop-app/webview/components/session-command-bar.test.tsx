@@ -4,6 +4,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionCommandBar } from "@/components/session-command-bar";
+import { defaultKeybindings, formatAccelerator } from "@/lib/keybindings";
+
+vi.mock("@/lib/keybindings", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/lib/keybindings")>();
+	return { ...actual, useKeybindings: () => actual.defaultKeybindings() };
+});
 
 const desktopMocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -99,7 +105,9 @@ describe("SessionCommandBar", () => {
 
 		const input = document.querySelector<HTMLInputElement>("[cmdk-input]");
 		expect(input).not.toBeNull();
-		expect(document.body.textContent).toContain("Cmd/Ctrl+P");
+		expect(document.body.textContent).toContain(
+			formatAccelerator(defaultKeybindings()["command-bar"].key),
+		);
 		await changeInput(input as HTMLInputElement, "generate");
 		await waitForDebounce();
 		expect(desktopMocks.invoke).toHaveBeenCalledTimes(1);
