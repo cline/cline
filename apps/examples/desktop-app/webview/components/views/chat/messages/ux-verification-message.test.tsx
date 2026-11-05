@@ -3,7 +3,7 @@ import type { MessageWithMetadata } from "@cline/shared";
 import type { UxVerificationReport } from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { type ChatMessage, ChatMessageSchema } from "@/lib/chat-schema";
 import { readSessionMessagesSync } from "../../../../../sidecar/session-data/messages";
 import { ChatMessages } from "../chat-messages";
@@ -226,6 +226,75 @@ it("downloads the report screenshot from the carousel and expanded viewer", asyn
 		).click(),
 	);
 	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+});
+it("finishes the requested download when the carousel moves to another screenshot", async () => {
+	vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(640);
+	vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(400);
+	vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(
+		function (this: HTMLElement) {
+			return this.getAttribute("aria-roledescription") === "slide"
+				? Array.from(this.parentElement?.children ?? []).indexOf(this) * 640
+				: 0;
+		},
+	);
+	const style = document.createElement("style");
+	style.textContent = '[aria-roledescription="slide"] { margin-right: 0px; }';
+	document.head.append(style);
+	onTestFinished(() => style.remove());
+	const firstDownload = {
+		url: "https://storage.example/first.png",
+		expiresAt: "2030-01-01T00:00:00Z",
+	};
+	const pending = Promise.withResolvers<typeof firstDownload>();
+	const secondDownload = {
+		...firstDownload,
+		url: "https://storage.example/second.png",
+	};
+	mocks.invoke
+		.mockImplementationOnce(() => pending.promise)
+		.mockResolvedValue(secondDownload);
+	await render(
+		message({
+			...report,
+			checks: [
+				report.checks[0],
+				{
+					...report.checks[0],
+					id: "second",
+					screenshot: {
+						...report.checks[0].screenshot,
+						id: "second-frame",
+						source: { type: "artifact", artifactId: "second.png" },
+					},
+				},
+			],
+		}),
+	);
+	const download = () =>
+		Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				'.cline-ui-ux-evidence-actions button[aria-label="Download"]',
+			),
+		).find((button) => !button.closest("[hidden]"))!;
+	await act(async () => download().click());
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Next screenshot"]')!
+			.click(),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	await act(async () => pending.resolve(firstDownload));
+	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(firstDownload.url);
+	await act(async () => download().click());
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: "second.png",
+	});
+	expect(mocks.open).toHaveBeenLastCalledWith(secondDownload.url);
 });
 it("hides old images during account readiness changes and reloads under the new account", async () => {
 	const input = message();

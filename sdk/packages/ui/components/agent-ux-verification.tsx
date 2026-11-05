@@ -250,7 +250,12 @@ export function AgentUxVerification({
 					className="cline-ui-ux-evidence-actions"
 					onFocusCapture={() => setPlaying(false)}
 				>
-					{renderScreenshotActions?.(current)}
+					{renderScreenshotActions &&
+						report.checks.map((check) => (
+							<div key={check.id} hidden={check.id !== current.id}>
+								{renderScreenshotActions(check)}
+							</div>
+						))}
 					<button
 						type="button"
 						disabled={!current.screenshot || !onExpandScreenshot}
