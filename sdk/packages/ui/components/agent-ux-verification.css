@@ -204,6 +204,10 @@
 	position: absolute;
 	bottom: 2px;
 	right: 2px;
+	display: grid;
+	border-radius: 50%;
+	/* Status surfaces are translucent; isolate markers from screenshot pixels. */
+	background: var(--background);
 }
 .cline-ui-ux-thumbnail-status .cline-ui-ux-status-icon {
 	width: 13px;
