@@ -45,23 +45,27 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
+				id: "reflection/beam-free",
+				name: "Beam",
+				description: "",
+				tags: [],
+			},
+			{
 				id: "cline-free/nemotron-3.5-super-vl",
 				name: "cline-free/nemotron-3.5-super-vl",
 				description: "NVIDIA’s latest model with 120B and fast output",
 				tags: [],
 			},
 			{
-				id: "cline-free/mimo-v2.6-flash",
-				name: "Mimo V2.6 Flash",
-				description:
-					"Mixture-of-Experts architecture with 309B total parameters",
+				id: "nvidia/nemotron-3.5-lightning-free",
+				name: "Nemotron 3.5 Lightning",
+				description: "",
 				tags: [],
 			},
 			{
-				id: "cline-free/muse-spark-1.3-contributor",
-				name: "Muse Spark 1.3 Contributor",
-				description:
-					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
+				id: "poolside/laguna-s-2.1-free",
+				name: "Laguna S 2.1",
+				description: "",
 				tags: [],
 			},
 			{
@@ -72,6 +76,25 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/kimi-k3.1-pro",
+				name: "cline-pass/kimi-k3.1-pro",
+				description:
+					"Frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows",
+				tags: [],
+			},
+			{
+				id: "cline-pass/minimax-m3.1-flash",
+				name: "cline-pass/minimax-m3.1-flash",
+				description: "Next-generation Flash model",
+				tags: [],
+			},
+			{
+				id: "cline-pass/deepseek-v4.1-flash-1017",
+				name: "cline-pass/deepseek-v4.1-flash-1017",
+				description: "",
+				tags: [],
+			},
 			{
 				id: "cline-pass/deepseek-v4.1-flash",
 				name: "cline-pass/deepseek-v4.1-flash",
@@ -97,15 +120,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.8-max",
-				name: "cline-pass/qwen3.8-max",
-				description: "Qwen's New SOTA coding model",
-				tags: [],
-			},
-			{
 				id: "cline-pass/deepseek-v4-pro",
 				name: "cline-pass/deepseek-v4-pro",
 				description: "Frontier reasoning and coding with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.8-max",
+				name: "cline-pass/qwen3.8-max",
+				description: "Qwen's New SOTA coding model",
 				tags: [],
 			},
 			{
@@ -128,12 +151,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-plus",
 				name: "cline-pass/qwen3.7-plus",
 				description: "Fast multimodal agent model with vision and video input",
@@ -146,15 +163,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/mimo-v2.5-pro",
-				name: "cline-pass/mimo-v2.5-pro",
-				description: "Top open model for long autonomous coding runs",
-				tags: [],
-			},
-			{
-				id: "cline-pass/mimo-v2.5",
-				name: "cline-pass/mimo-v2.5",
-				description: "Fast and efficient MiMo for everyday coding",
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 		],

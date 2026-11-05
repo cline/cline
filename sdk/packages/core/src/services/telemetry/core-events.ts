@@ -79,12 +79,14 @@ export const CORE_TELEMETRY_EVENTS = {
 		DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		PROVIDER_API_ERROR: "task.provider_api_error",
 		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
+		CAPABILITY_OWNER_GONE: "task.capability_owner_gone",
 		PROVIDER_REQUEST_STARTED: TASK_PROVIDER_REQUEST_STARTED_EVENT,
 		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
 		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
 		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
 		MAX_TOKENS_RECOVERY: TASK_MAX_TOKENS_RECOVERY_EVENT,
 		CANCELLED: TASK_CANCELLED_EVENT,
+		RUN_IDLE: "task.run_idle",
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
@@ -92,6 +94,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AGENT_TEAM_CREATED: "task.agent_team_created",
 		SUBAGENT_STARTED: "task.subagent_started",
 		SUBAGENT_COMPLETED: "task.subagent_completed",
+		COMPACTION_CANCELLED_TOTAL: "cline.compaction.cancelled.total",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
 		COMPACTION_BUDGET_EMERGENCY: "task.compaction_budget_emergency",
@@ -645,6 +648,46 @@ export function captureMistakeLimitReached(
 	});
 }
 
+/**
+ * Records when a run's hook, client tool, or other client callback fails
+ * because the app that owns it disconnected or left the task.
+ */
+export function captureCapabilityOwnerGone(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		sessionId: string;
+		capabilityName: string;
+		/** disconnected / detached: failed before asking; cancelled_while_waiting: the app left mid-request. */
+		reason: "disconnected" | "detached" | "cancelled_while_waiting";
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CAPABILITY_OWNER_GONE, properties);
+}
+
+/**
+ * At most once per agent run, while it is still running and has emitted no
+ * runtime event (stream deltas included) for `idleMs`. Sent while stuck so
+ * hangs the user escapes by quitting the app are still counted.
+ */
+export function captureRunIdle(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid?: string;
+		agentId: string;
+		runId: string;
+		idleMs: number;
+		/** Runtime event type that preceded the silence. */
+		lastEventType: string;
+		isSubagent: boolean;
+	},
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.TASK.RUN_IDLE,
+		stripUndefinedProperties(properties),
+	);
+}
+
 export function captureRunCommandsTimeout(
 	telemetry: ITelemetryService | undefined,
 	properties: RunCommandsTimeoutTelemetryProperties,
@@ -872,6 +915,25 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  *   the request as exceeding the model's context window.
  */
 export type TelemetryCompactionMode = "auto" | "manual" | "overflow_recovery";
+
+export function recordCompactionCancelled(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		mode: TelemetryCompactionMode;
+		strategy: TelemetryCompactionStrategy;
+	},
+): void {
+	try {
+		telemetry?.recordCounter(
+			CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL,
+			1,
+			properties,
+			"Compaction attempts cancelled via their abort signal",
+		);
+	} catch {
+		// Telemetry must not interrupt cancellation.
+	}
+}
 
 export interface CaptureCompactionExecutedProperties {
 	ulid: string;

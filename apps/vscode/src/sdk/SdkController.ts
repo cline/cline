@@ -22,6 +22,7 @@ import {
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
+import { loadCloudModels } from "@cline/core/cloud"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -35,6 +36,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { ClineEnv } from "@/config"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { clearSdkRemoteConfig, refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
@@ -52,6 +54,7 @@ import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
+import { fetch } from "@/shared/net"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { resolveDataDirFromEnv } from "@/shared/storage/storage-context"
@@ -729,6 +732,14 @@ export class Controller {
 			telemetry: this.sdkTelemetry.telemetry,
 			pendingStartsDir: path.join(resolveDataDirFromEnv(), "cloud-pending-starts"),
 			getAccountScope,
+			loadCloudModels: () =>
+				loadCloudModels(ClineEnv.config().apiBaseUrl, {
+					isOrganizationSession: !!this.authService.getActiveOrganizationId(),
+					fetchImpl: fetch,
+				}),
+			// ClinePass bills the personal account; organization cloud sessions don't get it.
+			checkClinePassSubscription: async () =>
+				this.authService.getActiveOrganizationId() ? false : this.accountService.fetchClinePassSubscribedRPC(),
 		})
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud
@@ -2437,6 +2448,10 @@ export class Controller {
 		return this.cloud.resolveStatuses(sessionIds)
 	}
 
+	refreshClinePassSubscription(): Promise<void> {
+		return this.cloud.refreshClinePassSubscription()
+	}
+
 	invalidateTaskHistoryCache(): void {
 		this.taskHistory.invalidateCache()
 	}
@@ -2699,6 +2714,8 @@ export class Controller {
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask,
 				cloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.getCloudModelId() : undefined,
+				nextCloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.nextCloudModelId() : undefined,
+				clinePassSubscribed: isCloudSessionsFeatureEnabled() ? this.cloud.clinePassSubscribed() : undefined,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

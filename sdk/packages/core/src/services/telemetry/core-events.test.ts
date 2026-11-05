@@ -20,6 +20,7 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureRunIdle,
 	captureScheduleRun,
 	captureTaskCompleted,
 	captureTaskCreated,
@@ -32,6 +33,7 @@ import {
 	clearAccountTelemetryIdentity,
 	type GitSnapshotProperties,
 	identifyAccount,
+	recordCompactionCancelled,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
@@ -91,6 +93,41 @@ function captureCallAt(
 	];
 	return arg;
 }
+
+describe("recordCompactionCancelled", () => {
+	test("records the catalog counter with mode and strategy", () => {
+		const { telemetry } = createTelemetryStub();
+		const recordCounter = vi.fn();
+		telemetry.recordCounter = recordCounter;
+		recordCompactionCancelled(telemetry, {
+			mode: "manual",
+			strategy: "agentic",
+		});
+		expect(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL).toBe(
+			"cline.compaction.cancelled.total",
+		);
+		expect(recordCounter).toHaveBeenCalledExactlyOnceWith(
+			CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL,
+			1,
+			{ mode: "manual", strategy: "agentic" },
+			"Compaction attempts cancelled via their abort signal",
+		);
+	});
+
+	test("does not interrupt cancellation when telemetry is absent or throws", () => {
+		const properties = { mode: "auto", strategy: "custom" } as const;
+		expect(() =>
+			recordCompactionCancelled(undefined, properties),
+		).not.toThrow();
+		const { telemetry } = createTelemetryStub();
+		telemetry.recordCounter = () => {
+			throw new Error("telemetry failed");
+		};
+		expect(() =>
+			recordCompactionCancelled(telemetry, properties),
+		).not.toThrow();
+	});
+});
 
 describe("captureExtensionActivated", () => {
 	test("emits user.extension_activated as a normal opt-out-respecting event", () => {
@@ -390,6 +427,31 @@ describe("captureWorkspacePathResolved", () => {
 				resolution_type: "fallback_to_primary",
 			}),
 		).not.toThrow();
+	});
+});
+
+describe("captureRunIdle", () => {
+	test("emits task.run_idle and drops a missing session id", () => {
+		const stub = createTelemetryStub();
+		captureRunIdle(stub.telemetry, {
+			ulid: undefined,
+			agentId: "agent-1",
+			runId: "run-1",
+			idleMs: 60_000,
+			lastEventType: "tool-started",
+			isSubagent: true,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.RUN_IDLE,
+			properties: {
+				agentId: "agent-1",
+				runId: "run-1",
+				idleMs: 60_000,
+				lastEventType: "tool-started",
+				isSubagent: true,
+			},
+		});
 	});
 });
 

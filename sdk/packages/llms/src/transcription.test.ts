@@ -362,6 +362,27 @@ describe("transcribeAudio", () => {
 		).rejects.toThrow('Provider "groq" is missing credentials');
 		expect(transcribeMock).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		["an empty", ""],
+		["a whitespace-only", "  \n"],
+	])("rejects %s transcript instead of returning it", async (_label, text) => {
+		// The AI SDK resolves silent audio to an empty transcript rather than
+		// throwing, so the check has to live here.
+		transcribeMock.mockResolvedValueOnce({ text, language: "en" });
+		await expect(
+			transcribeAudio({
+				providerConfig: {
+					providerId: "groq",
+					modelId: "chat-model",
+					apiKey: "secret",
+				},
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+			}),
+		).rejects.toThrow("Transcription returned no text");
+		expect(transcribeMock).toHaveBeenCalledOnce();
+	});
 });
 
 describe("native OpenAI streaming sessions", () => {

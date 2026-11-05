@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { Activity, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SpeechInput } from "./speech-input";
@@ -484,6 +484,44 @@ describe("SpeechInput", () => {
 		});
 		expect(stop).toHaveBeenCalledOnce();
 		expect(onStreamingEnd).toHaveBeenCalledOnce();
+		expect(button?.getAttribute("aria-label")).toBe("Record speech");
+	});
+
+	it("returns to inactive after an Activity hides it mid-recording", async () => {
+		const cancel = vi.fn();
+		const onActiveChange = vi.fn();
+		const render = (mode: "visible" | "hidden") =>
+			act(async () => {
+				root.render(
+					<Activity mode={mode}>
+						<SpeechInput
+							onActiveChange={onActiveChange}
+							onStartStreaming={async () => ({
+								done: new Promise<void>(() => {}),
+								stop: vi.fn(),
+								cancel,
+							})}
+							recordingMode="streaming"
+						/>
+					</Activity>,
+				);
+			});
+		await render("visible");
+		const button = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		await act(async () => {
+			button?.click();
+			await Promise.resolve();
+		});
+		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
+
+		await render("hidden");
+		await render("visible");
+
+		expect(cancel).toHaveBeenCalledOnce();
+		expect(onActiveChange).toHaveBeenLastCalledWith(false);
+		expect(button?.disabled).toBe(false);
 		expect(button?.getAttribute("aria-label")).toBe("Record speech");
 	});
 

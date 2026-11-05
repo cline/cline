@@ -1,3 +1,4 @@
+import { resolveClineAppUrl } from "@cline/shared/browser"
 import type { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { isClineInternalTester } from "@shared/internal/account"
 import type { UserOrganization } from "@shared/proto/cline/account"
@@ -84,6 +85,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 	activeAccount.current = dropdownValue
 	const isClineTester = useMemo(() => (email ? isClineInternalTester(email) : false), [email])
 	const clineUrl = appBaseUrl || "https://app.cline.bot"
+	const privacySettingsUrl = resolveClineAppUrl(clineUser.dataPrivacyPath, clineUrl)
 
 	const fetchCreditBalance = useCallback(
 		async (accountId: string) => {
@@ -215,6 +217,11 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 						Log out
 					</VSCodeButton>
 				</div>
+				{privacySettingsUrl && (
+					<VSCodeButtonLink appearance="secondary" className="w-full mt-2" href={privacySettingsUrl}>
+						Privacy settings
+					</VSCodeButtonLink>
+				)}
 
 				<VSCodeDivider className="w-full my-6" />
 

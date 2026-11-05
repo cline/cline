@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { beforeEach, expect, it } from "vitest";
+import {
+	getInitialChatConfig,
+	getInitialCloudModel,
+} from "@/hooks/chat-session/constants";
 import {
 	EXECUTION_TARGET_STORAGE_KEY,
 	readExecutionTargetFromWindow,
@@ -40,4 +45,24 @@ it("remembers the execution target and keeps Cloud and Local models separate", (
 	writeModelSelectionStorageToWindow(local);
 	expect(readExecutionTargetFromWindow()).toBe("local");
 	expect(readModelSelectionStorageFromWindow("cloud")).toEqual(cloud);
+});
+
+it.each([
+	["cline", "openai/gpt-test", "openai/gpt-test"],
+	["cline-pass", "cline-pass/pass-test", "cline-pass/pass-test"],
+	["cline-pass", "cline-free/free-test", "cline-free/free-test"],
+	["openrouter", "openai/gpt-test", CLINE_DEFAULT_MODEL_ID],
+])("starts Cloud from the local %s model when nothing is remembered", (provider, model, expected) => {
+	writeModelSelectionStorageToWindow({
+		lastProvider: provider,
+		lastModelByProvider: { [provider]: model },
+	});
+	expect(
+		getInitialChatConfig("local", { executionTarget: "cloud" }),
+	).toMatchObject({ provider: "cline", model: expected });
+	writeModelSelectionStorageToWindow(
+		{ lastProvider: "cline", lastModelByProvider: { cline: "cloud-model" } },
+		"cloud",
+	);
+	expect(getInitialCloudModel(provider, model)).toBe("cloud-model");
 });

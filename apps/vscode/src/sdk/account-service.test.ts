@@ -3,7 +3,9 @@ import { getUserOrganizations } from "@/core/controller/account/getUserOrganizat
 import { ClineAccountService } from "./account-service"
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), restore: vi.fn(), activeOrganizationId: "org-old" as string | undefined }))
-vi.mock("axios", () => ({ default: { request: mocks.request } }))
+vi.mock("axios", () => ({
+	default: { request: mocks.request, isAxiosError: (error: { isAxiosError?: boolean }) => !!error?.isAxiosError },
+}))
 vi.mock("./auth-service", () => ({
 	AuthService: {
 		getInstance: () => ({
@@ -110,5 +112,35 @@ describe("account confirmation", () => {
 			expect.objectContaining({ timeout: 0, method: "PUT", data: { organizationId: "org-new" } }),
 		)
 		expect(mocks.restore).toHaveBeenCalledOnce()
+	})
+})
+
+describe("ClinePass subscription", () => {
+	beforeEach(() => vi.clearAllMocks())
+
+	it("is subscribed when the user has a plan", async () => {
+		mocks.request.mockResolvedValue({ status: 200, data: { success: true, data: { plan: { name: "ClinePass" } } } })
+		expect(await new ClineAccountService().fetchClinePassSubscribedRPC()).toBe(true)
+		expect(mocks.request).toHaveBeenCalledWith(expect.objectContaining({ url: "http://127.0.0.1:1/api/v1/users/me/plan" }))
+	})
+
+	it("is not subscribed when the API answers 404 (no current plan) or 402 (unpaid plan)", async () => {
+		mocks.request.mockRejectedValueOnce({
+			isAxiosError: true,
+			response: { status: 404, data: { success: false, error: "no plan history found for user" } },
+		})
+		expect(await new ClineAccountService().fetchClinePassSubscribedRPC()).toBe(false)
+		mocks.request.mockRejectedValueOnce({
+			isAxiosError: true,
+			response: { status: 402, data: { success: false, error: "subscription has not been paid" } },
+		})
+		expect(await new ClineAccountService().fetchClinePassSubscribedRPC()).toBe(false)
+	})
+
+	it("is unknown when the check fails for another reason", async () => {
+		mocks.request.mockRejectedValueOnce(new Error("offline"))
+		expect(await new ClineAccountService().fetchClinePassSubscribedRPC()).toBeUndefined()
+		mocks.request.mockRejectedValueOnce({ isAxiosError: true, response: { status: 500, data: { success: false } } })
+		expect(await new ClineAccountService().fetchClinePassSubscribedRPC()).toBeUndefined()
 	})
 })

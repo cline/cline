@@ -95,7 +95,12 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
-			cloud: { getCurrentTaskInfo: () => undefined, getCloudModelId: () => "cloud-model" },
+			cloud: {
+				getCurrentTaskInfo: () => undefined,
+				getCloudModelId: () => "cloud-model",
+				nextCloudModelId: () => "cloud-model",
+				clinePassSubscribed: () => undefined,
+			},
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },
 			getStateToPostToWebview: SdkController.prototype.getStateToPostToWebview,

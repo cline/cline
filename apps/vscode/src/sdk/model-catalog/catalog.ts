@@ -1,4 +1,4 @@
-import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
+import { listLocalProviders, type ModelCatalogConfig, resolveClineDefaultModelId, resolveProviderConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
 import { getProviderSettingsManager } from "../provider-migration"
@@ -221,7 +221,15 @@ async function resolveSdkModels(
 		providerId,
 		configFingerprint: fingerprint,
 		models,
-		defaultModelId: chooseDefaultModelId(resolved?.modelId, models),
+		// Match the session factory, which starts a Cline user with no saved
+		// model on the live feed's first free model. Users with a saved model
+		// never use the default, so they skip the feed wait.
+		defaultModelId: chooseDefaultModelId(
+			sdkProviderId === "cline" && !selection?.modelId
+				? await resolveClineDefaultModelId().catch(() => resolved?.modelId)
+				: resolved?.modelId,
+			models,
+		),
 		source: "sdk-dynamic",
 		fetchedAt: now(),
 	}

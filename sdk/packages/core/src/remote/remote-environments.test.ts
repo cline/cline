@@ -196,6 +196,35 @@ describe("RemoteEnvironmentService", () => {
 			}),
 		).rejects.toThrow("ENOENT");
 	});
+	it("reports SSH diagnostics when it exits during an upload", async () => {
+		// Larger than any pipe buffer, so writing fails with EPIPE once ssh exits.
+		const inputFile = join(testDirectory, "helper");
+		await writeFile(inputFile, Buffer.alloc(8 * 1024 * 1024));
+		await expect(
+			runRemoteProcess(
+				process.execPath,
+				[
+					"-e",
+					'process.stderr.write("Connection timed out during banner exchange\\n"); process.exit(255);',
+				],
+				{ timeoutMs: 5000, inputFile },
+			),
+		).resolves.toEqual({
+			exitCode: 255,
+			stdout: "",
+			stderr: "Connection timed out during banner exchange\n",
+		});
+	});
+	it("rejects an upload that exits successfully before reading its input", async () => {
+		const inputFile = join(testDirectory, "helper");
+		await writeFile(inputFile, Buffer.alloc(8 * 1024 * 1024));
+		await expect(
+			runRemoteProcess(process.execPath, ["-e", "process.exit(0)"], {
+				timeoutMs: 5000,
+				inputFile,
+			}),
+		).rejects.toThrow("exited before the upload completed");
+	});
 
 	it.each([
 		"connect",
@@ -383,8 +412,9 @@ describe("RemoteEnvironmentService", () => {
 			expect.arrayContaining([
 				"-o",
 				"BatchMode=yes",
-				"ConnectTimeout=10",
+				"ConnectTimeout=30",
 				"StrictHostKeyChecking=yes",
+				"ClearAllForwardings=yes",
 				"-p",
 				"2202",
 				"-i",
@@ -511,6 +541,7 @@ describe("RemoteEnvironmentService", () => {
 			options: { inputFile: "/opt/cline/code-sidecar-linux-arm64" },
 		});
 		expect(upload?.args.at(-1)).toContain("umask 077; cat >");
+		expect(upload?.args).toContain("ClearAllForwardings=yes");
 		const ensure = invocations.find((invocation) =>
 			invocation.args.at(-1)?.includes("'hub' 'ensure'"),
 		);
@@ -525,13 +556,20 @@ describe("RemoteEnvironmentService", () => {
 			"ssh",
 			expect.arrayContaining([
 				"-N",
-				"ExitOnForwardFailure=yes",
 				"-L",
 				"127.0.0.1:43117:127.0.0.1:25463",
 				"arm-builder",
 			]),
 		);
-		expect(waitForTunnel).toHaveBeenCalledWith(43117, tunnel, 10_000);
+		expect(spawnTunnel).not.toHaveBeenCalledWith(
+			"ssh",
+			expect.arrayContaining(["ClearAllForwardings=yes"]),
+		);
+		expect(spawnTunnel).not.toHaveBeenCalledWith(
+			"ssh",
+			expect.arrayContaining(["ExitOnForwardFailure=yes"]),
+		);
+		expect(waitForTunnel).toHaveBeenCalledWith(43117, tunnel, 40_000);
 
 		await expect(service.disconnect()).resolves.toBe(true);
 		expect(requestHubShutdown).toHaveBeenCalledWith(

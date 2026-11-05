@@ -161,14 +161,14 @@ intentionally wants to move to a newer release:
 bun update @cline/ui
 ```
 
-For deliberate previews, UI releases can publish an unstable `next` npm tag:
+`@cline/ui` is released with the SDK packages and shares their version. For
+deliberate previews, install an unstable `nightly` build:
 
 ```bash
-bun add --exact @cline/ui@next
+bun add --exact @cline/ui@nightly
 ```
 
-Do not use `next` for production applications. UI versions move independently
-from the runtime SDK packages.
+Do not use `nightly` for production applications.
 
 ## Option 1: complete Tailwind v4 theme
 

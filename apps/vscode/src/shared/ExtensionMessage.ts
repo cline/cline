@@ -157,6 +157,10 @@ export interface ExtensionState {
 	currentCloudTask?: CurrentCloudTaskInfo
 	/** Cline model the displayed cloud task runs on, else the one a new cloud task would use. */
 	cloudModelId?: string
+	/** Cline model a new cloud task would run on; Settings edits this one. */
+	nextCloudModelId?: string
+	/** Whether the account has ClinePass for cloud tasks; unset until checked, or when the check failed. */
+	clinePassSubscribed?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }
 
@@ -277,6 +281,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "cloud_provisioning" // cloud sandbox start/resume progress
 
 export interface ClineSayTool {
 	tool:
@@ -402,6 +407,16 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+}
+
+/**
+ * JSON payload of a say:"cloud_provisioning" message. The row is updated in
+ * place (same ts) as the sandbox advances through its phases.
+ */
+export interface ClineCloudProvisioningInfo {
+	phase: "starting" | "cloning_repo" | "agent_starting" | "resuming"
+	repo?: string
+	branch?: string
 }
 
 export interface ClineSubagentUsageInfo {

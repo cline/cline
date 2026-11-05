@@ -149,6 +149,10 @@ export const StructuredCommandEntrySchema = z.union([
 export const RunCommandsInputSchema = z.object({
 	commands: z
 		.array(CommandInputSchema)
+		// Advertised to the model as minItems: 1. The lenient union below still
+		// accepts an empty list so the normalizer can reject it with one clear
+		// message instead of a union error.
+		.min(1)
 		.describe("Array of complete shell command strings to execute."),
 });
 

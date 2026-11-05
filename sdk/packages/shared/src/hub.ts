@@ -1,6 +1,12 @@
-import type { AgentMessage } from "./agent";
+import type { AgentMessage, AgentTool } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
+import type {
+	AddProviderActionRequest,
+	ProviderCatalogResponse,
+	ProviderModelsResponse,
+	SaveProviderSettingsActionRequest,
+} from "./rpc/runtime";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 import type {
 	AgendaAutomationPolicy,
@@ -18,6 +24,7 @@ export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 
 export type HubCapabilityName =
+	| HubProviderCommandName
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -51,6 +58,12 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"providers.list",
+	"providers.models.list",
+	"providers.models.recommended",
+	"providers.settings.save",
+	"providers.add",
+	"providers.models.update",
 	"client.register",
 	"client.list",
 	"session.create",
@@ -576,12 +589,50 @@ export interface HubPluginsReloadInput {
 	plugin: string;
 }
 
-/**
- * Strongly typed task command payloads. This map is intentionally extensible so
- * other Hub command families can adopt typed payloads without changing the wire
- * envelope.
- */
+export interface ClineRecommendedModel {
+	id: string;
+	/** Display-ready model name resolved against the model catalog. */
+	name: string;
+	description: string;
+	tags: string[];
+}
+
+export interface ClineRecommendedModelsData {
+	recommended: ClineRecommendedModel[];
+	free: ClineRecommendedModel[];
+	clinePass: ClineRecommendedModel[];
+	/** Free models offered only to cloud sessions (ClineFree). */
+	clineCloud?: ClineRecommendedModel[];
+}
+
+export interface HubProviderSaveResult {
+	providerId: string;
+	enabled: boolean;
+	settingsPath: string;
+	/** Whether the shared Cline account credentials changed during this write. */
+	clineCredentialsChanged: boolean;
+}
+
+export interface HubProviderModelsUpdateInput {
+	providerId: string;
+	models?: string[];
+}
+
+export interface HubProviderMutationResult {
+	providerId: string;
+	settingsPath: string;
+	modelsPath: string;
+	modelsCount: number;
+}
+
+/** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"providers.list": { isClinePassEnabled?: boolean };
+	"providers.models.list": { providerId: string; includeCloudModels?: boolean };
+	"providers.models.recommended": Record<string, never>;
+	"providers.settings.save": Omit<SaveProviderSettingsActionRequest, "action">;
+	"providers.add": Omit<AddProviderActionRequest, "action">;
+	"providers.models.update": HubProviderModelsUpdateInput;
 	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
 	"task.list": AgendaTaskListInput;
@@ -597,8 +648,14 @@ export interface HubCommandInputMap {
 	"plugins.reload": HubPluginsReloadInput;
 }
 
-/** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
+/** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"providers.list": ProviderCatalogResponse;
+	"providers.models.list": ProviderModelsResponse;
+	"providers.models.recommended": ClineRecommendedModelsData;
+	"providers.settings.save": HubProviderSaveResult;
+	"providers.add": HubProviderMutationResult;
+	"providers.models.update": HubProviderMutationResult;
 	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
@@ -620,7 +677,18 @@ export type HubCommandInput<TCommand extends HubTypedCommandName> =
 export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
+export type HubProviderCommandName =
+	| "providers.list"
+	| "providers.models.list"
+	| "providers.models.recommended"
+	| "providers.settings.save"
+	| "providers.add"
+	| "providers.models.update";
+
 export type HubCommandName =
+	| HubProviderCommandName
+	| "cloud.command"
+	| "cloud.watch"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -633,6 +701,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.search"
 	| "session.create"
+	| "session.resume"
 	| "session.attach"
 	| "session.detach"
 	| "session.get"
@@ -641,6 +710,9 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.mcp_apps.resolve_tool"
+	| "session.mcp_apps.read_resource"
+	| "session.mcp_apps.call_tool"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
@@ -691,6 +763,8 @@ export type HubCommandName =
 	| "task.run"
 	| "task.automation.get"
 	| "task.automation.set"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -716,6 +790,7 @@ export function getDefaultHubCommandTimeoutMs(
 	switch (command) {
 		case "run.start":
 		case "session.send_input":
+		case "plugins.commands.run":
 			return null;
 		default:
 			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
@@ -754,6 +829,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"
@@ -913,6 +989,9 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
+	policyDependencies?: readonly string[];
+	executionMode?: AgentTool["executionMode"];
 	kind: "tool";
 	name: string;
 	description: string;
@@ -1080,6 +1159,13 @@ export interface HubStateSnapshot {
 export type HubTransportFrame =
 	| { kind: "command"; envelope: HubCommandEnvelope }
 	| { kind: "reply"; envelope: HubReplyEnvelope }
+	| {
+			kind: "history.cancel";
+			clientId: string;
+			sessionId: string;
+			/** Initial chunked session.messages request, including queued preparation. */
+			requestId: string;
+	  }
 	| {
 			kind: "stream.subscribe";
 			clientId: string;

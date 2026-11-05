@@ -25,14 +25,16 @@ export function useGitHubConnection(enabled: boolean) {
 	const inFlight = useRef<{ scope: object; promise: Promise<void> } | undefined>(undefined)
 
 	const load = useCallback(
-		async (refresh: boolean) => {
+		async ({ refresh = false, userInitiated = false }: { refresh?: boolean; userInitiated?: boolean } = {}) => {
 			if (!available) {
 				return
+			}
+			if (userInitiated) {
+				setLoading(true)
 			}
 			if (inFlight.current?.scope === scope) {
 				return inFlight.current.promise
 			}
-			setLoading(true)
 			const request = {
 				scope,
 				promise: CloudServiceClient.getGitHubConnection(GitHubConnectionRequest.create({ refresh }))
@@ -72,12 +74,12 @@ export function useGitHubConnection(enabled: boolean) {
 	// not-yet-connected poll ask the control plane again.
 	useEffect(() => {
 		setLoading(false)
-		void load(false)
+		void load({ userInitiated: true })
 		return () => {
 			inFlight.current = undefined
 		}
 	}, [load])
-	const refresh = useCallback(() => load(true), [load])
+	const refresh = useCallback(() => load({ refresh: true, userInitiated: true }), [load])
 
 	const needsPolling =
 		available &&
@@ -89,14 +91,14 @@ export function useGitHubConnection(enabled: boolean) {
 		if (!needsPolling) {
 			return
 		}
-		const timer = setInterval(() => void refresh(), DISCONNECTED_POLL_MS)
-		const onFocus = () => void refresh()
-		window.addEventListener("focus", onFocus)
+		const recheck = () => void load({ refresh: true })
+		const timer = setInterval(recheck, DISCONNECTED_POLL_MS)
+		window.addEventListener("focus", recheck)
 		return () => {
 			clearInterval(timer)
-			window.removeEventListener("focus", onFocus)
+			window.removeEventListener("focus", recheck)
 		}
-	}, [needsPolling, refresh])
+	}, [needsPolling, load])
 
 	return { connection, loading, refresh }
 }

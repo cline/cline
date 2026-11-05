@@ -628,6 +628,7 @@ export async function handleConnectorUserTurn<
 					input.forceDisableTools,
 				);
 				return {
+					sessionId: effectiveCurrent.sessionId,
 					enableTools:
 						effectiveCurrent.enableTools ?? input.baseStartRequest.enableTools,
 					autoApproveTools:

@@ -9,6 +9,7 @@ const TRAY_STATUS_REFRESH_INTERVAL_MS = 5_000;
 export type DesktopAction =
 	| { type: "new-session" }
 	| { type: "open-settings" }
+	| { type: "open-keybindings" }
 	| { type: "export-diagnostics" }
 	| { type: "check-for-updates" }
 	| { type: AppZoomAction }
@@ -29,6 +30,7 @@ function isDesktopAction(value: unknown): value is DesktopAction {
 	if (
 		action.type === "new-session" ||
 		action.type === "open-settings" ||
+		action.type === "open-keybindings" ||
 		action.type === "export-diagnostics" ||
 		action.type === "check-for-updates" ||
 		isAppZoomAction(action.type)

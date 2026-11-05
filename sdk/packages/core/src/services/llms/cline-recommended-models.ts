@@ -4,7 +4,12 @@ import {
 	getGeneratedProviderModels,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "@cline/llms";
+import type {
+	ClineRecommendedModel,
+	ClineRecommendedModelsData,
+} from "@cline/shared";
 import {
+	CLINE_DEFAULT_MODEL_ID,
 	getClineEnvironmentConfig,
 	type ProviderModel,
 	type ProviderModelFeaturedTier,
@@ -13,19 +18,10 @@ import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
 
-export interface ClineRecommendedModel {
-	id: string;
-	/** Display-ready model name, resolved against the model catalog. */
-	name: string;
-	description: string;
-	tags: string[];
-}
-
-export interface ClineRecommendedModelsData {
-	recommended: ClineRecommendedModel[];
-	free: ClineRecommendedModel[];
-	clinePass: ClineRecommendedModel[];
-}
+export type {
+	ClineRecommendedModel,
+	ClineRecommendedModelsData,
+} from "@cline/shared";
 
 type ModelsCatalog = Record<string, Record<string, ModelInfo>>;
 
@@ -69,6 +65,10 @@ function cloneRecommendedModels(
 			...model,
 			tags: [...model.tags],
 		})),
+		clineCloud: data.clineCloud?.map((model) => ({
+			...model,
+			tags: [...model.tags],
+		})),
 	};
 }
 
@@ -106,11 +106,14 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	const clinePass = clinePassRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
+	const clineCloud = (Array.isArray(data.clineCloud) ? data.clineCloud : [])
+		.map(normalizeModel)
+		.filter((model): model is ClineRecommendedModel => model !== null);
 	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 		return null;
 	}
 
-	return { recommended, free, clinePass };
+	return { recommended, free, clinePass, clineCloud };
 }
 
 function getConfiguredApiBaseUrl(
@@ -136,13 +139,12 @@ async function fetchWithTimeout(
 	timeoutMs: number,
 	headers: Record<string, string>,
 ): Promise<Response> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		return await fetchImpl(input, { headers, signal: controller.signal });
-	} finally {
-		clearTimeout(timer);
-	}
+	// The signal stays armed after headers arrive, so a stalled body read
+	// (resp.json()) aborts at the same deadline instead of hanging.
+	return await fetchImpl(input, {
+		headers,
+		signal: AbortSignal.timeout(timeoutMs),
+	});
 }
 
 // The featured pickers render these names next to their own FREE chips and
@@ -248,6 +250,7 @@ function resolveCatalogDisplayNames(
 		recommended: withNames(data.recommended, [catalog?.openrouter]),
 		free: withNames(data.free, [catalog?.cline, catalog?.openrouter]),
 		clinePass: withNames(data.clinePass, [catalog?.["cline-pass"]]),
+		clineCloud: data.clineCloud && withNames(data.clineCloud, [catalog?.cline]),
 	};
 }
 
@@ -349,6 +352,22 @@ export function peekClineRecommendedModels(): ClineRecommendedModelsData {
 		return cloneRecommendedModels(feedCache.data);
 	}
 	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+}
+
+/**
+ * Default model for a Cline user with no saved choice: the first free model
+ * from the live feed, else the first bundled free model, else the Cline
+ * default. The fetch already falls back to the bundled list when offline.
+ */
+export async function resolveClineDefaultModelId(
+	options: FetchClineRecommendedModelsOptions = {},
+): Promise<string> {
+	const live = await getCachedClineRecommendedModels(options);
+	return (
+		live.free[0]?.id ??
+		FALLBACK_CLINE_RECOMMENDED_MODELS.free[0]?.id ??
+		CLINE_DEFAULT_MODEL_ID
+	);
 }
 
 export function resetClineRecommendedModelsCacheForTests(): void {
