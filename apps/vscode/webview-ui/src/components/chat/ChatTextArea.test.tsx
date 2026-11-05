@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
 	supportsImages: true as boolean | undefined,
 	navigateToSettingsModelPicker: vi.fn(),
 	cloudState: {} as Record<string, unknown>,
+	refreshSkills: vi.fn(async () => ({
+		localSkills: [],
+		globalSkills: [{ name: "aws-deploy", description: "Deploy to AWS", path: "/skills/aws-deploy/SKILL.md", enabled: true }],
+	})),
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
@@ -43,12 +47,7 @@ vi.mock("@/services/grpc-client", () => ({
 		getRelativePaths: vi.fn(async () => ({ paths: [] })),
 		openImage: vi.fn(async () => ({})),
 		openFile: vi.fn(async () => ({})),
-		refreshSkills: vi.fn(async () => ({
-			localSkills: [],
-			globalSkills: [
-				{ name: "aws-deploy", description: "Deploy to AWS", path: "/skills/aws-deploy/SKILL.md", enabled: true },
-			],
-		})),
+		refreshSkills: mocks.refreshSkills,
 	},
 	StateServiceClient: {
 		togglePlanActModeProto: vi.fn(async () => ({})),
@@ -107,6 +106,18 @@ describe("ChatTextArea model label", () => {
 		expect(screen.getByText("Problems")).toBeInTheDocument()
 		fireEvent.change(textarea, { target: { value: "/", selectionStart: 1 } })
 		expect(await screen.findByText("/aws-deploy")).toBeInTheDocument()
+	})
+
+	it("loads skills on mount and on each menu open, not on close", async () => {
+		mocks.refreshSkills.mockClear()
+		const { textarea } = renderTextArea()
+		expect(mocks.refreshSkills).toHaveBeenCalledTimes(1)
+		fireEvent.change(textarea, { target: { value: "/", selectionStart: 1 } })
+		expect(await screen.findByText("/aws-deploy")).toBeInTheDocument()
+		expect(mocks.refreshSkills).toHaveBeenCalledTimes(2)
+		fireEvent.keyDown(textarea, { key: "Escape" })
+		expect(screen.queryByText("/aws-deploy")).not.toBeInTheDocument()
+		expect(mocks.refreshSkills).toHaveBeenCalledTimes(2)
 	})
 
 	it.each([

@@ -350,10 +350,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [showSlashCommandsMenu])
 
 		// Skills aren't part of the extension state (only their explicit toggles are),
-		// so load them on mount and re-load whenever the slash menu toggles to pick up
-		// skills added, removed, or toggled since. A response from a superseded
-		// request (or one arriving after unmount) is dropped.
-		useEffect(() => {
+		// so load them on mount (so a restored draft highlights) and again each time
+		// the slash menu opens, to pick up skills added, removed, or toggled since.
+		// Closing the menu loads nothing. A response from a superseded request (or
+		// one arriving after unmount) is dropped.
+		const loadSkills = useCallback(() => {
 			let cancelled = false
 			FileServiceClient.refreshSkills(EmptyRequest.create())
 				.then((response) => {
@@ -365,7 +366,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return () => {
 				cancelled = true
 			}
-		}, [showSlashCommandsMenu])
+		}, [])
+		useEffect(loadSkills, [loadSkills])
+		useEffect(() => (showSlashCommandsMenu ? loadSkills() : undefined), [showSlashCommandsMenu, loadSkills])
 
 		// Keep the highlighted row inside the list when the commands change while
 		// the menu is open, e.g. a skill refresh landing shorter than the cached list.
