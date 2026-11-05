@@ -7,8 +7,10 @@ an existing core instance:
 ```ts
 const parent = await core.get(parentSessionId);
 if (!parent) throw new Error("Parent conversation unavailable");
+const compactionState = await core.readSessionCompactionState(parentSessionId);
 const reference = captureSideReference({
   messages: await core.readMessages(parentSessionId),
+  compactionState,
   activeParentTurn: parent.status === "running" || parent.status === "pending",
   parentTitle: "Main conversation",
 });
@@ -21,11 +23,14 @@ reference-only prompt rules. Configure tool permissions separately; prompt
 instructions do not enforce them. These helpers neither create a session nor
 change the default tool catalog.
 
-The initial reference is capped at 16 KiB and each excerpt at 4 KiB. A supplied
-`visibleContext` must satisfy `SideVisibleContextSchema` from `@cline/shared`
-(or `@cline/shared/browser`), including its 24 KiB total limit. Hosts capture
-this optional supplement from their visible conversation at creation time;
-there is no continuous synchronization.
+The initial reference reuses the parent's existing compacted working context
+and later messages. Without a valid compaction state, it uses the supplied
+history. It does not generate a new summary or clip parent text to a fixed
+size; the side conversation uses the normal runtime context-budget handling.
+A supplied `visibleContext` must satisfy `SideVisibleContextSchema` from
+`@cline/shared` (or `@cline/shared/browser`), including its 4 KiB per-excerpt
+and 24 KiB total limits. Hosts capture this optional supplement at creation
+time; there is no continuous synchronization.
 
 Compaction can summarize or remove the starting reference. Use
 `read_parent_history` to retrieve parent context afterward.

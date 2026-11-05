@@ -11,7 +11,6 @@ const MediaPayloadSchema = z.union([
 
 export const SIDE_REFERENCE_KIND = "desktop_side_reference";
 
-export const SIDE_REFERENCE_BUDGET_BYTES = 16 * 1024;
 export const SIDE_EXCERPT_BUDGET_BYTES = 4 * 1024;
 export const SIDE_VISIBLE_BUDGET_BYTES = 24 * 1024;
 const encoder = new TextEncoder();

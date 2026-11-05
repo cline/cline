@@ -627,14 +627,13 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export {
-	SIDE_REFERENCE_KIND,
-	SIDE_REFERENCE_BUDGET_BYTES,
-	SIDE_EXCERPT_BUDGET_BYTES,
-	SIDE_VISIBLE_BUDGET_BYTES,
-	SideVisibleContextSchema,
-	type SideVisibleContext,
 	referenceByteLength,
 	referenceExcerpt,
+	SIDE_EXCERPT_BUDGET_BYTES,
+	SIDE_REFERENCE_KIND,
+	SIDE_VISIBLE_BUDGET_BYTES,
+	type SideVisibleContext,
+	SideVisibleContextSchema,
 	sanitizeReferenceText,
 	serializeReferenceData,
 } from "./session/side-conversation";
@@ -649,6 +648,5 @@ export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
-export { initVcr } from "./vcr";
-
 export * from "./ux-verifier";
+export { initVcr } from "./vcr";

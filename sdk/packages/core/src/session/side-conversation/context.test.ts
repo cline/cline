@@ -1,10 +1,10 @@
 import type { MessageWithMetadata } from "@cline/llms";
 import {
-	SIDE_REFERENCE_BUDGET_BYTES,
 	type SideVisibleContext,
 	SideVisibleContextSchema,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { createSessionCompactionState } from "../models/session-compaction";
 import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
 
@@ -24,6 +24,42 @@ const visibleContext = (excerpts: SideVisibleContext["excerpts"]) =>
 	});
 
 describe("side reference capture", () => {
+	it("reuses existing compaction and its later messages without clipping or changing the source", () => {
+		const earlier = exchange("old question", "old answer replaced by summary");
+		const summary: MessageWithMetadata = {
+			role: "user",
+			content: "Existing summary: preserve the agreed architecture",
+			metadata: { kind: "compaction_summary", userRunSpan: 1 },
+		};
+		const compactionState = createSessionCompactionState({
+			sourceMessages: earlier,
+			compactedMessages: [summary],
+			systemPrompt: "PARENT_SYSTEM_INSTRUCTIONS",
+		});
+		const answer = `START ${"語".repeat(6000)} MIDDLE_FACT ${"語".repeat(6000)} END`;
+		const messages = [...earlier, ...exchange("current question", answer)];
+		const original = structuredClone({ messages, compactionState });
+		const capture = captureSideReference({
+			messages,
+			compactionState,
+			activeParentTurn: false,
+		});
+		expect(capture.content).toContain(summary.content);
+		expect(capture.content).toContain("current question");
+		expect(capture.content).toContain(answer);
+		expect(capture.content).not.toContain("old answer replaced by summary");
+		expect(capture.content).not.toContain("PARENT_SYSTEM_INSTRUCTIONS");
+		expect({ messages, compactionState }).toEqual(original);
+		const stale = captureSideReference({
+			messages: exchange("different history", answer),
+			compactionState,
+			activeParentTurn: false,
+		});
+		expect(stale.content).toContain("different history");
+		expect(stale.content).toContain(answer);
+		expect(stale.content).not.toContain(summary.content);
+	});
+
 	it("captures active user/tool observations, excludes display-only notices, and preserves the source", () => {
 		const messages: MessageWithMetadata[] = [
 			...exchange("original goal", "answer"),
@@ -171,29 +207,6 @@ describe("side reference capture", () => {
 			/cline:\/\/cache|data:image|BASE64_SECRET|TOOL_IMAGE|AUDIO_SECRET|BLOB_SECRET/,
 		);
 	});
-
-	it("retains requests and UTF-8 head/tail excerpts when individual blocks exceed the cap", () => {
-		const messages = [
-			...exchange("initial goal", "initial answer"),
-			...exchange("oversized", "語".repeat(30000)),
-			...exchange("recent", "語".repeat(18000)),
-		];
-		const capture = captureSideReference({
-			messages,
-			activeParentTurn: false,
-		});
-		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
-		);
-		expect(capture.content).toContain(
-			"0 saved messages omitted; 2 saved messages partly represented; 2 excerpted blocks",
-		);
-		expect(capture.content).toContain("initial goal");
-		expect(capture.content).toContain("recent");
-		expect(capture.content).toContain("oversized");
-		expect(capture.content).not.toContain("�");
-		expect(capture.content).toContain("UTF-8 bytes omitted");
-	});
 });
 
 describe("current context and provider request", () => {
@@ -235,7 +248,7 @@ describe("current context and provider request", () => {
 		expect(source).toEqual(original);
 	});
 
-	it("keeps textual attachments within the snapshot budget and omits binary files", () => {
+	it("keeps complete textual attachments and omits binary files", () => {
 		const capture = captureSideReference({
 			activeParentTurn: false,
 			messages: [
@@ -273,38 +286,11 @@ describe("current context and provider request", () => {
 		expect(capture.content).toContain('path="requirements.txt"');
 		expect(capture.content).toContain("START");
 		expect(capture.content).toContain("END");
-		expect(capture.content).not.toContain("MIDDLE");
+		expect(capture.content).toContain("MIDDLE");
 		expect(capture.content).toContain("Nested requirement");
 		expect(capture.content).toContain("Nested fact survives");
 		expect(capture.content).toContain("1 media items omitted");
 		expect(capture.content).not.toMatch(/BINARY_FILE|cline:\/\/cache/);
-		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
-		);
-	});
-
-	it("prioritizes current and original requests within the total cap, including clipped labels", () => {
-		const source = Array.from({ length: 30 }, (_, index) =>
-			exchange(
-				`request ${index}`,
-				`head ${index} ${"😀語".repeat(3000)} tail ${index}`,
-			),
-		).flat();
-		const capture = captureSideReference({
-			messages: source,
-			activeParentTurn: true,
-		});
-		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
-		);
-		expect(capture.content).toContain("request 0");
-		expect(capture.content).toContain("request 29");
-		expect(capture.content).toContain("head 29");
-		expect(capture.content).toContain("tail 29");
-		expect(capture.content).not.toContain("�");
-		expect(capture.content).toContain("intervening saved content omitted");
-		expect(capture.content).toMatch(/[1-9]\d* saved messages omitted/);
-		expect(capture.content).toMatch(/[1-9]\d* excerpted blocks/);
 	});
 
 	it("deduplicates only a confirmed latest run and keeps uncertain repeated requests labeled", () => {
@@ -412,86 +398,6 @@ describe("current context and provider request", () => {
 		);
 	});
 
-	it("keeps visible facts missing from a clipped saved block", () => {
-		const answer = `${"a".repeat(2500)} UNIQUE_RETAINED_FACT ${"b".repeat(6000)}`;
-		const capture = captureSideReference({
-			messages: exchange("question", answer),
-			activeParentTurn: true,
-			visibleContext: visibleContext([
-				{
-					messageId: "user",
-					role: "user",
-					text: "question",
-					runCount: 1,
-					submission: "observed",
-					omittedBytes: 0,
-				},
-				{
-					messageId: "answer",
-					role: "assistant",
-					text: answer.slice(0, 3000),
-					runCount: 1,
-					submission: "observed",
-					omittedBytes: 0,
-				},
-			]),
-		});
-		expect(capture.content).toContain("UNIQUE_RETAINED_FACT");
-		expect(capture.content).toContain("0 visible excerpts omitted");
-		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
-		);
-	});
-
-	it("falls back to the smaller visible excerpt when its saved block cannot fit", () => {
-		const excerpt = {
-			messageId: "user",
-			role: "user",
-			text: "latest request",
-			runCount: 2,
-			submission: "observed",
-			omittedBytes: 0,
-		} satisfies SideVisibleContext["excerpts"][number];
-		const capture = captureSideReference({
-			messages: [
-				...exchange("first".repeat(1500), "old answer"),
-				{
-					id: "user",
-					role: "user",
-					content: `latest request ${"u".repeat(6000)}`,
-				},
-				{ role: "assistant", content: `FALLBACK_FACT ${"a".repeat(3400)}` },
-			],
-			activeParentTurn: true,
-			visibleContext: visibleContext([
-				excerpt,
-				{
-					...excerpt,
-					messageId: "answer",
-					role: "assistant",
-					text: "FALLBACK_FACT",
-				},
-				{
-					...excerpt,
-					messageId: "other-1",
-					role: "tool",
-					text: "x".repeat(2800),
-				},
-				{
-					...excerpt,
-					messageId: "other-2",
-					role: "tool",
-					text: "y".repeat(2800),
-				},
-			]),
-		});
-		expect(capture.content).toContain("FALLBACK_FACT");
-		expect(capture.content).toContain("0 visible excerpts omitted");
-		expect(Buffer.byteLength(String(capture.content))).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
-		);
-	});
-
 	it("delivers active PR evidence to the actual API-handler request as text without parent tool protocol or usage", async () => {
 		const { messagesToAgentMessages, agentMessagesToMessages } = await import(
 			"../../runtime/config/agent-message-codec"
@@ -502,12 +408,13 @@ describe("current context and provider request", () => {
 		const { createAgentModelFromApiHandler } = await import(
 			"../../services/llms/apihandler-agent-model-adapter"
 		);
+		const answer = `The PR adds bounded retries ${"x".repeat(9000)} MIDDLE_FACT ${"y".repeat(9000)}`;
 		const source: MessageWithMetadata[] = [
 			{ role: "user", content: "Review synthetic PR 42" },
 			{
 				role: "assistant",
 				content: [
-					{ type: "text", text: "The PR adds bounded retries" },
+					{ type: "text", text: answer },
 					{ type: "thinking", thinking: "HIDDEN_REASONING" },
 					{
 						type: "tool_use",
@@ -544,7 +451,7 @@ describe("current context and provider request", () => {
 					content: [
 						{
 							type: "text",
-							text: expect.stringContaining("The PR adds bounded retries"),
+							text: expect.stringContaining(answer),
 						},
 					],
 				});
