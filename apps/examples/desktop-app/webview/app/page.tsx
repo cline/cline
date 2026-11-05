@@ -47,6 +47,10 @@ import {
 	CloudHandoffStatus,
 } from "@/components/views/chat/cloud-handoff";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
+import {
+	type ScreenshotFeedback,
+	ScreenshotFeedbackContext,
+} from "@/components/views/chat/messages/screenshot-annotator";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
@@ -151,6 +155,11 @@ import type {
 	RemoteEnvironmentListResult,
 	RemoteEnvironmentProfile,
 } from "@/lib/remote-environments";
+import {
+	formatScreenshotFeedback,
+	renderScreenshotFeedbackImages,
+	type ScreenshotNote,
+} from "@/lib/screenshot-feedback";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
@@ -1612,6 +1621,25 @@ function ChatThreadPane({
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
+	const [screenshotNotes, setScreenshotNotes] = useState<ScreenshotNote[]>([]);
+	const removeScreenshotNote = useCallback((id: string) => {
+		setScreenshotNotes((notes) => notes.filter((note) => note.id !== id));
+	}, []);
+	const screenshotFeedback = useMemo<ScreenshotFeedback>(
+		() => ({
+			notes: screenshotNotes,
+			saveNote: (note) =>
+				setScreenshotNotes((notes) =>
+					notes.some((existing) => existing.id === note.id)
+						? notes.map((existing) =>
+								existing.id === note.id ? note : existing,
+							)
+						: [...notes, note],
+				),
+			removeNote: removeScreenshotNote,
+		}),
+		[screenshotNotes, removeScreenshotNote],
+	);
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -2617,14 +2645,15 @@ function ChatThreadPane({
 	);
 
 	const handleSend = useCallback(
-		async (prompt: string) => {
+		async (prompt: string, { imagesUnsupported = false } = {}) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
 			if (handoff && cloudAgentsEnabled) {
 				await prepareHandoff(handoff.nextCommand);
 				return;
 			}
-			if (!trimmed && pendingAttachments.length === 0) {
+			const notes = screenshotNotes;
+			if (!trimmed && pendingAttachments.length === 0 && notes.length === 0) {
 				return;
 			}
 			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
@@ -2636,15 +2665,23 @@ function ChatThreadPane({
 			// composer remounts (e.g. a transport blip re-showing the loader).
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
+			setScreenshotNotes([]);
 			const restorePrompt = clearPromptForSend();
-			const promptTaken = await sendPrompt(trimmed, toSend, {
-				inNewWorktree: workIn === "worktree" && isNewThread,
-			});
+			const feedbackImages =
+				notes.length > 0 && !imagesUnsupported
+					? await renderScreenshotFeedbackImages(notes)
+					: [];
+			const promptTaken = await sendPrompt(
+				formatScreenshotFeedback(trimmed, notes, feedbackImages.length > 0),
+				[...toSend, ...feedbackImages],
+				{ inNewWorktree: workIn === "worktree" && isNewThread },
+			);
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping, but only if this pane still owns the unchanged draft.
 			if (!promptTaken && restorePrompt(trimmed)) {
 				handleAttachFiles(toSend);
+				setScreenshotNotes(notes);
 			}
 		},
 		[
@@ -2656,6 +2693,7 @@ function ChatThreadPane({
 			onThreadStarted,
 			pendingAttachments,
 			prepareHandoff,
+			screenshotNotes,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
@@ -3020,7 +3058,8 @@ function ChatThreadPane({
 		[providerCredentials, setConfig],
 	);
 	const handleSendPrompt = useCallback(
-		(prompt: string) => void handleSend(prompt),
+		(prompt: string, options: { imagesUnsupported: boolean }) =>
+			void handleSend(prompt, options),
 		[handleSend],
 	);
 	const handleOpenHandoffProgressLink = useCallback(() => {
@@ -3287,6 +3326,8 @@ function ChatThreadPane({
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
 			onRemoveAttachment={handleRemoveAttachment}
+			screenshotNotes={screenshotNotes}
+			onRemoveScreenshotNote={removeScreenshotNote}
 			onSwitchGitBranch={switchGitBranch}
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
@@ -3416,57 +3457,65 @@ function ChatThreadPane({
 							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
 						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								activityLabel={activityLabel}
-								error={cloudSessionError?.message ?? displayedError}
-								errorAction={
-									cloudConnectUrl
-										? {
-												label: "Connect GitHub",
-												onClick: () => openGitHubConnect(cloudConnectUrl),
-											}
-										: undefined
+							<ScreenshotFeedbackContext
+								value={
+									isCloudSessionExpired || showingHistoryPreview
+										? null
+										: screenshotFeedback
 								}
-								importedFromTool={importedFromTool}
-								messages={displayedMessages}
-								onEditMessage={isCloudSession ? undefined : handleEditMessage}
-								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
-								}
-								onForkSession={isCloudSession ? undefined : handleForkSession}
-								onProceedWhileRunning={
-									isCloudSession ? undefined : proceedWhileRunning
-								}
-								startingLabel={
-									isProvisioningCloudSession
-										? provisioningPhase
-										: isCloudSession && !displayedSessionId
-											? provisioningPhase
+							>
+								<ChatMessages
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									activityLabel={activityLabel}
+									error={cloudSessionError?.message ?? displayedError}
+									errorAction={
+										cloudConnectUrl
+											? {
+													label: "Connect GitHub",
+													onClick: () => openGitHubConnect(cloudConnectUrl),
+												}
 											: undefined
-								}
-								onFixCredentials={handleFixCredentials}
-								lastTurnChanges={
-									canBrowseFiles && sessionChangesCurrent
-										? sessionChanges?.lastTurn
-										: undefined
-								}
-								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isHistoryPreview={showingHistoryPreview}
-								isSessionSwitching={
-									displayedIsSwitching && !showingHistoryPreview
-								}
-								status={
-									isProvisioningCloudSession ? "starting" : displayedStatus
-								}
-							/>
+									}
+									importedFromTool={importedFromTool}
+									messages={displayedMessages}
+									onEditMessage={isCloudSession ? undefined : handleEditMessage}
+									onRestoreCheckpoint={
+										isCloudSession ? undefined : handleRestoreCheckpoint
+									}
+									onForkSession={isCloudSession ? undefined : handleForkSession}
+									onProceedWhileRunning={
+										isCloudSession ? undefined : proceedWhileRunning
+									}
+									startingLabel={
+										isProvisioningCloudSession
+											? provisioningPhase
+											: isCloudSession && !displayedSessionId
+												? provisioningPhase
+												: undefined
+									}
+									onFixCredentials={handleFixCredentials}
+									lastTurnChanges={
+										canBrowseFiles && sessionChangesCurrent
+											? sessionChanges?.lastTurn
+											: undefined
+									}
+									onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isHistoryPreview={showingHistoryPreview}
+									isSessionSwitching={
+										displayedIsSwitching && !showingHistoryPreview
+									}
+									status={
+										isProvisioningCloudSession ? "starting" : displayedStatus
+									}
+								/>
+							</ScreenshotFeedbackContext>
 						)
 					}
 					composer={composer}

@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import type { MessageWithMetadata } from "@cline/shared";
 import type { UxVerificationReport } from "@cline/shared/browser";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { type ChatMessage, ChatMessageSchema } from "@/lib/chat-schema";
+import type { ScreenshotNote } from "@/lib/screenshot-feedback";
 import { readSessionMessagesSync } from "../../../../../sidecar/session-data/messages";
 import { ChatMessages } from "../chat-messages";
+import { ScreenshotFeedbackContext } from "./screenshot-annotator";
 import { ToolMessageBlock } from "./tool-message-block";
 import {
 	getReportedArtifacts,
@@ -738,4 +740,122 @@ it("shows a fallback when expanded inline image bytes cannot be decoded", async 
 		dialog.querySelector('[data-testid="generated-media-unavailable"]'),
 	).not.toBeNull();
 	expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+let savedNotes: ScreenshotNote[] = [];
+function FeedbackHarness() {
+	const [notes, setNotes] = useState<ScreenshotNote[]>([]);
+	savedNotes = notes;
+	return (
+		<ScreenshotFeedbackContext
+			value={{
+				notes,
+				saveNote: (note) =>
+					setNotes((current) => [
+						...current.filter((existing) => existing.id !== note.id),
+						note,
+					]),
+				removeNote: (id) =>
+					setNotes((current) => current.filter((note) => note.id !== id)),
+			}}
+		>
+			<ToolMessageBlock messages={[message()]} isRunActive={false} />
+		</ScreenshotFeedbackContext>
+	);
+}
+async function renderFeedback() {
+	await act(async () => root.render(<FeedbackHarness />));
+	await revealImages();
+	const surface = container.querySelector<HTMLElement>(
+		'[data-slot="screenshot-feedback-surface"]',
+	)!;
+	surface.getBoundingClientRect = () =>
+		({ left: 0, top: 0, width: 200, height: 100 }) as DOMRect;
+	return surface;
+}
+async function pointer(
+	surface: HTMLElement,
+	type: "pointerdown" | "pointermove" | "pointerup",
+	clientX: number,
+	clientY: number,
+) {
+	await act(async () => {
+		surface.dispatchEvent(
+			new MouseEvent(type, { bubbles: true, button: 0, clientX, clientY }),
+		);
+	});
+}
+async function typeNote(text: string, key = "Enter") {
+	const textarea = container.querySelector<HTMLTextAreaElement>(
+		'textarea[aria-label="Feedback note"]',
+	)!;
+	await act(async () => {
+		Object.getOwnPropertyDescriptor(
+			HTMLTextAreaElement.prototype,
+			"value",
+		)?.set?.call(textarea, text);
+		textarea.dispatchEvent(new Event("input", { bubbles: true }));
+	});
+	await act(async () => {
+		textarea.dispatchEvent(
+			new KeyboardEvent("keydown", { key, bubbles: true }),
+		);
+	});
+}
+it("only offers screenshot feedback where notes can be sent", async () => {
+	await render();
+	expect(
+		container.querySelector('[data-slot="screenshot-feedback-surface"]'),
+	).toBeNull();
+});
+it("pins a feedback note where the screenshot is clicked", async () => {
+	const surface = await renderFeedback();
+	await pointer(surface, "pointerdown", 50, 25);
+	await pointer(surface, "pointerup", 50, 25);
+	await typeNote("Make the menu wider");
+	expect(savedNotes).toEqual([
+		expect.objectContaining({
+			sessionId: "ses-one",
+			artifactId: " frame/雪 ",
+			screenshotTitle: "Menu opens",
+			x: 0.25,
+			y: 0.25,
+			width: undefined,
+			text: "Make the menu wider",
+		}),
+	]);
+	expect(container.querySelector("textarea[aria-label]")).toBeNull();
+	expect(
+		container.querySelector(".cline-ui-ux-evidence-slide")?.textContent,
+	).toContain("Make the menu wider");
+	const thumbnail = container.querySelector(".cline-ui-ux-evidence-thumbnail")!;
+	expect(thumbnail.querySelector("img")).not.toBeNull();
+	expect(thumbnail.textContent).toBe("1");
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Remove note 1"]')!
+			.click(),
+	);
+	expect(savedNotes).toEqual([]);
+});
+it("draws a feedback box by dragging and cancels with Escape", async () => {
+	const surface = await renderFeedback();
+	await pointer(surface, "pointerdown", 20, 10);
+	await pointer(surface, "pointermove", 120, 60);
+	await pointer(surface, "pointerup", 120, 60);
+	await typeNote("Align these", "Escape");
+	expect(savedNotes).toEqual([]);
+	await pointer(surface, "pointerdown", 20, 10);
+	await pointer(surface, "pointermove", 120, 60);
+	await pointer(surface, "pointerup", 120, 60);
+	await typeNote("Align these");
+	expect(savedNotes).toEqual([
+		expect.objectContaining({
+			x: 0.1,
+			y: 0.1,
+			width: 0.5,
+			height: 0.5,
+			text: "Align these",
+		}),
+	]);
 });

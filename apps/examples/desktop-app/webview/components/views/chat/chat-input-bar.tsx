@@ -83,6 +83,7 @@ import {
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
+import type { ScreenshotNote } from "@/lib/screenshot-feedback";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
@@ -353,12 +354,14 @@ type ChatInputBarProps = {
 	) => void;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
-	onSend: (prompt: string) => void;
+	onSend: (prompt: string, options: { imagesUnsupported: boolean }) => void;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
+	screenshotNotes?: ScreenshotNote[];
+	onRemoveScreenshotNote?: (id: string) => void;
 	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
@@ -416,6 +419,8 @@ function ChatInputBarImpl({
 	attachments,
 	onAttachFiles,
 	onRemoveAttachment,
+	screenshotNotes = [],
+	onRemoveScreenshotNote,
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
@@ -492,7 +497,10 @@ function ChatInputBarImpl({
 	const localRuntime = normalizeProviderId(provider);
 	const canAbort =
 		status === "running" || status === "stopping" || hasRunningAgents;
-	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
+	const hasDraft =
+		promptInput.trim().length > 0 ||
+		attachments.length > 0 ||
+		screenshotNotes.length > 0;
 	const [speechInputActive, setSpeechInputActive] = useState(false);
 	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
@@ -623,7 +631,7 @@ function ChatInputBarImpl({
 		}
 		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
-		if (!prompt) {
+		if (!prompt && screenshotNotes.length === 0) {
 			toast({
 				title: "Add a message to go with your attachments",
 				description:
@@ -632,7 +640,7 @@ function ChatInputBarImpl({
 			return;
 		}
 		setPromptInput("");
-		onSend(prompt);
+		onSend(prompt, { imagesUnsupported });
 	}, [
 		needsCloudRepository,
 		needsCloudModel,
@@ -643,6 +651,8 @@ function ChatInputBarImpl({
 		speechInputActive,
 		unsupportedDraftImageCount,
 		reportUnsupportedImages,
+		screenshotNotes.length,
+		imagesUnsupported,
 	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
@@ -1260,6 +1270,30 @@ function ChatInputBarImpl({
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
 				/>
+				{screenshotNotes.length > 0 && (
+					<div className="mb-2.5 flex flex-wrap gap-1.5">
+						{screenshotNotes.map((note, index) => (
+							<span
+								className="inline-flex max-w-[300px] items-center gap-1.5 rounded-md bg-primary/15 py-1 pl-1 pr-1.5 text-xs text-foreground inset-ring inset-ring-primary/40"
+								key={note.id}
+								title={`${note.screenshotTitle}: ${note.text}`}
+							>
+								<span className="grid size-4 shrink-0 place-items-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
+									{index + 1}
+								</span>
+								<span className="truncate">{note.text}</span>
+								<button
+									aria-label={`Remove note ${index + 1}`}
+									className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+									onClick={() => onRemoveScreenshotNote?.(note.id)}
+									type="button"
+								>
+									<X className="h-3 w-3" />
+								</button>
+							</span>
+						))}
+					</div>
+				)}
 				<div className="relative">
 					{slashOpen && (
 						<div

@@ -212,6 +212,8 @@ async function renderVoiceComposer({
 	sessionId,
 	strictMode = false,
 	cloudHandoffAvailable = false,
+	screenshotNotes,
+	onRemoveScreenshotNote,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -229,6 +231,8 @@ async function renderVoiceComposer({
 	sessionId?: string;
 	strictMode?: boolean;
 	cloudHandoffAvailable?: boolean;
+	screenshotNotes?: Parameters<typeof ChatInputBar>[0]["screenshotNotes"];
+	onRemoveScreenshotNote?: (id: string) => void;
 } = {}) {
 	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
@@ -261,6 +265,8 @@ async function renderVoiceComposer({
 						onProviderChange={vi.fn()}
 						onReasoningChange={vi.fn()}
 						onRemoveAttachment={vi.fn()}
+						screenshotNotes={screenshotNotes}
+						onRemoveScreenshotNote={onRemoveScreenshotNote}
 						onRemovePromptInQueue={vi.fn()}
 						onSend={onSend}
 						onSteerPromptInQueue={vi.fn()}
@@ -723,7 +729,9 @@ describe("ChatInputBar", () => {
 				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
 			);
 		});
-		expect(onSend).toHaveBeenCalledWith("Describe it");
+		expect(onSend).toHaveBeenCalledWith("Describe it", {
+			imagesUnsupported: true,
+		});
 	});
 
 	it("does not send attachments without a text prompt", async () => {
@@ -749,7 +757,44 @@ describe("ChatInputBar", () => {
 				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
 			);
 		});
-		expect(onSend).toHaveBeenCalledWith("What is this?");
+		expect(onSend).toHaveBeenCalledWith("What is this?", {
+			imagesUnsupported: false,
+		});
+	});
+
+	it("shows screenshot feedback notes and sends them without a text prompt", async () => {
+		const onSend = vi.fn();
+		const onRemoveScreenshotNote = vi.fn();
+		await renderVoiceComposer({
+			onSend,
+			onRemoveScreenshotNote,
+			screenshotNotes: [
+				{
+					id: "note",
+					sessionId: "ses-one",
+					artifactId: "frame",
+					screenshotTitle: "Menu opens",
+					x: 0.1,
+					y: 0.2,
+					text: "Make the menu wider",
+				},
+			],
+		});
+		expect(container.textContent).toContain("Make the menu wider");
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Remove note 1"]')
+				?.click(),
+		);
+		expect(onRemoveScreenshotNote).toHaveBeenCalledWith("note");
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
+		});
+		expect(onSend).toHaveBeenCalledWith("", { imagesUnsupported: false });
 	});
 
 	it("does not send when Enter commits an IME composition", async () => {
@@ -783,7 +828,9 @@ describe("ChatInputBar", () => {
 				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
 			);
 		});
-		expect(onSend).toHaveBeenCalledWith("你好");
+		expect(onSend).toHaveBeenCalledWith("你好", {
+			imagesUnsupported: false,
+		});
 	});
 
 	it("allows a parent session with a running child agent to be stopped", async () => {
@@ -1381,7 +1428,9 @@ describe("ChatInputBar", () => {
 		await act(async () => retry?.click());
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
-		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+		expect(onSend).toHaveBeenCalledWith("Continue in cloud", {
+			imagesUnsupported: false,
+		});
 
 		onSend.mockClear();
 		await render("https://github.com/cline/cline", "", [
@@ -1595,7 +1644,9 @@ describe("ChatInputBar", () => {
 		expect(textarea?.readOnly).toBe(false);
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
-		expect(onSend).toHaveBeenCalledWith("external replacement");
+		expect(onSend).toHaveBeenCalledWith("external replacement", {
+			imagesUnsupported: false,
+		});
 	});
 
 	it("discards streaming updates after an equal-valued draft replacement", async () => {

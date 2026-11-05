@@ -2307,6 +2307,25 @@ export async function handleCommand(
 		checkAccount();
 		return download;
 	}
+	// Signed artifact URLs are not CORS-readable, so the webview cannot draw
+	// them onto a canvas itself.
+	if (command === "read_artifact_image") {
+		const { url } = (await handleCommand(ctx, "resolve_artifact", args)) as {
+			url: string;
+		};
+		const response = await fetch(url);
+		if (!response.ok) {
+			throw new Error(`Artifact download failed (${response.status})`);
+		}
+		const mediaType = response.headers.get("content-type")?.split(";")[0];
+		if (!mediaType?.startsWith("image/")) {
+			throw new Error("Artifact is not an image");
+		}
+		return {
+			mediaType,
+			data: Buffer.from(await response.arrayBuffer()).toString("base64"),
+		};
+	}
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		const cloud = getCloudSessionManager(ctx);

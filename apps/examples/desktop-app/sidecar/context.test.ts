@@ -315,6 +315,30 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
 	});
 
+	it("reads cloud artifact image bytes for the webview canvas", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		vi.spyOn(manager, "getArtifactDownloadUrl").mockResolvedValue({
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		});
+		const fetch = vi.fn().mockResolvedValue(
+			new Response(new Uint8Array([1, 2, 3]), {
+				headers: { "content-type": "image/png" },
+			}),
+		);
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "read_artifact_image", {
+				sessionId: "ses-one",
+				artifactId: "frame",
+			}),
+		).resolves.toEqual({ mediaType: "image/png", data: "AQID" });
+		expect(fetch).toHaveBeenCalledWith("https://storage.example/frame.png");
+	});
+
 	it.each([
 		"https://api.example",
 		"https://api.example/api/v1",
