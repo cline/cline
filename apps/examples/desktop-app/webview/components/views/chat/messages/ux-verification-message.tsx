@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { ArtifactDownload } from "./artifact-download";
 import { ArtifactImage } from "./artifact-image";
 import { normalizeDisplayValue, parseToolPayload } from "./tool-summaries";
 
@@ -17,6 +18,15 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 	const payload = parseToolPayload(message.content);
 	const [expanded, setExpanded] = useState<UxVerificationCheck | null>(null);
 	const opener = useRef<HTMLElement | null>(null);
+	const download = (check: UxVerificationCheck) =>
+		check.screenshot?.source.type === "artifact" && message.sessionId ? (
+			<ArtifactDownload
+				sessionId={message.sessionId}
+				artifactId={check.screenshot.source.artifactId}
+				iconOnly
+				className="cline-ui-ux-evidence-download"
+			/>
+		) : null;
 	return (
 		<>
 			<AgentUxVerification
@@ -44,6 +54,7 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 							: null;
 					setExpanded(check);
 				}}
+				renderScreenshotActions={download}
 			/>
 			<Dialog
 				open={expanded !== null}
@@ -61,12 +72,17 @@ export function UxVerificationMessage({ message }: { message: ChatMessage }) {
 					<DialogTitle>{expanded?.title}</DialogTitle>
 					<DialogDescription>{expanded?.subtitle}</DialogDescription>
 					{expanded?.screenshot && (
-						<ArtifactImage
-							key={expanded.id}
-							media={expanded.screenshot}
-							sessionId={message.sessionId}
-							className="max-h-[70vh] w-full object-contain"
-						/>
+						<div className="relative">
+							<div className="absolute right-3 top-3 z-10">
+								{download(expanded)}
+							</div>
+							<ArtifactImage
+								key={expanded.id}
+								media={expanded.screenshot}
+								sessionId={message.sessionId}
+								className="max-h-[70vh] w-full object-contain"
+							/>
+						</div>
 					)}
 				</DialogContent>
 			</Dialog>

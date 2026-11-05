@@ -15,6 +15,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
+	open: vi.fn(),
 	account: {
 		user: { id: "one" },
 		accountReady: true,
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 	isTauriAvailable: () => true,
-	openExternalUrl: vi.fn(),
+	openExternalUrl: mocks.open,
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => mocks.account,
@@ -66,6 +67,7 @@ beforeEach(() => {
 	HTMLElement.prototype.scrollTo = vi.fn();
 	mocks.account.user = { id: "one" };
 	mocks.account.accountReady = true;
+	mocks.open.mockReset().mockResolvedValue(undefined);
 	mocks.invoke.mockReset().mockImplementation(async () => ({
 		url: `https://storage.example/image.png?signature=${mocks.invoke.mock.calls.length}`,
 		expiresAt: "2030-01-01T00:00:00Z",
@@ -160,11 +162,17 @@ it("recovers a failed screenshot once and exposes the existing retry action", as
 	await act(async () => mainImage()!.dispatchEvent(new Event("error")));
 	expect(container.textContent).toContain("Image unavailable");
 	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 1);
+	const download = container.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	await act(async () => download.click());
+	expect(mocks.open).toHaveBeenCalledOnce();
+	expect(container.textContent).toContain("Image unavailable");
 	const retry = Array.from(container.querySelectorAll("button")).find(
 		(button) => button.textContent === "Retry",
 	)!;
 	await act(async () => retry.click());
-	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 2);
+	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 3);
 	expect(mainImage()).not.toBeNull();
 });
 it("retains a loaded image when time advances beyond its URL expiry", async () => {
@@ -178,8 +186,19 @@ it("retains a loaded image when time advances beyond its URL expiry", async () =
 	expect(mainImage()?.src).toBe(source);
 	expect(mocks.invoke).toHaveBeenCalledTimes(requests);
 });
-it("opens the shared report's screenshot in a focus-managed artifact viewer", async () => {
+it("downloads the report screenshot from the carousel and expanded viewer", async () => {
 	await render();
+	expect(mocks.invoke).not.toHaveBeenCalled();
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Download"]')!
+			.click(),
+	);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: " frame/雪 ",
+	});
+	expect(mocks.open).toHaveBeenCalledOnce();
 	await revealImages();
 	const expand = container.querySelector<HTMLButtonElement>(
 		'[aria-label="Expand screenshot"]',
@@ -193,6 +212,14 @@ it("opens the shared report's screenshot in a focus-managed artifact viewer", as
 	expect(dialog.querySelector("img")?.src).toContain(
 		"https://storage.example/image.png?signature=",
 	);
+	await act(async () =>
+		dialog.querySelector<HTMLButtonElement>('[aria-label="Download"]')!.click(),
+	);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: " frame/雪 ",
+	});
+	expect(mocks.open).toHaveBeenCalledTimes(2);
 	await act(async () =>
 		(
 			dialog.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
