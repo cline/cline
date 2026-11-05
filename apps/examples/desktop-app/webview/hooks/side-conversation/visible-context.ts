@@ -55,15 +55,24 @@ export function captureVisibleSideContext({
 		)
 			return;
 		let text = message.content;
+		let omittedBytes = 0;
 		if (message.role === "tool") {
 			try {
 				text = serializeReferenceData(JSON.parse(text));
-			} catch {
-				text = sanitizeReferenceText(text);
+			} catch (error) {
+				if (error instanceof RangeError) {
+					omittedBytes =
+						referenceByteLength(text) +
+						referenceByteLength(message.meta?.toolOutput ?? "");
+					text = "[content omitted: reference projection limit exceeded]";
+				} else {
+					text = sanitizeReferenceText(text);
+				}
 			}
-			text += message.meta?.toolOutput
-				? `\n${sanitizeReferenceText(message.meta.toolOutput)}`
-				: "";
+			text +=
+				omittedBytes === 0 && message.meta?.toolOutput
+					? `\n${sanitizeReferenceText(message.meta.toolOutput)}`
+					: "";
 			if (message.meta?.hookEventName !== "tool_call_end")
 				text +=
 					"\n[tool observation in progress; result may not yet be available]";
@@ -85,7 +94,7 @@ export function captureVisibleSideContext({
 				(unconfirmedIds.has(message.id) || message.meta?.runCount === undefined)
 					? "unconfirmed"
 					: "observed",
-			omittedBytes: clipped.omittedBytes,
+			omittedBytes: clipped.omittedBytes + omittedBytes,
 		};
 		const next = [...selected.values(), excerpt];
 		if (

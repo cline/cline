@@ -1,6 +1,7 @@
 import { SideVisibleContextSchema } from "@cline/shared/browser";
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { buildToolPayloadString } from "../chat-session/helpers";
 import { captureVisibleSideContext } from "./visible-context";
 
 const row = (
@@ -10,6 +11,67 @@ const row = (
 ): ChatMessage => ({ id, role, content, sessionId: "parent", createdAt: 1 });
 
 describe("visible side context", () => {
+	it("never falls back to raw media when a structured tool observation exceeds projection limits", () => {
+		let checked = 0;
+		for (const depth of [1000, 3000, 5000]) {
+			const output: unknown = JSON.parse(
+				`{"nested":${"[".repeat(depth)}null${"]".repeat(depth)},"media":{"type":"image","data":"NESTED_IMAGE","mediaType":"image/png"}}`,
+			);
+			let content: string;
+			try {
+				content = buildToolPayloadString({
+					toolName: "deep_report",
+					input: {},
+					output,
+				});
+			} catch (error) {
+				// Only exercise observations the engine can actually produce.
+				if (error instanceof RangeError) continue;
+				throw error;
+			}
+			const capture = captureVisibleSideContext({
+				messages: [
+					row("current", "user", "Parent goal remains"),
+					{
+						...row("deep", "tool", content),
+						meta: {
+							hookEventName: "tool_call_end",
+							toolOutput: "ordinary streamed text",
+						},
+					},
+					row("later", "assistant", "Later fact remains"),
+				],
+				sessionId: "parent",
+				environmentId: "local",
+				queuedIds: new Set(),
+				unconfirmedIds: new Set(),
+			});
+			const deep = capture.excerpts.find(
+				(excerpt) => excerpt.messageId === "deep",
+			);
+			expect(deep).toBeDefined();
+			const omitted = deep?.text.includes("content omitted");
+			if (omitted) {
+				expect(deep?.omittedBytes).toBeGreaterThan(0);
+				expect(deep?.text).not.toContain("ordinary streamed text");
+			} else {
+				// A safely formatted observation keeps its ordinary streamed text.
+				expect(deep?.text).toContain("[media omitted]");
+				expect(deep?.text).toContain("ordinary streamed text");
+			}
+			expect(deep?.text).not.toContain("NESTED_IMAGE");
+			expect(capture.excerpts.map((entry) => entry.text).join("\n")).toContain(
+				"Parent goal remains",
+			);
+			expect(capture.excerpts.map((entry) => entry.text).join("\n")).toContain(
+				"Later fact remains",
+			);
+			expect(SideVisibleContextSchema.safeParse(capture).success).toBe(true);
+			checked++;
+		}
+		expect(checked).toBeGreaterThan(0);
+	});
+
 	it.each([
 		8, 200,
 	])("reads only retained content once the excerpt cap is reached (%i messages)", (count) => {
