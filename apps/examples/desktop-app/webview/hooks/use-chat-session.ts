@@ -677,6 +677,7 @@ export function useChatSession(environmentId: string) {
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
+	const cloudSnapshotHydrationIdRef = useRef<number | null>(null);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
 	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
@@ -2433,6 +2434,9 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
+				if (record.messages.length > 0) {
+					cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
+				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -4042,12 +4046,14 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					applyCloudSnapshotMessages({
-						sessionId: session.sessionId,
-						messages: msgs,
-						preserveUnmatchedLive: true,
-						preserveLiveRouting: sessionStatus === "running",
-					});
+					if (cloudSnapshotHydrationIdRef.current !== requestId) {
+						applyCloudSnapshotMessages({
+							sessionId: session.sessionId,
+							messages: msgs,
+							preserveUnmatchedLive: true,
+							preserveLiveRouting: sessionStatus === "running",
+						});
+					}
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: msgs,
