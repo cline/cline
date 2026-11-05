@@ -119,10 +119,16 @@ const completedConversation: ClineMessage[] = [
 	{ ts: 2, type: "say", say: "completion_result", text: "all done" },
 ]
 
-function renderConversation() {
+const resumableConversation: ClineMessage[] = [
+	{ ts: 1, type: "say", say: "task", text: "task" },
+	{ ts: 2, type: "say", say: "text", text: "partial work" },
+	{ ts: 3, type: "ask", ask: "resume_task" },
+]
+
+function renderConversation(messages: ClineMessage[] = completedConversation) {
 	return renderHook(() => {
-		const chatState = useChatState(completedConversation)
-		return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		const chatState = useChatState(messages)
+		return { chatState, handlers: useMessageHandlers(messages, chatState) }
 	})
 }
 
@@ -168,6 +174,58 @@ describe("useMessageHandlers — send routing", () => {
 		expect(newTask).not.toHaveBeenCalled()
 		expect(state.setInputValue).not.toHaveBeenCalled()
 		expect(state.consumeDraftSnapshot).not.toHaveBeenCalled()
+	})
+
+	it("routes a /cloud draft through handoff when proceeding from a resumed history task", async () => {
+		mockTaskId = "history-task"
+		mockTurnState = { phase: "resumable", seq: 5 }
+		const { result } = renderConversation(resumableConversation)
+
+		act(() => {
+			result.current.chatState.setInputValue('/cloud continue "the quoted task"')
+			result.current.chatState.setActiveQuote("Keep this context")
+			result.current.chatState.setSelectedImages(["image.png"])
+		})
+		const draft = result.current.chatState.getDraftSnapshot()
+
+		let started: boolean | undefined
+		await act(async () => {
+			started = await result.current.handlers.executeButtonAction({ type: "proceed", draft })
+		})
+
+		expect(prepareHandoff).toHaveBeenCalledWith({
+			sourceTaskId: "history-task",
+			instruction: '[context] \n>  Keep this context \n[/context] \n\n continue "the quoted task"',
+			images: ["image.png"],
+			files: [],
+		})
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(result.current.chatState.getDraftSnapshot()).toEqual(draft)
+		expect(started).toBe(false)
+	})
+
+	it("continues a normal draft locally when proceeding from a resumed history task", async () => {
+		mockTaskId = "history-task"
+		mockTurnState = { phase: "resumable", seq: 5 }
+		const { result } = renderConversation(resumableConversation)
+
+		act(() => result.current.chatState.setInputValue("Continue the task"))
+		const draft = result.current.chatState.getDraftSnapshot()
+
+		let started: boolean | undefined
+		await act(async () => {
+			started = await result.current.handlers.executeButtonAction({ type: "proceed", draft })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({
+			responseType: "yesButtonClicked",
+			text: "Continue the task",
+			images: [],
+			files: [],
+		})
+		expect(prepareHandoff).not.toHaveBeenCalled()
+		expect(result.current.chatState.getDraftSnapshot().text).toBe("")
+		expect(started).toBe(true)
 	})
 
 	it.each([
@@ -724,17 +782,12 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("shows a pending chat bubble immediately when sending a message to a task resumed from history", async () => {
 		mockTurnState = { phase: "resumable", seq: 5 }
-		const historyConversation: ClineMessage[] = [
-			{ ts: 1, type: "say", say: "task", text: "task" },
-			{ ts: 2, type: "say", say: "text", text: "partial work" },
-			{ ts: 3, type: "ask", ask: "resume_task" },
-		]
 		const setPendingUserMessage = vi.fn()
 		const setPendingResponse = vi.fn()
 		const { result } = renderHook(() =>
 			useMessageHandlers(
-				historyConversation,
-				makeChatState(historyConversation, { setPendingUserMessage, setPendingResponse }),
+				resumableConversation,
+				makeChatState(resumableConversation, { setPendingUserMessage, setPendingResponse }),
 			),
 		)
 
@@ -768,7 +821,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setPendingResponse).toHaveBeenCalledWith({
 			id: 1,
 			turnStateSeq: 5,
-			messageCount: historyConversation.length,
+			messageCount: resumableConversation.length,
 		})
 	})
 

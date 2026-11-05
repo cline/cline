@@ -526,6 +526,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "reject":
 				case "proceed": {
 					const { draft } = invocation
+					const cloudInstruction = invocation.type === "proceed" ? parseCloudCommand(draft.text) : undefined
+					if (cloudInstruction !== undefined) {
+						await prepareHandoff(formatDraftText(cloudInstruction, draft.activeQuote), draft)
+						return false
+					}
 					const trimmedText = draft.text.trim()
 					const hasContent = trimmedText.length > 0 || draft.images.length > 0 || draft.files.length > 0
 					const text = hasContent ? formatDraftText(trimmedText, draft.activeQuote) : undefined
@@ -616,6 +621,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			lastMessage,
 			startNewTask,
 			chatState,
+			prepareHandoff,
 			backgroundCommandRunning,
 			claimErrorRecovery,
 			releaseErrorRecoveryClaim,
