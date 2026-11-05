@@ -291,8 +291,8 @@ export class SdkCloudHandoffCoordinator {
 		this.options.assertEnabled()
 		this.assertCurrent(attempt)
 		const { cloud, modelId, initialMessage } = attempt.unsent
-		const base = { id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey, sessionId: attempt.sessionId }
-		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching" }
+		const base = { id, sourceTaskId: attempt.sourceTaskId, accountKey: attempt.accountKey }
+		const launching: Attempt & { phase: "launching" } = { ...base, phase: "launching", sessionId: attempt.sessionId }
 		this.attempts.set(attempt.sourceTaskId, launching)
 		let settled: Attempt = attempt
 		try {
@@ -309,6 +309,13 @@ export class SdkCloudHandoffCoordinator {
 				delivery = result.recoveredAfterDisconnect ? "unconfirmed" : "sent"
 			} catch (error) {
 				if (
+					!dispatched &&
+					error instanceof CloudSessionError &&
+					(error.code === "session_expired" || error.code === "session_not_found")
+				) {
+					settled = { ...base, phase: "failed", message: error.detail }
+				}
+				if (
 					!dispatched ||
 					(error instanceof Error &&
 						error.name === "HubCommandError" &&
@@ -318,7 +325,7 @@ export class SdkCloudHandoffCoordinator {
 					throw error
 				// Other send errors do not prove the message stayed unsent.
 			}
-			settled = { ...base, phase: "complete", delivery }
+			settled = { ...base, phase: "complete", sessionId: attempt.sessionId, delivery }
 		} finally {
 			if (this.attempts.get(attempt.sourceTaskId) === launching) {
 				this.attempts.set(attempt.sourceTaskId, settled)

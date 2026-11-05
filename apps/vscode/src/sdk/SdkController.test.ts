@@ -1,8 +1,11 @@
 import * as cloudCore from "@cline/core/cloud"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
-import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
+import { Environment } from "@shared/config-types"
+import type { ClineMessage, ExtensionState, TurnState } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { ClineEnv } from "@/config"
 import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
 import { mockFetchForTesting } from "@/shared/net"
@@ -38,14 +41,98 @@ vi.mock("@/services/telemetry", () => ({
 	},
 }))
 
+vi.mock("@/services/banner/BannerService", () => ({
+	BannerService: {
+		get: () => ({ getActiveBanners: () => [], getWelcomeBanners: () => undefined }),
+	},
+}))
+
 const { buildBaseStateMock } = vi.hoisted(() => ({
-	buildBaseStateMock: vi.fn(async () => ({ taskHistory: [] })),
+	buildBaseStateMock: vi.fn(
+		async (): Promise<Pick<ExtensionState, "taskHistory" | "currentTaskItem">> => ({
+			taskHistory: [],
+		}),
+	),
 }))
 vi.mock("@core/controller/state/getStateToPostToWebview", () => ({
 	getStateToPostToWebview: buildBaseStateMock,
 }))
 
-describe("SDK remote-config coordination", () => {
+describe("SDK webview state", () => {
+	afterEach(() => vi.restoreAllMocks())
+
+	it.each([1, 100])("preserves the active legacy history item with %i newer tasks", async (newerCount) => {
+		vi.spyOn(ClineEnv, "config").mockReturnValue({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline.bot",
+			apiBaseUrl: "https://api.cline.bot",
+			mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+		})
+		const currentTaskItem: HistoryItem = {
+			id: "old-legacy-task",
+			ts: 1,
+			task: "Original imported task",
+			tokensIn: 14,
+			tokensOut: 8,
+			cacheWrites: 2,
+			cacheReads: 3,
+			totalCost: 0.04,
+			isLegacy: true,
+		}
+		const newerTasks: HistoryItem[] = Array.from({ length: newerCount }, (_, index) => ({
+			id: `newer-task-${index}`,
+			ts: 1000 - index,
+			task: `Newer task ${index}`,
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+		}))
+		const task = createTaskProxy(
+			"old-legacy-task",
+			async () => {},
+			async () => {},
+		)
+		task.messageStateHandler.addMessages([{ ts: 1, type: "say", say: "task", text: "Original imported task" }])
+		const controller = {
+			task,
+			stateManager: {
+				getApiConfiguration: () => undefined,
+				getGlobalSettingsKey: () => undefined,
+				getGlobalStateKey: (key: string) => (key === "taskHistory" ? [...newerTasks, currentTaskItem] : undefined),
+				getWorkspaceStateKey: () => undefined,
+				getRemoteConfigSettings: () => ({}),
+				setGlobalState: vi.fn(),
+			},
+			backgroundCommandRunning: false,
+			backgroundCommandTaskId: undefined,
+			foregroundCommands: { isRunning: false },
+			isRemoteConfigAvailable: false,
+			currentRemoteConfigRevision: undefined,
+			ensureWorkspaceManager: async () => undefined,
+			getWorkspaceRoot: async () => "/workspace",
+			taskHistory: { listHistory: async () => [] },
+			sessions: { getActiveSession: () => undefined },
+			cloudHandoff: { viewFor: () => undefined },
+			cloud: { getCurrentTaskInfo: () => undefined },
+			turnStateTracker: { get: () => undefined },
+			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+		}
+
+		const { getStateToPostToWebview: buildBaseState } = await vi.importActual<
+			typeof import("@core/controller/state/getStateToPostToWebview")
+		>("@core/controller/state/getStateToPostToWebview")
+		const baseState = await buildBaseState(controller)
+		expect(baseState.currentTaskItem).toEqual(currentTaskItem)
+		expect(baseState.taskHistory.some((item) => item.id === currentTaskItem.id)).toBe(newerCount < 100)
+		buildBaseStateMock.mockResolvedValueOnce(baseState)
+
+		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+
+		expect(state.taskHistory).toHaveLength(Math.min(newerCount + 1, 100))
+		expect(state.taskHistory.some((item) => item.id === currentTaskItem.id)).toBe(newerCount < 100)
+		expect(state.currentTaskItem).toEqual(currentTaskItem)
+	})
+
 	it("posts the current remote-config revision to the webview", async () => {
 		const controller = {
 			stateManager: {

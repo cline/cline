@@ -390,6 +390,29 @@ describe("cloud conversation handoff", () => {
 		expect(publish).toHaveBeenCalledTimes(1)
 	})
 
+	it.each([
+		"session_expired",
+		"session_not_found",
+	] as const)("makes a terminal %s continuation failure dismissible before dispatch", async (code) => {
+		const { coordinator, cloud, id } = await setupUnsentContinuation()
+		const handoffId = id()
+		const message = `The cloud session ${code === "session_expired" ? "expired" : "was deleted"}.`
+		cloud.send.mockRejectedValueOnce(new CloudSessionError(code, message))
+
+		await expect(coordinator.retryMessage(handoffId)).rejects.toThrow(message)
+
+		expect(cloud.send).toHaveBeenCalledOnce()
+		expect(coordinator.viewFor(input.sourceTaskId)).toMatchObject({
+			id: handoffId,
+			phase: "failed",
+			message,
+		})
+		await coordinator.discard(handoffId)
+		await coordinator.prepare(input)
+		expect(coordinator.viewFor(input.sourceTaskId)?.phase).toBe("ready")
+		expect(publish).toHaveBeenCalledOnce()
+	})
+
 	it("keeps an unsent continuation through discard until it can be retried", async () => {
 		const { coordinator, cloud, id } = await setupUnsentContinuation()
 		const handoffId = id()

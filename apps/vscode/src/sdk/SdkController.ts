@@ -2798,6 +2798,9 @@ export class Controller {
 			for (const item of legacyTaskHistory) {
 				mergedTaskHistoryById.set(item.id, item)
 			}
+			if (state.currentTaskItem) {
+				mergedTaskHistoryById.set(state.currentTaskItem.id, state.currentTaskItem)
+			}
 			for (const item of sdkTaskHistory) {
 				mergedTaskHistoryById.set(item.id, item)
 			}
@@ -2872,9 +2875,7 @@ export class Controller {
 			const currentCloudTask = this.cloud.getCurrentTaskInfo()
 			return {
 				...state,
-				currentTaskItem: snapshotTask?.taskId
-					? processedTaskHistory.find((item) => item.id === snapshotTask.taskId)
-					: undefined,
+				currentTaskItem: snapshotTask?.taskId ? mergedTaskHistoryById.get(snapshotTask.taskId) : undefined,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
