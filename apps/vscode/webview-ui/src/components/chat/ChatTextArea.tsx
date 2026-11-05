@@ -352,6 +352,33 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				.catch((error) => console.error("Failed to refresh skills:", error))
 		}, [showSlashCommandsMenu])
 
+		// Keep the highlighted row inside the list when the commands change while
+		// the menu is open, e.g. a skill refresh landing shorter than the cached list.
+		useEffect(() => {
+			if (!showSlashCommandsMenu) {
+				return
+			}
+			const count = getMatchingSlashCommands(
+				slashCommandsQuery,
+				localWorkflowToggles,
+				globalWorkflowToggles,
+				remoteWorkflowToggles,
+				remoteConfigSettings?.remoteGlobalWorkflows,
+				mcpServers,
+				skills,
+			).length
+			setSelectedSlashCommandsIndex((index) => (count === 0 ? 0 : Math.min(index, count - 1)))
+		}, [
+			showSlashCommandsMenu,
+			slashCommandsQuery,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
+			mcpServers,
+			skills,
+		])
+
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
 				if (type === ContextMenuOptionType.NoResults) {
@@ -542,8 +569,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							mcpServers,
 							skills,
 						)
-						if (commands.length > 0) {
-							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						// The list can shrink under an open menu (skill refresh, MCP server
+						// disconnect), so the highlighted row may no longer exist.
+						const command = commands[selectedSlashCommandsIndex]
+						if (command) {
+							handleSlashCommandsSelect(command)
 						}
 						return
 					}
