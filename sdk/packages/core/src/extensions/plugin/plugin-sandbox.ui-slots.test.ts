@@ -385,6 +385,48 @@ describe.each([
 		);
 	}, 60_000);
 
+	it("never publishes for a same-named plugin that a later path overrode, though its setup ran", async () => {
+		const twin = (setupBody: string[]) =>
+			[
+				"const state = (revision) => ({ status: 'ready', title: 'T', revision, items: [], canRefresh: false });",
+				"export default {",
+				"  name: 'ui-twin',",
+				"  manifest: { capabilities: ['hooks'] },",
+				"  async setup(api, ctx) {",
+				"    api.registerUiSlot({ slot: 'composer.suggestions', onAction: () => ({ outcome: 'ok' }) });",
+				...setupBody.map((line) => `    ${line}`),
+				"  },",
+				"};",
+			].join("\n");
+		const overriddenPath = join(dir, "ui-twin-overridden.mjs");
+		const keptPath = join(dir, "ui-twin-kept.mjs");
+		await writeFile(
+			overriddenPath,
+			twin([
+				"await new Promise((resolve) => setTimeout(resolve, 50));",
+				"ctx.ui.update('composer.suggestions', state('overridden'));",
+				"setTimeout(() => ctx.ui.update('composer.suggestions', state('overridden-later')), 100);",
+			]),
+			"utf8",
+		);
+		await writeFile(
+			keptPath,
+			twin(["ctx.ui.update('composer.suggestions', state('kept'));"]),
+			"utf8",
+		);
+
+		const { sandbox, states } = await loadWithUi(keptPath, {
+			pluginPaths: [overriddenPath, keptPath],
+		});
+		await new Promise((resolve) => setTimeout(resolve, 300));
+
+		expect(sandbox.extensions?.map((extension) => extension.name)).toEqual([
+			"ui-twin",
+		]);
+		expect(states.map(revisionOf)).toEqual(["kept"]);
+		expect(states[0]?.pluginName).toBe("ui-twin");
+	}, 60_000);
+
 	it("drops UI state from a bootstrap whose descriptors register no slots", async () => {
 		const bootstrapPath = join(dir, "old-bootstrap.mjs");
 		await writeFile(

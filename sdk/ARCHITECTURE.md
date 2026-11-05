@@ -918,9 +918,12 @@ session again.
    posts the reserved `__cline_ui_state` event. Plugins cannot emit
    `__cline_`-prefixed events themselves.
 2. The sandbox proxy holds pushes until `initialize` returns, stamps the owner
-   from the worker's descriptor rather than the payload, and drops slots the
-   descriptor did not register. The registry holds each worker copy's pushes
-   until the session selects that copy, so copies it discards never publish.
+   from the descriptor the push names by sandbox plugin id (in a worker, its
+   one descriptor when the push names none) rather than the payload's name,
+   and drops slots that descriptor did not register. In a shared sandbox, a
+   same-named plugin that a later path overrode names no surviving descriptor,
+   so it never publishes. The registry holds each worker copy's pushes until
+   the session selects that copy, so copies it discards never publish.
 3. `LocalRuntimeHost`'s `PluginUiService` stores each push in `PluginUiStore`:
    normalized once (`normalizePluginUiState`), owned by the first plugin that
    fills the slot, deduped, coalesced at 100 ms, and stamped with

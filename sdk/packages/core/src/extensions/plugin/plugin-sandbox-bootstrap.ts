@@ -706,6 +706,7 @@ async function loadPluginDescriptor(args: {
 		};
 		const uiSlots = args.uiSlots?.length
 			? createPluginUiSlots({
+					pluginId: args.pluginId,
 					pluginName,
 					slots: args.uiSlots,
 					handlers: handlers.ui,

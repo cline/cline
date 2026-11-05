@@ -25,6 +25,7 @@ function describeSlot(slot: unknown): string {
  * plain JSON of bounded size, only for slots the plugin registered.
  */
 export function createPluginUiSlots(args: {
+	pluginId: string;
 	pluginName: string;
 	slots: readonly string[];
 	handlers: Map<string, PluginUiActionHandler>;
@@ -98,6 +99,7 @@ export function createPluginUiSlots(args: {
 				}
 				try {
 					args.emitUiState({
+						pluginId: args.pluginId,
 						pluginName: args.pluginName,
 						slot,
 						state: plain,

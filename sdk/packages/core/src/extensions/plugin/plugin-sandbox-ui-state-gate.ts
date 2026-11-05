@@ -5,8 +5,15 @@ import type {
 } from "./plugin-sandbox";
 
 type UiSlotPluginDescriptor = {
+	pluginId: string;
 	name: string;
 	contributions: { uiSlots: ReadonlyArray<{ slot: string }> };
+};
+
+type RegisteredPlugin = { name: string; slots: ReadonlySet<string> };
+
+type ReceivedUiState = Omit<UiStateEvent, "pluginName"> & {
+	pluginId: string;
 };
 
 const MAX_HELD_UI_STATES = 8;
@@ -15,39 +22,51 @@ const MAX_HELD_UI_STATES = 8;
  * Routes the sandbox's UI state events to `onUiState`. Until `initialize` (or
  * a re-initialize after idle reclaim) returns, it holds the latest state per
  * plugin and slot. Then it forwards a state only for a slot the plugin's
- * descriptor registered. A worker runs one plugin, so the worker transport
- * stamps that plugin's name whatever the payload claims; the subprocess
- * transport can only trust the payload's name.
+ * descriptor registered, under the descriptor's name. A post names its plugin
+ * by sandbox id, so a same-named plugin that a later path overrode, whose
+ * setup still ran, never publishes. A worker runs one plugin, so a post that
+ * names none is that plugin's; the subprocess transport drops it.
  */
 export function createUiStateGate(
 	transport: PluginSandboxTransport | undefined,
 	onUiState: PluginSandboxOptions["onUiState"],
 ) {
-	const held = new Map<string, UiStateEvent>();
-	let registeredSlots: Map<string, ReadonlySet<string>> | undefined;
-	let workerPluginName: string | undefined;
+	const held = new Map<string, ReceivedUiState>();
+	let registered: Map<string, RegisteredPlugin> | undefined;
+	let workerPlugin: RegisteredPlugin | undefined;
 	let openedWith: UiSlotPluginDescriptor[] = [];
 
-	const deliver = (event: UiStateEvent) => {
-		const pluginName = workerPluginName ?? event.pluginName;
-		if (!registeredSlots?.get(pluginName)?.has(event.slot)) return;
+	const deliver = (event: ReceivedUiState) => {
+		const plugin = event.pluginId
+			? registered?.get(event.pluginId)
+			: workerPlugin;
+		if (!plugin?.slots.has(event.slot)) return;
 		try {
-			onUiState?.({ pluginName, slot: event.slot, state: event.state });
+			onUiState?.({
+				pluginName: plugin.name,
+				slot: event.slot,
+				state: event.state,
+			});
 		} catch {
 			// A host listener must not break the sandbox's message handling.
 		}
 	};
 	const open = (descriptors: UiSlotPluginDescriptor[]) => {
 		openedWith = descriptors;
-		registeredSlots = new Map(
+		registered = new Map(
 			descriptors.map((descriptor) => [
-				descriptor.name,
-				new Set(descriptor.contributions.uiSlots.map(({ slot }) => slot)),
+				descriptor.pluginId,
+				{
+					name: descriptor.name,
+					slots: new Set(
+						descriptor.contributions.uiSlots.map(({ slot }) => slot),
+					),
+				},
 			]),
 		);
-		workerPluginName =
-			transport === "worker" && descriptors.length === 1
-				? descriptors[0]?.name
+		workerPlugin =
+			transport === "worker" && registered.size === 1
+				? [...registered.values()][0]
 				: undefined;
 		const pending = [...held.values()];
 		held.clear();
@@ -59,24 +78,24 @@ export function createUiStateGate(
 			if (!onUiState || typeof payload !== "object" || payload === null) {
 				return;
 			}
-			const { pluginName, slot, state } = payload as Record<string, unknown>;
+			const { pluginId, slot, state } = payload as Record<string, unknown>;
 			if (typeof slot !== "string") return;
 			const event = {
-				pluginName: typeof pluginName === "string" ? pluginName : "",
+				pluginId: typeof pluginId === "string" ? pluginId : "",
 				slot,
 				state,
 			};
-			if (registeredSlots) {
+			if (registered) {
 				deliver(event);
 				return;
 			}
-			const key = JSON.stringify([event.pluginName, slot]);
+			const key = JSON.stringify([event.pluginId, slot]);
 			if (held.has(key) || held.size < MAX_HELD_UI_STATES) {
 				held.set(key, event);
 			}
 		},
 		hold(): void {
-			registeredSlots = undefined;
+			registered = undefined;
 		},
 		open,
 		/** After a failed re-initialize: drop what it held and keep the last slots. */
