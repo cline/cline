@@ -26,16 +26,15 @@ function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
 
 describe("slash-commands", () => {
 	describe("removeSlashCommand", () => {
-		it.each([
-			"\nhello world",
-			"\r\nhello world",
-			"\n  hello world",
-		])("preserves following-line whitespace in %j", (suffix) => {
-			expect(removeSlashCommand(`/newtask${suffix}`, 8)).toEqual({
-				newText: suffix,
-				newPosition: 0,
-			})
-		})
+		it.each(["\nhello world", "\r\nhello world", "\n  hello world"])(
+			"preserves following-line whitespace in %j",
+			(suffix) => {
+				expect(removeSlashCommand(`/newtask${suffix}`, 8)).toEqual({
+					newText: suffix,
+					newPosition: 0,
+				})
+			},
+		)
 
 		it.each([
 			["/newtask hello world", "hello world"],
