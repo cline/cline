@@ -2,12 +2,15 @@ import type * as LlmsProviders from "@cline/llms";
 import {
 	estimateRequestInputTokens,
 	type MessageWithMetadata,
+	SIDE_REFERENCE_KIND,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
 } from "../../session/models/session-compaction";
+import { captureSideReference } from "../../session/side-conversation/context";
+import { countUserRunMessages } from "../../session/user-run-messages";
 import type { CoreCompactionContext } from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
@@ -386,6 +389,80 @@ function expectNoOrphanedToolPairs(messages: LlmsProviders.Message[]): void {
 describe("createContextCompactionPrepareTurn", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it.each([
+		"basic",
+		"agentic",
+	] as const)("excludes the parent reference from user-turn counts after %s compaction", async (strategy) => {
+		await createHandlerMock.withImplementation(
+			() => ({
+				createMessage: () =>
+					streamChunks([
+						{
+							type: "text",
+							text: "## Goal\nAnswer the side question.\n## Progress\nRead the fixture.",
+						},
+						{ type: "done", success: true },
+					]),
+			}),
+			async () => {
+				const messages: MessageWithMetadata[] = [
+					captureSideReference({
+						messages: [
+							{ role: "user", content: "parent goal" },
+							{ role: "assistant", content: "parent answer" },
+						],
+						activeParentTurn: false,
+					}),
+					{ role: "user", content: "first actual side question" },
+					assistantToolUseMessage("read"),
+					toolResultMessage("read", "fixture ".repeat(2000)),
+					{ role: "assistant", content: "answer" },
+					{ role: "user", content: "follow up" },
+					{ role: "assistant", content: "follow up answer" },
+				];
+				const prepare = createContextCompactionPrepareTurn(
+					{
+						providerId: "anthropic",
+						modelId: "mock-model",
+						compaction: { enabled: true, strategy, preserveRecentTokens: 1 },
+					},
+					{ mode: "manual", manualTargetRatio: 0.1 },
+				);
+				const result = await prepare?.({
+					agentId: "side",
+					conversationId: "side",
+					parentAgentId: null,
+					iteration: 1,
+					messages,
+					apiMessages: messages,
+					abortSignal: new AbortController().signal,
+					systemPrompt: "Answer the side question",
+					tools: [],
+					model: {
+						id: "mock-model",
+						provider: "anthropic",
+						info: { id: "mock-model", maxInputTokens: 2000 },
+					},
+				});
+				expect(result?.messages).toBeDefined();
+				const compacted = result?.messages ?? [];
+				expect(
+					compacted.filter(
+						(message) =>
+							message.metadata?.kind ===
+							(strategy === "basic" ? "compaction" : "compaction_summary"),
+					),
+				).toHaveLength(1);
+				expect(
+					compacted.some(
+						(message) => message.metadata?.kind === SIDE_REFERENCE_KIND,
+					),
+				).toBe(false);
+				expect(countUserRunMessages(compacted)).toBe(2);
+			},
+		);
 	});
 
 	it.each([
