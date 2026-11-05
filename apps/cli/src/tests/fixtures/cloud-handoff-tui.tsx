@@ -454,7 +454,7 @@ const props = {
 					instruction: draft.instruction,
 					images: draft.images,
 				};
-				onProgress({ message: "Publishing the approved Git snapshot." });
+				onProgress("Publishing the approved Git snapshot.");
 				if (scenario === "retry") {
 					return {
 						sessionId: cloudSessionId,
@@ -483,9 +483,7 @@ const props = {
 				]);
 				const dashboardUrl = `https://app.cline.bot/tasks/${target.taskId}`;
 
-				onProgress({
-					message: "Preparing the cloud workspace.",
-				});
+				onProgress("Preparing the cloud workspace.");
 				return { sessionId: cloudSessionId, dashboardUrl };
 			},
 		};

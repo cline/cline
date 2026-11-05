@@ -22,7 +22,7 @@ export function CloudHandoffStatusBar(props: {
 				: undefined;
 	const message =
 		status.kind === "progress"
-			? status.progress.message
+			? status.progress
 			: status.kind === "failed"
 				? status.message
 				: status.result.warning;

@@ -30,10 +30,6 @@ export type CloudHandoffDraft = {
 	images: string[];
 };
 
-export type CloudHandoffProgress = {
-	message: string;
-};
-
 export type CloudHandoffResult = {
 	sessionId: string;
 	dashboardUrl: string;
@@ -124,12 +120,10 @@ export async function prepareCloudHandoff(input: {
 	let started: Promise<CloudHandoffResult> | undefined;
 	return {
 		git: previewHandoffGit(plan),
-		start(
-			onProgress: (progress: CloudHandoffProgress) => void,
-		): Promise<CloudHandoffResult> {
+		start(onProgress: (message: string) => void): Promise<CloudHandoffResult> {
 			started ??= (async () => {
 				assertAccount();
-				onProgress({ message: "Preparing a summary of this conversation." });
+				onProgress("Preparing a summary of this conversation.");
 				const credentials =
 					await new RuntimeOAuthTokenManager().resolveProviderApiKey({
 						providerId: input.connection.providerId,
@@ -169,9 +163,7 @@ export async function prepareCloudHandoff(input: {
 						? `Next instruction from the user:\n${draft.instruction.trim()}`
 						: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
 				].join("\n\n");
-				onProgress({
-					message: "Publishing the approved Git snapshot and starting cloud.",
-				});
+				onProgress("Publishing the approved Git snapshot and starting cloud.");
 				const dashboard = (id: string) =>
 					buildCloudHandoffDashboardUrl(
 						getClineEnvironmentConfig().appBaseUrl,
@@ -189,9 +181,7 @@ export async function prepareCloudHandoff(input: {
 					)
 						return;
 					sessionId = event.sessionId;
-					onProgress({
-						message: "Preparing the cloud workspace.",
-					});
+					onProgress("Preparing the cloud workspace.");
 				});
 				try {
 					const result = await cloud.create(

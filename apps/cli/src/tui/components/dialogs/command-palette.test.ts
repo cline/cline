@@ -55,9 +55,7 @@ describe("command palette", () => {
 			canForkSession: false,
 			handoff: {
 				kind: "progress",
-				progress: {
-					message: "Starting",
-				},
+				progress: "Starting",
 			},
 		});
 		expect(

@@ -4,7 +4,6 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import type {
 	CloudHandoffDraft,
-	CloudHandoffProgress,
 	CloudHandoffResult,
 } from "../../runtime/interactive/cloud-handoff";
 import { CloudHandoffConfirmContent } from "../components/dialogs/cloud-handoff-confirm";
@@ -12,7 +11,7 @@ import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import type { TuiProps } from "../types";
 
 export type CloudHandoffStatus =
-	| { kind: "progress"; progress: CloudHandoffProgress }
+	| { kind: "progress"; progress: string }
 	| { kind: "complete"; result: CloudHandoffResult; nativeOpenFailed?: boolean }
 	| {
 			kind: "failed";
@@ -117,7 +116,7 @@ export function useCloudHandoff(input: {
 			started = true;
 			attempt.setStatus({
 				kind: "progress",
-				progress: { message: "Preparing cloud handoff…" },
+				progress: "Preparing cloud handoff…",
 			});
 			void prepared
 				.start((progress) => attempt.setStatus({ kind: "progress", progress }))
@@ -156,9 +155,7 @@ export function useCloudHandoff(input: {
 		const attempt = begin(sourceId);
 		attempt.setStatus({
 			kind: "progress",
-			progress: {
-				message: "Sending the saved summary and images to the cloud task…",
-			},
+			progress: "Sending the saved summary and images to the cloud task…",
 		});
 		try {
 			const result = await status.result.retrySend();
