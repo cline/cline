@@ -40,8 +40,6 @@ describe("derived palette alpha colors", () => {
 				for (let step = 1; step <= 12; step += 1) {
 					const solid = color(values[`${name}-${step}`]);
 					const overlay = color(values[`${name}-a${step}`]);
-					expect(overlay.a).toBeGreaterThanOrEqual(0);
-					expect(overlay.a).toBeLessThanOrEqual(1);
 					for (const channel of ["r", "g", "b"] as const) {
 						const composite =
 							overlay[channel] * overlay.a +

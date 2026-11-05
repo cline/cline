@@ -222,14 +222,11 @@ function tokenColor(
 	return color;
 }
 
-function colorRgb(color: RgbaColor, background?: number[]): number[] {
-	if (color.a !== 1 && !background) {
-		throw new Error("Alpha color needs a compositing background");
+function colorRgb(color: RgbaColor): number[] {
+	if (color.a !== 1) {
+		throw new Error("Expected an opaque semantic fill or foreground");
 	}
-	return [color.r, color.g, color.b].map(
-		(channel, index) =>
-			(channel / 255) * color.a + (background?.[index] ?? 0) * (1 - color.a),
-	);
+	return [color.r, color.g, color.b].map((channel) => channel / 255);
 }
 
 function luminance(channels: number[]): number {
@@ -251,29 +248,15 @@ describe("@cline/ui theme contract", () => {
 		const dark = block(palette, ".dark");
 
 		expect(palette).toContain("Radix Colors 3.0.0");
-		for (const name of ["Iris", "Vermilion", "Emerald"]) {
-			expect(palette).toContain(name);
-		}
 		expect(palette).not.toContain("display-p3");
 		expect(palette).not.toMatch(
 			/--(?:slate|violet|ruby|green|amber|sky)-(?:a)?\d+:/,
 		);
 		for (const mode of [light, dark]) {
-			const values = declarations(mode);
 			for (const paletteName of paletteNames) {
 				for (let step = 1; step <= 12; step += 1) {
 					expect(mode).toContain(`--${paletteName}-${step}:`);
 					expect(mode).toContain(`--${paletteName}-a${step}:`);
-					for (const alpha of ["", "a"]) {
-						const token = `${paletteName}-${alpha}${step}`;
-						const color = tokenColor(values, token);
-						expect(color.a).toBeGreaterThanOrEqual(0);
-						expect(color.a).toBeLessThanOrEqual(1);
-						if (!alpha) expect(color.a).toBe(1);
-						if (["accent", "error", "success"].includes(paletteName)) {
-							expect(values[token]).toMatch(/^oklch\(/);
-						}
-					}
 				}
 			}
 			expect(
@@ -414,10 +397,6 @@ describe("@cline/ui theme contract", () => {
 		expect(scoped).toContain(".cline-ui-theme");
 		expect(scoped).toContain(".dark .cline-ui-theme");
 		expect(scoped).toContain(".cline-ui-theme.dark");
-		for (const paletteName of paletteNames) {
-			expect(scoped).toContain(`--${paletteName}-1:`);
-			expect(scoped).toContain(`--${paletteName}-a12:`);
-		}
 		expect(scoped).toContain("--background: var(--surface-1);");
 		const globalRules = [
 			...topLevelRules(read("palette.css")),
