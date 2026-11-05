@@ -7,16 +7,101 @@ import {
 	sanitizeReferenceText,
 	serializeReferenceData,
 } from "@cline/shared";
-import { projectSessionMessagesForDisplay } from "../display-messages";
+import {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "../display-messages";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
 } from "../models/session-compaction";
+import { toPersistedToolResultContent } from "../persisted-tool-result-content";
+import {
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "../services/message-builder";
 import { countUserRunMessages, isUserRunMessage } from "../user-run-messages";
 
 export const SIDE_SCOPE_INSTRUCTIONS = `This is a side conversation sharing the main conversation's workspace. Parent history is reference only; do not continue its tasks. Use normal tools and permissions for requests made here. Do not spawn agents or teams.
 
 Initial context is a snapshot. Use read_parent_history for newer activity or missing details. Saved history may lag ongoing work; acknowledge gaps rather than guessing.`;
+
+function parseReferenceJson(text: string): unknown {
+	try {
+		return JSON.parse(
+			text,
+			(_key, value: unknown, context?: { source: string }) => {
+				if (typeof value !== "number") return value;
+				// Re-emit numeric tokens without rounding identifiers or decimals.
+				if (
+					context?.source &&
+					"rawJSON" in JSON &&
+					typeof JSON.rawJSON === "function"
+				)
+					return JSON.rawJSON(context.source);
+				throw new TypeError(
+					"Side reference parsing requires source-aware JSON support (Node.js 22+)",
+				);
+			},
+		);
+	} catch (error) {
+		if (!(error instanceof SyntaxError)) throw error;
+		return text;
+	}
+}
+
+function prepareSnapshotBlock(
+	block: ContentBlock,
+	omitted: { media: number },
+	results: ReadonlySet<string>,
+): ContentBlock {
+	switch (block.type) {
+		case "tool_use":
+			return block;
+		case "tool_result": {
+			// Redact before truncation: cutting JSON first can leave unparseable media payloads.
+			const content =
+				typeof block.content === "string"
+					? parseReferenceJson(block.content)
+					: block.content;
+			const text =
+				typeof content === "string"
+					? sanitizeReferenceText(content)
+					: serializeReferenceData(content, () => omitted.media++);
+			if (typeof block.content === "string") return { ...block, content: text };
+			const value = parseReferenceJson(text);
+			return {
+				...block,
+				content: toPersistedToolResultContent(
+					Array.isArray(value)
+						? value.map((entry: unknown) =>
+								typeof entry === "string"
+									? { type: "text", text: entry }
+									: entry,
+							)
+						: value,
+				),
+			};
+		}
+		case "file":
+			return {
+				...block,
+				path: sanitizeReferenceText(block.path),
+				content: sanitizeReferenceText(block.content),
+			};
+		default:
+			return {
+				type: "text",
+				text: renderBlock(block, omitted, results, "snapshot"),
+			};
+	}
+}
+
+function omittedToolResult(
+	block: Extract<ContentBlock, { type: "tool_result" }>,
+): string {
+	return `Tool result ${block.name} (${block.tool_use_id})${block.is_error ? " [failed]" : ""}: [content omitted: reference projection limit exceeded]`;
+}
 
 function renderBlock(
 	block: ContentBlock,
@@ -30,29 +115,10 @@ function renderBlock(
 		case "tool_use":
 			return `Tool call ${block.name} (${block.id}): ${serializeReferenceData(block.input)}${mode === "history" || results.has(block.id) ? "" : "\n[result not yet available in this capture]"}`;
 		case "tool_result": {
-			let content: unknown = block.content;
-			if (typeof content === "string") {
-				try {
-					content = JSON.parse(
-						content,
-						(_key, value: unknown, context?: { source: string }) => {
-							if (typeof value !== "number") return value;
-							// Re-emit numeric tokens without rounding identifiers or decimals.
-							if (
-								context?.source &&
-								"rawJSON" in JSON &&
-								typeof JSON.rawJSON === "function"
-							)
-								return JSON.rawJSON(context.source);
-							throw new TypeError(
-								"Side reference parsing requires source-aware JSON support (Node.js 22+)",
-							);
-						},
-					);
-				} catch (error) {
-					if (!(error instanceof SyntaxError)) throw error;
-				}
-			}
+			const content =
+				mode === "history" && typeof block.content === "string"
+					? parseReferenceJson(block.content)
+					: block.content;
 			return `Tool result ${block.name} (${block.tool_use_id})${block.is_error ? " [failed]" : ""}: ${typeof content === "string" ? sanitizeReferenceText(content) : serializeReferenceData(content, () => omitted.media++)}`;
 		}
 		case "file":
@@ -93,6 +159,7 @@ export function projectSideReferenceBlocks(
 	const nativeResults = new Set<string>();
 	for (const message of messages) {
 		if (
+			message?.metadata?.displayOnly === true ||
 			(message?.role !== "user" && message?.role !== "assistant") ||
 			!Array.isArray(message.content)
 		)
@@ -109,29 +176,65 @@ export function projectSideReferenceBlocks(
 	);
 	if (sourceIndex !== undefined)
 		for (const entry of projected) entry.sourceIndex = sourceIndex;
+	const entries = projected.filter(
+		(entry) => messages[entry.sourceIndex].metadata?.displayOnly !== true,
+	);
 	const results = new Set(nativeResults);
 	if (mode === "snapshot") {
-		for (const entry of projected) {
+		for (const entry of entries) {
 			if (typeof entry.message.content === "string") continue;
 			for (const block of entry.message.content)
 				if (block.type === "tool_result") results.add(block.tool_use_id);
 		}
 	}
+	const isDuplicateObservation = (
+		entry: SessionDisplayMessage,
+		block: ContentBlock,
+	) =>
+		entry.origin === "model_tool_activity" &&
+		((block.type === "tool_use" && nativeCalls.has(block.id)) ||
+			(block.type === "tool_result" && nativeResults.has(block.tool_use_id)));
+	const referenceMessages = entries.map((entry) => {
+		if (mode === "history") return entry.message;
+		return {
+			...entry.message,
+			content:
+				typeof entry.message.content === "string"
+					? sanitizeReferenceText(entry.message.content)
+					: entry.message.content
+							.filter((block) => !isDuplicateObservation(entry, block))
+							.map((block): ContentBlock => {
+								try {
+									return prepareSnapshotBlock(block, omitted, results);
+								} catch (error) {
+									if (
+										!(error instanceof RangeError) ||
+										block.type !== "tool_result"
+									)
+										throw error;
+									incompleteSources.add(entry.sourceIndex);
+									return { type: "text", text: omittedToolResult(block) };
+								}
+							}),
+		};
+	});
+	const prepared =
+		mode === "snapshot"
+			? new MessageBuilder(getMessageBuilderOptionsFromEnv()).buildForApi(
+					referenceMessages,
+					// Preserve pending calls and the source indices used by references.
+					{ repairToolResults: false },
+				)
+			: referenceMessages;
+
 	const blocks: ReferenceBlock[] = [];
-	for (const entry of projected) {
-		if (messages[entry.sourceIndex].metadata?.displayOnly === true) continue;
+	for (const [index, entry] of entries.entries()) {
 		const content: ContentBlock[] =
-			typeof entry.message.content === "string"
-				? [{ type: "text", text: entry.message.content }]
-				: entry.message.content;
+			typeof prepared[index].content === "string"
+				? [{ type: "text", text: prepared[index].content }]
+				: prepared[index].content;
 		for (const block of content) {
-			if (
-				entry.origin === "model_tool_activity" &&
-				((block.type === "tool_use" && nativeCalls.has(block.id)) ||
-					(block.type === "tool_result" &&
-						nativeResults.has(block.tool_use_id)))
-			)
-				continue;
+			if (mode === "history" && isDuplicateObservation(entry, block)) continue;
 			let rawText: string;
 			try {
 				rawText = renderBlock(block, omitted, results, mode);
@@ -139,7 +242,7 @@ export function projectSideReferenceBlocks(
 				if (!(error instanceof RangeError) || block.type !== "tool_result")
 					throw error;
 				incompleteSources.add(entry.sourceIndex);
-				rawText = `Tool result ${block.name} (${block.tool_use_id})${block.is_error ? " [failed]" : ""}: [content omitted: reference projection limit exceeded]`;
+				rawText = omittedToolResult(block);
 			}
 			if (!rawText.trim()) continue;
 			blocks.push({

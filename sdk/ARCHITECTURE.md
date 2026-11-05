@@ -49,10 +49,13 @@ inert text and omits reasoning, media, and parent cache handles. Tool results
 that exceed projection limits are explicitly marked as omitted; other parent
 context remains available. The starting reference reuses the existing session
 compaction projection plus its canonical tail, without a new summary call or
-fixed-size clipping. It is frozen at creation; later history reads are explicit
-tool calls. These helpers reuse `ClineCore.get`, `readMessages`, and
-`readSessionCompactionState`, so the same composition works with local and
-Hub-backed core instances without a separate Hub command.
+an additional snapshot-size cap. The existing message builder applies normal content
+limits after media redaction, without repairing incomplete tool exchanges or
+changing source-message boundaries. The reference is frozen at creation;
+later history reads are explicit tool calls. These helpers reuse
+`ClineCore.get`, `readMessages`, and `readSessionCompactionState`, so the same
+composition works with local and Hub-backed core instances without a separate
+Hub command.
 
 `@cline/shared` owns browser-safe reference limits, text projection utilities,
 and the optional visible-context contract. A host may supply recent unsaved

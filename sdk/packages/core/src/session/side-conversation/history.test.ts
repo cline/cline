@@ -36,6 +36,81 @@ function fixture(messages: MessageWithMetadata[]) {
 }
 
 describe("side parent history tool", () => {
+	it.each([
+		'"literal quotes"',
+		'{"type":"image","data":"literal text"}',
+	])("decodes a JSON string result only once: %s", (value) => {
+		const capture = captureSideReference({
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							name: "report",
+							tool_use_id: "report",
+							content: toPersistedToolResultContent(JSON.stringify(value)),
+						},
+					],
+				},
+			],
+			activeParentTurn: false,
+		});
+		expect(capture.content).toContain(value);
+	});
+
+	it("finds quoted text and Windows paths in structured results with read-consistent offsets", async () => {
+		const producer = createTool({
+			name: "report",
+			description: "Synthetic structured report",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({
+				content: [
+					{
+						type: "text",
+						text: 'The key is "recovery code". File: C:\\work\\requirements.txt',
+					},
+				],
+			}),
+		});
+		const { tool } = fixture([
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "report",
+						tool_use_id: "report",
+						content: toPersistedToolResultContent(
+							await producer.execute({}, context),
+						),
+					},
+				],
+			},
+		]);
+		for (const [query, expected] of [
+			['"recovery code"', '\\"recovery code\\"'],
+			["C:\\work\\requirements.txt", "C:\\\\work\\\\requirements.txt"],
+		]) {
+			const search = await tool.execute(
+				{ operation: "search", query },
+				context,
+			);
+			if (!search.ok || search.result.operation === "read")
+				throw new Error("Expected search result");
+			expect(search.result.matches).toHaveLength(1);
+			const match = search.result.matches[0];
+			const read = await tool.execute(
+				{ operation: "read", reference: match.reference, offset: match.offset },
+				context,
+			);
+			if (!read.ok || read.result.operation !== "read")
+				throw new Error("Expected exact read");
+			expect(read.result.text.startsWith(expected)).toBe(true);
+			expect(match.preview.startsWith(expected)).toBe(true);
+		}
+	});
+
 	it("preserves numeric source tokens alongside redacted media in snapshots and history", async () => {
 		const raw = `{
 			"integer":9007199254740993,"decimal":1.0000000000000001,

@@ -25,8 +25,10 @@ change the default tool catalog.
 
 The initial reference reuses the parent's existing compacted working context
 and later messages. Without a valid compaction state, it uses the supplied
-history. It does not generate a new summary or clip parent text to a fixed
-size; the side conversation uses the normal runtime context-budget handling.
+history. It does not generate a new summary or impose an additional snapshot-size
+cap. Before rendering the starting reference, the normal message builder
+applies its existing content limits to redacted messages. Tool-protocol repair
+is disabled for this reference pass so pending calls remain pending.
 A supplied `visibleContext` must satisfy `SideVisibleContextSchema` from
 `@cline/shared` (or `@cline/shared/browser`), including its 4 KiB per-excerpt
 and 24 KiB total limits. Hosts capture this optional supplement at creation
@@ -40,6 +42,9 @@ bound when the tool is created. Results include saved-history limitations and
 separately read parent status. Stale read references are rejected. Neither
 history reads nor the starting reference replay parent tool calls or copy
 parent usage into the side conversation.
+
+Search accepts literal text and its JSON-escaped representation in structured
+results. Returned offsets refer to the rendered text used by `read`.
 
 Text attachments and tool failure status remain available in references;
 binary media, provider reasoning, and parent cache handles are omitted.

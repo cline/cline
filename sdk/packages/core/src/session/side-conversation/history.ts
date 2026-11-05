@@ -192,7 +192,14 @@ export function createSideHistoryTool({
 			const search =
 				request.operation === "search"
 					? new RegExp(
-							request.query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+							[
+								...new Set([
+									request.query,
+									JSON.stringify(request.query).slice(1, -1),
+								]),
+							]
+								.map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+								.join("|"),
 							"iu",
 						)
 					: undefined;
