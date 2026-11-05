@@ -817,6 +817,25 @@ export class SdkCloudSessionCoordinator {
 		throw new Error(`This cloud sandbox ${expired ? "has expired" : "has failed"}. Start a new cloud task to continue.`)
 	}
 
+	private async recheckWakeReadiness(entry: CloudSessionEntry, signal: AbortSignal): Promise<CloudSessionRecord | undefined> {
+		signal.throwIfAborted()
+		const record = { ...entry.record }
+		if (this.entries.get(record.id) !== entry) return undefined
+		entry.record = record
+		const live = await this.trackScopeOperation(() => {
+			signal.throwIfAborted()
+			return this.options.cloudSessions.getStatus(record.id, signal)
+		})
+		signal.throwIfAborted()
+		this.assertSandboxNotTerminated(entry)
+		if (this.entries.get(record.id) !== entry || entry.record !== record) return undefined
+		const status = live.status?.trim().toLowerCase()
+		if (!status) return undefined
+		const observed = { ...record, status }
+		this.upsertRecord(observed)
+		return status === "ready" || status === "active" ? observed : undefined
+	}
+
 	private async connect(entry: CloudSessionEntry): Promise<CloudSessionHost> {
 		this.assertSandboxNotTerminated(entry)
 		if (entry.connection) {
@@ -1462,11 +1481,21 @@ export class SdkCloudSessionCoordinator {
 					else await this.options.cloudSessions.waitUntilReady(task.taskId, signal)
 					assertCurrent()
 					this.assertSandboxNotTerminated(entry)
-					const observed = entry.record.status?.toLowerCase()
-					if (entry.record !== wakingRecord && !["provisioning", "ready", "active"].includes(observed ?? "")) {
-						throw new Error("Cloud sandbox status changed. Send your message again.")
+					if (
+						entry.record !== wakingRecord &&
+						!["provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
+					) {
+						const readyRecord = await this.recheckWakeReadiness(entry, signal)
+						assertCurrent()
+						this.assertSandboxNotTerminated(entry)
+						if (!readyRecord || entry.record !== readyRecord) {
+							throw new Error("Cloud sandbox status changed. Send your message again.")
+						}
 					}
-					entry.record = { ...entry.record, status: observed === "active" ? "active" : "ready" }
+					entry.record = {
+						...entry.record,
+						status: entry.record.status?.toLowerCase() === "active" ? "active" : "ready",
+					}
 				} else if (status !== "active" && status !== "ready") {
 					throw new Error("The cloud sandbox is not ready. Send your message again once it is running.")
 				}
@@ -1725,7 +1754,12 @@ export class SdkCloudSessionCoordinator {
 			entry.record !== resuming &&
 			!["provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
 		) {
-			throw new Error("Cloud sandbox status changed. Open the task again.")
+			const readyRecord = await this.recheckWakeReadiness(entry, signal)
+			signal.throwIfAborted()
+			this.assertSandboxNotTerminated(entry)
+			if (!readyRecord || entry.record !== readyRecord) {
+				throw new Error("Cloud sandbox status changed. Open the task again.")
+			}
 		}
 		entry.record = { ...entry.record, status: "ready" }
 		this.retireTransport(entry)

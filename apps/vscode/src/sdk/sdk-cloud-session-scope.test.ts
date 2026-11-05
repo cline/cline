@@ -28,7 +28,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const origin = scope
 	const successor = { token: "fixture-successor", endpoint: "http://127.0.0.1:2222", organizationId: "org-successor" }
 	let deletionStatus = 204
-	let readinessStatus = "active"
+	let readinessStatuses: [string, ...string[]] = ["active"]
 	const deleted = new Set<string>()
 	const requests: Array<{ method: string; url: string; token: string | null; body?: string }> = []
 	const record = {
@@ -87,13 +87,17 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 			}
 			if (url.endsWith("/status")) {
 				await wait("readiness")
-				return Response.json({ data: { status: readinessStatus } })
+				const status = readinessStatuses[0]
+				if (readinessStatuses.length > 1) readinessStatuses.shift()
+				return Response.json({ data: { status } })
 			}
 			if (method === "PATCH") return Response.json({ data: record })
 			return Response.json({ data: [currentRecord()].filter((listed) => !deleted.has(listed.id)) })
 		}) as typeof fetch,
 	})
 	const host = {
+		status: "completed",
+		readMessages: async () => [{ role: "user", content: "prior context" }],
 		start: vi.fn(async () => {
 			await wait("lifecycle")
 			return { sessionId: record.id }
@@ -204,8 +208,8 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setDeletionStatus: (status: number) => {
 			deletionStatus = status
 		},
-		setReadinessStatus: (status: string) => {
-			readinessStatus = status
+		setReadinessStatus: (...statuses: [string, ...string[]]) => {
+			readinessStatuses = statuses
 		},
 	}
 }
@@ -218,6 +222,61 @@ afterEach(() => {
 })
 
 describe("originating-account cloud cleanup", () => {
+	it.each([
+		{ path: "history", refresh: false, final: "ready" },
+		{ path: "history", refresh: true, final: "ready" },
+		{ path: "followup", refresh: false, final: "ready" },
+		{ path: "followup", refresh: true, final: "ready" },
+		{ path: "history", refresh: true, final: "failed" },
+		{ path: "followup", refresh: true, final: "suspended" },
+		{ path: "followup", refresh: true, final: "cancelled" },
+	])("rechecks a conflicting wake observation ($path, refresh=$refresh, final=$final)", async ({ path, refresh, final }) => {
+		const f = fixture("resume")
+		if (path === "followup") await f.coordinator.openCloudTask(f.record.id)
+		f.record.status = "suspended"
+		f.setReadinessStatus("suspended")
+		let statusReads = 0
+		if (final === "cancelled") {
+			const getStatus = f.service.getStatus.bind(f.service)
+			vi.spyOn(f.service, "getStatus").mockImplementation(async (...args) => {
+				const result = await getStatus(...args)
+				if (++statusReads === 2) f.coordinator.cancelPendingFollowup()
+				return result
+			})
+		}
+		const task = f.options.getTask()
+		if (path === "followup" && !task) throw new Error("Missing displayed task")
+		const operation = task ? f.coordinator.beginFollowup(task)() : f.coordinator.openCloudTask(f.record.id)
+		const settled = operation.then(
+			() => undefined,
+			(error: unknown) => error,
+		)
+		await f.entered.promise
+		if (refresh) {
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+			await f.coordinator.listHistoryRecords()
+		}
+		f.setReadinessStatus("ready", final === "cancelled" ? "ready" : final)
+		f.barrier.resolve()
+		const error = await settled
+		if (final === "ready") {
+			expect(error).toBeUndefined()
+			expect(f.lifecycle.getActiveSession()?.sdkHost).toBe(f.host)
+			expect(JSON.stringify(f.options.getTask()?.messageStateHandler.getClineMessages())).toContain("prior context")
+			expect(f.requests.filter((request) => request.url.endsWith("/status"))).toHaveLength(
+				(path === "followup" ? 2 : 1) + Number(refresh),
+			)
+		} else {
+			expect(f.lifecycle.getActiveSession()).toBeUndefined()
+			if (final === "cancelled") expect(statusReads).toBe(2)
+			if (path === "followup") expect(error).toBeInstanceOf(Error)
+			else expect(f.coordinator.getCurrentTaskInfo()?.status).toBe("failed")
+		}
+		expect(f.requests.filter((request) => request.url.endsWith("/resume"))).toHaveLength(1)
+		expect(f.host.send).not.toHaveBeenCalled()
+		await f.coordinator.dispose()
+	})
+
 	it.each([
 		"resume",
 		"connect",
