@@ -96,6 +96,35 @@ describe("MessageTranslatorState", () => {
 		expect(newToolTs).toBeGreaterThan(toolTs)
 	})
 
+	it("reset clears the accumulated streaming reasoning text (#leak: interrupted reasoning must not leak into the next turn)", () => {
+		const state = new MessageTranslatorState()
+		expect(state.appendStreamingReasoning("stale ")).toBe("stale ")
+
+		state.reset()
+
+		// After reset, appending must return only the new delta — reasoning
+		// streams interrupted by an abort/provider error carry no content_end,
+		// so reset() is the only thing that can clear this buffer.
+		expect(state.appendStreamingReasoning("fresh")).toBe("fresh")
+	})
+
+	it("clear on content end resets the buffer for an auto-continuation without reset", () => {
+		// When a response ends with "unknown" and no tool activity, the retry
+		// loop starts another request within the same iteration — no reset()
+		// in between. The content-end clear must empty the buffer so the new
+		// response's reasoning rows don't repeat the previous attempt's text.
+		const state = new MessageTranslatorState()
+		state.appendStreamingReasoning("first attempt reasoning")
+
+		const endTs = state.clearStreamingReasoning()
+
+		expect(state.appendStreamingReasoning("second attempt reasoning")).toBe(
+			"second attempt reasoning",
+		)
+		// The follow-up response renders as a fresh row, not the finalized one.
+		expect(state.getStreamingReasoningTs()).not.toBe(endTs)
+	})
+
 	it("reset clears stale approved tool prompt rows", () => {
 		const state = new MessageTranslatorState()
 		state.recordApprovedToolMessageTs("approved-call", 42)
