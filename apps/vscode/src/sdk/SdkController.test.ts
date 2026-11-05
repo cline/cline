@@ -1,10 +1,8 @@
 import * as cloudCore from "@cline/core/cloud"
 import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
-import { PrepareCloudHandoffRequest } from "@shared/proto/cline/cloud"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { prepareHandoff } from "@/core/controller/cloud/prepareHandoff"
 import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
 import { mockFetchForTesting } from "@/shared/net"
@@ -1130,7 +1128,6 @@ describe("cloud handoff controller", () => {
 			authService: {
 				getInfo: () => ({ user: { uid: identity.accountId } }),
 				getActiveOrganizationId: () => identity.organizationId,
-				refreshMissingUserInfo: vi.fn(async () => {}),
 				getUserOrganizations: () =>
 					!identity.organizationsKnown
 						? undefined
@@ -1145,10 +1142,7 @@ describe("cloud handoff controller", () => {
 				),
 			},
 			cloudSessions: { apiBaseUrl: "https://api.example.test", appBaseUrl: "https://app.example.test" },
-			cloudHandoff: { reset: vi.fn(), prepare: vi.fn(async () => {}) },
-			prepareCloudHandoff(input: Parameters<SdkController["prepareCloudHandoff"]>[0]) {
-				return SdkController.prototype.prepareCloudHandoff.call(this as never, input)
-			},
+			cloudHandoff: { reset: vi.fn() },
 			postStateToWebview: vi.fn(async () => {}),
 			providerConfigStoreSubscription: { dispose: vi.fn() },
 			setRemoteConfigCoreIntegration: vi.fn(async () => {}),
@@ -1169,35 +1163,6 @@ describe("cloud handoff controller", () => {
 		)
 		return { controller, cloud, identity, fetch }
 	}
-
-	it.each([
-		"user-1",
-		"",
-	])("recovers an unknown organization for account ID %j on the next handoff request", async (accountId) => {
-		vi.stubEnv("CLINE_CLOUD_SESSIONS", "1")
-		const { controller, cloud, identity } = setup()
-		const input = PrepareCloudHandoffRequest.create({ sourceTaskId: "local-task", instruction: "Continue in cloud" })
-		identity.organizationsKnown = false
-		identity.accountId = accountId
-		try {
-			expect(controller.getHandoffAccount()).toBeUndefined()
-			expect(controller.cloudHandoff.reset).not.toHaveBeenCalled()
-			await expect(prepareHandoff(controller as never, input)).rejects.toThrow("Could not verify the cloud organization")
-			expect(controller.cloudHandoff.prepare).not.toHaveBeenCalled()
-			expect(controller.authService.refreshMissingUserInfo).toHaveBeenCalledOnce()
-			controller.authService.refreshMissingUserInfo.mockImplementation(async () => {
-				identity.organizationsKnown = true
-				identity.accountId = "user-1"
-			})
-			await prepareHandoff(controller as never, input)
-			expect(controller.cloudHandoff.prepare).toHaveBeenCalledWith(input)
-			await prepareHandoff(controller as never, input)
-			expect(controller.authService.refreshMissingUserInfo).toHaveBeenCalledTimes(2)
-		} finally {
-			vi.unstubAllEnvs()
-			await cloud.dispose()
-		}
-	})
 
 	it.each(["account", "organization"])("replaces the cached handoff controller after an observed %s change", async (change) => {
 		const { controller, cloud, identity, fetch } = setup()

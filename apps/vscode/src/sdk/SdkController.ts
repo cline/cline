@@ -81,11 +81,7 @@ import {
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
-import {
-	type CapturedHandoffSource,
-	type PrepareCloudHandoffInput,
-	SdkCloudHandoffCoordinator,
-} from "./sdk-cloud-handoff-coordinator"
+import { type CapturedHandoffSource, SdkCloudHandoffCoordinator } from "./sdk-cloud-handoff-coordinator"
 import { type CloudTaskInput, SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
 import { SdkCloudTaskTarget } from "./sdk-cloud-task-target"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
@@ -1702,21 +1698,6 @@ export class Controller {
 			organizationId: org?.organizationId ?? null,
 			organizationName: org?.name ?? "Personal",
 		}
-	}
-
-	async prepareCloudHandoff(input: PrepareCloudHandoffInput): Promise<void> {
-		if (
-			isCloudSessionsFeatureEnabled() &&
-			this.handoffAccountChanges === 0 &&
-			this.authService.getInfo().user &&
-			!this.authService.getUserOrganizations()
-		) {
-			await this.authService.refreshMissingUserInfo()
-			if (this.authService.getInfo().user && !this.authService.getUserOrganizations()) {
-				throw new Error("Could not verify the cloud organization. Check your connection and run /cloud again.")
-			}
-		}
-		await this.cloudHandoff.prepare(input)
 	}
 
 	private getHandoffCloud(): CloudSessionController {

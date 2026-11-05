@@ -5,8 +5,6 @@ export interface PlatformConfig {
 	messageEncoding: MessageEncoding
 	showNavbar: boolean
 	postMessage: PostMessageFunction
-	getState: () => unknown
-	setState: (state: unknown) => void
 	encodeMessage: MessageEncoder
 	decodeMessage: MessageDecoder
 	togglePlanActKeys: string
@@ -50,11 +48,7 @@ declare global {
 		// the JetBrains side as well. !!
 		standalonePostMessage?: (message: string) => void
 	}
-	function acquireVsCodeApi(): {
-		postMessage(message: unknown): void
-		getState(): unknown
-		setState(state: unknown): void
-	}
+	function acquireVsCodeApi(): any
 }
 
 // Initialize the vscode API if available
@@ -112,10 +106,6 @@ export const PLATFORM_CONFIG: PlatformConfig = {
 	messageEncoding: selectedConfig.messageEncoding,
 	showNavbar: selectedConfig.showNavbar,
 	postMessage: postMessageStrategies[selectedConfig.postMessageHandler],
-	getState: () => vsCodeApi?.getState(),
-	setState: (state) => {
-		vsCodeApi?.setState(state)
-	},
 	encodeMessage: messageEncoders[selectedConfig.messageEncoding],
 	decodeMessage: messageDecoders[selectedConfig.messageEncoding],
 	togglePlanActKeys: selectedConfig.togglePlanActKeys,

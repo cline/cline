@@ -179,7 +179,7 @@ function CloudHandoffNotice({
 								{view
 									? handoffStatus(view)
 									: onRestoreDraft
-										? "Cloud handoff ended. Your original draft is saved locally. Check Cline Cloud before resending."
+										? "Cloud handoff ended. You can restore your original draft. Check Cline Cloud before resending."
 										: errorText}
 							</div>
 							{view?.phase === "failed" && view.recovery === "connect_github" && (
@@ -229,7 +229,7 @@ function CloudHandoffNotice({
 							)}
 							{onDiscardDraft && (
 								<VSCodeButton appearance="secondary" onClick={() => void run(onDiscardDraft)}>
-									{onRestoreDraft ? "Discard saved draft" : "Discard all saved prompts"}
+									Discard draft
 								</VSCodeButton>
 							)}
 							{errorText && (view || onRestoreDraft) && (

@@ -60,7 +60,7 @@ export interface ClineAccountUserInfo {
 	displayName: string
 	email: string
 	id: string
-	organizations?: ClineAccountOrganization[]
+	organizations: ClineAccountOrganization[]
 	appBaseUrl?: string
 	subject?: string
 	dataPrivacyPath?: string
@@ -296,6 +296,7 @@ export class AuthService {
 				id: credentials.accountId ?? "",
 				email: credentials.email ?? "",
 				displayName: "",
+				organizations: [],
 			},
 			provider,
 			startedAt,
@@ -316,7 +317,6 @@ export class AuthService {
 				`[SdkAuthService] fetchUserInfoFromApi: GET ${apiBaseUrl}/api/v1/users/me (tokenHash=${hashSecret(accessToken)})`,
 			)
 			const response = await axios.get(`${apiBaseUrl}/api/v1/users/me`, {
-				timeout: 10_000,
 				headers: {
 					Authorization: `Bearer ${bearerToken}`,
 					"Content-Type": "application/json",
@@ -500,72 +500,6 @@ export class AuthService {
 	 */
 	getUserOrganizations(): ClineAccountOrganization[] | undefined {
 		return this._clineAuthInfo?.userInfo?.organizations
-	}
-
-	async refreshMissingUserInfo(): Promise<void> {
-		const auth = this._clineAuthInfo
-		if (!this._authenticated || !auth || auth.userInfo.organizations) return
-		const stored = readClineCredentials()
-		const changed = () => new Error("The signed-in account or credentials changed. Try again.")
-		if (
-			!stored ||
-			(auth.userInfo.id && stored.accountId && stored.accountId !== auth.userInfo.id) ||
-			(stored.accessToken !== auth.idToken && (!auth.userInfo.id || stored.accountId !== auth.userInfo.id))
-		)
-			throw changed()
-		const assertCurrent = (expectedAuth: ClineAuthInfo, expected: NonNullable<ReturnType<typeof readClineCredentials>>) => {
-			const current = readClineCredentials()
-			if (
-				this._clineAuthInfo !== expectedAuth ||
-				!current ||
-				current.accessToken !== expected.accessToken ||
-				current.refreshToken !== expected.refreshToken ||
-				current.accountId !== expected.accountId
-			)
-				throw changed()
-		}
-		const accountId = auth.userInfo.id || stored.accountId
-		const credentials = await this.resolveValidClineCredentials({
-			...auth,
-			idToken: stored.accessToken,
-			refreshToken: stored.refreshToken,
-			expiresAt: stored.expiresAt ? stored.expiresAt / 1000 : undefined,
-			userInfo: { ...auth.userInfo, id: accountId ?? "" },
-		})
-		assertCurrent(auth, stored)
-		if (!credentials) {
-			this._authenticated = false
-			this._clineAuthInfo = null
-			clearClineCredentials()
-			await this.sendAuthStatusUpdate()
-			return
-		}
-		if (accountId && credentials.accountId && credentials.accountId !== accountId) throw changed()
-		const startedAt = readSessionStartedAtMs(credentials.metadata) ?? stored.sessionStartedAtMs ?? auth.startedAt
-		const refreshed = {
-			...auth,
-			idToken: credentials.access,
-			refreshToken: credentials.refresh,
-			expiresAt: credentials.expires ? credentials.expires / 1000 : undefined,
-			startedAt,
-		}
-		const persisted = {
-			accessToken: credentials.access,
-			refreshToken: credentials.refresh,
-			expiresAt: credentials.expires,
-			accountId: credentials.accountId ?? accountId,
-			metadata: credentials.metadata,
-			sessionStartedAtMs: startedAt,
-		}
-		// Keep rotated credentials even if the profile request times out; unknown scope stays unknown.
-		writeClineCredentials(persisted)
-		this._clineAuthInfo = refreshed
-		const userInfo = await this.fetchUserInfoFromApi(credentials.access)
-		assertCurrent(refreshed, persisted)
-		if (!userInfo) return
-		if (persisted.accountId && userInfo.id !== persisted.accountId) throw changed()
-		this._clineAuthInfo = { ...refreshed, userInfo }
-		await this.sendAuthStatusUpdate()
 	}
 
 	/**
@@ -983,6 +917,7 @@ export class AuthService {
 					email: tokenData.userInfo.email || "",
 					displayName: tokenData.userInfo.name || "",
 					createdAt: new Date().toISOString(),
+					organizations: [],
 				},
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000,
 				provider: "cline",
@@ -1035,7 +970,6 @@ export class AuthService {
 	 * live in providers.json, user info is fetched fresh each session.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
-		const previousUserInfo = this._clineAuthInfo?.userInfo
 		try {
 			const creds = readClineCredentials()
 			if (!creds) {
@@ -1052,6 +986,7 @@ export class AuthService {
 					id: creds.accountId ?? "",
 					email: "",
 					displayName: "",
+					organizations: [],
 				},
 				provider: "cline",
 				startedAt: creds.sessionStartedAtMs,
@@ -1091,35 +1026,30 @@ export class AuthService {
 				sessionStartedAtMs: readSessionStartedAtMs(validCredentials.metadata),
 			})
 
-			const accountId = validCredentials.accountId ?? restoredAuthInfo.userInfo.id
-			const authBeforeProfile = this._clineAuthInfo
-			// Publish the full identity together; an incomplete profile is not a Personal account.
-			const userInfo =
-				(await this.fetchUserInfoFromApi(validCredentials.access)) ??
-				(previousUserInfo?.id && previousUserInfo.id === accountId
-					? previousUserInfo
-					: {
-							...restoredAuthInfo.userInfo,
-							id: accountId,
-							email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
-						})
-			const currentCredentials = readClineCredentials()
-			if (
-				this._clineAuthInfo !== authBeforeProfile ||
-				!currentCredentials ||
-				(currentCredentials.accessToken !== validCredentials.access &&
-					(!accountId || currentCredentials.accountId !== accountId))
-			)
-				return
 			this._clineAuthInfo = {
-				idToken: currentCredentials.accessToken,
-				refreshToken: currentCredentials.refreshToken,
-				expiresAt: currentCredentials.expiresAt ? currentCredentials.expiresAt / 1000 : undefined,
-				userInfo,
+				idToken: validCredentials.access,
+				refreshToken: validCredentials.refresh,
+				expiresAt: validCredentials.expires ? validCredentials.expires / 1000 : undefined,
+				userInfo: {
+					...restoredAuthInfo.userInfo,
+					id: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
+					email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
+				},
 				provider: restoredAuthInfo.provider,
-				startedAt: currentCredentials.sessionStartedAtMs ?? restoredAuthInfo.startedAt,
+				startedAt: restoredAuthInfo.startedAt,
 			}
 			this._authenticated = true
+
+			// Fetch full user info from the API (the key step — fills in
+			// email, displayName, organizations that providers.json doesn't store)
+			if (this._authenticated && this._clineAuthInfo) {
+				const userInfo = await this.fetchUserInfoFromApi(this._clineAuthInfo.idToken)
+				if (userInfo) {
+					this._clineAuthInfo.userInfo = userInfo
+				} else {
+					Logger.warn("[SdkAuthService] Could not fetch user info on restore — UI will show limited profile")
+				}
+			}
 
 			await this.sendAuthStatusUpdate()
 
