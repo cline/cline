@@ -40,6 +40,7 @@ async function runPaletteAction(session: Session, label: string) {
 async function switchToSyntheticOrganization(
 	session: Session,
 	statePath: string,
+	expectChangeError = false,
 ) {
 	await session.type("/account");
 	await session.press("enter");
@@ -51,8 +52,10 @@ async function switchToSyntheticOrganization(
 	await session.press("enter");
 	await session.text({
 		waitFor: (screen) =>
-			screen.includes("Active account") &&
-			screen.includes("Synthetic Organization") &&
+			(expectChangeError
+				? screen.includes("Synthetic account change failure")
+				: screen.includes("Active account") &&
+					screen.includes("Synthetic Organization")) &&
 			readState(statePath).accountSwitches?.at(-1) === "synthetic-org" &&
 			readState(statePath).accountChanges === 1,
 		timeout,
@@ -93,9 +96,11 @@ async function openCloudTask(session: Session) {
 function launch({
 	provider = "cline",
 	scenario = "success",
+	failAccountChange = false,
 }: {
 	provider?: FixtureProvider;
 	scenario?: FixtureScenario;
+	failAccountChange?: boolean;
 } = {}) {
 	const stateDir = mkdtempSync(path.join(os.tmpdir(), "cloud-handoff-tui-"));
 	tempDirs.push(stateDir);
@@ -129,6 +134,7 @@ function launch({
 			CLOUD_HANDOFF_FIXTURE_STATE: statePath,
 			CLOUD_HANDOFF_FIXTURE_PROVIDER: provider,
 			CLOUD_HANDOFF_FIXTURE_SCENARIO: scenario,
+			CLOUD_HANDOFF_FIXTURE_FAIL_ACCOUNT_CHANGE: String(failAccountChange),
 			CLOUD_HANDOFF_FIXTURE_RELEASE: releasePath,
 			CLOUD_HANDOFF_FIXTURE_LOCAL_RELEASE: localReleasePath,
 			CLOUD_HANDOFF_FIXTURE_REMOVE: removePath,
@@ -222,9 +228,13 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Choose a repository", { timeout });
 	});
 
-	it("restores the paired local view after a cloud account change and routes the next prompt locally", async () => {
+	it.each([
+		false,
+		true,
+	])("restores the paired local view after a cloud account change (rejected: %s)", async (rejectAccountChange) => {
 		const { session, statePath, releaseLocal } = await launch({
 			scenario: "paired-account-change",
+			failAccountChange: rejectAccountChange,
 		});
 		await session.waitForText("Plan something...", { timeout });
 		const sourcePrompt = "hold the synthetic local completion";
@@ -243,7 +253,7 @@ describe("cloud handoff TUI", () => {
 
 		await startCloudHandoff(session, "create the synthetic task");
 		await openCloudTask(session);
-		for (const width of [36, 60, 120]) {
+		for (const width of rejectAccountChange ? [120] : [36, 60, 120]) {
 			session.resize({ cols: width, rows: 40 });
 			await session.waitIdle({ timeout: 2_000 });
 			const cloudScreen = await session.text();
@@ -255,7 +265,11 @@ describe("cloud handoff TUI", () => {
 			expect(cloudScreen).not.toContain("$0.25");
 		}
 
-		await switchToSyntheticOrganization(session, statePath);
+		await switchToSyntheticOrganization(
+			session,
+			statePath,
+			rejectAccountChange,
+		);
 
 		const localScreen = await session.text();
 		expect(readState(statePath).resumeCalls).toBeUndefined();
@@ -670,12 +684,12 @@ describe("cloud handoff TUI", () => {
 			waitFor: () => readState(statePath).cloudSends?.length === 1,
 			timeout,
 		});
+		const queuedPrompt = `queue a prompt before ${transition}`;
+		const queuedImage = createSyntheticImage(stateDir);
+		await session.type(`${queuedPrompt} `);
+		await pasteSyntheticImage(session, queuedImage.imagePath);
+		await session.press("enter");
 		if (transition === "history") {
-			const queuedPrompt = "queue a prompt before opening History";
-			const queuedImage = createSyntheticImage(stateDir);
-			await session.type(`${queuedPrompt} `);
-			await pasteSyntheticImage(session, queuedImage.imagePath);
-			await session.press("enter");
 			await session.type("/history");
 			await session.waitForText("View session history", { timeout });
 			await session.press("tab");
@@ -688,38 +702,40 @@ describe("cloud handoff TUI", () => {
 					screen.includes("Wait for cloud to accept your message"),
 				timeout,
 			});
-			expect(readState(statePath).resumeCalls).toBeUndefined();
-			expect(readState(statePath).attachedSessions).toEqual([
-				"synthetic-cloud-session-1",
-			]);
-			expect(await session.text()).toContain(
-				"Synthetic attached cloud transcript",
-			);
-
-			acceptCloudSend(1);
-			await session.text({
-				waitFor: () => readState(statePath).cloudSends?.length === 2,
-				timeout,
-			});
-			acceptCloudSend(2);
-			await session.text({
-				waitFor: () => readState(statePath).acceptedCloudSends?.length === 2,
-				timeout,
-			});
-			expect(readState(statePath).cloudSends?.[1]).toEqual({
-				sessionId: "synthetic-cloud-session-1",
-				modelId: "synthetic-cloud-model",
-				prompt: `${queuedPrompt} [Image 1]`,
-				delivery: "queue",
-				images: [queuedImage.dataUrl],
-			});
 		} else {
-			acceptCloudSend(1);
-			await session.text({
-				waitFor: () => readState(statePath).acceptedCloudSends?.length === 1,
+			await session.type("/clear");
+			await session.waitForText("Start a new session", { timeout });
+			await session.press("tab");
+			await session.waitForText("Wait for cloud to accept your message", {
 				timeout,
 			});
 		}
+		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
+		expect(readState(statePath).resumeCalls).toBeUndefined();
+		expect(readState(statePath).attachedSessions).toEqual([
+			"synthetic-cloud-session-1",
+		]);
+		expect(await session.text()).toContain(
+			"Synthetic attached cloud transcript",
+		);
+
+		acceptCloudSend(1);
+		await session.text({
+			waitFor: () => readState(statePath).cloudSends?.length === 2,
+			timeout,
+		});
+		acceptCloudSend(2);
+		await session.text({
+			waitFor: () => readState(statePath).acceptedCloudSends?.length === 2,
+			timeout,
+		});
+		expect(readState(statePath).cloudSends?.[1]).toEqual({
+			sessionId: "synthetic-cloud-session-1",
+			modelId: "synthetic-cloud-model",
+			prompt: `${queuedPrompt} [Image 1]`,
+			delivery: "queue",
+			images: [queuedImage.dataUrl],
+		});
 
 		const resumedSessionId =
 			transition === "history" ? "synthetic-session-a" : "synthetic-session-b";
@@ -765,16 +781,12 @@ describe("cloud handoff TUI", () => {
 
 		emitLateCloudSnapshot();
 		await session.text({
-			waitFor: () =>
-				readState(statePath).lateSnapshotsEmitted ===
-				(transition === "history" ? 2 : 1),
+			waitFor: () => readState(statePath).lateSnapshotsEmitted === 2,
 			timeout,
 		});
 		release();
 		await session.text({
-			waitFor: () =>
-				readState(statePath).settledCloudSends?.length ===
-				(transition === "history" ? 2 : 1),
+			waitFor: () => readState(statePath).settledCloudSends?.length === 2,
 			timeout,
 		});
 		const localScreen = await session.text();

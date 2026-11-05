@@ -37,6 +37,8 @@ mock.module("../../utils/open", () => ({
 }));
 
 const scenario = process.env.CLOUD_HANDOFF_FIXTURE_SCENARIO ?? "success";
+const failAccountChange =
+	process.env.CLOUD_HANDOFF_FIXTURE_FAIL_ACCOUNT_CHANGE === "true";
 const holdsLocalCompletion =
 	scenario === "held-local-completion" ||
 	scenario === "held-local-attach-failure" ||
@@ -234,6 +236,7 @@ const props = {
 	onAccountChange: async () => {
 		if (scenario === "account-change" || scenario === "paired-account-change")
 			record("accountChanges", (state.accountChanges ?? 0) + 1);
+		if (failAccountChange) throw new Error("Synthetic account change failure");
 	},
 	onResumeSession: async (sessionId: string) => {
 		record("resumeCalls", [...(state.resumeCalls ?? []), sessionId]);

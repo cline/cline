@@ -400,9 +400,12 @@ function App(props: TuiProps) {
 			session.setIsRunning(false);
 			session.setIsStreaming(false);
 		}
-		await props.onAccountChange();
-		if (localView && props.activeSession?.getId() === localView.sourceId)
-			restoreLocalHandoffView(localView);
+		try {
+			await props.onAccountChange();
+		} finally {
+			if (localView && props.activeSession?.getId() === localView.sourceId)
+				restoreLocalHandoffView(localView);
+		}
 	}
 	const {
 		reset: resetCloudSession,
@@ -438,6 +441,12 @@ function App(props: TuiProps) {
 	);
 
 	const clearConversation = useCallback(async () => {
+		if (hasUnacceptedPrompts()) {
+			showToast(
+				"Wait for cloud to accept your message before clearing the conversation.",
+			);
+			return;
+		}
 		invalidatePendingSubmissionsRef.current();
 		localHandoffViewRef.current = undefined;
 		const shouldRestartSession = session.hasSubmitted;
@@ -466,7 +475,14 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [cloudActive, props, resetCloudSession, session]);
+	}, [
+		cloudActive,
+		hasUnacceptedPrompts,
+		props,
+		resetCloudSession,
+		session,
+		showToast,
+	]);
 
 	const openCheckpointRestore = useCallback(async () => {
 		if (cloudActive) {
