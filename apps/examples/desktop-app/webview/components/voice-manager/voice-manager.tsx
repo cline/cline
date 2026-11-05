@@ -616,7 +616,7 @@ export function VoiceManager({
 			<button
 				aria-label={active ? "Stop talking to Cline" : "Talk to Cline"}
 				className={cn(
-					"pointer-events-auto relative size-[72px] rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+					"pointer-events-auto relative size-[72px] rounded-full text-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 				)}
 				onClick={() => {
 					if (active) realtime.disconnect();
@@ -625,7 +625,7 @@ export function VoiceManager({
 				title={active ? "Stop talking to Cline" : "Talk to Cline"}
 				type="button"
 			>
-				<ClineBot className="size-full drop-shadow-sm" state={botState} />
+				<ClineBot className="size-full" state={botState} />
 				{!active && queuedUpdates.length > 0 ? (
 					<span className="absolute right-1 top-0 grid size-4 place-items-center rounded-full bg-destructive text-[0.625rem] font-semibold text-white">
 						{queuedUpdates.length}
