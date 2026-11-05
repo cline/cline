@@ -195,28 +195,23 @@ export function projectSideReferenceBlocks(
 		((block.type === "tool_use" && nativeCalls.has(block.id)) ||
 			(block.type === "tool_result" && nativeResults.has(block.tool_use_id)));
 	const referenceMessages = entries.map((entry) => {
-		if (mode === "history") return entry.message;
-		return {
-			...entry.message,
-			content:
-				typeof entry.message.content === "string"
-					? sanitizeReferenceText(entry.message.content)
-					: entry.message.content
-							.filter((block) => !isDuplicateObservation(entry, block))
-							.map((block): ContentBlock => {
-								try {
-									return prepareSnapshotBlock(block, omitted, results);
-								} catch (error) {
-									if (
-										!(error instanceof RangeError) ||
-										block.type !== "tool_result"
-									)
-										throw error;
-									incompleteSources.add(entry.sourceIndex);
-									return { type: "text", text: omittedToolResult(block) };
-								}
-							}),
-		};
+		const { message } = entry;
+		if (mode === "history") return message;
+		if (typeof message.content === "string")
+			return { ...message, content: sanitizeReferenceText(message.content) };
+		const content: ContentBlock[] = [];
+		for (const block of message.content) {
+			if (isDuplicateObservation(entry, block)) continue;
+			try {
+				content.push(prepareSnapshotBlock(block, omitted, results));
+			} catch (error) {
+				if (!(error instanceof RangeError) || block.type !== "tool_result")
+					throw error;
+				incompleteSources.add(entry.sourceIndex);
+				content.push({ type: "text", text: omittedToolResult(block) });
+			}
+		}
+		return { ...message, content };
 	});
 	const prepared =
 		mode === "snapshot"

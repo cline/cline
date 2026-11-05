@@ -35,30 +35,24 @@ function fixture(messages: MessageWithMetadata[]) {
 	};
 }
 
-describe("side parent history tool", () => {
-	it.each([
-		'"literal quotes"',
-		'{"type":"image","data":"literal text"}',
-	])("decodes a JSON string result only once: %s", (value) => {
-		const capture = captureSideReference({
-			messages: [
-				{
-					role: "user",
-					content: [
-						{
-							type: "tool_result",
-							name: "report",
-							tool_use_id: "report",
-							content: toPersistedToolResultContent(JSON.stringify(value)),
-						},
-					],
-				},
-			],
-			activeParentTurn: false,
-		});
-		expect(capture.content).toContain(value);
-	});
+function toolResultMessage(
+	output: unknown,
+	{ name = "read_files", id = "call" } = {},
+): MessageWithMetadata {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "tool_result",
+				name,
+				tool_use_id: id,
+				content: toPersistedToolResultContent(output),
+			},
+		],
+	};
+}
 
+describe("side parent history tool", () => {
 	it("finds quoted text and Windows paths in structured results with read-consistent offsets", async () => {
 		const producer = createTool({
 			name: "report",
@@ -74,19 +68,10 @@ describe("side parent history tool", () => {
 			}),
 		});
 		const { tool } = fixture([
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						name: "report",
-						tool_use_id: "report",
-						content: toPersistedToolResultContent(
-							await producer.execute({}, context),
-						),
-					},
-				],
-			},
+			toolResultMessage(await producer.execute({}, context), {
+				name: "report",
+				id: "report",
+			}),
 		]);
 		for (const [query, expected] of [
 			['"recovery code"', '\\"recovery code\\"'],
@@ -129,17 +114,7 @@ describe("side parent history tool", () => {
 			"cline://cache/parent/result":"Key fact"
 		}`;
 		const messages: MessageWithMetadata[] = [
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						name: "custom_report",
-						tool_use_id: "report",
-						content: toPersistedToolResultContent(raw),
-					},
-				],
-			},
+			toolResultMessage(raw, { name: "custom_report", id: "report" }),
 		];
 		const original = structuredClone(messages);
 		const capture = captureSideReference({ messages, activeParentTurn: false });
@@ -352,19 +327,7 @@ describe("side parent history tool", () => {
 		"İ",
 	])("finds an omitted middle detail after %s and reads exact bounded chunks", async (prefix) => {
 		const payload = `${prefix.repeat(2200)}the recovery code [42].* is ultramarine${" end".repeat(2200)}`;
-		const { tool } = fixture([
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						name: "read_files",
-						tool_use_id: "call",
-						content: payload,
-					},
-				],
-			},
-		]);
+		const { tool } = fixture([toolResultMessage(payload)]);
 		const search = await tool.execute(
 			{ operation: "search", query: "RECOVERY CODE [42].*" },
 			context,
@@ -476,17 +439,10 @@ describe("side parent history tool", () => {
 					{ type: "tool_use", id: "duplicate", name: "lookup", input: {} },
 				],
 			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "duplicate",
-						name: "lookup",
-						content: "duplicate output",
-					},
-				],
-			},
+			toolResultMessage("duplicate output", {
+				name: "lookup",
+				id: "duplicate",
+			}),
 		]);
 		const recent = await tool.execute({ operation: "recent" }, context);
 		if (!recent.ok || recent.result.operation === "read")
@@ -565,17 +521,7 @@ describe("side parent history tool", () => {
 			{ operation: "read", reference },
 			context,
 		);
-		messages.push({
-			role: "user",
-			content: [
-				{
-					type: "tool_result",
-					tool_use_id: "call",
-					name: "read_files",
-					content: "Saved result",
-				},
-			],
-		});
+		messages.push(toolResultMessage("Saved result"));
 		const after = await tool.execute({ operation: "read", reference }, context);
 		expect(after).toEqual(before);
 		expect(after.ok).toBe(true);

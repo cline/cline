@@ -27,7 +27,40 @@ const visibleContext = (excerpts: SideVisibleContext["excerpts"]) =>
 		excerpts,
 	});
 
+function toolResultMessage(
+	output: unknown,
+	{ name = "read_files", id = "call" } = {},
+): MessageWithMetadata {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "tool_result",
+				name,
+				tool_use_id: id,
+				content: toPersistedToolResultContent(output),
+			},
+		],
+	};
+}
+
 describe("side reference capture", () => {
+	it.each([
+		'"literal quotes"',
+		'{"type":"image","data":"literal text"}',
+	])("decodes a JSON string result only once: %s", (value) => {
+		const capture = captureSideReference({
+			messages: [
+				toolResultMessage(JSON.stringify(value), {
+					name: "report",
+					id: "report",
+				}),
+			],
+			activeParentTurn: false,
+		});
+		expect(capture.content).toContain(value);
+	});
+
 	it.each([
 		"text",
 		"json",
@@ -69,19 +102,10 @@ describe("side reference capture", () => {
 					{ type: "tool_use", name: "large_report", id: "large", input: {} },
 				],
 			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						name: "large_report",
-						tool_use_id: "large",
-						content: toPersistedToolResultContent(
-							await producer.execute({}, { agentId: "parent", iteration: 0 }),
-						),
-					},
-				],
-			},
+			toolResultMessage(
+				await producer.execute({}, { agentId: "parent", iteration: 0 }),
+				{ name: "large_report", id: "large" },
+			),
 			{ role: "assistant", content: "Report inspected" },
 		];
 		const original = structuredClone(messages);
@@ -230,60 +254,46 @@ describe("side reference capture", () => {
 					},
 				],
 			},
-			{
-				role: "user",
-				content: [
+			toolResultMessage(
+				[
 					{
-						type: "tool_result",
-						tool_use_id: "a",
-						name: "read_files",
-						content: [
-							{
-								type: "text",
-								text: "preview cline://cache/parent/b.result.txt\nCache fact survives",
+						type: "text",
+						text: "preview cline://cache/parent/b.result.txt\nCache fact survives",
+					},
+					{ type: "image", data: "TOOL_IMAGE", mediaType: "image/png" },
+				],
+				{ id: "a" },
+			),
+			toolResultMessage(
+				JSON.stringify({
+					content: [
+						{
+							type: "audio",
+							data: "AUDIO_SECRET".repeat(3000),
+							mimeType: "audio/wav",
+						},
+						{
+							type: "resource",
+							resource: {
+								uri: "fixture:image",
+								mimeType: "image/png",
+								blob: "BLOB_SECRET",
 							},
-							{ type: "image", data: "TOOL_IMAGE", mediaType: "image/png" },
-						],
-					},
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "mcp",
-						name: "mcp_media",
-						content: JSON.stringify({
-							content: [
-								{
-									type: "audio",
-									data: "AUDIO_SECRET".repeat(3000),
-									mimeType: "audio/wav",
-								},
-								{
-									type: "resource",
-									resource: {
-										uri: "fixture:image",
-										mimeType: "image/png",
-										blob: "BLOB_SECRET",
-									},
-								},
-								{
-									type: "resource",
-									resource: {
-										uri: "fixture:text",
-										mimeType: "text/plain",
-										text: "Resource evidence data:image/png;base64,QUJD\nMedia fact survives",
-									},
-								},
-							],
-							"cline://cache/parent/key": "Cache-key evidence",
-							"data:image/png;base64,QUJD": "Media-key evidence",
-						}),
-					},
-				],
-			},
+						},
+						{
+							type: "resource",
+							resource: {
+								uri: "fixture:text",
+								mimeType: "text/plain",
+								text: "Resource evidence data:image/png;base64,QUJD\nMedia fact survives",
+							},
+						},
+					],
+					"cline://cache/parent/key": "Cache-key evidence",
+					"data:image/png;base64,QUJD": "Media-key evidence",
+				}),
+				{ name: "mcp_media", id: "mcp" },
+			),
 			{ role: "assistant", content: "described" },
 			{ role: "user", content: "incomplete question" },
 			{
