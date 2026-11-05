@@ -222,11 +222,16 @@ describe("originating-account cloud cleanup", () => {
 		"resume",
 		"connect",
 		"history-view",
+		"retired-connect",
 	] as const)("keeps History %s requests in the originating account", async (point) => {
-		const f = fixture(point)
+		const f = fixture(point === "retired-connect" ? "connect" : point)
 		f.record.status = "suspended"
 		const opening = f.coordinator.openCloudTask(f.record.id)
 		await f.entered.promise
+		if (point === "retired-connect") {
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+			await f.coordinator.listHistoryRecords()
+		}
 		const admittedWhileOpening = f.coordinator.canPrepareFollowup(f.record.id)
 		const notice = f.options.getTask()?.messageStateHandler.getClineMessages().at(-1)
 		const projectedStatus = f.coordinator.getCurrentTaskInfo()?.status
@@ -239,7 +244,7 @@ describe("originating-account cloud cleanup", () => {
 
 		expect(admittedWhileOpening).toBe(false)
 		expect(notice?.say).toBe("cloud_provisioning")
-		expect(projectedStatus).toBe(point === "connect" ? "unknown" : "provisioning")
+		expect(projectedStatus).toBe(point === "retired-connect" ? "idle" : point === "connect" ? "unknown" : "provisioning")
 		expect(f.requests.slice(requestsBeforeReset).filter((request) => request.url.endsWith(`/${f.record.id}/status`))).toEqual(
 			[],
 		)

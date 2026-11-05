@@ -71,6 +71,20 @@ export class SdkFollowupCoordinator {
 	}
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
+	private async waitForCloudPreparation<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T> {
+		signal.throwIfAborted()
+		let cancel = () => {}
+		const cancelled = new Promise<never>((_resolve, reject) => {
+			cancel = () => reject(new Error("Cloud follow-up was cancelled."))
+			signal.addEventListener("abort", cancel, { once: true })
+		})
+		try {
+			return await Promise.race([operation(), cancelled])
+		} finally {
+			signal.removeEventListener("abort", cancel)
+		}
+	}
+
 	async askResponse(
 		prompt?: string,
 		images?: string[],
@@ -113,7 +127,7 @@ export class SdkFollowupCoordinator {
 				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
 				return
 			}
-			if (prepareCloud && task) {
+			if (prepareCloud && task && signal) {
 				// Preparation and its failure settle before the next submission owns the phase.
 				this.preparingCloudTask = task
 				try {
@@ -121,9 +135,12 @@ export class SdkFollowupCoordinator {
 					if (askResponse === "messageResponse") {
 						this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)
 					}
-					const resolved = await this.options.resolveContextMentions(prompt?.trim() || TASK_RESUMPTION_PROMPT)
-					const prepared = await prepareCloud()
-					signal?.throwIfAborted()
+					const { resolved, prepared } = await this.waitForCloudPreparation(signal, async () => {
+						const resolved = await this.options.resolveContextMentions(prompt?.trim() || TASK_RESUMPTION_PROMPT)
+						signal.throwIfAborted()
+						return { resolved, prepared: await prepareCloud() }
+					})
+					signal.throwIfAborted()
 					if (this.options.getTask() !== task || this.options.sessions.getActiveSession() !== prepared) {
 						throw new Error("Cloud session connection was superseded")
 					}
@@ -138,9 +155,10 @@ export class SdkFollowupCoordinator {
 						)
 						return
 					}
+					this.options.onFollowUpStarted()
 					await this.continueIdleSession(prepared, prompt, images, files, resolved)
 				} catch (error) {
-					if (!signal?.aborted && this.options.getTask() === task) {
+					if (!signal.aborted && this.options.getTask() === task) {
 						this.options.messages.appendAndEmit(
 							[
 								{

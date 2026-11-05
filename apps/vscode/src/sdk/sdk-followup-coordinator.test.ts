@@ -17,6 +17,65 @@ describe("SdkFollowupCoordinator", () => {
 		vi.clearAllMocks()
 	})
 
+	it.each(["mentions", "connection"])("releases navigation when cloud preparation is cancelled during %s", async (stage) => {
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+		const held = Promise.withResolvers<void>()
+		const entered = Promise.withResolvers<void>()
+		const abort = new AbortController()
+		const task = makeTask("ses-cloud")
+		const { coordinator, options } = makeCoordinator({ task, runExclusive: (operation) => scheduler.runExclusive(operation) })
+		options.getCloudFollowupSignal.mockReturnValue(abort.signal)
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			if (stage === "connection") {
+				entered.resolve()
+				await held.promise
+			}
+			return makeActiveSession()
+		})
+		options.resolveContextMentions.mockImplementationOnce(async () => {
+			if (stage === "mentions") {
+				entered.resolve()
+				await held.promise
+			}
+			return "resolved"
+		})
+		const sending = coordinator.askResponse("@https://example.test")
+		const rejected = sending.catch(() => undefined)
+		await entered.promise
+		let navigated = false
+		const navigation = scheduler.runExclusive(async () => {
+			navigated = true
+		})
+		abort.abort()
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		const releasedBeforePreparation = navigated
+		held.resolve()
+		await Promise.all([rejected, navigation])
+		expect(releasedBeforePreparation).toBe(true)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("restores streaming if the previous cloud turn completes during preparation", async () => {
+		const task = makeTask("ses-cloud")
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ task, activeSession })
+		let phase = "idle"
+		options.onFollowUpStarted.mockImplementation(() => {
+			phase = "streaming"
+		})
+		options.resolveContextMentions.mockImplementation(async () => {
+			phase = "completed"
+			return "resolved"
+		})
+		options.beginCloudFollowup.mockReturnValue(async () => activeSession)
+		let phaseAtSend = ""
+		options.sessions.fireAndForgetSend.mockImplementation(() => {
+			phaseAtSend = phase
+		})
+		await coordinator.askResponse("next")
+		expect(phaseAtSend).toBe("streaming")
+	})
+
 	it.each([
 		{ wasRunning: false, bare: false },
 		{ wasRunning: true, bare: false },

@@ -1696,9 +1696,14 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		{ status: "expired", error: "has expired" },
 		{ status: "ready", cancel: true, error: "cancelled" },
 		{ status: "ready", replaceTask: true, error: "task changed" },
+		{ status: "ready", replaceBeforeSubmit: true, error: "task changed" },
 	] as const)("prepares from live sandbox status: $status (cancel: $cancel)", async (scenario) => {
 		const host = () =>
-			({ status: "idle", readMessages: async () => [], dispose: vi.fn(async () => {}) }) as unknown as CloudSessionHost
+			({
+				status: "idle",
+				readMessages: async () => [{ role: "user", content: "prior context" }],
+				dispose: vi.fn(async () => {}),
+			}) as unknown as CloudSessionHost
 		const before = host()
 		const after = host()
 		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before)
@@ -1739,16 +1744,25 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			}
 			return { status: scenario.status }
 		})
+		if ("replaceBeforeSubmit" in scenario) {
+			const displayed = options.getTask()
+			cloudSessions.listSessions.mockResolvedValue([
+				{ ...record, metadata: { ...record.metadata, taskId: "tsk-replacement" } },
+			])
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+			await coordinator.listHistoryRecords()
+			expect(options.getTask()).toBe(displayed)
+			expect(JSON.stringify(displayed?.messageStateHandler.getClineMessages())).toContain("prior context")
+		}
 		const preparing = coordinator.beginFollowup(options.getTask()!)()
 		if ("cancelDuringConnect" in scenario) {
 			const cancelled = expect(preparing).rejects.toThrow("cancelled")
 			await connecting.promise
 			coordinator.cancelPendingFollowup()
-			await cancelled
 			options.getPreparingFollowupTask = () => undefined
 			const admittedBeforeConnectSettles = coordinator.canPrepareFollowup(record.id)
 			connected.resolve()
-			await new Promise<void>((resolve) => setImmediate(resolve))
+			await cancelled
 			expect(admittedBeforeConnectSettles).toBe(true)
 			expect(sessions.attachExistingSession).toHaveBeenCalledOnce()
 		} else if ("error" in scenario) {
@@ -1770,7 +1784,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 					expect.objectContaining({ outerSessionId: record.id, taskId: record.metadata.taskId }),
 				)
 		}
-		expect(cloudSessions.getStatus).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+		if ("replaceBeforeSubmit" in scenario) expect(cloudSessions.getStatus).not.toHaveBeenCalled()
+		else expect(cloudSessions.getStatus).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
 		expect(options.setTurnPhase).not.toHaveBeenCalled()
 		await coordinator.dispose()
 	})

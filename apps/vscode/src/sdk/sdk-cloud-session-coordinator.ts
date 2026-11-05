@@ -238,6 +238,7 @@ export class SdkCloudSessionCoordinator {
 	private disposed = false
 	private scopeGeneration = 0
 	private scopeAbort = new AbortController()
+	private readonly taskCanonicalIds = new WeakMap<TaskProxy, string | undefined>()
 	private startGeneration = 0
 	private pendingFollowup = new AbortController()
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
@@ -783,10 +784,12 @@ export class SdkCloudSessionCoordinator {
 
 	private retireTransport(entry: CloudSessionEntry): void {
 		const host = entry.host
-		if (!host && !entry.connection) return
+		const connection = entry.connection
+		if (!host && !connection) return
 		entry.host = undefined
 		entry.connection = undefined
 		entry.transportGeneration++
+		if (connection) void this.trackScopeOperation(() => connection).catch(() => undefined)
 		if (host) {
 			const active = this.options.sessions.getActiveSession()
 			const task = this.options.getTask()
@@ -798,8 +801,11 @@ export class SdkCloudSessionCoordinator {
 				["streaming", "awaiting_approval", "awaiting_followup"].includes(this.options.getTurnPhase())
 			if (settlesDisplayedTurn) this.options.setTurnPhase("idle")
 			// Both owners are cleared synchronously; captured callers see a closed wrapper.
-			void this.options.sessions.endActiveSessionIfHost(host, "sandboxUnavailable").catch(() => undefined)
-			void host.dispose("sandboxUnavailable").catch(() => undefined)
+			const retirement = Promise.allSettled([
+				this.options.sessions.endActiveSessionIfHost(host, "sandboxUnavailable"),
+				host.dispose("sandboxUnavailable"),
+			])
+			void this.trackScopeOperation(() => retirement)
 			if (settlesDisplayedTurn) void this.options.postStateToWebview().catch(() => undefined)
 		}
 	}
@@ -1272,6 +1278,7 @@ export class SdkCloudSessionCoordinator {
 			this.options.invalidateHistoryCache()
 			// The task id becomes the outer session id once provisioning succeeds.
 			task.taskId = record.id
+			this.taskCanonicalIds.set(task, record.metadata.taskId?.trim())
 			await this.options.cloudSessions.renameSession(record.id, title).catch(() => undefined)
 			if (isStale()) return sessionId
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
@@ -1388,21 +1395,6 @@ export class SdkCloudSessionCoordinator {
 		this.pendingFollowup = new AbortController()
 	}
 
-	private async waitForFollowup(signal: AbortSignal, operation: () => Promise<ActiveSession>): Promise<ActiveSession> {
-		let cancel = () => {}
-		const cancelled = new Promise<never>((_resolve, reject) => {
-			cancel = () => reject(new Error("Cloud follow-up was cancelled."))
-			signal.addEventListener("abort", cancel, { once: true })
-			if (signal.aborted) cancel()
-		})
-		try {
-			// Release navigation's lock immediately; underlying work stays tracked until it settles.
-			return await Promise.race([this.trackScopeOperation(operation), cancelled])
-		} finally {
-			signal.removeEventListener("abort", cancel)
-		}
-	}
-
 	getFollowupSignal(): AbortSignal {
 		return this.pendingFollowup.signal
 	}
@@ -1411,7 +1403,7 @@ export class SdkCloudSessionCoordinator {
 		const generation = this.scopeGeneration
 		const signal = this.pendingFollowup.signal
 		const entry = this.entries.get(task.taskId)
-		const canonicalTaskId = entry?.record.metadata.taskId?.trim()
+		const canonicalTaskId = this.taskCanonicalIds.get(task)
 		const isCurrent = () =>
 			!this.disposed &&
 			!this.scopeTransition &&
@@ -1424,7 +1416,7 @@ export class SdkCloudSessionCoordinator {
 			if (!isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
 		}
 		return () =>
-			this.waitForFollowup(signal, async () => {
+			this.trackScopeOperation(async () => {
 				assertCurrent()
 				if (!entry) throw new Error("This cloud session is no longer available.")
 				this.assertSandboxNotTerminated(entry)
@@ -1816,6 +1808,7 @@ export class SdkCloudSessionCoordinator {
 			(text, images, files) => this.options.onAskResponse(text, images, files),
 			() => this.options.onCancelTask(),
 		)
+		this.taskCanonicalIds.set(task, this.entries.get(taskId)?.record.metadata.taskId?.trim())
 		this.options.setTask(task)
 		return task
 	}
