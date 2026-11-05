@@ -9,9 +9,8 @@ import {
 	CarouselPrevious,
 } from "@cline/ui";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { useArtifactResource } from "@/hooks/use-artifact-resource";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import { ArtifactDownload } from "./artifact-download";
 import { ArtifactImage } from "./artifact-image";
 import type { PublishedFile } from "./tool-summaries";
 
@@ -35,7 +34,7 @@ export function PublishedArtifacts({
 				{file.error ? (
 					<span className="text-destructive">{file.error.message}</span>
 				) : (
-					<DownloadArtifact
+					<ArtifactDownload
 						sessionId={sessionId}
 						artifactId={file.artifactId}
 					/>
@@ -88,38 +87,5 @@ export function PublishedArtifacts({
 			)}
 			{otherFiles.length > 0 && <ul className="space-y-2">{otherFiles}</ul>}
 		</div>
-	);
-}
-
-function DownloadArtifact({
-	sessionId,
-	artifactId,
-}: {
-	sessionId: string;
-	artifactId: string;
-}) {
-	const { accountReady, state, open } = useArtifactResource({
-		sessionId,
-		reference: { type: "artifact", artifactId },
-	});
-	const busy = state.status === "loading";
-	const failed = state.status === "error";
-	return (
-		<>
-			<Button
-				type="button"
-				size="sm"
-				variant="outline"
-				disabled={!accountReady || busy}
-				onClick={() => void open()}
-			>
-				{busy ? "Preparing…" : failed ? "Retry download" : "Download"}
-			</Button>
-			{failed && (
-				<output className="text-destructive">
-					Could not download this file.
-				</output>
-			)}
-		</>
 	);
 }

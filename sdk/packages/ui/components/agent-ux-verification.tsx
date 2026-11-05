@@ -82,6 +82,7 @@ export interface AgentUxVerificationProps {
 	renderScreenshot?: UxScreenshotRenderer;
 	/** The host owns its focus-managed image viewer. */
 	onExpandScreenshot?: (check: UxVerificationCheck) => void;
+	renderScreenshotActions?: (check: UxVerificationCheck) => ReactNode;
 }
 
 function StatusIcon({ status }: { status: UxVerificationCheck["status"] }) {
@@ -101,6 +102,7 @@ export function AgentUxVerification({
 	error,
 	renderScreenshot,
 	onExpandScreenshot,
+	renderScreenshotActions,
 }: AgentUxVerificationProps) {
 	const [api, setApi] = useState<CarouselApi>();
 	const [selected, setSelected] = useState(0);
@@ -198,10 +200,16 @@ export function AgentUxVerification({
 				onPointerDown={() => setPlaying(false)}
 				aria-keyshortcuts="ArrowLeft ArrowRight Space"
 				onKeyDownCapture={(event) => {
-					if (event.altKey || event.ctrlKey || event.metaKey) return;
 					if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
 						setPlaying(false);
+						if (
+							event.target instanceof HTMLElement &&
+							event.target.closest(".cline-ui-ux-evidence-actions > div")
+						) {
+							event.currentTarget.focus();
+						}
 					}
+					if (event.altKey || event.ctrlKey || event.metaKey) return;
 					// Buttons keep their native Space activation; the focused carousel
 					// uses Space to toggle playback without scrolling the page.
 					if (
@@ -244,19 +252,30 @@ export function AgentUxVerification({
 						</CarouselItem>
 					))}
 				</CarouselContent>
-				<button
-					type="button"
-					disabled={!current.screenshot || !onExpandScreenshot}
-					onClick={() => {
-						setPlaying(false);
-						onExpandScreenshot?.(current);
-					}}
-					className="cline-ui-ux-evidence-expand"
-					aria-label="Expand screenshot"
-					title="Expand screenshot"
+				<div
+					className="cline-ui-ux-evidence-actions"
+					onFocusCapture={() => setPlaying(false)}
 				>
-					<Expand className="size-4" />
-				</button>
+					{renderScreenshotActions &&
+						report.checks.map((check) => (
+							<div key={check.id} hidden={check.id !== current.id}>
+								{renderScreenshotActions(check)}
+							</div>
+						))}
+					<button
+						type="button"
+						disabled={!current.screenshot || !onExpandScreenshot}
+						onClick={() => {
+							setPlaying(false);
+							onExpandScreenshot?.(current);
+						}}
+						className="cline-ui-ux-evidence-expand"
+						aria-label="Expand screenshot"
+						title="Expand screenshot"
+					>
+						<Expand className="size-4" />
+					</button>
+				</div>
 				{report.checks.length > 1 && (
 					<>
 						<CarouselPrevious
