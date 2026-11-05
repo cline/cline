@@ -1033,20 +1033,52 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
-	it("keeps the displayed task's host when its record leaves the list, so opening it can explain why", async () => {
+	it.each(["ready", "unavailable", "deleted"])("checks a displayed session missing from the list: %s", async (status) => {
 		const dispose = vi.fn(async () => undefined)
-		const { coordinator, cloudSessions, options } = makeCoordinator()
+		const host = {
+			status: "completed",
+			readMessages: async () => [{ role: "user", content: "prior context" }],
+			getAccumulatedUsage: vi.fn(async () => undefined),
+			dispose,
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const endActiveSessionIfHost = vi.fn(async () => undefined)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				attachExistingSession: vi.fn(async () => undefined),
+				getActiveSession: () => undefined,
+				endActiveSessionIfHost,
+			} as never,
+		})
 		cloudSessions.listSessions.mockResolvedValue([record])
-		await coordinator.listHistoryRecords()
-		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
-		entries.get(record.id)!.host = { status: "running", dispose }
-		options.setTask(createTaskProxy(record.id, vi.fn(), vi.fn()))
+		await coordinator.openCloudTask(record.id)
+		const displayed = options.getTask()!
+		const messages = structuredClone(displayed.messageStateHandler.getClineMessages())
 		cloudSessions.listSessions.mockResolvedValue([])
+		if (status !== "ready") {
+			cloudSessions.getStatus.mockRejectedValue(
+				new CloudSessionError(status === "deleted" ? "session_not_found" : "request_failed", "synthetic failure"),
+			)
+		}
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
 
-		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		const rows = await coordinator.listHistoryRecords()
 
-		expect(entries.has(record.id)).toBe(true)
-		expect(dispose).not.toHaveBeenCalled()
+		expect(cloudSessions.getStatus).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+		expect(options.getTask()).toBe(displayed)
+		expect(displayed.messageStateHandler.getClineMessages()).toEqual(messages)
+		if (status === "deleted") {
+			expect(rows).toEqual([])
+			expect(dispose).toHaveBeenCalledOnce()
+			expect(endActiveSessionIfHost).toHaveBeenCalledWith(host, "sandboxUnavailable")
+			expect(coordinator.canPrepareFollowup(record.id)).toBe(false)
+			await coordinator.listHistoryRecords()
+			expect(host.getAccumulatedUsage).not.toHaveBeenCalled()
+			expect(cloudSessions.getStatus).toHaveBeenCalledOnce()
+		} else {
+			expect(rows).toHaveLength(1)
+			expect(dispose).not.toHaveBeenCalled()
+		}
 		await coordinator.dispose()
 	})
 

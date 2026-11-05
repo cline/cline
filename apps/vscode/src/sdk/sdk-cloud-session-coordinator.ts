@@ -615,6 +615,7 @@ export class SdkCloudSessionCoordinator {
 			return this.listPromise
 		}
 		const generation = this.scopeGeneration
+		const signal = this.scopeAbort.signal
 		const listedRecords = new Map([...this.entries].map(([id, entry]) => [id, entry.record]))
 		let listPromise!: Promise<void>
 		listPromise = (async () => {
@@ -632,17 +633,36 @@ export class SdkCloudSessionCoordinator {
 					if (current && current.record !== listedRecords.get(record.id)) continue
 					this.upsertRecord(record)
 				}
-				// A record that left the account's list was deleted elsewhere (for
-				// example from the dashboard). Close its connection rather than keep
-				// it in History; the task on screen keeps its host so that opening it
-				// can explain the deletion (see explainConnectFailure).
-				for (const [id, entry] of this.entries) {
-					if (seen.has(id) || this.isHostInUse(entry)) continue
-					this.entries.delete(id)
-					this.statusResolutionAttempts.delete(id)
-					void entry.host?.dispose("deleted").catch(() => undefined)
-				}
 				this.pruneRememberedStatuses(seen)
+				// Keep the displayed conversation, but confirm deletion before retiring its transport.
+				const missing = [...this.entries].filter(([id]) => !seen.has(id))
+				await Promise.all(
+					missing.map(async ([id, entry]) => {
+						if (this.isHostInUse(entry)) {
+							const record = entry.record
+							if (record !== listedRecords.get(id)) return
+							try {
+								await this.trackScopeOperation(() => this.options.cloudSessions.getStatus(id, signal))
+								return
+							} catch (error) {
+								if (!(error instanceof CloudSessionError) || error.code !== "session_not_found") return
+							}
+							if (
+								this.disposed ||
+								generation !== this.scopeGeneration ||
+								this.entries.get(id) !== entry ||
+								entry.record !== record
+							)
+								return
+							this.retireTransport(entry)
+							this.forgetStatus(id)
+						}
+						this.entries.delete(id)
+						this.statusResolutionAttempts.delete(id)
+						void entry.host?.dispose("deleted").catch(() => undefined)
+					}),
+				)
+				if (generation !== this.scopeGeneration || this.disposed) return
 				this.listFetchedAt = Date.now()
 			} catch (error) {
 				// Reset invalidates both successful responses and failed requests.
