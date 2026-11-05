@@ -176,6 +176,7 @@ export function useComposerSuggestions(
 		show,
 		clear,
 		submitted,
+		handedBack,
 		draftCleared,
 		move,
 		highlight,
@@ -233,6 +234,7 @@ export function useComposerSuggestions(
 			clear,
 			undoSent,
 			submitted,
+			handedBack,
 			draftCleared,
 		}),
 		[
@@ -242,6 +244,7 @@ export function useComposerSuggestions(
 			collapse,
 			draftCleared,
 			enabled,
+			handedBack,
 			hideForChat,
 			highlight,
 			lastSkip,

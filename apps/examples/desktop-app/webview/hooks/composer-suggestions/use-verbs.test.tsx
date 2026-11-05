@@ -478,6 +478,29 @@ describe("useComposerSuggestions", () => {
 		expect(invokedActions("clear")).toEqual([]);
 	});
 
+	it("puts a sent suggestion back in use when a refused send hands its prompt back to the box", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray();
+		await settle(400);
+		await press(tray.composer(), SEND_KEYS);
+		await tray.update({ status: "running" });
+		const sentLine = () =>
+			tray.container.querySelector('[data-testid="suggestion-sent"]');
+		expect(sentLine()).not.toBeNull();
+
+		await act(async () => tray.controller().handedBack("Something else"));
+		expect(sentLine()).not.toBeNull();
+
+		await typeInto(tray.composer(), ITEMS[0]?.prompt ?? "");
+		await act(async () => tray.controller().handedBack(ITEMS[0]?.prompt ?? ""));
+		expect(sentLine()).toBeNull();
+		await tray.update({ status: "idle" });
+		expect(
+			tray.container.querySelector('[data-testid="suggestion-used"]')
+				?.textContent,
+		).toContain("From a suggestion");
+	});
+
 	it("offers Undo skip for a last row whose Skip asked for more and that the plugin dropped", async () => {
 		scriptHub({
 			states: READY_R1,

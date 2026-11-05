@@ -313,6 +313,16 @@ export function useSuggestionVerbs({
 		[dispatch, invoke, latest, localRef, sendSnapshotRef],
 	);
 
+	const handedBack = useCallback(
+		(prompt: string) => {
+			const sent = localRef.current.sent;
+			if (sent && prompt.trim() === sent.prompt.trim()) {
+				dispatch({ type: "unsent" });
+			}
+		},
+		[dispatch, localRef],
+	);
+
 	const move = useCallback(
 		(delta: 1 | -1) => {
 			dispatch({ type: "move", delta });
@@ -338,6 +348,7 @@ export function useSuggestionVerbs({
 		show,
 		clear,
 		submitted,
+		handedBack,
 		draftCleared,
 		move,
 		highlight,

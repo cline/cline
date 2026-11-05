@@ -2627,6 +2627,7 @@ function ChatThreadPane({
 		],
 	);
 
+	const handBackSuggestionRef = useRef<(prompt: string) => void>(() => {});
 	const handleSend = useCallback(
 		async (
 			prompt: string,
@@ -2651,7 +2652,7 @@ function ChatThreadPane({
 			// without retyping, but only into a box this pane still holds unchanged.
 			// Its files go back to the draft either way, even once the pane closed.
 			if (promptTaken) return;
-			restorePrompt(trimmed);
+			if (restorePrompt(trimmed)) handBackSuggestionRef.current(trimmed);
 			handleAttachFiles(toSend);
 		},
 		[
@@ -3141,6 +3142,7 @@ function ChatThreadPane({
 		onRemoveQueuedPrompt: removePromptInQueue,
 		abort,
 	});
+	handBackSuggestionRef.current = composerSuggestions.handedBack;
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||

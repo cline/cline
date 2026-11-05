@@ -111,6 +111,8 @@ export type ComposerSuggestionsController = {
 	undoSent(composer: SuggestionComposer): Promise<void>;
 	/** The composer is submitting `prompt` through its own send path. */
 	submitted(prompt: string): void;
+	/** A refused send put `prompt` back in the box, so its suggestion is in use again rather than sent. */
+	handedBack(prompt: string): void;
 	/** The box emptied while it held a used suggestion; tells the plugin, as Esc's Clear does. */
 	draftCleared(): void;
 };

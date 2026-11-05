@@ -3792,6 +3792,7 @@ describe("ChatInputBar suggestion tray", () => {
 			clear: vi.fn(),
 			undoSent: vi.fn(async () => undefined),
 			submitted: vi.fn<ComposerSuggestionsController["submitted"]>(),
+			handedBack: vi.fn(),
 			draftCleared: vi.fn(),
 		};
 	}
