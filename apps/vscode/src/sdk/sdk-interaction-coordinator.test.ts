@@ -7,10 +7,6 @@ import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
-vi.mock("./webview-grpc-bridge", () => ({
-	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock("@core/storage/disk", () => ({
 	saveClineMessages: vi.fn().mockResolvedValue(undefined),
 }))

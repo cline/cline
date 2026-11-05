@@ -8,20 +8,15 @@
 import type { CoreSessionEvent } from "@cline/core"
 import { sendStateUpdate } from "@core/controller/state/subscribeToState"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
-import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
-import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Logger } from "@shared/services/Logger"
-import type { MessageTranslatorState } from "./message-translator"
 import type { SessionEventListener } from "./sdk-message-coordinator"
 
 /**
  * Manages the bridge between SDK session events and webview gRPC streams.
  *
- * When the SDK emits events, this bridge:
- * 1. Translates them to ClineMessage[] via the message translator
- * 2. Converts each ClineMessage to proto format
- * 3. Pushes state updates through the subscribeToState gRPC stream
- *    on significant events (turn complete, session ended)
+ * When the SDK emits events, this bridge state updates through the
+ * subscribeToState gRPC stream on significant events (turn complete, session
+ * ended.)
  *
  * The bridge needs access to the controller's getStateToPostToWebview()
  * method to push state updates that include the current task's messages
@@ -121,13 +116,4 @@ export class WebviewGrpcBridge {
 			Logger.error("[WebviewGrpcBridge] Failed to push state update from controller:", error)
 		}
 	}
-}
-
-/**
- * Standalone function to push a ClineMessage to the webview.
- * Useful for one-off messages outside the bridge's event loop.
- */
-export async function pushMessageToWebview(message: ClineMessage): Promise<void> {
-	console.warn('DEFUNCT pushMessageToWebview')
-	return Promise.resolve()
 }

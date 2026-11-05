@@ -8,21 +8,6 @@ vi.mock("@core/controller/state/subscribeToState", () => ({
 	sendStateUpdate: vi.fn().mockResolvedValue(undefined),
 }))
 
-// Mock the proto conversion
-vi.mock("@shared/proto-conversions/cline-message", () => ({
-	convertClineMessageToProto: vi.fn((msg: Record<string, unknown>) => ({
-		ts: msg.ts,
-		type: msg.type === "ask" ? 1 : 2,
-		ask: 0,
-		say: 0,
-		text: (msg.text as string) ?? "",
-		reasoning: (msg.reasoning as string) ?? "",
-		images: [],
-		files: [],
-		partial: (msg.partial as boolean) ?? false,
-	})),
-}))
-
 describe("WebviewGrpcBridge", () => {
 	let bridge: WebviewGrpcBridge
 	let translatorState: MessageTranslatorState

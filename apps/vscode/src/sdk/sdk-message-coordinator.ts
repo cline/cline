@@ -3,7 +3,6 @@ import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageIdMinter } from "./message-id-minter"
 import type { TaskProxy } from "./task-proxy"
-import { pushMessageToWebview } from "./webview-grpc-bridge"
 
 export type SessionEventListener = (messages: ClineMessage[], event: CoreSessionEvent) => void
 
@@ -102,7 +101,6 @@ export class SdkMessageCoordinator {
 
 	emitHookMessage(message: ClineMessage): void {
 		this.appendMessages([message])
-		pushMessageToWebview(message).catch(() => {})
 	}
 
 	/**

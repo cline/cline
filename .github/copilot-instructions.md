@@ -37,7 +37,7 @@ For Responses API providers: add to `isNextGenModelProvider()` in `src/utils/mod
 3. Register in `src/core/prompts/system-prompt/tools/init.ts`.
 4. Whitelist in `src/core/prompts/system-prompt/variants/*/config.ts` for each model family.
 5. Handler in `src/core/task/tools/handlers/`, wire in `ToolExecutor.ts`.
-6. If tool has UI: add `ClineSay` enum in proto → `ExtensionMessage.ts` → `cline-message.ts` → `ChatRow.tsx`.
+6. If tool has UI: add `ClineSay` enum in proto → `ExtensionMessage.ts` → `ChatRow.tsx`.
 7. Regenerate snapshots: `UPDATE_SNAPSHOTS=true bun run test:unit`.
 
 ## Modifying System Prompt

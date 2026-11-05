@@ -1,7 +1,4 @@
-// Replaces classic src/core/controller/index.ts (see origin/main)
-//
-// The SDK-backed Controller. It provides the same interface as the classic
-// Controller but delegates session lifecycle (initTask, askResponse,
+// The SDK-backed Controller. It delegates session lifecycle (initTask, askResponse,
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
@@ -203,15 +200,15 @@ interface CloudTarget {
 
 export class Controller {
 	// SDK session state and the coordinators that drive it.
-	private messageTranslatorState: MessageTranslatorState
+	private readonly messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
-	private messages: SdkMessageCoordinator
-	private sessions: SdkSessionLifecycle
-	private sessionRebuilds: SdkSessionRebuildScheduler
-	private interactions: SdkInteractionCoordinator
+	private readonly messages: SdkMessageCoordinator
+	private readonly sessions: SdkSessionLifecycle
+	private readonly sessionRebuilds: SdkSessionRebuildScheduler
+	private readonly interactions: SdkInteractionCoordinator
 	private diffEdits: SdkDiffEditCoordinator
-	private sessionConfigBuilder: SdkSessionConfigBuilder
-	private taskHistory: SdkTaskHistory
+	private readonly sessionConfigBuilder: SdkSessionConfigBuilder
+	private readonly taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
 	private sessionConfigChanges: SdkSessionConfigChangeCoordinator
@@ -295,10 +292,6 @@ export class Controller {
 	// translator (which runs synchronously and relativizes the tool paths shown in
 	// the chat view). Warmed in the constructor and refreshed on every call.
 	private lastKnownWorkspaceRoot?: string
-
-	get remoteConfig(): RemoteConfig | undefined {
-		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
-	}
 
 	get remoteConfigBundle(): RemoteConfigBundle | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle
@@ -2534,13 +2527,6 @@ export class Controller {
 			isFavorited,
 		})
 		await this.postStateToWebview()
-	}
-
-	// ---- Background command state ----
-
-	updateBackgroundCommandState(running: boolean, taskId?: string): void {
-		this.backgroundCommandRunning = running
-		this.backgroundCommandTaskId = taskId
 	}
 
 	// ---- State management ----

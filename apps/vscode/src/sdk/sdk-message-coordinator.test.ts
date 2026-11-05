@@ -4,10 +4,6 @@ import { MessageIdMinter } from "./message-id-minter"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 
-vi.mock("./webview-grpc-bridge", () => ({
-	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
-}))
-
 describe("SdkMessageCoordinator", () => {
 	it("registers and removes session event listeners", () => {
 		const coordinator = new SdkMessageCoordinator({ getTask: () => undefined })
