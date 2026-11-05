@@ -1,4 +1,5 @@
 import type { MessageWithMetadata } from "@cline/llms";
+import { createTool, SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { ClineCore } from "../../ClineCore";
 import { toPersistedToolResultContent } from "../persisted-tool-result-content";
@@ -104,6 +105,98 @@ describe("side parent history tool", () => {
 				/BINARY_SECRET|SOURCE_SECRET|HIDDEN_ARTIFACT|cline:\/\/cache/,
 			);
 		}
+		expect(messages).toEqual(original);
+	});
+
+	it("keeps other parent facts available when a tool result exceeds projection limits", async () => {
+		const raw = `{"id":9007199254740995,"fact":"DEEP_ONLY_FACT","nested":${"[".repeat(20_000)}null${"]".repeat(20_000)},"media":{"type":"image","data":"NESTED_SECRET"}}`;
+		const producer = createTool({
+			name: "deep_report",
+			description: "Synthetic nested result",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => raw,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Parent goal remains" },
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "deep_report",
+						tool_use_id: "deep",
+						content: toPersistedToolResultContent(
+							await producer.execute({}, context),
+						),
+					},
+					{
+						type: "tool_result",
+						name: "healthy_report",
+						tool_use_id: "healthy",
+						content: toPersistedToolResultContent('{"id":9007199254740993}'),
+					},
+				],
+			},
+			{ role: "assistant", content: "Later fact remains" },
+		];
+		const original = structuredClone(messages);
+		const marker = "content omitted: reference projection limit exceeded";
+		const capture = captureSideReference({ messages, activeParentTurn: false });
+		const text = String(capture.content);
+		expect(text).toContain("Parent goal remains");
+		expect(text).toContain("Later fact remains");
+		expect(text).toContain("9007199254740993");
+		expect(text).toContain("1 saved messages partly represented");
+		expect(text).not.toContain("NESTED_SECRET");
+		// Engine depth limits vary; safe projection and explicit omission are valid.
+		expect(text.includes("9007199254740995") || text.includes(marker)).toBe(
+			true,
+		);
+		expect(Buffer.byteLength(text)).toBeLessThanOrEqual(
+			SIDE_REFERENCE_BUDGET_BYTES,
+		);
+
+		const { tool } = fixture(messages);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		if (!recent.ok || recent.result.operation === "read")
+			throw new Error("Expected recent history");
+		const deep = recent.result.matches.find((match) =>
+			match.preview.includes("deep_report"),
+		);
+		expect(deep).toBeDefined();
+		expect(
+			deep?.preview.includes("9007199254740995") ||
+				deep?.preview.includes(marker),
+		).toBe(true);
+		const missing = await tool.execute(
+			{ operation: "search", query: "no such fact" },
+			context,
+		);
+		if (!missing.ok || missing.result.operation === "read")
+			throw new Error("Expected empty search");
+		expect(missing.result.matches).toEqual([]);
+		if (deep?.preview.includes(marker)) {
+			expect(recent.note).toContain("tool-result content");
+			expect(missing.note).toContain("tool-result content");
+		}
+		const search = await tool.execute(
+			{ operation: "search", query: "9007199254740993" },
+			context,
+		);
+		if (!search.ok || search.result.operation === "read")
+			throw new Error("Expected healthy result");
+		expect(search.result.matches).toHaveLength(1);
+		const match = search.result.matches[0];
+		const read = await tool.execute(
+			{ operation: "read", reference: match.reference, offset: match.offset },
+			context,
+		);
+		if (!read.ok || read.result.operation !== "read")
+			throw new Error("Expected healthy text");
+		expect(read.result.text).toContain("9007199254740993");
+		expect(JSON.stringify([recent, missing, search, read])).not.toContain(
+			"NESTED_SECRET",
+		);
 		expect(messages).toEqual(original);
 	});
 

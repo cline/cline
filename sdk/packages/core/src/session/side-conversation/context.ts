@@ -84,6 +84,7 @@ export function projectSideReferenceBlocks(
 	} = {},
 ) {
 	const omitted = { media: 0 };
+	const incompleteSources = new Set<number>();
 	// Native records anywhere in history suppress duplicate provider observations.
 	const nativeCalls = new Set<string>();
 	const nativeResults = new Set<string>();
@@ -128,7 +129,15 @@ export function projectSideReferenceBlocks(
 						nativeResults.has(block.tool_use_id)))
 			)
 				continue;
-			const rawText = renderBlock(block, omitted, results, mode);
+			let rawText: string;
+			try {
+				rawText = renderBlock(block, omitted, results, mode);
+			} catch (error) {
+				if (!(error instanceof RangeError) || block.type !== "tool_result")
+					throw error;
+				incompleteSources.add(entry.sourceIndex);
+				rawText = `Tool result ${block.name} (${block.tool_use_id})${block.is_error ? " [failed]" : ""}: [content omitted: reference projection limit exceeded]`;
+			}
 			if (!rawText.trim()) continue;
 			blocks.push({
 				text: `[${entry.message.role}${entry.origin === "model_tool_activity" ? "; provider tool observation" : ""}]\n${rawText}`,
@@ -138,7 +147,7 @@ export function projectSideReferenceBlocks(
 			});
 		}
 	}
-	return { blocks, omittedMediaCount: omitted.media };
+	return { blocks, omittedMediaCount: omitted.media, incompleteSources };
 }
 
 export function captureSideReference({
@@ -255,7 +264,11 @@ export function captureSideReference({
 	);
 	const partialSources = new Set(
 		[...selected]
-			.filter((index) => blocks[index].omittedBytes > 0)
+			.filter(
+				(index) =>
+					blocks[index].omittedBytes > 0 ||
+					projection.incompleteSources.has(blocks[index].sourceIndex),
+			)
 			.map((index) => blocks[index].sourceIndex),
 	);
 	blocks.forEach((block, index) => {
