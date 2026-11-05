@@ -112,7 +112,8 @@ export abstract class ProtoBusClient {
 					request_id: requestId,
 				},
 			})
-			console.log(`[DEBUG] Sent cancellation for request: ${requestId}`)
+			// Note, providers may be unmounted by <StrictMode> to check for unmount errors. This is expected.
+			console.log(`[DEBUG] Sent cancellation for request: ${requestId} (${methodName})`)
 		}
 	}
 }

@@ -286,9 +286,6 @@ service UiService {
   // Subscribe to worktrees button clicked events
   rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
 
-  // Subscribe to partial message updates (streaming Cline messages as they're built)
-  rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
-
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
 

@@ -616,42 +616,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
-		// Subscribe to partial message events
-		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
-			onResponse: (protoMessage: any) => {
-				try {
-					// Validate critical fields
-					if (!protoMessage.ts || protoMessage.ts <= 0) {
-						console.error("Invalid timestamp in partial message:", protoMessage)
-						return
-					}
-
-					const partialMessage = convertProtoToClineMessage(protoMessage)
-					setState((prevState) => {
-						// Route through the convergent-replica reducer: merge by ts keeping the
-						// higher seq, fence stale epochs, never let an out-of-order or duplicate
-						// delivery corrupt the transcript. Unstamped (classic/legacy) messages
-						// default to epoch 0 and merge by ts as before.
-						const before = replicaRef.current
-						replicaRef.current = reducerApplyMessage(before, partialMessage)
-						if (replicaRef.current === before) {
-							// Stale/ignored — no change.
-							return prevState
-						}
-						return { ...prevState, clineMessages: replicaRef.current.messages }
-					})
-				} catch (error) {
-					console.error("Failed to process partial message:", error, protoMessage)
-				}
-			},
-			onError: (error: any) => {
-				console.error("Error in partialMessage subscription:", error)
-			},
-			onComplete: () => {
-				console.log("[DEBUG] partialMessage subscription completed")
-			},
-		})
-
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
