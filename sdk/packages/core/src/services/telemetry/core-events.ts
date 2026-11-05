@@ -94,6 +94,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AGENT_TEAM_CREATED: "task.agent_team_created",
 		SUBAGENT_STARTED: "task.subagent_started",
 		SUBAGENT_COMPLETED: "task.subagent_completed",
+		COMPACTION_CANCELLED_TOTAL: "cline.compaction.cancelled.total",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
 		COMPACTION_BUDGET_EMERGENCY: "task.compaction_budget_emergency",
@@ -914,6 +915,25 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  *   the request as exceeding the model's context window.
  */
 export type TelemetryCompactionMode = "auto" | "manual" | "overflow_recovery";
+
+export function recordCompactionCancelled(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		mode: TelemetryCompactionMode;
+		strategy: TelemetryCompactionStrategy;
+	},
+): void {
+	try {
+		telemetry?.recordCounter(
+			CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL,
+			1,
+			properties,
+			"Compaction attempts cancelled via their abort signal",
+		);
+	} catch {
+		// Telemetry must not interrupt cancellation.
+	}
+}
 
 export interface CaptureCompactionExecutedProperties {
 	ulid: string;

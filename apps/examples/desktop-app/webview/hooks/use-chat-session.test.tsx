@@ -654,6 +654,140 @@ describe("useChatSession", () => {
 		}
 	});
 
+	it.each([
+		false,
+		true,
+	])("keeps manual compaction stoppable and settles its command reply (cancel=%s)", async (cancel) => {
+		const reply = deferred<{ ok: boolean; commandHandled: boolean }>();
+		const requested = deferred<void>();
+		const normalReply = deferred<{ ok: boolean }>();
+		const normalRequested = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-ui" };
+					if (request.action === "send") {
+						if (
+							(args?.request as { prompt?: string }).prompt ===
+							"normal follow-up"
+						) {
+							normalRequested.resolve();
+							return normalReply.promise;
+						}
+						requested.resolve();
+						return reply.promise;
+					}
+					if (request.action === "abort") return { ok: true };
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const previousStatus = current.status;
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("/compact");
+			await requested.promise;
+		});
+		expect(current.status).toBe("running");
+		expect(current.isCompacting).toBe(true);
+		await act(async () => {
+			expect(await current.sendPrompt("follow-up while compacting")).toBe(
+				false,
+			);
+		});
+		expect(current.status).toBe("running");
+		if (cancel) await act(async () => current.abort());
+		await act(async () => {
+			reply.resolve({ ok: true, commandHandled: true });
+			await pending;
+		});
+		expect(current.status).toBe(cancel ? "cancelled" : previousStatus);
+		expect(
+			current.messages.some((message) => message.content === "/compact"),
+		).toBe(false);
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			pending = current.sendPrompt("normal follow-up");
+			await normalRequested.promise;
+		});
+		expect(current.status).toBe("starting");
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			normalReply.resolve({ ok: true });
+			await pending;
+		});
+		await act(async () => {
+			expect(await current.sendPrompt("/compact")).toBe(true);
+		});
+	});
+
+	it("shows Stop instead of an error when the sidecar reports a compaction in progress", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-lost" };
+					if (request.action === "send")
+						throw new Error(
+							"Compaction is in progress. Stop it before sending another message.",
+						);
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(current.status).toBe("running");
+		expect(current.isCompacting).toBe(true);
+		expect(current.error).toBeNull();
+	});
+
+	it("clears recovered compaction state when switching sessions", async () => {
+		let starts = 0;
+		const normalReply = deferred<{ ok: boolean }>();
+		const requested = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start")
+						return { sessionId: `session-${++starts}` };
+					if (request.action === "send") {
+						if (starts === 1)
+							throw new Error(
+								"Compaction is in progress. Stop it before sending another message.",
+							);
+						requested.resolve();
+						return normalReply.promise;
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(current.isCompacting).toBe(true);
+		await act(async () => current.start(current.config));
+		expect(current.sessionId).toBe("session-2");
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("ordinary work");
+			await requested.promise;
+		});
+		expect(current.status).toBe("starting");
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			normalReply.resolve({ ok: true });
+			await pending;
+		});
+	});
+
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
 		const drafts = new PromptDraftCache();
 		let draft!: ReturnType<typeof usePromptDraft>;

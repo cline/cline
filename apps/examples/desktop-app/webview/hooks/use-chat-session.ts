@@ -701,6 +701,10 @@ export function useChatSession(environmentId: string) {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
+	const manualCompactionSessionIdRef = useRef<string | null>(null);
+	const [compactionSessionId, setCompactionSessionId] = useState<string | null>(
+		null,
+	);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -753,6 +757,11 @@ export function useChatSession(environmentId: string) {
 	useEffect(() => {
 		activeSessionIdRef.current = sessionId;
 	}, [sessionId]);
+	useEffect(() => {
+		setCompactionSessionId((current) =>
+			current === sessionId && BUSY_STATUSES.has(status) ? current : null,
+		);
+	}, [sessionId, status]);
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
@@ -2799,7 +2808,18 @@ export function useChatSession(environmentId: string) {
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
+			const isManualCompaction = /^\/compact(?:\s|$)/i.test(trimmed);
 			if (!trimmed && attachedFiles.length === 0) return true;
+			if (
+				manualCompactionSessionIdRef.current &&
+				manualCompactionSessionIdRef.current === activeSessionIdRef.current
+			) {
+				toast({
+					title:
+						"Compaction is in progress. Stop it before sending another message.",
+				});
+				return false;
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -3121,7 +3141,12 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
-					setStatus("starting");
+					// Manual compaction has no run-start event to enable Stop.
+					if (isManualCompaction) {
+						manualCompactionSessionIdRef.current = activeSessionId;
+						setCompactionSessionId(activeSessionId);
+					}
+					setStatus(isManualCompaction ? "running" : "starting");
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
@@ -3174,7 +3199,11 @@ export function useChatSession(environmentId: string) {
 						);
 					}
 					withdrawPrompt();
-					if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
+					if (
+						!shouldQueue &&
+						!settleAbortedSend() &&
+						turnEpochRef.current === turnEpochAtDispatch
+					) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus(status);
 					}
@@ -3627,10 +3656,25 @@ export function useChatSession(environmentId: string) {
 				markCloudOptimisticFailed();
 				if (!failureOwnerCurrent()) {
 					replySuperseded = true;
+				} else if (errorMessage(err).startsWith("Compaction is in progress")) {
+					// A compaction we lost track of (reload, remount) is still
+					// running in the sidecar: show Stop again instead of an error.
+					promptTaken = withdrawPrompt();
+					setCompactionSessionId(activeSessionId);
+					setStatus("running");
 				} else {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
+				if (
+					manualCompactionSessionIdRef.current === activeSessionId &&
+					!shouldQueue
+				) {
+					manualCompactionSessionIdRef.current = null;
+					setCompactionSessionId((current) =>
+						current === activeSessionId ? null : current,
+					);
+				}
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
 				}
@@ -4374,6 +4418,10 @@ export function useChatSession(environmentId: string) {
 		isHydratingSession,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting:
+			compactionSessionId !== null &&
+			compactionSessionId === sessionId &&
+			(status === "starting" || status === "running" || status === "stopping"),
 		config,
 		messages,
 		historyPreview: isHydratingSession ? historyPreview : [],
