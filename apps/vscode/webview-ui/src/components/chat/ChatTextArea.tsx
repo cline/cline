@@ -345,11 +345,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Skills aren't part of the extension state (only their explicit toggles are),
 		// so load them on mount and re-load whenever the slash menu toggles to pick up
-		// skills added, removed, or toggled since.
+		// skills added, removed, or toggled since. A response from a superseded
+		// request (or one arriving after unmount) is dropped.
 		useEffect(() => {
+			let cancelled = false
 			FileServiceClient.refreshSkills(EmptyRequest.create())
-				.then((response) => setSkills([...(response.localSkills || []), ...(response.globalSkills || [])]))
+				.then((response) => {
+					if (!cancelled) {
+						setSkills([...(response.localSkills || []), ...(response.globalSkills || [])])
+					}
+				})
 				.catch((error) => console.error("Failed to refresh skills:", error))
+			return () => {
+				cancelled = true
+			}
 		}, [showSlashCommandsMenu])
 
 		// Keep the highlighted row inside the list when the commands change while
