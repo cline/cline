@@ -215,15 +215,17 @@ export async function prepareCloudHandoff(input: {
 						throw new Error(
 							"Cloud task creation did not confirm the initial message.",
 						);
+					const task = {
+						sessionId: result.sessionId,
+						dashboardUrl: dashboard(result.sessionId),
+					};
 					if ("dispatched" in send) {
-						const dashboardUrl = dashboard(sessionId);
-						if (send.dispatched)
-							return {
-								sessionId: result.sessionId,
-								dashboardUrl,
-								warning:
-									"Delivery is unconfirmed. Check the cloud task before resending.",
-							};
+						const unconfirmed = {
+							...task,
+							warning:
+								"Delivery is unconfirmed. Check the cloud task before resending.",
+						};
+						if (send.dispatched) return unconfirmed;
 						const retrySend = async (): Promise<CloudHandoffResult> => {
 							assertAccount();
 							try {
@@ -237,8 +239,7 @@ export async function prepareCloudHandoff(input: {
 								assertAccount();
 
 								return {
-									sessionId: result.sessionId,
-									dashboardUrl,
+									...task,
 									...(sent.recoveredAfterDisconnect
 										? {
 												warning:
@@ -254,30 +255,22 @@ export async function prepareCloudHandoff(input: {
 									error.code === "hub_draining"
 								) {
 									return {
-										sessionId: result.sessionId,
-										dashboardUrl,
+										...task,
 										warning: `The prompt was not sent. ${error.message}`,
 										retrySend,
 									};
 								}
-								return {
-									sessionId: result.sessionId,
-									dashboardUrl,
-									warning:
-										"Delivery is unconfirmed. Check the cloud task before resending.",
-								};
+								return { ...unconfirmed };
 							}
 						};
 						return {
-							sessionId: result.sessionId,
-							dashboardUrl,
+							...task,
 							warning: `The cloud task was created, but the prompt was not sent. ${send.detail ?? send.message}`,
 							retrySend,
 						};
 					}
 					return {
-						sessionId,
-						dashboardUrl: dashboard(sessionId),
+						...task,
 						...(send.recoveredAfterDisconnect
 							? {
 									warning:

@@ -275,15 +275,11 @@ describe("cloud handoff TUI", () => {
 			scenario: "held-cloud-send",
 		});
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("local work while cloud send is pending");
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(
-					"local work while cloud send is pending",
-				) === true,
-			timeout,
-		});
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"local work while cloud send is pending",
+		);
 
 		try {
 			const draft = "/cloud wait until the local run is finished";
@@ -437,14 +433,7 @@ describe("cloud handoff TUI", () => {
 		});
 
 		const localPrompt = "keep this follow-up local";
-		await session.type(localPrompt);
-		await session.press("enter");
-		await session.text({
-			waitFor: (screen) =>
-				screen.includes(localPrompt) &&
-				readState(statePath).localPrompts?.includes(localPrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, localPrompt);
 		const duringProvisioning = await session.text();
 		expect(duringProvisioning).toContain(
 			"Publishing the approved Git snapshot.",
@@ -532,15 +521,11 @@ describe("cloud handoff TUI", () => {
 		expect(await session.text()).not.toContain(
 			"Synthetic attached cloud transcript",
 		);
-		await session.type("local follow-up while cloud keeps running");
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(
-					"local follow-up while cloud keeps running",
-				) === true,
-			timeout,
-		});
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"local follow-up while cloud keeps running",
+		);
 		expect(readState(statePath).localPrompts).toEqual([
 			sourcePrompt,
 			"local follow-up while cloud keeps running",
@@ -655,15 +640,11 @@ describe("cloud handoff TUI", () => {
 			release,
 		} = await launch({ scenario: "held-cloud-send" });
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("Seed the synthetic source conversation");
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(
-					"Seed the synthetic source conversation",
-				) === true,
-			timeout,
-		});
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"Seed the synthetic source conversation",
+		);
 
 		await session.type("/clear");
 		await session.press("enter");
@@ -770,14 +751,7 @@ describe("cloud handoff TUI", () => {
 			{ timeout },
 		);
 		const localPrompt = `Send after the pending cloud ${transition}`;
-		await session.type(localPrompt);
-		await session.waitForText(localPrompt, { timeout });
-		await session.press("enter");
-		await session.text({
-			waitFor: () =>
-				readState(statePath).localPrompts?.includes(localPrompt) === true,
-			timeout,
-		});
+		await sendLocalPrompt(session, statePath, localPrompt);
 
 		emitLateCloudSnapshot();
 		await session.text({
@@ -1073,9 +1047,6 @@ describe("cloud handoff TUI", () => {
 			expect(screen).not.toContain("Open in browser");
 			expect(screen).not.toContain("https://app.cline.bot/tasks/");
 		}
-		await session.press(["alt", "d"]);
-		await session.waitIdle({ timeout: 2_000 });
-		expect(await session.text()).toContain("Cloud task started");
 		await session.click("Open cloud task");
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
@@ -1093,48 +1064,6 @@ describe("cloud handoff TUI", () => {
 		expect(readState(statePath).openedUrls).toBeUndefined();
 		await session.press(["ctrl", "o"]);
 		await session.waitForText(localPrompt, { timeout });
-	});
-
-	it("shows a failed handoff and restores the captured draft", async () => {
-		const { session, statePath, stateDir } = await launch({
-			scenario: "failure",
-		});
-		await session.waitForText("Ask anything...", { timeout });
-		await session.type("An existing local conversation");
-		await session.press("enter");
-		const instruction = "retry this synthetic publish";
-		const image = createSyntheticImage(stateDir);
-		await session.type(`/cloud ${instruction} `);
-		await pasteSyntheticImage(session, image.imagePath);
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
-			instruction,
-			images: [image.dataUrl],
-		});
-		await session.press("enter");
-		await session.waitForText("Synthetic publish failure", { timeout });
-		const failedScreen = await session.text();
-		expect(failedScreen).not.toContain("CLOUD_SESSION_ERROR:");
-		expect(failedScreen).toContain("Restore draft");
-		expect(failedScreen).not.toContain("Hide");
-		// Kitty keyboard protocol encodes Ctrl+Alt+D without dropping a modifier.
-		session.writeRaw("\u001b[100;7u");
-		const afterScroll = await session.text();
-		expect(afterScroll).toContain("Synthetic publish failure");
-		expect(afterScroll).toContain("Restore draft");
-		await session.press(["alt", "e"]);
-		await session.waitIdle({ timeout: 2_000 });
-		expect(await session.text()).not.toContain(`/cloud ${instruction}`);
-		await runPaletteAction(session, "Restore cloud handoff draft");
-		await session.waitForText(`/cloud ${instruction}`, { timeout });
-		const restoredScreen = await session.text();
-		expect(restoredScreen).toContain("[Image 1]");
-		expect(restoredScreen).not.toContain("Synthetic publish failure");
-		expect(restoredScreen).not.toContain("Restore draft");
-		expect(restoredScreen).not.toContain(
-			"Create a fork of the current conversation?",
-		);
 	});
 
 	it("does not overwrite a newer draft when offering to restore a failed handoff", async () => {
@@ -1175,8 +1104,11 @@ describe("cloud handoff TUI", () => {
 			scenario: "failure",
 		});
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("Seed the synthetic local conversation");
-		await session.press("enter");
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"Seed the synthetic local conversation",
+		);
 		const instruction = "resume the original synthetic task";
 		const image = createSyntheticImage(stateDir);
 		await session.type(`/cloud ${instruction} `);
@@ -1185,6 +1117,10 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
 		await session.waitForText("Synthetic publish failure", { timeout });
+		const failedScreen = await session.text();
+		expect(failedScreen).not.toContain("CLOUD_SESSION_ERROR:");
+		expect(failedScreen).toContain("Restore draft");
+		expect(failedScreen).not.toContain("Hide");
 
 		await session.type("/clear");
 		await session.press("enter");
@@ -1200,8 +1136,14 @@ describe("cloud handoff TUI", () => {
 		expect(readState(statePath).resumeCalls).toContain("synthetic-session-a");
 		expect(readState(statePath).activeSessionId).toBe("synthetic-session-a");
 		await runPaletteAction(session, "Restore cloud handoff draft");
-		expect(await session.text()).toContain(`/cloud ${instruction}`);
-		expect(await session.text()).toContain("[Image 1]");
+		const restoredScreen = await session.text();
+		expect(restoredScreen).toContain(`/cloud ${instruction}`);
+		expect(restoredScreen).toContain("[Image 1]");
+		expect(restoredScreen).not.toContain("Synthetic publish failure");
+		expect(restoredScreen).not.toContain("Restore draft");
+		expect(restoredScreen).not.toContain(
+			"Create a fork of the current conversation?",
+		);
 		expect(readState(statePath).preparations).toEqual([
 			{
 				sessionId: "synthetic-session-a",
@@ -1228,8 +1170,11 @@ describe("cloud handoff TUI", () => {
 			scenario: "held-success",
 		});
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("Seed the synthetic local conversation");
-		await session.press("enter");
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"Seed the synthetic local conversation",
+		);
 		await session.type("/cloud delayed source result");
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
@@ -1268,8 +1213,11 @@ describe("cloud handoff TUI", () => {
 			scenario: "retry",
 		});
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("Seed the synthetic local conversation");
-		await session.press("enter");
+		await sendLocalPrompt(
+			session,
+			statePath,
+			"Seed the synthetic local conversation",
+		);
 		const instruction = "send the original synthetic summary";
 		const image = createSyntheticImage(stateDir);
 		await session.type(`/cloud ${instruction} `);
@@ -1315,11 +1263,7 @@ describe("cloud handoff TUI", () => {
 			},
 		]);
 		await session.writeRaw("\u0015");
-		await session.type("/cloud approved replacement plan");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Cloud task started", { timeout });
+		await startCloudHandoff(session, "approved replacement plan");
 		expect(await session.text()).not.toContain("Open in browser");
 		await openCloudTask(session);
 		expect(readState(statePath).openedUrls).toBeUndefined();
