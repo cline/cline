@@ -459,6 +459,7 @@ const props = {
 					return {
 						sessionId: cloudSessionId,
 						dashboardUrl: `https://app.cline.bot/tasks/${target.taskId}`,
+						warning: "Synthetic cloud send warning",
 						retrySend: async () => {
 							record("retryTargets", [...(state.retryTargets ?? []), target]);
 							return {
@@ -481,17 +482,7 @@ const props = {
 					target.taskId,
 				]);
 				const dashboardUrl = `https://app.cline.bot/tasks/${target.taskId}`;
-				if (scenario === "warning") {
-					return {
-						sessionId: cloudSessionId,
-						dashboardUrl,
-						warning: "Synthetic cloud send warning",
-						retrySend: async () => {
-							record("retryTargets", [...(state.retryTargets ?? []), target]);
-							return { sessionId: cloudSessionId, dashboardUrl };
-						},
-					};
-				}
+
 				onProgress({
 					message: "Preparing the cloud workspace.",
 				});

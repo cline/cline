@@ -412,7 +412,7 @@ describe("cloud handoff TUI", () => {
 		expect(readState(statePath).started).toBe(true);
 	});
 
-	it("forwards an image and keeps local chat usable while cloud work runs", async () => {
+	it("forwards an image, permits local work, and keeps delayed completion on its source through History", async () => {
 		const { session, statePath, stateDir, release } = await launch({
 			scenario: "held-success",
 		});
@@ -440,36 +440,46 @@ describe("cloud handoff TUI", () => {
 		);
 		expect(duringProvisioning).not.toContain("Cloud task started");
 		expect(readState(statePath).localPrompts).toContain(localPrompt);
+		await session.type("/clear");
+		await session.press("enter");
+		await session.waitForText("What can I do for you?", { timeout });
+		expect(readState(statePath).completedTaskIds).toBeUndefined();
 		release();
-		await session.waitForText("Cloud task started", { timeout });
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
-		expect(await session.text()).not.toContain("https://app.cline.bot/tasks/");
-		expect(readState(statePath).started).toBe(true);
-	});
-
-	it("keeps a cloud warning readable and exposes its retry action", async () => {
-		const { session, statePath } = await launch({ scenario: "warning" });
-		await session.waitForText("Ask anything...", { timeout });
-		await session.type("/cloud send the synthetic warning task");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Synthetic cloud send warning", { timeout });
-		expect(await session.text()).toContain("Retry prompt");
-		expect(await session.text()).not.toContain("Open in browser");
-		await runPaletteAction(session, "Retry cloud continuation");
 		await session.text({
-			waitFor: () => readState(statePath).retryTargets?.length === 1,
+			waitFor: () =>
+				readState(statePath).completedTaskIds?.includes("synthetic-task-1") ===
+				true,
 			timeout,
 		});
-		expect(await session.text()).not.toContain("Open in browser");
-		expect(readState(statePath).retryTargets).toEqual([
-			{
-				taskId: "synthetic-task-1",
-				instruction: "send the synthetic warning task",
-				images: [],
-			},
-		]);
+		expect(await session.text()).not.toContain("Cloud task started");
+		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
+
+		await session.type("/history");
+		await session.press("enter");
+		await session.waitForText("Synthetic history session A", { timeout });
+		await session.press("enter");
+		await session.waitForText("Cloud task started", { timeout });
+		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		await openCloudTask(session);
+		await session.type("/history");
+		await session.press("enter");
+		await session.waitForText("Synthetic history session A", { timeout });
+		await session.press("enter");
+		await session.waitForText("Synthetic history conversation", { timeout });
+		const localScreen = await session.text();
+		expect(localScreen).toContain("Synthetic history conversation");
+		expect(localScreen).toContain("● Local");
+		expect(localScreen).toContain("Cloud task started");
+		expect(localScreen).toContain("Open cloud task (Ctrl+O)");
+		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
+		expect(localScreen).not.toContain("Open in browser");
+		expect(localScreen).not.toContain("https://app.cline.bot/tasks/");
+		expect(localScreen.match(/Ctrl\+O/g)).toHaveLength(1);
+		expect(
+			readState(statePath).preparations?.map(({ sessionId }) => sessionId),
+		).toEqual(["synthetic-session-a"]);
+		await runPaletteAction(session, "Hide cloud handoff notice");
+		expect(await session.text()).not.toContain("Cloud task started");
 	});
 
 	it("restores the local conversation and reattaches to the same running cloud task", async () => {
@@ -871,23 +881,17 @@ describe("cloud handoff TUI", () => {
 			expect(readState(statePath).runningChanges?.at(-1)).toBe(true);
 			await session.press(["ctrl", "o"]);
 			await session.waitForText("● Plan ○ Act (Tab)", { timeout });
-			const returnedLocalScreen = await session.text();
-			const localModelRow = returnedLocalScreen
-				.split("\n")
-				.find((line) => line.includes("synthetic-model"));
-			expect(localModelRow).toContain("(1,234)");
-			expect(localModelRow).toContain("$0.25");
-			expect(returnedLocalScreen).toContain("5 iterations");
 		} else {
-			expect(screen).toContain("● Plan ○ Act (Tab)");
-			const localModelRow = screen
-				.split("\n")
-				.find((line) => line.includes("synthetic-model"));
-			expect(localModelRow).toContain("(1,234)");
-			expect(localModelRow).toContain("$0.25");
-			expect(screen).toContain("5 iterations");
 			expect(readState(statePath).runningChanges?.at(-1)).toBe(false);
 		}
+		const returnedLocalScreen = await session.text();
+		expect(returnedLocalScreen).toContain("● Plan ○ Act (Tab)");
+		const localModelRow = returnedLocalScreen
+			.split("\n")
+			.find((line) => line.includes("synthetic-model"));
+		expect(localModelRow).toContain("(1,234)");
+		expect(localModelRow).toContain("$0.25");
+		expect(returnedLocalScreen).toContain("5 iterations");
 		emitLateCloudSnapshot();
 		await session.text({
 			waitFor: () => readState(statePath).lateSnapshotsEmitted === 1,
@@ -959,29 +963,6 @@ describe("cloud handoff TUI", () => {
 		expect(readState(statePath).openedUrls).toEqual([
 			"https://app.cline.bot/agents?sessionId=synthetic-cloud-session-1",
 		]);
-	});
-
-	it("returns to local history with the cloud handoff still available", async () => {
-		const { session } = await launch();
-		await session.waitForText("Ask anything...", { timeout });
-		await startCloudHandoff(session, "continue the synthetic task");
-		await openCloudTask(session);
-
-		await session.type("/history");
-		await session.press("enter");
-		await session.waitForText("Synthetic history session A", { timeout });
-		await session.press("enter");
-		await session.waitForText("Synthetic history conversation", { timeout });
-		const localScreen = await session.text();
-		expect(localScreen).not.toContain("Synthetic attached cloud transcript");
-		expect(localScreen).toContain("● Local");
-		expect(localScreen).toContain("Cloud task started");
-		expect(localScreen).toContain("Open cloud task (Ctrl+O)");
-		expect(localScreen).not.toContain("Open in browser");
-		expect(localScreen).not.toContain("https://app.cline.bot/tasks/");
-		expect(localScreen.match(/Ctrl\+O/g)).toHaveLength(1);
-		await runPaletteAction(session, "Hide cloud handoff notice");
-		expect(await session.text()).not.toContain("Cloud task started");
 	});
 
 	it("offers browser only after native open fails and resets after recovery", async () => {
@@ -1165,50 +1146,7 @@ describe("cloud handoff TUI", () => {
 		await session.press("escape");
 	});
 
-	it("keeps delayed completion on the session that started it", async () => {
-		const { session, statePath, release } = await launch({
-			scenario: "held-success",
-		});
-		await session.waitForText("Ask anything...", { timeout });
-		await sendLocalPrompt(
-			session,
-			statePath,
-			"Seed the synthetic local conversation",
-		);
-		await session.type("/cloud delayed source result");
-		await session.press("enter");
-		await session.waitForText("Continue in cloud?", { timeout });
-		await session.press("enter");
-		await session.waitForText("Publishing the approved Git snapshot.", {
-			timeout,
-		});
-		await session.type("/clear");
-		await session.press("enter");
-		await session.waitForText("What can I do for you?", { timeout });
-		expect(readState(statePath).completedTaskIds).toBeUndefined();
-		release();
-		await session.text({
-			waitFor: () =>
-				readState(statePath).completedTaskIds?.includes("synthetic-task-1") ===
-				true,
-			timeout,
-		});
-		expect(await session.text()).not.toContain("Cloud task started");
-		expect(readState(statePath).activeSessionId).toBe("synthetic-session-b");
-
-		await session.type("/history");
-		await session.press("enter");
-		await session.waitForText("Synthetic history session A", { timeout });
-		await session.press("enter");
-		await session.waitForText("Cloud task started", { timeout });
-		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
-		expect(await session.text()).not.toContain("https://app.cline.bot/tasks/");
-		expect(
-			readState(statePath).preparations?.map(({ sessionId }) => sessionId),
-		).toEqual(["synthetic-session-a"]);
-	});
-
-	it("retains the original retry target across a rejected prep and canceled confirmation", async () => {
+	it("shows a delivery warning and retains its retry target across a rejected prep and canceled confirmation", async () => {
 		const { session, statePath, stateDir } = await launch({
 			scenario: "retry",
 		});
@@ -1225,8 +1163,9 @@ describe("cloud handoff TUI", () => {
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
-		await session.waitForText("Cloud task started", { timeout });
+		await session.waitForText("Synthetic cloud send warning", { timeout });
 		expect(await session.text()).toContain("Retry prompt");
+		expect(await session.text()).not.toContain("Open in browser");
 		expect(await session.text()).not.toContain("Hide");
 
 		const rejectedDraft = "/cloud rejected replacement draft";
@@ -1262,6 +1201,9 @@ describe("cloud handoff TUI", () => {
 				images: [image.dataUrl],
 			},
 		]);
+		await session.waitForText("Cloud task started", { timeout });
+		expect(await session.text()).not.toContain("Synthetic cloud send warning");
+		expect(await session.text()).not.toContain("Open in browser");
 		await session.writeRaw("\u0015");
 		await startCloudHandoff(session, "approved replacement plan");
 		expect(await session.text()).not.toContain("Open in browser");

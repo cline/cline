@@ -55,7 +55,6 @@ export type FixtureScenario =
 	| "success"
 	| "long-preview"
 	| "failure"
-	| "warning"
 	| "held-success"
 	| "held-failure"
 	| "held-cloud-send"
