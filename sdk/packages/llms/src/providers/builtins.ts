@@ -743,8 +743,10 @@ const cline = createClineLikeSpec({
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
+	// A new user has no credits yet, so the offline default is the first free
+	// model. Core's resolveClineDefaultModelId prefers the live feed's first free.
 	defaultModelId:
-		GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+		GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 		CLINE_DEFAULT_MODEL_ID,
 	defaults: {
 		options: {
@@ -887,6 +889,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "zai/GLM-5.2",
 		apiKeyEnv: ["CRUSOE_API_KEY"],
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
+	},
+	{
+		id: "wally",
+		name: "Wally",
+		description: "Fast inference for open-weight models from RunAnywhere",
+		family: "openai-compatible",
+		defaultModelId: "deepseek-v4.1-flash",
+		apiKeyEnv: ["WALLY_API_KEY"],
+		defaults: { baseUrl: "https://inference.runanywhere.ai/v1" },
 	},
 	{
 		id: "litellm",

@@ -471,6 +471,15 @@ describe("hub-owned cloud sessions", () => {
 			f.controllers[0]?.controller.restoreCreationOptions,
 		).toHaveBeenCalledWith("ses-one", options);
 	});
+	it("passes the max reasoning level through the RPC boundary", async () => {
+		const f = fixture();
+		await f
+			.viewer()
+			.create({ modelId: "model", repoUrl: "repo", reasoningEffort: "max" });
+		expect(f.controllers[0]?.controller.create).toHaveBeenCalledWith(
+			expect.objectContaining({ reasoningEffort: "max" }),
+		);
+	});
 	it.each([
 		"same",
 		"new",

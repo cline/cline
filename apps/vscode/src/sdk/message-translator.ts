@@ -262,6 +262,9 @@ export class MessageTranslatorState {
 	clearStreamingReasoning(): number {
 		const ts = this.streamingReasoningTs ?? this.nextTs()
 		this.streamingReasoningTs = undefined
+		// Empty the buffer so a follow-up request in the same iteration (auto
+		// continuation after an "unknown" end, no reset in between) starts its
+		// reasoning rows fresh instead of appending to the previous text.
 		this.streamingReasoningText = ""
 		return ts
 	}
@@ -541,6 +544,7 @@ export class MessageTranslatorState {
 		this.streamingTextTs = undefined
 		this.streamingText = ""
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined

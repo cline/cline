@@ -3,7 +3,7 @@ import type { MessageWithMetadata } from "@cline/shared";
 import type { UxVerificationReport } from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { type ChatMessage, ChatMessageSchema } from "@/lib/chat-schema";
 import { readSessionMessagesSync } from "../../../../../sidecar/session-data/messages";
 import { ChatMessages } from "../chat-messages";
@@ -15,6 +15,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
+	open: vi.fn(),
 	account: {
 		user: { id: "one" },
 		accountReady: true,
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke },
 	isTauriAvailable: () => true,
-	openExternalUrl: vi.fn(),
+	openExternalUrl: mocks.open,
 }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => mocks.account,
@@ -66,6 +67,7 @@ beforeEach(() => {
 	HTMLElement.prototype.scrollTo = vi.fn();
 	mocks.account.user = { id: "one" };
 	mocks.account.accountReady = true;
+	mocks.open.mockReset().mockResolvedValue(undefined);
 	mocks.invoke.mockReset().mockImplementation(async () => ({
 		url: `https://storage.example/image.png?signature=${mocks.invoke.mock.calls.length}`,
 		expiresAt: "2030-01-01T00:00:00Z",
@@ -160,11 +162,17 @@ it("recovers a failed screenshot once and exposes the existing retry action", as
 	await act(async () => mainImage()!.dispatchEvent(new Event("error")));
 	expect(container.textContent).toContain("Image unavailable");
 	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 1);
+	const download = container.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	await act(async () => download.click());
+	expect(mocks.open).toHaveBeenCalledOnce();
+	expect(container.textContent).toContain("Image unavailable");
 	const retry = Array.from(container.querySelectorAll("button")).find(
 		(button) => button.textContent === "Retry",
 	)!;
 	await act(async () => retry.click());
-	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 2);
+	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 3);
 	expect(mainImage()).not.toBeNull();
 });
 it("retains a loaded image when time advances beyond its URL expiry", async () => {
@@ -178,8 +186,19 @@ it("retains a loaded image when time advances beyond its URL expiry", async () =
 	expect(mainImage()?.src).toBe(source);
 	expect(mocks.invoke).toHaveBeenCalledTimes(requests);
 });
-it("opens the shared report's screenshot in a focus-managed artifact viewer", async () => {
+it("downloads the report screenshot from the carousel and expanded viewer", async () => {
 	await render();
+	expect(mocks.invoke).not.toHaveBeenCalled();
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Download"]')!
+			.click(),
+	);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: " frame/雪 ",
+	});
+	expect(mocks.open).toHaveBeenCalledOnce();
 	await revealImages();
 	const expand = container.querySelector<HTMLButtonElement>(
 		'[aria-label="Expand screenshot"]',
@@ -187,18 +206,214 @@ it("opens the shared report's screenshot in a focus-managed artifact viewer", as
 	expand.focus();
 	await act(async () => expand.click());
 	await revealImages();
-	const dialog = document.querySelector('[role="dialog"]')!;
+	let dialog = document.querySelector('[role="dialog"]')!;
 	expect(dialog.textContent).toContain("Menu opens");
 	expect(dialog.textContent).toContain("The navigation menu is visible");
 	expect(dialog.querySelector("img")?.src).toContain(
 		"https://storage.example/image.png?signature=",
 	);
+	const initialRequests = mocks.invoke.mock.calls.length;
+	vi.spyOn(Date, "now").mockReturnValue(Date.parse("2031-01-01T00:00:00Z"));
+	const downloadUrl = "https://storage.example/pending-download.png";
+	const pending = Promise.withResolvers<{
+		url: string;
+		expiresAt: string;
+	}>();
+	mocks.invoke.mockImplementationOnce(() => pending.promise);
+	await act(async () =>
+		dialog.querySelector<HTMLButtonElement>('[aria-label="Download"]')!.click(),
+	);
+	expect(mocks.invoke).toHaveBeenCalledTimes(initialRequests + 1);
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: " frame/雪 ",
+	});
+	const pendingDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Preparing…"]',
+	)!;
+	expect(pendingDownload.disabled).toBe(true);
 	await act(async () =>
 		(
 			dialog.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
 		).click(),
 	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
 	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+	await act(async () => expand.click());
+	dialog = document.querySelector('[role="dialog"]')!;
+	const stillPreparing = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Preparing…"]',
+	)!;
+	expect(stillPreparing.disabled).toBe(true);
+	await act(async () =>
+		(
+			dialog.querySelector('[data-slot="dialog-close"]') as HTMLButtonElement
+		).click(),
+	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
+	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+	await act(async () =>
+		pending.resolve({
+			url: downloadUrl,
+			expiresAt: "2040-01-01T00:00:00Z",
+		}),
+	);
+	await vi.waitFor(() => expect(mocks.open).toHaveBeenCalledTimes(2));
+	expect(mocks.open).toHaveBeenLastCalledWith(downloadUrl);
+	await act(async () => expand.click());
+	dialog = document.querySelector('[role="dialog"]')!;
+	const readyDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	const resolvedRequestCount = mocks.invoke.mock.calls.length;
+	await act(async () => readyDownload.click());
+	expect(mocks.invoke).toHaveBeenCalledTimes(resolvedRequestCount);
+	expect(mocks.open).toHaveBeenCalledTimes(3);
+	expect(mocks.open).toHaveBeenLastCalledWith(downloadUrl);
+	const dialogClose = dialog.querySelector<HTMLButtonElement>(
+		'[data-slot="dialog-close"]',
+	)!;
+	await act(async () => readyDownload.focus());
+	const shiftTab = new KeyboardEvent("keydown", {
+		key: "Tab",
+		shiftKey: true,
+		bubbles: true,
+		cancelable: true,
+	});
+	await act(async () => readyDownload.dispatchEvent(shiftTab));
+	expect(shiftTab.defaultPrevented).toBe(true);
+	expect(document.activeElement).toBe(dialogClose);
+	await act(async () => readyDownload.focus());
+	await act(async () =>
+		readyDownload.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+		),
+	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
+	await vi.waitFor(() => expect(document.activeElement).toBe(expand));
+});
+it.each([
+	["unmodified", {}],
+	["Ctrl", { ctrlKey: true }],
+	["Alt", { altKey: true }],
+	["Meta", { metaKey: true }],
+])("finishes the requested download and preserves focus with %s ArrowLeft", async (_label, modifiers) => {
+	vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(640);
+	vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(400);
+	vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(
+		function (this: HTMLElement) {
+			return this.getAttribute("aria-roledescription") === "slide"
+				? Array.from(this.parentElement?.children ?? []).indexOf(this) * 640
+				: 0;
+		},
+	);
+	const style = document.createElement("style");
+	style.textContent = '[aria-roledescription="slide"] { margin-right: 0px; }';
+	document.head.append(style);
+	onTestFinished(() => style.remove());
+	const firstDownload = {
+		url: "https://storage.example/first.png",
+		expiresAt: "2030-01-01T00:00:00Z",
+	};
+	const pending = Promise.withResolvers<typeof firstDownload>();
+	const secondDownload = {
+		...firstDownload,
+		url: "https://storage.example/second.png",
+	};
+	mocks.invoke
+		.mockImplementationOnce(() => pending.promise)
+		.mockResolvedValue(secondDownload);
+	await render(
+		message({
+			...report,
+			checks: [
+				report.checks[0],
+				{
+					...report.checks[0],
+					id: "second",
+					screenshot: {
+						...report.checks[0].screenshot,
+						id: "second-frame",
+						source: { type: "artifact", artifactId: "second.png" },
+					},
+				},
+			],
+		}),
+	);
+	const download = () =>
+		Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				'.cline-ui-ux-evidence-actions button[aria-label="Download"]',
+			),
+		).find((button) => !button.closest("[hidden]"))!;
+	await act(async () => download().click());
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Next screenshot"]')!
+			.click(),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	await act(async () => pending.resolve(firstDownload));
+	expect(mocks.open).toHaveBeenCalledExactlyOnceWith(firstDownload.url);
+	await act(async () => download().click());
+	expect(mocks.invoke).toHaveBeenLastCalledWith("resolve_artifact", {
+		sessionId: "ses-one",
+		artifactId: "second.png",
+	});
+	expect(mocks.open).toHaveBeenLastCalledWith(secondDownload.url);
+	const focusedDownload = download();
+	await act(async () => focusedDownload.focus());
+	await act(async () =>
+		focusedDownload.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "ArrowLeft",
+				bubbles: true,
+				...modifiers,
+			}),
+		),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 1:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	expect(document.activeElement).toBe(
+		container.querySelector('[aria-roledescription="carousel"]'),
+	);
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Next screenshot"]')!
+			.click(),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Expand screenshot"]')!
+			.click(),
+	);
+	const dialog = document.querySelector('[role="dialog"]')!;
+	const dialogDownload = dialog.querySelector<HTMLButtonElement>(
+		'[aria-label="Download"]',
+	)!;
+	await act(async () => dialogDownload.focus());
+	await act(async () =>
+		dialogDownload.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+		),
+	);
+	expect(
+		container
+			.querySelector('[aria-label^="Show check 2:"]')
+			?.getAttribute("aria-current"),
+	).toBe("true");
 });
 it("hides old images during account readiness changes and reloads under the new account", async () => {
 	const input = message();

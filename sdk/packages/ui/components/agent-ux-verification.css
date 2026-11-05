@@ -125,9 +125,9 @@
 	background: #8e7539;
 }
 .cline-ui-ux-evidence-expand,
+.cline-ui-ux-evidence-download,
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
-	position: absolute;
 	display: grid;
 	place-items: center;
 	height: 34px;
@@ -138,9 +138,12 @@
 	background: #191b28b3;
 	backdrop-filter: blur(8px);
 }
-.cline-ui-ux-evidence-expand {
+.cline-ui-ux-evidence-actions {
+	position: absolute;
 	right: 12px;
 	top: 12px;
+	display: flex;
+	gap: 8px;
 }
 .cline-ui-ux-evidence-expand:disabled {
 	opacity: 0.4;
@@ -148,6 +151,7 @@
 }
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
+	position: absolute;
 	/* Centered on the 16:10 screenshot area, above the caption. */
 	top: calc(min(62.5cqw, 54dvh, 560px) / 2 - 17px);
 }

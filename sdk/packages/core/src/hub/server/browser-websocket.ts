@@ -17,6 +17,7 @@ import type {
 	HubCommandTransport,
 	HubConnectionAuthority,
 } from "./command-transport";
+import { HistoryTransferPool } from "./history-transfer";
 import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
@@ -114,6 +115,7 @@ function registrationAuthority(
 }
 
 export class BrowserWebSocketHubAdapter {
+	private readonly historyTransfers = new HistoryTransferPool();
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
@@ -127,6 +129,7 @@ export class BrowserWebSocketHubAdapter {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
 		const connectionId = randomUUID();
+		const historyOwner = {};
 		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
@@ -153,6 +156,23 @@ export class BrowserWebSocketHubAdapter {
 			try {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
+					case "history.cancel": {
+						if (
+							authority &&
+							typeof frame.clientId === "string" &&
+							frame.clientId.trim() === authority.clientId &&
+							typeof frame.requestId === "string" &&
+							frame.requestId.trim() &&
+							typeof frame.sessionId === "string"
+						) {
+							this.historyTransfers.cancel(
+								historyOwner,
+								frame.requestId,
+								frame.sessionId.trim(),
+							);
+						}
+						break;
+					}
 					case "command": {
 						let registration: HubConnectionAuthority | undefined;
 						if (authority && frame.envelope.command === "client.register") {
@@ -199,7 +219,20 @@ export class BrowserWebSocketHubAdapter {
 								break;
 							}
 						}
+						if (
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.historyCursor !== undefined &&
+							frame.envelope.payload?.chunkHistory !== true
+						) {
+							throw new Error("History cursors require chunkHistory");
+						}
 						const startedAt = performance.now();
+						const historyAbort =
+							authority &&
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.chunkHistory === true
+								? new AbortController()
+								: undefined;
 						let settled = false;
 						const context = commandLogContext(frame);
 						logHubMessage("info", "command.start", context);
@@ -210,15 +243,24 @@ export class BrowserWebSocketHubAdapter {
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
-						const commandPromise = this.transport.command(
-							frame.envelope,
-							authority ?? null,
-						);
+						const read = () =>
+							this.transport.command(frame.envelope, authority ?? null);
+						const commandPromise = historyAbort
+							? this.historyTransfers.command(
+									frame.envelope,
+									historyOwner,
+									read,
+									historyAbort.signal,
+								)
+							: read();
 						commandPromise.then(
 							(lateReply) => {
 								if (!settled) return;
 								logHubMessage(
-									lateReply.ok ? "warn" : "error",
+									lateReply.ok ||
+										lateReply.error?.code === "history_transfer_closed"
+										? "warn"
+										: "error",
 									"command.late_end",
 									{
 										...context,
@@ -254,6 +296,7 @@ export class BrowserWebSocketHubAdapter {
 											new Promise<HubReplyEnvelope>((resolve) => {
 												timeoutTimer = setTimeout(() => {
 													timedOut = true;
+													historyAbort?.abort();
 													captureSdkError(this.telemetry, {
 														component: "core",
 														operation: "hub.command_timeout",
@@ -285,6 +328,7 @@ export class BrowserWebSocketHubAdapter {
 						settled = timedOut;
 						clearTimeout(slowTimer);
 						if (timeoutTimer) clearTimeout(timeoutTimer);
+						if (historyAbort && closed) return;
 						const durationMs = Math.round(performance.now() - startedAt);
 						if (timedOut) {
 							logHubMessage("error", "command.timeout", {
@@ -313,6 +357,7 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								void this.historyTransfers.close(historyOwner);
 								authority = undefined;
 							}
 						}
@@ -480,6 +525,7 @@ export class BrowserWebSocketHubAdapter {
 				return;
 			}
 			closed = true;
+			void this.historyTransfers.close(historyOwner);
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();
 			}

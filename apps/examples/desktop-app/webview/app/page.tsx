@@ -1578,6 +1578,7 @@ function ChatThreadPane({
 		isCloudSessionExpired,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting,
 		config,
 		messages,
 		error,
@@ -3363,6 +3364,7 @@ function ChatThreadPane({
 			reasoningEffort={config.reasoningEffort}
 			status={status}
 			placeholder={showingHistoryPreview ? "Getting session ready…" : undefined}
+			isCompacting={isCompacting}
 			summary={summary}
 			thinking={config.thinking}
 			suggestions={composerSuggestions}

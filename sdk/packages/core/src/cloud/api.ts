@@ -69,7 +69,7 @@ export type CreateCloudSessionInput = {
 	branch?: string;
 	autoApproveTools?: boolean;
 	thinking?: boolean;
-	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
 	mode?: AgentMode;
 	workspaceRelativePath?: string;
 	/** Null explicitly selects Personal; controllers resolve an omitted scope. */

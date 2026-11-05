@@ -16,7 +16,11 @@ import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	getInitialChatConfig,
+	isUntouchedDefaultModel,
+	loadLiveClineDefaultModelId,
+} from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
 	credentialFailureMeta,
@@ -601,6 +605,23 @@ export function useChatSession(environmentId: string) {
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
 	);
+	// Swap in the live feed's first free model once it arrives, only while the
+	// config is still the untouched new-user default. Never blocks the UI.
+	// A restored or running session keeps the model it has.
+	const hasSessionRef = useRef(false);
+	hasSessionRef.current = sessionId !== null;
+	useEffect(() => {
+		let cancelled = false;
+		void loadLiveClineDefaultModelId().then((model) => {
+			if (cancelled || !model || hasSessionRef.current) return;
+			setConfig((prev) =>
+				isUntouchedDefaultModel(prev) ? { ...prev, model } : prev,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [historyPreview, setHistoryPreview] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -654,6 +675,7 @@ export function useChatSession(environmentId: string) {
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
+	const cloudSnapshotHydrationIdRef = useRef<number | null>(null);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
 	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
@@ -678,6 +700,10 @@ export function useChatSession(environmentId: string) {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
+	const manualCompactionSessionIdRef = useRef<string | null>(null);
+	const [compactionSessionId, setCompactionSessionId] = useState<string | null>(
+		null,
+	);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -730,6 +756,11 @@ export function useChatSession(environmentId: string) {
 	useEffect(() => {
 		activeSessionIdRef.current = sessionId;
 	}, [sessionId]);
+	useEffect(() => {
+		setCompactionSessionId((current) =>
+			current === sessionId && BUSY_STATUSES.has(status) ? current : null,
+		);
+	}, [sessionId, status]);
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
@@ -2398,6 +2429,9 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
+				if (record.messages.length > 0) {
+					cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
+				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -2773,7 +2807,18 @@ export function useChatSession(environmentId: string) {
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
+			const isManualCompaction = /^\/compact(?:\s|$)/i.test(trimmed);
 			if (!trimmed && attachedFiles.length === 0) return true;
+			if (
+				manualCompactionSessionIdRef.current &&
+				manualCompactionSessionIdRef.current === activeSessionIdRef.current
+			) {
+				toast({
+					title:
+						"Compaction is in progress. Stop it before sending another message.",
+				});
+				return false;
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -3092,7 +3137,12 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
-					setStatus("starting");
+					// Manual compaction has no run-start event to enable Stop.
+					if (isManualCompaction) {
+						manualCompactionSessionIdRef.current = activeSessionId;
+						setCompactionSessionId(activeSessionId);
+					}
+					setStatus(isManualCompaction ? "running" : "starting");
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
@@ -3145,7 +3195,11 @@ export function useChatSession(environmentId: string) {
 						);
 					}
 					withdrawPrompt();
-					if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
+					if (
+						!shouldQueue &&
+						!settleAbortedSend() &&
+						turnEpochRef.current === turnEpochAtDispatch
+					) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus(status);
 					}
@@ -3598,10 +3652,25 @@ export function useChatSession(environmentId: string) {
 				markCloudOptimisticFailed();
 				if (!failureOwnerCurrent()) {
 					replySuperseded = true;
+				} else if (errorMessage(err).startsWith("Compaction is in progress")) {
+					// A compaction we lost track of (reload, remount) is still
+					// running in the sidecar: show Stop again instead of an error.
+					promptTaken = withdrawPrompt();
+					setCompactionSessionId(activeSessionId);
+					setStatus("running");
 				} else {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
+				if (
+					manualCompactionSessionIdRef.current === activeSessionId &&
+					!shouldQueue
+				) {
+					manualCompactionSessionIdRef.current = null;
+					setCompactionSessionId((current) =>
+						current === activeSessionId ? null : current,
+					);
+				}
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
 				}
@@ -3969,12 +4038,14 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					applyCloudSnapshotMessages({
-						sessionId: session.sessionId,
-						messages: msgs,
-						preserveUnmatchedLive: true,
-						preserveLiveRouting: sessionStatus === "running",
-					});
+					if (cloudSnapshotHydrationIdRef.current !== requestId) {
+						applyCloudSnapshotMessages({
+							sessionId: session.sessionId,
+							messages: msgs,
+							preserveUnmatchedLive: true,
+							preserveLiveRouting: sessionStatus === "running",
+						});
+					}
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: msgs,
@@ -4345,6 +4416,10 @@ export function useChatSession(environmentId: string) {
 		isHydratingSession,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting:
+			compactionSessionId !== null &&
+			compactionSessionId === sessionId &&
+			(status === "starting" || status === "running" || status === "stopping"),
 		config,
 		messages,
 		historyPreview: isHydratingSession ? historyPreview : [],

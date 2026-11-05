@@ -64,7 +64,7 @@ const creationOptions = z.object({
 	workspaceRelativePath: z.string().optional(),
 	autoApproveTools: z.boolean().optional(),
 	thinking: z.boolean().optional(),
-	reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+	reasoningEffort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 });
 const createInput = creationOptions
 	.extend({
