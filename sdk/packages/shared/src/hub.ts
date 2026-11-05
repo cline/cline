@@ -1160,6 +1160,13 @@ export type HubTransportFrame =
 	| { kind: "command"; envelope: HubCommandEnvelope }
 	| { kind: "reply"; envelope: HubReplyEnvelope }
 	| {
+			kind: "history.cancel";
+			clientId: string;
+			sessionId: string;
+			/** Initial chunked session.messages request, including queued preparation. */
+			requestId: string;
+	  }
+	| {
 			kind: "stream.subscribe";
 			clientId: string;
 			sessionId?: string;
