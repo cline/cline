@@ -3980,6 +3980,39 @@ describe("side conversation lifecycle", () => {
 		expect(discoverChatSessions({ liveSessions: new Map() })).toEqual([]);
 	});
 
+	it("seeds the side chat from existing parent compaction and the complete recent tail", async () => {
+		const { create, transcripts, start, readSessionCompactionState } =
+			setup(false);
+		const earlier = transcripts.get(parentId) ?? [];
+		readSessionCompactionState.mockResolvedValueOnce(
+			createSessionCompactionState({
+				sourceMessages: earlier,
+				compactedMessages: [
+					{
+						role: "user",
+						content: "Existing parent summary",
+						metadata: { kind: "compaction_summary", userRunSpan: 1 },
+					},
+				],
+			}),
+		);
+		const answer = `START ${"x".repeat(9000)} MIDDLE_FACT ${"y".repeat(9000)} END`;
+		transcripts.set(parentId, [
+			...earlier,
+			{ role: "user", content: "Latest parent question" },
+			{ role: "assistant", content: answer },
+		]);
+		await create();
+		const seed = start.mock.calls[0][0].initialMessages?.[0];
+		expect(seed?.content).toContain("Existing parent summary");
+		expect(seed?.content).toContain("Latest parent question");
+		expect(seed?.content).toContain(answer);
+		expect(seed?.content).not.toContain("Earlier answer");
+		expect(readSessionCompactionState).toHaveBeenCalledExactlyOnceWith(
+			parentId,
+		);
+	});
+
 	it("validates visible source identity and keeps a lagging first-turn snapshot immutable across retry and follow-up", async () => {
 		const { ctx, create, transcripts, start } = setup();
 		transcripts.set(parentId, []);

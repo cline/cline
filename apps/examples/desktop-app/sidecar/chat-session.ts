@@ -1223,6 +1223,9 @@ async function createSideConversation(
 			Boolean(liveParent && hasActiveWorkspaceTurn(liveParent)) ||
 			parent.status === "running" ||
 			parent.status === "pending";
+		const compactionState = await manager.readSessionCompactionState(
+			request.sessionId,
+		);
 		const messages = await manager.readMessages(request.sessionId);
 		const parentTitle =
 			typeof parent.metadata?.title === "string"
@@ -1230,6 +1233,7 @@ async function createSideConversation(
 				: "Main conversation";
 		const seed = captureSideReference({
 			messages,
+			compactionState,
 			activeParentTurn,
 			visibleContext: request.visibleContext,
 			parentTitle,
