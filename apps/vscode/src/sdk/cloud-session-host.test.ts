@@ -3,6 +3,8 @@ import type { SdkSessionHost } from "./session-host"
 
 const runtime = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
+	connect: vi.fn(),
+	dispose: vi.fn(),
 	runTurn: vi.fn(),
 	pendingList: vi.fn(),
 	pendingUpdate: vi.fn(),
@@ -17,7 +19,7 @@ const runtime = vi.hoisted(() => ({
 vi.mock("@cline/core", () => ({
 	RemoteRuntimeHost: class {
 		pendingPrompts = { list: runtime.pendingList, update: runtime.pendingUpdate, delete: runtime.pendingDelete }
-		connect = vi.fn(async () => undefined)
+		connect = runtime.connect
 		listSessions = runtime.listSessions
 		updateSessionConnection = runtime.updateSessionConnection
 		getAccumulatedUsage = runtime.getAccumulatedUsage
@@ -28,7 +30,7 @@ vi.mock("@cline/core", () => ({
 			return vi.fn()
 		}
 		runTurn = runtime.runTurn
-		dispose = vi.fn(async () => undefined)
+		dispose = runtime.dispose
 	},
 }))
 
@@ -37,6 +39,8 @@ const { CloudSessionHost, mapAgentFinishReason } = await import("./cloud-session
 describe("CloudSessionHost status", () => {
 	beforeEach(() => {
 		runtime.listeners.length = 0
+		runtime.connect.mockReset().mockResolvedValue(undefined)
+		runtime.dispose.mockReset().mockResolvedValue(undefined)
 		runtime.runTurn.mockReset()
 		runtime.pendingList.mockReset().mockResolvedValue([])
 		runtime.pendingUpdate.mockReset()
@@ -46,6 +50,21 @@ describe("CloudSessionHost status", () => {
 		runtime.getAccumulatedUsage.mockReset().mockResolvedValue({ usage: { tokensIn: 1, tokensOut: 2 } })
 		runtime.readSessionMessages.mockReset().mockResolvedValue([])
 		runtime.startSession.mockClear()
+	})
+
+	it.each(["connection", "discovery"])("disposes a transport when %s fails", async (stage) => {
+		const failure = new Error("socket hang up")
+		if (stage === "connection") runtime.connect.mockRejectedValueOnce(failure)
+		else runtime.listSessions.mockRejectedValueOnce(failure)
+		await expect(
+			CloudSessionHost.connect({
+				outerSessionId: "ses-outer",
+				taskId: "inner-session",
+				socketUrl: "ws://127.0.0.1:1/session",
+				getAuthToken: async () => "token",
+			}),
+		).rejects.toBe(failure)
+		expect(runtime.dispose).toHaveBeenCalledOnce()
 	})
 
 	it("rebuilds the runtime a resumed sandbox lost from its saved conversation before the first turn", async () => {

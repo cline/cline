@@ -155,15 +155,16 @@ export class CloudSessionHost implements SdkSessionHost {
 				return { Authorization: `Bearer ${token}`, "User-Agent": "cline-vscode-cloud-session" }
 			},
 		})
-		await host.connect()
-		const cloudHost = new CloudSessionHost(options, host)
+		let cloudHost: CloudSessionHost | undefined
 		try {
+			await host.connect()
+			cloudHost = new CloudSessionHost(options, host)
 			await cloudHost.discoverInnerSession()
+			return cloudHost
 		} catch (error) {
-			await cloudHost.dispose("discoveryFailed").catch(() => {})
+			await (cloudHost ?? host).dispose().catch(() => {})
 			throw error
 		}
-		return cloudHost
 	}
 
 	get status(): CloudSessionStatus {

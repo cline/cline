@@ -1609,6 +1609,67 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it.each([
+		"connection",
+		"notice",
+		"late-list",
+	])("uses current sandbox status after a list refresh during History %s", async (stage) => {
+		const entered = deferred<void>()
+		const released = deferred<void>()
+		const listStarted = deferred<void>()
+		const listResponse = deferred<CloudSessionRecord[]>()
+		const host = {
+			status: "completed",
+			readMessages: async () => [{ role: "user", content: "prior context" }],
+			dispose: vi.fn(async () => {}),
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect")
+			.mockImplementationOnce(async () => {
+				if (stage === "connection") {
+					entered.resolve()
+					await released.promise
+					throw new Error("socket hang up")
+				}
+				return host
+			})
+			.mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { attachExistingSession: vi.fn(async () => {}) } as never,
+			showChatView: async () => {
+				if (stage !== "connection") {
+					entered.resolve()
+					await released.promise
+				}
+			},
+		})
+		const listed = { ...record, status: stage === "connection" ? "ready" : "suspended" }
+		cloudSessions.listSessions.mockResolvedValue([listed])
+		cloudSessions.getStatus.mockResolvedValue({ status: "suspended" })
+		const opening = coordinator.openCloudTask(record.id)
+		await entered.promise
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+		if (stage === "late-list") {
+			cloudSessions.listSessions.mockImplementationOnce(async () => {
+				listStarted.resolve()
+				return listResponse.promise
+			})
+			const listing = coordinator.listHistoryRecords()
+			await listStarted.promise
+			cloudSessions.resumeSession.mockImplementation(async () => {
+				listResponse.resolve([{ ...listed }])
+				await listing
+			})
+		} else {
+			cloudSessions.listSessions.mockResolvedValue([{ ...listed }])
+			await coordinator.listHistoryRecords()
+		}
+		released.resolve()
+		await opening
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(JSON.stringify(options.getTask()?.messageStateHandler.getClineMessages())).toContain("prior context")
+		await coordinator.dispose()
+	})
+
 	it.each([false, true])("renders connection failure only for its current task claim (superseded=%s)", async (superseded) => {
 		const connection = deferred<CloudSessionHost>()
 		const entered = deferred<void>()

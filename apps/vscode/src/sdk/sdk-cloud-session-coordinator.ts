@@ -1659,11 +1659,12 @@ export class SdkCloudSessionCoordinator {
 	 */
 	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
 		if (entry.record.status?.toLowerCase() === "suspended") return undefined
-		const record = entry.record
 		const signal = this.scopeAbort.signal
 		try {
 			return await this.connect(entry)
 		} catch (error) {
+			const record = { ...entry.record }
+			entry.record = record
 			const status = await this.trackScopeOperation(() => {
 				signal.throwIfAborted()
 				return this.options.cloudSessions.getStatus(record.id, signal)
@@ -1692,13 +1693,13 @@ export class SdkCloudSessionCoordinator {
 	 */
 	private async resume(entry: CloudSessionEntry, title: string): Promise<void> {
 		const signal = this.scopeAbort.signal
-		const suspended = entry.record
-		const resuming = { ...suspended, status: "provisioning" }
+		let previousRecord = entry.record
+		let resuming = { ...previousRecord, status: "provisioning" }
 		entry.record = resuming
 		const startedAt = Date.now()
-		this.installTask(suspended.id).messageStateHandler.addMessages([
+		this.installTask(previousRecord.id).messageStateHandler.addMessages([
 			{ ts: startedAt, type: "say", say: "task", text: title, partial: false },
-			cloudProvisioningRow(startedAt + 1, "resuming", suspended.repoContext),
+			cloudProvisioningRow(startedAt + 1, "resuming", previousRecord.repoContext),
 		])
 		await this.options.postStateToWebview()
 		signal.throwIfAborted()
@@ -1707,10 +1708,15 @@ export class SdkCloudSessionCoordinator {
 		try {
 			await this.trackScopeOperation(() => {
 				signal.throwIfAborted()
-				return this.options.cloudSessions.resumeSession(suspended.id, undefined, signal)
+				this.assertSandboxNotTerminated(entry)
+				// Posting the notice can refresh History; fence those reads before the wake.
+				if (entry.record !== resuming) previousRecord = entry.record
+				resuming = { ...previousRecord, status: "provisioning" }
+				entry.record = resuming
+				return this.options.cloudSessions.resumeSession(previousRecord.id, undefined, signal)
 			})
 		} catch (error) {
-			if (entry.record === resuming) entry.record = suspended
+			if (entry.record === resuming) entry.record = previousRecord
 			throw error
 		}
 		signal.throwIfAborted()
