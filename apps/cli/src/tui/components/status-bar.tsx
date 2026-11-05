@@ -212,9 +212,11 @@ export function StatusBar(props: StatusBarProps) {
 		totalCost,
 		providerId: props.providerId,
 	});
-	const contextText = bar
-		? ` ${bar.filled}${bar.empty} ${usageText}`
-		: ` ${usageText}`;
+	const contextText = isCloud
+		? ""
+		: bar
+			? ` ${bar.filled}${bar.empty} ${usageText}`
+			: ` ${usageText}`;
 	const firstRowFits =
 		modelId.length + contextText.length + toggleWidth + 1 <= avail;
 	const renderContextText = (withLeadingSpace: boolean) => (
@@ -257,7 +259,7 @@ export function StatusBar(props: StatusBarProps) {
 			<box flexDirection="row" justifyContent="space-between">
 				<text fg="gray">
 					{truncatedModel}
-					{firstRowFits && renderContextText(true)}
+					{!isCloud && firstRowFits && renderContextText(true)}
 				</text>
 				{!isCloud && (
 					<box
@@ -277,7 +279,9 @@ export function StatusBar(props: StatusBarProps) {
 				)}
 			</box>
 
-			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
+			{!isCloud && !firstRowFits && (
+				<text fg="gray">{renderContextText(false)}</text>
+			)}
 
 			{isCloud ? (
 				<text fg={defaultFg}>

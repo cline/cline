@@ -53,6 +53,7 @@ export type FixtureState = z.infer<typeof fixtureStateSchema>;
 export type FixtureScenario =
 	| "github-disconnected"
 	| "success"
+	| "long-preview"
 	| "failure"
 	| "warning"
 	| "held-success"

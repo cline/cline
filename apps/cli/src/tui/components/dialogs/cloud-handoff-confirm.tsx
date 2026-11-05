@@ -27,7 +27,7 @@ export function CloudHandoffConfirmContent(
 				{plan.files.length} changed/new files · {plan.commits.length}{" "}
 				unpublished commits
 			</text>
-			<scrollbox maxHeight={10} marginTop={1}>
+			<scrollbox focused maxHeight={10} marginTop={1}>
 				{plan.files.map((file) => (
 					<text key={file.path}>
 						{file.status} {file.path}

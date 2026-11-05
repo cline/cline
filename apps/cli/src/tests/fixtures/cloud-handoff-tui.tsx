@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
 import {
 	type AgentEvent,
 	type ClineAccountOrganization,
@@ -25,7 +25,9 @@ const record = <K extends keyof FixtureState>(
 	value: FixtureState[K],
 ) => {
 	state[key] = value;
-	writeFileSync(statePath, JSON.stringify(state));
+	const temporaryPath = `${statePath}.tmp`;
+	writeFileSync(temporaryPath, JSON.stringify(state));
+	renameSync(temporaryPath, statePath);
 };
 
 mock.module("../../utils/open", () => ({
@@ -436,7 +438,13 @@ const props = {
 				branch: "qa/cloud-handoff-test",
 				sourceBranch: "main",
 				workspaceRelativePath: "",
-				files: [{ path: "note.txt", status: "modified" }],
+				files:
+					scenario === "long-preview"
+						? Array.from({ length: 12 }, (_, index) => ({
+								path: `note-${index + 1}.txt`,
+								status: "modified" as const,
+							}))
+						: [{ path: "note.txt", status: "modified" }],
 				commits: ["abc1234 synthetic local commit"],
 			},
 			start: async (onProgress) => {

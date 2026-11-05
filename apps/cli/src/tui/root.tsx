@@ -997,7 +997,11 @@ function App(props: TuiProps) {
 			props.activeSession?.getId() !== handoff.sourceId
 		)
 			return;
-		if (session.isRunning || queuedPrompts.length > 0) {
+		if (
+			session.isRunning ||
+			promptInput.isSubmissionPending ||
+			queuedPrompts.length > 0
+		) {
 			showToast(
 				"Wait for the local run and queued prompts before opening the cloud task.",
 			);
@@ -1097,8 +1101,15 @@ function App(props: TuiProps) {
 				showToast(
 					"The input already has a draft. Clear or send it before restoring this one.",
 				);
+			else handoff.consumeRestoredDraft(draft);
 		},
-		[handoff.sourceId, promptInput, props.activeSession, showToast],
+		[
+			handoff.sourceId,
+			handoff.consumeRestoredDraft,
+			promptInput,
+			props.activeSession,
+			showToast,
+		],
 	);
 	const runCommandPaletteResult = useCallback(
 		async (result: CommandPaletteResult) => {

@@ -73,8 +73,10 @@ export function usePromptInputController(input: {
 	const pastedTextSnippetsRef = useRef<PastedTextSnippet[]>([]);
 	const localCommandInFlightRef = useRef(false);
 	const submissionGenerationRef = useRef(0);
+	const [pendingSubmissions, setPendingSubmissions] = useState(0);
 	const invalidatePendingSubmissions = useCallback(() => {
 		submissionGenerationRef.current += 1;
+		setPendingSubmissions(0);
 	}, []);
 	inputValueRef.current = inputValue;
 
@@ -411,6 +413,7 @@ export function usePromptInputController(input: {
 				});
 			};
 			try {
+				setPendingSubmissions((count) => count + 1);
 				const result = await onSubmit(
 					promptForSubmit,
 					session.uiMode,
@@ -456,6 +459,7 @@ export function usePromptInputController(input: {
 					});
 				}
 			} finally {
+				if (isCurrentSubmission()) setPendingSubmissions((count) => count - 1);
 				if (!delivery && isCurrentSubmission()) {
 					session.closeInlineStream();
 					session.setIsRunning(false);
@@ -555,6 +559,7 @@ export function usePromptInputController(input: {
 
 	return {
 		invalidatePendingSubmissions,
+		isSubmissionPending: pendingSubmissions > 0,
 		inputKey,
 		inputValue,
 		inputValueRef,

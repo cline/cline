@@ -224,6 +224,17 @@ describe("cloud handoff TUI", () => {
 		await session.waitForText("Synthetic attached cloud transcript", {
 			timeout,
 		});
+		for (const width of [36, 60, 120]) {
+			session.resize({ cols: width, rows: 40 });
+			await session.waitIdle({ timeout: 2_000 });
+			const cloudScreen = await session.text();
+			const cloudModelRow = cloudScreen
+				.split("\n")
+				.find((line) => line.includes("synthetic-cloud-model"));
+			expect(cloudModelRow).toBeDefined();
+			expect(cloudScreen).not.toContain("(1,234)");
+			expect(cloudScreen).not.toContain("$0.25");
+		}
 
 		await switchToSyntheticOrganization(session, statePath);
 
@@ -347,7 +358,9 @@ describe("cloud handoff TUI", () => {
 	});
 
 	it("cancels without losing the instruction", async () => {
-		const { session, statePath, stateDir } = await launch();
+		const { session, statePath, stateDir } = await launch({
+			scenario: "long-preview",
+		});
 		await session.waitForText("Ask anything...", { timeout });
 		const instruction = "continue the synthetic parser task";
 		await session.type(`/cloud ${instruction}`);
@@ -355,9 +368,17 @@ describe("cloud handoff TUI", () => {
 		await pasteSyntheticImage(session, image.imagePath);
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
-		await session.waitForText("1 changed/new files · 1 unpublished commits", {
+		await session.waitForText("12 changed/new files · 1 unpublished commits", {
 			timeout,
 		});
+		expect(await session.text()).not.toContain(
+			"abc1234 synthetic local commit",
+		);
+		await session.press("pagedown");
+		await session.waitForText("abc1234 synthetic local commit", { timeout });
+		expect(await session.text()).toContain("note-12.txt");
+		await session.press("home");
+		await session.waitForText("modified note-1.txt", { timeout });
 		await session.press("escape");
 		const cancelledDraft = await session.text();
 		expect(cancelledDraft).toContain(instruction);
@@ -375,7 +396,11 @@ describe("cloud handoff TUI", () => {
 			instruction,
 			images: [image.dataUrl],
 		});
-		await session.press("escape");
+		await session.press("pagedown");
+		await session.waitForText("abc1234 synthetic local commit", { timeout });
+		await session.press("enter");
+		await session.waitForText("Open cloud task (Ctrl+O)", { timeout });
+		expect(readState(statePath).started).toBe(true);
 	});
 
 	it("forwards an image and keeps local chat usable while cloud work runs", async () => {
@@ -812,7 +837,7 @@ describe("cloud handoff TUI", () => {
 			attached: false,
 			attachResult: "fails",
 		},
-	] as const)("keeps a late local completion scoped correctly when attach $attachResult", async ({
+	] as const)("waits for local submission to settle before opening cloud when attach $attachResult", async ({
 		scenario,
 		attached,
 	}) => {
@@ -854,6 +879,24 @@ describe("cloud handoff TUI", () => {
 			timeout,
 		});
 		await session.press(["ctrl", "o"]);
+		await session.waitForText("Wait for the local run", { timeout });
+		expect(readState(statePath).attachAttempts).toHaveLength(1);
+		expect(await session.text()).toContain(
+			"hold the synthetic local completion",
+		);
+
+		releaseLocal();
+		await session.text({
+			waitFor: () => readState(statePath).localSettled === true,
+			timeout,
+		});
+		await session.waitForText("5 iterations", { timeout });
+		const settledLocalScreen = await session.text();
+		expect(settledLocalScreen).toContain("1,234 tokens");
+		expect(settledLocalScreen).toContain("(1,234)");
+		expect(settledLocalScreen).toContain("$0.25");
+
+		await session.press(["ctrl", "o"]);
 		if (attached) {
 			await session.waitForText("Synthetic attached cloud transcript", {
 				timeout,
@@ -869,11 +912,7 @@ describe("cloud handoff TUI", () => {
 				timeout,
 			});
 		}
-		releaseLocal();
-		await session.text({
-			waitFor: () => readState(statePath).localSettled === true,
-			timeout,
-		});
+		expect(readState(statePath).attachAttempts).toHaveLength(2);
 		await session.waitIdle({ timeout: 5_000 });
 		const screen = await session.text();
 		expect(readState(statePath).modeChangeCalls).toBeUndefined();
@@ -884,9 +923,20 @@ describe("cloud handoff TUI", () => {
 			expect(readState(statePath).runningChanges?.at(-1)).toBe(true);
 			await session.press(["ctrl", "o"]);
 			await session.waitForText("● Plan ○ Act (Tab)", { timeout });
+			const returnedLocalScreen = await session.text();
+			const localModelRow = returnedLocalScreen
+				.split("\n")
+				.find((line) => line.includes("synthetic-model"));
+			expect(localModelRow).toContain("(1,234)");
+			expect(localModelRow).toContain("$0.25");
+			expect(returnedLocalScreen).toContain("5 iterations");
 		} else {
 			expect(screen).toContain("● Plan ○ Act (Tab)");
-			expect(screen).toContain("1,234 tokens");
+			const localModelRow = screen
+				.split("\n")
+				.find((line) => line.includes("synthetic-model"));
+			expect(localModelRow).toContain("(1,234)");
+			expect(localModelRow).toContain("$0.25");
 			expect(screen).toContain("5 iterations");
 			expect(readState(statePath).runningChanges?.at(-1)).toBe(false);
 		}
@@ -1099,14 +1149,22 @@ describe("cloud handoff TUI", () => {
 	});
 
 	it("shows a failed handoff and restores the captured draft", async () => {
-		const { session } = await launch({ scenario: "failure" });
+		const { session, statePath, stateDir } = await launch({
+			scenario: "failure",
+		});
 		await session.waitForText("Ask anything...", { timeout });
 		await session.type("An existing local conversation");
 		await session.press("enter");
 		const instruction = "retry this synthetic publish";
-		await session.type(`/cloud ${instruction}`);
+		const image = createSyntheticImage(stateDir);
+		await session.type(`/cloud ${instruction} `);
+		await pasteSyntheticImage(session, image.imagePath);
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
+		expect(readState(statePath).preparations?.at(-1)?.draft).toEqual({
+			instruction,
+			images: [image.dataUrl],
+		});
 		await session.press("enter");
 		await session.waitForText("Synthetic publish failure", { timeout });
 		const failedScreen = await session.text();
@@ -1123,15 +1181,23 @@ describe("cloud handoff TUI", () => {
 		expect(await session.text()).not.toContain(`/cloud ${instruction}`);
 		await runPaletteAction(session, "Restore cloud handoff draft");
 		await session.waitForText(`/cloud ${instruction}`, { timeout });
-		expect(await session.text()).not.toContain(
+		const restoredScreen = await session.text();
+		expect(restoredScreen).toContain("[Image 1]");
+		expect(restoredScreen).not.toContain("Synthetic publish failure");
+		expect(restoredScreen).not.toContain("Restore draft");
+		expect(restoredScreen).not.toContain(
 			"Create a fork of the current conversation?",
 		);
 	});
 
 	it("does not overwrite a newer draft when offering to restore a failed handoff", async () => {
-		const { session, release } = await launch({ scenario: "held-failure" });
+		const { session, stateDir, release } = await launch({
+			scenario: "held-failure",
+		});
 		await session.waitForText("Ask anything...", { timeout });
-		await session.type("/cloud earlier synthetic draft");
+		const oldImage = createSyntheticImage(stateDir);
+		await session.type("/cloud earlier synthetic draft ");
+		await pasteSyntheticImage(session, oldImage.imagePath);
 		await session.press("enter");
 		await session.waitForText("Continue in cloud?", { timeout });
 		await session.press("enter");
@@ -1139,7 +1205,9 @@ describe("cloud handoff TUI", () => {
 			timeout,
 		});
 		const newerDraft = "newer local text";
+		const newerImage = createSyntheticImage(stateDir);
 		await session.type(newerDraft);
+		await pasteSyntheticImage(session, newerImage.imagePath);
 		await session.waitForText(newerDraft, { timeout });
 		expect(await session.text()).toContain(
 			"Publishing the approved Git snapshot.",
@@ -1149,7 +1217,10 @@ describe("cloud handoff TUI", () => {
 		await runPaletteAction(session, "Restore cloud handoff draft");
 		const screen = await session.text();
 		expect(screen).toContain(newerDraft);
+		expect(screen).toContain("[Image 1]");
 		expect(screen).not.toContain("/cloud earlier synthetic draft");
+		expect(screen).toContain("Synthetic publish failure");
+		expect(screen).toContain("Restore draft");
 	});
 
 	it("restores a failed handoff only after /history resumes its source session", async () => {

@@ -195,6 +195,16 @@ export function useCloudHandoff(input: {
 			});
 		},
 		retry,
+		consumeRestoredDraft: (draft: CloudHandoffDraft) => {
+			if (activeSession.getId() !== sourceId) return;
+			setStatuses((current) => {
+				const entry = current[sourceId];
+				if (entry?.kind !== "failed" || entry.draft !== draft) return current;
+				const next = { ...current };
+				delete next[sourceId];
+				return next;
+			});
+		},
 		hide: () => {
 			if (activeSession.getId() !== sourceId || !canHide) return;
 			setStatuses((current) => {
