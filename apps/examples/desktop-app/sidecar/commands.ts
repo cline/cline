@@ -219,6 +219,7 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
+import { getVoiceManagerModel } from "./voice-manager";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
@@ -3133,6 +3134,9 @@ export async function handleCommand(
 		return await createHubProvidersApi(
 			await ensureSharedHubClient(ctx),
 		).recommendedModels();
+	}
+	if (command === "get_voice_manager_model") {
+		return getVoiceManagerModel();
 	}
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();
