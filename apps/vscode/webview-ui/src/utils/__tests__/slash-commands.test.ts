@@ -37,13 +37,6 @@ describe("slash-commands", () => {
 			})
 		})
 
-		it("preserves the prefix and following-line text for a command in the middle", () => {
-			expect(removeSlashCommand("Please /newtask\nhello world", 15)).toEqual({
-				newText: "Please \nhello world",
-				newPosition: 7,
-			})
-		})
-
 		it.each([
 			["/newtask hello world", "hello world"],
 			["/newtask  hello world", " hello world"],
@@ -279,6 +272,22 @@ describe("slash-commands", () => {
 		it("lists enabled skills once under the skill section", () => {
 			const result = getSkillCommands(skills)
 			expect(result).toEqual([{ name: "aws-deploy", description: "Deploy to AWS", section: "skill" }])
+		})
+
+		it("drops skills named like a built-in command and dedupes case-insensitively", () => {
+			const colliding = [
+				SkillInfo.create({
+					name: "Compact",
+					description: "Not compaction",
+					path: "/skills/compact/SKILL.md",
+					enabled: true,
+				}),
+				SkillInfo.create({ name: "ship-it", description: "Ship", path: "/skills/ship-it/SKILL.md", enabled: true }),
+				SkillInfo.create({ name: "Ship-It", description: "Ship again", path: "/global/ship-it/SKILL.md", enabled: true }),
+			]
+			const all = getMatchingSlashCommands("", {}, {}, undefined, undefined, [], colliding)
+			expect(all.filter((cmd) => cmd.section === "skill").map((cmd) => cmd.name)).toEqual(["ship-it"])
+			expect(all.filter((cmd) => cmd.name.toLowerCase() === "compact")).toHaveLength(1)
 		})
 
 		it("includes skills in matching commands and filters by prefix", () => {

@@ -74,16 +74,23 @@ function getWorkflowCommands(
 /**
  * Gets slash commands for enabled skills. Skill commands are sent as typed
  * (not expanded), so the model loads the instructions through the skills tool.
+ *
+ * A skill named like a built-in command is left out: the typed token is
+ * claimed before the model sees it (`/compact` and its aliases run
+ * compaction in the webview), so a second row would be indistinguishable
+ * from the first and could not reach the skill anyway. Workflows are not
+ * reserved: core gives a skill precedence over a workflow of the same name.
  */
-export function getSkillCommands(skills: SkillInfo[] = []): SlashCommand[] {
-	const seen = new Set<string>()
+export function getSkillCommands(skills: SkillInfo[] = [], builtinCommands: SlashCommand[] = []): SlashCommand[] {
+	const seen = new Set(builtinCommands.map((cmd) => cmd.name.toLowerCase()))
 	const commands: SlashCommand[] = []
 
 	for (const skill of skills) {
-		if (!skill.enabled || !skill.name || seen.has(skill.name)) {
+		const key = skill.name.toLowerCase()
+		if (!skill.enabled || !skill.name || seen.has(key)) {
 			continue
 		}
-		seen.add(skill.name)
+		seen.add(key)
 		commands.push({
 			name: skill.name,
 			description: skill.description || undefined,
@@ -213,7 +220,7 @@ export function getMatchingSlashCommands(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
-	const skillCommands = getSkillCommands(skills)
+	const skillCommands = getSkillCommands(skills, DEFAULT_SLASH_COMMANDS)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...skillCommands, ...mcpPromptCommands]
 
@@ -271,7 +278,7 @@ export function validateSlashCommand(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
-	const skillCommands = getSkillCommands(skills)
+	const skillCommands = getSkillCommands(skills, DEFAULT_SLASH_COMMANDS)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...skillCommands, ...mcpPromptCommands]
 
