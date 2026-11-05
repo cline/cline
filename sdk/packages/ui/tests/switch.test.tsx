@@ -167,6 +167,7 @@ describe("Switch", () => {
 				ref={(node) => {
 					forwardedRef = node;
 				}}
+				size="sm"
 				tone="neutral"
 				style={{ marginInlineStart: 8 }}
 				tabIndex={-1}
@@ -177,6 +178,10 @@ describe("Switch", () => {
 		expect(input().getAttribute("aria-describedby")).toBe("help");
 		expect(input().tabIndex).toBe(-1);
 		expect(input().hasAttribute("tone")).toBe(false);
+		expect(input().hasAttribute("size")).toBe(false);
+		expect(
+			input().parentElement?.classList.contains("cline-ui-switch-sm"),
+		).toBe(true);
 		expect(
 			input().parentElement?.classList.contains("cline-ui-switch-neutral"),
 		).toBe(true);

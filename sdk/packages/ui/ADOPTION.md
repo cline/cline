@@ -350,8 +350,9 @@ Uncontrolled switches follow native form reset behavior; controlled switches
 must be reset by their owner. Disabled switches, including those in disabled
 fieldsets, are excluded from form submission.
 
-The switch scales with the root font size and reserves a minimum 24px hit area
-on each axis by default.
+The default `size="md"` preserves the original switch dimensions. Use
+`size="sm"` for a compact switch. Both sizes scale with the root font size and
+reserve a minimum 24px hit area on each axis.
 
 The default `tone="accent"` uses the shared accent colors. Use `tone="neutral"`
 for a checked track that is dark in light mode and light in dark mode. Both tones

@@ -10,6 +10,8 @@ export interface SwitchProps
 	> {
 	/** Color of the checked switch. Defaults to accent. */
 	tone?: "accent" | "neutral";
+	/** Visual size of the switch. Defaults to md. */
+	size?: "sm" | "md";
 	onCheckedChange?: (checked: boolean) => void;
 }
 
@@ -22,6 +24,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 			dir,
 			hidden,
 			tone = "accent",
+			size = "md",
 			onChange,
 			onCheckedChange,
 			...props
@@ -29,7 +32,12 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 		ref,
 	) => (
 		<span
-			className={clsx("cline-ui-switch", `cline-ui-switch-${tone}`, className)}
+			className={clsx(
+				"cline-ui-switch",
+				`cline-ui-switch-${tone}`,
+				`cline-ui-switch-${size}`,
+				className,
+			)}
 			data-slot="switch-root"
 			dir={dir}
 			hidden={hidden}
