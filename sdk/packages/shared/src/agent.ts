@@ -210,6 +210,9 @@ export interface AgentToolContext {
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/** Delegated tool names whose disable/approval restrictions also apply.
+	 * Wrappers include the delegate's own dependencies as well as its name. */
+	policyDependencies?: readonly string[];
 	/**
 	 * Model-only context appended after successful tool results and after-tool
 	 * hooks. Hidden from client transcripts via displayRole: "system".

@@ -114,7 +114,11 @@ describe("runtime tool parity", () => {
 		});
 		const actual = runtime.tools.map((tool) => tool.name);
 
-		expect(normalizeParityToolNames(actual)).toEqual(expected);
+		// UX delegation is a new addition; retain parity for the existing tools.
+		expect(actual).toContain("ux_verifier");
+		expect(
+			normalizeParityToolNames(actual.filter((name) => name !== "ux_verifier")),
+		).toEqual(expected);
 	});
 
 	it("matches legacy tool list when only spawn is enabled", async () => {
