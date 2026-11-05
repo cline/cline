@@ -97,7 +97,8 @@ feedback, and badge variants.
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
-`Switch` is a medium-size native checkbox styled as a switch. It supports
+`Switch` is a native checkbox styled as a switch, with `sm` and `md` sizes
+(default: `md`). It supports
 `checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.
 Provide an accessible name with a label or `aria-label`. Its ref targets the
 input; `className` and `style` customize the wrapper. See [switch usage and

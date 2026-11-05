@@ -22,8 +22,9 @@ const meta: Meta<typeof Switch> = {
 			</div>
 		),
 	],
-	args: { "aria-label": "Enable notifications", tone: "accent" },
+	args: { "aria-label": "Enable notifications", tone: "accent", size: "md" },
 	argTypes: {
+		size: { control: "select", options: ["sm", "md"] },
 		tone: { control: "select", options: ["accent", "neutral"] },
 		onCheckedChange: { action: "checked changed" },
 	},
@@ -33,6 +34,8 @@ export default meta;
 type Story = StoryObj<typeof Switch>;
 
 export const Default: Story = {};
+
+export const Small: Story = { args: { size: "sm" } };
 
 export const Checked: Story = { args: { defaultChecked: true } };
 
