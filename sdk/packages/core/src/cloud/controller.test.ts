@@ -1169,6 +1169,34 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it.each([
+		["hub_draining", false],
+		["cloud_command_failed", true],
+	] as const)("preserves initial delivery status for %s", async (code, dispatched) => {
+		const f = fixture();
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.send_input") {
+				args[3]?.beforeDispatch?.();
+				throw new HubCommandError(args[0], code, "Synthetic send refusal");
+			}
+			return original(...args);
+		});
+		try {
+			const created = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialMessage: { text: "INITIAL SUMMARY" },
+			});
+			expect(created.initialSend).toMatchObject({ dispatched });
+			expect(f.api.create).toHaveBeenCalledOnce();
+			expect(
+				f.command.mock.calls.filter(([name]) => name === "session.send_input"),
+			).toHaveLength(1);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("keeps initialPrompt metadata without submitting a message", async () => {
 		const f = fixture();
 		try {
