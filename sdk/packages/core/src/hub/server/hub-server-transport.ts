@@ -1,4 +1,3 @@
-import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import { resolve } from "node:path";
 import type {
 	AgendaTaskRecord,
@@ -16,6 +15,7 @@ import {
 	captureSdkError,
 	createSessionId,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	isClineAccountNotAuthenticatedResult,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -34,6 +34,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { McpManagementService } from "../../services/mcp-management";
 import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
+import { SkillManagementService } from "../../services/skill-management";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -126,6 +127,7 @@ import {
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
+import { handleSkillManagementCommand } from "./handlers/skill-management-handlers";
 import { HubEventLogStore } from "./hub-event-log";
 import { HubRunQueue } from "./hub-run-queue";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
@@ -311,6 +313,8 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
 	private readonly mcpManagement = new McpManagementService();
 	private readonly pendingMcpRequests = new Set<Promise<unknown>>();
+	private readonly skillManagement = new SkillManagementService();
+	private readonly pendingSkillRequests = new Set<Promise<unknown>>();
 	private readonly pendingProviderMutations = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
@@ -793,6 +797,7 @@ export class HubServerTransport implements NativeHubTransport {
 			...this.pendingPluginCommands,
 			...this.pendingProviderMutations,
 			...this.pendingMcpRequests,
+			...this.pendingSkillRequests,
 		]);
 		this.unsubscribePluginStatus?.();
 		this.unsubscribePluginStatus = undefined;
@@ -880,7 +885,8 @@ export class HubServerTransport implements NativeHubTransport {
 			if (
 				authority === null &&
 				(envelope.command.startsWith("providers.") ||
-					envelope.command.startsWith("mcp."))
+					envelope.command.startsWith("mcp.") ||
+					envelope.command.startsWith("skills."))
 			) {
 				return errorReply(
 					envelope,
@@ -890,7 +896,8 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 			if (
 				(envelope.command.startsWith("providers.") ||
-					envelope.command.startsWith("mcp.")) &&
+					envelope.command.startsWith("mcp.") ||
+					envelope.command.startsWith("skills.")) &&
 				authority !== undefined &&
 				authority?.tokenAuthenticated !== true
 			) {
@@ -997,6 +1004,24 @@ export class HubServerTransport implements NativeHubTransport {
 					"cloud_command_failed",
 					error instanceof Error ? error.message : String(error),
 				);
+			}
+		}
+		if (envelope.command.startsWith("skills.")) {
+			const request = handleSkillManagementCommand(
+				envelope,
+				this.skillManagement,
+				authority?.workspaceContext?.workspaceRoot,
+			);
+			this.pendingSkillRequests.add(request);
+			try {
+				const reply = await request;
+				if (reply.ok && envelope.command !== "skills.marketplace.status")
+					this.publish(
+						buildHubEvent("settings.changed", { types: ["skills"] }),
+					);
+				return reply;
+			} finally {
+				this.pendingSkillRequests.delete(request);
 			}
 		}
 		if (envelope.command.startsWith("mcp.")) {
@@ -1175,6 +1200,7 @@ export class HubServerTransport implements NativeHubTransport {
 						activeProviderMutations:
 							this.pendingProviderMutations.size +
 							this.providerAuth.activeCount,
+						activeSkillRequests: this.pendingSkillRequests.size,
 						activeMcpRequests:
 							this.pendingMcpRequests.size +
 							this.mcpManagement.oauth.activeCount,
@@ -1525,6 +1551,7 @@ export class HubServerTransport implements NativeHubTransport {
 			activePluginRequests: this.pendingPluginCommands.size,
 			activeProviderMutations:
 				this.pendingProviderMutations.size + this.providerAuth.activeCount,
+			activeSkillRequests: this.pendingSkillRequests.size,
 			activeMcpRequests:
 				this.pendingMcpRequests.size + this.mcpManagement.oauth.activeCount,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
@@ -1538,6 +1565,7 @@ export class HubServerTransport implements NativeHubTransport {
 				this.pendingPluginCommands.size === 0 &&
 				this.pendingProviderMutations.size === 0 &&
 				this.pendingMcpRequests.size === 0 &&
+				this.pendingSkillRequests.size === 0 &&
 				this.mcpManagement.oauth.activeCount === 0 &&
 				this.providerAuth.activeCount === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,

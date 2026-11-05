@@ -46,6 +46,7 @@ export { createHubMcpApi, type HubMcpApi } from "./client/mcp";
 export { createHubProviderAuthApi } from "./client/provider-auth";
 export { createHubProvidersApi } from "./client/providers";
 export * from "./client/session-client";
+export { createHubSkillsApi } from "./client/skills";
 export * from "./client/ui-client";
 export * from "./daemon";
 export * from "./daemon/runtime-handlers";

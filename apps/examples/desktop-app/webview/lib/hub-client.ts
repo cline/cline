@@ -5,6 +5,7 @@ import {
 	createHubPluginCommandsApi,
 	createHubProviderAuthApi,
 	createHubProvidersApi,
+	createHubSkillsApi,
 	type HubBrowserConnection,
 	type HubCommandClient,
 } from "@cline/core/hub/browser";
@@ -46,6 +47,7 @@ const local: HubCommandClient = {
 export const hubProviders = createHubProvidersApi(local);
 export const hubAccount = createHubProviderAuthApi(local);
 export const hubMcp = createHubMcpApi(local);
+export const hubSkills = createHubSkillsApi(local);
 export function hubPlugins(environmentId = "local") {
 	return createHubPluginCommandsApi(getDesktopHubClient(environmentId));
 }

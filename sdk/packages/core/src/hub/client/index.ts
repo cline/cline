@@ -1211,6 +1211,8 @@ export interface HubSessionActivity {
 	activeProviderMutations: number;
 	/** MCP configuration and connection checks accepted by the Hub. */
 	activeMcpRequests: number;
+	/** Skill installation and removal requests accepted by the Hub. */
+	activeSkillRequests: number;
 }
 
 /**
@@ -1262,7 +1264,8 @@ export function summarizeHubSessionActivity(
 			| "activePluginRequests"
 			| "activeCloudCommands"
 			| "activeProviderMutations"
-			| "activeMcpRequests",
+			| "activeMcpRequests"
+			| "activeSkillRequests",
 	) => {
 		const value =
 			payload && typeof payload === "object"
@@ -1279,6 +1282,7 @@ export function summarizeHubSessionActivity(
 		activeCloudCommands: count("activeCloudCommands"),
 		activeProviderMutations: count("activeProviderMutations"),
 		activeMcpRequests: count("activeMcpRequests"),
+		activeSkillRequests: count("activeSkillRequests"),
 	};
 }
 
@@ -1289,7 +1293,8 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 		activity.activePluginRequests > 0 ||
 		activity.activeCloudCommands > 0 ||
 		activity.activeProviderMutations > 0 ||
-		activity.activeMcpRequests > 0
+		activity.activeMcpRequests > 0 ||
+		activity.activeSkillRequests > 0
 	);
 }
 
@@ -1339,7 +1344,8 @@ export async function localHubHasNoActiveSessions(
 			activity.activePluginRequests === 0 &&
 			activity.activeCloudCommands === 0 &&
 			activity.activeProviderMutations === 0 &&
-			activity.activeMcpRequests === 0
+			activity.activeMcpRequests === 0 &&
+			activity.activeSkillRequests === 0
 		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe

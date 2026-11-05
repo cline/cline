@@ -1,10 +1,13 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { uninstallMarketplaceEntry } from "./marketplace";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	installMarketplaceSkill,
+	uninstallMarketplaceEntry,
+} from "./marketplace";
 import { SKILLS_CLI_PACKAGE } from "./skills-cli";
 
 describe("marketplace service", () => {
@@ -35,7 +38,53 @@ describe("marketplace service", () => {
 		} else {
 			process.env.CLINE_DIR = originalClineDir;
 		}
+		setHomeDir(originalHome || homedir());
+		setClineDir(originalClineDir || join(homedir(), ".cline"));
 		rmSync(root, { recursive: true, force: true });
+	});
+
+	const skill = {
+		id: "review-team",
+		type: "skill" as const,
+		install: { args: ["github.com/cline/skills@review-team"] },
+	};
+	it("installs skills globally using the shared CLI and skips an existing install", async () => {
+		const spawnCommand = vi.fn(async () => {
+			const dir = join(home, ".agents", "skills", "review-team");
+			await mkdir(dir, { recursive: true });
+			await writeFile(join(dir, "SKILL.md"), "# Review");
+			return { exitCode: 0, stdout: "installed\napi_key=secret", stderr: "" };
+		});
+		expect(
+			await installMarketplaceSkill(skill, { spawnCommand }),
+		).toMatchObject({
+			status: "installed",
+			output: "installed\napi_key=[redacted]",
+		});
+		expect(spawnCommand).toHaveBeenCalledWith("npx", [
+			"-y",
+			SKILLS_CLI_PACKAGE,
+			"add",
+			...skill.install.args,
+			"-g",
+			"-a",
+			"cline",
+			"-y",
+		]);
+		await installMarketplaceSkill(skill, { spawnCommand });
+		expect(spawnCommand).toHaveBeenCalledTimes(1);
+	});
+	it.each([
+		[1, "spawn git ENOENT", "Git is required"],
+		[1, "Network request failed", "Network request failed"],
+		[0, "Failed to install skill", "Skill install failed"],
+		[0, "done", "was not found"],
+	])("rejects unsuccessful skill installs (%s, %s)", async (exitCode, stderr, message) => {
+		await expect(
+			installMarketplaceSkill(skill, {
+				spawnCommand: async () => ({ exitCode, stdout: "", stderr }),
+			}),
+		).rejects.toThrow(message);
 	});
 
 	it("uninstalls marketplace MCP servers from settings by default", async () => {

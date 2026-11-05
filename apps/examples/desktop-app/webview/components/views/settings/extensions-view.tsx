@@ -1,5 +1,4 @@
 "use client";
-import { hubMcp } from "@/lib/hub-client";
 
 import { Switch } from "@cline/ui";
 import {
@@ -31,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { desktopClient } from "@/lib/desktop-client";
+import { hubMcp, hubSkills } from "@/lib/hub-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import {
@@ -762,6 +762,13 @@ export function CustomizationSectionView({
 					if (!name) throw new Error("MCP server name is required");
 					await hubMcp.delete(name);
 					result = { message: `Uninstalled ${name}.` };
+				} else if (target.type === "skill") {
+					if (!target.path) throw new Error("Skill path is required");
+					await hubSkills.remove({
+						path: target.path,
+						workspaceRoot: workspaceRoot || undefined,
+					});
+					result = { message: `Uninstalled ${target.name ?? target.id}.` };
 				} else {
 					result = await desktopClient.invoke("uninstall_local_primitive", {
 						type: target.type,
@@ -797,7 +804,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[localUninstallingKeys, refresh],
+		[localUninstallingKeys, refresh, workspaceRoot],
 	);
 
 	const formatExecutionTs = useCallback((value: string | null): string => {

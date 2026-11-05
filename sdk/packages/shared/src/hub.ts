@@ -32,6 +32,7 @@ export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export type HubCapabilityName =
 	| HubProviderCommandName
 	| HubMcpCommandName
+	| HubSkillCommandName
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -65,6 +66,10 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"skills.marketplace.status",
+	"skills.marketplace.install",
+	"skills.marketplace.uninstall",
+	"skills.remove",
 	"mcp.oauth.start",
 	"mcp.oauth.next",
 	"mcp.oauth.cancel",
@@ -680,8 +685,25 @@ export interface HubProviderMutationResult {
 	modelsCount: number;
 }
 
+export type HubSkillCommandName =
+	| "skills.marketplace.status"
+	| "skills.marketplace.install"
+	| "skills.marketplace.uninstall"
+	| "skills.remove";
+export interface HubSkillActionResult {
+	id: string;
+	type: "skill";
+	status: "installed" | "uninstalled";
+	message: string;
+	output?: string;
+}
+
 /** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"skills.marketplace.status": { ids: string[] };
+	"skills.marketplace.install": { id: string };
+	"skills.marketplace.uninstall": { id: string };
+	"skills.remove": { path: string; workspaceRoot?: string };
 	"mcp.oauth.start": { name: string; loginId: string };
 	"mcp.oauth.next": { loginId: string };
 	"mcp.oauth.cancel": { loginId: string; reason: "user" | "disconnected" };
@@ -730,6 +752,10 @@ export interface HubCommandInputMap {
 
 /** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"skills.marketplace.status": { installedIds: string[] };
+	"skills.marketplace.install": HubSkillActionResult;
+	"skills.marketplace.uninstall": HubSkillActionResult;
+	"skills.remove": { removedPath: string };
 	"mcp.oauth.start": { loginId: string };
 	"mcp.oauth.next": HubMcpOAuthSnapshot;
 	"mcp.oauth.cancel": { cancelled: boolean };
@@ -806,6 +832,7 @@ export type HubProviderCommandName =
 
 export type HubCommandName =
 	| HubMcpCommandName
+	| HubSkillCommandName
 	| HubProviderCommandName
 	| "cloud.command"
 	| "cloud.watch"

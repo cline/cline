@@ -255,9 +255,10 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 
 export { EMPTY_CATALOG, MARKETPLACE_CATALOG_URL };
 
-/** Standalone MCP entries are managed directly; other marketplace primitives retain their current host. */
+/** MCP and skill entries use the local Hub; plugin installation remains with the host. */
 export async function installMarketplaceItem(entry: MarketplaceEntry) {
-	const { hubMcp } = await import("./hub-client");
+	const { hubMcp, hubSkills } = await import("./hub-client");
+	if (entry.type === "skill") return hubSkills.install(entry.id);
 	if (entry.type === "mcp") {
 		const result = await hubMcp.install(entry.install.args);
 		return {
@@ -276,6 +277,10 @@ export async function installMarketplaceItem(entry: MarketplaceEntry) {
 	}>("install_marketplace_entry", { entry }, { timeoutMs: 10 * 60_000 });
 }
 export async function uninstallMarketplaceItem(entry: MarketplaceEntry) {
+	if (entry.type === "skill") {
+		const { hubSkills } = await import("./hub-client");
+		return hubSkills.uninstall(entry.id);
+	}
 	if (entry.type === "mcp") {
 		const { hubMcp } = await import("./hub-client");
 		await hubMcp.delete(entry.install.args[0]?.trim() ?? entry.id);
@@ -294,10 +299,10 @@ export async function uninstallMarketplaceItem(entry: MarketplaceEntry) {
 export async function listMarketplaceInstalledItems(
 	entries: MarketplaceEntry[],
 ) {
-	const local = entries.filter((entry) => entry.type !== "mcp");
+	const local = entries.filter((entry) => entry.type === "plugin");
 	const { desktopClient } = await import("./desktop-client");
-	const { hubMcp } = await import("./hub-client");
-	const [other, mcp] = await Promise.all([
+	const { hubMcp, hubSkills } = await import("./hub-client");
+	const [other, mcp, skills] = await Promise.all([
 		local.length
 			? desktopClient.invoke<{ installedKeys: string[] }>(
 					"list_marketplace_installed_entries",
@@ -307,11 +312,19 @@ export async function listMarketplaceInstalledItems(
 		entries.some((entry) => entry.type === "mcp")
 			? hubMcp.list()
 			: { servers: [] },
+		entries.some((entry) => entry.type === "skill")
+			? hubSkills.status(
+					entries
+						.filter((entry) => entry.type === "skill")
+						.map((entry) => entry.id),
+				)
+			: { installedIds: [] },
 	]);
 	const names = new Set(mcp.servers.map((server) => server.name));
 	return {
 		installedKeys: [
 			...other.installedKeys,
+			...skills.installedIds.map((id) => `skill:${id}`),
 			...entries
 				.filter(
 					(entry) =>

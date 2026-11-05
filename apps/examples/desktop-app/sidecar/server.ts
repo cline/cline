@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { fetchMarketplaceCatalog } from "@cline/core";
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
@@ -11,7 +12,6 @@ import {
 	syncSidecarApprovalReadiness,
 } from "./context";
 import { getDesktopHubConnection } from "./hub-bootstrap";
-import { fetchMarketplaceCatalog } from "./marketplace";
 import {
 	BunRuntime,
 	SIDECAR_HOST,

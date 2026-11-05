@@ -797,3 +797,25 @@ Native inline screenshots use validated browser-owned Blob URLs and show a fallb
 UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
 
 UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.
+
+### Hub skill management
+
+`createHubSkillsApi(client)` is available from `@cline/core/hub` and the browser-only
+`@cline/core/hub/browser` entry. It uses the registered local Hub even when Desktop
+has a remote task selected:
+
+```ts
+const skills = createHubSkillsApi(client);
+const installed = await skills.status(["review-team"]); // { installedIds: [...] }
+await skills.install("review-team");
+await skills.uninstall("review-team");
+await skills.remove({ path: "/workspace/.cline/skills/local/SKILL.md", workspaceRoot: "/workspace" });
+```
+
+Marketplace operations resolve IDs against the canonical catalog in the Hub.
+Local removal requires an absolute `SKILL.md` path within a configured skills
+root and removes its enclosing skill directory (or just the file when directly
+under the root). A target symlink is removed without deleting its source; parent
+symlinks cannot escape the configured root. Mutations serialize, are never replayed
+after dispatch, and wait through completion without a client request timeout.
+Accepted requests keep the Hub active until completion, including during shutdown.

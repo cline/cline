@@ -1680,3 +1680,18 @@ describe("requestHubDrain", () => {
 		expect(requested.searchParams.get("off")).toBe("1");
 	});
 });
+
+it("counts skill installations as Hub activity without a session", async () => {
+	const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+		"./index"
+	);
+	expect(hasActiveHubSessions({ sessions: [], activeSkillRequests: 1 })).toBe(
+		true,
+	);
+	expect(
+		summarizeHubSessionActivity({ sessions: [], activeSkillRequests: 2 }),
+	).toMatchObject({ activeSessionCount: 0, activeSkillRequests: 2 });
+	expect(hasActiveHubSessions({ sessions: [], activeSkillRequests: 0 })).toBe(
+		false,
+	);
+});

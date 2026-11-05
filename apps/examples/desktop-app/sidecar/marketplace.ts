@@ -1,29 +1,12 @@
-import { type SpawnOptions, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync, rmSync, statSync } from "node:fs";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import {
-	existsSync,
-	mkdirSync,
-	rmSync,
-	statSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { homedir as osHomedir, platform } from "node:os";
-import {
-	basename,
-	dirname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
-import {
+	fetchMarketplaceCatalog,
 	installPlugin as installCorePlugin,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
-	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
-	SKILLS_CLI_PACKAGE,
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
@@ -68,52 +51,9 @@ type MarketplaceInstallStatusResult = {
 	installedKeys: string[];
 };
 
-type SpawnResult = {
-	exitCode: number;
-	stdout: string;
-	stderr: string;
-};
-
-type SpawnCommand = (
-	command: string,
-	args: string[],
-	options?: SpawnOptions,
-) => Promise<SpawnResult>;
-type CatalogFetch = (
-	input: string | URL | Request,
-	init?: RequestInit,
-) => Promise<Response>;
 type CatalogLoader = () => Promise<unknown>;
 
-const MAX_OUTPUT_CHARS = 12_000;
-const INSTALL_COMMAND_TIMEOUT_MS = 120_000;
 const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git";
-const MARKETPLACE_CATALOG_URL =
-	process.env.CLINE_MARKETPLACE_CATALOG_URL?.trim() ||
-	"https://cline.github.io/marketplace/catalog.json";
-const SECRET_PATTERN =
-	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i;
-const SECRET_KEY_VALUE_PATTERN =
-	/((?:^|[^\w])(?:[a-z0-9_]*?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|credential)[a-z0-9_]*)\s*[:=]\s*)(.+)$/gi;
-const SECRET_BEARER_VALUE_PATTERN =
-	/((?:^|[^\w])authorization\s*[:=]\s*)bearer\s+([^\s,"'}\]]+)/gi;
-const SECRET_AUTHORIZATION_VALUE_PATTERN =
-	/((?:^|[^\w])authorization\s*[:=])(?!\s*bearer\b)\s*(.+)$/gi;
-
-export async function fetchMarketplaceCatalog(
-	fetchImpl: CatalogFetch = fetch,
-): Promise<unknown> {
-	const response = await fetchImpl(MARKETPLACE_CATALOG_URL, {
-		headers: { Accept: "application/json" },
-	});
-	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch marketplace catalog: ${response.status} ${response.statusText}`.trim(),
-		);
-	}
-	return response.json();
-}
-
 function isPrimitiveType(value: unknown): value is MarketplacePrimitiveType {
 	return value === "mcp" || value === "skill" || value === "plugin";
 }
@@ -275,77 +215,6 @@ function marketplaceEntryKey(
 	return `${entry.type}:${entry.id}`;
 }
 
-function redactOutput(value: string): string {
-	const lines = value.split(/\r?\n/).map((line) => {
-		if (!SECRET_PATTERN.test(line)) return line;
-		return line
-			.replace(SECRET_KEY_VALUE_PATTERN, "$1[redacted]")
-			.replace(SECRET_BEARER_VALUE_PATTERN, "$1Bearer [redacted]")
-			.replace(/\b(Bearer)\s+(?!\[redacted\])([^\s,"'}\]]+)/gi, "$1 [redacted]")
-			.replace(SECRET_AUTHORIZATION_VALUE_PATTERN, "$1 [redacted]")
-			.replace(
-				/((?:^|[^\w])(?:api\s+key|access\s+token|refresh\s+token|auth(?:orization)?\s+token|secret|password|credential)\s+(?:is\s+)?)(\S+)/gi,
-				"$1[redacted]",
-			);
-	});
-	return lines.join("\n").slice(-MAX_OUTPUT_CHARS);
-}
-
-const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
-	new Promise<SpawnResult>((resolve, reject) => {
-		let settled = false;
-		let timedOut = false;
-		const child = spawn(command, args, {
-			...options,
-			env: options.env ?? process.env,
-			shell: options.shell ?? platform() === "win32",
-			stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
-			windowsHide: true,
-		});
-		let stdout = "";
-		let stderr = "";
-		const forceKillTimeout = setTimeout(() => {
-			if (!settled) {
-				child.kill("SIGKILL");
-			}
-		}, INSTALL_COMMAND_TIMEOUT_MS + 5_000);
-		const timeout = setTimeout(() => {
-			timedOut = true;
-			stderr += `\nTimed out after ${INSTALL_COMMAND_TIMEOUT_MS / 1000}s.`;
-			child.kill("SIGTERM");
-		}, INSTALL_COMMAND_TIMEOUT_MS);
-		forceKillTimeout.unref?.();
-		timeout.unref?.();
-		child.stdout?.on("data", (chunk) => {
-			stdout += String(chunk);
-			if (stdout.length > MAX_OUTPUT_CHARS * 2) {
-				stdout = stdout.slice(-MAX_OUTPUT_CHARS);
-			}
-		});
-		child.stderr?.on("data", (chunk) => {
-			stderr += String(chunk);
-			if (stderr.length > MAX_OUTPUT_CHARS * 2) {
-				stderr = stderr.slice(-MAX_OUTPUT_CHARS);
-			}
-		});
-		child.once("error", (error) => {
-			clearTimeout(timeout);
-			clearTimeout(forceKillTimeout);
-			reject(error);
-		});
-		child.once("close", (code, signal) => {
-			settled = true;
-			clearTimeout(timeout);
-			clearTimeout(forceKillTimeout);
-			const result = {
-				exitCode: timedOut ? 124 : (code ?? (signal === "SIGINT" ? 130 : 1)),
-				stdout,
-				stderr,
-			};
-			resolve(result);
-		});
-	});
-
 function isInsidePath(childPath: string, parentPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -355,15 +224,12 @@ function isInsidePath(childPath: string, parentPath: string): boolean {
 }
 
 function resolveUserInstructionRemovalTarget(input: {
-	type: "skill" | "workflow";
+	type: "workflow";
 	path: string;
 	workspaceRoot?: string;
 }): string {
 	const filePath = resolve(input.path);
-	const searchPaths =
-		input.type === "skill"
-			? resolveSkillsConfigSearchPaths(input.workspaceRoot)
-			: resolveWorkflowsConfigSearchPaths(input.workspaceRoot);
+	const searchPaths = resolveWorkflowsConfigSearchPaths(input.workspaceRoot);
 	const containingRoot = searchPaths.find((root) =>
 		isInsidePath(filePath, root),
 	);
@@ -376,11 +242,7 @@ function resolveUserInstructionRemovalTarget(input: {
 	if (!stats?.isFile()) {
 		throw new Error(`${input.type} file does not exist: ${filePath}`);
 	}
-	if (input.type === "workflow") {
-		return filePath;
-	}
-	const skillDir = dirname(filePath);
-	return resolve(skillDir) === resolve(containingRoot) ? filePath : skillDir;
+	return filePath;
 }
 
 export async function uninstallLocalPrimitive(
@@ -388,8 +250,8 @@ export async function uninstallLocalPrimitive(
 	options: { workspaceRoot?: string } = {},
 ): Promise<MarketplaceInstallResult> {
 	const input = readLocalUninstallInput(args);
-	if (input.type === "mcp")
-		throw new Error("Standalone MCP management belongs to the Hub");
+	if (input.type === "mcp" || input.type === "skill")
+		throw new Error("MCP and skill management belong to the Hub");
 	if (input.type === "plugin") {
 		const result = await uninstallLocalPlugin({
 			name: input.path ? undefined : (input.name ?? input.id),
@@ -404,7 +266,7 @@ export async function uninstallLocalPrimitive(
 			details: result as unknown as JsonRecord,
 		};
 	}
-	if (input.type === "skill" || input.type === "workflow") {
+	if (input.type === "workflow") {
 		if (!input.path) {
 			throw new Error(`${input.type} uninstall requires a path.`);
 		}
@@ -440,15 +302,6 @@ function sanitizeSegment(value: string): string {
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 80);
 	return sanitized || "plugin";
-}
-
-function sanitizeSkillSegment(value: string): string {
-	const sanitized = value
-		.toLowerCase()
-		.replace(/[^a-z0-9._]+/g, "-")
-		.replace(/^[.-]+|[.-]+$/g, "")
-		.slice(0, 255);
-	return sanitized || "skill";
 }
 
 function isOfficialPluginSlug(source: string): boolean {
@@ -499,82 +352,11 @@ function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
 	return getOfficialPluginInstallState(entry) === "installed";
 }
 
-function resolveHomeDir(): string {
-	return (
-		process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || osHomedir()
-	);
-}
-
 function normalizeMatchValue(value: string | undefined): string {
 	return (value ?? "")
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "");
-}
-
-function getSkillInstallCandidates(entry: MarketplaceInstallInput): string[] {
-	const candidates = new Set<string>();
-	const addCandidate = (value: string | undefined) => {
-		const normalized = sanitizeSkillSegment(value ?? "");
-		if (normalized && normalized !== "skill") {
-			candidates.add(normalized);
-		}
-	};
-	addCandidate(entry.id);
-	addCandidate(entry.name);
-	const installArgs = entry.install.args ?? [];
-	for (let index = 0; index < installArgs.length; index++) {
-		const arg = installArgs[index];
-		if ((arg === "--skill" || arg === "-s") && installArgs[index + 1]) {
-			addCandidate(installArgs[index + 1]);
-			index++;
-			continue;
-		}
-		const skillFilter = arg.split("@").at(1);
-		if (skillFilter) {
-			addCandidate(skillFilter);
-		}
-	}
-	return [...candidates];
-}
-
-function getGlobalSkillPaths(skillName: string): string[] {
-	return [
-		join(resolveClineDir(), "skills", skillName, "SKILL.md"),
-		join(resolveHomeDir(), ".agents", "skills", skillName, "SKILL.md"),
-	].filter((path, index, paths) => paths.indexOf(path) === index);
-}
-
-function ensureGlobalSkillsDirWritable(): void {
-	const skillsDir = join(resolveHomeDir(), ".agents", "skills");
-	try {
-		mkdirSync(skillsDir, { recursive: true });
-		const probePath = join(
-			skillsDir,
-			`.cline-marketplace-write-test-${process.pid}-${Date.now()}`,
-		);
-		writeFileSync(probePath, "", { flag: "wx" });
-		unlinkSync(probePath);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(
-			`Cannot install skill globally because ~/.agents/skills is not writable: ${message}`,
-		);
-	}
-}
-
-function isGlobalSkillInstalled(entry: MarketplaceInstallInput): boolean {
-	return findInstalledGlobalSkillName(entry) !== undefined;
-}
-
-function findInstalledGlobalSkillName(
-	entry: MarketplaceInstallInput,
-): string | undefined {
-	if (entry.type !== "skill") return undefined;
-	const candidates = getSkillInstallCandidates(entry);
-	return candidates.find((candidate) =>
-		getGlobalSkillPaths(candidate).some((path) => existsSync(path)),
-	);
 }
 
 function hasMatchingInventoryItem(
@@ -608,78 +390,17 @@ function isMarketplaceEntryInstalled(
 	inventory?: JsonRecord,
 ): boolean {
 	try {
-		if (entry.type === "mcp") return false;
+		if (entry.type === "mcp" || entry.type === "skill") return false;
 		if (entry.type === "plugin") {
 			return (
 				isOfficialPluginInstalled(entry) ||
 				hasMatchingInventoryItem(inventory?.plugins, entry)
 			);
 		}
-		if (entry.type === "skill") {
-			return isGlobalSkillInstalled(entry);
-		}
 		return false;
 	} catch {
 		return false;
 	}
-}
-
-function commandOutput(result: SpawnResult): string | undefined {
-	const output = redactOutput(
-		[result.stdout, result.stderr].filter(Boolean).join("\n"),
-	);
-	return output.trim().length > 0 ? output.trim() : undefined;
-}
-
-async function installSkill(
-	entry: MarketplaceInstallInput,
-	spawnCommand: SpawnCommand,
-): Promise<MarketplaceInstallResult> {
-	if (isGlobalSkillInstalled(entry)) {
-		return {
-			id: entry.id,
-			type: entry.type,
-			status: "installed",
-			message: `${entry.name ?? entry.id} is already installed.`,
-		};
-	}
-	ensureGlobalSkillsDirWritable();
-	const result = await spawnCommand("npx", [
-		"-y",
-		SKILLS_CLI_PACKAGE,
-		"add",
-		...(entry.install.args ?? []),
-		"-g",
-		"-a",
-		"cline",
-		"-y",
-	]);
-	const output = commandOutput(result);
-	const missingGitHint = /\bspawn\s+git\s+ENOENT\b/i.test(output ?? "")
-		? "Git is required to install this skill. Install Git, make sure it is on PATH, and retry.\n"
-		: "";
-	if (result.exitCode !== 0) {
-		throw new Error(
-			`Skill install failed with exit code ${result.exitCode}${output ? `:\n${missingGitHint}${output}` : ""}`,
-		);
-	}
-	if (/\bFailed to install\b/i.test(output ?? "")) {
-		throw new Error(
-			`Skill install failed${output ? `:\n${missingGitHint}${output}` : ""}`,
-		);
-	}
-	if (!isGlobalSkillInstalled(entry)) {
-		throw new Error(
-			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
-		);
-	}
-	return {
-		id: entry.id,
-		type: entry.type,
-		status: "installed",
-		message: `Installed ${entry.name ?? entry.id} globally for Cline.`,
-		output,
-	};
 }
 
 async function installPlugin(
@@ -735,15 +456,10 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
-	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
-	if (entry.type === "mcp")
-		throw new Error("Standalone MCP management belongs to the Hub");
-	if (entry.type === "skill") {
-		return installSkill(entry, spawnCommand);
-	}
+	if (entry.type === "mcp" || entry.type === "skill")
+		throw new Error("MCP and skill management belong to the Hub");
 	if (entry.type === "plugin") {
 		return installPlugin(entry);
 	}
@@ -752,19 +468,13 @@ export async function installMarketplaceEntry(
 
 export async function uninstallMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
-	if (entry.type === "mcp")
-		throw new Error("Standalone MCP management belongs to the Hub");
-	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
+	if (entry.type === "mcp" || entry.type === "skill")
+		throw new Error("MCP and skill management belong to the Hub");
 
 	const result = await uninstallCoreMarketplaceEntry(
 		entry satisfies MarketplaceEntryInput,
-		{
-			spawnCommand: (command, commandArgs) =>
-				spawnCommand(command, commandArgs),
-		},
 	);
 	return {
 		...(result satisfies MarketplaceActionResult),
@@ -774,7 +484,6 @@ export async function uninstallMarketplaceEntry(
 export async function installMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
-		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -789,16 +498,12 @@ export async function installMarketplaceEntryFromCatalog(
 			`Marketplace entry ${requested.type}:${requested.id} was not found in the catalog.`,
 		);
 	}
-	return installMarketplaceEntry(
-		{ entry },
-		{ spawnCommand: options.spawnCommand },
-	);
+	return installMarketplaceEntry({ entry });
 }
 
 export async function uninstallMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
-		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -813,10 +518,7 @@ export async function uninstallMarketplaceEntryFromCatalog(
 			`Marketplace entry ${requested.type}:${requested.id} was not found in the catalog.`,
 		);
 	}
-	return uninstallMarketplaceEntry(
-		{ entry },
-		{ spawnCommand: options.spawnCommand },
-	);
+	return uninstallMarketplaceEntry({ entry });
 }
 
 export function listMarketplaceInstalledEntries(
@@ -833,7 +535,6 @@ export function listMarketplaceInstalledEntries(
 export async function installMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
-		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -843,7 +544,6 @@ export async function installMarketplaceEntryForDesktopCommand(
 export async function uninstallMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
-		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
