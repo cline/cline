@@ -1,10 +1,14 @@
 import type { MessageWithMetadata } from "@cline/llms";
 import {
+	createTool,
 	type SideVisibleContext,
 	SideVisibleContextSchema,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import { createSessionCompactionState } from "../models/session-compaction";
+import { toPersistedToolResultContent } from "../persisted-tool-result-content";
+import { MessageBuilder } from "../services/message-builder";
 import { countUserRunMessages } from "../user-run-messages";
 import { captureSideReference } from "./context";
 
@@ -24,6 +28,102 @@ const visibleContext = (excerpts: SideVisibleContext["excerpts"]) =>
 	});
 
 describe("side reference capture", () => {
+	it.each([
+		"text",
+		"json",
+		"native",
+	])("uses normal limits for %s tool results without unnecessary compaction", async (format) => {
+		const producer = createTool({
+			name: "large_report",
+			description: "Synthetic large report",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => {
+				const lines = Array.from(
+					{ length: 40_000 },
+					(_, index) => `line ${index}: synthetic report detail`,
+				);
+				const text = lines.join("\n");
+				if (format === "text") return text;
+				if (format === "json")
+					return JSON.stringify(
+						Array.from({ length: 40 }, (_, index) =>
+							lines.slice(index * 1000, (index + 1) * 1000).join("\n"),
+						),
+					);
+				return [
+					{ type: "text", text },
+					{ type: "text", text: `SECOND_RESULT_FACT ${text}` },
+					{
+						type: "image",
+						data: "SNAPSHOT_MEDIA".repeat(3000),
+						mediaType: "image/png",
+					},
+				];
+			},
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Inspect report" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", name: "large_report", id: "large", input: {} },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						name: "large_report",
+						tool_use_id: "large",
+						content: toPersistedToolResultContent(
+							await producer.execute({}, { agentId: "parent", iteration: 0 }),
+						),
+					},
+				],
+			},
+			{ role: "assistant", content: "Report inspected" },
+		];
+		const original = structuredClone(messages);
+		const seed = captureSideReference({ messages, activeParentTurn: false });
+		const compact = createContextCompactionPrepareTurn({
+			providerId: "synthetic",
+			modelId: "synthetic",
+			compaction: { enabled: true, strategy: "basic" },
+		});
+		if (!compact) throw new Error("Expected built-in compaction");
+		for (const input of [
+			messages,
+			[seed, { role: "user" as const, content: "What does the report say?" }],
+		]) {
+			expect(
+				await compact({
+					agentId: "test",
+					conversationId: "test",
+					parentAgentId: null,
+					iteration: 0,
+					messages: input,
+					apiMessages: new MessageBuilder().buildForApi(input),
+					abortSignal: new AbortController().signal,
+					systemPrompt: "Answer questions",
+					tools: [],
+					model: {
+						id: "synthetic",
+						provider: "synthetic",
+						info: { id: "synthetic", maxInputTokens: 64_000 },
+					},
+				}),
+			).toBeUndefined();
+		}
+		expect(seed.content).toContain("line 0: synthetic report detail");
+		expect(seed.content).toContain("line 39999: synthetic report detail");
+		expect(seed.content).toContain("truncated");
+		expect(seed.content).not.toContain("SNAPSHOT_MEDIA");
+		if (format === "native")
+			expect(seed.content).toContain("SECOND_RESULT_FACT");
+		expect(messages).toEqual(original);
+	});
+
 	it("reuses existing compaction and its later messages without clipping or changing the source", () => {
 		const earlier = exchange("old question", "old answer replaced by summary");
 		const summary: MessageWithMetadata = {
@@ -156,7 +256,11 @@ describe("side reference capture", () => {
 						name: "mcp_media",
 						content: JSON.stringify({
 							content: [
-								{ type: "audio", data: "AUDIO_SECRET", mimeType: "audio/wav" },
+								{
+									type: "audio",
+									data: "AUDIO_SECRET".repeat(3000),
+									mimeType: "audio/wav",
+								},
 								{
 									type: "resource",
 									resource: {
@@ -228,6 +332,7 @@ describe("current context and provider request", () => {
 								{
 									type: "web_search_result",
 									title: "PR 42 changes retry scheduling",
+									content: `Provider head ${"p".repeat(20_000)} provider tail`,
 								},
 							],
 						},
@@ -241,6 +346,9 @@ describe("current context and provider request", () => {
 			activeParentTurn: true,
 		});
 		expect(capture.content).toContain("PR 42 changes retry scheduling");
+		expect(capture.content).toContain("Provider head");
+		expect(capture.content).toContain("provider tail");
+		expect(Buffer.byteLength(String(capture.content))).toBeLessThan(12_000);
 		expect(capture.content).toContain(
 			"Tool result web_search (search) [failed]:",
 		);
