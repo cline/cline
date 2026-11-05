@@ -194,6 +194,8 @@ const ModelButtonContent = styled.div`
 	white-space: nowrap;
 `
 
+const NO_SKILLS: SkillInfo[] = []
+
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
 		{
@@ -242,7 +244,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
-		const [skills, setSkills] = useState<SkillInfo[]>([])
+		const [loadedSkills, setSkills] = useState<SkillInfo[]>([])
+		// Workflows expand client-side before the prompt leaves, so the cloud agent
+		// gets their text. Skills are sent as typed for the skills tool, which a
+		// cloud session does not register, so they are not offered there.
+		const skills = cloudActOnly ? NO_SKILLS : loadedSkills
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)

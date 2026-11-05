@@ -43,7 +43,12 @@ vi.mock("@/services/grpc-client", () => ({
 		getRelativePaths: vi.fn(async () => ({ paths: [] })),
 		openImage: vi.fn(async () => ({})),
 		openFile: vi.fn(async () => ({})),
-		refreshSkills: vi.fn(async () => ({ localSkills: [], globalSkills: [] })),
+		refreshSkills: vi.fn(async () => ({
+			localSkills: [],
+			globalSkills: [
+				{ name: "aws-deploy", description: "Deploy to AWS", path: "/skills/aws-deploy/SKILL.md", enabled: true },
+			],
+		})),
 	},
 	StateServiceClient: {
 		togglePlanActModeProto: vi.fn(async () => ({})),
@@ -91,7 +96,7 @@ describe("ChatTextArea model label", () => {
 		mocks.cloudState = {}
 	})
 
-	it("shows the local provider, model, and local-only controls for a local task", () => {
+	it("shows the local provider, model, and local-only controls for a local task", async () => {
 		const { textarea } = renderTextArea()
 		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("anthropic:text-only-model")
 		expect(screen.getByTestId("context-button")).toBeInTheDocument()
@@ -100,12 +105,14 @@ describe("ChatTextArea model label", () => {
 		expect(screen.getByText(/Type @ for context/)).toBeInTheDocument()
 		fireEvent.change(textarea, { target: { value: "@", selectionStart: 1 } })
 		expect(screen.getByText("Problems")).toBeInTheDocument()
+		fireEvent.change(textarea, { target: { value: "/", selectionStart: 1 } })
+		expect(await screen.findByText("/aws-deploy")).toBeInTheDocument()
 	})
 
 	it.each([
 		["a new task targets Cloud", { cloudSessionsEnabled: true, cloudTaskTarget: { target: "cloud" } }],
 		["a cloud task is shown", { currentCloudTask: { sessionId: "ses-1", status: "running" } }],
-	])("shows the cloud model and hides local-only controls when %s", (_case, cloudState) => {
+	])("shows the cloud model and hides local-only controls when %s", async (_case, cloudState) => {
 		mocks.cloudState = { ...cloudState, cloudModelId: "anthropic/claude-sonnet-4.5" }
 		const { textarea } = renderTextArea()
 		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("cline:anthropic/claude-sonnet-4.5")
@@ -117,6 +124,9 @@ describe("ChatTextArea model label", () => {
 		expect(screen.queryByText(/Type @ for context/)).not.toBeInTheDocument()
 		fireEvent.change(textarea, { target: { value: "@", selectionStart: 1 } })
 		expect(screen.queryByText("Problems")).not.toBeInTheDocument()
+		fireEvent.change(textarea, { target: { value: "/", selectionStart: 1 } })
+		expect(await screen.findByText("/newtask")).toBeInTheDocument()
+		expect(screen.queryByText("/aws-deploy")).not.toBeInTheDocument()
 	})
 })
 
