@@ -53,6 +53,7 @@ import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { VoiceManager } from "@/components/voice-manager/voice-manager";
 import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
@@ -176,6 +177,10 @@ import {
 } from "@/lib/terminal-panel-state";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import {
+	clearVoiceManagerActiveChat,
+	setVoiceManagerActiveChat,
+} from "@/lib/voice-manager-bridge";
 import {
 	markCurrentWhatsNewSeen,
 	markWhatsNewSeen,
@@ -1455,6 +1460,14 @@ function App() {
 				onOpenSession={openSessionFromNavigation}
 				open={commandBarOpen && !showOnboarding}
 			/>
+			{!showOnboarding ? (
+				<VoiceManager
+					onNewThread={handleNewThread}
+					onOpenProviders={() => handleSettingsSectionChange("Providers")}
+					onOpenSession={handleOpenSessionById}
+					sessionHistory={sessionHistory}
+				/>
+			) : null}
 			{remoteDirectoryPicker ? (
 				<RemoteDirectoryPicker
 					environmentId={remoteDirectoryPicker.id}
@@ -2664,6 +2677,16 @@ function ChatThreadPane({
 			workIn,
 		],
 	);
+	useEffect(() => {
+		setVoiceManagerActiveChat({
+			threadId,
+			sessionId: sessionId ?? null,
+			status,
+			isHydrating: isHydratingSession,
+			send: handleSend,
+		});
+	}, [handleSend, isHydratingSession, sessionId, status, threadId]);
+	useEffect(() => () => clearVoiceManagerActiveChat(threadId), [threadId]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
