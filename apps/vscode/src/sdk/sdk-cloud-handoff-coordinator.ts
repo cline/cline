@@ -65,7 +65,7 @@ type Attempt = { id: string; sourceTaskId: string; accountKey: string } & (
 			| { delivery: "unsent"; unsent: UnsentContinuation }
 			| { delivery: "sent" | "unconfirmed" }
 	  ))
-	| Omit<Extract<CloudHandoffView, { phase: "failed" }>, "id" | "sourceTaskId">
+	| Omit<Extract<CloudHandoffView, { phase: "failed" }>, "id">
 )
 
 export class SdkCloudHandoffCoordinator {
@@ -87,7 +87,7 @@ export class SdkCloudHandoffCoordinator {
 		const attempt = this.attempts.get(taskId)
 		if (!attempt || attempt.accountKey !== account?.key) return undefined
 		const { id, phase } = attempt
-		const base = { id, sourceTaskId: attempt.sourceTaskId }
+		const base = { id }
 		switch (phase) {
 			case "preparing":
 				return { ...base, phase }
@@ -187,7 +187,6 @@ export class SdkCloudHandoffCoordinator {
 				},
 				preview: {
 					id: base.id,
-					sourceTaskId: input.sourceTaskId,
 					phase: "ready",
 					git: previewHandoffGit(source.plan),
 					modelId,

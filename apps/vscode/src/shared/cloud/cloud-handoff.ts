@@ -1,6 +1,6 @@
 import type { HandoffGitPreview } from "@cline/core/cloud"
 
-export type CloudHandoffView = { id: string; sourceTaskId: string } & (
+export type CloudHandoffView = { id: string } & (
 	| { phase: "preparing" }
 	| {
 			phase: "ready"

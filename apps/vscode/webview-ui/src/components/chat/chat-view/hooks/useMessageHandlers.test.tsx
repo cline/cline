@@ -135,7 +135,7 @@ function renderConversation(messages: ClineMessage[] = completedConversation) {
 async function launchHandoffDraft(view: ReturnType<typeof renderConversation>) {
 	const draft = view.result.current.chatState.getDraftSnapshot()
 	await act(async () => view.result.current.handlers.handleSendMessage(draft.text, draft.images, draft.files))
-	mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+	mockHandoff = { id: "attempt", phase: "preparing" }
 	view.rerender()
 	mockHandoff = { ...mockHandoff, phase: "launching", sessionId: "ses_example" }
 	view.rerender()
@@ -252,13 +252,13 @@ describe("useMessageHandlers — send routing", () => {
 		await act(async () => {
 			await result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], [])
 		})
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		mockHandoff = { id: "attempt", phase: "preparing" }
 		rerender()
 		if (edited) act(() => result.current.chatState.setInputValue("Continue locally"))
 		mockHandoff =
 			phase === "launching"
-				? { id: "attempt", sourceTaskId: "local-task", phase, sessionId: "ses_example" }
-				: { id: "attempt", sourceTaskId: "local-task", phase, sessionId: "ses_example", delivery: "sent" }
+				? { id: "attempt", phase, sessionId: "ses_example" }
+				: { id: "attempt", phase, sessionId: "ses_example", delivery: "sent" }
 		rerender()
 		expect(result.current.chatState.inputValue).toBe(edited ? "Continue locally" : "")
 		expect(result.current.chatState.selectedImages).toEqual(edited ? ["image"] : [])
@@ -287,10 +287,9 @@ describe("useMessageHandlers — send routing", () => {
 		await launchHandoffDraft(view)
 		mockHandoff =
 			outcome === "failed"
-				? { id: "attempt", sourceTaskId: "local-task", phase: "failed", message: "Launch failed" }
+				? { id: "attempt", phase: "failed", message: "Launch failed" }
 				: {
 						id: "attempt",
-						sourceTaskId: "local-task",
 						phase: "complete",
 						sessionId: "ses_example",
 						delivery: "unconfirmed",
@@ -338,7 +337,7 @@ describe("useMessageHandlers — send routing", () => {
 		const { result, rerender } = renderConversation()
 		act(() => result.current.chatState.setInputValue("/cloud finish tests"))
 		await act(async () => result.current.handlers.handleSendMessage("/cloud finish tests", [], []))
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		mockHandoff = { id: "attempt", phase: "preparing" }
 		rerender()
 		mockHandoff = outcome === "cancelled" ? undefined : { ...mockHandoff, phase: "failed", message: "Preparation failed" }
 		rerender()
@@ -356,7 +355,7 @@ describe("useMessageHandlers — send routing", () => {
 		await act(async () => {
 			submission = result.current.handlers.handleSendMessage("/cloud original", [], [])
 		})
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		mockHandoff = { id: "attempt", phase: "preparing" }
 		rerender()
 		mockHandoff = undefined
 		rerender()
@@ -418,7 +417,7 @@ describe("useMessageHandlers — send routing", () => {
 		await act(async () => {
 			preparation = result.current.handlers.handleSendMessage("/cloud original", [], [])
 		})
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "preparing" }
+		mockHandoff = { id: "attempt", phase: "preparing" }
 		rerender()
 		mockHandoff = { ...mockHandoff, phase: "launching" }
 		rerender()
@@ -436,7 +435,7 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("clears the existing-handoff warning after dismissal without consuming the draft", async () => {
 		mockTaskId = "local-task"
-		mockHandoff = { id: "attempt", sourceTaskId: "local-task", phase: "failed", message: "Preparation unavailable" }
+		mockHandoff = { id: "attempt", phase: "failed", message: "Preparation unavailable" }
 		const { result, rerender } = renderConversation()
 		act(() => {
 			result.current.chatState.setInputValue("/cloud finish tests")
@@ -478,11 +477,10 @@ describe("useMessageHandlers — send routing", () => {
 			await result.current.handlers.handleSendMessage("/cloud finish tests", ["image"], [])
 		})
 		expect(result.current.handlers.handoffError).toBe("Preparation unavailable")
-		mockHandoff = { id: "other-attempt", sourceTaskId: "local-task", phase: "preparing" }
+		mockHandoff = { id: "other-attempt", phase: "preparing" }
 		rerender()
 		mockHandoff = {
 			id: "other-attempt",
-			sourceTaskId: "local-task",
 			phase: "complete",
 			sessionId: "ses_example",
 			delivery: "sent",

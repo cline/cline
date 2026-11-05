@@ -36,7 +36,6 @@ describe("cloud handoff navigation", () => {
 		clients.openCloudSessionDashboard.mockResolvedValue({})
 		view = {
 			id: "handoff",
-			sourceTaskId: "local-task",
 			phase: "complete",
 			sessionId: "ses-cloud-task",
 			delivery: "sent",
@@ -52,7 +51,7 @@ describe("cloud handoff navigation", () => {
 	})
 
 	it("disables navigation while sending without offering a browser shortcut", () => {
-		view = { id: "handoff", sourceTaskId: "local-task", phase: "launching", sessionId: "ses-cloud-task" }
+		view = { id: "handoff", phase: "launching", sessionId: "ses-cloud-task" }
 		render(<CloudHandoff />)
 		const open = screen.getByRole("button", { name: "Open cloud task" })
 		expect(open).toBeDisabled()
@@ -75,7 +74,7 @@ describe("cloud handoff navigation", () => {
 	})
 
 	it("protects recovery until restored and exposes a failed discard for retry", async () => {
-		view = { id: "handoff", sourceTaskId: "local-task", phase: "failed", message: "Launch failed" }
+		view = { id: "handoff", phase: "failed", message: "Launch failed" }
 		const restore = vi.fn().mockRejectedValue(new Error("Discard unavailable"))
 		const discard = vi.fn().mockResolvedValue(undefined)
 		const { rerender } = render(<CloudHandoff onDiscardDraft={discard} onRestoreDraft={restore} />)

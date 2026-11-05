@@ -118,7 +118,7 @@ describe("cloud conversation handoff", () => {
 		const sourceView = coordinator.viewFor(input.sourceTaskId)
 		expect(coordinator.viewFor("ses_example")).toBeUndefined()
 		expect(coordinator.viewFor(input.sourceTaskId)).toEqual(sourceView)
-		expect(sourceView).toMatchObject({ phase: "complete", sourceTaskId: input.sourceTaskId, sessionId: "ses_example" })
+		expect(sourceView).toMatchObject({ phase: "complete", sessionId: "ses_example" })
 		expect(coordinator.viewFor("unrelated-task")).toBeUndefined()
 		expect(coordinator.viewFor(undefined)).toBeUndefined()
 		switchAccount()
