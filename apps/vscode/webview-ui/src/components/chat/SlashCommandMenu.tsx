@@ -122,7 +122,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 										itemIndex === selectedIndex
 											? "text-(--vscode-quickInputList-focusForeground)"
 											: "text-(--vscode-descriptionForeground)"
-									} whitespace-normal overflow-hidden text-ellipsis`}>
+									} whitespace-normal line-clamp-2`}>
 									<span className="ph-no-capture">{command.description}</span>
 								</div>
 							)}
