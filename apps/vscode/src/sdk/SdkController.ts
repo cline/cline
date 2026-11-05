@@ -612,8 +612,15 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
-			beginCloudFollowup: (task) =>
-				isCloudSessionId(task.taskId) ? this.cloud.beginFollowup(task, this.taskControl.captureTaskView()) : undefined,
+			getCloudFollowupSignal: () => this.cloud.getFollowupSignal(),
+			onFollowUpStarted: () => {
+				this.turnStateTracker.set("streaming")
+				this.messageTranslatorState.clearTurnOutcome()
+				void this.postStateToWebview().catch((error) =>
+					Logger.error("[SdkController] Failed to post follow-up state:", error),
+				)
+			},
+			beginCloudFollowup: (task) => (isCloudSessionId(task.taskId) ? this.cloud.beginFollowup(task) : undefined),
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
@@ -724,6 +731,7 @@ export class Controller {
 			isEnabled: () => isCloudSessionsFeatureEnabled(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			getPreparingFollowupTask: () => this.followups.getPreparingCloudTask(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -1764,21 +1772,6 @@ export class Controller {
 
 		const turnStateBefore = this.turnStateTracker.get()
 
-		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
-		// new agent turn — move the authoritative phase to "streaming" so the footer shows
-		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
-		// scroll-arrow default). Mirrors initTask(). The webview gates turnState by seq, and the
-		// session-event coordinator will set the terminal phase (completed/awaiting_followup/error)
-		// when this turn ends.
-		this.turnStateTracker.set("streaming")
-		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
-		this.messageTranslatorState.clearTurnOutcome()
-		// The webview only learns the phase through a full state post. Without one here it would
-		// keep the stale terminal phase (and hide the thinking indicator) until the first session
-		// event of the new turn posts state — a visible delay after every follow-up/approval.
-		this.postStateToWebview().catch((error) => {
-			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
-		})
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 

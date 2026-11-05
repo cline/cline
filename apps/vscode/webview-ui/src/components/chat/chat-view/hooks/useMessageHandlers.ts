@@ -35,6 +35,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	if (cloudTaskRef.current.sessionId !== currentCloudTask?.sessionId) {
 		cloudTaskRef.current = { sessionId: currentCloudTask?.sessionId }
 	}
+	const latestTurnRef = useRef({ turnState, messages })
+	latestTurnRef.current = { turnState, messages }
 	const {
 		setInputValue,
 		activeQuote,
@@ -169,8 +171,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						setSelectedFiles(files)
 					}
 					if (pendingResponseIdRef.current === responseId) {
-						setSendingDisabled(sendingDisabled)
-						setEnableButtons(enableButtons)
+						const current = latestTurnRef.current
+						// Preparation can advance the phase before its RPC rejects.
+						const buttons =
+							submittedCloudTask.sessionId && current.turnState
+								? buttonsForPhase(current.turnState, getTurnStateMessage(current.messages, current.turnState))
+								: undefined
+						setSendingDisabled(buttons?.sendingDisabled ?? sendingDisabled)
+						setEnableButtons(buttons?.enableButtons ?? enableButtons)
 					}
 				}
 				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
