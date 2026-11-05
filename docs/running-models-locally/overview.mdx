@@ -84,10 +84,16 @@ Using Cline Desktop with Ollama or LM Studio? Its [Local Models page](/usage/cli
     3. Keep Base URL as `http://localhost:1234`
     4. Select your model from the dropdown
 
-    ### 6) Troubleshooting
+    ### 6) Optional: API key
+    Only needed if you turned on **Require Authentication** for LM Studio's server. Leave it blank otherwise.
+    - In the LM Studio provider settings, paste the server's key into **LM Studio API Key**. It is stored locally with the other provider settings, sent as a Bearer token when Cline fetches the model list, and the list refreshes as soon as the key is saved.
+    - SDK and CLI hosts can set `LMSTUDIO_API_KEY` in the environment instead; it is used when no key is saved for the provider.
+
+    ### 7) Troubleshooting
     - Ensure LM Studio server is running
     - Ensure a model is loaded
     - If connection fails, verify `http://localhost:1234`
+    - If the model list is empty and the server requires authentication, check the API key
   </Tab>
 
   <Tab title="Atomic Chat">

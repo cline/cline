@@ -35,8 +35,17 @@ Use `@cline/ui@nightly` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
+| `@cline/ui/components/agent-chat/tool-summary` | Pure `buildToolSummary` / `buildGroupedToolLabel` parsers that turn a tool payload into labels, details, and diff counts | None (no React) |
+| `@cline/ui/components/agent-chat/tool-diff` | `ToolFileDiff`, a themed wrapper over `@pierre/diffs` for tool-summary file items | React and the optional `@pierre/diffs` peer |
+| `@cline/ui/components/markdown` | Shared Streamdown configuration: `markdownCodeHighlighter`, `agentMarkdownControls`, and the opt-in Mermaid plugin pair | `streamdown`, `shiki`, `@shikijs/langs`, `@shikijs/themes` peers (`mermaid` for diagrams) |
+| `@cline/ui/components/mermaid-block` | `MermaidBlock` and `createMermaidRenderer()` for a native-looking diagram block with zoom, fullscreen, copy, and download | React and the optional `mermaid` peer |
+| `@cline/ui/components/mermaid-diagram` | DOM-free diagram naming, theming, and export-sizing helpers used by the block; `defaultMermaidLoader` lazily imports `mermaid` | `mermaid` peer only when the default loader runs |
 | `@cline/ui/components/message-scroller` | Shadcn message scrolling, turn anchors, visibility hooks, and centered scroll controls | React 19 |
 | `@cline/ui/components/message-scroller.css` | Framework-neutral scroller styles (also included in `components.css`) | Theme tokens |
+
+Every runtime peer (`react`, `react-dom`, `tailwindcss`, `streamdown`, `shiki`,
+`mermaid`, `@pierre/diffs`, …) is declared optional in `package.json`, so
+install only the peers for the entry points you import.
 
 `@shadcn/react` is pinned to 0.3.1 with a Bun dependency patch in
 `patches/@shadcn%2Freact@0.3.1.patch`. The patch consumes anchors from loaded

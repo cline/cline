@@ -50,6 +50,38 @@ Caller cancellation closes model-call spans without recording an exception or
 marking a provider failure, including cancellation before the response opens.
 Timeout cancellations remain failures.
 
+## Tool result size caps
+
+Core bounds tool output twice: once when the tool returns, and again when
+`MessageBuilder` prepares the provider request. The second pass is a backstop
+that applies to every tool result, including MCP and custom tools.
+
+Tool executors (`extensions/tools/executors/output-limits.ts`) cap in
+characters: `read_files` returns at most 2,000 lines / 48,000 characters per
+file window (2,000 characters per line) and appends a
+`[Showing lines A-B of N. Use start_line/end_line to read other sections.]`
+footer when a file is longer; `run_commands` and `search_codebase` middle-cut
+output beyond 48,000 characters. The tool descriptions quote these caps so the
+model pages or narrows instead of retrying.
+
+`MessageBuilder` then middle-cuts each result to a per-result cap when
+building provider messages:
+
+| Content | Default cap | Override |
+| --- | --- | --- |
+| Tool results (commands, search, MCP, Composio, custom tools) | 8,000 characters | `maxToolResultChars` / `CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS` |
+| `read_files` results and top-level user file attachments | 50,000 characters | `maxFileContentChars` (no environment variable) |
+| Aggregate request text | 6,000,000 bytes | `maxTotalTextBytes` / `CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES` |
+| Stale-read rewrite batching | 65,536 bytes | `minOutdatedRewriteBytes` / `CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES` (`0` rewrites eagerly; `disable` or `Infinity` turns batching off) |
+
+Read results use the file-content cap so a window the tool already bounded,
+and described in its footer, reaches the model intact. A tool-result cap that
+is set explicitly (option or environment variable) keeps its meaning of "every
+tool result" and bounds reads too, at the smaller of the two caps. Size caps
+reject zero and negative overrides and fall back to the defaults. Hosts set the
+environment variables before constructing the session runtime; the orchestrator
+reads them once in its constructor.
+
 ## Oversized tool result recovery
 
 Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
