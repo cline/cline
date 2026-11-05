@@ -1,4 +1,4 @@
-import type { TurnState } from "@shared/ExtensionMessage"
+import type { ClineCloudProvisioningInfo, ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen } from "@testing-library/react"
 import React from "react"
 import { describe, expect, it, vi } from "vitest"
@@ -193,15 +193,26 @@ describe("InputSection", () => {
 	})
 
 	it.each([
-		{ phase: "streaming", disabled: true },
-		{ phase: "resumable", disabled: false },
-		{ phase: "idle", disabled: false },
-	] as const)("gates a provisioning cloud submission in phase $phase", ({ phase, disabled }) => {
+		{ phase: "streaming", status: "provisioning", opening: false, disabled: true },
+		{ phase: "resumable", status: "provisioning", opening: false, disabled: false },
+		{ phase: "idle", status: "provisioning", opening: false, disabled: false },
+		{ phase: "idle", status: "provisioning", opening: true, disabled: true },
+		{ phase: "idle", status: "unknown", opening: true, disabled: true },
+	] as const)("gates cloud input in phase $phase, status $status, opening $opening", ({ phase, status, opening, disabled }) => {
 		mockTurnState.mockReturnValue({ phase, seq: 1 })
+		const messages: ClineMessage[] = [{ ts: 1, type: "say", say: "task", text: "test" }]
+		if (opening) {
+			messages.push({
+				ts: 2,
+				type: "say",
+				say: "cloud_provisioning",
+				text: JSON.stringify({ phase: "resuming" } satisfies ClineCloudProvisioningInfo),
+			})
+		}
 		mockCloudState.mockReturnValue({
 			cloudSessionsEnabled: true,
-			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
-			clineMessages: [{ ts: 1, type: "say", say: "task", text: "test" }],
+			currentCloudTask: { sessionId: "cloud-provisioning-1", status },
+			clineMessages: messages,
 		})
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
 

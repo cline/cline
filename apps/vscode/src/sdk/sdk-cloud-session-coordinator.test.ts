@@ -1689,6 +1689,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 	it.each([
 		{ status: "suspended", resumes: 1 },
 		{ status: "suspended", resumes: 1, wasRunning: true },
+		{ status: "suspended", cancelDuringConnect: true },
 		{ status: "ready", resumes: 0 },
 		{ status: "provisioning", resumes: 0, waits: 1 },
 		{ status: "failed", error: "has failed" },
@@ -1700,7 +1701,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			({ status: "idle", readMessages: async () => [], dispose: vi.fn(async () => {}) }) as unknown as CloudSessionHost
 		const before = host()
 		const after = host()
-		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before).mockResolvedValueOnce(after)
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before)
 		type Active = { sdkHost: unknown; sessionId: string; isRunning: boolean }
 		let active: Active | undefined
 		const sessions = {
@@ -1713,6 +1714,16 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: sessions as never })
 		cloudSessions.listSessions.mockResolvedValue([record])
 		await coordinator.openCloudTask(record.id)
+		const connecting = deferred<void>()
+		const connected = deferred<void>()
+		connect.mockImplementation(async () => {
+			expect(coordinator.canPrepareFollowup(record.id)).toBe(true)
+			if ("cancelDuringConnect" in scenario) {
+				connecting.resolve()
+				await connected.promise
+			}
+			return after
+		})
 		if ("wasRunning" in scenario && active) active.isRunning = true
 		options.getTurnPhase = () => "streaming"
 		options.getPreparingFollowupTask = () => options.getTask()
@@ -1729,7 +1740,18 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			return { status: scenario.status }
 		})
 		const preparing = coordinator.beginFollowup(options.getTask()!)()
-		if ("error" in scenario) {
+		if ("cancelDuringConnect" in scenario) {
+			const cancelled = expect(preparing).rejects.toThrow("cancelled")
+			await connecting.promise
+			coordinator.cancelPendingFollowup()
+			await cancelled
+			options.getPreparingFollowupTask = () => undefined
+			const admittedBeforeConnectSettles = coordinator.canPrepareFollowup(record.id)
+			connected.resolve()
+			await new Promise<void>((resolve) => setImmediate(resolve))
+			expect(admittedBeforeConnectSettles).toBe(true)
+			expect(sessions.attachExistingSession).toHaveBeenCalledOnce()
+		} else if ("error" in scenario) {
 			await expect(preparing).rejects.toThrow(scenario.error)
 			expect(cloudSessions.resumeSession).not.toHaveBeenCalled()
 			expect(connect).toHaveBeenCalledOnce()

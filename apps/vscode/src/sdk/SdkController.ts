@@ -1740,9 +1740,11 @@ export class Controller {
 		) {
 			// Refusal must advance the turn state to release the footer's Retry claim,
 			// even when the task already shows an error.
-			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
+			const messages = this.task.messageStateHandler.getClineMessages()
+			const provisioning =
+				this.cloud.getCurrentTaskInfo()?.status === "provisioning" || messages.at(-1)?.say === "cloud_provisioning"
 			const anchorTs = this.turnStateTracker.get().anchorTs
-			const anchor = this.task.messageStateHandler.getClineMessages().find((message) => message.ts === anchorTs)
+			const anchor = messages.find((message) => message.ts === anchorTs)
 			const anchoredError =
 				anchor?.type === "ask" && anchor.ask === "api_req_failed" ? ClineError.parse(anchor.text) : undefined
 			const guidance =

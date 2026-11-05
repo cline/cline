@@ -497,15 +497,21 @@ describe("SDK remote-config coordination", () => {
 			)
 		})
 
-		it("rejects an unsent draft and settles the phase for a detached sandbox", async () => {
+		it.each([false, true])("rejects an unsent detached draft (History opening: %s)", async (opening) => {
 			const { controller, errorTask } = controllerShowingCloudStartError()
 			// The retry is consumed by the first response; a second one finds no session to send to.
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
+			if (opening) {
+				errorTask.messageStateHandler.clear()
+				errorTask.messageStateHandler.addMessages([
+					{ ts: 1, type: "say", say: "cloud_provisioning", text: JSON.stringify({ phase: "resuming" }) },
+				])
+			}
 
 			await expect(
 				errorTask.handleWebviewAskResponse("messageResponse", "keep this draft", ["image"], ["file"]),
-			).rejects.toThrow("This cloud session is no longer running")
+			).rejects.toThrow(opening ? "The cloud sandbox is still starting" : "This cloud session is no longer running")
 
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.initTask).not.toHaveBeenCalled()

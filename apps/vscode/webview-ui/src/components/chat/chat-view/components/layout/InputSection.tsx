@@ -58,11 +58,13 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	// Local file paths cannot be read from a cloud sandbox. Refuse the send
 	// rather than silently dropping the attachments from the request.
 	const cloudFilesUnsupported = cloudSelectedForNewTask && selectedFiles.length > 0
-	// After cancellation, an intentional follow-up can wait for an existing sandbox to finish starting.
+	// History must replace its loading notice before accepting input.
+	// Cancelled follow-ups keep their transcript and can wait for the sandbox.
 	const submitDisabled =
 		(sendingDisabled && !allowSubmitWhileDisabled) ||
 		cloudTargetIncomplete ||
 		cloudFilesUnsupported ||
+		(!!currentCloudTask && clineMessages.at(-1)?.say === "cloud_provisioning") ||
 		(currentCloudTask?.status === "provisioning" && turnState?.phase !== "idle" && turnState?.phase !== "resumable")
 
 	return (

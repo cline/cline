@@ -20,7 +20,7 @@ function deferred<T>() {
 	return { promise, resolve, reject }
 }
 
-type WaitPoint = "create" | "readiness" | "connect" | "lifecycle" | "prompt" | "delete"
+type WaitPoint = "create" | "readiness" | "connect" | "lifecycle" | "prompt" | "delete" | "resume" | "history-view"
 function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const barrier = deferred<void>()
 	const entered = deferred<void>()
@@ -63,6 +63,10 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				token: new Headers(init?.headers).get("Authorization"),
 				body: typeof init?.body === "string" ? init.body : undefined,
 			})
+			if (method === "POST" && url.endsWith("/resume")) {
+				await wait("resume")
+				return Response.json({ data: { status: "provisioning" } })
+			}
 			if (method === "POST") {
 				await wait("create")
 				return Response.json({
@@ -170,7 +174,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
-		showChatView: vi.fn(async () => {}),
+		showChatView: vi.fn(async () => wait("history-view")),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: async (prompt: string) => {
 			await wait("prompt")
@@ -214,6 +218,42 @@ afterEach(() => {
 })
 
 describe("originating-account cloud cleanup", () => {
+	it.each([
+		"resume",
+		"connect",
+		"history-view",
+	] as const)("keeps History %s requests in the originating account", async (point) => {
+		const f = fixture(point)
+		f.record.status = "suspended"
+		const opening = f.coordinator.openCloudTask(f.record.id)
+		await f.entered.promise
+		const admittedWhileOpening = f.coordinator.canPrepareFollowup(f.record.id)
+		const notice = f.options.getTask()?.messageStateHandler.getClineMessages().at(-1)
+		const projectedStatus = f.coordinator.getCurrentTaskInfo()?.status
+		const requestsBeforeReset = f.requests.length
+		const switching = f.coordinator.reset(f.changeScope)
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		const changedBeforeRelease = f.changeScope.mock.calls.length
+		f.barrier.resolve()
+		await Promise.all([opening, switching])
+
+		expect(admittedWhileOpening).toBe(false)
+		expect(notice?.say).toBe("cloud_provisioning")
+		expect(projectedStatus).toBe(point === "connect" ? "unknown" : "provisioning")
+		expect(f.requests.slice(requestsBeforeReset).filter((request) => request.url.endsWith(`/${f.record.id}/status`))).toEqual(
+			[],
+		)
+		expect(changedBeforeRelease).toBe(point === "history-view" ? 1 : 0)
+		expect(
+			f.requests.every(
+				(request) => request.token === `Bearer ${f.origin.token}` && request.url.startsWith(f.origin.endpoint),
+			),
+		).toBe(true)
+		expect(f.changeScope).toHaveBeenCalledOnce()
+		expect(f.lifecycle.getActiveSession()).toBeUndefined()
+		await f.coordinator.dispose()
+	})
+
 	it.each([
 		"create",
 		"readiness",

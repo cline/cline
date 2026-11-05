@@ -237,6 +237,7 @@ export class SdkCloudSessionCoordinator {
 	private pollTimer: NodeJS.Timeout | undefined
 	private disposed = false
 	private scopeGeneration = 0
+	private scopeAbort = new AbortController()
 	private startGeneration = 0
 	private pendingFollowup = new AbortController()
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
@@ -703,6 +704,8 @@ export class SdkCloudSessionCoordinator {
 		// so the drain below waits for its DELETE, not for the sandbox to boot.
 		this.cancelPendingStart()
 		this.cancelPendingFollowup()
+		this.scopeAbort.abort()
+		this.scopeAbort = new AbortController()
 		this.scopeGeneration++
 		this.statusResolutionAttempts.clear()
 		this.cancelAbandonedStartsRecheck()
@@ -1374,6 +1377,7 @@ export class SdkCloudSessionCoordinator {
 		const entry = this.entries.get(sessionId)
 		return (
 			!!entry &&
+			entry.pinned === 0 &&
 			!isCloudSessionExpired(entry.record) &&
 			["suspended", "provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
 		)
@@ -1474,32 +1478,27 @@ export class SdkCloudSessionCoordinator {
 				} else if (status !== "active" && status !== "ready") {
 					throw new Error("The cloud sandbox is not ready. Send your message again once it is running.")
 				}
-				entry.pinned++
-				try {
-					const host = await this.connect(entry)
-					assertCurrent()
-					if (entry.host !== host) throw new Error("Cloud session connection was superseded")
-					const active = this.options.sessions.getActiveSession()
-					const prepared =
-						active?.sdkHost === host
-							? active
-							: await this.options.sessions.attachExistingSession({
-									sdkHost: host,
-									sessionId: task.taskId,
-									startConfig: {
-										providerId: "cline",
-										modelId: host.sessionModelId ?? entry.record.metadata.modelId ?? "",
-									},
-									isRunning: host.status === "running",
-									shouldContinue: () => isCurrent() && entry.host === host,
-								})
-					assertCurrent()
-					if (entry.host !== prepared.sdkHost) throw new Error("Cloud session connection was superseded")
-					entry.lastActivityAt = Date.now()
-					return prepared
-				} finally {
-					entry.pinned--
-				}
+				const host = await this.connect(entry)
+				assertCurrent()
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
+				const active = this.options.sessions.getActiveSession()
+				const prepared =
+					active?.sdkHost === host
+						? active
+						: await this.options.sessions.attachExistingSession({
+								sdkHost: host,
+								sessionId: task.taskId,
+								startConfig: {
+									providerId: "cline",
+									modelId: host.sessionModelId ?? entry.record.metadata.modelId ?? "",
+								},
+								isRunning: host.status === "running",
+								shouldContinue: () => isCurrent() && entry.host === host,
+							})
+				assertCurrent()
+				if (entry.host !== prepared.sdkHost) throw new Error("Cloud session connection was superseded")
+				entry.lastActivityAt = Date.now()
+				return prepared
 			})
 	}
 
@@ -1669,10 +1668,14 @@ export class SdkCloudSessionCoordinator {
 	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
 		if (entry.record.status?.toLowerCase() === "suspended") return undefined
 		const record = entry.record
+		const signal = this.scopeAbort.signal
 		try {
 			return await this.connect(entry)
 		} catch (error) {
-			const status = await this.options.cloudSessions.getStatus(record.id).then(
+			const status = await this.trackScopeOperation(() => {
+				signal.throwIfAborted()
+				return this.options.cloudSessions.getStatus(record.id, signal)
+			}).then(
 				(live) => live.status?.toLowerCase(),
 				(probeError: unknown) =>
 					probeError instanceof CloudSessionError && probeError.code === "session_expired" ? "expired" : undefined,
@@ -1696,6 +1699,7 @@ export class SdkCloudSessionCoordinator {
 	 * session reads as provisioning until the sandbox is back.
 	 */
 	private async resume(entry: CloudSessionEntry, title: string): Promise<void> {
+		const signal = this.scopeAbort.signal
 		const suspended = entry.record
 		const resuming = { ...suspended, status: "provisioning" }
 		entry.record = resuming
@@ -1705,14 +1709,19 @@ export class SdkCloudSessionCoordinator {
 			cloudProvisioningRow(startedAt + 1, "resuming", suspended.repoContext),
 		])
 		await this.options.postStateToWebview()
+		signal.throwIfAborted()
 		// Opening from History covers the chat until this method returns; show the notice now.
 		await this.options.showChatView()
 		try {
-			await this.options.cloudSessions.resumeSession(suspended.id)
+			await this.trackScopeOperation(() => {
+				signal.throwIfAborted()
+				return this.options.cloudSessions.resumeSession(suspended.id, undefined, signal)
+			})
 		} catch (error) {
 			if (entry.record === resuming) entry.record = suspended
 			throw error
 		}
+		signal.throwIfAborted()
 		this.assertSandboxNotTerminated(entry)
 		if (
 			entry.record !== resuming &&
@@ -1840,6 +1849,7 @@ export class SdkCloudSessionCoordinator {
 	async dispose(): Promise<void> {
 		this.disposed = true
 		this.cancelPendingFollowup()
+		this.scopeAbort.abort()
 		this.cancelAbandonedStartsRecheck()
 		if (this.pollTimer) {
 			clearInterval(this.pollTimer)
