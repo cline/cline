@@ -215,6 +215,7 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Medium", value: "medium" },
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
+	{ label: "Max", value: "max" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;

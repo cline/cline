@@ -2122,7 +2122,10 @@ describe("ChatInputBar", () => {
 		).toEqual({ cline: "high" });
 	});
 
-	it("seeds an unset thinking level from the remembered provider choice instead of Low", async () => {
+	it.each([
+		"medium",
+		"max",
+	] as const)("seeds an unset thinking level from the remembered provider choice (%s) instead of Low", async (remembered) => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -2131,7 +2134,7 @@ describe("ChatInputBar", () => {
 		});
 		window.localStorage.setItem(
 			REASONING_SELECTION_STORAGE_KEY,
-			JSON.stringify({ cline: "medium", anthropic: "high" }),
+			JSON.stringify({ cline: remembered, anthropic: "high" }),
 		);
 		const onReasoningChange = vi.fn();
 		await act(async () => {
@@ -2175,7 +2178,7 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onReasoningChange).toHaveBeenCalledWith({
 				thinking: true,
-				reasoningEffort: "medium",
+				reasoningEffort: remembered,
 			});
 		});
 		expect(onReasoningChange).not.toHaveBeenCalledWith({
