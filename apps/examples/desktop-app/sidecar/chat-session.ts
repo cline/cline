@@ -1714,6 +1714,9 @@ async function handleSendOnce(
 	if (commandName === "compact") {
 		const controller = new AbortController();
 		manualCompactions.set(sessionId, controller);
+		// Compacting loads no plugins, so sends waiting on this chat's plugin
+		// reload go on and are refused while the compaction runs.
+		releasePluginReload?.();
 		let text: string;
 		try {
 			text = session?.busy

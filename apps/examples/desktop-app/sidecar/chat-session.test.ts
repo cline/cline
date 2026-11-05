@@ -3835,6 +3835,45 @@ describe("/compact", () => {
 		expect(updateSessionCompactionState).toHaveBeenCalledOnce();
 	});
 
+	it("refuses a send during compaction in a chat whose plugins changed instead of holding it", async () => {
+		const compact = vi.fn(
+			({ abortSignal }: { abortSignal: AbortSignal }) =>
+				new Promise((resolve) => {
+					abortSignal.addEventListener(
+						"abort",
+						() => resolve({ messages: [] }),
+						{ once: true },
+					);
+				}),
+		);
+		createContextCompactionPrepareTurnMock.mockReturnValueOnce(compact);
+		const { ctx, send, sessionId } = createCompactContext({
+			messages: [{ role: "user", content: "original history" }],
+		});
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.pluginsStale = true;
+		const pending = handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+		await vi.waitFor(() => expect(compact).toHaveBeenCalledOnce());
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			}),
+		).rejects.toThrow("Compaction is in progress");
+
+		await handleChatSessionCommand(ctx, { action: "abort", sessionId });
+		await pending;
+		expect(send).not.toHaveBeenCalled();
+		expect(session.pluginsStale).toBe(true);
+	});
+
 	it("refuses to compact while a turn is running without reaching the model", async () => {
 		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
 			busy: true,
