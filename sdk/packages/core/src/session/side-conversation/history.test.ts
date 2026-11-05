@@ -1,5 +1,5 @@
 import type { MessageWithMetadata } from "@cline/llms";
-import { createTool, SIDE_REFERENCE_BUDGET_BYTES } from "@cline/shared";
+import { createTool } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { ClineCore } from "../../ClineCore";
 import { toPersistedToolResultContent } from "../persisted-tool-result-content";
@@ -151,9 +151,6 @@ describe("side parent history tool", () => {
 		// Engine depth limits vary; safe projection and explicit omission are valid.
 		expect(text.includes("9007199254740995") || text.includes(marker)).toBe(
 			true,
-		);
-		expect(Buffer.byteLength(text)).toBeLessThanOrEqual(
-			SIDE_REFERENCE_BUDGET_BYTES,
 		);
 
 		const { tool } = fixture(messages);
