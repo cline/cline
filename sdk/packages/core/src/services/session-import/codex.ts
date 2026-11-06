@@ -1,7 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import { nanoid } from "nanoid";
+import { jsonlLines } from "./jsonl-reader";
 import { codexHomeDir } from "./paths";
 import {
 	type ConvertedImportedSession,
@@ -93,55 +94,77 @@ interface CodexFileMeta {
 	firstUserText?: string;
 }
 
-function scanFileMeta(raw: string): CodexFileMeta {
+interface FileMetaScanner {
+	push(rawLine: string): void;
+	result(): CodexFileMeta;
+}
+
+/**
+ * Incremental version of the rollout summary scan. Rollouts can be gigabytes
+ * long, so the caller streams lines in via push() instead of handing over the
+ * whole file as one string.
+ */
+function createFileMetaScanner(): FileMetaScanner {
 	const meta: CodexFileMeta = {
 		cwd: "",
 		userMessageCount: 0,
 		fallbackUserCount: 0,
 		assistantEventCount: 0,
 	};
-	for (const rawLine of raw.split("\n")) {
-		const line = parseLine(rawLine);
-		if (!line?.payload) continue;
-		const ts = line.timestamp ? Date.parse(line.timestamp) : Number.NaN;
-		if (Number.isFinite(ts)) {
-			meta.startedAtMs = meta.startedAtMs ?? ts;
-			meta.endedAtMs = ts;
-		}
-		const payload = line.payload;
-		if (line.type === "session_meta") {
-			if (typeof payload.id === "string") meta.sessionId = payload.id;
-			if (typeof payload.cwd === "string") meta.cwd = payload.cwd;
-			const git = isRecord(payload.git) ? payload.git : undefined;
-			if (typeof git?.branch === "string") meta.gitBranch = git.branch;
-			continue;
-		}
-		if (line.type === "turn_context") {
-			if (typeof payload.model === "string") meta.model = payload.model;
-			if (!meta.cwd && typeof payload.cwd === "string") meta.cwd = payload.cwd;
-			continue;
-		}
-		if (line.type === "event_msg" && payload.type === "user_message") {
-			const text = typeof payload.message === "string" ? payload.message : "";
-			if (text.trim()) {
-				meta.userMessageCount++;
-				meta.firstUserText = meta.firstUserText ?? text;
+	return {
+		push(rawLine: string): void {
+			const line = parseLine(rawLine);
+			if (!line?.payload) return;
+			const ts = line.timestamp ? Date.parse(line.timestamp) : Number.NaN;
+			if (Number.isFinite(ts)) {
+				meta.startedAtMs = meta.startedAtMs ?? ts;
+				meta.endedAtMs = ts;
 			}
-			continue;
-		}
-		if (line.type === "response_item" && payload.type === "message") {
-			if (payload.role === "assistant") {
-				meta.assistantEventCount++;
-			} else if (payload.role === "user") {
-				const text = messageText(payload);
-				if (text.trim() && !isInjectedUserContext(text)) {
-					meta.fallbackUserCount++;
+			const payload = line.payload;
+			if (line.type === "session_meta") {
+				if (typeof payload.id === "string") meta.sessionId = payload.id;
+				if (typeof payload.cwd === "string") meta.cwd = payload.cwd;
+				const git = isRecord(payload.git) ? payload.git : undefined;
+				if (typeof git?.branch === "string") meta.gitBranch = git.branch;
+				return;
+			}
+			if (line.type === "turn_context") {
+				if (typeof payload.model === "string") meta.model = payload.model;
+				if (!meta.cwd && typeof payload.cwd === "string")
+					meta.cwd = payload.cwd;
+				return;
+			}
+			if (line.type === "event_msg" && payload.type === "user_message") {
+				const text = typeof payload.message === "string" ? payload.message : "";
+				if (text.trim()) {
+					meta.userMessageCount++;
 					meta.firstUserText = meta.firstUserText ?? text;
 				}
+				return;
 			}
-		}
+			if (line.type === "response_item" && payload.type === "message") {
+				if (payload.role === "assistant") {
+					meta.assistantEventCount++;
+				} else if (payload.role === "user") {
+					const text = messageText(payload);
+					if (text.trim() && !isInjectedUserContext(text)) {
+						meta.fallbackUserCount++;
+						meta.firstUserText = meta.firstUserText ?? text;
+					}
+				}
+			}
+		},
+		result: () => meta,
+	};
+}
+
+/** Streams one rollout and keeps only its summary fields. */
+function scanFileMeta(file: string): CodexFileMeta {
+	const scanner = createFileMetaScanner();
+	for (const rawLine of jsonlLines(file)) {
+		scanner.push(rawLine);
 	}
-	return meta;
+	return scanner.result();
 }
 
 export interface CodexAdapterOptions {
@@ -171,7 +194,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		const indexPath = join(this.codexHome, "session_index.jsonl");
 		if (!existsSync(indexPath)) return titles;
 		try {
-			for (const rawLine of readFileSync(indexPath, "utf8").split("\n")) {
+			for (const rawLine of jsonlLines(indexPath)) {
 				const line = parseLine(rawLine) as JsonRecord | undefined;
 				if (
 					line &&
@@ -240,7 +263,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		const best = new Map<string, { file: string; meta: CodexFileMeta }>();
 		for (const file of this.sessionFiles()) {
 			try {
-				const meta = scanFileMeta(readFileSync(file, "utf8"));
+				const meta = scanFileMeta(file);
 				const userCount = meta.userMessageCount || meta.fallbackUserCount;
 				if (!meta.sessionId || userCount === 0) continue;
 				const candidate = { file, meta };
@@ -293,8 +316,9 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		if (!file) {
 			throw new Error(`Codex session ${sourceId} not found`);
 		}
-		const raw = readFileSync(file, "utf8");
-		const meta = scanFileMeta(raw);
+		// Two streaming passes rather than one whole-file read: the rollout can
+		// be gigabytes, and a single string of that size cannot be allocated.
+		const meta = scanFileMeta(file);
 		const titles = this.readTitleIndex();
 
 		const messages: LlmsProviders.MessageWithMetadata[] = [];
@@ -328,7 +352,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 			pendingMetrics = undefined;
 		};
 
-		for (const rawLine of raw.split("\n")) {
+		for (const rawLine of jsonlLines(file)) {
 			const line = parseLine(rawLine);
 			if (!line?.payload) continue;
 			const payload = line.payload;
