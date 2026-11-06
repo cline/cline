@@ -168,6 +168,102 @@ describe("Hub MCP management", () => {
 		}
 	});
 
+	it("aborts a delayed OAuth refresh when the enable probe times out", async () => {
+		const refreshing = deferred<void>();
+		let refreshClosed = false;
+		let finishRefresh = () => {};
+		let streams = 0;
+		let base = "";
+		const server = createServer((request, response) => {
+			const json = (value: unknown) => {
+				response.writeHead(200, { "content-type": "application/json" });
+				response.end(JSON.stringify(value));
+			};
+			if (request.url === "/sse") {
+				streams += 1;
+				if (streams === 1) {
+					response.writeHead(401, {
+						"www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+					});
+					response.end();
+				} else {
+					response.writeHead(200, { "content-type": "text/event-stream" });
+					response.write(": connected\n\n");
+				}
+			} else if (request.url === "/.well-known/oauth-protected-resource") {
+				json({ resource: `${base}/sse`, authorization_servers: [base] });
+			} else if (request.url === "/.well-known/oauth-authorization-server") {
+				json({
+					issuer: base,
+					authorization_endpoint: `${base}/authorize`,
+					token_endpoint: `${base}/token`,
+					response_types_supported: ["code"],
+				});
+			} else if (request.url === "/token") {
+				response.on("close", () => {
+					refreshClosed = true;
+				});
+				finishRefresh = () => {
+					finishRefresh = () => {};
+					json({ access_token: "late-token", token_type: "Bearer" });
+				};
+				refreshing.resolve();
+			} else response.writeHead(404).end();
+		});
+		await new Promise<void>((resolve) =>
+			server.listen(0, "127.0.0.1", resolve),
+		);
+		const address = server.address();
+		if (!address || typeof address === "string")
+			throw new Error("Expected TCP address");
+		base = `http://127.0.0.1:${address.port}`;
+		const watchdog = setTimeout(() => server.closeAllConnections(), 5_000);
+		try {
+			await seed({
+				remote: {
+					transport: { type: "sse", url: `${base}/sse` },
+					timeout: 1,
+					disabled: true,
+					oauthClient: { clientId: "configured-client" },
+					oauth: {
+						clientInformation: { client_id: "configured-client" },
+						tokens: {
+							access_token: "old-token",
+							refresh_token: "refresh-token",
+							token_type: "Bearer",
+						},
+					},
+				},
+			});
+			const enabling = api.setDisabled("remote", false);
+			await Promise.race([
+				refreshing.promise,
+				enabling.then((result) => {
+					throw new Error(
+						`Probe ended before token refresh: ${JSON.stringify(result)}`,
+					);
+				}),
+			]);
+			const result = await enabling;
+			expect(result.servers[0]).toMatchObject({
+				disabled: true,
+				oauthStatus: { lastError: expect.stringMatching(/timed out/) },
+			});
+			await vi.waitFor(() => expect(refreshClosed).toBe(true));
+			finishRefresh();
+			expect(streams).toBe(1);
+			const settings = JSON.parse(await readFile(path, "utf8"));
+			expect(settings.mcpServers.remote.oauth.tokens.access_token).toBe(
+				"old-token",
+			);
+		} finally {
+			clearTimeout(watchdog);
+			finishRefresh();
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
+	});
+
 	it("uses the shared settings resolver and registers, disables, renames, and removes a stdio server", async () => {
 		expect(await api.list()).toMatchObject({
 			settingsPath: path,
