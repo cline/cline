@@ -116,6 +116,12 @@ export interface CloseBody {
 	kind: "close";
 	outcome: Outcome;
 	final?: CloseFinal;
+	/**
+	 * Turn closes only: the run's iteration count (from the v1 `done`
+	 * event). Consumers render run summaries from it; block closes
+	 * never carry it.
+	 */
+	iterations?: number;
 }
 
 /** Turn-scoped notices: recovery, status, and the v1 iteration markers. */
@@ -134,6 +140,9 @@ export interface NoticeBody {
 	message?: string;
 	displayRole?: "system" | "status";
 	reason?: string;
+	/** Producer metadata (e.g. compaction status payloads) that
+	 * consumers parse for rich labels. */
+	metadata?: Record<string, unknown>;
 }
 
 export interface UsageBody {

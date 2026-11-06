@@ -1,49 +1,92 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
-import {
-	formatCompactionDividerLabel,
-	parseCompactionNoticeMetadata,
-} from "../tui/utils/compaction-status";
-import { formatCliErrorMessage } from "./cline-pass-errors";
-import { materializeGeneratedMedia } from "./generated-media";
-import { formatToolInput, formatToolOutput, truncate } from "./helpers";
-import {
-	c,
-	emitJsonLine,
-	getCurrentOutputMode,
-	write,
-	writeErr,
-} from "./output";
+import { StreamAssembler } from "@cline/core";
+import { AgentEventFramer, type StreamFrame } from "@cline/shared";
+import { truncate } from "./helpers";
+import { c, emitJsonLine, getCurrentOutputMode, write, writeErr } from "./output";
+import { CliFrameRenderer, resolveFrameStatusLabel } from "./frame-renderer";
 import type { Config } from "./types";
 
 // =============================================================================
-// Inline stream state
+// Agent event stream (v2 frames)
 // =============================================================================
+//
+// The inline CLI renderer now consumes v2 frames: every v1 event is
+// framed (AgentEventFramer) and parsed (StreamAssembler) into the
+// CliFrameRenderer, whose sinks hold only visual state. The v1 switch
+// and its module-level parser state are gone from production; the
+// extracted v1 logic lives in agent-renderer-v1.reference.ts as the
+// differential-test baseline and is deleted in Phase 5.
+//
+// The framer/assembler/renderer are per-process singletons: one
+// terminal, one stream. JSON mode is unchanged — it emits the v1
+// event verbatim, which is the machine contract.
 
-let activeInlineStream: "text" | "reasoning" | undefined;
-let inlineStreamHasOutput = false;
-let shouldPrefixNextTextWithBlankLine = false;
+let stream: {
+	framer: AgentEventFramer;
+	assembler: StreamAssembler;
+	renderer: CliFrameRenderer;
+} | undefined;
 
-// Prefix for result rows
-const HOOK = "⎿ ";
-const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
-
-export function resolveStatusNoticeLabel(
-	event: AgentEvent,
-): string | undefined {
-	if (event.type !== "notice" || event.displayRole !== "status") {
-		return undefined;
+function ensureStream(config: Config): {
+	framer: AgentEventFramer;
+	assembler: StreamAssembler;
+	renderer: CliFrameRenderer;
+} {
+	if (stream === undefined) {
+		const renderer = new CliFrameRenderer(
+			{ verbose: config.verbose, modelId: config.modelId },
+			{ write, writeErr },
+		);
+		stream = {
+			framer: new AgentEventFramer(),
+			assembler: new StreamAssembler(renderer),
+			renderer,
+		};
 	}
-	const compaction = parseCompactionNoticeMetadata(event.metadata);
-	if (compaction) {
-		return formatCompactionDividerLabel({ kind: "compaction", ...compaction });
+	return stream;
+}
+
+export function handleEvent(event: AgentEvent, config: Config): void {
+	if (getCurrentOutputMode() === "json") {
+		emitJsonLine("stdout", { type: "agent_event", event });
+		return;
 	}
-	return resolveNonCompactionStatusLabel(event);
+	const { framer, assembler } = ensureStream(config);
+	const frames: StreamFrame[] = framer.frameEvent(event);
+	assembler.pushAll(frames);
+}
+
+/** Kept for external callers (hooks.ts) and the team handler below. */
+export function closeInlineStreamIfNeeded(): void {
+	stream?.renderer.closeInlineStreamIfNeeded();
 }
 
 /**
- * Label for a status notice already known not to be a compaction notice.
- * Callers that have parsed the compaction metadata themselves use this to
- * avoid re-parsing.
+ * v1-event adapter over the frame-path label logic, kept for callers
+ * holding v1 notice events (the existing tests and any external user).
+ */
+export function resolveStatusNoticeLabel(
+	event: AgentEvent,
+): string | undefined {
+	if (event.type !== "notice") {
+		return undefined;
+	}
+	return resolveFrameStatusLabel({
+		kind: "notice",
+		noticeType: event.noticeType,
+		...(event.message !== undefined ? { message: event.message } : {}),
+		...(event.displayRole !== undefined
+			? { displayRole: event.displayRole }
+			: {}),
+		...(event.reason !== undefined ? { reason: event.reason } : {}),
+		...(event.metadata !== undefined ? { metadata: event.metadata } : {}),
+	});
+}
+
+/**
+ * Label for a status notice already known not to be a compaction
+ * notice. Kept for the TUI (use-agent-events.ts), which parses
+ * compaction metadata itself; ports to the frame path in Phase 3+.
  */
 export function resolveNonCompactionStatusLabel(
 	event: AgentEvent,
@@ -62,189 +105,12 @@ export function resolveNonCompactionStatusLabel(
 	return event.message.trim() || undefined;
 }
 
-export function closeInlineStreamIfNeeded(): void {
-	if (!inlineStreamHasOutput) {
-		return;
-	}
-	write("\n");
-	activeInlineStream = undefined;
-	inlineStreamHasOutput = false;
+/** Test seam: drop the per-process stream so a fresh one is built. */
+export function resetAgentEventStreamForTesting(): void {
+	stream = undefined;
 }
 
-// Used by team events that arrive while the lead agent is mid-stream. Ends the
-// current visual line so the team event prints cleanly, but keeps
-// activeInlineStream set so the next text chunk continues on a new line without
-// re-emitting any prefix.
-function breakLineIfStreaming(): void {
-	if (activeInlineStream === "text" && inlineStreamHasOutput) {
-		write("\n");
-		inlineStreamHasOutput = false;
-	}
-}
-
-// =============================================================================
-// Agent event handler
-// =============================================================================
-
-function formatResultLines(text: string, maxLines = 5): string[] {
-	const lines = text.split("\n");
-	if (lines.length <= maxLines) return lines;
-	return [
-		...lines.slice(0, maxLines),
-		`... ${lines.length - maxLines} more lines`,
-	];
-}
-
-export function handleEvent(event: AgentEvent, config: Config): void {
-	if (getCurrentOutputMode() === "json") {
-		emitJsonLine("stdout", { type: "agent_event", event });
-		return;
-	}
-
-	switch (event.type) {
-		case "iteration_start":
-			closeInlineStreamIfNeeded();
-			break;
-
-		case "iteration_end":
-			closeInlineStreamIfNeeded();
-			break;
-
-		case "content_start":
-			switch (event.contentType) {
-				case "text":
-					if (activeInlineStream !== "text") {
-						closeInlineStreamIfNeeded();
-						if (shouldPrefixNextTextWithBlankLine) {
-							write("\n");
-							shouldPrefixNextTextWithBlankLine = false;
-						}
-						activeInlineStream = "text";
-					}
-					write(event.text ?? "");
-					inlineStreamHasOutput = true;
-					break;
-				case "reasoning":
-					if (activeInlineStream !== "reasoning") {
-						closeInlineStreamIfNeeded();
-						write(`${c.dim}[thinking] ${c.reset}`);
-						activeInlineStream = "reasoning";
-						inlineStreamHasOutput = true;
-					}
-					if (event.redacted && !event.reasoning) {
-						write(`${c.dim}[redacted]${c.reset}`);
-						inlineStreamHasOutput = true;
-						break;
-					}
-					write(`${c.dim}${event.reasoning ?? ""}${c.reset}`);
-					inlineStreamHasOutput = true;
-					break;
-				case "tool": {
-					closeInlineStreamIfNeeded();
-					const toolName = event.toolName ?? "unknown_tool";
-					const inputStr = formatToolInput(toolName, event.input);
-					if (toolName === "ask_question") {
-						break;
-					}
-					write(
-						`${c.cyan}[${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
-					);
-					break;
-				}
-			}
-			break;
-
-		case "content_end":
-			switch (event.contentType) {
-				case "text":
-				case "reasoning":
-					closeInlineStreamIfNeeded();
-					break;
-				case "tool":
-					closeInlineStreamIfNeeded();
-					if (event.toolName === "ask_question") {
-						break;
-					}
-					if (event.error) {
-						write(
-							`   ${c.gray}${HOOK}${c.reset}${c.red}error: ${event.error}${c.reset}\n`,
-						);
-					} else {
-						const outputStr = formatToolOutput(event.output);
-						if (outputStr) {
-							const lines = formatResultLines(outputStr);
-							for (let i = 0; i < lines.length; i++) {
-								const prefix = i === 0 ? HOOK : "  ";
-								write(
-									`   ${c.gray}${prefix}${c.reset}${c.dim}${lines[i]}${c.reset}\n`,
-								);
-							}
-						} else {
-							write(`   ${c.gray}${HOOK}${c.reset}${c.green}ok${c.reset}\n`);
-						}
-					}
-					shouldPrefixNextTextWithBlankLine = false;
-					break;
-				case "media": {
-					closeInlineStreamIfNeeded();
-					const media = event.media;
-					if (!media) break;
-					const saved = materializeGeneratedMedia(media);
-					if (saved) {
-						write(
-							`${c.dim}[generated ${media.modality}]${c.reset} ${saved.path}\n`,
-						);
-					} else if (media.source.type === "url") {
-						write(
-							`${c.dim}[generated ${media.modality}]${c.reset} ${media.source.url}\n`,
-						);
-					} else if (media.source.type === "artifact") {
-						write(
-							`${c.dim}[generated ${media.modality}]${c.reset} artifact:${media.source.artifactId}\n`,
-						);
-					} else {
-						write(
-							`${c.dim}[generated ${media.modality}]${c.reset} ${media.mediaType} could not be saved\n`,
-						);
-					}
-					break;
-				}
-			}
-			break;
-
-		case "done": {
-			closeInlineStreamIfNeeded();
-			if (config.verbose) {
-				const iterations = event.iterations;
-				const label = event.reason === "aborted" ? "aborted" : "finished";
-				write(
-					`\n${c.dim}── ${label} (${iterations} iterations) ──${c.reset}\n`,
-				);
-			}
-			activeInlineStream = undefined;
-			inlineStreamHasOutput = false;
-			shouldPrefixNextTextWithBlankLine = false;
-			break;
-		}
-		case "error":
-			closeInlineStreamIfNeeded();
-			if (!event.recoverable || config.verbose) {
-				writeErr(
-					formatCliErrorMessage(event.error, { modelId: config.modelId }),
-				);
-			}
-			break;
-		case "notice":
-			if (event.displayRole === "status") {
-				closeInlineStreamIfNeeded();
-				const label = resolveStatusNoticeLabel(event);
-				if (label) {
-					write(`\n${c.dim}[status]${c.reset} ${label}\n`);
-				}
-			}
-			break;
-	}
-}
+const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
 // =============================================================================
 // Team event handler
@@ -261,8 +127,8 @@ export function handleTeamEvent(event: TeamEvent): void {
 		return;
 	}
 
-	breakLineIfStreaming();
-	if (activeInlineStream !== "text") {
+	stream?.renderer.breakLineIfStreaming();
+	if (!stream?.renderer.isActiveTextStream()) {
 		closeInlineStreamIfNeeded();
 	}
 
