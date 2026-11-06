@@ -200,7 +200,7 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				input.setRunning || input.parentSessionId !== undefined
 					? true
 					: existing.isSubagent,
-			updatedAt: nowIso(),
+			updatedAt: input.updatedAt ?? nowIso(),
 		};
 
 		if (input.setRunning) {
