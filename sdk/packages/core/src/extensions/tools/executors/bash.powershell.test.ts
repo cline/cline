@@ -40,6 +40,66 @@ const shells = names.map((name) => {
 	return { name, path };
 });
 
+function nativeExitCommand(exitCode: number): string {
+	const executable = process.execPath.replaceAll("'", "''");
+	return `& '${executable}' -e 'console.log(12345); process.exit(${exitCode})'`;
+}
+
+for (const shell of shells) {
+	describe.runIf(Boolean(shell.path))(
+		`PowerShell native exit codes (${shell.name})`,
+		() => {
+			const executor = createShellExecutor({ shell: shell.name });
+
+			it.each([
+				7, 42,
+			])("preserves native exit code %i and output", async (exitCode) => {
+				await expect(
+					executor(nativeExitCommand(exitCode), process.cwd(), ctx),
+				).rejects.toMatchObject({
+					exitCode,
+					output: expect.stringContaining("12345"),
+				});
+			});
+
+			it("accepts a successful native command", async () => {
+				await expect(
+					executor(nativeExitCommand(0), process.cwd(), ctx),
+				).resolves.toContain("12345");
+			});
+
+			it("accepts a successful final cmdlet after a native failure", async () => {
+				await expect(
+					executor(
+						`${nativeExitCommand(42)}; Write-Output 'recovered'`,
+						process.cwd(),
+						ctx,
+					),
+				).resolves.toContain("recovered");
+			});
+
+			it("reports a cmdlet error after a successful native command", async () => {
+				await expect(
+					executor(
+						`${nativeExitCommand(0)}; Write-Error 'cmdlet-failed' -ErrorAction Continue`,
+						process.cwd(),
+						ctx,
+					),
+				).rejects.toMatchObject({
+					exitCode: 1,
+					output: expect.stringContaining("cmdlet-failed"),
+				});
+			});
+
+			it("preserves an explicit script exit", async () => {
+				await expect(
+					executor("exit 23", process.cwd(), ctx),
+				).rejects.toMatchObject({ exitCode: 23 });
+			});
+		},
+	);
+}
+
 // Encode only the enclosing string layer. Dollar expressions are
 // deliberately unescaped, as in the reporter's model-authored command.
 function wrap(
