@@ -291,15 +291,18 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 
 				let blocks: LlmsProviders.ContentBlock[] = [];
 				let stampedMetrics = false;
+				let lastAssistant: LlmsProviders.MessageWithMetadata | undefined;
 				const flushAssistant = (withMetrics: boolean) => {
 					if (blocks.length === 0) return;
-					messages.push({
+					const message: LlmsProviders.MessageWithMetadata = {
 						role: "assistant",
 						content: blocks,
 						...(modelInfo ? { modelInfo } : {}),
 						...(withMetrics && metrics && !stampedMetrics ? { metrics } : {}),
 						...(ts ? { ts } : {}),
-					});
+					};
+					messages.push(message);
+					lastAssistant = message;
 					if (withMetrics && metrics && !stampedMetrics) stampedMetrics = true;
 					blocks = [];
 				};
@@ -347,6 +350,14 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 					}
 				}
 				flushAssistant(true);
+				// A row whose last part is a tool call has nothing left to flush, so
+				// the flush above returns early and the row's usage would be dropped
+				// with it. Stamp the assistant message already pushed for the row,
+				// the same fallback the Codex importer uses for a token_count that
+				// arrives after the assistant blocks were flushed.
+				if (metrics && !stampedMetrics && lastAssistant) {
+					lastAssistant.metrics = metrics;
+				}
 			}
 
 			const title =
