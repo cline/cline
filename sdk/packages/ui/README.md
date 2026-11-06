@@ -69,15 +69,23 @@ their utilities are emitted without changing generic host utility names.
 share welcome/conversation geometry and header groups through host-owned slots.
 See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
-`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
-accent, neutral, and destructive tones. Both default to `type="button"` so they
-are safe inside forms. `IconButton` requires an accessible `aria-label`, and
-both components support Radix-style composition through `asChild`.
+`Button` and `IconButton` share `primary`, `secondary`, and `ghost` variants
+across accent, neutral, and destructive tones. Existing `fill` and `surface`
+variants remain aliases for `primary` and `secondary`. Without `asChild`, both
+default to `type="button"`. Composed children retain their native form behavior
+unless a `type` is specified; a native button without a type submits its form.
+`IconButton` requires an accessible `aria-label`, and both components support
+Radix-style composition through `asChild`.
+
+Both controls share heights and corner radii per size: `xs`/`sm` use
+`--radius-md`, and `md`/`lg` use `--radius-lg`. At default spacing their heights
+are 1.75rem, 2rem, 2.25rem, and 2.5rem respectively; icon buttons are square.
+See the [button sizing table](./ADOPTION.md#buttons).
 
 ```tsx
 import { Button, IconButton } from "@cline/ui";
 
-<Button size="sm" tone="accent" variant="fill">
+<Button size="sm" tone="accent" variant="primary">
 	Continue
 </Button>;
 
@@ -86,10 +94,16 @@ import { Button, IconButton } from "@cline/ui";
 </IconButton>;
 ```
 
+Icon props are optional; existing child icons keep working. `Badge` renders a
+span by default and a native button when `interactive` is supplied. See the
+[control adoption examples](./ADOPTION.md#buttons) for icon props, press
+feedback, and badge variants.
+
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
-`Switch` is a medium-size native checkbox styled as a switch. It supports
+`Switch` is a native checkbox styled as a switch, with `sm` and `md` sizes
+(default: `md`). It supports
 `checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.
 Provide an accessible name with a label or `aria-label`. Its ref targets the
 input; `className` and `style` customize the wrapper. See [switch usage and

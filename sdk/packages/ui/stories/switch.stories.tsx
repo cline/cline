@@ -22,8 +22,12 @@ const meta: Meta<typeof Switch> = {
 			</div>
 		),
 	],
-	args: { "aria-label": "Enable notifications" },
-	argTypes: { onCheckedChange: { action: "checked changed" } },
+	args: { "aria-label": "Enable notifications", tone: "accent", size: "md" },
+	argTypes: {
+		size: { control: "select", options: ["sm", "md"] },
+		tone: { control: "select", options: ["accent", "neutral"] },
+		onCheckedChange: { action: "checked changed" },
+	},
 };
 
 export default meta;
@@ -31,7 +35,13 @@ type Story = StoryObj<typeof Switch>;
 
 export const Default: Story = {};
 
+export const Small: Story = { args: { size: "sm" } };
+
 export const Checked: Story = { args: { defaultChecked: true } };
+
+export const Neutral: Story = {
+	args: { tone: "neutral", defaultChecked: true },
+};
 
 export const Disabled: Story = {
 	render: (args) => (
@@ -46,7 +56,7 @@ export const WithLabel: Story = {
 	render: function WithLabel(args) {
 		const id = useId();
 		return (
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-3">
 				<Switch {...args} aria-label={undefined} id={id} />
 				<label className="cursor-pointer text-cline-ui-md" htmlFor={id}>
 					Enable notifications
