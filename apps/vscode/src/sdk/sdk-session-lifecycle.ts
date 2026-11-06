@@ -89,6 +89,11 @@ export class SdkSessionLifecycle {
 	 * of mistaking "no active session" for "nothing to rebuild".
 	 */
 	private readonly pendingStarts = new Set<Promise<void>>()
+	private startGeneration = 0
+
+	get captureState(): { generation: number; starting: boolean } {
+		return { generation: this.startGeneration, starting: this.pendingStarts.size > 0 }
+	}
 	/**
 	 * Settles with each session's latest turn send. Core adds the prompt to the
 	 * conversation only when its agent loop picks the turn up, so a turn
@@ -104,6 +109,7 @@ export class SdkSessionLifecycle {
 	 * session is active and its first turn is sent, as one tracked unit.
 	 */
 	async trackSessionStart<T>(operation: () => Promise<T>): Promise<T> {
+		this.startGeneration++
 		const run = operation()
 		const settled = run.then(
 			() => undefined,
