@@ -198,20 +198,16 @@ export class SessionManifestStore {
 	}
 
 	/**
-	 * Resolve the session row backing a message write, re-adopting it from the
+	 * Resolve the session row backing a write, re-adopting it from the
 	 * on-disk manifest when the index was rebuilt or the artifacts were restored.
 	 */
-	private async resolveSessionRow(sessionId: string): Promise<SessionRow> {
+	async resolveSessionRow(sessionId: string): Promise<SessionRow | undefined> {
 		const indexed = await this.adapter.getSession(sessionId);
 		if (indexed) {
 			return indexed;
 		}
 		const adopted = this.readSessionRowFromManifest(sessionId);
-		if (!adopted) {
-			throw new Error(
-				`Cannot persist messages for unknown session: ${sessionId}`,
-			);
-		}
+		if (!adopted) return undefined;
 		await this.adapter.upsertSession(adopted);
 		this.logger?.debug("Re-adopted session row from manifest", { sessionId });
 		return adopted;
@@ -223,6 +219,11 @@ export class SessionManifestStore {
 		systemPrompt?: string,
 	): Promise<void> {
 		const row = await this.resolveSessionRow(sessionId);
+		if (!row) {
+			throw new Error(
+				`Cannot persist messages for unknown session: ${sessionId}`,
+			);
+		}
 		const path =
 			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
 				? row.messagesPath
