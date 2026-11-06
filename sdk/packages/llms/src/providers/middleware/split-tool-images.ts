@@ -397,7 +397,9 @@ export function rewritePromptToolImages(prompt: LanguageModelV4Message[]): {
  * Apply via `wrapLanguageModel({ model, middleware: splitToolImagesMiddleware })`
  * in any provider whose downstream converter doesn't natively handle
  * multimodal `role:"tool"` content (currently: `@ai-sdk/openai-compatible`,
- * `@ai-sdk/mistral`).
+ * `@ai-sdk/mistral`, and `@ai-sdk/amazon-bedrock` for non-Anthropic models,
+ * whose Converse converter rejects image blocks inside `toolResult`
+ * content).
  *
  * Anthropic's converter natively renders content arrays on tool-result
  * messages and should NOT use this middleware — it would replace

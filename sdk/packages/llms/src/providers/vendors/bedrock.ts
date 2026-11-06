@@ -1,7 +1,10 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import { wrapLanguageModel } from "ai";
 import { getGeneratedModelsForProvider } from "../../catalog/catalog.generated-access";
+import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
 type BedrockCredentials = {
@@ -243,8 +246,30 @@ export async function createBedrockProviderModule(
 
 	return {
 		operations: {
-			language: (modelId) =>
-				provider(resolveBedrockModelId(modelId, modelIdOptions)),
+			// Bedrock's Converse converter rejects image blocks inside
+			// `toolResult` content for some non-Anthropic models (e.g. Moonshot
+			// Kimi K3), so a tool returning an image makes every following
+			// request fail with "This model doesn't support the image field for
+			// user messages" — the image stays in the history (cline/cline#14917).
+			// Wrap non-Anthropic models with `splitToolImagesMiddleware` to move
+			// tool-result images into a following user message, as the Mistral/
+			// Ollama/OpenAI-compatible/Cline vendors already do. Anthropic models
+			// stay unwrapped: their converter renders multimodal tool-results
+			// faithfully, and keeping them bare avoids any interaction between a
+			// synthetic user message and the gateway's Bedrock cache-point
+			// injection. The test matches the RESOLVED id, so geo-prefixed
+			// inference-profile ids (`us.anthropic.…`) are still detected as
+			// Anthropic.
+			language: (modelId) => {
+				const resolvedId = resolveBedrockModelId(modelId, modelIdOptions);
+				const model = provider(resolvedId) as LanguageModelV4;
+				return /(^|\.)anthropic\./.test(resolvedId)
+					? model
+					: wrapLanguageModel({
+							model,
+							middleware: splitToolImagesMiddleware,
+						});
+			},
 			imageGeneration: (modelId) => provider.image(modelId),
 		},
 	};
