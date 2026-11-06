@@ -159,6 +159,24 @@ function extractFilesForOperations(
 	return [...files];
 }
 
+/** Read the file targets from a patch without opening or modifying them. */
+export function extractPatchFilePaths(input: string): string[] {
+	try {
+		const { lines } = normalizePatchInput(input);
+		return extractFilesForOperations(lines, [
+			PATCH_MARKERS.ADD,
+			PATCH_MARKERS.UPDATE,
+			PATCH_MARKERS.DELETE,
+			PATCH_MARKERS.MOVE,
+		]).filter(Boolean);
+	} catch (error) {
+		if (error instanceof DiffError) {
+			return [];
+		}
+		throw error;
+	}
+}
+
 function applyChunks(
 	content: string,
 	chunks: PatchChunk[],
