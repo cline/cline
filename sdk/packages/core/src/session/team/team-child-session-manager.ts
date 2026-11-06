@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
-import type { AgentResult } from "@cline/shared";
+import type { AgentResult, DelegationTarget } from "@cline/shared";
 import { resolveRootSessionId } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { z } from "zod";
@@ -76,6 +76,7 @@ export class TeamChildSessionManager {
 		opts: {
 			sessionId: string;
 			mode: "subagent" | "team";
+			target?: DelegationTarget;
 			parentSessionId: string;
 			parentAgentId: string;
 			agentId: string;
@@ -96,8 +97,8 @@ export class TeamChildSessionManager {
 			status: "running",
 			statusLock: 0,
 			interactive: false,
-			provider: root.provider,
-			model: root.model,
+			provider: opts.target?.providerId ?? root.provider,
+			model: opts.target?.modelId ?? root.model,
 			cwd: root.cwd,
 			workspaceRoot: root.workspaceRoot,
 			teamName: root.teamName ?? null,
@@ -171,6 +172,7 @@ export class TeamChildSessionManager {
 			const row = this.buildSubsessionRow(root, {
 				sessionId,
 				mode: "subagent",
+				target: input.target,
 				parentSessionId: rootSessionId,
 				parentAgentId: input.parentAgentId,
 				agentId: input.agentId,
@@ -191,6 +193,9 @@ export class TeamChildSessionManager {
 		await this.adapter.updateSession({
 			sessionId,
 			setRunning: true,
+			...(input.target
+				? { provider: input.target.providerId, model: input.target.modelId }
+				: {}),
 			parentSessionId: rootSessionId,
 			parentAgentId: input.parentAgentId,
 			agentId: input.agentId,
@@ -277,6 +282,7 @@ export class TeamChildSessionManager {
 		rootSessionId: string,
 		agentId: string,
 		message: string,
+		target?: DelegationTarget,
 	): Promise<void> {
 		const root = await this.adapter.getSession(rootSessionId);
 		if (!root) return;
@@ -289,6 +295,7 @@ export class TeamChildSessionManager {
 		const row = this.buildSubsessionRow(root, {
 			sessionId,
 			mode: "team",
+			target,
 			parentSessionId: rootSessionId,
 			parentAgentId: "lead",
 			agentId,
@@ -374,6 +381,7 @@ export class TeamChildSessionManager {
 			parentAgentId: context.parentAgentId,
 			conversationId: context.conversationId,
 			prompt: context.input.task,
+			target: context.target,
 			rootSessionId,
 		});
 		if (!subSessionId) return;
@@ -389,6 +397,7 @@ export class TeamChildSessionManager {
 			parentAgentId: context.parentAgentId,
 			conversationId: context.conversationId,
 			prompt: context.input.task,
+			target: context.target,
 			rootSessionId,
 		});
 		if (!subSessionId) return;

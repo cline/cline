@@ -5,6 +5,7 @@ import type {
 	AgentResult,
 	AgentTool,
 	BasicLogger,
+	DelegationTarget,
 	ITelemetryService,
 	ModelTool,
 	RuntimeConfigExtensionKind,
@@ -28,6 +29,7 @@ import type {
 	SubAgentStartContext,
 	TeamEvent,
 } from "../../extensions/tools/team";
+import type { ResolveDelegatedAgentConfig } from "../../extensions/tools/team/delegated-agent";
 import type { WorkspaceManager } from "../../services/workspace/workspace-manager";
 import type { CoreSessionConfig } from "../../types/config";
 
@@ -62,6 +64,8 @@ export interface BuiltRuntime {
 
 export interface RuntimeBuilderInput {
 	config: CoreSessionConfig;
+	resolveDelegatedAgentConfig?: ResolveDelegatedAgentConfig;
+	delegationTargetsTool?: AgentTool;
 	/**
 	 * Host-resolved stable end-user identity, forwarded so delegated agents
 	 * (sub-agents / teammates) emit the same telemetry `userId` as the lead.
@@ -70,7 +74,7 @@ export interface RuntimeBuilderInput {
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
-	onSubAgentEvent?: (event: AgentEvent) => void;
+	onSubAgentEvent?: (event: AgentEvent, target?: DelegationTarget) => void;
 	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
 	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	createSpawnTool?: () => AgentTool;

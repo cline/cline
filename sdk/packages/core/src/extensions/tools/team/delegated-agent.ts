@@ -4,12 +4,14 @@ import type {
 	AgentHooks,
 	AgentTool,
 	BasicLogger,
+	DelegationTarget,
 	HookErrorMode,
 	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
+import type { CoreModelConfig } from "../../../types/config";
 import {
 	buildSubAgentSystemPrompt,
 	buildTeammateSystemPrompt,
@@ -17,22 +19,8 @@ import {
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 
-export type DelegatedAgentConnectionConfig = Pick<
-	AgentConfig,
-	| "providerId"
-	| "modelId"
-	| "apiKey"
-	| "baseUrl"
-	| "headers"
-	| "onAuthError"
-	| "providerConfig"
-	| "knownModels"
-	| "thinking"
-	| "reasoningEffort"
-	| "thinkingBudgetTokens"
-	| "maxTokensPerTurn"
-	| "temperature"
->;
+export type DelegatedAgentConnectionConfig = CoreModelConfig &
+	Pick<AgentConfig, "onAuthError" | "extensionContext">;
 
 export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
@@ -64,7 +52,14 @@ export interface DelegatedAgentConfigProvider {
 	updateConnectionDefaults(
 		overrides: Partial<DelegatedAgentConnectionConfig>,
 	): void;
+	resolveTarget?: ResolveDelegatedAgentConfig;
 }
+
+export type ResolveDelegatedAgentConfig = (
+	target: DelegationTarget | undefined,
+	parent: DelegatedAgentRuntimeConfig,
+	signal?: AbortSignal,
+) => Promise<DelegatedAgentConfigProvider>;
 
 export type DelegatedAgentKind = "subagent" | "teammate";
 
@@ -88,10 +83,12 @@ export interface BuildDelegatedAgentConfigOptions {
 
 export function createDelegatedAgentConfigProvider(
 	initialConfig: DelegatedAgentRuntimeConfig,
+	resolveTarget?: ResolveDelegatedAgentConfig,
 ): DelegatedAgentConfigProvider {
 	let runtimeConfig: DelegatedAgentRuntimeConfig = { ...initialConfig };
 
 	return {
+		resolveTarget,
 		getRuntimeConfig: () => runtimeConfig,
 		getConnectionConfig: () => ({
 			providerId: runtimeConfig.providerId,
@@ -107,6 +104,7 @@ export function createDelegatedAgentConfigProvider(
 			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
 			temperature: runtimeConfig.temperature,
+			extensionContext: runtimeConfig.extensionContext,
 		}),
 		updateConnectionDefaults: (overrides) => {
 			runtimeConfig = {
@@ -115,6 +113,29 @@ export function createDelegatedAgentConfigProvider(
 			};
 		},
 	};
+}
+
+export async function resolveDelegatedAgentConfig(
+	parent: DelegatedAgentConfigProvider,
+	target?: DelegationTarget,
+	signal?: AbortSignal,
+): Promise<DelegatedAgentConfigProvider> {
+	signal?.throwIfAborted();
+	const snapshot = { ...parent.getRuntimeConfig() };
+	if (parent.resolveTarget) {
+		const resolved = await parent.resolveTarget(target, snapshot, signal);
+		signal?.throwIfAborted();
+		return resolved;
+	}
+	if (target && target.providerId !== snapshot.providerId) {
+		throw new Error(
+			"Cross-provider delegation requires a host connection resolver.",
+		);
+	}
+	return createDelegatedAgentConfigProvider({
+		...snapshot,
+		...(target ? { modelId: target.modelId } : {}),
+	});
 }
 
 export function buildDelegatedAgentConfig(
@@ -150,7 +171,32 @@ export function createDelegatedAgent(
 	options: BuildDelegatedAgentConfigOptions,
 ): SessionRuntime {
 	const config = buildDelegatedAgentConfig(options);
-	const session = new SessionRuntime(config);
+	return createDelegatedRuntime(config, options.configProvider);
+}
+
+export function createDelegatedRuntime(
+	config: AgentConfig,
+	configProvider?: DelegatedAgentConfigProvider,
+): SessionRuntime {
+	const refresh = config.onAuthError;
+	const session = new SessionRuntime({
+		...config,
+		...(refresh && configProvider
+			? {
+					onAuthError: async () => {
+						if (!(await refresh())) return false;
+						const fresh = configProvider.getConnectionConfig();
+						session.updateConnection({
+							apiKey: fresh.apiKey,
+							baseUrl: fresh.baseUrl,
+							headers: fresh.headers,
+							providerConfig: fresh.providerConfig,
+						});
+						return true;
+					},
+				}
+			: {}),
+	});
 	if (config.onEvent) {
 		session.subscribeEvents(config.onEvent);
 	}

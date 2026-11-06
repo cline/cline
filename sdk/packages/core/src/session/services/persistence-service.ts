@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
-import type { AgentResult, BasicLogger } from "@cline/shared";
+import type { AgentResult, BasicLogger, DelegationTarget } from "@cline/shared";
 import { nanoid } from "nanoid";
 import type {
 	SubAgentEndContext,
@@ -377,8 +377,14 @@ export class UnifiedSessionPersistenceService {
 		rootSessionId: string,
 		agentId: string,
 		message: string,
+		target?: DelegationTarget,
 	): Promise<void> {
-		return this.teamChildren.onTeamTaskStart(rootSessionId, agentId, message);
+		return this.teamChildren.onTeamTaskStart(
+			rootSessionId,
+			agentId,
+			message,
+			target,
+		);
 	}
 
 	onTeamTaskEnd(

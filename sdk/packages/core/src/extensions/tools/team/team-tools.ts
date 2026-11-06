@@ -77,6 +77,7 @@ import {
 	buildDelegatedAgentConfig,
 	type DelegatedAgentConfigProvider,
 	type DelegatedAgentRuntimeConfig,
+	resolveDelegatedAgentConfig,
 } from "./delegated-agent";
 import type { AgentTeamsRuntime } from "./multi-agent";
 
@@ -97,6 +98,7 @@ function requireInputField<T>(value: T | undefined, field: string): T {
 
 function summarizeRunResult(
 	run: TeamRunRecord,
+	includeText = false,
 ): TeamRunResultSummary | undefined {
 	const result = run.result as AgentResult | undefined;
 	if (!result) {
@@ -104,6 +106,7 @@ function summarizeRunResult(
 	}
 	return {
 		textPreview: truncateText(result.text, TEAM_RUN_TEXT_PREVIEW_LIMIT),
+		...(includeText ? { text: result.text } : {}),
 		iterations: result.iterations,
 		finishReason: result.finishReason,
 		durationMs: result.durationMs,
@@ -121,7 +124,10 @@ function dateToIso(value: Date | undefined): string | undefined {
 	return value?.toISOString();
 }
 
-function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
+function summarizeRun(
+	run: TeamRunRecord,
+	includeText = false,
+): TeamRunToolSummary {
 	return {
 		id: run.id,
 		agentId: run.agentId,
@@ -141,26 +147,8 @@ function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
 		lastProgressMessage: run.lastProgressMessage,
 		currentActivity: run.currentActivity,
 		error: run.error,
-		resultSummary: summarizeRunResult(run),
+		resultSummary: summarizeRunResult(run, includeText),
 	};
-}
-
-function assertAwaitedRunSucceeded(run: TeamRunRecord): void {
-	if (run.status === "failed") {
-		throw new Error(
-			`Run "${run.id}" failed${run.error ? `: ${run.error}` : ""}`,
-		);
-	}
-	if (run.status === "cancelled") {
-		throw new Error(
-			`Run "${run.id}" was cancelled${run.error ? `: ${run.error}` : ""}`,
-		);
-	}
-	if (run.status === "interrupted") {
-		throw new Error(
-			`Run "${run.id}" was interrupted${run.error ? `: ${run.error}` : ""}`,
-		);
-	}
 }
 
 export type TeamTeammateRuntimeConfig = DelegatedAgentRuntimeConfig;
@@ -169,7 +157,7 @@ export interface CreateAgentTeamsToolsOptions {
 	runtime: AgentTeamsRuntime;
 	requesterId: string;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => AgentTool[];
+	createBaseTools?: (provider: DelegatedAgentConfigProvider) => AgentTool[];
 	allowSpawn?: boolean;
 	includeSpawnTool?: boolean;
 	includeManagementTools?: boolean;
@@ -179,7 +167,7 @@ export interface CreateAgentTeamsToolsOptions {
 export interface BootstrapAgentTeamsOptions {
 	runtime: AgentTeamsRuntime;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => AgentTool[];
+	createBaseTools?: (provider: DelegatedAgentConfigProvider) => AgentTool[];
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
 	restoredFromPersistence?: boolean;
@@ -215,21 +203,31 @@ export const TEAM_TOOL_NAMES = [
 	"team_list_outcomes",
 ] as const;
 
-function spawnTeamTeammate(
+async function spawnTeamTeammate(
 	options: Omit<CreateAgentTeamsToolsOptions, "requesterId" | "allowSpawn"> & {
 		requesterId: string;
 		spec: TeamTeammateSpec;
+		signal?: AbortSignal;
 	},
-): void {
+): Promise<void> {
+	const target =
+		options.spec.providerId && options.spec.modelId
+			? { providerId: options.spec.providerId, modelId: options.spec.modelId }
+			: undefined;
+	const provider = await resolveDelegatedAgentConfig(
+		options.teammateConfigProvider,
+		target,
+		options.signal,
+	);
 	const teammateTools: AgentTool[] = [];
 	if (options.createBaseTools) {
-		teammateTools.push(...options.createBaseTools());
+		teammateTools.push(...options.createBaseTools(provider));
 	}
 	teammateTools.push(
 		...createAgentTeamsTools({
 			runtime: options.runtime,
 			requesterId: options.spec.agentId,
-			teammateConfigProvider: options.teammateConfigProvider,
+			teammateConfigProvider: provider,
 			createBaseTools: options.createBaseTools,
 			allowSpawn: false,
 			// Spawning is lead-only; exposing the tool to teammates just
@@ -238,23 +236,25 @@ function spawnTeamTeammate(
 			includeSpawnTool: false,
 		}),
 	);
+	options.signal?.throwIfAborted();
 	options.runtime.spawnTeammate({
 		agentId: options.spec.agentId,
+		configProvider: provider,
 		config: buildDelegatedAgentConfig({
 			kind: "teammate",
 			prompt: options.spec.rolePrompt,
 			role: options.spec.rolePrompt,
-			configProvider: options.teammateConfigProvider,
+			configProvider: provider,
 			tools: teammateTools,
 			maxIterations: options.spec.maxIterations,
-			cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
+			cwd: provider.getRuntimeConfig().cwd,
 		}),
 	});
 }
 
-export function bootstrapAgentTeams(
+export async function bootstrapAgentTeams(
 	options: BootstrapAgentTeamsOptions,
-): BootstrapAgentTeamsResult {
+): Promise<BootstrapAgentTeamsResult> {
 	const leadAgentId = options.leadAgentId ?? "lead";
 	const restoredFromPersistence = options.restoredFromPersistence === true;
 
@@ -270,19 +270,21 @@ export function bootstrapAgentTeams(
 	});
 
 	const restoredTeammates: string[] = [];
-	for (const spec of options.restoredTeammates ?? []) {
-		if (options.runtime.isTeammateActive(spec.agentId)) {
-			continue;
-		}
-		spawnTeamTeammate({
-			runtime: options.runtime,
-			requesterId: leadAgentId,
-			teammateConfigProvider: options.teammateConfigProvider,
-			createBaseTools: options.createBaseTools,
-			spec,
-		});
-		restoredTeammates.push(spec.agentId);
-	}
+	await Promise.all(
+		(options.restoredTeammates ?? []).map(async (spec) => {
+			if (options.runtime.isTeammateActive(spec.agentId)) {
+				return;
+			}
+			await spawnTeamTeammate({
+				runtime: options.runtime,
+				requesterId: leadAgentId,
+				teammateConfigProvider: options.teammateConfigProvider,
+				createBaseTools: options.createBaseTools,
+				spec,
+			});
+			restoredTeammates.push(spec.agentId);
+		}),
+	);
 
 	return {
 		tools,
@@ -303,9 +305,10 @@ export function createAgentTeamsTools(
 		tools.push(
 			createTool<TeamSpawnTeammateInput, { agentId: string; status: string }>({
 				name: "team_spawn_teammate",
-				description: "Spawn a teammate with a required agentId and rolePrompt.",
+				description:
+					"Spawn a teammate with agentId and rolePrompt. Optional target selects an exact provider/model from list_delegation_targets; otherwise inherit this agent. Prefer subscriptions and ask before API fallback. Never silently substitute targets.",
 				inputSchema: zodToJsonSchema(TeamSpawnTeammateInputSchema),
-				execute: async (input) => {
+				execute: async (input, context) => {
 					const validatedInput = validateWithZod(
 						TeamSpawnTeammateInputSchema,
 						input,
@@ -319,13 +322,15 @@ export function createAgentTeamsTools(
 					const spec: TeamTeammateSpec = {
 						agentId: validatedInput.agentId,
 						rolePrompt: validatedInput.rolePrompt,
+						...validatedInput.target,
 					};
-					spawnTeamTeammate({
+					await spawnTeamTeammate({
 						runtime: options.runtime,
 						requesterId: options.requesterId,
 						teammateConfigProvider: options.teammateConfigProvider,
 						createBaseTools: options.createBaseTools,
 						spec,
+						signal: context.signal,
 					});
 					if (!includeManagementTools) {
 						options.onLeadToolsUnlocked?.(
@@ -495,6 +500,7 @@ export function createAgentTeamsTools(
 	tools.push(
 		createTool<TeamRunTaskInput, TeamRunTaskToolResult>({
 			name: "team_run_task",
+			resultPolicy: "cache-oversized",
 			description:
 				"Route a delegated task to a teammate. Choose sync (wait) or async (run in background).",
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
@@ -590,7 +596,7 @@ export function createAgentTeamsTools(
 					TeamRunToolSummarySchema.array(),
 					options.runtime
 						.listRuns(validateWithZod(TeamListRunsInputSchema, input))
-						.map(summarizeRun),
+						.map((run) => summarizeRun(run)),
 				),
 		}) as AgentTool,
 	);
@@ -598,35 +604,24 @@ export function createAgentTeamsTools(
 	tools.push(
 		createTool<TeamAwaitRunsInput, TeamRunToolSummary | TeamRunToolSummary[]>({
 			name: "team_await_runs",
+			resultPolicy: "cache-oversized",
 			description:
-				"Wait for async teammate runs. Provide runId to wait for one run, or omit it to wait for all active async runs. Uses a long timeout for legitimate teammate work.",
+				"Wait for async teammate runs. A runId returns the full result text; omit it for compact summaries of all runs. Failed or cancelled runs keep their status/error alongside successful siblings. Uses a long timeout for legitimate teammate work.",
 			inputSchema: zodToJsonSchema(TeamAwaitRunsInputSchema),
 			timeoutMs: TEAM_AWAIT_TIMEOUT_MS,
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamAwaitRunsInputSchema, input);
 				if (validatedInput.runId) {
 					const run = await options.runtime.awaitRun(validatedInput.runId);
-					assertAwaitedRunSucceeded(run);
-					return validateWithZod(TeamRunToolSummarySchema, summarizeRun(run));
-				}
-				const runs = await options.runtime.awaitAllRuns();
-				const failedRuns = runs.filter((run) =>
-					["failed", "cancelled", "interrupted"].includes(run.status),
-				);
-				if (failedRuns.length > 0) {
-					const details = failedRuns
-						.map(
-							(run) =>
-								`${run.id}:${run.status}${run.error ? `(${run.error})` : ""}`,
-						)
-						.join(", ");
-					throw new Error(
-						`One or more runs did not complete successfully: ${details}`,
+					return validateWithZod(
+						TeamRunToolSummarySchema,
+						summarizeRun(run, true),
 					);
 				}
+				const runs = await options.runtime.awaitAllRuns();
 				return validateWithZod(
 					TeamRunToolSummarySchema.array(),
-					runs.map(summarizeRun),
+					runs.map((run) => summarizeRun(run)),
 				);
 			},
 		}) as AgentTool,

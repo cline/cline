@@ -51,6 +51,7 @@ import {
 	type PluginCommandsApi,
 } from "../../services/plugin-command-api";
 import { PluginCommandManager } from "../../services/plugin-commands";
+import { listDelegationTargets } from "../../services/providers/local-provider-service";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -133,6 +134,7 @@ import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
+import { createDelegationResolver } from "./local/delegation";
 import {
 	type SessionBackend,
 	toActiveSessionRecord,
@@ -143,6 +145,7 @@ import {
 	invokeBackendOptionalValue,
 } from "./local/session-service-invoker";
 import {
+	createDelegationTargetsTool,
 	createSessionSpawnTool,
 	createSessionSubAgentLifecycleCallbacks,
 	type SubAgentStartTracker,
@@ -684,6 +687,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let heldSessionEvents: Array<{ name: string; payload?: unknown }> | null =
 			[];
 		const subAgentDeps = {
+			listDelegationTargets: (
+				options: Parameters<typeof listDelegationTargets>[1],
+			) => listDelegationTargets(this.providerSettingsManager, options),
 			getSession: (sid: string) => this.sessions.get(sid),
 			subAgentStarts: this.subAgentStarts,
 			onAgentEvent: (
@@ -694,6 +700,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		const resolveDelegatedAgentConfig = createDelegationResolver({
+			rootConfig: () =>
+				this.sessions.get(sessionId)?.config ?? bootstrap.config,
+			sessionId,
+			source: startInput.source,
+			settings: this.providerSettingsManager,
+			oauth: this.oauthTokenManager,
+			fetch: this.defaultFetch,
+		});
 		// A resumed session keeps the provenance it was initiated with
 		// (automation trigger, import source): the start input's metadata
 		// always carries a default "user" origin, which would otherwise
@@ -796,6 +811,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		try {
 			runtime = await this.runtimeBuilder.build({
 				...bootstrap.runtimeBuilderInput,
+				resolveDelegatedAgentConfig,
+				delegationTargetsTool: createDelegationTargetsTool(
+					subAgentDeps.listDelegationTargets,
+					() => this.sessions.get(sessionId)?.config ?? bootstrap.config,
+				),
 				distinctId: this.distinctId,
 				runCommandExecutionController: this.runCommandExecutionController,
 			});
@@ -1911,7 +1931,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			delegatedUpdates,
 		);
 		session.agent.updateConnection(updates);
-		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
+		session.runtime.teamRuntime?.updateTeammateConnections(
+			teammateUpdates,
+			session.config.providerId,
+		);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
 		if (updates.providerId || updates.modelId) {
@@ -2821,9 +2844,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
 			apiKey: resolved.apiKey,
 		});
-		session.runtime.teamRuntime?.updateTeammateConnections({
-			apiKey: resolved.apiKey,
-		});
+		session.runtime.teamRuntime?.updateTeammateConnections(
+			{
+				apiKey: resolved.apiKey,
+			},
+			session.config.providerId,
+		);
 	}
 
 	// ── Utility methods ─────────────────────────────────────────────────

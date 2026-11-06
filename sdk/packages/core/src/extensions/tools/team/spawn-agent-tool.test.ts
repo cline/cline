@@ -153,6 +153,7 @@ describe("createSpawnAgentTool", () => {
 		expect(onSubAgentStart).toHaveBeenCalledTimes(1);
 		expect(onSubAgentEnd).toHaveBeenCalledTimes(1);
 		expect(output).toEqual({
+			target: { providerId: "anthropic", modelId: "mock-model" },
 			text: "sub-agent result",
 			iterations: 2,
 			finishReason: "completed",

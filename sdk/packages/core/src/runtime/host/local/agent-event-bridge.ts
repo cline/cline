@@ -130,7 +130,7 @@ export class AgentEventBridge {
 			if (event.type === "agent_event") {
 				const ctx: AgentEventContext = {
 					sessionId: rootSessionId,
-					config: session.config,
+					config: { ...session.config, ...event.target },
 					liveSession: session,
 					usageBySession: this.deps.usageBySession,
 					aggregateUsageBySession: this.deps.aggregateUsageBySession,
@@ -159,7 +159,7 @@ export class AgentEventBridge {
 					captureAgentCreated(session.config.telemetry, {
 						ulid: rootSessionId,
 						modelId: event.teammate.modelId ?? session.config.modelId,
-						provider: session.config.providerId,
+						provider: event.teammate.providerId ?? session.config.providerId,
 						...agentIdentity,
 					});
 				}

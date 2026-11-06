@@ -125,7 +125,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				`UPDATE sessions
 				 SET status = 'running', ended_at = NULL, exit_code = NULL, updated_at = ?, status_lock = ?,
 					 parent_session_id = ?, parent_agent_id = ?, agent_id = ?, conversation_id = ?, is_subagent = 1,
-					 prompt = COALESCE(prompt, ?), metadata_json = ?
+					 prompt = COALESCE(prompt, ?), metadata_json = ?, provider = COALESCE(?, provider), model = COALESCE(?, model)
 				 WHERE session_id = ? AND status_lock = ?`,
 				[
 					nowIso(),
@@ -136,6 +136,8 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 					input.conversationId ?? null,
 					input.prompt ?? null,
 					stringifyMetadata(input.metadata),
+					input.provider ?? null,
+					input.model ?? null,
 					input.sessionId,
 					input.expectedStatusLock,
 				],
@@ -148,6 +150,14 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 		const fields: string[] = [];
 		const params: unknown[] = [];
+		if (input.provider !== undefined) {
+			fields.push("provider = ?");
+			params.push(input.provider);
+		}
+		if (input.model !== undefined) {
+			fields.push("model = ?");
+			params.push(input.model);
+		}
 		if (input.status !== undefined) {
 			fields.push("status = ?");
 			params.push(input.status);

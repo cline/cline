@@ -206,6 +206,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			role: undefined,
 			teammate: {
 				rolePrompt: "Write concise Python-focused haiku",
+				providerId: "anthropic",
 				modelId: "claude-sonnet-4-5-20250929",
 				maxIterations: 7,
 				runtimeAgentId: "teammate-1",

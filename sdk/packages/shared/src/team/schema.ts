@@ -15,6 +15,14 @@ export const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
 export const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
 export const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
 
+export const DelegationTargetSchema = z
+	.object({
+		providerId: z.string().trim().min(1),
+		modelId: z.string().trim().min(1),
+	})
+	.strict();
+export type DelegationTarget = z.infer<typeof DelegationTargetSchema>;
+
 const IsoTimestampSchema = z.preprocess(
 	(value) => (value instanceof Date ? value.toISOString() : value),
 	z.string().datetime(),
@@ -48,6 +56,7 @@ const TeamMemberSnapshotSchema = z.object({
 export const TeamTeammateSpecSchema = z.object({
 	agentId: z.string(),
 	rolePrompt: z.string(),
+	providerId: z.string().optional(),
 	modelId: z.string().optional(),
 	maxIterations: z.number().optional(),
 });
@@ -66,6 +75,7 @@ export const TeamSpawnTeammateInputSchema = z
 			.string()
 			.min(1)
 			.describe("System prompt describing teammate role"),
+		target: DelegationTargetSchema.optional(),
 	})
 	.strict();
 
@@ -338,6 +348,7 @@ export const TeamRunTaskToolResultSchema = z.object({
 
 export const TeamRunResultSummarySchema = z.object({
 	textPreview: z.string(),
+	text: z.string().optional(),
 	iterations: z.number(),
 	finishReason: z.string(),
 	durationMs: z.number(),

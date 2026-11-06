@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import * as LlmsModels from "@cline/llms";
 import type {
 	AddProviderActionRequest,
+	DelegationTarget,
 	ITelemetryService,
 	ProviderCapability,
 	ProviderConfigField,
@@ -64,6 +65,62 @@ export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
 const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
+export async function listDelegationTargets(
+	manager: ProviderSettingsManager,
+	options: {
+		query?: string;
+		offset?: number;
+		current?: DelegationTarget;
+	} = {},
+) {
+	const { providers } = await listLocalProviders(manager, {
+		isClinePassEnabled: true,
+	});
+	const query = options.query?.trim().toLowerCase() ?? "";
+	const saved = manager.read();
+	const targets = providers
+		.filter(
+			(provider) =>
+				provider.configured || provider.id === options.current?.providerId,
+		)
+		.flatMap((provider) => {
+			const models = provider.modelList ?? [];
+			const current =
+				options.current?.providerId === provider.id
+					? options.current
+					: undefined;
+			const modelsById = new Map(models.map((model) => [model.id, model]));
+			const ids = new Set(modelsById.keys());
+			const configuredModel = saved.providers[provider.id]?.settings.model;
+			if (configuredModel) ids.add(configuredModel);
+			if (current) ids.add(current.modelId);
+			const usage = LlmsModels.resolveProviderUsageCostDisplay(provider.id);
+			return Array.from(ids, (modelId) => ({
+				target: { providerId: provider.id, modelId },
+				providerName: provider.name,
+				modelName: modelsById.get(modelId)?.name ?? modelId,
+				billing:
+					usage === "subscription"
+						? ("subscription" as const)
+						: usage === "show"
+							? ("usage" as const)
+							: ("unknown" as const),
+			}));
+		})
+		.filter(
+			(entry) =>
+				!query ||
+				`${entry.providerName} ${entry.modelName} ${entry.target.providerId} ${entry.target.modelId}`
+					.toLowerCase()
+					.includes(query),
+		);
+	const offset = options.offset ?? 0;
+	return {
+		targets: targets.slice(offset, offset + 20),
+		...(offset + 20 < targets.length ? { nextOffset: offset + 20 } : {}),
+	};
+}
 
 export interface ListLocalProvidersOptions {
 	isClinePassEnabled?: boolean;

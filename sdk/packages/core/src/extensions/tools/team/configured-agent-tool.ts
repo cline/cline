@@ -1,25 +1,20 @@
 import {
 	type AgentEvent,
-	type AgentResult,
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
+	type DelegationTarget,
 	type HookErrorMode,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { z } from "zod";
 import type { ConfiguredAgentConfig } from "./configured-agent-config";
-import {
-	createDelegatedAgent,
-	createDelegatedAgentConfigProvider,
-	type DelegatedAgentConfigProvider,
-	type DelegatedAgentRuntimeConfig,
-} from "./delegated-agent";
+import type { DelegatedAgentConfigProvider } from "./delegated-agent";
 import type {
-	SpawnAgentOutput,
 	SubAgentEndContext,
 	SubAgentStartContext,
 } from "./spawn-agent-tool";
+import { createSpawnAgentTool } from "./spawn-agent-tool";
 
 const CONFIGURED_AGENT_TOOL_NAME_PREFIX = "subagent_";
 const CONFIGURED_AGENT_TOOL_NAME_MAX_LENGTH = 64;
@@ -42,8 +37,9 @@ export interface ConfiguredAgentToolConfig {
 		agent: ConfiguredAgentConfig,
 		input: ConfiguredAgentInput,
 		context: AgentToolContext,
+		configProvider: DelegatedAgentConfigProvider,
 	) => AgentTool[] | Promise<AgentTool[]>;
-	onSubAgentEvent?: (event: AgentEvent) => void;
+	onSubAgentEvent?: (event: AgentEvent, target?: DelegationTarget) => void;
 	hookErrorMode?: HookErrorMode;
 	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
 	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
@@ -130,118 +126,51 @@ export function buildConfiguredAgentToolDescriptors(
 	return descriptors;
 }
 
-function buildAgentRuntimeConfig(
-	base: DelegatedAgentRuntimeConfig,
-	agent: ConfiguredAgentConfig,
-): DelegatedAgentRuntimeConfig {
-	return {
-		...base,
-		providerId: agent.providerId ?? base.providerId,
-		modelId: agent.modelId ?? base.modelId,
-		maxIterations: agent.maxIterations ?? base.maxIterations,
-	};
-}
-
 export function createConfiguredAgentTools(
 	options: ConfiguredAgentToolConfig,
 ): AgentTool[] {
 	return buildConfiguredAgentToolDescriptors(options.agents).map(
 		({ toolName, config }) => {
-			const tool = createTool<ConfiguredAgentInput, SpawnAgentOutput>({
+			const delegate = createSpawnAgentTool({
+				configProvider: options.configProvider,
+				defaultMaxIterations: config.maxIterations,
+				createSubAgentTools: (input, context, provider) =>
+					options.createSubAgentTools?.(
+						config,
+						{ prompt: input.task },
+						context,
+						provider,
+					) ?? [],
+				hookErrorMode: options.hookErrorMode,
+				onSubAgentEvent: options.onSubAgentEvent,
+				onSubAgentStart: options.onSubAgentStart,
+				onSubAgentEnd: options.onSubAgentEnd,
+			});
+			return createTool({
+				...delegate,
 				name: toolName,
-				executionMode: "parallel",
 				description: `Use the "${config.name}" subagent: ${config.description}`,
 				inputSchema: zodToJsonSchema(ConfiguredAgentInputSchema),
-				execute: async (input, context) => {
-					const baseRuntimeConfig = options.configProvider.getRuntimeConfig();
-					const configProvider = createDelegatedAgentConfigProvider(
-						buildAgentRuntimeConfig(baseRuntimeConfig, config),
+				execute: async (input: unknown, context: AgentToolContext) => {
+					const parsed = ConfiguredAgentInputSchema.parse(input);
+					const parent = options.configProvider.getRuntimeConfig();
+					return delegate.execute(
+						{
+							systemPrompt: config.systemPrompt,
+							task: parsed.prompt,
+							...(config.providerId || config.modelId
+								? {
+										target: {
+											providerId: config.providerId ?? parent.providerId,
+											modelId: config.modelId ?? parent.modelId,
+										},
+									}
+								: {}),
+						},
+						context,
 					);
-					const tools = options.createSubAgentTools
-						? await options.createSubAgentTools(config, input, context)
-						: [];
-					// The parent approves delegation; child tools run autonomously,
-					// matching generic subagents and teammates. Do not inherit approval policy.
-					const subAgent = createDelegatedAgent({
-						kind: "subagent",
-						prompt: config.systemPrompt,
-						configProvider,
-						tools,
-						maxIterations: config.maxIterations,
-						parentAgentId: context.agentId,
-						abortSignal: context.signal,
-						onEvent: options.onSubAgentEvent,
-						hookErrorMode: options.hookErrorMode,
-					});
-					const subAgentId = subAgent.getAgentId();
-					const conversationId = subAgent.getConversationId();
-					const parentAgentId = context.agentId;
-					const spawnInput = {
-						systemPrompt: config.systemPrompt,
-						task: input.prompt,
-					};
-
-					if (options.onSubAgentStart) {
-						try {
-							await options.onSubAgentStart({
-								subAgentId,
-								conversationId,
-								parentAgentId,
-								input: spawnInput,
-							});
-						} catch {
-							// Best-effort observer callback.
-						}
-					}
-
-					try {
-						const result: AgentResult = await subAgent.run(input.prompt);
-						const output: SpawnAgentOutput = {
-							text: result.text,
-							iterations: result.iterations,
-							finishReason: result.finishReason,
-							usage: {
-								inputTokens: result.usage.inputTokens,
-								outputTokens: result.usage.outputTokens,
-							},
-						};
-						if (options.onSubAgentEnd) {
-							try {
-								await options.onSubAgentEnd({
-									subAgentId,
-									conversationId,
-									parentAgentId,
-									input: spawnInput,
-									result: output,
-									agentResult: result,
-								});
-							} catch {
-								// Best-effort observer callback.
-							}
-						}
-						return output;
-					} catch (error) {
-						if (options.onSubAgentEnd) {
-							try {
-								await options.onSubAgentEnd({
-									subAgentId,
-									conversationId,
-									parentAgentId,
-									input: spawnInput,
-									error:
-										error instanceof Error ? error : new Error(String(error)),
-								});
-							} catch {
-								// Best-effort observer callback.
-							}
-						}
-						throw error;
-					}
 				},
-				timeoutMs: 300000,
-				retryable: false,
 			});
-			return tool as unknown as AgentTool;
 		},
 	);
 }

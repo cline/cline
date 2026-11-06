@@ -1,4 +1,4 @@
-import type { TeamTeammateSpec } from "@cline/shared";
+import type { DelegationTarget, TeamTeammateSpec } from "@cline/shared";
 import type { AgentTeamsRuntime } from "../../extensions/tools/team";
 import type { SessionSource, SessionStatus } from "../../types/common";
 import type { SessionManifest } from "./session-manifest";
@@ -92,6 +92,7 @@ export interface RootSessionArtifacts {
 }
 
 export interface UpsertSubagentInput {
+	target?: DelegationTarget;
 	agentId: string;
 	parentAgentId: string;
 	conversationId: string;

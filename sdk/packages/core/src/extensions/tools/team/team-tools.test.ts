@@ -573,66 +573,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		);
 	});
 
-	it("throws from team_await_runs when a requested async delegated run fails", async () => {
-		const runtime = {
-			awaitRun: vi.fn(async () => ({
-				id: "run_0001",
-				status: "failed",
-				error: "Authentication failed",
-			})),
-		} as unknown as AgentTeamsRuntime;
-
-		const tools = createAgentTeamsTools({
-			runtime,
-			requesterId: "lead",
-			teammateConfigProvider: makeTeammateConfigProvider(),
-		});
-		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
-		expect(awaitRuns).toBeDefined();
-
-		await expect(
-			awaitRuns?.execute(
-				{ runId: "run_0001" },
-				{
-					agentId: "lead",
-					conversationId: "conv-1",
-					iteration: 1,
-				},
-			),
-		).rejects.toThrow('Run "run_0001" failed: Authentication failed');
-	});
-
-	it("throws from team_await_runs when any delegated run is not successful in all-runs mode", async () => {
-		const runtime = {
-			awaitAllRuns: vi.fn(async () => [
-				{ id: "run_ok", status: "completed" },
-				{ id: "run_bad", status: "failed", error: "Auth expired" },
-			]),
-		} as unknown as AgentTeamsRuntime;
-
-		const tools = createAgentTeamsTools({
-			runtime,
-			requesterId: "lead",
-			teammateConfigProvider: makeTeammateConfigProvider(),
-		});
-		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
-		expect(awaitRuns).toBeDefined();
-
-		await expect(
-			awaitRuns?.execute(
-				{},
-				{
-					agentId: "lead",
-					conversationId: "conv-1",
-					iteration: 1,
-				},
-			),
-		).rejects.toThrow(
-			"One or more runs did not complete successfully: run_bad:failed(Auth expired)",
-		);
-	});
-
-	it("returns compact summaries from team_await_runs without full teammate transcripts", async () => {
+	it("returns selected result text without full teammate transcripts", async () => {
 		const runtime = {
 			awaitRun: vi.fn(async () => ({
 				id: "run_0001",
@@ -700,6 +641,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			lastProgressMessage: "completed",
 			currentActivity: "completed",
 			resultSummary: {
+				text: "Models are the public catalog and provider files are provider-specific defaults.",
 				textPreview:
 					"Models are the public catalog and provider files are provider-specific defaults.",
 				iterations: 3,

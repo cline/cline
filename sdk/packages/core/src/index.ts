@@ -27,6 +27,7 @@ export {
 	isClinePassLimitMessage,
 } from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
+export { type DelegationTarget, DelegationTargetSchema } from "@cline/shared";
 export type {
 	AddProviderActionRequest,
 	AgentConfig,
@@ -425,6 +426,7 @@ export {
 	type DelegatedAgentRuntimeConfig,
 	loadConfiguredAgentConfigs,
 	parseConfiguredAgentConfig,
+	type ResolveDelegatedAgentConfig,
 	reviveTeamStateDates,
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,
@@ -749,6 +751,7 @@ export {
 	getLocalProviderModels,
 	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
+	listDelegationTargets,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,

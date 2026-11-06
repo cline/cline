@@ -1,4 +1,11 @@
-import type { AgentEvent, AgentTool } from "@cline/shared";
+import {
+	type AgentEvent,
+	type AgentTool,
+	createTool,
+	type DelegationTarget,
+	zodToJsonSchema,
+} from "@cline/shared";
+import { z } from "zod";
 import {
 	createBuiltinTools,
 	resolveToolPresetName,
@@ -9,9 +16,15 @@ import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
 } from "../../../extensions/tools/team";
-import { createSpawnAgentTool } from "../../../extensions/tools/team";
+import {
+	createDelegatedAgentConfigProvider,
+	createSpawnAgentTool,
+	type DelegatedAgentConfigProvider,
+} from "../../../extensions/tools/team";
+import { resolveDelegatedAgentConfig } from "../../../extensions/tools/team/delegated-agent";
 import { buildTelemetryAgentIdentity } from "../../../services/agent-events";
 import { filterDisabledTools } from "../../../services/global-settings";
+import type { listDelegationTargets } from "../../../services/providers/local-provider-service";
 import {
 	captureAgentCreated,
 	captureSubagentExecution,
@@ -25,6 +38,9 @@ export type SubAgentStartTracker = Map<
 >;
 
 export interface SpawnToolDeps {
+	listDelegationTargets?: (
+		options: Parameters<typeof listDelegationTargets>[1],
+	) => ReturnType<typeof listDelegationTargets>;
 	getSession(sessionId: string): ActiveSession | undefined;
 	subAgentStarts: SubAgentStartTracker;
 	onAgentEvent(
@@ -35,8 +51,26 @@ export interface SpawnToolDeps {
 	invokeBackendOptional(method: string, ...args: unknown[]): Promise<void>;
 }
 
+export function createDelegationTargetsTool(
+	list: NonNullable<SpawnToolDeps["listDelegationTargets"]>,
+	current: () => DelegationTarget,
+): AgentTool {
+	const schema = z.object({
+		query: z.string().max(200).optional(),
+		offset: z.number().int().min(0).optional(),
+	});
+	return createTool({
+		name: "list_delegation_targets",
+		description:
+			"Search configured provider/model targets for spawn_agent or team_spawn_teammate. Results contain no credentials. Prefer subscription billing for model-only requests; ask before usage-billed or unknown-billing API fallback, unless the provider was explicitly requested. Configured does not prove a live login. Use nextOffset to retrieve more matches.",
+		inputSchema: zodToJsonSchema(schema),
+		execute: async (input: unknown) =>
+			list({ ...schema.parse(input), current: current() }),
+	});
+}
+
 export interface SessionSubAgentLifecycleCallbacks {
-	onSubAgentEvent: (event: AgentEvent) => void;
+	onSubAgentEvent: (event: AgentEvent, target?: DelegationTarget) => void;
 	onSubAgentStart: (context: SubAgentStartContext) => void;
 	onSubAgentEnd: (context: SubAgentEndContext) => void;
 }
@@ -47,7 +81,8 @@ export function createSessionSubAgentLifecycleCallbacks(
 	rootSessionId: string,
 ): SessionSubAgentLifecycleCallbacks {
 	return {
-		onSubAgentEvent: (event) => deps.onAgentEvent(rootSessionId, config, event),
+		onSubAgentEvent: (event, target) =>
+			deps.onAgentEvent(rootSessionId, { ...config, ...target }, event),
 		onSubAgentStart: (context) => {
 			const teamRuntime = deps.getSession(rootSessionId)?.runtime.teamRuntime;
 			deps.subAgentStarts.set(context.subAgentId, {
@@ -65,8 +100,8 @@ export function createSessionSubAgentLifecycleCallbacks(
 			if (agentIdentity) {
 				captureAgentCreated(config.telemetry, {
 					ulid: rootSessionId,
-					modelId: config.modelId,
-					provider: config.providerId,
+					modelId: context.target?.modelId ?? config.modelId,
+					provider: context.target?.providerId ?? config.providerId,
 					...agentIdentity,
 				});
 			}
@@ -123,13 +158,23 @@ export function createSessionSpawnTool(
 	config: CoreSessionConfig,
 	rootSessionId: string,
 	toolExecutors?: Partial<ToolExecutors>,
+	parent?: DelegatedAgentConfigProvider,
 ): AgentTool {
 	const lifecycle = createSessionSubAgentLifecycleCallbacks(
 		deps,
 		config,
 		rootSessionId,
 	);
-	const createSubAgentTools = () => {
+	const fallback = createDelegatedAgentConfigProvider(config);
+	const getParent = () =>
+		parent ??
+		deps.getSession(rootSessionId)?.runtime.delegatedAgentConfigProvider ??
+		fallback;
+	const createSubAgentTools = (
+		_input: unknown,
+		_context: unknown,
+		child: DelegatedAgentConfigProvider,
+	) => {
 		const tools: AgentTool[] = config.enableTools
 			? createBuiltinTools({
 					cwd: config.cwd,
@@ -140,47 +185,36 @@ export function createSessionSpawnTool(
 			: [];
 		if (config.enableSpawnAgent) {
 			tools.push(
-				createSessionSpawnTool(deps, config, rootSessionId, toolExecutors),
+				createSessionSpawnTool(
+					deps,
+					config,
+					rootSessionId,
+					toolExecutors,
+					child,
+				),
 			);
 		}
+		if (deps.listDelegationTargets)
+			tools.push(
+				createDelegationTargetsTool(deps.listDelegationTargets, () =>
+					child.getRuntimeConfig(),
+				),
+			);
 		return filterDisabledTools(tools);
 	};
 
 	return createSpawnAgentTool({
 		configProvider: {
-			getRuntimeConfig: () =>
-				deps
-					.getSession(rootSessionId)
-					?.runtime.delegatedAgentConfigProvider?.getRuntimeConfig() ?? {
-					providerId: config.providerId,
-					modelId: config.modelId,
-					cwd: config.cwd,
-					apiKey: config.apiKey,
-					baseUrl: config.baseUrl,
-					headers: config.headers,
-					providerConfig: config.providerConfig,
-					knownModels: config.knownModels,
-					thinking: config.thinking,
-					maxIterations: config.maxIterations,
-					hooks: config.hooks,
-					extensions: config.extensions,
-					logger: config.logger,
-					telemetry: config.telemetry,
-				},
-			getConnectionConfig: () =>
-				deps
-					.getSession(rootSessionId)
-					?.runtime.delegatedAgentConfigProvider?.getConnectionConfig() ?? {
-					providerId: config.providerId,
-					modelId: config.modelId,
-					apiKey: config.apiKey,
-					baseUrl: config.baseUrl,
-					headers: config.headers,
-					providerConfig: config.providerConfig,
-					knownModels: config.knownModels,
-					thinking: config.thinking,
-				},
-			updateConnectionDefaults: () => {},
+			getRuntimeConfig: () => getParent().getRuntimeConfig(),
+			getConnectionConfig: () => getParent().getConnectionConfig(),
+			updateConnectionDefaults: (updates) =>
+				getParent().updateConnectionDefaults(updates),
+			resolveTarget: (target, current, signal) => {
+				const resolve = getParent().resolveTarget;
+				return resolve
+					? resolve(target, current, signal)
+					: resolveDelegatedAgentConfig(getParent(), target, signal);
+			},
 		},
 		createSubAgentTools,
 		...lifecycle,

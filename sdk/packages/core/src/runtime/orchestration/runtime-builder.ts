@@ -665,29 +665,33 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			| undefined;
 		let pendingLeadTeamTools: AgentTool[] = [];
 		let restoredStateHydratedIntoRuntime = false;
-		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
-			providerId: config.providerId,
-			modelId: config.modelId,
-			distinctId: input.distinctId,
-			sessionId: config.sessionId,
-			cwd: config.cwd,
-			apiKey: config.apiKey ?? "",
-			baseUrl: config.baseUrl,
-			headers: config.headers,
-			providerConfig: config.providerConfig,
-			knownModels: config.knownModels,
-			thinking: config.thinking,
-			reasoningEffort: config.reasoningEffort,
-			thinkingBudgetTokens: config.thinkingBudgetTokens,
-			maxTokensPerTurn: config.maxTokensPerTurn,
-			temperature: config.temperature,
-			maxIterations: config.maxIterations,
-			hooks,
-			extensions: runtimeExtensions,
-			logger: logger ?? config.logger,
-			telemetry: input.telemetry ?? config.telemetry,
-			workspaceMetadata: config.workspaceMetadata,
-		});
+		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider(
+			{
+				providerId: config.providerId,
+				modelId: config.modelId,
+				distinctId: input.distinctId,
+				sessionId: config.sessionId,
+				cwd: config.cwd,
+				extensionContext: config.extensionContext,
+				apiKey: config.apiKey ?? "",
+				baseUrl: config.baseUrl,
+				headers: config.headers,
+				providerConfig: config.providerConfig,
+				knownModels: config.knownModels,
+				thinking: config.thinking,
+				reasoningEffort: config.reasoningEffort,
+				thinkingBudgetTokens: config.thinkingBudgetTokens,
+				maxTokensPerTurn: config.maxTokensPerTurn,
+				temperature: config.temperature,
+				maxIterations: config.maxIterations,
+				hooks,
+				extensions: runtimeExtensions,
+				logger: logger ?? config.logger,
+				telemetry: input.telemetry ?? config.telemetry,
+				workspaceMetadata: config.workspaceMetadata,
+			},
+			input.resolveDelegatedAgentConfig,
+		);
 		if (normalized.enableSpawnAgent) {
 			if (configuredAgents.configs.length > 0) {
 				tools.push(
@@ -695,14 +699,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						createConfiguredAgentTools({
 							configProvider: delegatedAgentConfigProvider,
 							agents: configuredAgents.configs,
-							createSubAgentTools: (agent) =>
+							createSubAgentTools: (agent, _input, _context, provider) =>
 								normalized.enableTools
 									? filterToolsForConfiguredAgent(
 											createBuiltinToolsList(
 												config.cwd,
-												agent.providerId ?? config.providerId,
+												provider.getRuntimeConfig().providerId,
 												normalized.mode,
-												agent.modelId ?? config.modelId,
+												provider.getRuntimeConfig().modelId,
 												config.toolRoutingRules,
 												effectiveToolPolicies,
 												agent.skills !== undefined &&
@@ -734,7 +738,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			});
 		}
 
-		const ensureTeamRuntime = (): AgentTeamsRuntime | undefined => {
+		const ensureTeamRuntime = async (): Promise<
+			AgentTeamsRuntime | undefined
+		> => {
 			if (!normalized.enableAgentTeams) {
 				return undefined;
 			}
@@ -762,6 +768,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								const spec: TeamTeammateSpec = {
 									agentId: event.agentId,
 									rolePrompt: event.teammate.rolePrompt,
+									providerId: event.teammate.providerId,
 									modelId: event.teammate.modelId,
 									maxIterations: event.teammate.maxIterations,
 								};
@@ -793,7 +800,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
-				const teamBootstrap = bootstrapAgentTeams({
+				const teamBootstrap = await bootstrapAgentTeams({
 					runtime: teamRuntime,
 					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
@@ -805,12 +812,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						leadAgentInstance?.addTools(teamTools);
 					},
 					createBaseTools: normalized.enableTools
-						? () =>
+						? (provider) =>
 								createBuiltinToolsList(
 									config.cwd,
-									config.providerId,
+									provider.getRuntimeConfig().providerId,
 									normalized.mode,
-									config.modelId,
+									provider.getRuntimeConfig().modelId,
 									config.toolRoutingRules,
 									effectiveToolPolicies,
 									undefined,
@@ -836,11 +843,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		};
 
 		if (normalized.enableSpawnAgent && createSpawnTool) {
+			if (input.delegationTargetsTool) tools.push(input.delegationTargetsTool);
 			const spawnTool = createSpawnTool();
 			const delegate: AgentTool = {
 				...spawnTool,
 				execute: async (spawnInput, context) => {
-					ensureTeamRuntime();
+					await ensureTeamRuntime();
 					return spawnTool.execute(spawnInput, context);
 				},
 			};
@@ -854,7 +862,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		}
 
 		if (normalized.enableAgentTeams) {
-			ensureTeamRuntime();
+			await ensureTeamRuntime();
 		}
 
 		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
