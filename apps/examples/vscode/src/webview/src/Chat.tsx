@@ -36,11 +36,13 @@ import {
 import {
 	Tool,
 	ToolContent,
+	ToolDetails,
 	ToolHeader,
 	ToolOutput,
 } from "@/components/ai-elements/tool";
 import TeamTasks, { type TeamToolEvent } from "@/components/TeamTasks";
 import { Button } from "@/components/ui/button";
+import { buildToolPresentations } from "@/lib/tool-presentation";
 import { cn } from "@/lib/utils";
 import type {
 	WebviewChatAttachments,
@@ -327,98 +329,6 @@ function appendAssistantMedia(
 	];
 }
 
-type ToolResultEntry = {
-	query?: string;
-	result?: string;
-	success?: boolean;
-};
-
-function isToolResultArray(value: unknown): value is ToolResultEntry[] {
-	return (
-		Array.isArray(value) &&
-		value.length > 0 &&
-		typeof value[0] === "object" &&
-		value[0] !== null &&
-		"result" in value[0]
-	);
-}
-
-type ExpandedToolEvent = {
-	id: string;
-	name: string;
-	title: string;
-	state: ToolEvent["state"];
-	output: string;
-	error?: string;
-};
-
-function formatInputSummary(input: unknown): string {
-	if (input == null) {
-		return "";
-	}
-	if (typeof input === "string") {
-		return input;
-	}
-	if (typeof input === "object") {
-		const values = Object.values(input as Record<string, unknown>);
-		return values
-			.filter((v) => typeof v === "string" || typeof v === "number")
-			.map(String)
-			.join(" ");
-	}
-	return String(input);
-}
-
-function formatRawOutput(output: unknown, fallback: string): string {
-	if (output == null) {
-		return fallback;
-	}
-	if (typeof output === "string") {
-		return output;
-	}
-	return JSON.stringify(output, null, 2);
-}
-
-function expandToolEvent(toolEvent: ToolEvent): ExpandedToolEvent[] {
-	if (isToolResultArray(toolEvent.output)) {
-		return toolEvent.output.map((entry, index) => {
-			const query = entry.query ?? "";
-			const title = query ? `${toolEvent.name}: ${query}` : toolEvent.name;
-			const state: ToolEvent["state"] =
-				entry.success === false ? "output-error" : toolEvent.state;
-			const output =
-				entry.result ?? (entry.success === false ? "(failed)" : "(no output)");
-			const error =
-				entry.success === false ? (entry.result ?? "failed") : undefined;
-			return {
-				id: `${toolEvent.id}-${index}`,
-				name: toolEvent.name,
-				title,
-				state,
-				output,
-				error,
-			};
-		});
-	}
-
-	const inputSummary = formatInputSummary(toolEvent.input);
-	const title = inputSummary
-		? `${toolEvent.name}: ${inputSummary}`
-		: toolEvent.name;
-
-	return [
-		{
-			id: toolEvent.id,
-			name: toolEvent.name,
-			title,
-			state: toolEvent.state,
-			output:
-				toolEvent.error ?? formatRawOutput(toolEvent.output, toolEvent.text),
-			error: toolEvent.error,
-		},
-	];
-}
-
 function extractToolName(text: string): string {
 	const runningMatch = /^Running (.+)\.\.\.$/.exec(text);
 	if (runningMatch?.[1]) {
@@ -568,16 +478,20 @@ function renderToolEvent(
 	toolEvent: ToolEvent,
 	className: string,
 ): ReactElement[] {
-	return expandToolEvent(toolEvent).map((expanded) => (
-		<Tool className={className} key={expanded.id}>
+	return buildToolPresentations(toolEvent).map((presentation) => (
+		<Tool className={className} key={presentation.id}>
 			<ToolHeader
-				state={expanded.state}
-				title={expanded.title}
+				state={presentation.state}
+				summary={presentation.summary}
 				type="dynamic-tool"
-				toolName={expanded.name}
+				toolName={presentation.name}
 			/>
 			<ToolContent>
-				<ToolOutput errorText={expanded.error} output={expanded.output} />
+				<ToolDetails details={presentation.summary.details} />
+				<ToolOutput
+					errorText={presentation.error}
+					output={presentation.output}
+				/>
 			</ToolContent>
 		</Tool>
 	));
