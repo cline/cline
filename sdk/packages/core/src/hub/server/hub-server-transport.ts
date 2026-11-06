@@ -30,6 +30,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import { McpManagementService } from "../../services/mcp-management";
 import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
@@ -87,6 +88,7 @@ import {
 	handleSessionMcpAppsReadResource,
 	handleSessionMcpAppsResolveTool,
 } from "./handlers/mcp-apps-handlers";
+import { handleMcpManagementCommand } from "./handlers/mcp-management-handlers";
 import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleRunAbort,
@@ -303,6 +305,8 @@ export class HubServerTransport implements NativeHubTransport {
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
+	private readonly mcpManagement = new McpManagementService();
+	private readonly pendingMcpRequests = new Set<Promise<unknown>>();
 	private readonly pendingProviderMutations = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
@@ -770,6 +774,7 @@ export class HubServerTransport implements NativeHubTransport {
 		await Promise.allSettled([
 			...this.pendingPluginCommands,
 			...this.pendingProviderMutations,
+			...this.pendingMcpRequests,
 		]);
 		this.unsubscribePluginStatus?.();
 		this.unsubscribePluginStatus = undefined;
@@ -822,22 +827,27 @@ export class HubServerTransport implements NativeHubTransport {
 					"client_not_registered",
 					"Register before accessing cloud sessions",
 				);
-			if (authority === null && envelope.command.startsWith("providers.")) {
+			if (
+				authority === null &&
+				(envelope.command.startsWith("providers.") ||
+					envelope.command.startsWith("mcp."))
+			) {
 				return errorReply(
 					envelope,
 					"client_not_registered",
-					"Register before accessing provider settings",
+					"Register before accessing machine settings",
 				);
 			}
 			if (
-				envelope.command.startsWith("providers.") &&
+				(envelope.command.startsWith("providers.") ||
+					envelope.command.startsWith("mcp.")) &&
 				authority !== undefined &&
 				authority?.tokenAuthenticated !== true
 			) {
 				return errorReply(
 					envelope,
 					"authentication_required",
-					"Provider management requires a token-authenticated Hub connection",
+					"Machine management requires a token-authenticated Hub connection",
 				);
 			}
 
@@ -934,6 +944,15 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			}
 		}
+		if (envelope.command.startsWith("mcp.")) {
+			const request = handleMcpManagementCommand(envelope, this.mcpManagement);
+			this.pendingMcpRequests.add(request);
+			try {
+				return await request;
+			} finally {
+				this.pendingMcpRequests.delete(request);
+			}
+		}
 		switch (envelope.command) {
 			case "providers.list":
 			case "providers.models.list":
@@ -1009,6 +1028,7 @@ export class HubServerTransport implements NativeHubTransport {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
 						activeProviderMutations: this.pendingProviderMutations.size,
+						activeMcpRequests: this.pendingMcpRequests.size,
 						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
@@ -1355,6 +1375,7 @@ export class HubServerTransport implements NativeHubTransport {
 			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
 			activeProviderMutations: this.pendingProviderMutations.size,
+			activeMcpRequests: this.pendingMcpRequests.size,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
@@ -1365,6 +1386,7 @@ export class HubServerTransport implements NativeHubTransport {
 				this.cloud.activeCommands === 0 &&
 				this.pendingPluginCommands.size === 0 &&
 				this.pendingProviderMutations.size === 0 &&
+				this.pendingMcpRequests.size === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
