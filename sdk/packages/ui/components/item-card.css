@@ -1,0 +1,243 @@
+@layer components {
+	.cline-ui-item-card {
+		container: cline-ui-item-card / inline-size;
+		position: relative;
+		isolation: isolate;
+		box-sizing: border-box;
+		min-width: 0;
+		width: 100%;
+		align-self: start;
+		box-shadow: 0 0 0 1px var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--surface-1);
+		color: var(--foreground);
+		--cline-ui-item-card-icon-size: 1.5rem;
+		--cline-ui-item-card-icon-gap: 1rem;
+		--cline-ui-item-card-indent: 0px;
+	}
+	.cline-ui-item-card[data-has-icon="true"] {
+		--cline-ui-item-card-indent: calc(
+			var(--cline-ui-item-card-icon-size) +
+			var(--cline-ui-item-card-icon-gap)
+		);
+	}
+	.cline-ui-item-card[data-selected="true"] {
+		box-shadow: 0 0 0 1px var(--ring);
+		background: var(--surface-hover);
+	}
+	.cline-ui-item-card__layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 0.8rem 1rem;
+		padding: 1rem;
+	}
+	.cline-ui-item-card__main {
+		display: flex;
+		min-width: 0;
+		align-items: start;
+		gap: var(--cline-ui-item-card-icon-gap);
+		grid-column: 1;
+	}
+	.cline-ui-item-card:not([data-has-actions="true"])
+		> .cline-ui-item-card__layout
+		> .cline-ui-item-card__main {
+		grid-column: 1 / -1;
+	}
+	.cline-ui-item-card__primary {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		width: 100%;
+		height: 100%;
+		appearance: none;
+		border: 0;
+		border-radius: inherit;
+		padding: 0;
+		margin: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: start;
+		cursor: pointer;
+	}
+	.cline-ui-item-card__primary:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 4px;
+	}
+	.cline-ui-item-card__primary:disabled {
+		cursor: default;
+	}
+	.cline-ui-item-card__primary:disabled
+		~ .cline-ui-item-card__layout
+		> .cline-ui-item-card__main {
+		opacity: 0.5;
+	}
+	/* Passive content passes clicks to the full-card native button underneath. */
+	.cline-ui-item-card__primary ~ .cline-ui-item-card__layout {
+		position: relative;
+		z-index: 1;
+		pointer-events: none;
+	}
+	.cline-ui-item-card__primary
+		~ .cline-ui-item-card__layout
+		:is(
+			a[href],
+			button,
+			input,
+			select,
+			textarea,
+			label,
+			summary,
+			[tabindex],
+			[contenteditable]:not([contenteditable="false"]),
+			[role="button"],
+			[role="link"],
+			[role="switch"],
+			[data-item-card-interactive]
+		) {
+		pointer-events: auto;
+	}
+	.cline-ui-item-card__icon {
+		display: flex;
+		width: var(--cline-ui-item-card-icon-size);
+		height: var(--text-base--line-height);
+		flex: 0 0 var(--cline-ui-item-card-icon-size);
+		align-items: center;
+		justify-content: center;
+		color: var(--text-disabled);
+	}
+	.cline-ui-item-card__text {
+		display: grid;
+		min-width: 0;
+		flex: 1;
+		gap: 4px;
+	}
+	.cline-ui-item-card__title-row {
+		display: flex;
+		min-width: 0;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 10px;
+	}
+	.cline-ui-item-card__label {
+		display: inline-flex;
+		min-width: 0;
+		max-width: 100%;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+	.cline-ui-item-card__count {
+		flex-shrink: 0;
+		color: var(--muted-foreground);
+		font-size: var(--text-sm);
+		font-weight: var(--font-weight-normal);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+		font-variant-numeric: tabular-nums;
+	}
+	.cline-ui-item-card__title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--text-base);
+		font-weight: var(--font-weight-medium);
+		line-height: var(--text-base--line-height);
+		letter-spacing: var(--text-base--letter-spacing);
+	}
+	.cline-ui-item-card__badges,
+	.cline-ui-item-card__actions {
+		display: flex;
+		min-width: 0;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+	}
+	.cline-ui-item-card__actions {
+		grid-column: 2;
+		grid-row: 1;
+		align-items: start;
+		justify-content: end;
+		margin-block-start: -0.2rem;
+		margin-inline-end: -0.2rem;
+	}
+	.cline-ui-item-card__description {
+		display: -webkit-box;
+		min-height: calc(var(--text-sm--line-height) * 2);
+		-webkit-box-orient: vertical;
+		line-clamp: 2;
+		-webkit-line-clamp: 2;
+		overflow: hidden;
+		overflow-wrap: anywhere;
+		color: var(--text-2);
+		font-size: var(--text-sm);
+		font-weight: var(--font-weight-normal);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+	.cline-ui-item-card__footer {
+		min-width: 0;
+		grid-column: 1 / -1;
+		padding-inline-start: var(--cline-ui-item-card-indent);
+		overflow-wrap: anywhere;
+		color: var(--text-2);
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+	}
+	.cline-ui-item-card__actions:empty,
+	.cline-ui-item-card__footer:empty,
+	.cline-ui-item-card__content:empty,
+	.cline-ui-item-card__badges:empty {
+		display: none;
+	}
+	.cline-ui-item-card__content {
+		min-width: 0;
+		grid-column: 1 / -1;
+	}
+	@media (hover: hover) {
+		.cline-ui-item-card:hover:has(> .cline-ui-item-card__primary:enabled) {
+			background: var(--surface-2);
+		}
+	}
+	/* The outer shadow does not subtract from the card's container width. */
+	@container cline-ui-item-card (width < 320px) {
+		.cline-ui-item-card__layout {
+			--cline-ui-item-card-indent: 0px;
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.cline-ui-item-card__main {
+			flex-direction: column;
+		}
+		.cline-ui-item-card__text {
+			width: 100%;
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.cline-ui-item-card__title {
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
+		.cline-ui-item-card__actions {
+			grid-column: 1;
+			grid-row: auto;
+			justify-content: start;
+			padding-inline-start: var(--cline-ui-item-card-indent);
+		}
+	}
+	@media (forced-colors: active) {
+		.cline-ui-item-card {
+			outline: 1px solid CanvasText;
+		}
+		.cline-ui-item-card[data-selected="true"] {
+			outline: 2px solid Highlight;
+		}
+	}
+}
+
+.cline-ui-item-card[hidden]:not([hidden="until-found"]) {
+	display: none;
+}

@@ -930,3 +930,85 @@ jumps and reader-position tracking. A collapsed tool group can keep the same
 row ID as its expanded form. The host chooses which rows anchor turns and
 which messages appear in its outline; transport and session state remain in
 the app. Key the provider by session ID when switching transcripts.
+
+## Shared page components
+
+Import these components from `@cline/ui` with theme tokens and
+`@cline/ui/components.css`. React 18.3 or 19 is required.
+Hosts own data, navigation, persistence, loading state, and action callbacks.
+See Storybook for examples and visual variants.
+
+Optional regions are omitted for nullish values, booleans, empty strings, and
+arrays or fragments containing only those values. Zero and whitespace remain
+content. If a child component might return null, conditionally pass the slot
+itself to omit its surrounding region.
+
+### Section heading
+
+`SectionHeading` accepts `title`, `description`, `count`, and `actions`. Choose
+`headingLevel` (2–6, default 2) independently of `size` (`sm`, `md`, `base`, `lg`,
+`xl`, or `2xl`; default `lg`). Keep interactive content in `actions`.
+
+### Empty state
+
+`EmptyState` displays a description, optional title, and optional neutral
+secondary buttons through `action` and `secondaryAction`. Each action supplies
+`label`, `onClick`, and optional `disabled`. `align` is `left` (default) or `center`.
+It adds no live-region role; the host decides whether to announce its content.
+
+### Detail list
+
+Compose `DetailListItem` directly inside `DetailList`. Rows have a required
+`title` and optional `description`, `trailingText`, `actions`, `count`, and
+`leadingIcon` (an SVG component that forwards props). Rows adapt to narrow containers.
+
+For a clickable row, use `primaryAction={{ onClick: openDetails, label: "Open details" }}`.
+Its native button covers the row; `actions` remain independent. The label defaults
+to the title. `primaryAction.disabled` disables only the row action. Keep title and
+description display-only, with interactive controls in `actions`.
+
+For aligned entity rows, pass `columns` and keyed item `values`:
+
+```tsx
+<DetailList titleLabel="Workspace" columns={[
+  { key: "owner", label: "Owner" },
+  { key: "updated", label: "Updated", width: "7rem" },
+]}>
+  <DetailListItem title="Website" values={{ owner: "Design", updated: "Today" }} />
+</DetailList>
+```
+
+Column keys must be unique. Widths accept numeric pixels, `px`, `rem`, or `fr`
+(default `1fr`); `actionsWidth` accepts pixels or `rem` (default `4rem`). Missing
+values show an em dash; zero remains visible. `trailingText` becomes supplemental
+content below the description. Omit `columns` for ordinary details. Use a table
+instead when users need header/cell relationships, table navigation, or sorting;
+these components have description-list semantics.
+
+### ItemCard
+
+`ItemCard` presents a title with optional `icon`, `description`, `badges`, `count`,
+`actions`, `footer`, and `children`. Use shared Buttons and Badges in trailing slots.
+
+```tsx
+<ItemCard title={item.name} description={item.description}
+  primaryAction={{ onClick: openDetails, label: `View ${item.name}` }}
+  actions={<Button size="xs" tone="neutral" variant="secondary" onClick={edit}>Edit</Button>} />
+```
+
+`primaryAction` renders a native button covering the card. Controls in `actions`,
+`footer`, and `children` remain independent; custom interactive regions can use
+`data-item-card-interactive`. Keep title, icon, description, and badges display-only.
+`primaryAction.disabled` disables the primary button; `selected` is visual only.
+
+### Banner
+
+`Banner` accepts `title`, `description` (or children as its fallback), `icon`, and
+`actions`. Tones are `neutral`, `info` (default), `success`, `warning`, and `error`;
+sizes are `sm` and `md` (default). Decorative icons need `aria-hidden`.
+
+Actions supply a stable `id`, `label`, and native button props such as `onClick`.
+The banner owns button size and tone; `destructive: true` opts into destructive colors.
+Use `onDismiss` to show its dismiss button and `dismissLabel` to customize the
+accessible name. The host removes the banner. Errors default to `role="alert"`;
+other tones default to `role="status"`. Override `role` for static content.

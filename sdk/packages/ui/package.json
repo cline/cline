@@ -118,7 +118,20 @@
 		"components/agent-ux-verification.css",
 		"components/button-control.tsx",
 		"components/button.css",
-		"components/control-sizes.css"
+		"components/control-sizes.css",
+		"components/banner.css",
+		"components/banner.tsx",
+		"components/detail-list-item.css",
+		"components/detail-list-item.tsx",
+		"components/detail-list.css",
+		"components/detail-list.tsx",
+		"components/empty-state.css",
+		"components/empty-state.tsx",
+		"components/has-content.ts",
+		"components/item-card.css",
+		"components/item-card.tsx",
+		"components/section-heading.css",
+		"components/section-heading.tsx"
 	],
 	"sideEffects": [
 		"./components.css",
