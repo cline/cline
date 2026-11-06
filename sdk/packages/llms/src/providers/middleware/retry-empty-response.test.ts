@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	addUsage,
 	createRetryEmptyResponseMiddleware,
+	getRetryAttemptUsages,
 	isTransientNetworkError,
 } from "./retry-empty-response";
 import { classifyModelStreamPart } from "./stream-part-classification";
@@ -299,6 +300,11 @@ describe("createRetryEmptyResponseMiddleware", () => {
 		// Fields undefined on every attempt stay undefined instead of
 		// becoming a fabricated zero.
 		expect(finishPart.usage.inputTokens.noCache).toBeUndefined();
+		expect(
+			getRetryAttemptUsages(finishPart.usage)?.map(
+				(attempt) => attempt.inputTokens.total,
+			),
+		).toEqual([7, 9, 11]);
 	});
 
 	it("aggregates usage across all attempts when retries are exhausted", async () => {
@@ -758,6 +764,38 @@ describe("classifyModelStreamPart", () => {
 });
 
 describe("addUsage", () => {
+	it("preserves a flat list of original attempts without mutating provider raw fields", () => {
+		const firstRaw = Object.freeze({ cost: 0.01, requests: 1 });
+		const lastRaw = Object.freeze({ cost: 0.02, requests: 3 });
+		const first = { ...v4Usage({ in: 7 }), raw: firstRaw };
+		const middle = v4Usage({ out: 3 });
+		const last = { ...v4Usage({ in: 11, out: 5 }), raw: lastRaw };
+		const sum = addUsage(addUsage(first, middle), last);
+
+		expect(sum.inputTokens.total).toBe(18);
+		expect(sum.outputTokens.total).toBe(8);
+		expect(sum.raw).toEqual({ cost: 0.02, requests: 3 });
+		expect(sum.raw).not.toBe(lastRaw);
+		expect(first.raw).toBe(firstRaw);
+		expect(last.raw).toBe(lastRaw);
+		expect(getRetryAttemptUsages(sum)).toEqual([first, middle, last]);
+		expect(
+			getRetryAttemptUsages(addUsage(first, addUsage(middle, last))),
+		).toEqual([first, middle, last]);
+	});
+
+	it("does not treat unregistered or serialized provider raw as retry evidence", () => {
+		const sum = addUsage(v4Usage({ in: 7 }), v4Usage({ in: 11 }));
+		expect(sum.raw).toEqual({});
+		expect(getRetryAttemptUsages(sum)).toHaveLength(2);
+		expect(
+			getRetryAttemptUsages(JSON.parse(JSON.stringify(sum))),
+		).toBeUndefined();
+		for (const usage of [undefined, null, {}, { raw: null }, { raw: {} }]) {
+			expect(getRetryAttemptUsages(usage)).toBeUndefined();
+		}
+	});
+
 	it("sums defined fields and preserves undefined for absent ones", () => {
 		const sum = addUsage(
 			v4Usage({ in: 7, out: 3, cacheRead: 5 }),

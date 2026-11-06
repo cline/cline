@@ -2,6 +2,7 @@ import type {
 	LanguageModelV4,
 	LanguageModelV4StreamPart,
 	LanguageModelV4StreamResult,
+	LanguageModelV4Usage,
 } from "@ai-sdk/provider";
 import type {
 	AgentModelEvent,
@@ -15,6 +16,7 @@ import {
 	createClineProvider,
 	createOllamaProvider,
 	createOpenAICompatibleProvider,
+	normalizeUsage,
 	withEmptyResponseRetry,
 } from "./ai-sdk";
 
@@ -90,8 +92,14 @@ function streamRequest(
 function providerContext(
 	providerId: string,
 	config: Record<string, unknown>,
+	pricing?: Record<string, number>,
 ): GatewayProviderContext {
-	const model = { id: "test-model", providerId, name: "test-model" };
+	const model = {
+		id: "test-model",
+		providerId,
+		name: "test-model",
+		...(pricing ? { metadata: { pricing } } : {}),
+	};
 	return {
 		provider: {
 			id: providerId,
@@ -147,7 +155,11 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		chunk({}, "tool_calls") +
 		"data: [DONE]\n\n";
 
-	async function run(bodies: string[], tools: AgentToolDefinition[] = []) {
+	async function run(
+		bodies: string[],
+		tools: AgentToolDefinition[] = [],
+		pricing?: Record<string, number>,
+	) {
 		const fetchMock = queuedFetch(bodies);
 		const config = {
 			providerId: "openai-compatible",
@@ -159,11 +171,124 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		const events = await collect(
 			await provider.stream(
 				streamRequest(tools),
-				providerContext("openai-compatible", config),
+				providerContext("openai-compatible", config, pricing),
 			),
 		);
 		return { fetchMock, events };
 	}
+
+	function responseWithUsage(text: string, usage: Record<string, unknown>) {
+		return (
+			chunk({ role: "assistant", content: text }) +
+			chunk({}, "stop") +
+			`data: ${JSON.stringify({
+				id: "cmpl-1",
+				object: "chat.completion.chunk",
+				created: 1,
+				model: "test-model",
+				choices: [],
+				usage,
+			})}\n\n` +
+			"data: [DONE]\n\n"
+		);
+	}
+
+	it("includes discarded-attempt raw cost and cache writes in the usage event", async () => {
+		const { events } = await run([
+			responseWithUsage("", {
+				prompt_tokens: 1000,
+				completion_tokens: 0,
+				total_tokens: 1000,
+				prompt_tokens_details: { cached_tokens: 800, cache_write_tokens: 100 },
+				cost: 0.01,
+			}),
+			responseWithUsage("hello", {
+				prompt_tokens: 1000,
+				completion_tokens: 10,
+				total_tokens: 1010,
+				prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 50 },
+				cost: 0.02,
+			}),
+		]);
+
+		expect(events.filter((event) => event.type === "usage")).toEqual([
+			{
+				type: "usage",
+				requestInputTokens: 1000,
+				usage: {
+					inputTokens: 2000,
+					outputTokens: 10,
+					cacheReadTokens: 1700,
+					cacheWriteTokens: 150,
+					totalCost: 0.03,
+				},
+			},
+		]);
+	});
+
+	it.each([
+		{ firstCost: 0.01, lastCost: undefined, expectedCost: 0.0121 },
+		{ firstCost: undefined, lastCost: 0.02, expectedCost: 0.022 },
+		{ firstCost: 0.01, lastCost: 0, expectedCost: 0.01 },
+		{ firstCost: 0, lastCost: undefined, expectedCost: 0.0021 },
+		{ firstCost: undefined, lastCost: 0, expectedCost: 0.002 },
+		{ firstCost: undefined, lastCost: undefined, expectedCost: 0.0041 },
+	])("prices each attempt independently for costs $firstCost / $lastCost", async ({
+		firstCost,
+		lastCost,
+		expectedCost,
+	}) => {
+		const { events } = await run(
+			[
+				responseWithUsage("", {
+					prompt_tokens: 1000,
+					completion_tokens: 0,
+					total_tokens: 1000,
+					...(firstCost !== undefined ? { cost: firstCost } : {}),
+				}),
+				responseWithUsage("hello", {
+					prompt_tokens: 1000,
+					completion_tokens: 10,
+					total_tokens: 1010,
+					...(lastCost !== undefined ? { cost: lastCost } : {}),
+				}),
+			],
+			[],
+			{ input: 2, output: 10 },
+		);
+		const usageEvent = events.find((event) => event.type === "usage");
+		expect(usageEvent?.usage).toMatchObject({
+			inputTokens: 2000,
+			outputTokens: 10,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		});
+		expect(usageEvent?.usage.totalCost).toBeCloseTo(expectedCost, 10);
+	});
+
+	it.each([
+		[0.01, undefined],
+		[undefined, 0.02],
+		[undefined, undefined],
+	])("keeps total cost unknown without pricing when an attempt cost is missing (%s / %s)", async (firstCost, lastCost) => {
+		const { events } = await run([
+			responseWithUsage("", {
+				prompt_tokens: 1000,
+				completion_tokens: 0,
+				total_tokens: 1000,
+				...(firstCost !== undefined ? { cost: firstCost } : {}),
+			}),
+			responseWithUsage("hello", {
+				prompt_tokens: 1000,
+				completion_tokens: 10,
+				total_tokens: 1010,
+				...(lastCost !== undefined ? { cost: lastCost } : {}),
+			}),
+		]);
+		expect(
+			events.find((event) => event.type === "usage")?.usage,
+		).not.toHaveProperty("totalCost");
+	});
 
 	it("retries an empty turn and streams the successful attempt", async () => {
 		const { fetchMock, events } = await run([emptySse, textSse]);
@@ -472,7 +597,7 @@ vi.mock("ollama-ai-provider-v2", () => ({
 	}),
 }));
 
-const v4Usage = {
+const v4Usage: LanguageModelV4Usage = {
 	inputTokens: {
 		total: 1,
 		noCache: undefined,
@@ -480,7 +605,7 @@ const v4Usage = {
 		cacheWrite: undefined,
 	},
 	outputTokens: { total: 1, text: undefined, reasoning: undefined },
-} as never;
+};
 
 function v4Stream(
 	parts: LanguageModelV4StreamPart[],
@@ -542,6 +667,161 @@ describe("ollama (central wrap replaces the old vendor-level wrap)", () => {
 });
 
 describe("full path: model output classes through emitAiSdkEvents", () => {
+	it.each([
+		{
+			firstRaw: {},
+			firstGateway: { cost: 0.01 },
+			lastRaw: {},
+			lastGateway: { cost: 0.02 },
+			expectedCost: 0.03,
+		},
+		{
+			firstRaw: {},
+			firstGateway: { cost: 0.01 },
+			lastRaw: {},
+			lastGateway: { cost: 0 },
+			expectedCost: 0.01,
+		},
+		{
+			firstRaw: {},
+			firstGateway: { cost: 0 },
+			lastRaw: { cost: 0.02 },
+			lastGateway: {},
+			expectedCost: 0.02,
+		},
+		{
+			firstRaw: { cost: 0.01 },
+			firstGateway: {},
+			lastRaw: {},
+			lastGateway: { cost: 0.02 },
+			expectedCost: 0.03,
+		},
+		{
+			firstRaw: { cost_details: { upstream_inference_cost: 0.02 } },
+			firstGateway: { cost: 0.01, isByok: true },
+			lastRaw: { cost: 0.04 },
+			lastGateway: {},
+			expectedCost: 0.07,
+		},
+	])("keeps each attempt's provider metadata with its usage ($expectedCost)", async ({
+		firstRaw,
+		firstGateway,
+		lastRaw,
+		lastGateway,
+		expectedCost,
+	}) => {
+		const events = await streamThroughOllama([
+			[
+				v4EmptyParts[0],
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: {
+						inputTokens: { ...v4Usage.inputTokens, total: 1000 },
+						outputTokens: { ...v4Usage.outputTokens, total: 0 },
+						raw: firstRaw,
+					},
+					providerMetadata: {
+						gateway: firstGateway,
+						vendor: {
+							usage: { cache_read_tokens: 20, cache_write_tokens: 50 },
+						},
+					},
+				},
+			],
+			[
+				...v4TextParts.slice(0, -1),
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: {
+						inputTokens: {
+							total: 1000,
+							noCache: undefined,
+							cacheRead: 100,
+							cacheWrite: 25,
+						},
+						outputTokens: { ...v4Usage.outputTokens, total: 10 },
+						raw: lastRaw,
+					},
+					providerMetadata: { gateway: lastGateway },
+				},
+			],
+		]);
+		const usageEvent = events.find((event) => event.type === "usage");
+		expect(usageEvent?.usage).toMatchObject({
+			inputTokens: 2000,
+			outputTokens: 10,
+			cacheReadTokens: 120,
+			cacheWriteTokens: 75,
+		});
+		expect(usageEvent?.usage.totalCost).toBeCloseTo(expectedCost, 10);
+	});
+
+	it("normalizes mixed standard and raw cache details before adding attempts", async () => {
+		const attemptUsage = (
+			cacheWrite: number | undefined,
+			raw: LanguageModelV4Usage["raw"],
+		): LanguageModelV4Usage => ({
+			inputTokens: {
+				total: 1000,
+				noCache: undefined,
+				cacheRead: 100,
+				cacheWrite,
+			},
+			outputTokens: { total: 5, text: 3, reasoning: 2 },
+			raw,
+		});
+		const events = await streamThroughOllama([
+			[
+				v4EmptyParts[0],
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: attemptUsage(100, {
+						cache_write_tokens: 100,
+						cost: 0.01,
+						is_byok: true,
+						cost_details: { upstream_inference_cost: 0.02 },
+					}),
+				},
+			],
+			[
+				v4EmptyParts[0],
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: attemptUsage(undefined, {
+						prompt_tokens_details: { cache_write_tokens: 50 },
+						market_cost: 0.04,
+					}),
+				},
+			],
+			[
+				...v4TextParts.slice(0, -1),
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: attemptUsage(25, { cache_write_tokens: 999, cost: 0 }),
+				},
+			],
+		]);
+
+		expect(events.filter((event) => event.type === "usage")).toEqual([
+			{
+				type: "usage",
+				requestInputTokens: 1000,
+				usage: {
+					inputTokens: 3000,
+					outputTokens: 9,
+					cacheReadTokens: 300,
+					cacheWriteTokens: 175,
+					reasoningTokenCount: 6,
+					totalCost: 0.07,
+				},
+			},
+		]);
+	});
 	it("converts an image-file-only turn into an image event instead of retrying or dropping it", async () => {
 		const events = await streamThroughOllama([
 			[
@@ -642,6 +922,39 @@ describe("full path: model output classes through emitAiSdkEvents", () => {
 		// 7 + 9 + 11 input, 3 + 2 + 5 output across all three attempts.
 		expect(usageEvent?.usage.inputTokens).toBe(27);
 		expect(usageEvent?.usage.outputTokens).toBe(10);
+		// Billing totals span all attempts, but compaction needs the final prompt.
+		expect(usageEvent).toMatchObject({ requestInputTokens: 11 });
+	});
+
+	it("keeps cached tokens in the single request's prompt size", async () => {
+		const events = await streamThroughOllama([
+			v4TextParts.map((part) =>
+				part.type === "finish"
+					? {
+							...part,
+							usage: {
+								inputTokens: {
+									total: 1000,
+									noCache: 50,
+									cacheRead: 900,
+									cacheWrite: 50,
+								},
+								outputTokens: { total: 1, text: 1, reasoning: undefined },
+							},
+						}
+					: part,
+			),
+		]);
+
+		expect(events.find((event) => event.type === "usage")).toMatchObject({
+			requestInputTokens: 1000,
+			usage: {
+				inputTokens: 1000,
+				outputTokens: 1,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 50,
+			},
+		});
 	});
 });
 
@@ -677,6 +990,34 @@ describe("withEmptyResponseRetry", () => {
 		expect(wrapped.specificationVersion).toBe("v4");
 		expect(wrapped.provider).toBe("fake");
 		expect(wrapped.modelId).toBe("fake-model");
+	});
+
+	it("leaves single-call generate usage and provider raw data unchanged", async () => {
+		const raw = Object.freeze({ cost: 0, cache_write_tokens: 7, requests: 1 });
+		const generateUsage = { ...v4Usage, raw };
+		const model = {
+			...fakeModel([]),
+			doGenerate: async () => ({
+				content: [{ type: "text", text: "hello" }],
+				finishReason: { unified: "stop", raw: "stop" },
+				usage: generateUsage,
+				warnings: [],
+			}),
+		} as LanguageModelV4;
+		const wrapped = withEmptyResponseRetry(
+			model,
+			undefined,
+			undefined,
+		) as LanguageModelV4;
+		const result = await wrapped.doGenerate({} as never);
+		expect(normalizeUsage(result.usage)).toEqual({
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 7,
+			totalCost: 0,
+		});
+		expect(result.usage.raw).toBe(raw);
 	});
 
 	it("threads vendor-provided retry options to the middleware", async () => {
