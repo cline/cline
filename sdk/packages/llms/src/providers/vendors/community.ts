@@ -235,6 +235,19 @@ async function stripRogueSignalHandlers<T>(fn: () => Promise<T>): Promise<T> {
 export async function createOpenCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
+	// Hosts forward the workspace root as a top-level `cwd` option.
+	// Anchor the spawned session to the workspace directory to prevent
+	// OpenCode from treating local workspace files as external_directory.
+	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	if (
+		options.directory === undefined &&
+		typeof workspaceCwd === "string" &&
+		workspaceCwd.length > 0 &&
+		existsSync(workspaceCwd)
+	) {
+		options.directory = workspaceCwd;
+	}
+
 	// Dynamic import is intentional: ai-sdk-provider-opencode-sdk runs
 	// `var opencode = createOpencode()` at module scope, which registers
 	// process.once("SIGINT") / process.once("SIGTERM") handlers that call
@@ -245,10 +258,22 @@ export async function createOpenCodeProviderModule(
 	// calling process.exit() from signal handlers.
 	const provider = await stripRogueSignalHandlers(async () => {
 		const { createOpencode } = await import("ai-sdk-provider-opencode-sdk");
-		return createOpencode(readOptions(config));
+		return createOpencode(options);
 	});
 	return {
-		operations: { language: (modelId) => provider(modelId) },
+		operations: {
+			language: (modelId) => {
+				// The upstream provider library (ai-sdk-provider-opencode-sdk) requires
+				// a provider prefix (e.g. "opencode/modelID"). When a bare model ID is passed,
+				// the SDK drops the model reference from prompt/session calls, causing OpenCode
+				// to fall back to the server's default model. Ensure unslashed models retain
+				// the "opencode" provider prefix.
+				const normalizedModelId = modelId.includes("/")
+					? modelId
+					: `opencode/${modelId}`;
+				return provider(normalizedModelId);
+			},
+		},
 	};
 }
 
