@@ -110,5 +110,10 @@ export function resolveExistingFilePath(filePath: string): string | undefined {
 		return nfdCurlyVariant;
 	}
 
-	return scanDirForCanonicalMatch(filePath);
+	return (
+		scanDirForCanonicalMatch(filePath) ??
+		(curlyVariant !== filePath
+			? scanDirForCanonicalMatch(curlyVariant)
+			: undefined)
+	);
 }
