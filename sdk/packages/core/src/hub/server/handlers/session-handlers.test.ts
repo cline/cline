@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { HubCommandEnvelope, SessionRecord } from "@cline/shared";
 import {
+	handleSessionList,
 	readHubClientContext,
 	readHubUserContext,
 	readSessionConnectionUpdate,
@@ -139,4 +141,48 @@ describe("resolveSessionAutoApproveTools", () => {
 			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
 		).toBe(true);
 	});
+});
+
+describe("handleSessionList", () => {
+	function makeCtx(listSessions: (limit?: number, opts?: { rootOnly?: boolean }) => Promise<SessionRecord[]>) {
+		return {
+			sessionSearch: { search: () => [] },
+			clients: new Map(),
+			sessionState: new Map(),
+			pendingApprovals: new Map(),
+			pendingCapabilityRequests: new Map(),
+			suppressNextTerminalEventBySession: new Map(),
+			activeRpcTurnCountBySession: new Map(),
+			sessionHost: { listSessions },
+			publish: () => {},
+			buildEvent: () => ({ event: "session.created", payload: {} }),
+		} as any;
+	}
+
+	function env(payload?: Record<string, unknown>): HubCommandEnvelope {
+		return { version: "v1", command: "session.list", payload } as HubCommandEnvelope;
+	}
+
+	it("defaults to root sessions only, excluding subagent rows", async () => {
+		const listSessions = vi.fn(async (_limit?: number, opts?: { rootOnly?: boolean }) => {
+			return rootOnlyArgList(opts);
+		});
+		await handleSessionList(makeCtx(listSessions), env());
+		expect(listSessions).toHaveBeenCalledWith(200, { rootOnly: true });
+	});
+
+	it("includes subagent rows when includeSubagents is requested", async () => {
+		const listSessions = vi.fn(async (_limit?: number, opts?: { rootOnly?: boolean }) => {
+			return rootOnlyArgList(opts);
+		});
+		await handleSessionList(
+			makeCtx(listSessions),
+			env({ includeSubagents: true }),
+		);
+		expect(listSessions).toHaveBeenCalledWith(200, { rootOnly: false });
+	});
+
+	function rootOnlyArgList(opts?: { rootOnly?: boolean }) {
+		return [] as SessionRecord[];
+	}
 });
