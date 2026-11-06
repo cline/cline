@@ -12,7 +12,6 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getCoreSpawnTelemetryMetadata } from "@/services/telemetry/core-spawn-metadata"
-import { getRolloutTelemetryMetadata } from "@/services/telemetry/rollout-metadata"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 
@@ -49,7 +48,6 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 					...options.metadata,
 				},
 			}),
-			commonProperties: getRolloutTelemetryMetadata(),
 			distinctId: getDistinctId() || undefined,
 			// telemetry.provider_created is otherwise captured during construction,
 			// before the host identity resolves; VscodeTelemetryPolicyService emits
