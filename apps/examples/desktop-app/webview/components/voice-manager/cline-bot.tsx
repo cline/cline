@@ -15,34 +15,27 @@ const HEAD_OUTLINE =
 const STYLES = `
 .cline-bot { overflow: visible; }
 .cline-bot-fill { fill: var(--background); }
-.cline-bot-line { fill: var(--background); stroke: currentColor; stroke-width: 7.4; stroke-linejoin: round; }
+.cline-bot-ink { fill: currentColor; stroke: currentColor; stroke-width: 14.8; stroke-linejoin: round; }
 .cline-bot-float { animation: cline-bot-float 3.2s ease-in-out infinite; }
 .cline-bot-head { transform-box: view-box; transform-origin: 56.5px 103px; transition: transform 300ms ease; }
-.cline-bot-arm-left { transform-box: view-box; transform-origin: 40.5px 111px; transition: transform 300ms ease; }
-.cline-bot-arm-right { transform-box: view-box; transform-origin: 72.5px 111px; transition: transform 300ms ease; }
-.cline-bot-torso { transform-box: view-box; transform-origin: 56.5px 153px; }
-.cline-bot-eyes { transition: transform 300ms ease; }
+.cline-bot-body { transform-box: view-box; transform-origin: 56.5px 159px; }
+.cline-bot-arm-right { transform-box: view-box; transform-origin: 75px 112px; }
+.cline-bot-eyes { transition: transform 300ms ease, opacity 300ms ease; }
 .cline-bot-eye { transform-box: fill-box; transform-origin: center; animation: cline-bot-blink 4.6s infinite; transition: transform 200ms ease; }
 .cline-bot-mouth { transform-box: fill-box; transform-origin: center; opacity: 0; transition: opacity 150ms ease; }
-.cline-bot-light { opacity: 0; transition: opacity 200ms ease; }
 .cline-bot-shadow { opacity: 0.1; transform-box: fill-box; transform-origin: center; animation: cline-bot-shadow 3.2s ease-in-out infinite; }
 
-.cline-bot[data-state="connecting"] .cline-bot-light { animation: cline-bot-blip 0.6s ease-in-out infinite alternate; }
-.cline-bot[data-state="listening"] .cline-bot-light { animation: cline-bot-pulse 1.4s ease-in-out infinite; }
+.cline-bot[data-state="connecting"] .cline-bot-eyes { animation: cline-bot-dim 0.8s ease-in-out infinite alternate; }
 .cline-bot[data-state="listening"] .cline-bot-head { animation: cline-bot-tilt 3s ease-in-out infinite; }
-.cline-bot[data-state="thinking"] .cline-bot-light { animation: cline-bot-blip 0.3s ease-in-out infinite alternate; }
 .cline-bot[data-state="thinking"] .cline-bot-eyes { animation: cline-bot-look 1.1s ease-in-out infinite; }
 .cline-bot[data-state="thinking"] .cline-bot-eye { animation: none; transform: scaleY(0.6); }
-.cline-bot[data-state="speaking"] .cline-bot-light { opacity: 1; }
 .cline-bot[data-state="speaking"] .cline-bot-eye { animation: none; transform: scaleY(0.75); }
 .cline-bot[data-state="speaking"] .cline-bot-mouth { opacity: 1; animation: cline-bot-talk 0.16s ease-in-out infinite alternate; }
 .cline-bot[data-state="speaking"] .cline-bot-head { animation: cline-bot-nod 0.7s ease-in-out infinite alternate; }
 .cline-bot[data-state="speaking"] .cline-bot-arm-right { animation: cline-bot-wave 0.6s ease-in-out infinite alternate; }
-.cline-bot[data-state="speaking"] .cline-bot-torso { animation: cline-bot-bounce 0.35s ease-in-out infinite alternate; }
+.cline-bot[data-state="speaking"] .cline-bot-body { animation: cline-bot-bounce 0.35s ease-in-out infinite alternate; }
 .cline-bot[data-state="error"] .cline-bot-eye { animation: none; transform: scaleY(0.3); }
 .cline-bot[data-state="error"] .cline-bot-head { transform: rotate(-5deg); }
-.cline-bot[data-state="error"] .cline-bot-arm-left,
-.cline-bot[data-state="error"] .cline-bot-arm-right { transform: rotate(0deg) translateY(2px); }
 
 @keyframes cline-bot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes cline-bot-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.8); } }
@@ -51,15 +44,44 @@ const STYLES = `
 @keyframes cline-bot-nod { from { transform: rotate(-2deg); } to { transform: rotate(2deg) translateY(1px); } }
 @keyframes cline-bot-look { 0%, 100% { transform: translateX(-5px); } 50% { transform: translateX(5px); } }
 @keyframes cline-bot-talk { from { transform: scale(0.7, 0.5); } to { transform: scale(1, 1.8); } }
-@keyframes cline-bot-wave { from { transform: rotate(0deg); } to { transform: rotate(-35deg); } }
-@keyframes cline-bot-bounce { from { transform: scaleY(1); } to { transform: scaleY(1.04); } }
-@keyframes cline-bot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-@keyframes cline-bot-blip { from { opacity: 1; } to { opacity: 0; } }
+@keyframes cline-bot-wave { from { transform: rotate(0deg); } to { transform: rotate(-40deg); } }
+@keyframes cline-bot-bounce { from { transform: scaleY(1); } to { transform: scaleY(1.03); } }
+@keyframes cline-bot-dim { from { opacity: 1; } to { opacity: 0.3; } }
 
 @media (prefers-reduced-motion: reduce) {
 	.cline-bot * { animation: none !important; }
 }
 `;
+
+// Torso, arms, and legs drawn twice (thick ink, then background fill on top)
+// so they read as one continuous outline with no seams between parts.
+function BodyShapes({ className }: { className: string }) {
+	return (
+		<g className={className}>
+			<rect height="44" rx="8" width="31" x="41" y="96" />
+			<rect
+				height="29"
+				rx="5.5"
+				transform="rotate(22 38 112)"
+				width="11"
+				x="32.5"
+				y="106.5"
+			/>
+			<g className="cline-bot-arm-right">
+				<rect
+					height="29"
+					rx="5.5"
+					transform="rotate(-22 75 112)"
+					width="11"
+					x="69.5"
+					y="106.5"
+				/>
+			</g>
+			<rect height="20" rx="5.5" width="11" x="42" y="132" />
+			<rect height="20" rx="5.5" width="11" x="60" y="132" />
+		</g>
+	);
+}
 
 export function ClineBot({
 	state,
@@ -73,51 +95,21 @@ export function ClineBot({
 			aria-hidden="true"
 			className={cn("cline-bot", className)}
 			data-state={state}
-			viewBox="-4 2 121 164"
+			viewBox="-4 2 121 166"
 		>
 			<style>{STYLES}</style>
 			<ellipse
 				className="cline-bot-shadow"
 				cx="56.5"
-				cy="161"
+				cy="164"
 				fill="currentColor"
-				rx="22"
+				rx="24"
 				ry="2.6"
 			/>
 			<g className="cline-bot-float">
-				<path
-					className="cline-bot-line cline-bot-arm-left"
-					d="M40.5 110 C 30 111, 23.5 120, 23.5 129 C 23.5 134, 27 137, 32 136 C 37 135, 40.5 131, 40.5 125 Z"
-				/>
-				<path
-					className="cline-bot-line cline-bot-arm-right"
-					d="M72.5 110 C 83 111, 89.5 120, 89.5 129 C 89.5 134, 86 137, 81 136 C 76 135, 72.5 131, 72.5 125 Z"
-				/>
-				<g className="cline-bot-torso">
-					<rect
-						fill="currentColor"
-						height="10"
-						rx="5"
-						width="11"
-						x="42.5"
-						y="145"
-					/>
-					<rect
-						fill="currentColor"
-						height="10"
-						rx="5"
-						width="11"
-						x="59.5"
-						y="145"
-					/>
-					<rect
-						className="cline-bot-line"
-						height="46"
-						rx="8.5"
-						width="36"
-						x="38.5"
-						y="96"
-					/>
+				<g className="cline-bot-body">
+					<BodyShapes className="cline-bot-ink" />
+					<BodyShapes className="cline-bot-fill" />
 				</g>
 				<g className="cline-bot-head">
 					<circle className="cline-bot-fill" cx="56.5" cy="20.7" r="11.7" />
@@ -138,13 +130,6 @@ export function ClineBot({
 						points="95.7,49.8 108,64.2 95.7,78.6"
 					/>
 					<path d={HEAD_OUTLINE} fill="currentColor" />
-					<circle
-						className="cline-bot-light"
-						cx="56.5"
-						cy="20.7"
-						fill="currentColor"
-						r="6"
-					/>
 					<g className="cline-bot-eyes" fill="currentColor">
 						<rect
 							className="cline-bot-eye"
