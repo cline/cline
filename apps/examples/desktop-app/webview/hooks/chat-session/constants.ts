@@ -1,5 +1,7 @@
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "@cline/llms/browser";
 import { CLINE_DEFAULT_MODEL_ID, isClineProvider } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	type ExecutionTarget,
 	readExecutionTargetFromWindow,
@@ -20,6 +22,42 @@ export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
 export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-connection";
 
+const BUNDLED_DEFAULT_MODEL_ID =
+	GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ?? CLINE_DEFAULT_MODEL_ID;
+
+let liveDefaultModelId: string | undefined;
+let liveDefaultModelRequest: Promise<string | undefined> | undefined;
+
+/**
+ * Loads the live feed's first free model in the background. Never awaited by
+ * the UI: callers keep the bundled default until it resolves, and it resolves
+ * to undefined (keeping the bundled default) when the feed is unreachable.
+ */
+export function loadLiveClineDefaultModelId(): Promise<string | undefined> {
+	liveDefaultModelRequest ??= desktopClient
+		.invoke<{ free?: { id: string }[] }>("list_cline_recommended_models")
+		.then((response) => {
+			liveDefaultModelId = response?.free?.[0]?.id || undefined;
+			return liveDefaultModelId;
+		})
+		.catch(() => undefined);
+	return liveDefaultModelRequest;
+}
+
+/**
+ * Whether `config` is still the untouched new-user default, so a late live
+ * default may replace it without overriding anything the user chose.
+ */
+export function isUntouchedDefaultModel(config: ChatSessionConfig): boolean {
+	return (
+		config.provider === DEFAULT_CHAT_CONFIG.provider &&
+		config.model === BUNDLED_DEFAULT_MODEL_ID &&
+		// Cloud picks are stored under their own scope.
+		!readModelSelectionStorageFromWindow(config.executionTarget)
+			.lastModelByProvider[config.provider]
+	);
+}
+
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
 	executionTarget: "local",
@@ -28,7 +66,8 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	cwd: "",
 	environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	provider: "cline",
-	model: CLINE_DEFAULT_MODEL_ID,
+	// New users start on the first bundled free model.
+	model: BUNDLED_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
 	mode: "act",
 	systemPrompt: undefined,
@@ -60,7 +99,7 @@ export function getInitialChatConfig(
 		(provider === DEFAULT_CHAT_CONFIG.provider
 			? rememberedModelForDefaultProvider
 			: undefined) ||
-		DEFAULT_CHAT_CONFIG.model;
+		(liveDefaultModelId ?? DEFAULT_CHAT_CONFIG.model);
 
 	const local: ChatSessionConfig = {
 		...DEFAULT_CHAT_CONFIG,

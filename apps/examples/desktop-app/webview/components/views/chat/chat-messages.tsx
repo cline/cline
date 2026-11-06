@@ -86,6 +86,7 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 	startingLabel?: string;
+	isHistoryPreview?: boolean;
 	errorAction?: { label: string; onClick: () => void | Promise<void> };
 	onProceedWhileRunning?: (
 		sessionId: string,
@@ -133,6 +134,7 @@ function ChatMessagesImpl({
 	onEditMessage,
 	onForkSession,
 	startingLabel,
+	isHistoryPreview = false,
 	errorAction,
 	onProceedWhileRunning,
 	onFixCredentials,
@@ -247,7 +249,8 @@ function ChatMessagesImpl({
 		[messages, collapseTrailingRun],
 	);
 	const isRunActive =
-		status === "starting" || status === "running" || status === "stopping";
+		!isHistoryPreview &&
+		(status === "starting" || status === "running" || status === "stopping");
 	const lastUserItemIndex = renderItems.findLastIndex(
 		(item) =>
 			item.type === "message" &&
@@ -604,6 +607,7 @@ function ChatMessagesImpl({
 													}
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
+													reportedArtifacts={child.reportedArtifacts}
 													onExpandImage={handleExpandImage}
 													onProceedWhileRunning={onProceedWhileRunning}
 												/>
@@ -765,7 +769,8 @@ function ChatMessagesImpl({
 								    min-height, padding), so the first real row replaces it
 								    in place with no jump. */}
 								{(status === "starting" || isAwaitingFirstOutput) &&
-								!isSessionSwitching ? (
+								!isSessionSwitching &&
+								!isHistoryPreview ? (
 									<MessageScrollerItem
 										messageId="activity"
 										className={cn(

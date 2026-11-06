@@ -139,8 +139,9 @@ Design rules:
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Desktop uses `HubCloudSessionClient` over its existing shared Hub connection. `HubCloudSessionService` in the daemon owns its account-scoped controller, refresh-aware credentials, organization lookup, provisioning, sandbox connections, queues, approvals, and transcript reconciliation. Desktop projects the snapshots into its UI; feature gating and host persistence remain in the app. Direct controller hosts (including handoff flows) can still supply authentication. Importing this subpath does not initialize a local agent.
 - `artifacts/publish` owns the opt-in publication tool, file preparation, and batch/result contract. Hosts inject a publisher; `artifacts/cloud` owns cloud upload policies, storage transfers, and signed-URL retrieval. Default local tool catalogs do not include publication.
 - `CloudSessionApi` and `HubCloudSessionClient` expose signed artifact download URLs without resuming the sandbox. The Hub binds requests to the viewer’s account scope; hosts keep signed URLs transient and retrieve file bytes directly from storage.
-- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preparation, preflight, fingerprints, and transcript verification. Hosts retain source capture coordination, persistence, feature gating, and draft recovery.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preparation, preflight, fingerprints, transcript verification, and confirmed snapshot publication (`publishCloudHandoff`). Hosts retain source capture coordination, persistence, feature gating, and draft recovery.
 - Cloud RPC validates an explicit operation allowlist and binds requests to the viewer’s observed hub instance and account-scope generation before dispatch. A host can also supply its signed-in account id; the Hub checks it against persisted account identity before running the operation. Handoff and prompt dispatch lifecycle callbacks stay with direct controller hosts and are excluded from the serializable RPC arguments. Viewer disconnects do not stop cloud work or close daemon-owned sandbox connections. Account changes retire the old controller and invalidate viewer caches; daemon shutdown disposes it. Cloud events carry a hub-instance id, account-scope generation, and revision; reconnecting subscriptions receive a complete snapshot set, including an empty set, and remove sessions and approvals absent from it. Scope checks run at command/auth boundaries and periodically, avoiding provider-settings reads per streamed event. Token refresh updates credential-based scope identity without retiring the same account’s controller. When the auth server rejects the stored Cline credentials outright, the controller’s token source stops refreshing and reports no token until the stored credentials change (sign-in, sign-out, or rotation) or the controller is replaced; transient refresh failures are still retried on every request. Discovery caches, pending listing requests, and newly created fallback rows are scoped to their organization; switching the sidebar preserves other organizations’ task state without displaying their rows. The discovery deadline covers organization resolution and listing together; an unresolved organization yields no cloud rows at the deadline. After an organization switch, desktop attempts a cloud-enabled organization refresh without making switch success or viewer cleanup depend on it. Fresh requests invalidate the old cache before fetching; a returning viewer also invalidates it to cover switches made while the Hub was unreachable. Cloud events are excluded from the durable local event log so old-account transcripts cannot be replayed after a scope change. Dispatched cloud mutations are never automatically resent after a lost reply.
+- Hosts own archived-history previews. The Hub supplies snapshot data through `readArchivedMessages`.
 - The cloud controller resumes suspended sessions and restores saved tasks. The Hub's [`session.resume`](./DOC.md#starting-a-runtime-from-saved-hub-history) reuses the `session.create` startup path.
 - Hosts capture and confirm Git snapshots. For `create` with `localGit` and `initialMessage`, the Hub owns publication, verification, creation, and initial send through viewer disconnects. Requests stay pinned to the prepared account; overlapping calls with the same `requestId` share that work.
 - The hub retains pending first-task creation options with its controller across desktop viewer disconnects and reconnects. The controller consumes that intent when an inner task exists or is created. Account changes dispose the old scope and its intent.
@@ -150,6 +151,7 @@ Design rules:
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - Provider commands require token-authenticated connection authority, captured during the WebSocket upgrade independently of workspace registration. A loopback browser origin or self-registration cannot grant provider access; trusted in-process calls remain allowed.
+- Registered browser `session.messages` callers request chunks with `chunkHistory` and continue with a connection-bound `historyCursor`. A `history.cancel` frame names the initial request ID to cancel queued or active history without closing the shared connection. Snapshots use private files unlinked before writing. Closing the handle or exiting the process reclaims their storage. The adapter allows two concurrent preparations across connections and two active transfers per connection, with one five-minute deadline covering queueing, preparation and delivery. Cancellation settles a pending preparation reply immediately but retains admission until the underlying read settles. Each chunk is below 128 Ki UTF-16 code units. Preparation and browser assembly still load the complete history. Legacy replies, canonical history and runtime restoration are unchanged.
 - Only Desktop currently uses the `providers.*` Hub commands; CLI and VS Code still access provider settings directly through `ProviderSettingsManager`.
 - Provider/model management is exposed by the shared daemon's typed `providers.*` commands: catalog listing, model discovery, recommended models, provider settings writes, custom provider creation, and model overrides. `createHubProvidersApi` uses an existing registered connection, does not retry dispatched mutations, and never falls back to host-side file writes. Desktop calls its local Hub even when an SSH environment is selected. Credential removal, shared Cline Pass storage cleanup, and legacy-secret cleanup execute in the daemon; Desktop retains account/feature-flag and cloud-view reactions. OAuth and voice operations remain separate migrations. Accepted provider mutations count as active work in Hub status and replacement/recovery checks; draining rejects new mutations, and shutdown waits for accepted settings and model-file writes to settle.
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
@@ -195,6 +197,12 @@ The hub health endpoint includes its `hubId`. Restart callers compare this insta
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+`HubRuntimeHost.deleteSession()` retains local event subscriptions and approval
+handlers during pending deletion and after a rejected `session.delete` command,
+releasing them after a successful reply even when the session was already absent.
+In contrast, `stopSession()` removes those handlers immediately, before awaiting
+`session.detach`.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
@@ -1348,3 +1356,33 @@ The reusable `@cline/ui` UX verification carousel consumes a report contract own
 Hosts own remote-image authorization, fetch-error-driven signed URL recovery and focus-managed expanded-image dialogs. Report production, product integration, CLI text rendering and transcript reshaping remain independent concerns.
 
 UX screenshot evidence specializes the existing `GeneratedMediaSchema` to supported raster images rather than introducing another transport shape. Reports can retain artifact IDs while Desktop/IDE/web consumers reuse their existing media-access lifecycle through the renderer callback. The shared UI performs no artifact lookup, upload, signed-URL refresh or transcript mutation.
+
+Core's `ux_verifier` is a specialization of the existing host-provided spawn tool,
+registered when tools and spawning are enabled. It shares child configuration,
+hooks, cancellation, telemetry and lifecycle observers with generic delegation;
+it does not introduce another child runtime. Spawn-tool opt-outs also disable the
+specialization. It runs sequentially to avoid racing a shared browser.
+The verifier declares its spawn executor and its upstream policy dependencies.
+The shared agent runtime combines their approval and disable restrictions with
+the verifier's outer tool policy. A stricter verifier policy is preserved,
+and the normal approval callback runs once before the spawn executor is reached.
+Hub client-tool contributions preserve policy dependencies when proxying tools
+through the daemon; malformed dependency metadata rejects the contribution.
+They also preserve tool execution mode so a sequential worker remains sequential
+when registered through `extraTools` on a Hub client.
+
+Every event emitted by `SessionRuntime` carries its agent, conversation, and
+parent-agent identity, including locally adapted runtime events and completion.
+Consumers filter worker events by ancestry rather than inferring delegation from
+tool names or suppressing concurrent parent events.
+The Hub projector includes that identity on agent and hook events, and
+`HubRuntimeHost` restores it when reconstructing Core events. Worker completion
+does not consume the parent's completion marker or suppress the parent's final
+event when its turn ends.
+
+Workers return observations and local screenshot paths. The main agent owns
+fixes, retries, evidence publication and assembling the opt-in
+`report_ux_verification` call, and can combine several workers into one report.
+The cloud computer-use prompt requests this delegation when available and keeps
+manual verification as a fallback. Report persistence, UI grouping, image access
+and rendering continue through the existing host boundaries.

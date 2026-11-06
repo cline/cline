@@ -3,6 +3,7 @@
 import type { PluginCommandCatalog } from "@cline/core";
 
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
@@ -181,17 +182,19 @@ export function buildUserInstructionSlashCommands(
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	// Anthropic's own API expects bare ids, so use the Anthropic-format
+	// equivalent of CLINE_DEFAULT_MODEL_ID rather than the prefixed id.
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.5"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-3-pro-latest"],
 };
 
 const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.5"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-3-pro-latest"],
 };
 
@@ -212,6 +215,7 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Medium", value: "medium" },
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
+	{ label: "Max", value: "max" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
@@ -324,6 +328,8 @@ type ChatInputBarProps = {
 	readOnly?: boolean;
 	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
+	placeholder?: string;
+	isCompacting?: boolean;
 	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
@@ -382,6 +388,8 @@ function ChatInputBarImpl({
 	readOnly = false,
 	cloudHandoffAvailable = false,
 	status,
+	placeholder,
+	isCompacting = false,
 	hasRunningAgents = false,
 	provider,
 	model,
@@ -1502,15 +1510,18 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+										: (placeholder ??
+											(isBusy && variant !== "welcome"
+												? isCompacting
+													? "Compacting... click Stop to cancel"
+													: promptsInQueue.length > 0
+														? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+														: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"))
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}

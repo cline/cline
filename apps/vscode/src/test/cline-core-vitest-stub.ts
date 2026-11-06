@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import type { CoreSpawnReason } from "@cline/shared"
+import { GENERATED_CLINE_RECOMMENDED_MODELS, getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { CLINE_DEFAULT_MODEL_ID, type CoreSpawnReason } from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
@@ -74,6 +74,11 @@ export {
 export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
+
+// Offline behavior of the real resolver: first bundled free model, else the Cline default.
+export async function resolveClineDefaultModelId(): Promise<string> {
+	return GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ?? CLINE_DEFAULT_MODEL_ID
+}
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 	try {

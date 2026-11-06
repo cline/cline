@@ -15,7 +15,7 @@ import {
 	type Message,
 } from "@cline/shared";
 import { setHomeDir } from "@cline/shared/storage";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -83,6 +83,53 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names.length).toBeGreaterThan(0);
 		expect(names).not.toContain("spawn_agent");
+		expect(names).not.toContain("ux_verifier");
+	});
+
+	it("registers the UX worker alongside spawning and forwards execution to the host", async () => {
+		const execute = vi.fn().mockResolvedValue({ text: "worker findings" });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ enableSpawnAgent: true }),
+			createSpawnTool: () => ({ ...makeSpawnTool(), execute }),
+			configExtensions: [],
+		});
+		try {
+			const verifier = runtime.tools.find(
+				(tool) => tool.name === "ux_verifier",
+			);
+			expect(verifier).toBeDefined();
+			expect(
+				await verifier?.execute(
+					{
+						task: "Verify app",
+						checklist: [{ id: "a", steps: ["Open"], expected: "Visible" }],
+					},
+					{ agentId: "lead", iteration: 1 },
+				),
+			).toEqual({ text: "worker findings" });
+			expect(execute).toHaveBeenCalledOnce();
+		} finally {
+			await runtime.shutdown("test");
+		}
+	});
+
+	it.each([
+		"spawn_agent",
+		"ux_verifier",
+	])("honors the %s tool opt-out without bypassing it through UX delegation", async (disabled) => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ enableSpawnAgent: true }),
+			createSpawnTool: makeSpawnTool,
+			configExtensions: [],
+			toolPolicies: { [disabled]: { enabled: false } },
+		});
+		try {
+			expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+				"ux_verifier",
+			);
+		} finally {
+			await runtime.shutdown("test");
+		}
 	});
 
 	it("enables provider web search by default without a local executor", async () => {

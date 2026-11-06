@@ -53,6 +53,7 @@ describe("createTool", () => {
 			timeoutMs: 1_000,
 			retryable: false,
 			maxRetries: 0,
+			policyDependencies: ["delegate_tool"],
 			successContext: "Continue working.",
 			execute: async () => ({ ok: true }),
 		});
@@ -60,6 +61,7 @@ describe("createTool", () => {
 		expect(tool.timeoutMs).toBe(1_000);
 		expect(tool.retryable).toBe(false);
 		expect(tool.maxRetries).toBe(0);
+		expect(tool.policyDependencies).toEqual(["delegate_tool"]);
 		expect(tool.successContext).toBe("Continue working.");
 	});
 

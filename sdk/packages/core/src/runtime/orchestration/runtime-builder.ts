@@ -50,6 +50,7 @@ import {
 import type { ConfiguredAgentConfig } from "../../extensions/tools/team/configured-agent-config";
 import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configured-agent-config";
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
+import { createUxVerifierTool } from "../../extensions/tools/team/ux-verification";
 import {
 	filterDisabledTools,
 	isModelToolEnabledGlobally,
@@ -836,13 +837,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		if (normalized.enableSpawnAgent && createSpawnTool) {
 			const spawnTool = createSpawnTool();
-			tools.push({
+			const delegate: AgentTool = {
 				...spawnTool,
 				execute: async (spawnInput, context) => {
 					ensureTeamRuntime();
 					return spawnTool.execute(spawnInput, context);
 				},
-			});
+			};
+			tools.push(delegate);
+			if (
+				normalized.enableTools &&
+				filterAvailableTools([delegate], effectiveToolPolicies).length > 0
+			) {
+				tools.push(createUxVerifierTool(delegate));
+			}
 		}
 
 		if (normalized.enableAgentTeams) {

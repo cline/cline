@@ -1,4 +1,4 @@
-import type { AgentMessage } from "./agent";
+import type { AgentMessage, AgentTool } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type {
@@ -990,6 +990,8 @@ export interface HubClientToolExecutorContribution
 
 export interface HubClientToolContribution extends HubClientContributionBase {
 	successContext?: string;
+	policyDependencies?: readonly string[];
+	executionMode?: AgentTool["executionMode"];
 	kind: "tool";
 	name: string;
 	description: string;
@@ -1157,6 +1159,13 @@ export interface HubStateSnapshot {
 export type HubTransportFrame =
 	| { kind: "command"; envelope: HubCommandEnvelope }
 	| { kind: "reply"; envelope: HubReplyEnvelope }
+	| {
+			kind: "history.cancel";
+			clientId: string;
+			sessionId: string;
+			/** Initial chunked session.messages request, including queued preparation. */
+			requestId: string;
+	  }
 	| {
 			kind: "stream.subscribe";
 			clientId: string;

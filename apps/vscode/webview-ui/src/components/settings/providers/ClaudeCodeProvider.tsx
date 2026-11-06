@@ -9,6 +9,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -31,7 +32,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 	// The models reuse Anthropic API pricing metadata, but usage is billed
 	// through the Claude subscription — suppress the per-token price rows.
 	const hideUsageCost = useProviderUsageCostDisplay(providerId) !== "show"
-	const { config, write, commitSelection } = useProviderConfig(providerId)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
 		defaultModelId,
@@ -93,13 +94,13 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					{selectedModelInfo.supportsReasoning === true && (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-								}).catch((err) => console.error("Failed to update Claude Code reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update Claude Code reasoning effort:", err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 

@@ -7,6 +7,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
@@ -43,7 +44,7 @@ export const GenericProviderSettings = ({
 	currentMode,
 }: GenericProviderSettingsProps) => {
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
-	const { config, write, commitSelection } = useProviderConfig(providerId)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
 		defaultModelId,
@@ -110,13 +111,11 @@ export const GenericProviderSettings = ({
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: {
-										enabled: effort !== "none",
-										effort: effort !== "none" ? effort : undefined,
-									},
-								}).catch((err) => console.error(`Failed to update ${providerName} reasoning effort:`, err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error(`Failed to update ${providerName} reasoning effort:`, err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 
