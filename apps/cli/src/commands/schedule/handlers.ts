@@ -107,9 +107,10 @@ export function registerScheduleCommands(
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
-					timeoutSeconds: opts.timeout
-						? toPositiveInt(opts.timeout, 1)
-						: undefined,
+					timeoutSeconds:
+						opts.timeout !== undefined
+							? toPositiveInt(opts.timeout, 1)
+							: undefined,
 					maxParallel: toPositiveInt(opts.maxParallel, 1),
 					enabled: !opts.disabled,
 					createdBy: opts.createdBy,

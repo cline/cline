@@ -311,14 +311,16 @@ export function registerScheduleUpdateCommand(
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
-					timeoutSeconds: opts.timeout
-						? toPositiveInt(opts.timeout, 1)
-						: opts.clearTimeout
-							? null
+					timeoutSeconds:
+						opts.timeout !== undefined
+							? toPositiveInt(opts.timeout, 1)
+							: opts.clearTimeout
+								? null
+								: undefined,
+					maxParallel:
+						opts.maxParallel !== undefined
+							? toPositiveInt(opts.maxParallel, 1)
 							: undefined,
-					maxParallel: opts.maxParallel
-						? toPositiveInt(opts.maxParallel, 1)
-						: undefined,
 					enabled: opts.enabled ? true : opts.disabled ? false : undefined,
 					tags: opts.tags ? parseList(opts.tags) : undefined,
 					metadata,
