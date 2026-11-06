@@ -473,6 +473,42 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("projects top-level providerConfig contextWindow onto the selected gateway model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					contextWindow: 262_144,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "openai-compatible",
+						models: [
+							expect.objectContaining({
+								id: "custom-model",
+								contextWindow: 262_144,
+								maxInputTokens: 262_144,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
 	it("surfaces a caller-supplied modelInfo for the selected model as a gateway model definition", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
