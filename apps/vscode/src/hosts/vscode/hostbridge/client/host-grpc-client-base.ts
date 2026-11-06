@@ -98,7 +98,10 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						}
 						resolve(response)
 					} catch (e) {
-						Logger.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
+						// Logging a debugLog failure through debugLog recursively floods shutdown.
+						if (methodKey !== "debugLog") {
+							Logger.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
+						}
 						reject(e)
 					}
 				})
