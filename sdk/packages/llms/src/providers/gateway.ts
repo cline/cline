@@ -7,6 +7,7 @@ import type {
 	GatewayModelDefinition,
 	GatewayModelHandleOptions,
 	GatewayModelSelection,
+	GatewayProviderContext,
 	GatewayProviderRegistration,
 	GatewayStreamRequest,
 	ITelemetryService,
@@ -21,6 +22,7 @@ import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { providerManifestSupportsModelOperation } from "./model-operations";
 import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
+import { requestsAnthropicAdaptiveThinking } from "./routing/anthropic-compatible";
 import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
@@ -196,6 +198,15 @@ export function resolveGatewayRequestMaxTokens(input: {
 	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
 	reasoningBudgetTokens?: number;
+	/**
+	 * The request enables adaptive thinking under the resolved Anthropic
+	 * reasoning policy (see requestsAnthropicAdaptiveThinking).
+	 * The synthesized default then uses the model's full advertised output
+	 * budget instead of DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION of it, because
+	 * adaptive thinking is counted inside max_tokens and a smaller cap
+	 * truncates it.
+	 */
+	adaptiveThinking?: boolean;
 	onContextOverflow?: (details: {
 		contextWindow: number;
 		estimatedInputTokens: number;
@@ -224,14 +235,15 @@ export function resolveGatewayRequestMaxTokens(input: {
 		// still lifts the result too.
 		const baseDefault =
 			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		const catalogFraction = input.adaptiveThinking
+			? 1
+			: DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION;
 		const catalogDefault =
 			input.defaultMaxOutputTokens === undefined &&
 			isPositiveFiniteNumber(input.model.maxOutputTokens)
 				? Math.max(
 						baseDefault,
-						Math.floor(
-							input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
-						),
+						Math.floor(input.model.maxOutputTokens * catalogFraction),
 					)
 				: baseDefault;
 		const defaultMaxOutputTokens = Math.max(catalogDefault, reasoningFloor);
@@ -367,11 +379,28 @@ export class DefaultGateway implements Gateway {
 			request.providerId,
 		);
 		const provider = await providerRecord.createProvider(providerRecord.config);
+		const routedRequest: GatewayStreamRequest = {
+			...request,
+			modelId: resolved.model.id,
+			providerId: resolved.provider.id,
+		};
+		const providerContext: GatewayProviderContext = {
+			provider: resolved.provider,
+			model: resolved.model,
+			config: providerRecord.config,
+			signal: request.signal,
+			logger: this.logger,
+			telemetry: this.telemetry,
+		};
 		const maxTokens = resolveGatewayRequestMaxTokens({
 			requestedMaxTokens: request.maxTokens,
 			model: resolved.model,
 			estimatedInputTokens: estimateRequestInputTokens(request),
 			reasoningBudgetTokens: request.reasoning?.budgetTokens,
+			adaptiveThinking: requestsAnthropicAdaptiveThinking(
+				routedRequest,
+				providerContext,
+			),
 			onContextOverflow: (details) => {
 				this.logger?.log(
 					"Estimated prompt tokens exceed model context window",
@@ -386,21 +415,12 @@ export class DefaultGateway implements Gateway {
 		});
 		const stream = await provider.stream(
 			{
-				...request,
-				modelId: resolved.model.id,
-				providerId: resolved.provider.id,
+				...routedRequest,
 				maxTokens,
 				defaultedMaxTokens:
 					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
 			},
-			{
-				provider: resolved.provider,
-				model: resolved.model,
-				config: providerRecord.config,
-				signal: request.signal,
-				logger: this.logger,
-				telemetry: this.telemetry,
-			},
+			providerContext,
 		);
 
 		return toAsyncIterable(stream);
