@@ -1,6 +1,7 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
@@ -102,7 +103,13 @@ const bundleDesktopBackend = async (): Promise<void> => {
 	cpSync(`${REPO_ROOT}/sdk/packages/core/dist/plugin-runtime`, runtime, {
 		recursive: true,
 	});
-	const defines = telemetryDefineArgs();
+	const defines = [
+		...telemetryDefineArgs(),
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(REPO_ROOT))}`,
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${Date.now()}`,
+	];
 	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
 };
 

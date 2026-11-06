@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../sdk/packages/core/scripts/runtime-build-id";
 import { buildDashboardRuntimeDirectory } from "./dashboard-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
@@ -140,6 +141,12 @@ export async function compileCliBinary(
 			minify: true,
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
+				// Host tsconfig aliases can resolve SDK sources directly, bypassing
+				// the identities embedded by the package-level Core build.
+				__CLINE_CORE_RUNTIME_BUILD_ID__: JSON.stringify(
+					resolveSdkRuntimeBuildId(rootDir),
+				),
+				__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: JSON.stringify(Date.now()),
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
 				// compile.assets keeps each directory tree under its basename.
 				__CLINE_PLUGIN_RUNTIME_DIR__: JSON.stringify(
