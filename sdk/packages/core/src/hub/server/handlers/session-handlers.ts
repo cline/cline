@@ -13,6 +13,7 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import { z } from "zod/v4";
 import {
 	isCoreBuiltinToolAvailable,
 	resolveToolClientType,
@@ -1127,6 +1128,8 @@ export async function handleSessionList(
 	});
 }
 
+const SearchExclusionsSchema = z.array(z.string().trim()).optional();
+
 export async function handleSessionSearch(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -1140,11 +1143,24 @@ export async function handleSessionSearch(
 			"session.search requires a non-empty query",
 		);
 	}
+	const exclusions = SearchExclusionsSchema.safeParse(
+		payload.excludeSessionIds,
+	);
+	if (!exclusions.success) {
+		return errorReply(
+			envelope,
+			"invalid_search_exclusions",
+			"excludeSessionIds must be an array of session IDs",
+		);
+	}
 	return okReply(envelope, {
 		hits: ctx.sessionSearch.search({
 			query: payload.query,
 			limit: payload.limit,
 			workspaceRoot: payload.workspaceRoot,
+			excludeSessionIds: exclusions.data
+				? [...new Set(exclusions.data.filter(Boolean))]
+				: undefined,
 		}),
 	});
 }

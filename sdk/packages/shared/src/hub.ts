@@ -486,6 +486,7 @@ export interface HubSessionSearchInput {
 	query: string;
 	limit?: number;
 	workspaceRoot?: string;
+	excludeSessionIds?: string[];
 }
 
 export interface HubSessionSearchHit {

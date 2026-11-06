@@ -12,6 +12,7 @@ import type {
 	HubCommandOutput,
 	HubEventEnvelope,
 	HubSessionSearchHit,
+	HubSessionSearchInput,
 	HubTaskCreateInput,
 	HubTaskUpdateInput,
 	HubTypedCommandName,
@@ -597,13 +598,11 @@ export class HubSessionClient {
 			.filter((row): row is HubSessionRow => Boolean(row?.sessionId));
 	}
 
-	async searchSessions(input: {
-		query: string;
-		limit?: number;
-		workspaceRoot?: string;
-	}): Promise<HubSessionSearchHit[]> {
+	async searchSessions(
+		input: HubSessionSearchInput,
+	): Promise<HubSessionSearchHit[]> {
 		await this.client.connect();
-		const reply = await this.client.command("session.search", input);
+		const reply = await this.client.command("session.search", { ...input });
 		return Array.isArray(reply.payload?.hits)
 			? (reply.payload.hits as unknown as HubSessionSearchHit[])
 			: [];
