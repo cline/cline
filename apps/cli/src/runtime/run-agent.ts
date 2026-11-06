@@ -223,6 +223,11 @@ export async function runAgent(
 	let abortRequested = false;
 	let timedOut = false;
 	let activeSessionId: string | undefined;
+	// Set when the agent's own safety rails (loop detector / consecutive-mistake
+	// limit) decide to stop the run internally. Lets the abort report below
+	// distinguish an internal stop from an abort issued by another client
+	// (cline/cline#15138).
+	let internalStopReason: string | undefined;
 
 	const abortAll = () => {
 		if (abortRequested) return false;
@@ -297,7 +302,15 @@ export async function runAgent(
 				onTeamEvent: handleTeamEvent,
 				onConsecutiveMistakeLimitReached: async (
 					context: ConsecutiveMistakeLimitContext,
-				) => resolveMistakeLimitDecision(config, context),
+				) => {
+					const decision = await resolveMistakeLimitDecision(config, context);
+					if (decision.action === "stop") {
+						internalStopReason =
+							decision.reason ??
+							"mistake limit reached; run stopped internally";
+					}
+					return decision;
+				},
 			},
 			prompt: userInput,
 			userImages: userImages.length > 0 ? userImages : undefined,
@@ -383,16 +396,28 @@ export async function runAgent(
 			if (timedOut) {
 				writeErr(`run timed out after ${config.timeoutSeconds}s`);
 				process.exitCode = 1;
-			} else if (config.outputMode === "json") {
-				emitJsonLine("stdout", {
-					type: "run_aborted",
-					reason: abortRequested ? "local_abort" : "external_abort",
-					message: describeAbortSource({ abortRequested, timedOut }),
-				});
 			} else {
-				writeln(
-					`${c.dim}[abort] ${describeAbortSource({ abortRequested, timedOut })}${c.reset}`,
-				);
+				let abortReason: "local_abort" | "external_abort" | "internal_abort";
+				let abortMessage: string;
+				if (abortRequested) {
+					abortReason = "local_abort";
+					abortMessage = describeAbortSource({ abortRequested, timedOut });
+				} else if (internalStopReason !== undefined) {
+					abortReason = "internal_abort";
+					abortMessage = internalStopReason;
+				} else {
+					abortReason = "external_abort";
+					abortMessage = describeAbortSource({ abortRequested, timedOut });
+				}
+				if (config.outputMode === "json") {
+					emitJsonLine("stdout", {
+						type: "run_aborted",
+						reason: abortReason,
+						message: abortMessage,
+					});
+				} else {
+					writeln(`${c.dim}[abort] ${abortMessage}${c.reset}`);
+				}
 			}
 			writeln();
 			return;
