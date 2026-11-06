@@ -178,11 +178,27 @@ async function actionCreate(client: HubScheduleClient): Promise<void> {
 				p.text({
 					message: "Timeout in seconds",
 					placeholder: "leave empty for no timeout",
+					validate: (v) => {
+						const t = v?.trim();
+						if (!t) return undefined;
+						if (!/^\d+$/.test(t) || Number(t) < 1) {
+							return "Timeout must be a positive integer (seconds)";
+						}
+						return undefined;
+					},
 				}),
 			maxIterations: () =>
 				p.text({
 					message: "Max iterations",
 					placeholder: "leave empty for unlimited",
+					validate: (v) => {
+						const t = v?.trim();
+						if (!t) return undefined;
+						if (!/^\d+$/.test(t) || Number(t) < 1) {
+							return "Max iterations must be a positive integer";
+						}
+						return undefined;
+					},
 				}),
 			tags: () =>
 				p.text({
