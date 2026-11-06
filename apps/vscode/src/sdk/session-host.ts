@@ -26,7 +26,7 @@ export interface SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	start(input: StartSessionInput): Promise<StartSessionResult>
 	start(input: ClineCoreStartInput): Promise<StartSessionResult>
-	send(input: SendSessionInput): Promise<AgentResult | undefined>
+	send(input: SendSessionInput, options?: { beforeDispatch?: () => void }): Promise<AgentResult | undefined>
 	getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined>
 	abort(sessionId: string, reason?: unknown): Promise<void>
 	stop(sessionId: string): Promise<void>

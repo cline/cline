@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkFollowupCoordinator, type SdkFollowupCoordinatorOptions } from "./sdk-followup-coordinator"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -13,6 +15,236 @@ vi.mock("@/shared/services/Logger", () => ({
 describe("SdkFollowupCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+	})
+
+	it.each([
+		"mentions",
+		"connection",
+		"queue",
+		"queue-ack",
+	])("releases navigation when cloud preparation is cancelled during %s", async (stage) => {
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+		const held = Promise.withResolvers<void>()
+		const entered = Promise.withResolvers<void>()
+		const abort = new AbortController()
+		const task = makeTask("ses-cloud")
+		const activeSession = stage.startsWith("queue") ? makeActiveSession({ isRunning: true }) : undefined
+		if (activeSession) activeSession.sessionId = task.taskId
+		const { coordinator, options } = makeCoordinator({
+			task,
+			activeSession,
+			runExclusive: (operation) => scheduler.runExclusive(operation),
+		})
+		options.getCloudFollowupSignal.mockReturnValue(abort.signal)
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			if (stage === "connection") {
+				entered.resolve()
+				await held.promise
+			}
+			return makeActiveSession()
+		})
+		options.resolveContextMentions.mockImplementationOnce(async () => {
+			if (stage === "mentions" || stage === "queue") {
+				entered.resolve()
+				await held.promise
+			}
+			return "resolved"
+		})
+		if (stage === "queue-ack") {
+			options.sessions.fireAndForgetSend.mockImplementationOnce(() => {
+				entered.resolve()
+				return held.promise
+			})
+		}
+		const sending = coordinator.askResponse("@https://example.test")
+		let cancelled = false
+		const rejected = sending.catch(() => {
+			cancelled = true
+		})
+		await entered.promise
+		let navigated = false
+		const navigation = scheduler.runExclusive(async () => {
+			navigated = true
+		})
+		abort.abort()
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		const releasedBeforePreparation = navigated
+		const cancelledBeforePreparation = cancelled
+		held.resolve()
+		await Promise.all([rejected, navigation])
+		expect(releasedBeforePreparation).toBe(true)
+		expect(cancelledBeforePreparation).toBe(true)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledTimes(stage === "queue-ack" ? 1 : 0)
+	})
+
+	it.each([
+		{ running: true, reject: false },
+		{ running: true, reject: true },
+		{ running: false, reject: false },
+		{ running: false, reject: true },
+	])("waits for cloud queue acceptance ($running/$reject)", async ({ running, reject }) => {
+		const activeSession = makeActiveSession({ isRunning: running })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			activeSession.isRunning = true
+			return activeSession
+		})
+		const acceptance = Promise.withResolvers<undefined>()
+		void acceptance.promise.catch(() => undefined)
+		options.sessions.fireAndForgetSend.mockReturnValue(acceptance.promise)
+		let settled = false
+		const submission = coordinator.askResponse("queued").then(
+			() => {
+				settled = true
+				return undefined
+			},
+			(error: unknown) => {
+				settled = true
+				return error
+			},
+		)
+		await vi.waitFor(() => expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce())
+		const settledBeforeAcceptance = settled
+		const error = new Error("queue acceptance unconfirmed")
+		if (reject) acceptance.reject(error)
+		else acceptance.resolve(undefined)
+		expect(await submission).toBe(reject ? error : undefined)
+		expect(settledBeforeAcceptance).toBe(false)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+	})
+
+	it.each(["running", "prepared", "idle"])("fences a delayed %s cloud dispatch", async (route) => {
+		const activeSession = makeActiveSession({ isRunning: route === "running" })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const abort = new AbortController()
+		options.getCloudFollowupSignal.mockReturnValue(abort.signal)
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			activeSession.isRunning = route !== "idle"
+			return activeSession
+		})
+		const entered = Promise.withResolvers<void>()
+		const held = Promise.withResolvers<void>()
+		const dispatched = vi.fn()
+		let handedOff = Promise.resolve()
+		options.sessions.fireAndForgetSend.mockImplementation(
+			(...args: Parameters<SdkFollowupCoordinatorOptions["sessions"]["fireAndForgetSend"]>) => {
+				entered.resolve()
+				handedOff = held.promise.then(() => {
+					args[6]?.beforeDispatch?.()
+					dispatched()
+				})
+				void handedOff.catch(() => undefined)
+				return handedOff
+			},
+		)
+		const submission = coordinator.askResponse("delayed")
+		void submission.catch(() => undefined)
+		await entered.promise
+		if (route === "idle") options.getTask.mockReturnValue(makeTask(task.taskId))
+		else abort.abort()
+		held.resolve()
+		await Promise.allSettled([submission, handedOff])
+		expect(dispatched).not.toHaveBeenCalled()
+	})
+
+	it.each(["task", "session"])("does not queue cloud input into a replacement %s with the same id", async (replacement) => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ task, activeSession })
+		options.beginCloudFollowup.mockReturnValue(async () => activeSession)
+		options.resolveContextMentions.mockImplementationOnce(async () => {
+			if (replacement === "task") options.getTask.mockReturnValue(makeTask(task.taskId))
+			else options.sessions.getActiveSession.mockReturnValue(makeActiveSession({ isRunning: true }))
+			return "resolved"
+		})
+		await expect(coordinator.askResponse("queued")).rejects.toThrow("Cloud follow-up task or connection changed")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("restores streaming if the previous cloud turn completes during preparation", async () => {
+		const task = makeTask("ses-cloud")
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ task, activeSession })
+		let phase = "idle"
+		options.onFollowUpStarted.mockImplementation(() => {
+			phase = "streaming"
+		})
+		options.resolveContextMentions.mockImplementation(async () => {
+			phase = "completed"
+			return "resolved"
+		})
+		options.beginCloudFollowup.mockReturnValue(async () => activeSession)
+		let phaseAtSend = ""
+		options.sessions.fireAndForgetSend.mockImplementation(() => {
+			phaseAtSend = phase
+		})
+		await coordinator.askResponse("next")
+		expect(phaseAtSend).toBe("streaming")
+	})
+
+	it.each([
+		{ hasSession: false, bare: false },
+		{ hasSession: true, bare: false },
+		{ hasSession: false, bare: true },
+	])("serializes cloud preparations ($hasSession/$bare)", async ({ hasSession, bare }) => {
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+		const mentions = Promise.withResolvers<string>()
+		const preparedResult = Promise.withResolvers<ReturnType<typeof makeActiveSession>>()
+		const task = makeTask("ses-cloud")
+		const prepared = makeActiveSession({ isRunning: true })
+		prepared.sessionId = task.taskId
+		let activeSession: ReturnType<typeof makeActiveSession> | undefined = hasSession
+			? makeActiveSession({ isRunning: false })
+			: undefined
+		if (activeSession) activeSession.sessionId = task.taskId
+		const phases: string[] = []
+		const { coordinator, options } = makeCoordinator({ task, runExclusive: (operation) => scheduler.runExclusive(operation) })
+		options.sessions.getActiveSession.mockImplementation(() => activeSession)
+		options.resolveContextMentions.mockImplementationOnce(() => mentions.promise)
+		options.beginCloudFollowup.mockImplementationOnce(() => async () => {
+			throw new Error("prepare failed")
+		})
+		options.beginCloudFollowup.mockImplementationOnce(() => async () => preparedResult.promise)
+		options.onFollowUpStarted.mockImplementation(() => phases.push("started"))
+		options.onFollowUpAbandoned.mockImplementation(() => phases.push("abandoned"))
+		options.onResumeFailed.mockImplementation(() => phases.push("failed"))
+
+		const first = coordinator.askResponse(bare ? undefined : "first")
+		await vi.waitFor(() => expect(options.resolveContextMentions).toHaveBeenCalledOnce())
+		const second = coordinator.askResponse("second", undefined, undefined, "messageResponse", "streaming")
+		expect(coordinator.getPreparingCloudTask()).toBe(task)
+		expect(phases).toEqual(["started"])
+		activeSession = undefined
+		mentions.resolve("resolved: first")
+		await expect(first).rejects.toThrow("prepare failed")
+		await vi.waitFor(() => expect(phases).toEqual(["started", bare ? "failed" : "abandoned", "started"]))
+		activeSession = prepared
+		preparedResult.resolve(prepared)
+		await second
+		expect(coordinator.getPreparingCloudTask()).toBeUndefined()
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			prepared.sdkHost,
+			task.taskId,
+			"resolved: second",
+			undefined,
+			undefined,
+			"queue",
+			{ beforeDispatch: expect.any(Function) },
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error", text: expect.stringContaining("prepare failed") })],
+			{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
+		)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalledWith(
+			expect.arrayContaining([expect.objectContaining({ say: "user_feedback" })]),
+			expect.anything(),
+		)
+		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 	})
 
 	it("resolves pending tool approvals without sending a follow-up", async () => {
@@ -75,15 +307,25 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
+			undefined,
+			undefined,
 		)
 	})
 
-	it("queues a follow-up when the active session is already running", async () => {
+	it.each([false, true])("queues a follow-up when the active session is already running (cloud: %s)", async (cloud) => {
 		const activeSession = makeActiveSession({ isRunning: true })
-		const { coordinator, options } = makeCoordinator({ activeSession })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const prepare = vi.fn(async () => {
+			throw new Error("status lookup failed")
+		})
+		if (cloud) options.beginCloudFollowup.mockReturnValue(prepare)
 
 		await coordinator.askResponse("queued")
 
+		expect(prepare).not.toHaveBeenCalled()
+		expect(options.runExclusive).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -93,16 +335,21 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
-	it("queues a follow-up when the turn phase is still streaming even if the session running flag is stale", async () => {
+	it.each([false, true])("queues with a stale running flag during streaming (cloud: %s)", async (cloud) => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const task = makeTask("session-123")
 		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const prepare = vi.fn(async () => activeSession)
+		if (cloud) options.beginCloudFollowup.mockReturnValue(prepare)
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
+		expect(prepare).not.toHaveBeenCalled()
+		expect(options.runExclusive).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -113,14 +360,41 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
-	it("queues a chat-field message submitted while a tool approval is pending", async () => {
-		const activeSession = makeActiveSession({ isRunning: false })
+	it.each([false, true])("queues feedback without consuming tool approval (cloud: %s)", async (cloud) => {
+		const activeSession = makeActiveSession({ isRunning: cloud })
 		const task = makeTask("session-123")
 		const { coordinator, options } = makeCoordinator({ activeSession, task })
-		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
+		let phase = "streaming"
+		const interactions = new SdkInteractionCoordinator({
+			messages: options.messages,
+			getSessionId: () => task.taskId,
+			postStateToWebview: options.postStateToWebview,
+			setTurnPhase: (value) => {
+				phase = value
+			},
+		})
+		const approval = interactions.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: task.taskId,
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_file",
+			input: { path: "example.txt" },
+			policy: { enabled: true, autoApprove: false },
+		})
+		await vi.waitFor(() => expect(phase).toBe("awaiting_approval"))
+		options.messages.appendAndEmit.mockClear()
+		options.interactions.resolvePendingToolApproval.mockImplementation(
+			interactions.resolvePendingToolApproval.bind(interactions),
+		)
+		options.onFollowUpStarted.mockImplementation(() => {
+			phase = "streaming"
+		})
+		if (cloud) options.beginCloudFollowup.mockReturnValue(async () => activeSession)
 
 		await coordinator.askResponse(
 			"do the next thing after this",
@@ -130,12 +404,9 @@ describe("SdkFollowupCoordinator", () => {
 			"awaiting_approval",
 		)
 
-		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
-			"do the next thing after this",
-			"messageResponse",
-			undefined,
-			undefined,
-		)
+		expect(phase).toBe("awaiting_approval")
+		expect(interactions.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approval).resolves.toEqual({ approved: true })
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -145,6 +416,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
@@ -169,6 +441,8 @@ describe("SdkFollowupCoordinator", () => {
 			activeSession.sdkHost,
 			"session-123",
 			"resolved: next request",
+			undefined,
+			undefined,
 			undefined,
 			undefined,
 		)
@@ -201,6 +475,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			undefined,
 		)
 	})
 
@@ -216,6 +491,8 @@ describe("SdkFollowupCoordinator", () => {
 			rebuiltSession.sdkHost,
 			"session-123",
 			"resolved: after rebuild",
+			undefined,
+			undefined,
 			undefined,
 			undefined,
 		)
@@ -266,6 +543,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			undefined,
 		)
 	})
 
@@ -483,6 +761,8 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: keep going",
 			["image.png"],
 			undefined,
+			undefined,
+			undefined,
 		)
 	})
 
@@ -617,7 +897,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: {
 			getActiveSession: vi.fn(() => input.activeSession),
 			setRunning: vi.fn(),
-			fireAndForgetSend: vi.fn(),
+			fireAndForgetSend: vi.fn().mockResolvedValue(undefined),
 			startNewSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "resumed-session" },
 				sdkHost: { send: vi.fn() },
@@ -639,6 +919,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			build: vi.fn().mockResolvedValue(config),
 		},
 		getTask: vi.fn(() => input.task),
+		beginCloudFollowup: vi.fn(),
+		getCloudFollowupSignal: vi.fn(() => new AbortController().signal),
+		onFollowUpStarted: vi.fn(),
 		createTempSessionHost: vi.fn().mockResolvedValue(tempHost),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
@@ -676,6 +959,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}
 		sessionConfigBuilder: SdkFollowupCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getTask: ReturnType<typeof vi.fn>
+		beginCloudFollowup: ReturnType<typeof vi.fn>
+		getCloudFollowupSignal: ReturnType<typeof vi.fn>
+		onFollowUpStarted: ReturnType<typeof vi.fn>
 		createTempSessionHost: ReturnType<typeof vi.fn>
 		getWorkspaceRoot: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
