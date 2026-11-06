@@ -74,6 +74,8 @@ type HookCommandStopErrorContext = HookContextBase & {
 };
 type HookCommandSessionShutdownContext = HookContextBase & {
 	reason?: string;
+	/** The run ended with status "aborted", so TaskCancel applies even with no reason text. */
+	aborted?: boolean;
 };
 
 /**
@@ -949,7 +951,7 @@ export function createHookConfigFileHooks(
 	const runSessionShutdown = async (
 		ctx: HookCommandSessionShutdownContext,
 	): Promise<void> => {
-		if (isAbortReason(ctx.reason)) {
+		if (ctx.aborted === true || isAbortReason(ctx.reason)) {
 			const abortCommands = commandMap.agent_abort ?? [];
 			if (abortCommands.length > 0) {
 				await runAsyncHookCommands({
@@ -1074,6 +1076,7 @@ export function createHookConfigFileHooks(
 				await runSessionShutdown({
 					...baseContextFromSnapshot(snapshot),
 					reason: result.error?.message,
+					aborted: result.status === "aborted",
 				});
 				return;
 			}
