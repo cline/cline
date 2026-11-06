@@ -1,3 +1,5 @@
+import { telemetryService } from "@/services/telemetry"
+import { coreConnectionBacklog } from "./core-connection-backlog"
 import { log } from "./utils"
 
 const MEMORY_LOG_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
@@ -28,6 +30,32 @@ function logMemoryUsage(): void {
 }
 
 /**
+ * Reports the peak depth of each host-bound response stream's forward queue
+ * since the previous report, on the memory monitor's cadence: a queue that
+ * keeps growing is the memory, before the heap number shows it.
+ */
+function reportStreamBacklog(): void {
+	for (const [qualifiedMethod, peak] of coreConnectionBacklog.takePeaks()) {
+		const dot = qualifiedMethod.lastIndexOf(".")
+		// A gauge series keeps exporting its last value until it is cleared, so a
+		// method's first quiet window retires its series rather than reporting 0.
+		telemetryService.captureGrpcStreamBacklog(
+			peak > 0 ? peak : null,
+			qualifiedMethod.slice(0, dot),
+			qualifiedMethod.slice(dot + 1),
+		)
+		if (peak > 2) {
+			log(`[BACKLOG] ${qualifiedMethod} peak=${peak} queued responses`)
+		}
+	}
+}
+
+function tick(): void {
+	logMemoryUsage()
+	reportStreamBacklog()
+}
+
+/**
  * Starts periodic memory usage logging.
  *
  * Logs immediately on start to capture a baseline, then repeats every
@@ -42,7 +70,7 @@ export function startMemoryMonitoring(): void {
 	// Log immediately on start to capture baseline
 	logMemoryUsage()
 
-	memoryMonitorInterval = setInterval(logMemoryUsage, MEMORY_LOG_INTERVAL_MS)
+	memoryMonitorInterval = setInterval(tick, MEMORY_LOG_INTERVAL_MS)
 
 	// IMPORTANT: unref() tells Node.js that this timer is "optional" — it
 	// should not keep the event loop alive by itself. Without this call,
@@ -61,7 +89,7 @@ export function startMemoryMonitoring(): void {
  */
 export function stopMemoryMonitoring(): void {
 	if (memoryMonitorInterval) {
-		logMemoryUsage() // Final snapshot
+		tick() // Final snapshot
 		clearInterval(memoryMonitorInterval)
 		memoryMonitorInterval = null
 		log("[MEMORY] Periodic memory monitoring stopped")

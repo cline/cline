@@ -1,5 +1,6 @@
 import type { CoreConnectionMessage } from "@generated/grpc-js/host/core_connection"
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
+import type { StreamBacklog } from "./core-connection-backlog"
 
 export type CoreConnectionMessageWriter = (message: CoreConnectionMessage) => Promise<void>
 export type CoreRequestHandler = (
@@ -21,6 +22,7 @@ export async function dispatchCoreConnectionRequest(
 	request: NonNullable<CoreConnectionMessage["request"]>,
 	isStreamingMethod: (qualifiedMethod: string) => boolean,
 	handleRequest: CoreRequestHandler,
+	backlog?: StreamBacklog,
 ): Promise<void> {
 	const qualifiedMethod = `${request.service}.${request.method}`
 	if (isStreamingMethod(qualifiedMethod) !== request.isStreaming) {
@@ -35,7 +37,12 @@ export async function dispatchCoreConnectionRequest(
 		return
 	}
 
-	await handleRequest(serializeForwards(write), {
+	// Only streams can fall behind: a unary request posts exactly once.
+	const track =
+		backlog && request.isStreaming
+			? { enter: () => backlog.enter(qualifiedMethod), leave: () => backlog.leave(qualifiedMethod) }
+			: undefined
+	await handleRequest(serializeForwards(write, track), {
 		service: request.service,
 		method: request.method,
 		message: JSON.parse(request.messageJson || "{}"),
@@ -53,10 +60,14 @@ export async function dispatchCoreConnectionRequest(
  * payloads together. A failed write rejects every later forward for the
  * request, so a torn payload is never followed by more chunks.
  */
-function serializeForwards(write: CoreConnectionMessageWriter): (message: ExtensionMessage) => Promise<boolean> {
+function serializeForwards(
+	write: CoreConnectionMessageWriter,
+	track?: { enter: () => void; leave: () => void },
+): (message: ExtensionMessage) => Promise<boolean> {
 	let chain: Promise<unknown> = Promise.resolve()
 	return (message) => {
-		const result = chain.then(() => forwardCoreControllerResponse(write, message))
+		track?.enter()
+		const result = chain.then(() => forwardCoreControllerResponse(write, message)).finally(() => track?.leave())
 		chain = result
 		return result
 	}

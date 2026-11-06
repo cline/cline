@@ -1,6 +1,7 @@
 import type { Controller } from "@core/controller"
 import { handleGrpcRequest } from "@core/controller/grpc-handler"
 import { responseStreamingMethods, serviceRequestDecoders } from "@generated/hosts/vscode/protobus-services"
+import { coreConnectionBacklog } from "./core-connection-backlog"
 import {
 	type CoreConnectionMessageWriter,
 	dispatchCoreConnectionRequest as dispatchProtocolRequest,
@@ -39,5 +40,6 @@ export async function dispatchCoreConnectionRequest(
 				...grpcRequest,
 				message: decodeCoreConnectionRequestMessage(grpcRequest.service, grpcRequest.method, grpcRequest.message),
 			}),
+		coreConnectionBacklog,
 	)
 }

@@ -121,6 +121,8 @@ export type TelemetryMetadata = {
 	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
 	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
 	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
+	core_prev_exit_code?: CoreSpawnTelemetryMetadata["core_prev_exit_code"]
+	core_prev_uptime_s?: CoreSpawnTelemetryMetadata["core_prev_uptime_s"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -222,6 +224,8 @@ export class TelemetryService {
 		},
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
+			// Peak responses queued for an out-of-process host per reporting window; see standalone/core-connection-backlog.ts.
+			STREAM_BACKLOG_PEAK: "cline.grpc.stream.backlog_peak",
 		},
 		MIGRATION: {
 			// Fires whenever Cline checks an old pre-SDK task and decides whether/how to migrate it.
@@ -1915,6 +1919,19 @@ export class TelemetryService {
 					(requestId ? ` request_id=${requestId}` : ""),
 			)
 		}
+	}
+
+	/**
+	 * Peak depth of one host-bound response stream's forward queue over a reporting window;
+	 * null ends the method's series once its queue has had an empty window.
+	 */
+	public captureGrpcStreamBacklog(peakDepth: number | null, service: string, method: string): void {
+		this.recordGauge(
+			TelemetryService.METRICS.GRPC.STREAM_BACKLOG_PEAK,
+			peakDepth,
+			{ service, method },
+			"Peak number of responses queued for the host per reporting window",
+		)
 	}
 
 	/**
