@@ -9,9 +9,40 @@ export function trimNonEmpty(
 	return trimmed ? trimmed : undefined;
 }
 
+function normalizeSliceOffset(offset: number, length: number): number {
+	const integer = Math.trunc(offset) || 0;
+	return integer < 0
+		? Math.max(length + integer, 0)
+		: Math.min(integer, length);
+}
+
+function splitsSurrogatePair(text: string, offset: number): boolean {
+	const before = text.charCodeAt(offset - 1);
+	const after = text.charCodeAt(offset);
+	return (
+		before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff
+	);
+}
+
+/**
+ * Like String.slice, but moves cuts inward when they split a surrogate pair.
+ * Budgets remain UTF-16 code units; existing unpaired surrogates are unchanged.
+ */
+export function sliceUtf16(
+	text: string,
+	start: number,
+	end = text.length,
+): string {
+	let from = normalizeSliceOffset(start, text.length);
+	let to = normalizeSliceOffset(end, text.length);
+	if (splitsSurrogatePair(text, from)) from++;
+	if (splitsSurrogatePair(text, to)) to--;
+	return text.slice(from, Math.max(from, to));
+}
+
 export function truncateStr(str: string, maxLen: number): string {
 	if (str.length <= maxLen) return str;
-	return `${str.slice(0, maxLen - 1)}…`;
+	return `${sliceUtf16(str, 0, maxLen - 1)}…`;
 }
 
 export function truncateSplit(
@@ -20,12 +51,9 @@ export function truncateSplit(
 	maxLen = 100,
 ): string {
 	if (!str || str.length <= maxLen) return str || "";
-	const prefix = str
-		.split(splitBy)
-		?.shift()
-		?.trim()
-		?.slice(0, maxLen - 1);
-	return prefix ? `${prefix}…` : truncateStr(str, maxLen);
+	const prefix = str.split(splitBy)?.shift()?.trim();
+	const truncatedPrefix = prefix && sliceUtf16(prefix, 0, maxLen - 1);
+	return truncatedPrefix ? `${truncatedPrefix}…` : truncateStr(str, maxLen);
 }
 
 export function maskSecret(value: string): string {
