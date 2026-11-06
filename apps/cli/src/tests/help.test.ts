@@ -1,7 +1,7 @@
-import { test } from "@microsoft/tui-test";
 import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { expectVisible } from "./helpers/terminal.js";
+import { test } from "./helpers/test.js";
 
 const HELP_TERMINAL = { columns: 120, rows: 50 };
 

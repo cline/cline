@@ -10,11 +10,11 @@
 // behavior can be asserted once the implementation catches up.
 // ---------------------------------------------------------------------------
 
-import { test } from "@microsoft/tui-test";
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import { waitForChatReady } from "../helpers/page-objects/chat.js";
 import { expectVisible } from "../helpers/terminal.js";
+import { test } from "../helpers/test.js";
 
 test.describe("cline --model (interactive mode, flag ignored)", () => {
 	test.use({

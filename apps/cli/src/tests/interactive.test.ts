@@ -1,8 +1,8 @@
-import { expect, test } from "@microsoft/tui-test";
 import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { waitForChatReady } from "./helpers/page-objects/chat.js";
 import { expectVisible, waitForTerminalExit } from "./helpers/terminal.js";
+import { expect, test } from "./helpers/test.js";
 
 test.describe("cline interactive basics", () => {
 	test.use({
@@ -20,7 +20,7 @@ test.describe("cline interactive basics", () => {
 	test("shows slash commands after / input", async ({ terminal }) => {
 		await waitForChatReady(terminal);
 		// Type "/" without submitting to trigger the slash menu
-		terminal.write("/");
+		await terminal.type("/");
 		await expectVisible(terminal, ["/settings", "/mcp"], {
 			timeout: 10_000,
 		});
@@ -28,7 +28,7 @@ test.describe("cline interactive basics", () => {
 
 	test("opens the command palette with Ctrl+P", async ({ terminal }) => {
 		await waitForChatReady(terminal);
-		terminal.write("\x10");
+		await terminal.press("Ctrl+P");
 		await expectVisible(terminal, [
 			"Command Palette",
 			"Change Model",
@@ -47,7 +47,7 @@ test.describe("cline interactive provider flag", () => {
 
 	test("exits idle TUI after one Ctrl+C", async ({ terminal }) => {
 		await waitForChatReady(terminal);
-		terminal.keyCtrlC();
+		await terminal.press("Ctrl+C");
 		await expect(waitForTerminalExit(terminal, 5_000)).resolves.toBe(0);
 	});
 });

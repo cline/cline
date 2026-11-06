@@ -1,7 +1,7 @@
-import { test } from "@microsoft/tui-test";
 import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { expectVisible } from "./helpers/terminal.js";
+import { test } from "./helpers/test.js";
 
 // ---------------------------------------------------------------------------
 // cline --version  (root flag)
