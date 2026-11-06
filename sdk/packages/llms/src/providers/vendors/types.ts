@@ -7,6 +7,7 @@ import type {
 } from "@cline/shared";
 import type { CallSettings, ToolSet } from "ai";
 import type { RetryEmptyResponseOptions } from "../middleware/retry-empty-response";
+import type { StreamRetryBackoffOptions } from "../stream-retry-backoff";
 
 export type ProviderGeneratedMedia = Omit<GeneratedMedia, "id" | "sizeBytes">;
 
@@ -49,6 +50,11 @@ export interface ProviderFactoryResult {
 	 * middleware. Leave unset for the defaults.
 	 */
 	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
+	/**
+	 * Wait schedule between the AI SDK's in-stream retries (`streamRetries`),
+	 * which otherwise re-dial immediately. Set `false` to opt a vendor out.
+	 */
+	streamRetryBackoff?: false | StreamRetryBackoffOptions;
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,

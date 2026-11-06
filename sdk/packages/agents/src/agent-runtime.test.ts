@@ -110,6 +110,38 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("surfaces the model's in-flight progress as status notices", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				request.emitStatusNotice?.(
+					"provider error — retrying in 1s (attempt 1/3)",
+					{ kind: "stream_retry", attempt: 1 },
+				);
+				return [
+					{ type: "text-delta", text: "hello" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+		const notices: Array<{ message: string; metadata?: unknown }> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				notices.push({ message: event.message, metadata: event.metadata });
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(notices).toEqual([
+			{
+				message: "provider error — retrying in 1s (attempt 1/3)",
+				metadata: { kind: "stream_retry", attempt: 1 },
+			},
+		]);
+	});
+
 	it.each([
 		"text",
 		"partial-tool",
@@ -3391,13 +3423,13 @@ describe("AgentRuntime", () => {
 		await runtime.run("Hi");
 
 		// Two chunks within a second report progress once.
-		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
-			1,
-		);
+		expect(
+			eventTypes.filter((type) => type === "tool-call-delta"),
+		).toHaveLength(1);
 		const events = capture.mock.calls.map(([input]) => input);
-		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
-			false,
-		);
+		expect(
+			events.some((input) => input.event === "agent.tool-call-delta"),
+		).toBe(false);
 		expect(
 			events.find((input) => input.event === "agent.run-finished")?.properties,
 		).toEqual(expect.objectContaining({ maxIdleMs: 42, status: "completed" }));

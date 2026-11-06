@@ -262,6 +262,11 @@ export interface GatewayStreamRequest {
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;
+	/** Progress shown to the user while the request is in flight, such as a retry wait. */
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
 }
 
 export interface GatewayProvider {

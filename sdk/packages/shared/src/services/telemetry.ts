@@ -165,6 +165,7 @@ export interface ITelemetryService {
 }
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
+export const SDK_STREAM_RETRY_TELEMETRY_EVENT = "sdk.stream_retry";
 
 // `sdk.error` is a diagnostic firehose: a process stuck in a retry loop
 // (e.g. an unattended agent re-hitting a rate-limited provider) can emit the
@@ -271,6 +272,36 @@ export function captureAgentUnexpectedReasoningTokens(
 			modelId: input.modelId,
 			requestedThinking: input.requestedThinking,
 			reasoningTokenCount: input.reasoningTokenCount,
+		}),
+	});
+}
+
+export interface CaptureSdkStreamRetryInput {
+	providerId: string;
+	modelId: string;
+	providerKind?: string;
+	/** 1-based index of the re-dial this wait precedes. */
+	attempt: number;
+	delayMs: number;
+	errorClass?: string;
+	context?: TelemetryProperties;
+}
+
+/** One event per wait the model layer inserts before an AI SDK in-stream retry. */
+export function captureSdkStreamRetry(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureSdkStreamRetryInput,
+): void {
+	telemetry?.capture({
+		event: SDK_STREAM_RETRY_TELEMETRY_EVENT,
+		properties: stripUndefinedTelemetryProperties({
+			...(input.context ?? {}),
+			providerId: input.providerId,
+			modelId: input.modelId,
+			providerKind: input.providerKind,
+			attempt: input.attempt,
+			delayMs: input.delayMs,
+			errorClass: input.errorClass,
 		}),
 	});
 }

@@ -1343,6 +1343,18 @@ export class AgentRuntime {
 		this.state.lastErrorReported = false;
 	}
 
+	private emitStatusNotice(
+		message: string,
+		metadata?: Record<string, unknown>,
+	): void {
+		void this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message,
+			metadata,
+		});
+	}
+
 	/**
 	 * Sleep for `ms`, rejecting early with the abort error if the run is
 	 * aborted while waiting, so a retry backoff never blocks cancellation.
@@ -1801,6 +1813,8 @@ export class AgentRuntime {
 				steerController.signal,
 				...(this.abortController ? [this.abortController.signal] : []),
 			]),
+			emitStatusNotice: (message, metadata) =>
+				this.emitStatusNotice(message, metadata),
 		};
 		const stream = this.openTaskLifecycleStream(
 			request,
@@ -2278,14 +2292,8 @@ export class AgentRuntime {
 				this.state.lastRequestInputTokens > 0
 					? this.state.lastRequestInputTokens
 					: undefined,
-			emitStatusNotice: (message, metadata) => {
-				void this.emit({
-					type: "status-notice",
-					snapshot: this.snapshot(),
-					message,
-					metadata,
-				});
-			},
+			emitStatusNotice: (message, metadata) =>
+				this.emitStatusNotice(message, metadata),
 		});
 		if (overflowRecovery) {
 			// Only retry a provider-rejected overflow with a request that is
