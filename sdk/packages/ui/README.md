@@ -325,9 +325,29 @@ bun -F @cline/ui storybook -- --host 0.0.0.0 --port 3490 --exact-port
 The catalog includes the theme foundations and representative agent-chat
 states in light, dark, desktop, and narrow viewports.
 
-Storybook currently runs from a Cline monorepo checkout. It is not hosted or
-included in the npm package; deployment can be added once the catalog and
-ownership model settle.
+The `ui-storybook` GitHub Actions workflow publishes the static catalog to
+Chromatic when UI, shared-package, or build inputs change on `main` or a PR
+from a branch in `cline/cline` whose author has a `MEMBER`, `OWNER`, or
+`COLLABORATOR` association with the repository. This matches the trusted-author
+policy used by `ext-jb-test-integration` and includes outside collaborators;
+it checks the PR author, not every commit's author or pusher.
+Open the workflow run's summary for the
+Storybook preview link. Chromatic also provides branch permalinks pointing to
+each branch's latest published build. The catalog is not included in the npm
+package.
+
+Maintainers can publish any repository branch from Actions → ui-storybook →
+Run workflow by selecting that branch. To preview an existing PR, bring this
+workflow onto its branch and push a UI change, or run it manually on that
+branch. Fork PRs are skipped because they cannot access repository secrets.
+
+Setup requires the `CLINE_CHROMATIC_PROJECT_TOKEN` Actions repository secret.
+After the first publish, complete Chromatic's setup and open Manage → Automate.
+Disable **both visual tests and UI Review** for free hosting without billed
+snapshots. The initial publish may consume the free snapshot allowance until
+these settings are available. The workflow's
+`exitOnceUploaded` option only stops waiting after upload; it does not disable
+tests. See [Chromatic's hosting-only documentation](https://www.chromatic.com/docs/faq/disable-ui-tests-and-or-review/).
 
 ## Layering and compatibility
 
