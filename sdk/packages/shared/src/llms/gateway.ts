@@ -98,6 +98,8 @@ export interface GatewayModelOperationCapability {
 }
 
 export interface GatewayProviderRouting {
+	/** Default path for origin-only base URLs in the Anthropic transport. */
+	baseUrlDefaultPath?: string;
 	/** Honor catalog model API protocols under this provider's shared base URL. */
 	modelApiProtocol?: boolean;
 	promptCache?: {
