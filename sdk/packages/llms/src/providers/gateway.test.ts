@@ -3317,6 +3317,92 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("prunes completed-turn reasoning while preserving active tool continuations", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test-key" }],
+		});
+		const messages = [
+			baseMessages[0],
+			{
+				id: "old-only",
+				role: "assistant" as const,
+				content: [{ type: "reasoning" as const, text: "old secret" }],
+				createdAt: 2,
+			},
+			{
+				id: "old-answer",
+				role: "assistant" as const,
+				content: [
+					{ type: "reasoning" as const, text: "old thoughts" },
+					{ type: "text" as const, text: "final answer" },
+				],
+				createdAt: 3,
+			},
+			{
+				id: "latest-user",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "continue" }],
+				createdAt: 4,
+			},
+			{
+				id: "active",
+				role: "assistant" as const,
+				content: [
+					{
+						type: "reasoning" as const,
+						text: "active thought",
+						metadata: { signature: "signed" },
+					},
+					{
+						type: "tool-call" as const,
+						toolCallId: "call-1",
+						toolName: "read",
+						input: {},
+						metadata: { thoughtSignature: "tool-sig" },
+					},
+				],
+				createdAt: 5,
+			},
+			{
+				id: "result",
+				role: "tool" as const,
+				content: [
+					{
+						type: "tool-result" as const,
+						toolCallId: "call-1",
+						toolName: "read",
+						output: "result",
+					},
+				],
+				createdAt: 6,
+			},
+		];
+		const original = JSON.stringify(messages);
+		await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-haiku-latest",
+				messages,
+			}),
+		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as { messages?: unknown };
+		const prompt = JSON.stringify(call.messages);
+		expect(prompt).not.toContain("old secret");
+		expect(prompt).not.toContain("old thoughts");
+		expect(prompt).toContain("final answer");
+		expect(prompt).toContain("active thought");
+		expect(prompt).toContain("signed");
+		expect(prompt).toContain("tool-sig");
+		expect(prompt).toContain("call-1");
+		expect(prompt).toContain("result");
+		expect(JSON.stringify(messages)).toBe(original);
+	});
+
 	it("strips reasoning history before sending Cerebras follow-up requests", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

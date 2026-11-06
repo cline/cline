@@ -754,10 +754,21 @@ function toAiSdkMessages(
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
+	// Retain the active turn, whose signed reasoning may be needed for tool
+	// continuation. Completed turns can be projected without thinking blocks.
+	let latestUserIndex = -1;
+	for (let index = messages.length - 1; index >= 0; index--) {
+		if (messages[index].role === "user") {
+			latestUserIndex = index;
+			break;
+		}
+	}
 
-	for (const message of messages) {
+	for (const [index, message] of messages.entries()) {
 		const content: AiSdkFormatterPart[] = [];
 		let skippedReasoning = false;
+		const keepReasoning =
+			includeReasoning && (latestUserIndex < 0 || index >= latestUserIndex);
 		for (const part of message.content) {
 			if (part.type === "text") {
 				content.push({ type: "text", text: sanitizeSurrogates(part.text) });
@@ -765,7 +776,7 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "reasoning") {
-				if (!includeReasoning) {
+				if (!keepReasoning) {
 					skippedReasoning = true;
 					continue;
 				}
@@ -852,6 +863,7 @@ function toAiSdkMessages(
 		// space is the smallest value such providers accept; empty is rejected.
 		if (
 			options?.fillMissingReasoning &&
+			(content.length > 0 || !skippedReasoning) &&
 			message.role === "assistant" &&
 			!content.some((part) => part.type === "reasoning" && part.text.trim())
 		) {
@@ -860,7 +872,7 @@ function toAiSdkMessages(
 
 		// A message left empty only because its reasoning was dropped is
 		// omitted entirely instead of forwarded as an empty turn.
-		const emptiedByDroppedReasoning = !includeReasoning && skippedReasoning;
+		const emptiedByDroppedReasoning = skippedReasoning;
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
 		} else if (
