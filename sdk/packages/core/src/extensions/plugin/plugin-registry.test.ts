@@ -1,21 +1,26 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-	AgentExtension,
-	AgentExtensionApi,
-	AgentTool,
-	AgentToolContext,
-	Message,
-	PluginStatusRecord,
-	SessionPluginIssue,
+import {
+	type AgentExtension,
+	type AgentExtensionApi,
+	type AgentExtensionUiSlot,
+	type AgentTool,
+	type AgentToolContext,
+	type Message,
+	PLUGIN_UI_LIMITS,
+	type PluginStatusRecord,
+	type PluginUiAction,
+	type PluginUiActionContext,
+	type SessionPluginIssue,
 } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	PluginCallTimeoutError,
 	PluginRegistry,
 	type PluginSessionLoadInput,
 	type PluginSessionLoadResult,
+	type PluginUiStatePush,
 } from "./plugin-registry";
 import { setPluginBootstrapUnavailableForTests } from "./plugin-sandbox";
 
@@ -41,6 +46,69 @@ async function toolsOf(extension: AgentExtension | undefined) {
 }
 
 const toolContext: AgentToolContext = { agentId: "agent", iteration: 1 };
+
+const SLOT = "composer.suggestions";
+
+async function uiSlotsOf(extension: AgentExtension | undefined) {
+	const uiSlots: AgentExtensionUiSlot[] = [];
+	await extension?.setup?.(
+		{ ...noopApi(), registerUiSlot: (uiSlot) => uiSlots.push(uiSlot) },
+		{},
+	);
+	return uiSlots;
+}
+
+const actionContext: PluginUiActionContext = {
+	sessionId: "s1",
+	viewer: { id: "local" },
+	viewers: 1,
+};
+const actions = {
+	refresh: { verb: "refresh", revision: "r1", input: "key", cause: "more" },
+	refused: { verb: "use", revision: "r1", itemId: "a", input: "key" },
+	throws: { verb: "skip", revision: "r1", itemId: "a", input: "key" },
+	hangs: { verb: "hide", scope: "chat", input: "key" },
+} satisfies Record<string, PluginUiAction>;
+
+function revisionOf(push: PluginUiStatePush | undefined): unknown {
+	return (push?.state as { revision?: unknown } | undefined)?.revision;
+}
+
+/**
+ * A plugin that fills the composer.suggestions slot, reports what it was
+ * offered, and handles each verb of `actions` its own way.
+ */
+function uiPlugin(name: string, title = name) {
+	return `let ui;
+let n = 1;
+const state = () => ({ status: "ready", title: ${JSON.stringify(title)}, revision: "r" + n, items: [], canRefresh: true });
+export default {
+	name: ${JSON.stringify(name)},
+	manifest: { capabilities: ["hooks"] },
+	setup(api, ctx) {
+		ctx.emitEvent("offered", { slots: ctx.ui ? ctx.ui.slots : null, registerUiSlot: typeof api.registerUiSlot });
+		if (!api.registerUiSlot || !ctx.ui) return;
+		ui = ctx.ui;
+		api.registerUiSlot({
+			slot: "composer.suggestions",
+			onAction(action) {
+				if (action.verb === "use") return { outcome: "refused", reason: "stale" };
+				if (action.verb === "skip") throw new Error("skip broke");
+				if (action.verb === "hide") return new Promise(() => {});
+				n += 1;
+				ui.update("composer.suggestions", state());
+				return { outcome: "ok" };
+			},
+		});
+		ctx.onDispose(() => {
+			ctx.emitEvent("disposing");
+			ui.update("composer.suggestions", { ...state(), revision: "disposed" });
+		});
+		ui.update("composer.suggestions", state());
+	},
+};
+`;
+}
 
 /** A plugin whose tool runs `body` (an async function body taking `input`). */
 function toolPlugin(name: string, body = `return "ok from ${name}";`) {
@@ -885,6 +953,247 @@ export default { name: "orphan", manifest: { capabilities: ["tools"] } };`,
 		}
 		await expect(readFile(marker, "utf8")).rejects.toThrow();
 	}, 30_000);
+
+	describe("UI slots", () => {
+		it("delivers setup-time states once the session selects the copy", async () => {
+			const path = await write("ui.mjs", uiPlugin("ui"));
+			const pushes: PluginUiStatePush[] = [];
+			const session = await load({
+				sessionId: "s1",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: (push) => pushes.push(push),
+			});
+			// Before the host runs the copy's setup (lazily, on the first turn).
+			expect(pushes).toEqual([
+				{
+					plugin: "ui",
+					slot: SLOT,
+					state: expect.objectContaining({ revision: "r1" }),
+				},
+			]);
+			const [uiSlot] = await uiSlotsOf(session.extensions[0]);
+			expect(uiSlot?.slot).toBe(SLOT);
+		}, 30_000);
+
+		it("keeps the session's plugins when the host's listener throws", async () => {
+			const path = await write("listener.mjs", uiPlugin("listener"));
+			const received: PluginUiStatePush[] = [];
+			const session = await load({
+				sessionId: "s1",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: (push) => {
+					received.push(push);
+					throw new Error("host listener broke");
+				},
+			});
+			expect(session.extensions.map((extension) => extension.name)).toEqual([
+				"listener",
+			]);
+			expect(registry.get("listener")[0]?.sessionIds).toEqual(["s1"]);
+			const [uiSlot] = await uiSlotsOf(session.extensions[0]);
+			await expect(
+				uiSlot?.onAction(actions.refresh, actionContext),
+			).resolves.toEqual({ outcome: "ok" });
+			expect(received.map(revisionOf)).toEqual(["r1", "r2"]);
+		}, 30_000);
+
+		it("never delivers states from a copy a duplicate name overrides", async () => {
+			const first = await write("dup-a.mjs", uiPlugin("dup", "from a"));
+			const second = await write("dup-b.mjs", uiPlugin("dup", "from b"));
+			const pushes: PluginUiStatePush[] = [];
+			const session = await load({
+				sessionId: "s1",
+				pluginPaths: [first, second],
+				uiSlots: [SLOT],
+				onUiState: (push) => pushes.push(push),
+			});
+			expect(session.warnings).toHaveLength(1);
+			expect(pushes).toEqual([
+				{
+					plugin: "dup",
+					slot: SLOT,
+					state: expect.objectContaining({ title: "from b" }),
+				},
+			]);
+		}, 30_000);
+
+		it("never delivers states from a copy the host-side policy check turns off", async () => {
+			const path = await write("late-off.mjs", uiPlugin("late-off"));
+			const policy: NonNullable<PluginSessionLoadInput["policy"]> = {};
+			const pushes: PluginUiStatePush[] = [];
+			const session = await load({
+				sessionId: "s1",
+				pluginPaths: [path],
+				policy,
+				uiSlots: [SLOT],
+				onUiState: (push) => pushes.push(push),
+				// The worker already passed the policy; turn the plugin off
+				// before the host checks it again by its own name.
+				emitEvent: (event) => {
+					if (event.name === "offered") policy["late-off"] = { enabled: false };
+				},
+			});
+			expect(session.extensions).toEqual([]);
+			expect(session.issues).toContainEqual(
+				expect.objectContaining({
+					name: "late-off",
+					reason: "session_policy",
+				}),
+			);
+			expect(pushes).toEqual([]);
+		}, 30_000);
+
+		it("offers the slot API only when the session has a catalog and a listener", async () => {
+			const path = await write("offered.mjs", uiPlugin("offered"));
+			const offeredTo = async (
+				input: Pick<PluginSessionLoadInput, "uiSlots" | "onUiState">,
+			) => {
+				const events: Array<{ name: string; payload?: unknown }> = [];
+				await load({
+					sessionId: "s1",
+					pluginPaths: [path],
+					emitEvent: (event) => events.push(event),
+					...input,
+				});
+				return events.find((event) => event.name === "offered")?.payload;
+			};
+			const withheld = { slots: null, registerUiSlot: "undefined" };
+			await expect(offeredTo({ onUiState: () => {} })).resolves.toEqual(
+				withheld,
+			);
+			await expect(
+				offeredTo({ uiSlots: [], onUiState: () => {} }),
+			).resolves.toEqual(withheld);
+			await expect(offeredTo({ uiSlots: [SLOT] })).resolves.toEqual(withheld);
+			await expect(
+				offeredTo({ uiSlots: [SLOT], onUiState: () => {} }),
+			).resolves.toEqual({ slots: [SLOT], registerUiSlot: "function" });
+		}, 30_000);
+
+		it("gives reload's throwaway worker no slot API", async () => {
+			const marker = join(root, "offered.txt");
+			const path = await write(
+				"reloaded.mjs",
+				`import { appendFileSync } from "node:fs";
+export default {
+	name: "reloaded",
+	manifest: { capabilities: ["hooks"] },
+	setup(api, ctx) {
+		appendFileSync(${JSON.stringify(marker)}, typeof api.registerUiSlot + " " + typeof ctx.ui + "\\n");
+	},
+};`,
+			);
+			await load({
+				sessionId: "s1",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: () => {},
+			});
+			await registry.reload("reloaded");
+			expect((await readFile(marker, "utf8")).trim().split("\n")).toEqual([
+				"function object",
+				"undefined undefined",
+			]);
+		}, 30_000);
+
+		it("drops states the copy pushes after its session released it", async () => {
+			const path = await write("released.mjs", uiPlugin("released"));
+			const pushes: PluginUiStatePush[] = [];
+			const events: Array<{ name: string }> = [];
+			const session = await load({
+				sessionId: "s1",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: (push) => pushes.push(push),
+				emitEvent: (event) => events.push(event),
+			});
+			await session.release();
+			expect(events.map((event) => event.name)).toContain("disposing");
+			expect(pushes.map(revisionOf)).toEqual(["r1"]);
+		}, 30_000);
+
+		it("counts throws and timeouts, but not refusals or calls cut short by close", async () => {
+			const path = await write("counted.mjs", uiPlugin("counted"));
+			const loadCopy = async (sessionId: string) => {
+				const session = await load({
+					sessionId,
+					pluginPaths: [path],
+					uiSlots: [SLOT],
+					onUiState: () => {},
+					// Longer than the UI bound, so the registry's own timer fires first.
+					callTimeoutMs: 60_000,
+				});
+				const [uiSlot] = await uiSlotsOf(session.extensions[0]);
+				if (!uiSlot) throw new Error("no UI slot registered");
+				return { session, uiSlot };
+			};
+			const { uiSlot } = await loadCopy("s1");
+
+			await expect(
+				uiSlot.onAction(actions.refused, actionContext),
+			).resolves.toEqual({ outcome: "refused", reason: "stale" });
+			expect(registry.get(path)[0]?.errorCount).toBe(0);
+
+			await expect(
+				uiSlot.onAction(actions.throws, actionContext),
+			).rejects.toThrow("skip broke");
+			expect(registry.get(path)[0]).toMatchObject({
+				errorCount: 1,
+				lastError: { phase: "ui:composer.suggestions" },
+			});
+
+			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+			try {
+				const hung = expect(
+					uiSlot.onAction(actions.hangs, actionContext),
+				).rejects.toBeInstanceOf(PluginCallTimeoutError);
+				await vi.advanceTimersByTimeAsync(PLUGIN_UI_LIMITS.invokeTimeoutMs);
+				await hung;
+			} finally {
+				vi.useRealTimers();
+			}
+			expect(registry.get(path)[0]).toMatchObject({
+				errorCount: 2,
+				timeoutCount: 1,
+				lastError: { phase: "ui:composer.suggestions", timedOut: true },
+			});
+
+			const closing = await loadCopy("s2");
+			const cut = closing.uiSlot.onAction(actions.hangs, actionContext);
+			await closing.session.release();
+			await expect(cut).rejects.toThrow();
+			expect(registry.get(path)[0]).toMatchObject({
+				errorCount: 2,
+				timeoutCount: 1,
+			});
+		}, 30_000);
+
+		it("keeps two sessions' states apart", async () => {
+			const path = await write("isolated.mjs", uiPlugin("isolated"));
+			const first: PluginUiStatePush[] = [];
+			const second: PluginUiStatePush[] = [];
+			const a = await load({
+				sessionId: "a",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: (push) => first.push(push),
+			});
+			await load({
+				sessionId: "b",
+				pluginPaths: [path],
+				uiSlots: [SLOT],
+				onUiState: (push) => second.push(push),
+			});
+			const [uiSlot] = await uiSlotsOf(a.extensions[0]);
+			await expect(
+				uiSlot?.onAction(actions.refresh, actionContext),
+			).resolves.toEqual({ outcome: "ok" });
+			expect(first.map(revisionOf)).toEqual(["r1", "r2"]);
+			expect(second.map(revisionOf)).toEqual(["r1"]);
+		}, 30_000);
+	});
 
 	it("keeps running sessions' copies usable across a reload", async () => {
 		const path = await write(

@@ -4,6 +4,22 @@ export type HubUpdateRestartDecision =
 	| { action: "restart" }
 	| { action: "stay"; hint: string };
 
+export type HubBuildMismatchPayload = {
+	hubBuildId?: string;
+	hubCoreVersion?: string;
+	reason?: string;
+	activeSessionCount?: number;
+	participantClientCount?: number;
+	missingCapabilities?: string[];
+};
+
+export function hubMismatchKeyOf(payload: HubBuildMismatchPayload): string {
+	return `${payload.reason ?? ""}:${payload.hubBuildId ?? ""}`;
+}
+
+/** Generous deadline: drain wait + graceful retire + fresh daemon startup. */
+export const HUB_UPGRADE_TIMEOUT_MS = 60_000;
+
 /**
  * Whether a hub build mismatch may interrupt with a modal at all.
  *
@@ -15,6 +31,9 @@ export type HubUpdateRestartDecision =
  *   a staged update the modal's only exit is "no update available yet",
  *   which loops on every launch and webview reconnect until a release
  *   ships - so it stays silent until it can offer a real action.
+ * - `missing_capability` never does: the Hub is not newer than this app and
+ *   everything but plugin suggestions works, so the non-blocking
+ *   HubCapabilityNotice offers the restart instead.
  */
 export function shouldShowHubMismatchDialog(
 	reason: string | undefined,
@@ -22,6 +41,9 @@ export function shouldShowHubMismatchDialog(
 ): boolean {
 	if (reason === "unsupported_protocol" || reason === "outdated_hub") {
 		return true;
+	}
+	if (reason === "missing_capability") {
+		return false;
 	}
 	return updateState === "ready";
 }

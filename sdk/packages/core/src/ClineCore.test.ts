@@ -863,4 +863,118 @@ Summarize the local event.
 		expect(result.messages).toEqual(restoreResult.messages);
 		expect(result.sessionId).toBe("restored-session");
 	});
+
+	it("carries the session's slot catalog to the host on start and restore", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async () => createStartResult("session-1")),
+			runTurn: vi.fn(),
+			restoreSession: vi.fn(async () => ({
+				checkpoint: {
+					ref: "a".repeat(40),
+					createdAt: 1,
+					runCount: 1,
+					kind: "commit" as const,
+				},
+			})),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+		const start = { ...createStartInput(), uiSlots: ["composer.suggestions"] };
+
+		await core.start(start);
+		await core.restore({
+			sessionId: "source-session",
+			checkpointRunCount: 1,
+			restore: { messages: true, workspace: false },
+			start,
+		});
+
+		expect(host.startSession).toHaveBeenCalledWith(
+			expect.objectContaining({ uiSlots: ["composer.suggestions"] }),
+		);
+		expect(host.restoreSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				start: expect.objectContaining({ uiSlots: ["composer.suggestions"] }),
+			}),
+		);
+	});
+
+	it("routes plugin UI calls to the host and answers without one", async () => {
+		const state = {
+			sessionId: "session-1",
+			slot: "composer.suggestions" as const,
+			plugin: "next-turn",
+			epoch: 1,
+			seq: 1,
+			state: null,
+		};
+		const pluginUi = {
+			get: vi.fn(async () => [state]),
+			invoke: vi.fn(async () => ({ outcome: "ok" as const, epoch: 1 })),
+		};
+		const baseHost = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const invokeInput = {
+			sessionId: "session-1",
+			slot: "composer.suggestions" as const,
+			action: { verb: "attach" as const, surface: "desktop" as const },
+		};
+
+		createRuntimeHostMock.mockResolvedValueOnce({ ...baseHost, pluginUi });
+		const withService = await ClineCore.create();
+		expect(await withService.pluginUi.get({ sessionId: "session-1" })).toEqual([
+			state,
+		]);
+		expect(await withService.pluginUi.invoke(invokeInput)).toEqual({
+			outcome: "ok",
+			epoch: 1,
+		});
+		expect(pluginUi.invoke).toHaveBeenCalledWith(invokeInput);
+
+		createRuntimeHostMock.mockResolvedValueOnce(baseHost);
+		const withoutService = await ClineCore.create();
+		expect(
+			await withoutService.pluginUi.get({ sessionId: "session-1" }),
+		).toEqual([]);
+		expect(await withoutService.pluginUi.invoke(invokeInput)).toEqual({
+			outcome: "unavailable",
+		});
+
+		createRuntimeHostMock.mockResolvedValueOnce({
+			...baseHost,
+			pluginUi: {
+				get: vi.fn(async () => {
+					throw new Error("transport closed");
+				}),
+				invoke: vi.fn(() => {
+					throw new Error("transport closed");
+				}),
+			},
+		});
+		const failing = await ClineCore.create();
+		expect(await failing.pluginUi.get({ sessionId: "session-1" })).toEqual([]);
+		expect(await failing.pluginUi.invoke(invokeInput)).toEqual({
+			outcome: "unavailable",
+		});
+	});
 });

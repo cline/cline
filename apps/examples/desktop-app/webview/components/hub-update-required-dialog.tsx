@@ -19,28 +19,16 @@ import {
 } from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
 import {
+	HUB_UPGRADE_TIMEOUT_MS,
+	type HubBuildMismatchPayload,
+	hubMismatchKeyOf,
 	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
 	retainDismissalForIncomingMismatch,
 	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
 
-type HubBuildMismatchPayload = {
-	hubBuildId?: string;
-	hubCoreVersion?: string;
-	reason?: string;
-	activeSessionCount?: number;
-	participantClientCount?: number;
-};
-
-function mismatchKeyOf(payload: HubBuildMismatchPayload): string {
-	return `${payload.reason ?? ""}:${payload.hubBuildId ?? ""}`;
-}
-
 type UpdatePhase = "idle" | "updating" | "restarting";
-
-/** Generous deadline: drain wait + graceful retire + fresh daemon startup. */
-const HUB_UPGRADE_TIMEOUT_MS = 60_000;
 
 /**
  * "Later" must survive webview remounts and reconnects: the sidecar replays
@@ -87,6 +75,8 @@ let updateCheckKickedForKey: string | null = null;
  *   Not dismissible: the user chooses between updating the Hub now (which
  *   interrupts those sessions, then relaunches the app onto the fresh Hub)
  *   and quitting the app (the old Hub keeps running for its clients).
+ *
+ * `missing_capability` never opens it; HubCapabilityNotice handles it.
  */
 export function HubUpdateRequiredDialog() {
 	const [mismatch, setMismatch] = useState<HubBuildMismatchPayload | null>(
@@ -122,12 +112,15 @@ export function HubUpdateRequiredDialog() {
 			// (unsupported_protocol) must not survive them, or the warning about
 			// a Hub the app cannot talk to stays silenced indefinitely.
 			setDismissedKey((previous) =>
-				retainDismissalForIncomingMismatch(previous, mismatchKeyOf(incoming)),
+				retainDismissalForIncomingMismatch(
+					previous,
+					hubMismatchKeyOf(incoming),
+				),
 			);
 		});
 	}, []);
 
-	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
+	const mismatchKey = mismatch ? hubMismatchKeyOf(mismatch) : null;
 
 	// When a newer Hub appears, stage the matching app update right away (if
 	// a release exists) so the prompt can open actionable instead of waiting
