@@ -2,8 +2,24 @@ import { exec, execFile } from "child_process"
 import { promisify } from "util"
 import { Logger } from "@/shared/services/Logger"
 
-const execAsync = promisify(exec)
-const execFileAsync = promisify(execFile)
+// Diffs are collected in full before being truncated to GIT_OUTPUT_LINE_LIMIT
+// (500 lines), so a >1MB diff hit Node's 1MB default exec buffer and killed
+// the child with "stdout maxBuffer length exceeded" — Collecting Changes
+// stopped generating a commit message even though only the first ~500 lines
+// are ever used. 100MB absorbs any real diff the 500-line truncation would
+// keep (git diff output is text; 500 kept lines is at most a few hundred KB
+// even with pathological line lengths, and the buffer is transient).
+const GIT_EXEC_MAX_BUFFER_BYTES = 100 * 1024 * 1024
+
+const execAsyncRaw = promisify(exec)
+const execFileAsyncRaw = promisify(execFile)
+
+// Wrap both so every git call in this module gets the raised buffer without
+// each of the 16 call sites repeating the option.
+const execAsync = ((command: string, options?: Parameters<typeof execAsyncRaw>[1]) =>
+	execAsyncRaw(command, { maxBuffer: GIT_EXEC_MAX_BUFFER_BYTES, ...options })) as typeof execAsyncRaw
+const execFileAsync = ((file: string, args: readonly string[], options?: Parameters<typeof execFileAsyncRaw>[2]) =>
+	execFileAsyncRaw(file, args, { maxBuffer: GIT_EXEC_MAX_BUFFER_BYTES, ...options })) as typeof execFileAsyncRaw
 const GIT_OUTPUT_LINE_LIMIT = 500
 
 // A human-readable label for the returned output header, not a runnable command
