@@ -8,7 +8,10 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { ReadResourceResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+	ReadResourceResultSchema,
+	type Tool,
+} from "@modelcontextprotocol/sdk/types.js";
 import { createMcpAppsClientCapabilities } from "./apps";
 import {
 	createMcpOAuthClientInformation,
@@ -362,15 +365,26 @@ class StdioMcpClient implements McpServerClient {
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		const result = (await this.request("tools/list")) as {
-			tools?: Array<{
-				name?: string;
-				description?: string;
-				inputSchema?: Record<string, unknown>;
-				_meta?: Record<string, unknown>;
-			}>;
-		};
-		return (result.tools ?? [])
+		const tools: Partial<McpToolDescriptor>[] = [];
+		const seenCursors = new Set<string>();
+		let cursor: string | undefined;
+		do {
+			const result = (await this.request(
+				"tools/list",
+				cursor === undefined ? undefined : { cursor },
+			)) as { tools?: Partial<McpToolDescriptor>[]; nextCursor?: unknown };
+			tools.push(...(result.tools ?? []));
+			const nextCursor =
+				typeof result.nextCursor === "string" ? result.nextCursor : undefined;
+			if (nextCursor !== undefined && seenCursors.has(nextCursor)) {
+				throw new Error(
+					`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
+				);
+			}
+			if (nextCursor !== undefined) seenCursors.add(nextCursor);
+			cursor = nextCursor;
+		} while (cursor !== undefined);
+		return tools
 			.filter(
 				(
 					tool,
@@ -852,10 +866,25 @@ class SdkUrlMcpClient implements McpServerClient {
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
 		const client = await this.ensureConnectedClient();
 		try {
-			const result = await client.listTools(undefined, {
-				timeout: this.requestTimeoutMs,
-			});
-			return result.tools.map((tool) => ({
+			const tools: Tool[] = [];
+			const seenCursors = new Set<string>();
+			let cursor: string | undefined;
+			do {
+				const result = await client.listTools(
+					cursor === undefined ? undefined : { cursor },
+					{ timeout: this.requestTimeoutMs },
+				);
+				tools.push(...result.tools);
+				const nextCursor = result.nextCursor;
+				if (nextCursor !== undefined && seenCursors.has(nextCursor)) {
+					throw new Error(
+						`MCP server "${this.registration.name}" returned a repeated tools/list cursor.`,
+					);
+				}
+				if (nextCursor !== undefined) seenCursors.add(nextCursor);
+				cursor = nextCursor;
+			} while (cursor !== undefined);
+			return tools.map((tool) => ({
 				name: tool.name,
 				description: tool.description,
 				inputSchema:
