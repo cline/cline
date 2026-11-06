@@ -275,6 +275,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
 		const modelSupportsImages = selectedModelInfo.supportsImages !== false
 		const unsupportedImagesAttached = selectedImages.length > 0 && !modelSupportsImages
+		// Sending attached images to a model that can't take them only fails at the provider (after retries),
+		// so refuse the send while the notice above tells the user how to proceed.
+		const sendDisabled = sendingDisabled || unsupportedImagesAttached
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -600,7 +603,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
-					if (!sendingDisabled) {
+					if (!sendDisabled) {
 						// Note: don't set isTextAreaFocused to false here. The textarea keeps
 						// DOM focus after sending, and clearing the flag without an actual
 						// blur desyncs it permanently (programmatic .focus() on an
@@ -691,7 +694,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				selectedSlashCommandsIndex,
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
-				sendingDisabled,
+				sendDisabled,
 			],
 		)
 
@@ -1610,10 +1613,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{ height: textAreaBaseHeight }}>
 						<div className="flex flex-row items-center">
 							<div
-								className={cn("input-icon-button", { disabled: sendingDisabled }, "codicon codicon-send text-sm")}
+								className={cn("input-icon-button", { disabled: sendDisabled }, "codicon codicon-send text-sm")}
 								data-testid="send-button"
 								onClick={() => {
-									if (!sendingDisabled) {
+									if (!sendDisabled) {
 										onSend()
 									}
 								}}
@@ -1631,7 +1634,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<span className="min-w-0">
 							{selectedModelId} doesn't support images, so{" "}
 							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
-							will be ignored.{" "}
+							can't be sent with this model.{" "}
 							<button
 								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
 								data-testid="images-unsupported-choose-model"
