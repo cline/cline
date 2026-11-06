@@ -25,6 +25,13 @@ export const COMPACTION_TRIGGER_RATIO = 0.9;
  * the budget and compacting every turn.
  */
 export const MAX_INPUT_UNDERESTIMATE_FACTOR = 4;
+/**
+ * Lower bound on the same correction: when the provider's actual count shows
+ * the estimate over-counts (typical prose runs ~4 chars per token, so chars/3
+ * reads high), the budget may loosen by at most this factor. The floor keeps
+ * a wildly inflated estimate from pushing compaction past the real window.
+ */
+export const MIN_INPUT_OVERESTIMATE_FACTOR = 0.5;
 export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
 // Headroom for the summarizer's output. Raised from 4096: models that reason
