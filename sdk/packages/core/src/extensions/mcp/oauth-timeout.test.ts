@@ -68,4 +68,36 @@ describe("interactive MCP OAuth timeout", () => {
 		expect(clientState.connectOptions).toEqual([{ timeout: 12_000 }]);
 		expect(clientState.listToolsOptions).toEqual([{ timeout: 12_000 }]);
 	});
+	it("closes its callback listener when cancelled before OAuth state initialization", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "mcp-oauth-cancel-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					remote: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://example.test/mcp",
+						},
+					},
+				},
+			}),
+		);
+		const controller = new AbortController();
+		const onClose = vi.fn();
+		await expect(
+			authorizeMcpServerOAuth({
+				serverName: "remote",
+				filePath,
+				callbackPorts: [0],
+				signal: controller.signal,
+				onServerListening: () => controller.abort(),
+				onServerClose: onClose,
+			}),
+		).rejects.toThrow("cancelled");
+		expect(onClose).toHaveBeenCalledOnce();
+		expect(clientState.connectOptions).toEqual([]);
+	});
 });

@@ -64,6 +64,9 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"mcp.oauth.start",
+	"mcp.oauth.next",
+	"mcp.oauth.cancel",
 	"mcp.servers.list",
 	"mcp.servers.upsert",
 	"mcp.servers.set_disabled",
@@ -641,6 +644,10 @@ export interface HubProviderMutationResult {
 
 /** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"mcp.oauth.start": { name: string; loginId: string };
+	"mcp.oauth.next": { loginId: string };
+	"mcp.oauth.cancel": { loginId: string; reason: "user" | "disconnected" };
+
 	"mcp.servers.list": Record<string, never>;
 	"mcp.servers.upsert": McpServerConfigInput;
 	"mcp.servers.set_disabled": { name: string; disabled: boolean };
@@ -672,6 +679,10 @@ export interface HubCommandInputMap {
 
 /** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"mcp.oauth.start": { loginId: string };
+	"mcp.oauth.next": HubMcpOAuthSnapshot;
+	"mcp.oauth.cancel": { cancelled: boolean };
+
 	"mcp.servers.list": McpServersResponse;
 	"mcp.servers.upsert": McpServersResponse;
 	"mcp.servers.set_disabled": McpServersResponse;
@@ -1263,7 +1274,15 @@ export function describeOutdatedHubSessions(counts: {
 	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
 }
 
+export interface HubMcpOAuthSnapshot {
+	urls: string[];
+	result?: { name: string; authorized: true };
+	error?: { code: string; message: string };
+}
 export type HubMcpCommandName =
+	| "mcp.oauth.start"
+	| "mcp.oauth.next"
+	| "mcp.oauth.cancel"
 	| "mcp.servers.list"
 	| "mcp.servers.upsert"
 	| "mcp.servers.set_disabled"
