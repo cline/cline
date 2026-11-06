@@ -1,27 +1,28 @@
 /**
- * Stream assembler — Phase 2 of the agent event stream v2 design
+ * Stream assembler — Phase 2/3a of the agent event stream v2 design
  * (`docs/agent-event-stream-design.md`). The consumer-side instance of
  * the v2 tables: parses `StreamFrame`s into the push-based consumer
  * API, so a consumer implements rendering only and ordering rules are
- * unrepresentable in its code (you cannot handle an update for a block
- * you were never handed).
+ * unrepresentable in its code.
  *
  * Delivery contract (test-locked):
  * 1. Callbacks fire in frame order.
- * 2. `onClose` is the last non-annotation call on a sink; annotations
- *    may arrive later (post-close annotations target real scopes).
- * 3. Every child sink's `onClose` fires before its turn's `onClose`.
+ * 2. `onClose` is the last non-annotation call on a sink.
+ * 3. Every child sink's `onClose` fires before its turn's `onClose`,
+ *    and every sub-agent stream closes before the spawning turn's
+ *    `onClose` (scope tree rule 3).
  * 4. On a violating frame the assembler repairs to the nearest legal
- *    state (drops stale-epoch frames, drops orphan block frames,
- *    force-closes open children before a turn close) and reports via
- *    `onDiagnostic`; legal streams produce zero diagnostics.
- * 5. `onIdle` fires exactly once per transition to quiescence (no open
- *    turn and no open run scopes).
+ *    state and reports via `onDiagnostic`. Pruning is NOT a violation:
+ *    `onSubAgent` returning null drops that subtree's frames silently
+ *    (design P5 — structural pruning replaces the v1 timing heuristic).
+ * 5. `onIdle` fires exactly once per transition to quiescence.
  *
- * Scope mapping follows the Phase 1 decisions: a v1 run is a v2 turn;
- * iterations are turn-scoped notices; media arrives whole (open then
- * close, delivered as `onMedia`). The assembler is per-agent-stream —
- * one instance per consumer per `agentPath`.
+ * Address-keyed (Phase 3a): turns and blocks are keyed by full scope
+ * address, so multiplexed agent streams — each minting their own
+ * `turn-1` — route independently. Sub-agent streams get their consumer
+ * from the spawning turn's `onSubAgent`; their turn opens are scope
+ * bookkeeping (no callback — `onSubAgent` was the callback), and their
+ * blocks/notices flow to that consumer.
  */
 import type {
 	CloseFinal,
@@ -69,21 +70,21 @@ export interface MediaFinal {
 	media: unknown;
 }
 
-/** Observer for sub-agent streams; null from `onSubAgent` prunes the
- * subtree (Phase 3 wires real sub-agent frames; the hook exists now so
- * the consumer API is total). */
-export interface TurnObserver {
-	onNotice(notice: NoticeBody): void;
-	onUsage(usage: UsageBody): void;
-	onClose(outcome: Outcome): void;
-}
-
+/**
+ * Consumer for one agent stream. Sub-agents return one from
+ * `TurnConsumer.onSubAgent` (a full TurnConsumer, not the design doc's
+ * minimal TurnObserver: sub-agent streams carry their own text and
+ * tool blocks); the root stream's consumer comes from
+ * `SessionConsumer.onTurn` per turn.
+ */
 export interface TurnConsumer {
 	onText(start: TextStart): TextSink;
 	onReasoning(start: ReasoningStart): ReasoningSink;
 	onTool(start: ToolStart): ToolSink;
 	onMedia(media: MediaFinal): void;
-	onSubAgent(start: { agentId: string }): TurnObserver | null;
+	/** Null prunes the subtree — its frames are dropped, silently and
+	 * deliberately (design P5). */
+	onSubAgent(start: { agentId: string }): TurnConsumer | null;
 	onNotice(notice: NoticeBody): void;
 	onUsage(usage: UsageBody): void;
 	onClose(outcome: Outcome, iterations?: number): void;
@@ -92,7 +93,7 @@ export interface TurnConsumer {
 export interface SessionConsumer {
 	onTurn(start: { turnId: string }): TurnConsumer;
 	onSessionNotice(notice: NoticeBody): void;
-	/** Edge-triggered: no open turn and no open run scopes. */
+	/** Edge-triggered: no open turn (any path) and no open run scopes. */
 	onIdle(): void;
 	onDiagnostic(diagnostic: StreamDiagnostic): void;
 }
@@ -103,38 +104,49 @@ export interface SessionConsumer {
 
 interface OpenBlock {
 	kind: "text" | "reasoning" | "tool" | "media";
-	turnId: string;
+	blockKey: string;
 	sink: TextSink | ReasoningSink | ToolSink | undefined;
 	/** Tool opens carry the input the force-close final needs. */
 	start?: ToolStart;
+}
+
+interface OpenTurn {
+	turnId: string;
+	consumer: TurnConsumer;
 }
 
 export const DIAG_STALE_EPOCH = "stale-epoch";
 export const DIAG_ORPHAN_BLOCK_FRAME = "orphan-block-frame";
 export const DIAG_TURN_CLOSE_WITHOUT_OPEN = "turn-close-without-open";
 export const DIAG_TURN_OPEN_WHILE_OPEN = "turn-open-while-open";
+export const DIAG_SUBAGENT_WITHOUT_TURN = "subagent-without-turn";
 export const DIAG_ANNOTATION_UNROUTED = "annotation-unrouted";
 export const DIAG_SNAPSHOT_UNROUTED = "snapshot-unrouted";
 export const DIAG_AFTER_SESSION_END = "after-session-end";
 export const DIAG_BLOCK_OPEN_WHILE_OPEN = "block-open-while-open";
+
+const ROOT = "root";
 
 export class StreamAssembler {
 	private readonly consumer: SessionConsumer;
 	private epoch: number | undefined;
 	private ended = false;
 	private idleNotified = false;
-	private openTurn: { turnId: string; consumer: TurnConsumer } | undefined;
+	/** pathKey -> open turn (one per agent path). */
+	private readonly openTurns = new Map<string, OpenTurn>();
+	/** blockKey (path/turn/block) -> open block. */
 	private readonly openBlocks = new Map<string, OpenBlock>();
-	private openRunCount = 0;
+	/** pathKey -> sub-agent consumer; null = pruned subtree. */
+	private readonly subAgents = new Map<string, TurnConsumer | null>();
 
 	constructor(consumer: SessionConsumer) {
 		this.consumer = consumer;
 	}
 
-	/** Frames still open — the live set, derived from the routing table. */
-	openScopes(): { turnId?: string; blocks: string[] } {
+	/** Scopes still open — the live set, derived from the routing tables. */
+	openScopes(): { turnPaths: string[]; blocks: string[] } {
 		return {
-			turnId: this.openTurn?.turnId,
+			turnPaths: [...this.openTurns.keys()],
 			blocks: [...this.openBlocks.keys()],
 		};
 	}
@@ -147,29 +159,39 @@ export class StreamAssembler {
 		if (this.epoch === undefined) {
 			this.epoch = frame.epoch;
 		} else if (frame.epoch < this.epoch) {
-			// Stale frame from a fenced conversation: dropped, not merged.
 			this.diagnose(DIAG_STALE_EPOCH, frame);
 			return;
 		}
 		this.epoch = frame.epoch;
 
+		const pathKey = frame.scope.agentPath.join("/");
+		if (pathKey !== ROOT && !this.routeSubAgent(pathKey, frame)) {
+			// Unroutable (diagnostic already emitted) or pruned (silent).
+			return;
+		}
+
 		const turnId = frame.scope.turnId;
 		const blockId = frame.scope.blockId;
+		const turnKey = turnId !== undefined ? `${pathKey}/${turnId}` : undefined;
+		const blockKey =
+			turnKey !== undefined && blockId !== undefined
+				? `${turnKey}/${blockId}`
+				: undefined;
 
 		switch (frame.kind) {
 			case "open": {
 				if (frame.openKind === "turn") {
-					this.openTurnFrame(frame, turnId);
+					this.openTurnFrame(pathKey, turnId, frame);
 				} else {
-					this.openBlockFrame(frame, turnId, blockId);
+					this.openBlockFrame(frame, pathKey, turnKey, blockKey);
 				}
 				break;
 			}
 			case "delta": {
 				const block =
-					blockId !== undefined ? this.openBlocks.get(blockId) : undefined;
-				if (block === undefined || block.turnId !== turnId) {
-					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, blockId);
+					blockKey !== undefined ? this.openBlocks.get(blockKey) : undefined;
+				if (block === undefined) {
+					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, blockKey);
 					break;
 				}
 				if (block.sink === undefined) {
@@ -191,38 +213,38 @@ export class StreamAssembler {
 				break;
 			}
 			case "close": {
-				if (blockId !== undefined) {
-					this.closeBlockFrame(frame, turnId, blockId);
+				if (blockKey !== undefined) {
+					this.closeBlockFrame(frame, blockKey);
 				} else {
-					this.closeTurnFrame(frame, turnId);
+					this.closeTurnFrame(frame, pathKey, turnId);
 				}
 				break;
 			}
 			case "notice": {
-				if (turnId === undefined) {
+				if (turnKey === undefined) {
 					this.consumer.onSessionNotice(frame);
 					break;
 				}
-				const noticeTurn = this.openTurn;
+				const noticeTurn = this.openTurns.get(pathKey);
 				if (noticeTurn !== undefined && noticeTurn.turnId === turnId) {
 					noticeTurn.consumer.onNotice(frame);
 				} else {
-					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, turnId);
+					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, turnKey);
 				}
 				break;
 			}
 			case "usage": {
-				const usageTurn = this.openTurn;
+				const usageTurn = this.openTurns.get(pathKey);
 				if (usageTurn !== undefined && usageTurn.turnId === turnId) {
 					usageTurn.consumer.onUsage(frame);
 				} else {
-					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, turnId);
+					this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, turnKey);
 				}
 				break;
 			}
 			case "annotation": {
 				const block =
-					blockId !== undefined ? this.openBlocks.get(blockId) : undefined;
+					blockKey !== undefined ? this.openBlocks.get(blockKey) : undefined;
 				if (block?.sink !== undefined) {
 					(block.sink as ToolSink).onAnnotation(frame);
 				} else {
@@ -231,7 +253,7 @@ export class StreamAssembler {
 				break;
 			}
 			case "snapshot": {
-				// Reconnect reconciliation is Phase 3; until then snapshots
+				// Reconnect reconciliation is Phase 3b; until then snapshots
 				// are reported, not applied.
 				this.diagnose(DIAG_SNAPSHOT_UNROUTED, frame);
 				break;
@@ -255,92 +277,131 @@ export class StreamAssembler {
 		this.consumer.onDiagnostic({ code, seq: frame.seq, detail });
 	}
 
-	private openTurnFrame(frame: StreamFrame, turnId: string | undefined): void {
-		if (this.openTurn !== undefined) {
+	/** Resolve (or prune) the consumer for a non-root agent path. Returns
+	 * true when frames for the path may be processed. */
+	private routeSubAgent(pathKey: string, frame: StreamFrame): boolean {
+		if (this.subAgents.has(pathKey)) {
+			return this.subAgents.get(pathKey) !== null;
+		}
+		const segments = pathKey.split("/");
+		const agentId = segments[segments.length - 1];
+		const parentKey = segments.slice(0, -1).join("/");
+		const parent = this.openTurns.get(parentKey);
+		if (parent === undefined) {
+			this.diagnose(DIAG_SUBAGENT_WITHOUT_TURN, frame, pathKey);
+			return false;
+		}
+		const child = parent.consumer.onSubAgent({ agentId });
+		this.subAgents.set(pathKey, child);
+		return child !== null;
+	}
+
+	private openTurnFrame(
+		pathKey: string,
+		turnId: string | undefined,
+		frame: StreamFrame,
+	): void {
+		if (this.openTurns.has(pathKey)) {
 			// Repair: close the abandoned turn as interrupted, then open
-			// the new one.
-			this.closeChildren(this.openTurn.turnId);
-			this.openTurn.consumer.onClose({ kind: "interrupted" });
-			this.diagnose(DIAG_TURN_OPEN_WHILE_OPEN, frame, this.openTurn.turnId);
-			this.openTurn = undefined;
+			// the new one on this path.
+			this.closePathTurn(pathKey, { kind: "interrupted" });
+			this.diagnose(DIAG_TURN_OPEN_WHILE_OPEN, frame, pathKey);
 		}
 		if (turnId === undefined) {
 			this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, "(missing turnId)");
 			return;
 		}
-		this.openTurn = { turnId, consumer: this.consumer.onTurn({ turnId }) };
+		const consumer =
+			pathKey === ROOT
+				? this.consumer.onTurn({ turnId })
+				: this.subAgents.get(pathKey);
+		if (consumer === undefined || consumer === null) {
+			this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, pathKey);
+			return;
+		}
+		this.openTurns.set(pathKey, { turnId, consumer });
 		this.idleNotified = false;
 	}
 
 	private openBlockFrame(
 		frame: StreamFrame & { kind: "open" },
-		turnId: string | undefined,
-		blockId: string | undefined,
+		pathKey: string,
+		turnKey: string | undefined,
+		blockKey: string | undefined,
 	): void {
+		const turn = this.openTurns.get(pathKey);
 		if (
-			this.openTurn === undefined ||
-			this.openTurn.turnId !== turnId ||
-			blockId === undefined
+			turn === undefined ||
+			turnKey === undefined ||
+			blockKey === undefined ||
+			turn.turnId !== frame.scope.turnId
 		) {
 			this.diagnose(
 				DIAG_ORPHAN_BLOCK_FRAME,
 				frame,
-				blockId ?? turnId ?? "(unaddressed)",
+				blockKey ?? turnKey ?? "(unaddressed)",
 			);
 			return;
 		}
-		if (this.openBlocks.has(blockId)) {
-			this.diagnose(DIAG_BLOCK_OPEN_WHILE_OPEN, frame, blockId);
+		if (this.openBlocks.has(blockKey)) {
+			this.diagnose(DIAG_BLOCK_OPEN_WHILE_OPEN, frame, blockKey);
 			return;
 		}
-		const consumer = this.openTurn.consumer;
+		const consumer = turn.consumer;
 		if (frame.openKind === "text") {
-			this.openBlocks.set(blockId, {
+			this.openBlocks.set(blockKey, {
 				kind: "text",
-				turnId,
+				blockKey,
 				sink: consumer.onText(frame.start),
 			});
 		} else if (frame.openKind === "reasoning") {
-			this.openBlocks.set(blockId, {
+			this.openBlocks.set(blockKey, {
 				kind: "reasoning",
-				turnId,
+				blockKey,
 				sink: consumer.onReasoning(frame.start),
 			});
 		} else if (frame.openKind === "tool") {
-			this.openBlocks.set(blockId, {
+			this.openBlocks.set(blockKey, {
 				kind: "tool",
-				turnId,
+				blockKey,
 				sink: consumer.onTool(frame.start),
 				start: frame.start,
 			});
 		} else {
 			// Media arrives whole: the open is bookkeeping so the close
 			// matches; no sink is created.
-			this.openBlocks.set(blockId, { kind: "media", turnId, sink: undefined });
+			this.openBlocks.set(blockKey, {
+				kind: "media",
+				blockKey,
+				sink: undefined,
+			});
 		}
 	}
 
 	private closeBlockFrame(
 		frame: StreamFrame & { kind: "close" },
-		turnId: string | undefined,
-		blockId: string,
+		blockKey: string,
 	): void {
-		const block = this.openBlocks.get(blockId);
-		if (block === undefined || block.turnId !== turnId) {
-			this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, blockId);
+		const block = this.openBlocks.get(blockKey);
+		if (block === undefined) {
+			this.diagnose(DIAG_ORPHAN_BLOCK_FRAME, frame, blockKey);
 			return;
 		}
-		this.openBlocks.delete(blockId);
+		this.openBlocks.delete(blockKey);
 		if (block.kind === "media") {
-			if (frame.final !== undefined && this.openTurn?.turnId === turnId) {
-				this.openTurn.consumer.onMedia({
-					media: (frame.final as { media: unknown }).media,
-				});
+			if (frame.final !== undefined) {
+				const pathSegments = blockKey.split("/");
+				const turn = this.openTurns.get(
+					pathSegments.slice(0, -2).join("/"),
+				);
+				turn?.consumer.onMedia({
+						media: (frame.final as { media: unknown }).media,
+					});
 			}
 			return;
 		}
 		if (block.sink === undefined) {
-			return;
+				return;
 		}
 		if (block.kind === "tool") {
 			(block.sink as ToolSink).onClose(
@@ -354,59 +415,83 @@ export class StreamAssembler {
 
 	private closeTurnFrame(
 		frame: StreamFrame & { kind: "close" },
+		pathKey: string,
 		turnId: string | undefined,
 	): void {
 		if (turnId === undefined) {
 			// Session-scoped close: repair everything, then end.
 			this.ended = true;
-			if (this.openTurn !== undefined) {
-				this.closeChildren(this.openTurn.turnId);
-				this.openTurn.consumer.onClose({ kind: "interrupted" });
-				this.openTurn = undefined;
+			for (const openPath of [...this.openTurns.keys()].sort(
+				(a, b) => b.length - a.length,
+			)) {
+				this.closePathTurn(openPath, { kind: "interrupted" });
 			}
 			this.notifyIdle();
 			return;
 		}
-		if (this.openTurn === undefined || this.openTurn.turnId !== turnId) {
-			this.diagnose(DIAG_TURN_CLOSE_WITHOUT_OPEN, frame, turnId);
+		const turn = this.openTurns.get(pathKey);
+		if (turn === undefined || turn.turnId !== turnId) {
+			this.diagnose(DIAG_TURN_CLOSE_WITHOUT_OPEN, frame, pathKey);
 			return;
 		}
-		this.closeChildren(turnId);
-		this.openTurn.consumer.onClose(frame.outcome, frame.iterations);
-		this.openTurn = undefined;
+		this.closePathTurn(pathKey, frame.outcome, frame.iterations);
 		this.notifyIdle();
 	}
 
-	/** Force-close children of the turn (delivery contract rule 3). */
-	private closeChildren(turnId: string): void {
-		for (const [blockId, block] of [...this.openBlocks.entries()]) {
-			if (block.turnId !== turnId) {
+	/** Close the path's open turn: its blocks, its sub-agents (deep
+	 * first), then the turn's own onClose (delivery rule 3). */
+	private closePathTurn(
+		pathKey: string,
+		outcome: Outcome,
+		iterations?: number,
+	): void {
+		const turn = this.openTurns.get(pathKey);
+		if (turn === undefined) {
+			return;
+		}
+		this.closeBlocksOfTurn(pathKey, turn.turnId);
+		// Sub-agent streams spawned under this turn close first, deepest
+		// paths first so nested spawns unwind inside-out.
+		for (const childPath of [...this.openTurns.keys()]
+			.filter((key) => key.startsWith(`${pathKey}/`))
+			.sort((a, b) => b.length - a.length)) {
+			this.closePathTurn(childPath, { kind: "interrupted" });
+		}
+		// Registrations are per-spawn: a later spawn re-asks onSubAgent.
+		for (const key of [...this.subAgents.keys()]) {
+			if (key === pathKey || key.startsWith(`${pathKey}/`)) {
+				this.subAgents.delete(key);
+			}
+		}
+		turn.consumer.onClose(outcome, iterations);
+		this.openTurns.delete(pathKey);
+	}
+
+	private closeBlocksOfTurn(pathKey: string, turnId: string): void {
+		const prefix = `${pathKey}/${turnId}/`;
+		for (const [blockKey, block] of [...this.openBlocks.entries()]) {
+			if (!blockKey.startsWith(prefix)) {
 				continue;
 			}
-			this.openBlocks.delete(blockId);
+			this.openBlocks.delete(blockKey);
 			if (block.sink === undefined) {
-				continue;
-			}
+					continue;
+				}
 			if (block.kind === "tool") {
-				(block.sink as ToolSink).onClose(
-					{ kind: "interrupted" },
-					{ type: "tool", input: block.start?.input },
-				);
+					(block.sink as ToolSink).onClose(
+						{ kind: "interrupted" },
+						{ type: "tool", input: block.start?.input },
+					);
 			} else {
-				(block.sink as TextSink).onClose({ kind: "interrupted" });
+					(block.sink as TextSink).onClose({ kind: "interrupted" });
 			}
 		}
 	}
 
 	private notifyIdle(): void {
-		if (
-			!this.idleNotified &&
-			this.openTurn === undefined &&
-			this.openRunCount === 0
-		) {
+		if (!this.idleNotified && this.openTurns.size === 0) {
 			this.idleNotified = true;
 			this.consumer.onIdle();
 		}
 	}
 }
-
