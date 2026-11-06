@@ -842,6 +842,93 @@ describe("createHookConfigFileHooks", () => {
 		});
 	});
 
+	it("dispatches prompt_submit from beforeRun for a prompt the host seeded, and ignores runtime reminders", async () => {
+		const outputPath = join(
+			tmpdir(),
+			`hooks-seeded-prompt-${Date.now()}.jsonl`,
+		);
+		const { workspace } = await createWorkspaceWithHook(
+			"UserPromptSubmit.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const snapshot = beforeToolContext().snapshot;
+			await hooks?.beforeRun?.({
+				snapshot: {
+					...snapshot,
+					messages: [
+						{
+							id: "msg_seed",
+							role: "user",
+							content: [{ type: "text", text: "seeded prompt" }],
+							createdAt: 0,
+						},
+					],
+				},
+				entry: "run",
+				promptSeeded: true,
+			});
+			await hooks?.onEvent?.({
+				type: "message-added",
+				snapshot,
+				message: {
+					id: "msg_reminder",
+					role: "user",
+					content: [{ type: "text", text: "[SYSTEM] reminder" }],
+					metadata: { displayRole: "system" },
+					createdAt: 0,
+				},
+			});
+
+			// Cline's own plan-to-act continuation is not a user prompt.
+			const continuation = {
+				id: "msg_continue",
+				role: "user" as const,
+				content: [
+					{
+						type: "text" as const,
+						text: "The user approved switching to act mode. Continue with the approved plan now.",
+					},
+				],
+				createdAt: 0,
+			};
+			await hooks?.beforeRun?.({
+				snapshot: { ...snapshot, messages: [continuation] },
+				entry: "run",
+				promptSeeded: true,
+			});
+			await hooks?.onEvent?.({
+				type: "message-added",
+				snapshot,
+				message: continuation,
+			});
+
+			const payloads = (await waitForJsonLines(outputPath, 1)).map(
+				(line) =>
+					JSON.parse(line) as {
+						hookName: string;
+						userPromptSubmit?: { prompt?: string };
+					},
+			);
+			expect(payloads).toHaveLength(1);
+			expect(payloads[0]?.hookName).toBe("prompt_submit");
+			expect(payloads[0]?.userPromptSubmit?.prompt).toBe("seeded prompt");
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
 	it("dispatches agent_start and prompt_submit exactly once when both are configured", async () => {
 		const outputPath = join(tmpdir(), `hooks-start-prompt-${Date.now()}.jsonl`);
 		const { workspace } = await createWorkspaceWithHook(
