@@ -109,9 +109,12 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
-		if (!prepareCloud && activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
+		// Idle cloud preparation also shows streaming before a turn exists.
+		const submittedDuringActiveTurn =
+			(turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval") &&
+			(!prepareCloud || this.preparingCloudTask !== task)
+		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
+			await this.queueToActiveSession(activeSession, task, prompt, images, files, signal)
 			return
 		}
 		await this.options.runExclusive(async () => {
@@ -122,8 +125,8 @@ export class SdkFollowupCoordinator {
 				return
 			}
 			const currentSession = this.options.sessions.getActiveSession()
-			if (!prepareCloud && currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
+			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
+				await this.queueToActiveSession(currentSession, task, prompt, images, files, signal)
 				return
 			}
 			if (prepareCloud && task && signal) {
@@ -197,12 +200,14 @@ export class SdkFollowupCoordinator {
 	/** Queue a follow-up onto a session whose turn is still running. */
 	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
-		displayedTaskId: string | undefined,
+		displayedTask: TaskProxy | undefined,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
+		signal?: AbortSignal,
 	): Promise<void> {
 		const { sessionId } = activeSession
+		const displayedTaskId = displayedTask?.taskId
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
 		// The submitted turn phase is authoritative when the lifecycle flag is
@@ -210,13 +215,18 @@ export class SdkFollowupCoordinator {
 		// resolution runs. Core owns the queue: it shows the prompt in the webview
 		// at once, and a later session rebuild carries the queue over.
 		this.options.sessions.setRunning(true)
-		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+		const resolvePrompt = async () => (prompt ? this.options.resolveContextMentions(prompt) : "")
+		const resolvedPrompt = signal ? await this.waitForCloudPreparation(signal, resolvePrompt) : await resolvePrompt()
+		signal?.throwIfAborted()
+		const currentSession = this.options.sessions.getActiveSession()
+		if (signal && (this.options.getTask() !== displayedTask || currentSession !== activeSession)) {
+			throw new Error("Cloud follow-up task or connection changed.")
+		}
 		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
 			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return
 		}
 
-		const currentSession = this.options.sessions.getActiveSession()
 		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
 			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
 			return
