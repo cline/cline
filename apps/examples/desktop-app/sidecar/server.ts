@@ -3,13 +3,13 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
-import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -21,6 +21,7 @@ import {
 	type SidecarContext,
 	type SidecarWebSocketClient,
 } from "./types";
+import { createVoiceManagerToken } from "./voice-manager";
 
 type SidecarServer = {
 	port: number;
@@ -259,6 +260,31 @@ export function createFetchHandler(
 							? error.message
 							: "Failed to fetch marketplace catalog",
 				});
+			}
+		}
+
+		if (url.pathname === "/voice-manager/setup" && req.method === "POST") {
+			if (
+				!isTrustedRequestOrigin(req) ||
+				!hasValidApprovalToken(url, approvalToken)
+			) {
+				return createJsonResponse(req, { error: "Forbidden" }, 403);
+			}
+			try {
+				const body = (await req.json().catch(() => ({}))) as {
+					sessionConfig?: Parameters<typeof createVoiceManagerToken>[0];
+				};
+				return createJsonResponse(
+					req,
+					await createVoiceManagerToken(body.sessionConfig),
+				);
+			} catch (error) {
+				captureDesktopError(ctx, "voice_manager.setup", error);
+				return createJsonResponse(
+					req,
+					{ error: error instanceof Error ? error.message : String(error) },
+					500,
+				);
 			}
 		}
 
