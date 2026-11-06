@@ -82,7 +82,11 @@ export async function listDelegationTargets(
 	const targets = providers
 		.filter(
 			(provider) =>
-				provider.configured || provider.id === options.current?.providerId,
+				provider.configured ||
+				LlmsModels.getProviderCollectionSync(provider.id)?.provider.env?.some(
+					(name) => Boolean(process.env[name]?.trim()),
+				) ||
+				provider.id === options.current?.providerId,
 		)
 		.flatMap((provider) => {
 			const models = provider.modelList ?? [];

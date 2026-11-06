@@ -275,14 +275,23 @@ export async function bootstrapAgentTeams(
 			if (options.runtime.isTeammateActive(spec.agentId)) {
 				return;
 			}
-			await spawnTeamTeammate({
-				runtime: options.runtime,
-				requesterId: leadAgentId,
-				teammateConfigProvider: options.teammateConfigProvider,
-				createBaseTools: options.createBaseTools,
-				spec,
-			});
-			restoredTeammates.push(spec.agentId);
+			try {
+				await spawnTeamTeammate({
+					runtime: options.runtime,
+					requesterId: leadAgentId,
+					teammateConfigProvider: options.teammateConfigProvider,
+					createBaseTools: options.createBaseTools,
+					spec,
+				});
+				restoredTeammates.push(spec.agentId);
+			} catch (error) {
+				options.runtime.appendMissionLog({
+					agentId: leadAgentId,
+					kind: "error",
+					summary: `Could not restore teammate "${spec.agentId}": ${error instanceof Error ? error.message : String(error)}`,
+					nextAction: "Check the provider connection and respawn the teammate.",
+				});
+			}
 		}),
 	);
 

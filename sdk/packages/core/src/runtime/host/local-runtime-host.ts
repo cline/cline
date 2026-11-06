@@ -831,11 +831,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
 		}
 
-		// Auth-retry hook for every agent in the session (lead, teammates,
-		// subagents): refresh OAuth credentials and propagate the new key to
-		// all connections, then let the runtime retry the failed run. Without
-		// this, a token that expires while the lead is blocked (e.g. in
-		// team_await_runs) kills teammate runs with a raw provider 401.
+		// Refresh the lead and teammates on its provider. Delegated children
+		// keep their own target-scoped refresh hooks.
 		const onAuthError = async (): Promise<boolean> => {
 			const liveSession = this.sessions.get(sessionId);
 			if (!liveSession || !isOAuthProvider(liveSession.config.providerId)) {

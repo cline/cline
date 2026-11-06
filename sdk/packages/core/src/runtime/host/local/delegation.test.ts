@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type IncomingHttpHeaders } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext, TeamTeammateSpec } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createConfiguredAgentTools } from "../../../extensions/tools/team/configured-agent-tool";
@@ -20,6 +20,7 @@ import {
 import { listDelegationTargets } from "../../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../../services/storage/provider-settings-manager";
 import { SqliteSessionStore } from "../../../services/storage/sqlite-session-store";
+import { SqliteTeamStore } from "../../../services/storage/sqlite-team-store";
 import { FileSessionService } from "../../../session/services/file-session-service";
 import { CoreSessionService } from "../../../session/services/session-service";
 import { SessionSource } from "../../../types/common";
@@ -122,6 +123,7 @@ describe("configured delegation connections", () => {
 
 	afterEach(async () => {
 		await close();
+		vi.unstubAllEnvs();
 		store?.close();
 		store = undefined;
 		rmSync(dir, { recursive: true, force: true });
@@ -255,7 +257,14 @@ describe("configured delegation connections", () => {
 
 	it("restores a selected teammate and preserves successful results alongside a failed sibling", async () => {
 		const provider = parent();
-		const original = new AgentTeamsRuntime({ teamName: "original" });
+		const definitions: TeamTeammateSpec[] = [];
+		const original = new AgentTeamsRuntime({
+			teamName: "original",
+			onTeamEvent: (event) => {
+				if (event.type === "teammate_spawned")
+					definitions.push({ agentId: event.agentId, ...event.teammate });
+			},
+		});
 		const tools = createAgentTeamsTools({
 			runtime: original,
 			requesterId: "lead",
@@ -267,13 +276,16 @@ describe("configured delegation connections", () => {
 				{ agentId: "reviewer", rolePrompt: prompt.systemPrompt, target },
 				context,
 			);
+		const teamStore = new SqliteTeamStore({ teamDir: join(dir, "teams") });
+		teamStore.init();
+		teamStore.persistRuntime("original", original.exportState(), definitions);
+		const loaded = teamStore.loadRuntime("original");
+		teamStore.close();
 		const restored = new AgentTeamsRuntime({ teamName: "restored" });
 		await bootstrapAgentTeams({
 			runtime: restored,
 			teammateConfigProvider: provider,
-			restoredTeammates: [
-				{ agentId: "reviewer", rolePrompt: prompt.systemPrompt, ...target },
-			],
+			restoredTeammates: loaded.teammates,
 		});
 		const restoredTools = createAgentTeamsTools({
 			runtime: restored,
@@ -392,6 +404,70 @@ describe("configured delegation connections", () => {
 		});
 	});
 
+	it("inherits live reasoning settings after the parent disables an older provider snapshot", async () => {
+		const provider = parent();
+		provider.updateConnectionDefaults({
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "parent-model",
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			},
+			thinking: false,
+			reasoningEffort: undefined,
+			thinkingBudgetTokens: undefined,
+		});
+		const disabled = await resolveDelegatedAgentConfig(provider);
+		expect(disabled.getConnectionConfig()).toMatchObject({
+			thinking: false,
+			reasoningEffort: undefined,
+			thinkingBudgetTokens: undefined,
+		});
+		provider.updateConnectionDefaults({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+		const enabled = await resolveDelegatedAgentConfig(provider);
+		expect(enabled.getConnectionConfig()).toMatchObject({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+	});
+
+	it("keeps healthy restored teammates usable when a sibling needs reauthentication", async () => {
+		const oauth = new RuntimeOAuthTokenManager({
+			providerSettingsManager: settings,
+		});
+		vi.spyOn(oauth, "resolveProviderApiKey").mockRejectedValue(
+			new Error("Subscription requires reauthentication"),
+		);
+		const runtime = new AgentTeamsRuntime({ teamName: "partial-restore" });
+		const result = await bootstrapAgentTeams({
+			runtime,
+			teammateConfigProvider: parent(oauth),
+			restoredTeammates: [
+				{ agentId: "healthy", rolePrompt: "Review", ...target },
+				{
+					agentId: "blocked",
+					rolePrompt: "Review",
+					providerId: "cline-pass",
+					modelId: "review-model",
+				},
+			],
+		});
+		expect(result.restoredTeammates).toEqual(["healthy"]);
+		expect(runtime.exportState().missionLog).toContainEqual(
+			expect.objectContaining({
+				kind: "error",
+				summary: expect.stringContaining("blocked"),
+			}),
+		);
+		expect((await runtime.routeToTeammate("healthy", prompt.task)).text).toBe(
+			"Finding\n".repeat(90),
+		);
+	});
+
 	it("does not start a request if cancellation arrives during connection resolution", async () => {
 		const controller = new AbortController();
 		const oauth = new RuntimeOAuthTokenManager({
@@ -412,6 +488,20 @@ describe("configured delegation connections", () => {
 			),
 		).rejects.toThrow();
 		expect(requests).toHaveLength(0);
+	});
+
+	it("discovers environment-configured routes without exposing the environment key", async () => {
+		vi.stubEnv("XAI_API_KEY", "synthetic-environment-key");
+		const result = await listDelegationTargets(settings, {
+			query: "xai",
+			current: { providerId: "openai-compatible", modelId: "parent-model" },
+		});
+		expect(result.targets).toContainEqual(
+			expect.objectContaining({
+				target: expect.objectContaining({ providerId: "xai" }),
+			}),
+		);
+		expect(JSON.stringify(result)).not.toContain("synthetic-environment-key");
 	});
 
 	it("discovers only configured targets without exposing connection secrets", async () => {

@@ -58,26 +58,17 @@ export function createDelegationResolver(options: {
 			extensionContext: parent.extensionContext ?? root.extensionContext,
 			...(sameProvider
 				? {
-						apiKey: parent.apiKey || parent.providerConfig?.apiKey,
+						apiKey: parent.apiKey ?? parent.providerConfig?.apiKey,
 						baseUrl: parent.baseUrl,
 						headers: parent.headers,
 						providerConfig: parent.providerConfig
 							? {
 									...parent.providerConfig,
 									modelId: target.modelId,
-									apiKey: parent.apiKey || parent.providerConfig.apiKey,
+									apiKey: parent.apiKey ?? parent.providerConfig.apiKey,
 								}
 							: undefined,
 						knownModels: parent.knownModels,
-					}
-				: {}),
-			...(!requested
-				? {
-						thinking: parent.thinking,
-						reasoningEffort: parent.reasoningEffort,
-						thinkingBudgetTokens: parent.thinkingBudgetTokens,
-						maxTokensPerTurn: parent.maxTokensPerTurn,
-						temperature: parent.temperature,
 					}
 				: {}),
 		};
@@ -108,9 +99,11 @@ export function createDelegationResolver(options: {
 				...connection(prepared, target),
 				...(!requested
 					? {
-							maxTokensPerTurn:
-								parent.maxTokensPerTurn ?? prepared.maxOutputTokens,
-							temperature: parent.temperature ?? prepared.temperature,
+							thinking: parent.thinking,
+							reasoningEffort: parent.reasoningEffort,
+							thinkingBudgetTokens: parent.thinkingBudgetTokens,
+							maxTokensPerTurn: parent.maxTokensPerTurn,
+							temperature: parent.temperature,
 						}
 					: {}),
 				onAuthError: isOAuthProvider(target.providerId)
