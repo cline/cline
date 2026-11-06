@@ -613,11 +613,12 @@ async function fetchLiteLlmPrivateModels(
 						const maxInputTokens =
 							info?.max_input_tokens ??
 							(info?.max_output_tokens == null
-								? info?.max_tokens
+								? (info?.max_tokens ?? undefined)
 								: undefined);
 						const converted = buildModelFromPrivateSource(modelId, {
 							name: displayName ?? modelId,
-							maxTokens: info?.max_output_tokens ?? info?.max_tokens,
+							maxTokens:
+								info?.max_output_tokens ?? info?.max_tokens ?? undefined,
 							maxInputTokens,
 							supportsImages: info?.supports_vision,
 							supportsPromptCache: info?.supports_prompt_caching,
