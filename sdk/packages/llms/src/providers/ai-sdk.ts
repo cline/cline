@@ -71,7 +71,7 @@ import {
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
-	applyBedrockCachePointToLastUserMessage,
+	applyBedrockCachePointToLastCacheableMessage,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
 import {
@@ -395,6 +395,7 @@ function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
+	options?: { includeToolMessages?: boolean },
 ) {
 	const includeReasoning = shouldIncludeReasoningHistory(request, context);
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
@@ -412,7 +413,9 @@ function buildAiSdkRequestMessages(
 	}) as Array<Record<string, unknown>>;
 
 	if (shouldApplyBedrockCachePoint(request, context)) {
-		applyBedrockCachePointToLastUserMessage(aiMessages);
+		applyBedrockCachePointToLastCacheableMessage(aiMessages, {
+			includeToolMessages: options?.includeToolMessages,
+		});
 		return aiMessages;
 	}
 
@@ -2404,6 +2407,10 @@ function createAiSdkProvider(
 					request,
 					context,
 					messagesSystemPrompt,
+					{
+						includeToolMessages:
+							tools !== undefined && Object.keys(tools).length > 0,
+					},
 				);
 				const portableReasoning = reconcilePortableReasoning(
 					resolvePortableReasoning(request, { adapter: kind, context }),
