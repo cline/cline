@@ -1,15 +1,16 @@
 import { formatRepoLabel, normalizeGitHubRemoteUrl } from "@shared/cloud/cloud-sessions"
 import { CloudTaskTargetChoice, RepositoryBranchesRequest } from "@shared/proto/cline/cloud"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { CloudIcon, GitBranchIcon, MonitorIcon } from "lucide-react"
+import { CloudIcon, GitBranchIcon, InfoIcon, MonitorIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useGitHubConnection } from "@/hooks/useGitHubConnection"
 import { cn } from "@/lib/utils"
 import { CloudServiceClient } from "@/services/grpc-client"
 import { editorName } from "@/utils/editorName"
-import { CloudOnboardingCard, type CloudOnboardingVariant } from "./CloudOnboardingCard"
+import { CloudOnboardingCard, type CloudOnboardingVariant, openCloudDocs } from "./CloudOnboardingCard"
 import { SearchableSelect } from "./SearchableSelect"
 
 const GITHUB_ICON = (
@@ -132,7 +133,21 @@ export function TaskTargetPanel() {
 	return (
 		<div className="mx-4 mb-2 rounded-md border border-border-panel bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] px-3 py-2">
 			<div className="flex items-center justify-between gap-2">
-				<span className="text-[11px] font-medium uppercase tracking-wide text-description">Run task</span>
+				<div className="flex items-center gap-1">
+					<span className="text-[11px] font-medium uppercase tracking-wide text-description">Run task</span>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								aria-label="Learn more about cloud tasks"
+								className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-description hover:text-foreground"
+								onClick={openCloudDocs}
+								type="button">
+								<InfoIcon className="size-3" />
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="top">What's this? Learn how cloud tasks work.</TooltipContent>
+					</Tooltip>
+				</div>
 				<div
 					aria-label="Where to run the task"
 					className="inline-flex rounded-lg border border-input-foreground/20 p-1"

@@ -1,0 +1,190 @@
+---
+title: "Cloud Agents in VS Code"
+sidebarTitle: "In VS Code"
+description: "Run Cline tasks in secure cloud sandboxes straight from the VS Code extension. Start several at once, close your editor, and pick the work back up from GitHub."
+---
+
+**The Cline extension can run a task in the cloud instead of on your machine.** Pick **Cloud** in the **Run task** panel above the chat box, choose a GitHub repository and branch, and describe the task. Cline starts a fresh, isolated sandbox, clones your repository into it, and works there on its own branch, so your local files are never touched.
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-run-task-cloud.png"
+    alt="The Run task panel in the Cline extension with Cloud selected, the acme/storefront repository and main branch chosen, above the chat box"
+  />
+</Frame>
+
+These are the same [Cloud Agents](/usage/cloud-agents) you can run from your browser, started from your editor. A task you start in VS Code also appears in the web app, and the other way around.
+
+The extension also works in VS Code forks such as Cursor and Windsurf.
+
+## Why run a task in the cloud
+
+<CardGroup cols={2}>
+  <Card title="Run tasks in parallel" icon="layer-group">
+    Every cloud task gets its own sandbox and its own copy of the repository. Hand off a bug fix, a test suite, and an upgrade at the same time without them stepping on each other or on your working copy.
+  </Card>
+  <Card title="Isolated and safe" icon="shield-halved">
+    Commands run on Cline's infrastructure, not on your laptop. Cline can install packages, run builds, and execute tests without touching your machine or your uncommitted changes.
+  </Card>
+  <Card title="Keeps going without you" icon="moon">
+    Close VS Code, shut your laptop, or switch to another project. The task keeps working, and you can check in from the extension, the web app, or your phone.
+  </Card>
+  <Card title="Work lands on GitHub" icon="code-branch">
+    Cline works on its own `cline/` branch and never commits to your default branch. Review the branch, ask Cline for a pull request, or check it out locally.
+  </Card>
+</CardGroup>
+
+## Local vs. Cloud
+
+| | Local | Cloud |
+|---|---|---|
+| **Where it runs** | On your machine, in your open folder | In a sandbox on Cline's infrastructure |
+| **What it works on** | Your working copy, including uncommitted changes | A fresh clone of the branch you pick on GitHub |
+| **Approvals** | You approve each step, or turn on [auto-approve](/features/auto-approve) | Tools are always auto-approved, since the task runs unattended |
+| **Modes** | [Plan and Act](/core-workflows/plan-and-act) | Act |
+| **Model** | Your Plan and Act models | The cloud model chosen in Settings |
+| **When you close VS Code** | The task stops | The task keeps going |
+| **Result** | Changes in your folder | Commits on a `cline/` branch on GitHub |
+
+Use **Local** when you want to watch every step and work against what's on your disk. Use **Cloud** for well-defined tasks you want to hand off, especially several at once.
+
+## Before you start
+
+You need:
+
+- A Cline account. Sign in from the extension if you haven't already.
+- A GitHub repository, and permission to install the Cline GitHub App on it.
+- The branch you want to start from pushed to GitHub. The sandbox clones from GitHub, so local commits and uncommitted changes aren't included.
+
+## Set up cloud tasks
+
+<Steps>
+  <Step title="Turn on Cloud">
+    Open Cline's **Settings**, go to **Features**, and turn on **Cloud**. This adds the **Run task** panel above the chat box.
+
+    <Frame>
+      <img
+        src="/assets/cloud-agents/vscode-enable-cloud.png"
+        alt="The Cloud toggle in Cline's Feature Settings, turned on"
+      />
+    </Frame>
+
+    <Note>
+    Cloud is rolling out gradually. If you don't see the toggle, it isn't available on your account yet. You can still use [Cloud Agents in your browser](/usage/cloud-agents).
+    </Note>
+  </Step>
+  <Step title="Choose Cloud and connect GitHub">
+    In the **Run task** panel, click **Cloud**. If you're signed out, click **Sign in to Cline** first. Then click **Connect GitHub**.
+
+    <Frame>
+      <img
+        src="/assets/cloud-agents/vscode-connect-github.png"
+        alt="The Run task panel with Cloud selected, showing the Connect GitHub to get started steps and a Connect GitHub button"
+      />
+    </Frame>
+
+    Your browser opens GitHub, where you install the Cline GitHub App and choose which repositories Cline may access. When you come back, the panel notices the connection on its own. If it doesn't, click **I've done this, check again**.
+  </Step>
+  <Step title="Pick a repository and branch">
+    Choose the repository and branch the task should start from. When your open folder is a GitHub repository, Cline preselects it, along with your current branch if it's on GitHub.
+
+    To give Cline access to more repositories later, open the **Account** view and click **Manage repository access**.
+  </Step>
+</Steps>
+
+## Start a cloud task
+
+With **Cloud** selected, type your task and send it. Cline creates a sandbox, clones the repository, and starts the agent. The card at the top of the chat shows each step.
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-provisioning.png"
+    alt="A cloud task setting up its sandbox, with Start sandbox done, Clone repository in progress, and Start agent pending"
+  />
+</Frame>
+
+<Warning>
+Stay on the task until the sandbox finishes setting up. If you leave it during setup, for example by starting a new task, Cline cancels the start and deletes the sandbox.
+</Warning>
+
+Once the agent starts, the chat works like a local task. Send follow-up messages to steer it, or click **Cancel** to stop the current turn. The repository badge in the task header shows the task is running in the cloud. Click it to open the session in the [Cline web app](https://app.cline.bot/agents).
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-running-task.png"
+    alt="A running cloud task with the acme/storefront repository badge in the task header and a Cloud sandbox card"
+  />
+</Frame>
+
+You can attach images to a cloud task, but not local files, because the sandbox can't read your disk. Mention the file in your prompt instead and Cline will read it from the repository.
+
+## Run tasks in parallel
+
+When a cloud task is running, click **+** to start another one. You don't have to wait for the first to finish. The home screen lists every cloud task that's still going under **Running in the cloud**. Click any of them to jump back in.
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-running-in-the-cloud.png"
+    alt="The Running in the cloud list on the home screen showing three cloud tasks working on acme/storefront at the same time"
+  />
+</Frame>
+
+Cloud tasks also appear in **History** with their status. Use the filter menu and choose **Cloud Only** to see just your cloud tasks.
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-history.png"
+    alt="The History view listing three cloud tasks, each with a Running status"
+  />
+</Frame>
+
+| Status | Meaning |
+|---|---|
+| **Starting** | The sandbox is being set up. |
+| **Running** | The agent is working. |
+| **Cloud** | The sandbox is up and the agent is waiting for your next message. |
+| **Done** | The task finished. |
+| **Failed** / **Cancelled** | The task stopped because of an error, or because you cancelled it. |
+| **Archived** | The sandbox was retired after 24 hours without activity. |
+| **Unconfirmed** | Cline couldn't reach Cline Cloud to check the status. |
+
+## Choose the cloud model
+
+Cloud tasks use their own model, separate from your local Plan and Act models. To change it, open **Settings**, go to **API Configuration**, and click **Cloud**.
+
+<Frame>
+  <img
+    src="/assets/cloud-agents/vscode-cloud-model.png"
+    alt="The Cloud tab of API Configuration with Usage-Billing, ClinePass, and ClineFree model tabs"
+  />
+</Frame>
+
+- **Usage-Billing**: frontier and open models paid with [Cline credits](/getting-started/cline-provider).
+- **[ClinePass](/getting-started/clinepass)**: open-weight models included in your subscription.
+- **[ClineFree](/getting-started/free-models)**: free models with limited usage.
+
+A model change applies to the next cloud task. Tasks that are already running keep their model.
+
+## Get the work back
+
+Cline works on a branch named `cline/<id>` in the repository you picked and never commits to your default branch. Its commits are pushed to GitHub, so you can:
+
+- **Open a pull request**: ask Cline to open one, then review and merge it on GitHub like any other PR.
+- **Try it locally**: fetch and check out the branch.
+
+  ```bash
+  git fetch origin
+  git checkout cline/<id>
+  ```
+
+- **Keep going from anywhere**: reopen the task from History in VS Code, or from the [Cline web app](https://app.cline.bot/agents) on any device.
+
+If you want the latest changes on GitHub right away, ask Cline to commit and push.
+
+A sandbox is retired after 24 hours without activity. The task stays in History, and anything Cline pushed stays on GitHub. To continue, start a new cloud task on the `cline/` branch.
+
+## Good to know
+
+- Cloud tasks run in Act mode with every tool auto-approved, so they can keep going while you're away.
+- [Checkpoints](/core-workflows/checkpoints) aren't available in cloud tasks. Use the branch's git history instead.
+- Usage limits and other current limitations are listed on the [Cloud Agents](/usage/cloud-agents#limits) page.
