@@ -5,6 +5,7 @@ export const SESSION_IMPORT_TOOLS = [
 	"claude-code",
 	"codex",
 	"opencode",
+	"cursor",
 ] as const;
 
 export type SessionImportTool = (typeof SESSION_IMPORT_TOOLS)[number];
@@ -13,6 +14,7 @@ export const SESSION_IMPORT_TOOL_LABELS: Record<SessionImportTool, string> = {
 	"claude-code": "Claude Code",
 	codex: "Codex",
 	opencode: "opencode",
+	cursor: "Cursor",
 };
 
 /**
