@@ -119,6 +119,14 @@ describe("ChatTextArea model label", () => {
 	})
 })
 
+describe("ChatTextArea spell check", () => {
+	it("disables native spell check so identifiers and non-English words are not underlined", () => {
+		const { textarea } = renderTextArea()
+
+		expect(textarea).toHaveAttribute("spellcheck", "false")
+	})
+})
+
 describe("ChatTextArea image attachments vs. model capability", () => {
 	beforeEach(() => {
 		mocks.supportsImages = true
