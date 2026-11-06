@@ -30,6 +30,7 @@ import {
 	type SettingsNavigationTarget,
 } from "../components/settings/settingsTargets"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import {type DeltaUpdate, DeltaUpdater} from "@shared/delta-state-update.ts";
 
 export type ProviderId = string
 
@@ -439,11 +440,25 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
+		let deltaUpdater: DeltaUpdater<ExtensionState> | undefined
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response: any) => {
 				if (response.stateJson) {
 					try {
-						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						let update = JSON.parse(response.stateJson) as DeltaUpdate<ExtensionState>
+						let stateData : ExtensionState | undefined;
+						if (!deltaUpdater) {
+							if (update.type === 'complete') {
+								deltaUpdater = new DeltaUpdater(update)
+								stateData = update.value as ExtensionState;
+							} else {
+								// Oh NOES!
+								console.error('ExtensionStateContextProvider got an update without having a complete initial state')
+								return;
+							}
+						} else {
+							stateData = deltaUpdater.apply(update)
+						}
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1

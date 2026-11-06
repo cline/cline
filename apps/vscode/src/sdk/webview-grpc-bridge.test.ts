@@ -10,11 +10,9 @@ vi.mock("@core/controller/state/subscribeToState", () => ({
 
 describe("WebviewGrpcBridge", () => {
 	let bridge: WebviewGrpcBridge
-	let translatorState: MessageTranslatorState
 
 	beforeEach(() => {
-		translatorState = new MessageTranslatorState()
-		bridge = new WebviewGrpcBridge(translatorState)
+		bridge = new WebviewGrpcBridge()
 		vi.clearAllMocks()
 	})
 

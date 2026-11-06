@@ -764,6 +764,8 @@ export default function Chat() {
 		const handleMessage = (event: MessageEvent<WebviewOutboundMessage>) => {
 			const message = event.data;
 			if (!message || typeof message !== "object" || !("type" in message)) {
+				const jsonMessage = JSON.stringify(message);
+				console.error(`dropping unknown message (length=${jsonMessage.length}) ${jsonMessage.substring(0, 100)}}...`)
 				return;
 			}
 

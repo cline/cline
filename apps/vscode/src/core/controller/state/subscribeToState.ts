@@ -5,9 +5,16 @@ import { ExtensionState } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
+import { DeltaEncoder } from "@shared/delta-state-update"
 
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
+
+// TODO: This is a hack to shim in the state delta encoder to the existing updater
+let stateGetter: () => any = () => {
+	throw new Error("stateGetter not initialized")
+}
+let deltaEncoder: DeltaEncoder<object> | undefined
 
 /**
  * Subscribe to state updates
@@ -36,7 +43,11 @@ export async function subscribeToState(
 	}
 
 	// Send the initial state
-	const initialState = await controller.getStateToPostToWebview()
+	if (!deltaEncoder) {
+		stateGetter = () => controller.getStateToPostToWebview()
+		deltaEncoder = new DeltaEncoder<object>(() => stateGetter())
+	}
+	const initialState = await deltaEncoder.initialUpdate()
 	const initialStateJson = JSON.stringify(initialState)
 
 	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
@@ -59,9 +70,21 @@ export async function subscribeToState(
  * @param state The state to send
  */
 export async function sendStateUpdate(state: ExtensionState): Promise<void> {
+	if (!deltaEncoder) {
+		// There must be no subscriptions!
+		console.assert(
+			activeStateSubscriptions.size === 0,
+			"if active state subscriptions, deltaEncoder must have been initialized",
+		)
+		return
+	}
+
+	// TODO: this is the write side of the hack which adapts state pushing to state pulling by the encoder
+	stateGetter = () => state
 	let stateJson: string
 	try {
-		stateJson = JSON.stringify(state)
+		const delta = await deltaEncoder.getUpdate()
+		stateJson = JSON.stringify(delta)
 	} catch (error) {
 		Logger.error("Error serializing state update:", error)
 		return

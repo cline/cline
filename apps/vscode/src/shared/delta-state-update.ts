@@ -19,7 +19,7 @@ export type DeltaUpdate<T extends CanDelta> = {
     version: number,
 }
 
-export class DeltaGenerator<T extends CanDelta> {
+export class DeltaEncoder<T extends CanDelta> {
     private cached: DeltaCache<T> | undefined
 
     constructor(private readonly getValue: () => T | Promise<T>) {}
@@ -34,7 +34,7 @@ export class DeltaGenerator<T extends CanDelta> {
     }
 
     private async ensureCached(): Promise<DeltaCache<T>> {
-        return this.cached || await this.getAndCacheValue();
+        return this.cached || this.getAndCacheValue();
     }
 
     // Gets the last provided value, as a "complete" value. Fetches the value if it has not been fetched yet, but
@@ -75,6 +75,10 @@ export class DeltaUpdater<T extends CanDelta> {
     constructor({value, version}: { type: 'complete', value: T, version: number }) {
         this.value = structuredClone(value);
         this.version = version;
+    }
+
+    public getValue(): T {
+        return structuredClone(this.value);
     }
 
     public apply(delta: DeltaUpdate<T>): T {

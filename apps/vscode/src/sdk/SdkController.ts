@@ -762,7 +762,7 @@ export class Controller {
 		this.mcpHub.setToolListChangeCallback(() => this.mcpTools.handleToolListChanged())
 
 		// Initialize gRPC bridge
-		this.grpcBridge = new WebviewGrpcBridge(this.messageTranslatorState)
+		this.grpcBridge = new WebviewGrpcBridge()
 
 		// Wire the bridge to the controller's getStateToPostToWebview()
 		// so state updates include messages, currentTaskItem, and task history
