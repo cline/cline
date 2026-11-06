@@ -529,6 +529,31 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("keeps structured tool results when serializing compaction input", () => {
+		const omittedTail = "TAIL_SHOULD_NOT_SURVIVE_TRUNCATION";
+		const longOutput = "y".repeat(TOOL_RESULT_CHAR_LIMIT + 100) + omittedTail;
+		const serialized = serializeMessage({
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-1",
+					name: "run_commands",
+					content: [
+						{ query: "ls /repo", result: "README.md\nsrc\n", success: true },
+						{ query: "cat big.log", result: longOutput, success: true },
+					] as unknown as LlmsProviders.ToolResultContent["content"],
+				},
+			],
+		});
+
+		expect(serialized).toContain('"query":"ls /repo"');
+		expect(serialized).toContain("README.md\\nsrc\\n");
+		expect(serialized).toContain('"query":"cat big.log"');
+		expect(serialized).toContain("...[truncated ");
+		expect(serialized).not.toContain(omittedTail);
+	});
+
 	it("returns no result when the transcript has no typed user prompt", () => {
 		// The whole-history fold anchors on typed user prompts; a transcript
 		// of pure tool traffic has nothing to fold around.
