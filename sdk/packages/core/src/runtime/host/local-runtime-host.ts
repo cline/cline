@@ -701,8 +701,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				this.invokeOptional(method, ...args),
 		};
 		const resolveDelegatedAgentConfig = createDelegationResolver({
-			rootConfig: () =>
-				this.sessions.get(sessionId)?.config ?? bootstrap.config,
 			sessionId,
 			source: startInput.source,
 			settings: this.providerSettingsManager,

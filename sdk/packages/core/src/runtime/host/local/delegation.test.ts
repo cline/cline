@@ -148,7 +148,6 @@ describe("configured delegation connections", () => {
 		return createDelegatedAgentConfigProvider(
 			config,
 			createDelegationResolver({
-				rootConfig: () => config,
 				sessionId: "synthetic-session",
 				source: SessionSource.CORE,
 				settings,

@@ -9,7 +9,6 @@ import {
 import type { ProviderConfig } from "../../../services/llms/provider-settings";
 import { buildProviderConfig } from "../../../services/local-runtime-bootstrap";
 import type { ProviderSettingsManager } from "../../../services/storage/provider-settings-manager";
-import type { CoreSessionConfig } from "../../../types/config";
 import type { RuntimeOAuthTokenManager } from "../../orchestration/runtime-oauth-token-manager";
 import type { ResolvedStartSessionInput } from "../runtime-host";
 
@@ -34,7 +33,6 @@ function connection(
 }
 
 export function createDelegationResolver(options: {
-	rootConfig: () => CoreSessionConfig;
 	sessionId: string;
 	source: ResolvedStartSessionInput["source"];
 	settings: ProviderSettingsManager;
@@ -50,12 +48,11 @@ export function createDelegationResolver(options: {
 			providerId: parent.providerId,
 			modelId: parent.modelId,
 		};
-		const root = options.rootConfig();
 		const sameProvider = target.providerId === parent.providerId;
 		// Only the same connection may contribute inline credentials or endpoint overrides.
 		const config: Parameters<typeof buildProviderConfig>[0] = {
 			...target,
-			extensionContext: parent.extensionContext ?? root.extensionContext,
+			extensionContext: parent.extensionContext,
 			...(sameProvider
 				? {
 						apiKey: parent.apiKey ?? parent.providerConfig?.apiKey,
