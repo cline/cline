@@ -752,6 +752,7 @@ export interface ProbeMcpServerConnectionResult {
 
 class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
+	private connectionAbortController?: AbortController;
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -800,6 +801,27 @@ class SdkUrlMcpClient implements McpServerClient {
 		const oauthProvider = (await authContext.provider.tokens())
 			? authContext.provider
 			: undefined;
+		const connection = new AbortController();
+		this.connectionAbortController = connection;
+		// SDK OAuth retries can outlive transport.close(). Bind discovery, token
+		// refresh and transport requests to the connection's entire lifetime.
+		const connectionFetch: FetchLike = async (input, init) => {
+			connection.signal.throwIfAborted();
+			const requestSignal =
+				init?.signal ?? (input instanceof Request ? input.signal : undefined);
+			const response = await (this.options.fetch ?? globalThis.fetch)(input, {
+				...init,
+				signal: requestSignal
+					? AbortSignal.any([connection.signal, requestSignal])
+					: connection.signal,
+			});
+			// A custom fetch may complete after cancellation despite its signal.
+			if (connection.signal.aborted) {
+				await response.body?.cancel().catch(() => {});
+				connection.signal.throwIfAborted();
+			}
+			return response;
+		};
 		let client: Client | undefined;
 		try {
 			client = new Client(
@@ -814,7 +836,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			const transport = createMcpSdkTransport({
 				registration: this.registration,
 				oauthProvider,
-				fetch: this.options.fetch,
+				fetch: connectionFetch,
 				restrictConfiguredHeadersToOrigin:
 					this.options.restrictConfiguredHeadersToOrigin,
 			});
@@ -834,9 +856,14 @@ class SdkUrlMcpClient implements McpServerClient {
 				);
 			}
 			await connecting;
+			connection.signal.throwIfAborted();
 			await authContext.clearError();
+			connection.signal.throwIfAborted();
 			this.client = client;
 		} catch (error) {
+			connection.abort();
+			if (this.connectionAbortController === connection)
+				this.connectionAbortController = undefined;
 			await client?.close().catch(() => {});
 			const effectiveError = augmentMcpTimeoutError(
 				error,
@@ -857,6 +884,8 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async disconnect(): Promise<void> {
+		this.connectionAbortController?.abort();
+		this.connectionAbortController = undefined;
 		const activeClient = this.client;
 		this.client = undefined;
 		await activeClient?.close();
