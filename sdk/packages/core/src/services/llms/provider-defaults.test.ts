@@ -796,6 +796,15 @@ describe("resolveProviderConfig", () => {
 								max_tokens: 128_000,
 							},
 						},
+						{
+							model_name: "huggingface-null-limits",
+							litellm_params: { model: "custom/huggingface-null" },
+							model_info: {
+								max_tokens: 32_768,
+								max_input_tokens: null,
+								max_output_tokens: null,
+							},
+						},
 					],
 				}),
 				{ status: 200, headers: { "content-type": "application/json" } },
@@ -821,6 +830,10 @@ describe("resolveProviderConfig", () => {
 		const legacyTokens = resolved?.knownModels?.["custom/legacy-tokens"];
 		expect(legacyTokens?.maxTokens).toBe(128_000);
 		expect(legacyTokens?.maxInputTokens).toBe(128_000);
+
+		const huggingfaceNull = resolved?.knownModels?.["custom/huggingface-null"];
+		expect(huggingfaceNull?.maxTokens).toBe(32_768);
+		expect(huggingfaceNull?.maxInputTokens).toBe(32_768);
 	});
 
 	it("returns an empty authoritative LiteLLM model list without auth", async () => {

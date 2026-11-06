@@ -542,9 +542,9 @@ interface LiteLlmModelInfoResponse {
 		model?: string;
 	};
 	model_info?: {
-		max_output_tokens?: number;
-		max_tokens?: number;
-		max_input_tokens?: number;
+		max_output_tokens?: number | null;
+		max_tokens?: number | null;
+		max_input_tokens?: number | null;
 		supports_vision?: boolean;
 		supports_prompt_caching?: boolean;
 		supports_reasoning?: boolean;
@@ -612,7 +612,7 @@ async function fetchLiteLlmPrivateModels(
 						const info = model.model_info;
 						const maxInputTokens =
 							info?.max_input_tokens ??
-							(info?.max_output_tokens === undefined
+							(info?.max_output_tokens == null
 								? info?.max_tokens
 								: undefined);
 						const converted = buildModelFromPrivateSource(modelId, {
