@@ -19,7 +19,7 @@ const STYLES = `
 .cline-bot-float { animation: cline-bot-float 3.2s ease-in-out infinite; }
 .cline-bot-head { transform-box: view-box; transform-origin: 56.5px 103px; transition: transform 300ms ease; }
 .cline-bot-body { transform-box: view-box; transform-origin: 56.5px 159px; }
-.cline-bot-arm-right { transform-box: view-box; transform-origin: 75px 112px; }
+.cline-bot-arm-right { transform-box: view-box; transform-origin: 75px 116px; }
 .cline-bot-eyes { transition: transform 300ms ease, opacity 300ms ease; }
 .cline-bot-eye { transform-box: fill-box; transform-origin: center; animation: cline-bot-blink 4.6s infinite; transition: transform 200ms ease; }
 .cline-bot-mouth { transform-box: fill-box; transform-origin: center; opacity: 0; transition: opacity 150ms ease; }
@@ -35,12 +35,12 @@ const STYLES = `
 .cline-bot[data-state="speaking"] .cline-bot-arm-right { animation: cline-bot-wave 0.6s ease-in-out infinite alternate; }
 .cline-bot[data-state="speaking"] .cline-bot-body { animation: cline-bot-bounce 0.35s ease-in-out infinite alternate; }
 .cline-bot[data-state="error"] .cline-bot-eye { animation: none; transform: scaleY(0.3); }
-.cline-bot[data-state="error"] .cline-bot-head { transform: rotate(-5deg); }
+.cline-bot[data-state="error"] .cline-bot-head { transform: rotate(-3deg); }
 
 @keyframes cline-bot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes cline-bot-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.8); } }
 @keyframes cline-bot-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-@keyframes cline-bot-tilt { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes cline-bot-tilt { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 @keyframes cline-bot-nod { from { transform: rotate(-2deg); } to { transform: rotate(2deg) translateY(1px); } }
 @keyframes cline-bot-look { 0%, 100% { transform: translateX(-5px); } 50% { transform: translateX(5px); } }
 @keyframes cline-bot-talk { from { transform: scale(0.7, 0.5); } to { transform: scale(1, 1.8); } }
@@ -53,30 +53,38 @@ const STYLES = `
 }
 `;
 
-// Torso, arms, and legs drawn twice (thick ink, then background fill on top)
-// so they read as one continuous outline with no seams between parts.
-function BodyShapes({ className }: { className: string }) {
+// Body parts are drawn as thick ink, then background fill on top, so torso,
+// arms, and legs share one outline. The trunk fill is drawn after the head so
+// it also erases the head's bottom line where the torso joins it.
+function Arms({ className }: { className: string }) {
 	return (
-		<g className={className}>
-			<rect height="44" rx="8" width="31" x="41" y="96" />
+		<g className={`cline-bot-body ${className}`}>
 			<rect
 				height="29"
 				rx="5.5"
-				transform="rotate(22 38 112)"
+				transform="rotate(22 38 116)"
 				width="11"
 				x="32.5"
-				y="106.5"
+				y="110.5"
 			/>
 			<g className="cline-bot-arm-right">
 				<rect
 					height="29"
 					rx="5.5"
-					transform="rotate(-22 75 112)"
+					transform="rotate(-22 75 116)"
 					width="11"
 					x="69.5"
-					y="106.5"
+					y="110.5"
 				/>
 			</g>
+		</g>
+	);
+}
+
+function Trunk({ className }: { className: string }) {
+	return (
+		<g className={`cline-bot-body ${className}`}>
+			<rect height="44" rx="8" width="31" x="41" y="96" />
 			<rect height="20" rx="5.5" width="11" x="42" y="132" />
 			<rect height="20" rx="5.5" width="11" x="60" y="132" />
 		</g>
@@ -107,10 +115,9 @@ export function ClineBot({
 				ry="2.6"
 			/>
 			<g className="cline-bot-float">
-				<g className="cline-bot-body">
-					<BodyShapes className="cline-bot-ink" />
-					<BodyShapes className="cline-bot-fill" />
-				</g>
+				<Arms className="cline-bot-ink" />
+				<Trunk className="cline-bot-ink" />
+				<Arms className="cline-bot-fill" />
 				<g className="cline-bot-head">
 					<circle className="cline-bot-fill" cx="56.5" cy="20.7" r="11.7" />
 					<rect
@@ -158,6 +165,14 @@ export function ClineBot({
 						y="85"
 					/>
 				</g>
+				<Trunk className="cline-bot-fill" />
+				<rect
+					className="cline-bot-body cline-bot-fill"
+					height="14"
+					width="31"
+					x="41"
+					y="98"
+				/>
 			</g>
 		</svg>
 	);
