@@ -395,7 +395,10 @@ describe("HubRuntimeHost", () => {
 		expect(disposeMock).toHaveBeenCalledOnce();
 	});
 
-	it("starts runs only through send", async () => {
+	it.each([
+		undefined,
+		{ timeoutMs: 30_000, retryAfterDispatch: false },
+	])("forwards run command options (%s)", async (commandOptions) => {
 		subscribeMock.mockReturnValue(() => {});
 		const result = {
 			text: "Hey!",
@@ -424,12 +427,16 @@ describe("HubRuntimeHost", () => {
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		const sent = await host.runTurn({
-			sessionId: "sess-1",
-			prompt: "Hey",
-			mode: "plan",
-			delivery: "queue",
-		});
+		const sent = await host.runTurn(
+			{
+				sessionId: "sess-1",
+				prompt: "Hey",
+				mode: "plan",
+				delivery: "queue",
+				timeoutMs: 120_000,
+			},
+			commandOptions,
+		);
 
 		expect(subscribeMock).toHaveBeenCalledWith(expect.any(Function), {
 			sessionId: "sess-1",
@@ -442,9 +449,10 @@ describe("HubRuntimeHost", () => {
 				mode: "plan",
 				attachments: undefined,
 				delivery: "queue",
+				timeoutMs: 120_000,
 			},
 			"sess-1",
-			{ timeoutMs: null },
+			commandOptions ?? { timeoutMs: null },
 		);
 		expect(sent).toEqual(result);
 	});

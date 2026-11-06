@@ -36,7 +36,12 @@ import {
 	type StartSessionResult,
 } from "@cline/core"
 import { buildCloudSessionSystemPrompt } from "@cline/core/cloud"
-import type { AgentResult, ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
+import {
+	type AgentResult,
+	HUB_DEFAULT_COMMAND_TIMEOUT_MS,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+} from "@cline/shared"
 import { CLOUD_SESSION_MODE, CLOUD_WORKSPACE_ROOT, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
@@ -353,14 +358,17 @@ export class CloudSessionHost implements SdkSessionHost {
 		this.assertOpen()
 		this.setStatus("running")
 		try {
-			return await this.host.runTurn({
-				...input,
-				sessionId,
-				// The sandbox runtime was built for Act; every turn must say the same.
-				mode: CLOUD_SESSION_MODE,
-				// Local file paths mean nothing inside the sandbox; images travel as data URLs.
-				userFiles: undefined,
-			})
+			return await this.host.runTurn(
+				{
+					...input,
+					sessionId,
+					// The sandbox runtime was built for Act; every turn must say the same.
+					mode: CLOUD_SESSION_MODE,
+					// Local file paths mean nothing inside the sandbox; images travel as data URLs.
+					userFiles: undefined,
+				},
+				input.delivery === "queue" ? { timeoutMs: HUB_DEFAULT_COMMAND_TIMEOUT_MS, retryAfterDispatch: false } : undefined,
+			)
 		} catch (error) {
 			// The Hub can restart under this connection when another client resumes
 			// the sandbox; let the next send restore the runtime.

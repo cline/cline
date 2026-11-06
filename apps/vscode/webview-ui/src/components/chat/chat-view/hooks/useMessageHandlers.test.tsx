@@ -410,9 +410,10 @@ describe("useMessageHandlers — send routing", () => {
 		"edit",
 		"navigate",
 		"return",
+		"streaming",
 	] as const)("restores only the submitted cloud draft (%s)", async (change) => {
-		mockTurnState = { phase: "completed", seq: 7 }
-		mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
+		mockTurnState = { phase: change === "streaming" ? "streaming" : "completed", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-current", status: change === "streaming" ? "running" : "idle" }
 		const request = Promise.withResolvers<void>()
 		askResponse.mockReturnValueOnce(request.promise)
 		const { result, rerender } = renderHook(() => {
@@ -439,10 +440,10 @@ describe("useMessageHandlers — send routing", () => {
 		}
 		const latest = result.current.chatState.getDraftSnapshot()
 		await act(async () => {
-			request.reject(new Error("preparation failed"))
-			await expect(sending).rejects.toThrow("preparation failed")
+			request.reject(new Error("submission failed"))
+			await expect(sending).rejects.toThrow("submission failed")
 		})
-		if (change === "unchanged")
+		if (change === "unchanged" || change === "streaming")
 			expect(result.current.chatState.getDraftSnapshot()).toMatchObject({ text: "original", images: ["image.png"] })
 		else expect(result.current.chatState.getDraftSnapshot()).toEqual(latest)
 	})

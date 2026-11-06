@@ -368,9 +368,10 @@ describe("SdkSessionLifecycle", () => {
 		expect(onSendStart.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0])
 	})
 
-	it("leaves the active session running when a message is queued", async () => {
+	it("returns queue acceptance without settling the active turn", async () => {
 		const onSendComplete = vi.fn()
-		const send = vi.fn().mockResolvedValue(undefined)
+		const accepted = Promise.withResolvers<undefined>()
+		const send = vi.fn().mockReturnValue(accepted.promise)
 		const sdkHost = makeSdkHost({ send })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle({ onSendComplete })
@@ -378,7 +379,10 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue")
+		const sending = lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue")
+		expect(sending).toBe(accepted.promise)
+		accepted.resolve(undefined)
+		await sending
 		await vi.waitFor(() => expect(send).toHaveBeenCalled())
 
 		expect(onSendComplete).not.toHaveBeenCalled()

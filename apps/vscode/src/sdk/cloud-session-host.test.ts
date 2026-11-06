@@ -98,6 +98,7 @@ describe("CloudSessionHost status", () => {
 		expect(runtime.runTurn).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({ sessionId: "inner-session", prompt: "follow-up" }),
+			undefined,
 		)
 	})
 
@@ -176,7 +177,10 @@ describe("CloudSessionHost status", () => {
 		expect(mapAgentFinishReason(reason)).toBe(expected)
 	})
 
-	it("sends every turn in Act mode even when the caller asks for Plan", async () => {
+	it.each<{ delivery?: "queue" }>([
+		{},
+		{ delivery: "queue" },
+	])("sends Act turns with queue-only reply bounds ($delivery)", async ({ delivery }) => {
 		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
 		const host = await CloudSessionHost.connect({
 			outerSessionId: "ses-outer",
@@ -185,9 +189,12 @@ describe("CloudSessionHost status", () => {
 			getAuthToken: async () => "token",
 		})
 
-		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan" })
+		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan", delivery, timeoutMs: 120_000 })
 
-		expect(runtime.runTurn).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "inner-session", mode: "act" }))
+		expect(runtime.runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId: "inner-session", mode: "act", timeoutMs: 120_000 }),
+			delivery === "queue" ? { timeoutMs: 30_000, retryAfterDispatch: false } : undefined,
+		)
 	})
 
 	it("subscribes to the task it discovers so a completion by another client is seen", async () => {

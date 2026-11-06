@@ -147,15 +147,16 @@ export class SdkFollowupCoordinator {
 						throw new Error("Cloud session connection was superseded")
 					}
 					if (prepared.isRunning) {
-						this.options.sessions.fireAndForgetSend(
-							prepared.sdkHost,
-							prepared.sessionId,
-							resolved,
-							images,
-							files,
-							"queue",
-						)
-						return
+						return this.waitForCloudPreparation(signal, () =>
+							this.options.sessions.fireAndForgetSend(
+								prepared.sdkHost,
+								prepared.sessionId,
+								resolved,
+								images,
+								files,
+								"queue",
+							),
+						).then(() => undefined)
 					}
 					this.options.onFollowUpStarted()
 					await this.continueIdleSession(prepared, prompt, images, files, resolved)
@@ -231,7 +232,7 @@ export class SdkFollowupCoordinator {
 			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
 			return
 		}
-		this.options.sessions.fireAndForgetSend(
+		const sending = this.options.sessions.fireAndForgetSend(
 			currentSession.sdkHost,
 			currentSession.sessionId,
 			resolvedPrompt,
@@ -239,6 +240,7 @@ export class SdkFollowupCoordinator {
 			files,
 			"queue",
 		)
+		if (signal) await this.waitForCloudPreparation(signal, () => sending)
 	}
 
 	/**

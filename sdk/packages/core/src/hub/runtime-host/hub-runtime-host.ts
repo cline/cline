@@ -1190,7 +1190,13 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 	}
 
-	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
+	async runTurn(
+		input: SendSessionInput,
+		commandOptions?: Pick<
+			NonNullable<Parameters<NodeHubClient["command"]>[3]>,
+			"timeoutMs" | "retryAfterDispatch"
+		>,
+	): Promise<AgentResult | undefined> {
 		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
 			"run.start",
@@ -1216,7 +1222,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				timeoutMs: input.timeoutMs,
 			},
 			input.sessionId,
-			{ timeoutMs: null },
+			commandOptions ?? { timeoutMs: null },
 		);
 		return reply.payload?.result as AgentResult | undefined;
 	}

@@ -510,7 +510,7 @@ export class SdkSessionLifecycle {
 		images?: string[],
 		files?: string[],
 		delivery?: "queue" | "steer",
-	): void {
+	): ReturnType<SdkSessionHost["send"]> {
 		// Captured by object identity, not sessionId: rebuilds (mode change) reuse
 		// the same sessionId for the replacement session, so only reference
 		// equality can tell this send's session apart from a successor. If the
@@ -577,6 +577,7 @@ export class SdkSessionLifecycle {
 			this.setRunning(false)
 			await this.options.onSendError(error, sessionId)
 		})
+		return send
 	}
 }
 

@@ -21,13 +21,14 @@ describe("SdkFollowupCoordinator", () => {
 		"mentions",
 		"connection",
 		"queue",
+		"queue-ack",
 	])("releases navigation when cloud preparation is cancelled during %s", async (stage) => {
 		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
 		const held = Promise.withResolvers<void>()
 		const entered = Promise.withResolvers<void>()
 		const abort = new AbortController()
 		const task = makeTask("ses-cloud")
-		const activeSession = stage === "queue" ? makeActiveSession({ isRunning: true }) : undefined
+		const activeSession = stage.startsWith("queue") ? makeActiveSession({ isRunning: true }) : undefined
 		if (activeSession) activeSession.sessionId = task.taskId
 		const { coordinator, options } = makeCoordinator({
 			task,
@@ -43,12 +44,18 @@ describe("SdkFollowupCoordinator", () => {
 			return makeActiveSession()
 		})
 		options.resolveContextMentions.mockImplementationOnce(async () => {
-			if (stage !== "connection") {
+			if (stage === "mentions" || stage === "queue") {
 				entered.resolve()
 				await held.promise
 			}
 			return "resolved"
 		})
+		if (stage === "queue-ack") {
+			options.sessions.fireAndForgetSend.mockImplementationOnce(() => {
+				entered.resolve()
+				return held.promise
+			})
+		}
 		const sending = coordinator.askResponse("@https://example.test")
 		let cancelled = false
 		const rejected = sending.catch(() => {
@@ -67,7 +74,45 @@ describe("SdkFollowupCoordinator", () => {
 		await Promise.all([rejected, navigation])
 		expect(releasedBeforePreparation).toBe(true)
 		expect(cancelledBeforePreparation).toBe(true)
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledTimes(stage === "queue-ack" ? 1 : 0)
+	})
+
+	it.each([
+		{ running: true, reject: false },
+		{ running: true, reject: true },
+		{ running: false, reject: false },
+		{ running: false, reject: true },
+	])("waits for cloud queue acceptance ($running/$reject)", async ({ running, reject }) => {
+		const activeSession = makeActiveSession({ isRunning: running })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			activeSession.isRunning = true
+			return activeSession
+		})
+		const acceptance = Promise.withResolvers<undefined>()
+		void acceptance.promise.catch(() => undefined)
+		options.sessions.fireAndForgetSend.mockReturnValue(acceptance.promise)
+		let settled = false
+		const submission = coordinator.askResponse("queued").then(
+			() => {
+				settled = true
+				return undefined
+			},
+			(error: unknown) => {
+				settled = true
+				return error
+			},
+		)
+		await vi.waitFor(() => expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce())
+		const settledBeforeAcceptance = settled
+		const error = new Error("queue acceptance unconfirmed")
+		if (reject) acceptance.reject(error)
+		else acceptance.resolve(undefined)
+		expect(await submission).toBe(reject ? error : undefined)
+		expect(settledBeforeAcceptance).toBe(false)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 	})
 
 	it.each(["task", "session"])("does not queue cloud input into a replacement %s with the same id", async (replacement) => {
@@ -803,7 +848,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: {
 			getActiveSession: vi.fn(() => input.activeSession),
 			setRunning: vi.fn(),
-			fireAndForgetSend: vi.fn(),
+			fireAndForgetSend: vi.fn().mockResolvedValue(undefined),
 			startNewSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "resumed-session" },
 				sdkHost: { send: vi.fn() },
