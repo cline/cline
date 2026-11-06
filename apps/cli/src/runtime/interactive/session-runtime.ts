@@ -135,6 +135,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
+		input.onPendingPrompts({ sessionId: "", prompts: [] });
 		setActiveCliSession(undefined);
 		input.onActiveSessionChange?.();
 	};
@@ -200,8 +201,13 @@ export function createInteractiveSessionRuntime(input: {
 		});
 		unsubscribeAgent = subscribeToAgentEvents(manager, input.onAgentEvent);
 		unsubscribePendingPrompts = subscribeToPendingPromptEvents(manager, {
-			onPendingPrompts: input.onPendingPrompts,
-			onPendingPromptSubmitted: input.onPendingPromptSubmitted,
+			onPendingPrompts: (event) => {
+				if (event.sessionId === activeSessionId) input.onPendingPrompts(event);
+			},
+			onPendingPromptSubmitted: (event) => {
+				if (event.sessionId === activeSessionId)
+					input.onPendingPromptSubmitted(event);
+			},
 		});
 		return manager;
 	};
