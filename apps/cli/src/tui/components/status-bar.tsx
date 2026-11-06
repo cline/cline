@@ -127,12 +127,14 @@ export function resolveModelMaxInputTokens(config: {
 
 export interface StatusBarCloud {
 	target: "local" | "cloud";
+	canToggleTarget: boolean;
 	repoFullName?: string;
 	branch?: string;
 	/** Cloud sessions run on a Cline cloud model, not the local selection. */
 	modelName?: string;
 	/** Set once this chat's cloud session starts, which locks the target. */
 	sessionStatus?: string;
+	dashboardUrl?: string;
 }
 
 function truncateEnd(text: string, max: number): string {
@@ -155,6 +157,7 @@ export interface StatusBarProps {
 		deletions: number;
 	} | null;
 	onToggleMode?: () => void;
+	onReturnToLocal?: () => void;
 	variant?: "home" | "chat";
 	/** Omitted when cloud sessions are unavailable. */
 	cloud?: StatusBarCloud;
@@ -171,6 +174,7 @@ export function StatusBar(props: StatusBarProps) {
 		gitBranch,
 		gitDiffStats,
 		onToggleMode,
+		onReturnToLocal,
 		cloud,
 	} = props;
 	const isCloud = cloud?.target === "cloud";
@@ -208,9 +212,11 @@ export function StatusBar(props: StatusBarProps) {
 		totalCost,
 		providerId: props.providerId,
 	});
-	const contextText = bar
-		? ` ${bar.filled}${bar.empty} ${usageText}`
-		: ` ${usageText}`;
+	const contextText = isCloud
+		? ""
+		: bar
+			? ` ${bar.filled}${bar.empty} ${usageText}`
+			: ` ${usageText}`;
 	const firstRowFits =
 		modelId.length + contextText.length + toggleWidth + 1 <= avail;
 	const renderContextText = (withLeadingSpace: boolean) => (
@@ -242,7 +248,8 @@ export function StatusBar(props: StatusBarProps) {
 		? ` | ${gitDiffStats.files} file${gitDiffStats.files !== 1 ? "s" : ""} +${gitDiffStats.additions} -${gitDiffStats.deletions}`
 		: "";
 	const pathPart = workspaceName + (gitBranch ? ` (${gitBranch})` : "");
-	const pathMax = Math.max(5, avail - gitSuffix.length);
+	const localPrefix = cloud && !cloud.canToggleTarget ? "● Local · " : "";
+	const pathMax = Math.max(5, avail - gitSuffix.length - localPrefix.length);
 	const truncatedPath =
 		pathPart.length > pathMax
 			? `${pathPart.slice(0, pathMax - 3)}...`
@@ -252,7 +259,7 @@ export function StatusBar(props: StatusBarProps) {
 			<box flexDirection="row" justifyContent="space-between">
 				<text fg="gray">
 					{truncatedModel}
-					{firstRowFits && renderContextText(true)}
+					{!isCloud && firstRowFits && renderContextText(true)}
 				</text>
 				{!isCloud && (
 					<box
@@ -272,7 +279,9 @@ export function StatusBar(props: StatusBarProps) {
 				)}
 			</box>
 
-			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
+			{!isCloud && !firstRowFits && (
+				<text fg="gray">{renderContextText(false)}</text>
+			)}
 
 			{isCloud ? (
 				<text fg={defaultFg}>
@@ -289,6 +298,7 @@ export function StatusBar(props: StatusBarProps) {
 				</text>
 			) : (
 				<text fg={defaultFg}>
+					<span fg={actAccent}>{localPrefix}</span>
 					{truncatedPath}
 					{hasGitDiff && (
 						<span fg="gray">
@@ -302,20 +312,27 @@ export function StatusBar(props: StatusBarProps) {
 				</text>
 			)}
 
-			{cloud &&
-				(cloud.sessionStatus ? (
-					<text fg={actAccent}>{cloud.sessionStatus}</text>
-				) : (
-					<text fg="gray">
-						<span fg={cloud.target === "local" ? actAccent : "gray"}>
-							{cloud.target === "local" ? "●" : "○"} Local
-						</span>{" "}
-						<span fg={cloud.target === "cloud" ? actAccent : "gray"}>
-							{cloud.target === "cloud" ? "●" : "○"} Cloud
-						</span>{" "}
-						(Ctrl+O)
-					</text>
-				))}
+			{cloud?.canToggleTarget && !onReturnToLocal && (
+				<text fg="gray">
+					<span fg={cloud.target === "local" ? actAccent : "gray"}>
+						{cloud.target === "local" ? "●" : "○"} Local
+					</span>{" "}
+					<span fg={cloud.target === "cloud" ? actAccent : "gray"}>
+						{cloud.target === "cloud" ? "●" : "○"} Cloud
+					</span>{" "}
+					(Ctrl+O)
+				</text>
+			)}
+			{isCloud && (cloud.sessionStatus || onReturnToLocal) && (
+				<box flexDirection="row" flexWrap="wrap" gap={2}>
+					{cloud.sessionStatus && (
+						<text fg={actAccent}>{cloud.sessionStatus}</text>
+					)}
+					{onReturnToLocal && (
+						<text onMouseDown={onReturnToLocal}>Back to local (Ctrl+O)</text>
+					)}
+				</box>
+			)}
 
 			{!isCloud &&
 				(autoApproveAll ? (

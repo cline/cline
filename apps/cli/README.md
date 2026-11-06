@@ -350,6 +350,20 @@ Approve tool "<tool_name>" with input <preview>? [y/N]
 
 Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_APPROVAL_MODE=desktop` and `CLINE_TOOL_APPROVAL_DIR=<path>`). In desktop mode, CLI writes a request JSON file and waits for a matching decision JSON file.
 
+## Continue a local conversation in Cloud
+
+With `CLINE_CLOUD_SESSIONS=1`, use `/cloud [next instruction]` in an idle local Cline or ClinePass conversation. You can attach up to five pasted images. The selected model must be available to your Cline Cloud account.
+
+Review the Git snapshot, then choose **Push and continue**. The shared Hub publishes the approved snapshot and starts a cloud task with the conversation summary, instruction, and images. Later local messages and edits stay local. Cancel keeps your draft.
+
+When ready, use `Ctrl+O` or **Open cloud task** to continue inside the TUI. `Ctrl+O` returns to the paired local conversation while cloud work continues. Switching requires an empty draft and accepted submissions. Native opening also requires an idle local run. If opening fails, the action becomes **Open in browser**. Cloud tool approvals require the browser action in `Ctrl+P`.
+
+Use `Ctrl+P` for draft recovery, continuation retry, and GitHub setup. Recovery preserves newer input. Retry targets the existing cloud task. Check that task before resending an uncertain delivery. Drafts and retries are kept in memory and lost on exit.
+
+Hiding a notice keeps its task accessible with `Ctrl+O`. Notices with an unsent draft or continuation to retry cannot be hidden.
+
+Keep Cline open during summary preparation. Once the launch request reaches the shared Hub, launch can finish after the TUI closes. Snapshot creation preserves your local branch, files, and staging. Snapshot commits are unsigned and skip commit and checkout hooks. Pre-push hooks run locally and may modify files.
+
 ## Environment variables
 
 - `ANTHROPIC_API_KEY` - API key for Anthropic
