@@ -320,6 +320,71 @@ describe("resolveModelInfo", () => {
 		expect(response.source).toBe("sdk-known-models")
 	})
 
+	it("resolves an OpenRouter routing variant to the base model's catalog entry", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const providerId = parseProviderId("openrouter")
+		const store = makeStore({ providerId })
+		// What the store holds after picking `:floor` today: a selection whose
+		// metadata is the 128k safe-defaults fallback, with no overrides.
+		vi.mocked(store.readSelection).mockImplementation((_, mode) =>
+			mode === "act"
+				? {
+						providerId,
+						modelId: "z-ai/glm-5.3-flash:floor",
+						modelInfoSource: "fallback",
+						modelInfo: { name: "z-ai/glm-5.3-flash:floor", supportsPromptCache: false, contextWindow: 128_000 },
+					}
+				: undefined,
+		)
+		const catalog = makeCatalog()
+		// OpenRouter's /api/v1/models lists the base id only.
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult(
+				"openrouter",
+				[
+					["z-ai/glm-5.3-flash", { name: "Z.ai: GLM 5.3 Flash", supportsPromptCache: false, contextWindow: 1_048_576 }],
+					[
+						"anthropic/claude-sonnet-4.5",
+						{ name: "Claude Sonnet 4.5", supportsPromptCache: true, contextWindow: 1_000_000 },
+					],
+				],
+				"anthropic/claude-sonnet-4.5",
+			),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openrouter",
+			modelId: "z-ai/glm-5.3-flash:floor",
+		})
+
+		expect(response.source).toBe("sdk-known-models")
+		expect(response.modelId).toBe("z-ai/glm-5.3-flash:floor")
+		expect(response.modelInfo?.contextWindow).toBe(1_048_576)
+	})
+
+	it("does not resolve an unlisted OpenRouter catalog variant to its base model", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const store = makeStore({ providerId: parseProviderId("openrouter") })
+		const catalog = makeCatalog()
+		// `:free` is a catalog variant with its own entry and pricing; when it is
+		// not listed, the paid base model's metadata must not stand in for it.
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult(
+				"openrouter",
+				[["z-ai/glm-5.3-flash", { name: "Z.ai: GLM 5.3 Flash", supportsPromptCache: false, contextWindow: 1_048_576 }]],
+				"z-ai/glm-5.3-flash",
+			),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openrouter",
+			modelId: "z-ai/glm-5.3-flash:free",
+		})
+
+		expect(response.source).toBe("sdk-default")
+		expect(response.modelId).toBe("z-ai/glm-5.3-flash")
+	})
+
 	it("still honors a custom-provider model id that does match the catalog", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("openai") })
