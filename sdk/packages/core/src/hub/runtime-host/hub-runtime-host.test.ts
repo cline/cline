@@ -397,7 +397,7 @@ describe("HubRuntimeHost", () => {
 
 	it.each([
 		undefined,
-		{ timeoutMs: 30_000, retryAfterDispatch: false },
+		{ timeoutMs: 30_000, retryAfterDispatch: false, beforeDispatch: vi.fn() },
 	])("forwards run command options (%s)", async (commandOptions) => {
 		subscribeMock.mockReturnValue(() => {});
 		const result = {

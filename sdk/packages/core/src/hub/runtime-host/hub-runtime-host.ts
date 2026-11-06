@@ -1194,7 +1194,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		input: SendSessionInput,
 		commandOptions?: Pick<
 			NonNullable<Parameters<NodeHubClient["command"]>[3]>,
-			"timeoutMs" | "retryAfterDispatch"
+			"timeoutMs" | "retryAfterDispatch" | "beforeDispatch"
 		>,
 	): Promise<AgentResult | undefined> {
 		this.ensureSessionSubscription(input.sessionId);

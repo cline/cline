@@ -115,6 +115,41 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 	})
 
+	it.each(["running", "prepared", "idle"])("fences a delayed %s cloud dispatch", async (route) => {
+		const activeSession = makeActiveSession({ isRunning: route === "running" })
+		const task = makeTask(activeSession.sessionId)
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const abort = new AbortController()
+		options.getCloudFollowupSignal.mockReturnValue(abort.signal)
+		options.beginCloudFollowup.mockReturnValue(async () => {
+			activeSession.isRunning = route !== "idle"
+			return activeSession
+		})
+		const entered = Promise.withResolvers<void>()
+		const held = Promise.withResolvers<void>()
+		const dispatched = vi.fn()
+		let handedOff = Promise.resolve()
+		options.sessions.fireAndForgetSend.mockImplementation(
+			(...args: Parameters<SdkFollowupCoordinatorOptions["sessions"]["fireAndForgetSend"]>) => {
+				entered.resolve()
+				handedOff = held.promise.then(() => {
+					args[6]?.beforeDispatch?.()
+					dispatched()
+				})
+				void handedOff.catch(() => undefined)
+				return handedOff
+			},
+		)
+		const submission = coordinator.askResponse("delayed")
+		void submission.catch(() => undefined)
+		await entered.promise
+		if (route === "idle") options.getTask.mockReturnValue(makeTask(task.taskId))
+		else abort.abort()
+		held.resolve()
+		await Promise.allSettled([submission, handedOff])
+		expect(dispatched).not.toHaveBeenCalled()
+	})
+
 	it.each(["task", "session"])("does not queue cloud input into a replacement %s with the same id", async (replacement) => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const task = makeTask(activeSession.sessionId)
@@ -199,6 +234,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			{ beforeDispatch: expect.any(Function) },
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "error", text: expect.stringContaining("prepare failed") })],
@@ -271,6 +307,8 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
+			undefined,
+			undefined,
 		)
 	})
 
@@ -297,6 +335,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
@@ -321,6 +360,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
@@ -376,6 +416,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			cloud ? { beforeDispatch: expect.any(Function) } : undefined,
 		)
 	})
 
@@ -400,6 +441,8 @@ describe("SdkFollowupCoordinator", () => {
 			activeSession.sdkHost,
 			"session-123",
 			"resolved: next request",
+			undefined,
+			undefined,
 			undefined,
 			undefined,
 		)
@@ -432,6 +475,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			undefined,
 		)
 	})
 
@@ -447,6 +491,8 @@ describe("SdkFollowupCoordinator", () => {
 			rebuiltSession.sdkHost,
 			"session-123",
 			"resolved: after rebuild",
+			undefined,
+			undefined,
 			undefined,
 			undefined,
 		)
@@ -497,6 +543,7 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 			"queue",
+			undefined,
 		)
 	})
 
@@ -713,6 +760,8 @@ describe("SdkFollowupCoordinator", () => {
 			"session-123",
 			"resolved: keep going",
 			["image.png"],
+			undefined,
+			undefined,
 			undefined,
 		)
 	})

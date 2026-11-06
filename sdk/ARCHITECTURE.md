@@ -199,8 +199,8 @@ It runs after connection setup, before allocating or sending the command, on
 each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require
 `run.abort`.
 
-`HubRuntimeHost.runTurn` can set a command reply deadline independently of the
-server execution timeout in its input. VS Code cloud queue submissions use this
+`HubRuntimeHost.runTurn` can set a reply deadline and a pre-dispatch ownership
+guard independently of the server execution timeout in its input. VS Code cloud queue submissions use this
 to await acceptance with a bounded reply wait and no replay after dispatch;
 ordinary turns retain their existing timeout behavior.
 

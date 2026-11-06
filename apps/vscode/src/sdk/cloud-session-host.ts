@@ -35,7 +35,7 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "@cline/core"
-import { buildCloudSessionSystemPrompt } from "@cline/core/cloud"
+import { buildCloudSessionSystemPrompt, CloudQueueUnconfirmedError } from "@cline/core/cloud"
 import {
 	type AgentResult,
 	HUB_DEFAULT_COMMAND_TIMEOUT_MS,
@@ -331,19 +331,21 @@ export class CloudSessionHost implements SdkSessionHost {
 	private async ensureInnerSessionLive(
 		sessionId: string,
 		restoreConfig: NonNullable<CloudSessionHostOptions["restoreConfig"]>,
+		assertCurrent: () => void,
 	): Promise<void> {
 		try {
 			await this.host.updateSessionConnection(sessionId, {})
 		} catch (error) {
+			assertCurrent()
 			if (!isMissingSessionError(error, sessionId)) throw error
-			this.assertOpen()
 			const initialMessages = await this.host.readSessionMessages(sessionId)
 			if (initialMessages.length === 0) throw new Error("This cloud session's saved conversation is unavailable.")
 			const config = this.sandboxSessionConfig(await restoreConfig(), sessionId)
-			this.assertOpen()
+			assertCurrent()
 			try {
 				await this.host.startSession({ config, initialMessages, interactive: true, toolPolicies: AUTO_APPROVE_ALL })
 			} catch (restoreError) {
+				assertCurrent()
 				// Another client restored it first.
 				if ((restoreError as { code?: unknown })?.code !== "session_already_exists") throw restoreError
 			}
@@ -351,12 +353,19 @@ export class CloudSessionHost implements SdkSessionHost {
 		this.innerSessionLive = true
 	}
 
-	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
+	async send(input: SendSessionInput, options?: Parameters<SdkSessionHost["send"]>[1]): Promise<AgentResult | undefined> {
+		const assertCurrent = () => {
+			this.assertOpen()
+			options?.beforeDispatch?.()
+		}
 		const sessionId = this.toInner(input.sessionId)
+		assertCurrent()
 		const { restoreConfig } = this.options
-		if (restoreConfig && !this.innerSessionLive) await this.ensureInnerSessionLive(sessionId, restoreConfig)
-		this.assertOpen()
+		if (restoreConfig && !this.innerSessionLive) await this.ensureInnerSessionLive(sessionId, restoreConfig, assertCurrent)
+		assertCurrent()
 		this.setStatus("running")
+		const queued = input.delivery === "queue"
+		let dispatched = false
 		try {
 			return await this.host.runTurn(
 				{
@@ -367,16 +376,35 @@ export class CloudSessionHost implements SdkSessionHost {
 					// Local file paths mean nothing inside the sandbox; images travel as data URLs.
 					userFiles: undefined,
 				},
-				input.delivery === "queue" ? { timeoutMs: HUB_DEFAULT_COMMAND_TIMEOUT_MS, retryAfterDispatch: false } : undefined,
+				{
+					timeoutMs: queued ? HUB_DEFAULT_COMMAND_TIMEOUT_MS : null,
+					retryAfterDispatch: queued ? false : undefined,
+					beforeDispatch: () => {
+						assertCurrent()
+						dispatched = true
+					},
+				},
 			)
 		} catch (error) {
+			assertCurrent()
 			// The Hub can restart under this connection when another client resumes
 			// the sandbox; let the next send restore the runtime.
 			if (isMissingSessionError(error, sessionId)) this.innerSessionLive = false
 			// A rejected RPC proves only that this client stopped observing the turn;
 			// the sandbox may still be running after a transport loss.
-			if (!this.disposed && (this.agentStatus === "running" || this.agentStatus === "idle")) {
+			if (this.agentStatus === "running" || this.agentStatus === "idle") {
 				this.setStatus("unknown")
+			}
+			// Separate SDK bundles can have different error constructor identities.
+			if (
+				queued &&
+				dispatched &&
+				error instanceof Error &&
+				"code" in error &&
+				(error.name === "HubTransportError" ||
+					(error.code === "hub_command_timeout" && "command" in error && error.command === "run.start"))
+			) {
+				throw new CloudQueueUnconfirmedError()
 			}
 			throw error
 		}

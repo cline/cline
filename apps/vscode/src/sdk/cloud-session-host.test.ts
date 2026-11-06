@@ -1,9 +1,12 @@
+import { CloudQueueUnconfirmedError } from "@cline/core/cloud"
+import { HubCommandError, HubTransportError } from "@cline/core/hub"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SdkSessionHost } from "./session-host"
 
 const runtime = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
 	connect: vi.fn(),
+	abort: vi.fn(),
 	dispose: vi.fn(),
 	runTurn: vi.fn(),
 	pendingList: vi.fn(),
@@ -20,6 +23,7 @@ vi.mock("@cline/core", () => ({
 	RemoteRuntimeHost: class {
 		pendingPrompts = { list: runtime.pendingList, update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = runtime.connect
+		abort = runtime.abort
 		listSessions = runtime.listSessions
 		updateSessionConnection = runtime.updateSessionConnection
 		getAccumulatedUsage = runtime.getAccumulatedUsage
@@ -40,6 +44,7 @@ describe("CloudSessionHost status", () => {
 	beforeEach(() => {
 		runtime.listeners.length = 0
 		runtime.connect.mockReset().mockResolvedValue(undefined)
+		runtime.abort.mockReset().mockResolvedValue(undefined)
 		runtime.dispose.mockReset().mockResolvedValue(undefined)
 		runtime.runTurn.mockReset()
 		runtime.pendingList.mockReset().mockResolvedValue([])
@@ -98,7 +103,7 @@ describe("CloudSessionHost status", () => {
 		expect(runtime.runTurn).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({ sessionId: "inner-session", prompt: "follow-up" }),
-			undefined,
+			expect.objectContaining({ timeoutMs: null, beforeDispatch: expect.any(Function) }),
 		)
 	})
 
@@ -126,6 +131,46 @@ describe("CloudSessionHost status", () => {
 		expect(runtime.updateSessionConnection).not.toHaveBeenCalled()
 		expect(runtime.getAccumulatedUsage).not.toHaveBeenCalled()
 		expect(runtime.runTurn).not.toHaveBeenCalled()
+	})
+
+	it.each(["restore", "dispatch"])("rejects a cancelled cloud send held during %s", async (stage) => {
+		const held = Promise.withResolvers<void>()
+		const entered = Promise.withResolvers<void>()
+		const abort = new AbortController()
+		const dispatched = vi.fn()
+		if (stage === "restore")
+			runtime.updateSessionConnection.mockImplementationOnce(() => {
+				entered.resolve()
+				return held.promise
+			})
+		runtime.runTurn.mockImplementationOnce(async (_input, options) => {
+			if (stage === "dispatch") {
+				entered.resolve()
+				await held.promise
+			}
+			options?.beforeDispatch?.()
+			dispatched()
+		})
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			restoreConfig: async () => {
+				throw new Error("Unexpected runtime rebuild")
+			},
+		})
+		const sending = host.send(
+			{ sessionId: "ses-outer", prompt: "cancelled" },
+			{ beforeDispatch: () => abort.signal.throwIfAborted() },
+		)
+		const settled = sending.catch((error: unknown) => error)
+		await entered.promise
+		abort.abort()
+		await host.abort("ses-outer")
+		held.resolve()
+		expect(await settled).toBeInstanceOf(Error)
+		expect(dispatched).not.toHaveBeenCalled()
 	})
 
 	it("leaves a live runtime alone and surfaces other probe failures", async () => {
@@ -193,7 +238,11 @@ describe("CloudSessionHost status", () => {
 
 		expect(runtime.runTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ sessionId: "inner-session", mode: "act", timeoutMs: 120_000 }),
-			delivery === "queue" ? { timeoutMs: 30_000, retryAfterDispatch: false } : undefined,
+			{
+				timeoutMs: delivery === "queue" ? 30_000 : null,
+				retryAfterDispatch: delivery === "queue" ? false : undefined,
+				beforeDispatch: expect.any(Function),
+			},
 		)
 	})
 
@@ -263,6 +312,44 @@ describe("CloudSessionHost status", () => {
 		await expect(host.refreshStatus()).rejects.toThrow("offline")
 		expect(host.status).toBe("unknown")
 		await host.dispose()
+	})
+
+	it.each([
+		{ queued: true, dispatched: true, failure: "timeout", uncertain: true },
+		{ queued: true, dispatched: true, failure: "transport", uncertain: true },
+		{ queued: false, dispatched: true, failure: "timeout", uncertain: false },
+		{ queued: true, dispatched: false, failure: "transport", uncertain: false },
+		{ queued: true, dispatched: true, failure: "missing", uncertain: false },
+	])("identifies unconfirmed queued delivery ($queued/$dispatched/$failure)", async ({
+		queued,
+		dispatched,
+		failure,
+		uncertain,
+	}) => {
+		const error =
+			failure === "transport"
+				? new HubTransportError("hub_connection_closed", "connection closed")
+				: new HubCommandError(
+						"run.start",
+						failure === "timeout" ? "hub_command_timeout" : "session_not_found",
+						"known SDK failure",
+					)
+		runtime.runTurn.mockImplementationOnce(async (_input, options) => {
+			if (dispatched) options?.beforeDispatch?.()
+			throw error
+		})
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+		})
+		const sending = host.send({ sessionId: "ses-outer", prompt: "queued", delivery: queued ? "queue" : undefined })
+		if (uncertain) {
+			await expect(sending).rejects.toBeInstanceOf(CloudQueueUnconfirmedError)
+			await expect(sending).rejects.toThrow("Check the cloud session before resending")
+		} else await expect(sending).rejects.toBe(error)
+		expect(runtime.runTurn).toHaveBeenCalledOnce()
 	})
 
 	it("leaves running state when runTurn rejects without a terminal event", async () => {

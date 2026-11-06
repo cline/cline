@@ -142,10 +142,15 @@ export class SdkFollowupCoordinator {
 						signal.throwIfAborted()
 						return { resolved, prepared: await prepareCloud() }
 					})
-					signal.throwIfAborted()
-					if (this.options.getTask() !== task || this.options.sessions.getActiveSession() !== prepared) {
-						throw new Error("Cloud session connection was superseded")
+					const sendOptions = {
+						beforeDispatch: () => {
+							signal.throwIfAborted()
+							if (this.options.getTask() !== task || this.options.sessions.getActiveSession() !== prepared) {
+								throw new Error("Cloud session connection was superseded")
+							}
+						},
 					}
+					sendOptions.beforeDispatch()
 					if (prepared.isRunning) {
 						return this.waitForCloudPreparation(signal, () =>
 							this.options.sessions.fireAndForgetSend(
@@ -155,11 +160,12 @@ export class SdkFollowupCoordinator {
 								images,
 								files,
 								"queue",
+								sendOptions,
 							),
 						).then(() => undefined)
 					}
 					this.options.onFollowUpStarted()
-					await this.continueIdleSession(prepared, prompt, images, files, resolved)
+					await this.continueIdleSession(prepared, prompt, images, files, resolved, sendOptions)
 				} catch (error) {
 					if (!signal.aborted && this.options.getTask() === task) {
 						this.options.messages.appendAndEmit(
@@ -218,11 +224,21 @@ export class SdkFollowupCoordinator {
 		this.options.sessions.setRunning(true)
 		const resolvePrompt = async () => (prompt ? this.options.resolveContextMentions(prompt) : "")
 		const resolvedPrompt = signal ? await this.waitForCloudPreparation(signal, resolvePrompt) : await resolvePrompt()
-		signal?.throwIfAborted()
 		const currentSession = this.options.sessions.getActiveSession()
-		if (signal && (this.options.getTask() !== displayedTask || currentSession !== activeSession)) {
-			throw new Error("Cloud follow-up task or connection changed.")
-		}
+		const sendOptions = signal
+			? {
+					beforeDispatch: () => {
+						signal.throwIfAborted()
+						if (
+							this.options.getTask() !== displayedTask ||
+							this.options.sessions.getActiveSession() !== activeSession
+						) {
+							throw new Error("Cloud follow-up task or connection changed.")
+						}
+					},
+				}
+			: undefined
+		sendOptions?.beforeDispatch()
 		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
 			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return
@@ -239,6 +255,7 @@ export class SdkFollowupCoordinator {
 			images,
 			files,
 			"queue",
+			sendOptions,
 		)
 		if (signal) await this.waitForCloudPreparation(signal, () => sending)
 	}
@@ -257,6 +274,7 @@ export class SdkFollowupCoordinator {
 		images?: string[],
 		files?: string[],
 		preparedPrompt?: string,
+		sendOptions?: Parameters<SdkSessionHost["send"]>[1],
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
@@ -274,7 +292,7 @@ export class SdkFollowupCoordinator {
 
 		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 		const resolvedPrompt = preparedPrompt ?? (await this.options.resolveContextMentions(effectivePrompt))
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, undefined, sendOptions)
 	}
 
 	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
