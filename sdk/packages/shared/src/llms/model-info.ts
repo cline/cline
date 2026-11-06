@@ -66,6 +66,13 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		/**
+		 * Assistant-message field the model needs its earlier reasoning sent
+		 * back in (models.dev `interleaved.field`).
+		 */
+		interleavedReasoningField: z
+			.enum(["reasoning_content", "reasoning_details"])
+			.optional(),
 		/** Per-model wire protocol for gateways that serve multiple API formats. */
 		apiProtocol: z
 			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])

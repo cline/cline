@@ -1025,6 +1025,12 @@ export async function runCli(): Promise<void> {
 			// "default", so they keep falling back to the first catalog entry.
 			if (provider === "cline") {
 				providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
+				// A new user has no saved model: start on the first free one.
+				if (!args.model && !selectedProviderSettings?.model) {
+					providerDefaultModelId =
+						(await coreServer.resolveClineDefaultModelId()) ||
+						providerDefaultModelId;
+				}
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

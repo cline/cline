@@ -135,6 +135,34 @@ observed passed/failed/blocked results, and screenshot references (`artifactId`,
 omit one. Hosts register it explicitly. It does not upload files or check artifact
 availability.
 
+With tools and spawning enabled, Core also registers `ux_verifier`. It delegates
+an ordered checklist (`id`, `steps`, `expected`) plus a `task` describing the app
+and environment through the host's existing `spawn_agent` executor. Calls run
+sequentially because workers can share a browser. Disabling `spawn_agent` also
+disables this specialization; `ux_verifier` can be disabled independently.
+The shared agent runtime also requires approval for the verifier whenever the
+effective spawn-executor policy requires it, even if the verifier's own policy
+permits auto-approval.
+A stricter verifier policy still applies, with one approval request before
+delegation rather than a second approval inside the worker tool.
+
+The worker returns observations and absolute screenshot paths to the main agent.
+It does not edit the app, upload evidence, or produce the final carousel. The
+main agent can combine multiple workers, fix failures and request fresh checks,
+then use the existing `publish_artifacts` and `report_ux_verification` tools when
+registered. Publication errors remain blockers; workers never supply invented
+artifact IDs or image bytes. Without browser access or prerequisites, workers
+report blocked checks. Computer/browser tooling must be available in the child
+environment; this feature does not install it or add tools to the child.
+
+SDK hosts can opt into the same worker separately with
+`createUxVerifierTool(spawnTool)` from `@cline/core`, or use the exported
+`UX_VERIFIER_INSTRUCTIONS` with their own existing delegation setup. Cancellation,
+child tools, hooks, telemetry, and lifecycle callbacks remain owned by that
+delegation implementation. Oversized findings use Core's existing result cache;
+the main agent can recover omitted text with `read_files` rather than repeating
+UI actions. The worker is independent of the report schema and renderer.
+
 For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
 session ID. The publisher uploads directly with one signed policy per batch,
@@ -164,6 +192,8 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+Use `readArchivedMessages` to fetch a snapshot without attaching or changing
+canonical session state. It returns `null` when no snapshot exists.
 The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.

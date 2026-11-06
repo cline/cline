@@ -3,7 +3,7 @@ import {
 	getGeneratedProviderModels,
 } from "@cline/llms";
 import { setClineClientIdentity } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -13,6 +13,7 @@ import {
 	idSlug,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
+	resolveClineDefaultModelId,
 } from "./cline-recommended-models";
 import type { ModelInfo } from "./provider-settings";
 
@@ -602,5 +603,34 @@ describe("generated offline featured models", () => {
 				);
 			}
 		}
+	});
+});
+
+describe("resolveClineDefaultModelId", () => {
+	beforeEach(() => resetClineRecommendedModelsCacheForTests());
+
+	it("prefers the first free model from the live feed", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ free: [{ id: "cline-free/live" }], recommended: [] }),
+					{ status: 200 },
+				),
+		) as unknown as typeof fetch;
+		expect(
+			await resolveClineDefaultModelId({
+				fetchImpl,
+				catalogLoader: async () => ({}),
+			}),
+		).toBe("cline-free/live");
+	});
+
+	it("falls back to the first bundled free model when offline", async () => {
+		const fetchImpl = vi.fn(async () => {
+			throw new Error("offline");
+		}) as unknown as typeof fetch;
+		expect(await resolveClineDefaultModelId({ fetchImpl })).toBe(
+			FALLBACK_CLINE_RECOMMENDED_MODELS.free[0]?.id,
+		);
 	});
 });

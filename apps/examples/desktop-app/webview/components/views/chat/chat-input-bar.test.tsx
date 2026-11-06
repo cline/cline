@@ -206,6 +206,7 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 	readOnly = false,
+	placeholder,
 	executionTarget,
 	onAttachFiles = vi.fn(),
 	sessionId,
@@ -222,6 +223,7 @@ async function renderVoiceComposer({
 	promptVersion?: number;
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	placeholder?: string;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
@@ -237,6 +239,7 @@ async function renderVoiceComposer({
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
+						placeholder={placeholder}
 						cloudHandoffAvailable={cloudHandoffAvailable}
 						executionTarget={executionTarget}
 						sessionId={sessionId}
@@ -636,6 +639,32 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Old skill");
 		expect(container.textContent).toContain("New workflow");
 		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
+	it("uses caller placeholder text while preserving defaults and repository prompts", async () => {
+		await renderVoiceComposer({
+			status: "starting",
+			placeholder: "Custom prompt",
+		});
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.placeholder).toBe("Custom prompt");
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			placeholder: "Custom prompt",
+		});
+		expect(textarea?.placeholder).toBe("Choose a repository");
+		await renderVoiceComposer({ status: "starting" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer({ status: "running" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer();
+		expect(textarea?.placeholder).toBe(
+			"Enter your question or type / for commands or @ for context",
+		);
 	});
 
 	it("prevents sending from a read-only session", async () => {
@@ -1538,6 +1567,7 @@ describe("ChatInputBar", () => {
 			onSend,
 			prompt: "external replacement",
 			promptVersion: 1,
+			placeholder: "Custom prompt",
 		});
 		expect(textarea?.value).toBe("external replacement");
 		expect(textarea?.readOnly).toBe(true);
@@ -2092,7 +2122,10 @@ describe("ChatInputBar", () => {
 		).toEqual({ cline: "high" });
 	});
 
-	it("seeds an unset thinking level from the remembered provider choice instead of Low", async () => {
+	it.each([
+		"medium",
+		"max",
+	] as const)("seeds an unset thinking level from the remembered provider choice (%s) instead of Low", async (remembered) => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -2101,7 +2134,7 @@ describe("ChatInputBar", () => {
 		});
 		window.localStorage.setItem(
 			REASONING_SELECTION_STORAGE_KEY,
-			JSON.stringify({ cline: "medium", anthropic: "high" }),
+			JSON.stringify({ cline: remembered, anthropic: "high" }),
 		);
 		const onReasoningChange = vi.fn();
 		await act(async () => {
@@ -2145,7 +2178,7 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onReasoningChange).toHaveBeenCalledWith({
 				thinking: true,
-				reasoningEffort: "medium",
+				reasoningEffort: remembered,
 			});
 		});
 		expect(onReasoningChange).not.toHaveBeenCalledWith({
@@ -3532,7 +3565,9 @@ describe("ChatInputBar token ring", () => {
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
 		const circumference = 2 * Math.PI * 8.5;
 		expect(
@@ -3570,13 +3605,17 @@ describe("ChatInputBar token ring", () => {
 			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
 			1000,
 		);
-		expect(warning?.querySelector("circle.stroke-orange-500")).not.toBeNull();
+		expect(
+			warning?.querySelector("circle.stroke-cline-ui-warning-text"),
+		).not.toBeNull();
 
 		const critical = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 750, tokensOut: 0 },
 			1000,
 		);
-		expect(critical?.querySelector("circle.stroke-red-500")).not.toBeNull();
+		expect(
+			critical?.querySelector("circle.stroke-cline-ui-error-text"),
+		).not.toBeNull();
 	});
 
 	it("opens only supported usage details on click", async () => {
@@ -3634,7 +3673,9 @@ describe("ChatInputBar token ring", () => {
 			},
 			128_000,
 		);
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
 	});
 });

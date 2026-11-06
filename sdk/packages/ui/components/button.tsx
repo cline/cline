@@ -57,7 +57,7 @@ export const buttonVariants = cva(BASE, {
 			variant: "fill",
 			tone: "destructive",
 			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-cline-ui-destructive/90",
+				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
 		},
 		// surface
 		{
@@ -82,7 +82,7 @@ export const buttonVariants = cva(BASE, {
 		{
 			variant: "ghost",
 			tone: "accent",
-			className: "text-cline-ui-primary hover:bg-cline-ui-primary/10",
+			className: "text-cline-ui-accent-foreground hover:bg-cline-ui-primary/10",
 		},
 		{
 			variant: "ghost",
@@ -226,7 +226,7 @@ export const iconButtonVariants = cva(BASE, {
 			variant: "fill",
 			tone: "destructive",
 			className:
-				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-cline-ui-destructive/90",
+				"bg-cline-ui-destructive text-cline-ui-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,#000)]",
 		},
 		// surface
 		{
@@ -251,7 +251,7 @@ export const iconButtonVariants = cva(BASE, {
 		{
 			variant: "ghost",
 			tone: "accent",
-			className: "text-cline-ui-primary hover:bg-cline-ui-primary/10",
+			className: "text-cline-ui-accent-foreground hover:bg-cline-ui-primary/10",
 		},
 		{
 			variant: "ghost",
