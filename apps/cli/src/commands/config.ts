@@ -303,8 +303,9 @@ async function runHooksConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
 	io: ConfigIo,
+	hooksDir?: string,
 ): Promise<number> {
-	const hooks = listHookConfigFiles(cwd);
+	const hooks = listHookConfigFiles(cwd, hooksDir);
 	if (outputMode === "json") {
 		process.stdout.write(JSON.stringify(hooks));
 		return 0;
@@ -456,6 +457,7 @@ async function runToolsConfigCommand(
 
 async function loadInteractiveConfigDataForCommand(
 	cwd: string,
+	hooksDir?: string,
 ): Promise<Awaited<ReturnType<typeof loadInteractiveConfigData>>> {
 	const userInstructionService = createConfigUserInstructionService(cwd);
 	const core = await createCliCore({
@@ -476,6 +478,7 @@ async function loadInteractiveConfigDataForCommand(
 			userInstructionService,
 			cwd,
 			workspaceRoot: cwd,
+			hooksDir,
 			availabilityContext: {
 				mode: "act",
 			},
@@ -493,6 +496,7 @@ export function createConfigCommand(
 	io: ConfigIo,
 	setExitCode: (code: number) => void,
 	launchInteractiveConfigView: () => void,
+	getHooksDir?: () => string | undefined,
 ): Command {
 	let actionExitCode: number | undefined;
 
@@ -501,12 +505,16 @@ export function createConfigCommand(
 		.argument("[target]")
 		.option("--json", "Output as JSON")
 		.option("--config <dir>", "configuration directory")
+		.option(
+			"--hooks-dir <path>",
+			"Directory path to additional hooks for runtime hook injection",
+		)
 		.exitOverride()
 		.action(async (target?: string) => {
 			if (!target) {
 				if (getOutputMode() === "json") {
 					process.stdout.write(
-						`${JSON.stringify(await loadInteractiveConfigDataForCommand(getCwd()))}\n`,
+						`${JSON.stringify(await loadInteractiveConfigDataForCommand(getCwd(), getHooksDir?.()))}\n`,
 					);
 					actionExitCode = 0;
 					return;
@@ -557,6 +565,7 @@ export function createConfigCommand(
 						getCwd(),
 						getOutputMode(),
 						io,
+						getHooksDir?.(),
 					);
 					break;
 				case "mcp":

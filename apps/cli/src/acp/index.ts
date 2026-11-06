@@ -6,6 +6,7 @@ import type { ResolvedCliReasoning } from "../utils/reasoning";
 export interface AcpModeOptions {
 	autoApproveTools?: boolean;
 	reasoning?: ResolvedCliReasoning;
+	hooksDir?: string;
 }
 
 export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
@@ -27,6 +28,7 @@ export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
 		return new AcpAgent(conn, {
 			autoApproveTools: options?.autoApproveTools,
 			reasoning: options?.reasoning,
+			hooksDir: options?.hooksDir,
 		});
 	}, stream);
 
