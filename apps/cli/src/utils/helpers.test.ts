@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
 	isCliHookPayload,
 	normalizeAutoApproveArgs,
 	parseArgs,
+	resolveWorkspaceRoot,
 	truncate,
 } from "./helpers";
 
@@ -602,3 +603,45 @@ describe("sandbox environment", () => {
 		}
 	});
 });
+
+describe("resolveWorkspaceRoot", () => {
+	it("honors CLINE_WORKSPACE when set", () => {
+		const root = mkdtempSync(path.join(os.tmpdir(), "cli-workspace-root-"));
+		const cwd = path.join(root, "project", "nested");
+		mkdirSync(cwd, { recursive: true });
+		const explicit = path.join(root, "explicit-workspace");
+		const previous = process.env.CLINE_WORKSPACE;
+		try {
+			process.env.CLINE_WORKSPACE = explicit;
+			expect(resolveWorkspaceRoot(cwd)).toBe(explicit);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_WORKSPACE;
+			} else {
+				process.env.CLINE_WORKSPACE = previous;
+			}
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("walks up to the nearest .clinerules directory", () => {
+		const root = mkdtempSync(path.join(os.tmpdir(), "cli-workspace-root-"));
+		const project = path.join(root, "project");
+		const cwd = path.join(project, "src", "nested");
+		mkdirSync(path.join(project, ".clinerules"), { recursive: true });
+		mkdirSync(cwd, { recursive: true });
+		const previous = process.env.CLINE_WORKSPACE;
+		try {
+			delete process.env.CLINE_WORKSPACE;
+			expect(resolveWorkspaceRoot(cwd)).toBe(project);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_WORKSPACE;
+			} else {
+				process.env.CLINE_WORKSPACE = previous;
+			}
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
