@@ -347,6 +347,7 @@ export async function loginOcaOAuth(
 	options: OcaOAuthProviderOptions & {
 		callbacks: OAuthLoginCallbacks;
 		telemetry?: ITelemetryService;
+		signal?: AbortSignal;
 	},
 ): Promise<OAuthCredentials> {
 	captureAuthStarted(options.telemetry, "oca");
@@ -359,6 +360,7 @@ export async function loginOcaOAuth(
 	const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
 
 	const localServer = await startLocalOAuthServer({
+		signal: options.signal,
 		ports: callbackPorts,
 		callbackPath,
 		onListening: options.callbacks.onServerListening,

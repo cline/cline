@@ -10,6 +10,7 @@ import type {
 	ClineAccountUser,
 	UserCurrentPlan,
 } from "@cline/core";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import {
 	getClineEnvironmentConfig,
 	resolveClineAppUrl,
@@ -34,7 +35,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
-import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { buildModelPickerData } from "@/lib/featured-models";
 import {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ClineAccountOrganization, ClineAccountUser } from "@cline/core";
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import {
 	createContext,
 	useCallback,
@@ -9,7 +10,6 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient } from "@/lib/desktop-client";
 
 export const ACCOUNT_IDENTITY_STORAGE_KEY = "cline.code.account-identity.v1";

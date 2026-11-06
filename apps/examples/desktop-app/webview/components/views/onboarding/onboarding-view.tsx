@@ -1,5 +1,6 @@
 "use client";
 
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
@@ -29,7 +30,6 @@ import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
-import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,

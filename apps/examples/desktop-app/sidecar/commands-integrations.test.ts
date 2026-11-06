@@ -1,5 +1,5 @@
+import { isClineAccountNotAuthenticatedResult } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
