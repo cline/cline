@@ -191,7 +191,52 @@ function chunkBase64(data: string): string {
 	return data.match(/.{1,76}/g)?.join("\n") ?? data;
 }
 
+// Captured subprocess output is not inert text: a terminal acts on the control
+// characters inside it. A bare carriage return — how git, npm, cargo and curl
+// rewrite progress — returns the cursor to column 0, so every later write
+// overwrites that row; an escape sequence moves the cursor or recolours cells
+// outright. Rendering those bytes into the transcript therefore garbles rows
+// and swallows the output that follows them, and because the bytes live in the
+// rendered text, scrolling cannot repair it. Show what a terminal would have
+// ended up displaying instead. Only this display copy is normalised; the
+// payload handed to the model keeps its original bytes.
+const ANSI_SEQUENCE =
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
+	/\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
+const NON_PRINTING_CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
+
+export function normalizeTerminalText(text: string): string {
+	// Most output is plain text and must stay byte-identical, so only pay for
+	// the passes below when there is actually something to fix.
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
+	if (!/[\u0000-\u0008\u000b-\u001f\u007f]/.test(text)) return text;
+
+	// A bare carriage return means "overwrite this line from column 0", so a
+	// line renders as its last non-empty CR-separated segment — what a
+	// terminal ends up showing, without simulating column positions. CRLF
+	// survives intact: `\r\n` splits into a trailing `\r` segment, which is
+	// empty and therefore drops out.
+	const rendered = text
+		.split("\n")
+		.map((line) => {
+			let visible = "";
+			for (const segment of line.split("\r")) {
+				if (segment !== "") visible = segment;
+			}
+			return visible;
+		})
+		.join("\n");
+
+	return rendered.replace(ANSI_SEQUENCE, "").replace(NON_PRINTING_CONTROL, "");
+}
+
 export function extractFullOutputText(raw: unknown): string | undefined {
+	const text = extractRawOutputText(raw);
+	return text === undefined ? undefined : normalizeTerminalText(text);
+}
+
+function extractRawOutputText(raw: unknown): string | undefined {
 	if (raw === null || raw === undefined) return undefined;
 	if (typeof raw === "string") return raw;
 
