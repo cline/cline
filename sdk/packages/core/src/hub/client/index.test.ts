@@ -390,6 +390,39 @@ describe("NodeHubClient", () => {
 		});
 	});
 
+	it("closes the socket instead of throwing when the hub sends an unparseable frame", async () => {
+		const originalWebSocket = globalThis.WebSocket;
+		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =
+			FakeWebSocket;
+		FakeWebSocket.instances = [];
+		try {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connectPromise = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) {
+				throw new Error("expected fake websocket instance");
+			}
+			socket.open();
+			await connectPromise;
+			const commandPromise = client.command("client.list");
+
+			const emit = (
+				socket as unknown as { emit: (type: string, payload: unknown) => void }
+			).emit.bind(socket);
+			expect(() =>
+				emit("message", { data: '{"kind":"event","envelope":{"na' }),
+			).not.toThrow();
+
+			expect(socket.readyState).toBe(3);
+			await expect(commandPromise).rejects.toThrow(
+				/could not parse \(31 bytes\): .*JSON/,
+			);
+		} finally {
+			(globalThis as unknown as { WebSocket?: unknown }).WebSocket =
+				originalWebSocket;
+		}
+	});
+
 	describe("timeouts", () => {
 		const originalWebSocket = globalThis.WebSocket;
 
