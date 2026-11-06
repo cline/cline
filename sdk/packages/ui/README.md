@@ -56,6 +56,11 @@ transcript outline examples.
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
 
+The package also provides `SectionHeading`, `DetailList`/`DetailListItem`,
+`ItemCard`, `EmptyState`, and `Banner`. See the
+[shared page component guide](./ADOPTION.md#shared-page-components) for composition
+and action handling. Hosts retain data, navigation, persistence, and action state.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 

@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	Button, IconButton, Badge,
+	Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -83,12 +84,15 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge]) {
+for (const control of [Button, IconButton, Badge, Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
- throw new Error("packed button stylesheet is missing");
+for (const name of ["button", "banner", "detail-list", "detail-list-item", "empty-state", "item-card", "section-heading"]) {
+ const path = "./components/" + name + ".css";
+ if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
+  throw new Error("packed component stylesheet is missing: " + name);
+ }
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -232,13 +236,13 @@ function createConsumer(
 	);
 }
 
-async function verifyDiffDeclarations(root: string): Promise<void> {
+async function verifyDeclarations(root: string): Promise<void> {
 	const consumer = join(root, "tool-diff-consumer.ts");
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -247,6 +251,11 @@ createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
+createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload", label: "Reload", onClick() {} }], ref: createRef<HTMLDivElement>() });
+createElement(DetailList, { ref: createRef<HTMLDListElement>() }, createElement(DetailListItem, { title: "Path", description: "/project" }));
+createElement(EmptyState, { title: "No files", description: "Add a file." });
+createElement(ItemCard, { title: "Skill", description: "A reusable skill" });
+createElement(SectionHeading, { title: "Skills", count: 2 });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -410,7 +419,7 @@ try {
 		: await pack(packageRoot, join(temporaryRoot, "pack"));
 	// The packed UI pins @cline/shared to the workspace version, which is not on
 	// the registry yet during a release, so both consumers install the local pack.
-	// npm dedupes onto it directly; Bun needs an override to resolve it.
+	// Bun needs an override to resolve the unpublished workspace version.
 	const sharedArchive = await pack(
 		join(packageRoot, "../shared"),
 		join(temporaryRoot, "shared-pack"),
@@ -437,23 +446,21 @@ try {
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
-	await verifyDiffDeclarations(bunConsumer);
+	await verifyDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
 		"tailwindcss",
 	]);
 
-	// The workspace uses Bun, but published consumers must also install via npm.
-	const npmConsumer = join(temporaryRoot, "npm-consumer");
-	createConsumer(npmConsumer);
+	// Validate Node and React 18 compatibility using the same Bun package manager.
+	const nodeConsumer = join(temporaryRoot, "node-consumer");
+	createConsumer(nodeConsumer, { "@cline/shared": `file:${sharedArchive}` });
 	await run(
 		[
-			"npm",
-			"install",
+			process.execPath,
+			"add",
 			"--ignore-scripts",
-			"--no-audit",
-			"--no-fund",
 			archive,
 			sharedArchive,
 			"react@18.3.1",
@@ -465,17 +472,17 @@ try {
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
-		npmConsumer,
+		nodeConsumer,
 	);
-	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
-	await verifyDiffDeclarations(npmConsumer);
-	await verifyTailwindContract(npmConsumer, [
-		"npx",
-		"--no-install",
+	await run(["node", "--input-type=module", "-e", importCheck], nodeConsumer);
+	await verifyDeclarations(nodeConsumer);
+	await verifyTailwindContract(nodeConsumer, [
+		process.execPath,
+		"x",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });
