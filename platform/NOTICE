@@ -1,0 +1,25 @@
+21 Agent
+=======
+Copyright 2026 21 Agent contributors
+
+This product includes software developed by the Cline project
+(https://github.com/cline/cline), licensed under the Apache License 2.0.
+
+Specifically, 21 Agent builds on the published packages:
+
+  @cline/agents  (agent runtime, tool-calling loop, approvals)
+  @cline/shared  (message and tool contracts)
+  @cline/llms    (provider gateway used by the runtime)
+
+The 21 Agent platform code (web application, API, worker, database schema,
+sandbox adapter, UI and system prompts) is original work for this project and
+is distributed under the Apache License 2.0. It does not include Cline's
+proprietary branding, logos or marketplace listings.
+
+Sandboxes are provided by Daytona (https://www.daytona.io/).
+Model access is provided by OpenRouter (https://openrouter.ai/).
+Authentication and database services are provided by Supabase
+(https://supabase.com/).
+
+Cline, Daytona, OpenRouter and Supabase are trademarks of their respective
+owners. No affiliation or endorsement is claimed.
