@@ -91,12 +91,7 @@ export class WebviewGrpcBridge {
 	 * Push a ClineMessage to the webview via the subscribeToPartialMessage stream.
 	 */
 	private async pushPartialMessage(message: ClineMessage): Promise<void> {
-		try {
-			const protoMessage: ProtoClineMessage = convertClineMessageToProto(message)
-			await sendPartialMessageEvent(protoMessage)
-		} catch (error) {
-			Logger.error("[WebviewGrpcBridge] Failed to push partial message:", error)
-		}
+		await enqueuePartialMessage(message)
 	}
 
 	/**
@@ -153,10 +148,22 @@ export class WebviewGrpcBridge {
  * Useful for one-off messages outside the bridge's event loop.
  */
 export async function pushMessageToWebview(message: ClineMessage): Promise<void> {
-	try {
-		const protoMessage: ProtoClineMessage = convertClineMessageToProto(message)
-		await sendPartialMessageEvent(protoMessage)
-	} catch (error) {
-		Logger.error("[WebviewGrpcBridge] Failed to push message to webview:", error)
-	}
+	await enqueuePartialMessage(message)
+}
+
+let partialMessageQueue = Promise.resolve()
+
+function enqueuePartialMessage(message: ClineMessage): Promise<void> {
+	// The gRPC send is asynchronous; serialize it so a final tool result cannot
+	// overtake the preceding tool-start message in the webview.
+	const send = partialMessageQueue.then(async () => {
+		try {
+			const protoMessage: ProtoClineMessage = convertClineMessageToProto(message)
+			await sendPartialMessageEvent(protoMessage)
+		} catch (error) {
+			Logger.error("[WebviewGrpcBridge] Failed to push partial message:", error)
+		}
+	})
+	partialMessageQueue = send.catch(() => {})
+	return send
 }
