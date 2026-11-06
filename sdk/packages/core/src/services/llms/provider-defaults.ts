@@ -2,6 +2,7 @@
 
 import * as Llms from "@cline/llms";
 import {
+	extractModelIdsFromPayload,
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
@@ -560,7 +561,11 @@ function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
 }
 
 function buildLiteLlmModelInfoUrls(baseUrl: string): string[] {
-	return [`${baseUrl}/v1/model/info`, `${baseUrl}/model/info`];
+	return [
+		`${baseUrl}/v1/model/info`,
+		`${baseUrl}/model/info`,
+		`${baseUrl}/v1/models`,
+	];
 }
 
 async function describeLiteLlmHttpFailure(response: Response): Promise<string> {
@@ -625,6 +630,11 @@ async function fetchLiteLlmPrivateModels(
 								id: displayName,
 								name: displayName,
 							};
+						}
+					}
+					if (Object.keys(models).length === 0) {
+						for (const id of extractModelIdsFromPayload(payload, "litellm")) {
+							models[id] = buildModelFromPrivateSource(id, { name: id });
 						}
 					}
 					return models;
