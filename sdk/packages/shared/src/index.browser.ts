@@ -288,7 +288,11 @@ export {
 	truncateStr,
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
-export { validateWithZod, zodToJsonSchema } from "./parse/zod";
+export {
+	nullableOptional,
+	validateWithZod,
+	zodToJsonSchema,
+} from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export {
 	buildClineSystemPrompt,

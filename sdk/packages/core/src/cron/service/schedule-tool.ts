@@ -10,6 +10,7 @@ import type {
 	ScheduleRecord,
 } from "@cline/shared";
 import {
+	nullableOptional,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
@@ -41,19 +42,14 @@ export const ScheduledTaskInputSchema = z.object({
 	prompt: z.string().min(1).optional(),
 	run_at: z.string().datetime({ offset: true }).optional(),
 	cron_pattern: z.string().min(1).optional(),
-	timezone: z
-		.string()
-		.min(1)
-		.nullable()
-		.optional()
-		.describe(
-			"IANA timezone for recurring schedules. Omit unless the user explicitly requests a timezone; new schedules default to the local timezone. Updates preserve the existing timezone when omitted.",
-		),
+	timezone: nullableOptional(z.string().min(1)).describe(
+		"IANA timezone for recurring schedules. Omit unless the user explicitly requests a timezone; new schedules default to the local timezone. Updates preserve the existing timezone when omitted.",
+	),
 	enabled: z.boolean().optional(),
 	mode: z.enum(["act", "plan", "yolo"]).optional(),
-	system_prompt: z.string().nullable().optional(),
-	max_iterations: z.number().int().positive().nullable().optional(),
-	timeout_seconds: z.number().int().positive().nullable().optional(),
+	system_prompt: nullableOptional(z.string()),
+	max_iterations: nullableOptional(z.number().int().positive()),
+	timeout_seconds: nullableOptional(z.number().int().positive()),
 	max_parallel: z.number().int().positive().max(32).optional(),
 	tags: z.array(z.string().min(1)).optional(),
 	model_selection: ModelSelectionSchema.optional(),
@@ -307,13 +303,11 @@ function updateTiming(
 	if (input.schedule_type === "recurring" || input.cron_pattern) {
 		return {
 			cronPattern: requiredString(input.cron_pattern, "cron_pattern"),
-			timezone:
-				input.timezone === null ? null : input.timezone?.trim() || undefined,
+			timezone: input.timezone?.trim() || undefined,
 		};
 	}
 	return {
-		timezone:
-			input.timezone === null ? null : input.timezone?.trim() || undefined,
+		timezone: input.timezone?.trim() || undefined,
 	};
 }
 

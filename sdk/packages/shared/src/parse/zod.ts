@@ -18,6 +18,18 @@ export function validateWithZod<T>(schema: z.ZodType<T>, input: unknown): T {
 	return result.data;
 }
 
+/**
+ * Optional field that tolerates an explicit `null` from the model. The
+ * advertised JSON Schema stays a plain typed property (a `.nullable()` union
+ * has no top-level `type`, which Gemini/Vertex function declarations reject).
+ */
+export function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
+	return z.preprocess(
+		(value) => (value === null ? undefined : value),
+		schema.optional(),
+	);
+}
+
 export function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
 	return z.toJSONSchema(schema);
 }
