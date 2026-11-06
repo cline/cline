@@ -45,6 +45,15 @@ import { isStandaloneHost } from "./vscode-terminal-execution-mode"
 type ShellCommand = string | StructuredCommandInput
 type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
+/**
+ * VS Code historically accepts `{ command }` as a complete shell command.
+ * Keep that compatibility form consistent across foreground and background
+ * execution while preserving every object with an explicit argv list.
+ */
+export function normalizeVscodeShellCommand(command: ShellCommand): ShellCommand {
+	return typeof command === "string" || "args" in command ? command : command.command
+}
+
 /** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
 export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
@@ -95,13 +104,11 @@ function quoteShellArg(arg: string): string {
 }
 
 export function formatCommandForTerminal(command: ShellCommand): string {
-	if (typeof command === "string") {
-		return command
+	const normalized = normalizeVscodeShellCommand(command)
+	if (typeof normalized === "string") {
+		return normalized
 	}
-	if (!("args" in command)) {
-		return command.command
-	}
-	return [command.command, ...(command.args ?? [])].map(quoteShellArg).join(" ")
+	return [normalized.command, ...(normalized.args ?? [])].map(quoteShellArg).join(" ")
 }
 
 /**
@@ -575,7 +582,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 			// Record execution outcomes so background mode is comparable with
 			// foreground mode in the same task.terminal_execution event.
 			try {
-				const result = await bgExecutor(command, commandCwd || cwd, context)
+				const result = await bgExecutor(normalizeVscodeShellCommand(command), commandCwd || cwd, context)
 				telemetryService.captureTerminalExecution(true, terminalType, "child_process", {
 					exitCode: 0,
 					terminalExecutionMode: "backgroundExec",
