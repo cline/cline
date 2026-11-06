@@ -103,6 +103,15 @@ export class SdkProviderChangeCoordinator {
 				task.taskId = startResult.sessionId
 			}
 
+			// A same-ID restart resumes the existing on-disk session manifest
+			// wholesale, so the record still names the provider the task
+			// started with. Sync the connection label after the restarted
+			// runtime is live (the CLI does the same after its restart) so
+			// session history reflects the provider/model that will handle
+			// subsequent turns. Failure here leaves only a stale history
+			// label; the restart itself already succeeded.
+			await this.syncSessionManifestConnection(startResult.sessionId, config)
+
 			await this.options.postStateToWebview()
 			Logger.log(`[SdkController] Session restarted for provider change: ${oldSessionId} -> ${startResult.sessionId}`)
 		} catch (error) {
@@ -122,6 +131,27 @@ export class SdkProviderChangeCoordinator {
 				{ type: "status", payload: { sessionId: oldSessionId, status: "error" } },
 			)
 			await this.options.postStateToWebview()
+		}
+	}
+
+	private async syncSessionManifestConnection(sessionId: string, config: SessionConfig): Promise<void> {
+		if (!config.providerId) {
+			return
+		}
+		const session = this.options.sessions.getActiveSession()
+		if (!session?.sdkHost.updateSessionConnection) {
+			return
+		}
+		try {
+			await session.sdkHost.updateSessionConnection(sessionId, {
+				providerId: config.providerId,
+				...(config.modelId ? { modelId: config.modelId } : {}),
+			})
+		} catch (error) {
+			Logger.warn(
+				`[SdkController] Failed to sync session manifest connection after provider change for ${sessionId}:`,
+				error,
+			)
 		}
 	}
 
