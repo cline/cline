@@ -9,9 +9,16 @@ export function toProviderOptionsKey(providerId: string): string {
 	);
 }
 
-export function createEphemeralCacheControl() {
+/**
+ * `cache_control` is the wire field, which openai-compatible providers copy
+ * into the request verbatim. `@ai-sdk/anthropic` request-level options only
+ * accept `cacheControl` and silently drop `cache_control`.
+ */
+export function createEphemeralCacheControl(
+	key: "cache_control" | "cacheControl" = "cache_control",
+) {
 	return {
-		cache_control: { type: "ephemeral" as const },
+		[key]: { type: "ephemeral" as const },
 	};
 }
 
