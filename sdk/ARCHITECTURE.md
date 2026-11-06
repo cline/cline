@@ -48,11 +48,13 @@ canonical parent history; projection includes provider tool observations as
 inert text and omits reasoning, media, and parent cache handles. Tool results
 that exceed projection limits are explicitly marked as omitted; other parent
 context remains available. The starting reference reuses the existing session
-compaction projection plus its canonical tail, without a new summary call or
+compaction projection plus its canonical tail, without a separate summary call or
 an additional snapshot-size cap. The existing message builder applies normal content
 limits after media redaction, without repairing incomplete tool exchanges or
-changing source-message boundaries. The reference is frozen at creation;
-later history reads are explicit tool calls. These helpers reuse
+changing source-message boundaries. If the reference exceeds the side model's
+input budget, normal agentic compaction can summarize this zero-turn text prefix
+while preserving the first actual question and its user-turn count. The reference
+is frozen at creation; later history reads are explicit tool calls. These helpers reuse
 `ClineCore.get`, `readMessages`, and `readSessionCompactionState`, so the same
 composition works with local and Hub-backed core instances without a separate
 Hub command.

@@ -392,6 +392,87 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it.each([
+		100, 8_000,
+	])("fits an initial side reference before the first question (%i parent repetitions)", async (repetitions) => {
+		const summary = "## Goal\nParent fact: use the blue widget.";
+		const createMessage = vi.fn(
+			(_systemPrompt: string, _input: MessageWithMetadata[]) =>
+				streamChunks([
+					{ type: "text", text: summary },
+					{ type: "done", success: true },
+				]),
+		);
+		await createHandlerMock.withImplementation(
+			() => ({ createMessage }),
+			async () => {
+				const messages: MessageWithMetadata[] = [
+					captureSideReference({
+						messages: [
+							{
+								role: "user",
+								content: `Parent fact: use the blue widget. ${"detail ".repeat(repetitions)}`,
+							},
+						],
+						activeParentTurn: false,
+					}),
+					{ role: "user", content: "Which widget should I use?" },
+				];
+				const original = structuredClone(messages);
+				const prepare = createContextCompactionPrepareTurn({
+					providerId: "anthropic",
+					modelId: "mock-model",
+					compaction: { enabled: true, strategy: "agentic" },
+				});
+				const result = await prepare?.({
+					agentId: "side",
+					conversationId: "side",
+					parentAgentId: null,
+					iteration: 0,
+					messages,
+					apiMessages: messages,
+					abortSignal: new AbortController().signal,
+					systemPrompt: "Answer the side question",
+					tools: [],
+					model: {
+						id: "mock-model",
+						provider: "anthropic",
+						info: { id: "mock-model", maxInputTokens: 8_000 },
+					},
+				});
+				if (repetitions === 100) {
+					expect(createMessage).not.toHaveBeenCalled();
+				} else {
+					expect(createMessage).toHaveBeenCalledOnce();
+					const [systemPrompt, input] = createMessage.mock.calls[0];
+					expect(JSON.stringify(input)).toContain("use the blue widget");
+					expect(
+						estimateRequestInputTokens({
+							systemPrompt,
+							messages: input,
+							tools: [],
+						}),
+					).toBeLessThan(8_000);
+					expect(result?.messages?.[0].metadata?.userRunSpan).toBe(0);
+					expect(JSON.stringify(result?.messages)).toContain(
+						"use the blue widget",
+					);
+				}
+				const prepared = result?.messages ?? messages;
+				expect(prepared.at(-1)).toEqual(messages.at(-1));
+				expect(countUserRunMessages(prepared)).toBe(1);
+				expect(
+					estimateRequestInputTokens({
+						systemPrompt: "Answer the side question",
+						messages: prepared,
+						tools: [],
+					}),
+				).toBeLessThan(8_000);
+				expect(messages).toEqual(original);
+			},
+		);
+	});
+
+	it.each([
 		"basic",
 		"agentic",
 	] as const)("excludes the parent reference from user-turn counts after %s compaction", async (strategy) => {

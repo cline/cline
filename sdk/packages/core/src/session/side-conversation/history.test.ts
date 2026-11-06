@@ -1,5 +1,5 @@
 import type { MessageWithMetadata } from "@cline/llms";
-import { createTool } from "@cline/shared";
+import { createTool, toAiSdkToolResultOutput } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { ClineCore } from "../../ClineCore";
 import { toPersistedToolResultContent } from "../persisted-tool-result-content";
@@ -94,6 +94,49 @@ describe("side parent history tool", () => {
 			expect(read.result.text.startsWith(expected)).toBe(true);
 			expect(match.preview.startsWith(expected)).toBe(true);
 		}
+	});
+
+	it.each([
+		"object",
+		"array",
+	])("omits SDK tagged inline files from %s tool output in snapshots and history", async (shape) => {
+		const image =
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axqXr0AAAAASUVORK5CYII=";
+		const producer = createTool({
+			name: "image_report",
+			description: "Synthetic image report",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => {
+				const output = toAiSdkToolResultOutput([
+					{ type: "text", text: "Image caption remains" },
+					{ type: "image", data: image, mediaType: "image/png" },
+				]);
+				return shape === "array" && output.type === "content"
+					? output.value
+					: output;
+			},
+		});
+		const messages = [toolResultMessage(await producer.execute({}, context))];
+		const original = structuredClone(messages);
+		const capture = captureSideReference({ messages, activeParentTurn: false });
+		const { tool } = fixture(messages);
+		const recent = await tool.execute({ operation: "recent" }, context);
+		if (!recent.ok || recent.result.operation === "read")
+			throw new Error("Expected recent history");
+		const read = await tool.execute(
+			{ operation: "read", reference: recent.result.matches[0].reference },
+			context,
+		);
+		for (const text of [
+			String(capture.content),
+			JSON.stringify(recent),
+			JSON.stringify(read),
+		]) {
+			expect(text).toContain("Image caption remains");
+			expect(text).toContain("[media omitted]");
+			expect(text).not.toContain(image);
+		}
+		expect(messages).toEqual(original);
 	});
 
 	it("preserves numeric source tokens alongside redacted media in snapshots and history", async () => {

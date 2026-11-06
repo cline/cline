@@ -5,6 +5,7 @@ import { formatFileContentBlock } from "../prompt/format";
 const TextFileSchema = z.object({ path: z.string(), content: z.string() });
 const MediaPayloadSchema = z.union([
 	z.object({ data: z.string() }),
+	z.object({ data: z.object({ type: z.literal("data"), data: z.string() }) }),
 	z.object({ source: GeneratedMediaSourceSchema }),
 	z.object({ media: z.object({ source: GeneratedMediaSourceSchema }) }),
 ]);
