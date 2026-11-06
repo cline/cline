@@ -30,11 +30,17 @@ cline -i
 
 - `Tab` to toggle Plan/Act
 - `Shift+Tab` to toggle auto-approve all
-- `Ctrl+C` to abort a running turn; press again to exit
+- `Escape` to abort a running turn (including a running `/compact`), or close an open menu
+- `Esc Esc` to restore a previous checkpoint
+- `Ctrl+C` to clear the input, or exit when the input is empty
 - `Ctrl+D` to exit when the prompt is empty and idle
 - `Ctrl+L` to clear the chat view or current conversation
+- `Ctrl+S` to steer: send the input while the agent is running
+- `Ctrl+P` to open the command palette
 - `/settings`, `/model`, `/account`, `/mcp`, `/compact`, `/undo`, `/clear`, `/history`, `/help`, `/quit`
 - `@file` mentions for workspace context
+
+Type `/help` for the full list of keybindings and slash commands.
 
 The status area shows the active model, context usage, cost, workspace/branch, git diff stats, Plan/Act state, and whether auto-approve all is enabled.
 

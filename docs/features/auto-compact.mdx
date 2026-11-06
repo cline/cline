@@ -1,10 +1,10 @@
 ---
 title: "Auto Compact"
 sidebarTitle: "Auto Compact"
-description: "Automatic context summarization to keep working when approaching context limits."
+description: "Automatic context compaction to keep working when approaching context limits."
 ---
 
-When your conversation approaches the model's context window limit, Cline automatically summarizes it to free up space and keep working.
+When your conversation approaches the model's context window limit, Cline compacts it to free up space and keep working. You can also compact on demand with `/compact`.
 
 <Frame>
 	<img
@@ -15,41 +15,59 @@ When your conversation approaches the model's context window limit, Cline automa
 
 ## How It Works
 
-Cline monitors token usage during your conversation. When you're getting close to the limit, it:
+Before each model request, Cline estimates the size of the request (system prompt, tools, and conversation). When the estimate reaches **90% of the model's input limit**, it compacts the conversation before sending the request.
 
-1. Creates a comprehensive summary of everything that's happened
-2. Preserves all technical details, code changes, and decisions
-3. Replaces the conversation history with the summary
-4. Continues exactly where it left off
+The input limit is the model's reported maximum input tokens, capped at its context window. If a model only reports a context window, Cline keeps a 10% margin and uses the rest. If the model reports neither, auto compaction does not run, because a guessed limit could compact a brand-new session.
 
-You'll see a summarization tool call when this happens, showing the cost like any other API call.
+A compaction divider in the chat shows the progress and result, for example `Context compacted · 150k → 40k tokens · 80 → 12 messages`.
 
-## Why This Matters
+## Strategies
 
-Previously, Cline would truncate older messages when hitting context limits, losing important context.
+| Strategy | What it does | Extra model request |
+| --- | --- | --- |
+| **Agentic** (default) | Asks the model to summarize the older part of the conversation and keeps roughly the most recent 20k tokens verbatim. Later compactions fold new messages into the previous summary. | One summarization request to your current provider and model |
+| **Basic** | Folds the history without a model call. Your typed prompts always survive, the latest turn keeps its newest messages, and dropped work is replaced with short summaries attached to the surviving prompts. | None |
 
-Now with summarization:
-- All technical decisions and code patterns are preserved
-- File changes and project context remain intact
-- Cline remembers everything it's done
-- You can work on much larger projects without interruption
+If an agentic compaction fails, Cline falls back to the basic strategy for that compaction so the task can continue.
+
+### Where to configure it
+
+- **VS Code / JetBrains**: Settings → Features. **Auto Compact** turns automatic compaction on or off (on by default). **Auto Compact Strategy** chooses **Agentic** or **Basic**.
+- **CLI**: `--compaction agentic|basic|off` (default: `agentic`). See the [CLI reference](/cli/cli-reference).
+- **Cline Desktop**: auto compaction is always on and uses the agentic strategy.
+
+## Manual compaction
+
+Type `/compact` in the chat to compact the current conversation right away. The target is about half of the current conversation size. Manual compaction is refused while a response is in progress; wait for the turn to finish or stop it first.
+
+- **VS Code / JetBrains**: `/compact`, `/smol`, and `/newtask` all run a real compaction. The **Compact Task** button in the context window indicator does the same.
+- **CLI**: `/compact` in the TUI.
+- **Cline Desktop**: `/compact`. While it runs, the composer shows **Compacting... click Stop to cancel**, and sending another message is refused until the compaction finishes or is stopped.
+
+## Stopping a compaction
+
+Stopping the agent also stops a compaction that is in flight:
+
+- **CLI**: press `Escape`. The divider shows **Compaction cancelled**.
+- **Cline Desktop**: click **Stop**. Cline shows **Compaction cancelled.**
+- **VS Code / JetBrains**: cancelling the task cancels an auto compaction in progress; the divider shows **Compaction cancelled**.
+
+The conversation is left as it was before the compaction started.
+
+## Context window overflow
+
+Token estimates can under-count dense content such as minified code or long tool output. If the provider rejects a request because the context window was exceeded, Cline compacts the conversation and retries the request once. The chat shows **context window exceeded — compacting and retrying**. If the retry is also rejected, the task stops with an error.
 
 <Tip>
-Auto Compact works especially well for long-running tasks. Structured task lists can help maintain progress across summarizations so Cline can stay on track across multiple context windows.
+Auto Compact works especially well for long-running tasks. Structured task lists can help maintain progress across compactions so Cline can stay on track across multiple context windows.
 </Tip>
 
 ## Cost Considerations
 
-Summarization leverages your existing prompt cache from the conversation, so it costs about the same as any other tool call.
-
-Since most input tokens are already cached, you're primarily paying for summary generation (output tokens), making it cost-effective.
-
-<Note>
-With other models, Cline falls back to standard rule-based context truncation, even if Auto Compact is enabled.
-</Note>
+With the agentic strategy, each compaction makes one additional request to your current model, shown in the chat like any other API call. The basic strategy makes no extra request.
 
 ## Restoring Context
 
-You can use [checkpoints](/core-workflows/checkpoints) to restore your task state from before a summarization occurred. You never truly lose context since you can always roll back.
+You can use [checkpoints](/core-workflows/checkpoints) to restore your task state from before a compaction occurred. You never truly lose context since you can always roll back.
 
-Editing a message before a summarization tool call works similarly, restoring the conversation to that point.
+Editing a message before a compaction works similarly, restoring the conversation to that point.
