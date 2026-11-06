@@ -159,13 +159,19 @@ function toClineCredentials(
 	if (!refreshToken) {
 		throw new Error("Token response did not include a refresh token");
 	}
+	const claims = decodeJwtPayload(responseData.accessToken);
 	const metadata: Record<string, unknown> = {
 		...(fallback.metadata ?? {}),
 		provider,
 		tokenType: responseData.tokenType,
 		userInfo: responseData.userInfo,
+		sessionId: asNonEmptyString(claims?.sid),
 	};
 	delete metadata.startedAt;
+
+	sdkDebug(
+		`cline.toCredentials tokenType=${responseData.tokenType} expiresAt=${responseData.expiresAt} accessTokenHash=${hashSecret(responseData.accessToken)} refreshTokenHash=${hashSecret(refreshToken)} refreshTokenFromResponse=${responseData.refreshToken !== undefined} jwt=${claims ? `iss=${claims.iss ?? "none"} sub=${claims.sub ?? "none"} sid=${claims.sid ?? "none"} iat=${claims.iat ?? "none"} exp=${claims.exp ?? "none"}` : "not_jwt"}`,
+	);
 
 	return {
 		access: responseData.accessToken,

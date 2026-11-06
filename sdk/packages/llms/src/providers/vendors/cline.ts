@@ -229,6 +229,20 @@ function readResponseErrorHandler(
 		: undefined;
 }
 
+function buildTraceMetadata(
+	config: GatewayResolvedProviderConfig,
+): Record<string, string> | undefined {
+	const sid = typeof config.authMetadata?.sessionId === "string" ? config.authMetadata.sessionId : undefined;
+	const sessionStartedAt = typeof config.authMetadata?.sessionStartedAt === "string" ? config.authMetadata.sessionStartedAt : undefined;
+	if (sid || sessionStartedAt) {
+		return {
+			...(sid ? { "auth.sessionId": sid } : {}),
+			...(sessionStartedAt ? { "auth.sessionStartedAt": sessionStartedAt } : {}),
+		}
+	}
+	return undefined; 
+}
+
 export async function createClineProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -254,6 +268,7 @@ export async function createClineProviderModule(
 				})
 			: undefined;
 	return {
+		traceMetadata: buildTraceMetadata(config),
 		operations: {
 			language: (modelId) =>
 				openRouter &&
