@@ -43,8 +43,8 @@
 	white-space: nowrap;
 }
 .cline-ui-ux-verifier-count.all-passed {
-	color: light-dark(#167354, #86d9bb);
-	background: light-dark(#e4f2ec, #183b32);
+	color: var(--success-text);
+	background: var(--success-surface);
 }
 .cline-ui-ux-evidence-carousel {
 	border-radius: 12px;
@@ -113,21 +113,23 @@
 	place-items: center;
 	flex-shrink: 0;
 	border-radius: 50%;
-	color: white;
 }
 .cline-ui-ux-status-passed {
-	background: #239f7e;
+	color: var(--success-text);
+	background: var(--success-surface);
 }
 .cline-ui-ux-status-failed {
-	background: #bb424b;
+	color: var(--error-text);
+	background: var(--error-surface);
 }
 .cline-ui-ux-status-blocked {
-	background: #8e7539;
+	color: var(--warning-text);
+	background: var(--warning-surface);
 }
 .cline-ui-ux-evidence-expand,
+.cline-ui-ux-evidence-download,
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
-	position: absolute;
 	display: grid;
 	place-items: center;
 	height: 34px;
@@ -138,9 +140,12 @@
 	background: #191b28b3;
 	backdrop-filter: blur(8px);
 }
-.cline-ui-ux-evidence-expand {
+.cline-ui-ux-evidence-actions {
+	position: absolute;
 	right: 12px;
 	top: 12px;
+	display: flex;
+	gap: 8px;
 }
 .cline-ui-ux-evidence-expand:disabled {
 	opacity: 0.4;
@@ -148,6 +153,7 @@
 }
 .cline-ui-ux-evidence-prev,
 .cline-ui-ux-evidence-next {
+	position: absolute;
 	/* Centered on the 16:10 screenshot area, above the caption. */
 	top: calc(min(62.5cqw, 54dvh, 560px) / 2 - 17px);
 }
@@ -198,6 +204,10 @@
 	position: absolute;
 	bottom: 2px;
 	right: 2px;
+	display: grid;
+	border-radius: 50%;
+	/* Status surfaces are translucent; isolate markers from screenshot pixels. */
+	background: var(--background);
 }
 .cline-ui-ux-thumbnail-status .cline-ui-ux-status-icon {
 	width: 13px;

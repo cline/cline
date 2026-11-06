@@ -13,7 +13,7 @@ styles or adopting desktop product structure.
 
 The theme provides:
 
-- Cline-owned Slate, Violet, Ruby, Green, Amber, and Sky solid/alpha palettes
+- Cline-owned Slate, Iris, Vermilion, Emerald, Amber, and Sky solid/alpha palettes
 - Light and dark semantic colors
 - Standard shadcn token names
 - Typography families, sizes, weights, line heights, and letter spacing
@@ -519,6 +519,9 @@ semantics:
   --focus-ring: var(--accent-8);
 }
 ```
+
+See [Theme usage](./README.md#theme-usage) for palette generation and choosing
+readable text and fill roles.
 
 Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to

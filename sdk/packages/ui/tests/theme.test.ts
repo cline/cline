@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compile } from "tailwindcss";
 import { describe, expect, it } from "vitest";
+import { parseCssColor, type RgbaColor } from "../components/mermaid-diagram";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const themeDir = join(packageRoot, "theme");
@@ -163,8 +165,84 @@ function expectVariableOnlyRules(source: string): void {
 	}
 }
 
+function declarations(source: string): Record<string, string> {
+	return Object.fromEntries(
+		Array.from(
+			removeComments(source).matchAll(/--([\w-]+):\s*([^;]+);/g),
+			([, name, value]) => [name, value.trim()],
+		),
+	);
+}
+
+function themeValues(selector: ":root" | ".dark"): Record<string, string> {
+	const palette = read("palette.css");
+	const tokens = read("tokens.css");
+	return {
+		...declarations(block(palette, ":root")),
+		...declarations(block(palette, selector)),
+		...declarations(block(tokens, ":root")),
+		...declarations(block(tokens, selector)),
+		...declarations(block(tokens, ":root,\n.dark")),
+	};
+}
+
+function tokenColor(
+	values: Record<string, string>,
+	token: string,
+	visited = new Set<string>(),
+): RgbaColor {
+	if (visited.has(token)) throw new Error(`Circular color token ${token}`);
+	visited.add(token);
+	const value = values[token];
+	if (!value) throw new Error(`Missing color token ${token}`);
+	const alias = /^var\(--([\w-]+)\)$/.exec(value)?.[1];
+	if (alias) return tokenColor(values, alias, visited);
+	const mix =
+		/^color-mix\(\s*in srgb,\s*var\(--([\w-]+)\)\s+(\d+)%,\s*(#[\da-f]+|var\(--([\w-]+)\))\s*\)$/.exec(
+			value,
+		);
+	if (mix) {
+		const base = tokenColor(values, mix[1], new Set(visited));
+		const other = mix[4]
+			? tokenColor(values, mix[4], new Set(visited))
+			: parseCssColor(mix[3]);
+		if (!other || base.a !== 1 || other.a !== 1) {
+			throw new Error(`Unsupported mixed color token ${token}: ${value}`);
+		}
+		const weight = Number(mix[2]) / 100;
+		return {
+			r: base.r * weight + other.r * (1 - weight),
+			g: base.g * weight + other.g * (1 - weight),
+			b: base.b * weight + other.b * (1 - weight),
+			a: 1,
+		};
+	}
+	const color = parseCssColor(value);
+	if (!color) throw new Error(`Invalid color token ${token}: ${value}`);
+	return color;
+}
+
+function colorRgb(color: RgbaColor): number[] {
+	if (color.a !== 1) {
+		throw new Error("Expected an opaque semantic fill or foreground");
+	}
+	return [color.r, color.g, color.b].map((channel) => channel / 255);
+}
+
+function luminance(channels: number[]): number {
+	const [red, green, blue] = channels.map((value) =>
+		value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
+	);
+	return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+function contrastRatio(first: number[], second: number[]): number {
+	const values = [luminance(first), luminance(second)];
+	return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
+}
+
 describe("@cline/ui theme contract", () => {
-	it("owns complete Radix 3.0.0 solid and alpha palettes", () => {
+	it("owns complete Cline brand and Radix solid and alpha palettes", () => {
 		const palette = read("palette.css");
 		const light = block(palette, ":root");
 		const dark = block(palette, ".dark");
@@ -205,7 +283,25 @@ describe("@cline/ui theme contract", () => {
 			...statusRoleTokens,
 			...semanticTokens,
 		]) {
-			expect(shared).toContain(`--${token}:`);
+			if (
+				[
+					"primary",
+					"success-solid",
+					"warning-solid",
+					"error-solid",
+					"info-solid",
+					"success-contrast",
+					"warning-contrast",
+					"error-contrast",
+					"info-contrast",
+				].includes(token)
+			) {
+				expect(root).toContain(`--${token}:`);
+				expect(dark).toContain(`--${token}:`);
+				expect(shared).not.toContain(`--${token}:`);
+			} else {
+				expect(shared).toContain(`--${token}:`);
+			}
 		}
 		for (const token of brandTokens) {
 			expect(root).toContain(`--${token}:`);
@@ -238,13 +334,40 @@ describe("@cline/ui theme contract", () => {
 			expect(root).toContain(token);
 		}
 
-		expect(shared).toContain("--primary: var(--accent-9);");
-		expect(shared).toContain("--primary-emphasis: var(--accent-10);");
+		expect(shared).toContain("--sidebar-primary: var(--primary);");
+		expect(shared).toContain(
+			"--sidebar-primary-foreground: var(--primary-foreground);",
+		);
 		expect(shared).toContain("--ring: var(--focus-ring);");
 		expect(shared).toContain("--destructive: var(--error-solid);");
-		for (const status of ["success", "warning", "error", "info"]) {
-			expect(shared).toContain(`--${status}-surface: var(--${status}-a3);`);
-			expect(shared).toContain(`--${status}-border: var(--${status}-a7);`);
+	});
+
+	it.each([
+		":root",
+		".dark",
+	] as const)("keeps labels above 4.5:1 on semantic fills in %s", (selector) => {
+		const values = themeValues(selector);
+		for (const [fill, foreground] of [
+			["primary", "primary-foreground"],
+			["sidebar-primary", "sidebar-primary-foreground"],
+			["brand-violet-surface", "brand-violet-surface-foreground"],
+			["error-solid", "error-contrast"],
+			["destructive", "destructive-foreground"],
+			["success-solid", "success-contrast"],
+			["warning-solid", "warning-contrast"],
+			["info-solid", "info-contrast"],
+		]) {
+			const solid = colorRgb(tokenColor(values, fill));
+			const text = colorRgb(tokenColor(values, foreground));
+			expect(contrastRatio(solid, text), fill).toBeGreaterThanOrEqual(4.5);
+			// Primary/error-filled hover uses an opaque 90% fill / 10% black mix.
+			if (fill === "primary" || fill === "error-solid") {
+				const hover = solid.map((channel) => channel * 0.9);
+				expect(
+					contrastRatio(hover, text),
+					`${fill} hover`,
+				).toBeGreaterThanOrEqual(4.5);
+			}
 		}
 	});
 
@@ -274,11 +397,14 @@ describe("@cline/ui theme contract", () => {
 		expect(scoped).toContain(".cline-ui-theme");
 		expect(scoped).toContain(".dark .cline-ui-theme");
 		expect(scoped).toContain(".cline-ui-theme.dark");
-		for (const paletteName of paletteNames) {
-			expect(scoped).toContain(`--${paletteName}-1:`);
-			expect(scoped).toContain(`--${paletteName}-a12:`);
-		}
 		expect(scoped).toContain("--background: var(--surface-1);");
+		const globalRules = [
+			...topLevelRules(read("palette.css")),
+			...topLevelRules(read("tokens.css")),
+		];
+		expect(rules.map((rule) => declarations(rule.body))).toEqual(
+			globalRules.map((rule) => declarations(rule.body)),
+		);
 	});
 
 	it("provides Tailwind mappings without registering raw palette steps", () => {
@@ -347,6 +473,34 @@ describe("@cline/ui theme contract", () => {
 		expect(index).toBe(
 			'@import "@cline/ui/theme/tokens.css";\n@import "@cline/ui/theme/theme.css";\n@import "@cline/ui/theme/base.css";\n',
 		);
+	});
+
+	it("keeps destructive text and fill utilities compatible", async () => {
+		for (const [file, prefix, dark] of [
+			["theme.css", "", "dark"],
+			["component-theme.css", "cline-ui-", "cline-ui-dark"],
+		]) {
+			for (const [candidate, property, token] of [
+				[`text-${prefix}destructive`, "color", "error-text"],
+				[`text-${prefix}destructive/90`, "color", "error-text"],
+				[`focus:text-${prefix}destructive`, "color", "error-text"],
+				[`${dark}:text-${prefix}destructive/80!`, "color", "error-text"],
+				[`bg-${prefix}destructive`, "background-color", "destructive"],
+				[`hover:bg-${prefix}destructive/90`, "background-color", "destructive"],
+				[
+					`text-${prefix}destructive-foreground`,
+					"color",
+					"destructive-foreground",
+				],
+				[`border-${prefix}destructive/40`, "border-color", "destructive"],
+			]) {
+				const compiler = await compile(`${read(file)}\n@tailwind utilities;`);
+				const css = compiler.build([candidate]);
+				expect(css, candidate).toMatch(
+					new RegExp(`${property}:[^;]*var\\(--${token}\\)`),
+				);
+			}
+		}
 	});
 
 	it("keeps embedded component utility names host-safe", () => {

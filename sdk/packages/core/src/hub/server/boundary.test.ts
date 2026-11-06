@@ -2461,6 +2461,7 @@ describe("HubServerTransport boundaries", () => {
 				event: "tool.updated",
 				sessionId: "session-1",
 				payload: {
+					agent: expect.objectContaining({ kind: "lead" }),
 					toolCallId: "call-1",
 					toolName: "run_commands",
 					update: {

@@ -96,6 +96,35 @@ describe("MessageTranslatorState", () => {
 		expect(newToolTs).toBeGreaterThan(toolTs)
 	})
 
+	it("reset clears the accumulated streaming reasoning text (#leak: interrupted reasoning must not leak into the next turn)", () => {
+		const state = new MessageTranslatorState()
+		expect(state.appendStreamingReasoning("stale ")).toBe("stale ")
+
+		state.reset()
+
+		// After reset, appending must return only the new delta — reasoning
+		// streams interrupted by an abort/provider error carry no content_end,
+		// so reset() is the only thing that can clear this buffer.
+		expect(state.appendStreamingReasoning("fresh")).toBe("fresh")
+	})
+
+	it("clear on content end resets the buffer for an auto-continuation without reset", () => {
+		// When a response ends with "unknown" and no tool activity, the retry
+		// loop starts another request within the same iteration — no reset()
+		// in between. The content-end clear must empty the buffer so the new
+		// response's reasoning rows don't repeat the previous attempt's text.
+		const state = new MessageTranslatorState()
+		state.appendStreamingReasoning("first attempt reasoning")
+
+		const endTs = state.clearStreamingReasoning()
+
+		expect(state.appendStreamingReasoning("second attempt reasoning")).toBe(
+			"second attempt reasoning",
+		)
+		// The follow-up response renders as a fresh row, not the finalized one.
+		expect(state.getStreamingReasoningTs()).not.toBe(endTs)
+	})
+
 	it("reset clears stale approved tool prompt rows", () => {
 		const state = new MessageTranslatorState()
 		state.recordApprovedToolMessageTs("approved-call", 42)
@@ -288,6 +317,82 @@ describe("translateSessionEvent — pending prompts", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event content_start", () => {
+	it("keeps verifier worker output and completion out of the parent chat", () => {
+		const state = new MessageTranslatorState()
+		const translate = (event: AgentEvent) =>
+			translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event } }, state)
+		translate({
+			type: "content_start",
+			contentType: "tool",
+			toolName: "ux_verifier",
+			toolCallId: "verify",
+			input: { task: "Check app" },
+			agentId: "lead",
+			parentAgentId: null,
+		})
+		const workerEvents: AgentEvent[] = [
+			{ type: "content_start", contentType: "text", text: "Worker observations" },
+			{ type: "done", reason: "completed", text: "Worker complete", iterations: 1 },
+		]
+		for (const event of workerEvents) {
+			const result = translate({ ...event, agentId: "worker", parentAgentId: "lead" })
+			expect(result.messages).toEqual([])
+			expect(result.turnComplete).toBe(false)
+			expect(result.sessionEnded).toBe(false)
+		}
+		const parent = translate({
+			type: "content_start",
+			contentType: "text",
+			text: "Combining findings",
+			agentId: "lead",
+			parentAgentId: null,
+		})
+		expect(parent.messages).toEqual(
+			expect.arrayContaining([expect.objectContaining({ say: "text", text: "Combining findings" })]),
+		)
+	})
+
+	it("keeps parent messages visible while a generic subagent is running", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "spawn_agent",
+						toolCallId: "spawn",
+						input: { task: "Check app" },
+						agentId: "lead",
+						parentAgentId: null,
+					},
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Parent progress",
+						agentId: "lead",
+						parentAgentId: null,
+					},
+				},
+			},
+			state,
+		)
+		expect(result.messages).toEqual(
+			expect.arrayContaining([expect.objectContaining({ say: "text", text: "Parent progress" })]),
+		)
+	})
+
 	it("reuses the approved tool prompt row for the matching tool lifecycle", () => {
 		const state = new MessageTranslatorState()
 		const approvedMessageTs = 42

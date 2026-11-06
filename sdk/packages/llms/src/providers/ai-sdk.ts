@@ -396,8 +396,12 @@ function buildAiSdkRequestMessages(
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
+	const includeReasoning = shouldIncludeReasoningHistory(request, context);
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
-		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		includeReasoning,
+		fillMissingReasoning:
+			includeReasoning &&
+			context.model.metadata?.interleavedReasoningField === "reasoning_content",
 		supportedInputModalities:
 			context.model.modalities?.input ??
 			(context.model.capabilities
@@ -744,6 +748,7 @@ function toAiSdkMessages(
 	systemPrompt?: string,
 	options?: {
 		includeReasoning?: boolean;
+		fillMissingReasoning?: boolean;
 		supportedInputModalities?: readonly string[];
 	},
 ) {
@@ -840,6 +845,17 @@ function toAiSdkMessages(
 					isError: part.isError ?? false,
 				});
 			}
+		}
+
+		// Models with interleaved reasoning reject assistant history that has
+		// none (it was compacted away, or came from another model). A single
+		// space is the smallest value such providers accept; empty is rejected.
+		if (
+			options?.fillMissingReasoning &&
+			message.role === "assistant" &&
+			!content.some((part) => part.type === "reasoning" && part.text.trim())
+		) {
+			content.unshift({ type: "reasoning", text: " " });
 		}
 
 		// A message left empty only because its reasoning was dropped is

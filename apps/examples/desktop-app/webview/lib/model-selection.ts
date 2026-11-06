@@ -124,6 +124,7 @@ export const REASONING_SELECTION_VALUES = [
 	"medium",
 	"high",
 	"xhigh",
+	"max",
 ] as const;
 
 export type ReasoningSelectionValue =

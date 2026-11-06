@@ -53,12 +53,13 @@ export function workspacePathKey(
 
 export function readReasoningEffort(
 	value: unknown,
-): "low" | "medium" | "high" | "xhigh" | undefined {
+): "low" | "medium" | "high" | "xhigh" | "max" | undefined {
 	if (
 		value === "low" ||
 		value === "medium" ||
 		value === "high" ||
-		value === "xhigh"
+		value === "xhigh" ||
+		value === "max"
 	) {
 		return value;
 	}

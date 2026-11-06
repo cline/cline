@@ -436,6 +436,10 @@ export {
 	toTeamProgressLifecycleEvent,
 } from "./extensions/tools/team";
 export {
+	createUxVerifierTool,
+	UX_VERIFIER_INSTRUCTIONS,
+} from "./extensions/tools/team/ux-verification";
+export {
 	createAgentHooksExtension,
 	createHookAuditHooks,
 	createHookConfigFileExtension,
@@ -1073,6 +1077,7 @@ export {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
+	resolveClineDefaultModelId,
 } from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,
