@@ -93,13 +93,242 @@ function normalizeDomains(value: string[] | undefined): string[] | undefined {
 	return domains?.length ? domains : undefined;
 }
 
-function createClineFetch(options: ClineProviderOptions): typeof fetch {
+function createClineFetch(
+	options: ClineProviderOptions,
+	normalizeDsml = true,
+): typeof fetch {
 	const baseFetch = ensureFetch(options.fetch);
 	return (async (input, init) => {
 		const response = await baseFetch(input, init);
 		await options.onResponseError?.(response);
-		return response;
+		return normalizeDsml && isChatCompletionRequest(input)
+			? normalizeLeakedDsmlResponse(response)
+			: response;
 	}) as typeof fetch;
+}
+
+function isChatCompletionRequest(input: Parameters<typeof fetch>[0]): boolean {
+	try {
+		const url = new URL(
+			input instanceof Request ? input.url : input.toString(),
+		);
+		return url.pathname.endsWith("/chat/completions");
+	} catch {
+		return false;
+	}
+}
+
+const DSML_PREFIX = String.raw`(?:[|｜]\s*){0,2}`;
+const DSML_TAG = String.raw`<\s*${DSML_PREFIX}DSML\s*${DSML_PREFIX}`;
+const DSML_INVOKE_PATTERN = new RegExp(
+	String.raw`${DSML_TAG}invoke\b[^>]*\bname\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\s*/\s*${DSML_PREFIX}DSML\s*${DSML_PREFIX}inv(?:oke)?\s*>`,
+	"gi",
+);
+const DSML_PARAMETER_PATTERN = new RegExp(
+	String.raw`${DSML_TAG}parameter\b([^>]*)>([\s\S]*?)<\s*/\s*${DSML_PREFIX}DSML\s*${DSML_PREFIX}parameter\s*>`,
+	"gi",
+);
+const DSML_WRAPPER_PATTERN = new RegExp(
+	String.raw`<\s*/*\s*${DSML_PREFIX}DSML\s*${DSML_PREFIX}(?:tool_calls|invoke|parameter)\b[^>]*>`,
+	"gi",
+);
+
+interface DsmlToolCall {
+	name: string;
+	input: Record<string, unknown>;
+}
+
+function normalizeLeakedDsmlResponse(response: Response): Promise<Response> {
+	const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+	if (
+		!response.ok ||
+		(!contentType.includes("json") && !contentType.includes("event-stream"))
+	) {
+		return Promise.resolve(response);
+	}
+	return response.text().then((text) => {
+		const normalized = contentType.includes("event-stream")
+			? normalizeDsmlSse(text)
+			: normalizeDsmlJson(text);
+		return createResponse(response, normalized ?? text);
+	});
+}
+
+function createResponse(response: Response, body: string): Response {
+	const headers = new Headers(response.headers);
+	headers.delete("content-encoding");
+	headers.delete("content-length");
+	return new Response(body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
+function parseDsmlToolCalls(content: string): DsmlToolCall[] | undefined {
+	const calls: DsmlToolCall[] = [];
+	for (const match of content.matchAll(DSML_INVOKE_PATTERN)) {
+		const input: Record<string, unknown> = {};
+		for (const parameter of match[2].matchAll(DSML_PARAMETER_PATTERN)) {
+			const name = /\bname\s*=\s*["']([^"']+)["']/i.exec(parameter[1])?.[1];
+			const stringValue = /\bstring\s*=\s*["']([^"']+)["']/i.exec(
+				parameter[1],
+			)?.[1];
+			if (!name || !stringValue) {
+				return undefined;
+			}
+			const value = parameter[2].trim();
+			if (stringValue.toLowerCase() === "true") {
+				input[name] = value;
+				continue;
+			}
+			try {
+				input[name] = JSON.parse(value) as unknown;
+			} catch {
+				return undefined;
+			}
+		}
+		calls.push({ name: match[1], input });
+	}
+	return calls.length > 0 ? calls : undefined;
+}
+
+function stripDsmlMarkup(content: string): string {
+	return content
+		.replace(DSML_INVOKE_PATTERN, "")
+		.replace(DSML_WRAPPER_PATTERN, "")
+		.trim();
+}
+
+function normalizeDsmlJson(text: string): string | undefined {
+	if (!text.includes("DSML")) {
+		return undefined;
+	}
+	let payload: Record<string, unknown>;
+	try {
+		payload = JSON.parse(text) as Record<string, unknown>;
+	} catch {
+		return undefined;
+	}
+	const choices = Array.isArray(payload.choices) ? payload.choices : [];
+	const choice = choices[0] as Record<string, unknown> | undefined;
+	const message = choice?.message as Record<string, unknown> | undefined;
+	const content = typeof message?.content === "string" ? message.content : "";
+	const toolCalls = parseDsmlToolCalls(content);
+	if (!toolCalls) {
+		return undefined;
+	}
+	return JSON.stringify({
+		...payload,
+		choices: choices.map((candidate, index) =>
+			index === 0
+				? {
+						...(candidate as Record<string, unknown>),
+						message: {
+							...message,
+							content: stripDsmlMarkup(content) || null,
+							tool_calls: toolCalls.map((call, callIndex) => ({
+								id: `call_dsml_${callIndex}`,
+								type: "function",
+								function: {
+									name: call.name,
+									arguments: JSON.stringify(call.input),
+								},
+							})),
+						},
+						finish_reason: "tool_calls",
+					}
+				: candidate,
+		),
+	});
+}
+
+function normalizeDsmlSse(text: string): string | undefined {
+	if (!text.includes("DSML")) {
+		return undefined;
+	}
+	const events = text.split(/\r?\n\r?\n/);
+	const payloads: Array<Record<string, unknown>> = [];
+	for (const event of events) {
+		const data = event
+			.split(/\r?\n/)
+			.filter((line) => line.startsWith("data:"))
+			.map((line) => line.slice(5).trim())
+			.join("\n");
+		if (!data || data === "[DONE]") {
+			continue;
+		}
+		try {
+			payloads.push(JSON.parse(data) as Record<string, unknown>);
+		} catch {
+			return undefined;
+		}
+	}
+	const content = payloads
+		.flatMap((payload) =>
+			Array.isArray(payload.choices) ? payload.choices : [],
+		)
+		.map((choice) => (choice as Record<string, unknown>).delta)
+		.map((delta) => (delta as Record<string, unknown> | undefined)?.content)
+		.filter((value): value is string => typeof value === "string")
+		.join("");
+	const toolCalls = parseDsmlToolCalls(content);
+	if (!toolCalls || payloads.length === 0) {
+		return undefined;
+	}
+	const first = payloads[0];
+	const last = payloads[payloads.length - 1];
+	const base = { id: first.id, created: first.created, model: first.model };
+	const output = [
+		`data: ${JSON.stringify({
+			...base,
+			choices: [
+				{
+					index: 0,
+					delta: {
+						role: "assistant",
+						...(stripDsmlMarkup(content)
+							? { content: stripDsmlMarkup(content) }
+							: {}),
+					},
+				},
+			],
+		})}`,
+	];
+	for (const [index, call] of toolCalls.entries()) {
+		output.push(
+			`data: ${JSON.stringify({
+				...base,
+				choices: [
+					{
+						index: 0,
+						delta: {
+							tool_calls: [
+								{
+									index,
+									id: `call_dsml_${index}`,
+									type: "function",
+									function: {
+										name: call.name,
+										arguments: JSON.stringify(call.input),
+									},
+								},
+							],
+						},
+					},
+				],
+			})}`,
+		);
+	}
+	output.push(
+		`data: ${JSON.stringify({
+			...base,
+			choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+			...(last.usage ? { usage: last.usage } : {}),
+		})}`,
+	);
+	output.push("data: [DONE]");
+	return `${output.join("\n\n")}\n\n`;
 }
 
 async function executeWebSearch(
@@ -248,7 +477,7 @@ export async function createClineProviderModule(
 					baseURL: providerOptions.baseURL,
 					headers: providerOptions.headers,
 					fetch: createSuccessDataResponseFetch(
-						createClineFetch(providerOptions),
+						createClineFetch(providerOptions, false),
 					),
 					compatibility: "compatible",
 				})
