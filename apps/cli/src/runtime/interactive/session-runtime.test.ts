@@ -552,6 +552,66 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe(secondSessionId);
 	});
 
+	it("clears the displayed queue on reset and ignores events from the old session", async () => {
+		const manager = makeManager();
+		const onPendingPrompts = vi.fn();
+		const onPendingPromptSubmitted = vi.fn();
+		createCliCoreMock.mockResolvedValue(manager);
+		const { createInteractiveSessionRuntime } = await importRuntime();
+		const runtime = createInteractiveSessionRuntime({
+			config: createConfig(),
+			providerSettingsManager: createProviderSettingsManager(),
+			chatCommandState: createChatCommandState(),
+			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
+			askQuestionRef: { current: null },
+			resolveMistakeLimitDecision: undefined,
+			switchToActModeTool: makeSwitchToActModeTool(),
+			onAgentEvent: vi.fn(),
+			onTeamEvent: vi.fn(),
+			onPendingPrompts,
+			onPendingPromptSubmitted,
+		});
+		await runtime.ensureReady();
+		const handlers = subscribeToPendingPromptEventsMock.mock.calls[0]?.[1];
+		const prompt = {
+			id: "queued-1",
+			prompt: "old task only",
+			delivery: "queue",
+			attachmentCount: 0,
+		};
+		const oldSnapshot = { sessionId: "session-1", prompts: [prompt] };
+		handlers.onPendingPrompts(oldSnapshot);
+		expect(onPendingPrompts).toHaveBeenLastCalledWith(oldSnapshot);
+		const stop = deferred<void>();
+		manager.stop.mockImplementationOnce(() => stop.promise);
+		const resetting = runtime.resetForNewSession();
+		expect(onPendingPrompts).toHaveBeenLastCalledWith({
+			sessionId: "",
+			prompts: [],
+		});
+		onPendingPrompts.mockClear();
+		handlers.onPendingPrompts(oldSnapshot);
+		handlers.onPendingPromptSubmitted({ sessionId: "session-1", ...prompt });
+		expect(onPendingPrompts).not.toHaveBeenCalled();
+		expect(onPendingPromptSubmitted).not.toHaveBeenCalled();
+		stop.resolve();
+		await resetting;
+		await runtime.ensureReady();
+		handlers.onPendingPrompts(oldSnapshot);
+		handlers.onPendingPromptSubmitted({ sessionId: "session-1", ...prompt });
+		expect(onPendingPrompts).not.toHaveBeenCalled();
+		expect(onPendingPromptSubmitted).not.toHaveBeenCalled();
+		const currentSnapshot = { sessionId: "session-2", prompts: [prompt] };
+		handlers.onPendingPrompts(currentSnapshot);
+		handlers.onPendingPromptSubmitted({ sessionId: "session-2", ...prompt });
+		expect(onPendingPrompts).toHaveBeenLastCalledWith(currentSnapshot);
+		expect(onPendingPromptSubmitted).toHaveBeenLastCalledWith({
+			sessionId: "session-2",
+			...prompt,
+		});
+	});
+
 	it("defers creating the replacement session after a new-session reset", async () => {
 		let startCount = 0;
 		const manager = {
