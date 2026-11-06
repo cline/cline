@@ -65,17 +65,21 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 			return []
 		}
 
-		// Search commits by hash or message, limiting to 10 results
-		const { stdout } = await execAsync(
-			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--grep="${query}" --regexp-ignore-case`,
+		// Search commits by hash or message, limiting to 10 results. The query is
+		// passed as a separate argv entry (no shell) so a term containing quotes,
+		// `$`, or backticks is matched literally instead of being re-parsed.
+		const { stdout } = await execFileAsync(
+			"git",
+			["log", "-n", "10", "--format=%H%n%h%n%s%n%an%n%ad", "--date=short", `--grep=${query}`, "--regexp-ignore-case"],
 			{ cwd },
 		)
 
 		let output = stdout
 		if (!output.trim() && /^[a-f0-9]+$/i.test(query)) {
 			// If no results from grep search and query looks like a hash, try searching by hash
-			const { stdout: hashStdout } = await execAsync(
-				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--author-date-order ${query}`,
+			const { stdout: hashStdout } = await execFileAsync(
+				"git",
+				["log", "-n", "10", "--format=%H%n%h%n%s%n%an%n%ad", "--date=short", "--author-date-order", query],
 				{ cwd },
 			).catch(() => ({ stdout: "" }))
 
@@ -126,15 +130,16 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 			return "Repository has no commits yet"
 		}
 
-		// Get commit info, stats, and diff separately
-		const { stdout: info } = await execAsync(`git show --format="%H%n%h%n%s%n%an%n%ad%n%b" --no-patch ${hash}`, {
+		// Get commit info, stats, and diff separately; `hash` is an argv entry too, so a
+		// revision copied from a mention can't be read as shell syntax.
+		const { stdout: info } = await execFileAsync("git", ["show", "--format=%H%n%h%n%s%n%an%n%ad%n%b", "--no-patch", hash], {
 			cwd,
 		})
 		const [fullHash, shortHash, subject, author, date, body] = info.trim().split("\n")
 
-		const { stdout: stats } = await execAsync(`git show --stat --format="" ${hash}`, { cwd })
+		const { stdout: stats } = await execFileAsync("git", ["show", "--stat", "--format=", hash], { cwd })
 
-		const { stdout: diff } = await execAsync(`git show --format="" ${hash}`, { cwd })
+		const { stdout: diff } = await execFileAsync("git", ["show", "--format=", hash], { cwd })
 
 		const summary = [
 			`Commit: ${shortHash} (${fullHash})`,
