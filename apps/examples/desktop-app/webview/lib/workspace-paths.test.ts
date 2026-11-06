@@ -46,6 +46,33 @@ describe("workspace paths", () => {
 		expect(normalizeWorkspacePath("/")).toBe("/");
 	});
 
+	it("merges Windows separator variants while retaining the first display spelling", () => {
+		expect(
+			mergeWorkspacePaths([
+				"C:\\Users\\me\\dev",
+				"C:/Users/me/dev/",
+				"c:/users/ME/dev",
+			]),
+		).toEqual(["C:\\Users\\me\\dev"]);
+		expect(normalizeWorkspacePath("C:/")).toBe(normalizeWorkspacePath("C:\\"));
+		expect(normalizeWorkspacePath("C:/")).not.toBe(
+			normalizeWorkspacePath("C:"),
+		);
+	});
+
+	it("keeps distinct folders and POSIX case and backslash characters separate", () => {
+		expect(
+			mergeWorkspacePaths([
+				"C:/one/repo",
+				"C:/two/repo",
+				"/work/Repo",
+				"/work/repo",
+				"/work/a\\b",
+				"/work/a/b",
+			]),
+		).toHaveLength(6);
+	});
+
 	it("detects absolute file paths across platforms", () => {
 		expect(isAbsoluteFilePath("/Users/renee/cline/docs/a.mdx")).toBe(true);
 		expect(isAbsoluteFilePath("C:\\Users\\renee\\a.mdx")).toBe(true);
