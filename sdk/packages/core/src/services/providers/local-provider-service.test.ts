@@ -2383,8 +2383,31 @@ describe("saveLocalProviderSettings", () => {
 		});
 
 		expect(result.enabled).toBe(false);
+		// Disconnect wipes credentials and removes the entry — an entry means
+		// "connected" to every consumer — but remembers the user-configured
+		// endpoint so reconnecting restores it instead of the catalog default.
 		expect(manager.getProviderSettings("test-provider")).toBeUndefined();
+		expect(manager.read().rememberedBaseUrls).toEqual({
+			"test-provider": "https://example.invalid/v1",
+		});
 		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("disabling a provider without a custom baseUrl removes it from settings", async () => {
+		// An entry with no baseUrl of its own (nothing user-configured to keep)
+		// is still removed outright on disconnect.
+		manager.saveProviderSettings(
+			{ provider: "bare-provider", model: "m1" },
+			{ setLastUsed: false },
+		);
+		expect(manager.getProviderSettings("bare-provider")).toBeDefined();
+
+		await saveLocalProviderSettings(manager, {
+			providerId: "bare-provider",
+			enabled: false,
+		});
+
+		expect(manager.getProviderSettings("bare-provider")).toBeUndefined();
 	});
 
 	it("updates apiKey", async () => {
@@ -2739,6 +2762,28 @@ describe("listLocalProviders", () => {
 	});
 
 	afterEach(() => cleanup());
+
+	it("reports a disconnected provider with a preserved baseUrl as disconnected", async () => {
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			baseUrl: "https://custom.example/v1",
+		});
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			enabled: false,
+		});
+
+		const provider = (await listLocalProviders(manager)).providers.find(
+			(p) => p.id === "openai-compatible",
+		);
+
+		expect(provider?.enabled).toBe(false);
+		expect(provider?.configured).toBe(false);
+		// The preserved endpoint is still offered, so reconnecting starts from
+		// the custom URL instead of the catalog default.
+		expect(provider?.baseUrl).toBe("https://custom.example/v1");
+		expect(provider?.configValues?.baseUrl).toBe("https://custom.example/v1");
+	});
 
 	it("sends authentication facts for builtins and registered providers", async () => {
 		LlmsModels.registerProvider({

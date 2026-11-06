@@ -54,6 +54,13 @@ export interface StoredProviderSettings {
 	lastUsedProvider?: string;
 	modes: StoredProviderModes;
 	repairs?: StoredProviderRepairs;
+	/**
+	 * A user-configured endpoint preserved across Disconnect, so reconnecting
+	 * starts from it instead of the catalog default. Kept apart from
+	 * `providers`: an entry there means "connected" to every consumer, so a
+	 * retained entry would report a disconnected provider as connected.
+	 */
+	rememberedBaseUrls?: Record<string, string>;
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
 
@@ -80,6 +87,7 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 		lastUsedProvider: z.string().min(1).optional(),
 		modes: StoredProviderModesSchema.default({}),
 		repairs: StoredProviderRepairsSchema.optional(),
+		rememberedBaseUrls: z.record(z.string(), z.string()).optional(),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
 	});
 
