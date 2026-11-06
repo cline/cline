@@ -35,6 +35,8 @@ vi.mock("@cline/core", async () => {
 			create: coreCreateMock,
 		},
 		SqliteSessionStore: class {
+			public close = vi.fn();
+
 			public get(sessionId: string): unknown {
 				return sessionStoreGetMock(sessionId);
 			}
@@ -892,6 +894,67 @@ describe("remote environment command routing", () => {
 		});
 	});
 
+	it("preserves the remote queue after a failed resume collides with a closed local side chat", async () => {
+		const { handleChatSessionCommand } = await import("./chat-session");
+		const {
+			createSidecarContext,
+			getEnvironmentContext,
+			handleCoreSessionEvent,
+		} = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		const sessionId = "same-id";
+		ctx.temporarySideConversations.closed.add(sessionId);
+		ctx.runtimeBindings.set(profile.id, {
+			...createExistingRemoteBinding(profile.id),
+			sessionManager: {
+				readMessages: vi.fn(async () => {
+					throw new Error("Hub disconnected");
+				}),
+			} as unknown as SessionRuntimeBinding["sessionManager"],
+		});
+		const remote = getEnvironmentContext(ctx, profile.id);
+		remote.liveSessions.set(sessionId, {
+			environmentId: profile.id,
+			config: { sessionId, environmentId: profile.id },
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			status: "idle",
+			startedAt: Date.now(),
+		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { sessionId, environmentId: profile.id },
+			}),
+		).rejects.toThrow("Hub disconnected");
+		const send = attachEventRecorder(ctx);
+		handleCoreSessionEvent(remote, {
+			type: "pending_prompts",
+			payload: {
+				sessionId,
+				prompts: [
+					{
+						id: "queued",
+						prompt: "Next question",
+						delivery: "queue",
+						attachmentCount: 0,
+					},
+				],
+			},
+		});
+		expect(readEvent(send, 0)).toMatchObject({
+			event: {
+				name: "prompts_in_queue_state",
+				payload: {
+					sessionId,
+					environmentId: profile.id,
+					items: [{ id: "queued", prompt: "Next question", steer: false }],
+				},
+			},
+		});
+	});
+
 	it("routes session reads, title updates, and deletes to the requested environment", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
@@ -914,6 +977,13 @@ describe("remote environment command routing", () => {
 			sessionManager,
 		});
 		expect(ctx.activeEnvironmentId).toBe("local");
+		ctx.temporarySideConversations.closed.add("remote-session");
+		await expect(
+			handleCommand(ctx, "get_discovered_session", {
+				environmentId: profile.id,
+				sessionId: "remote-session",
+			}),
+		).resolves.toMatchObject({ environmentId: profile.id });
 
 		await expect(
 			handleCommand(ctx, "read_session_messages", {

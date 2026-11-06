@@ -47,7 +47,6 @@ import {
 	SOURCE_CONTROL_STATUS_CLASS,
 	SourceControlColumn,
 } from "./source-control-column";
-import { WorkspacePanelFrame } from "./workspace-panel-frame";
 
 type ProjectEntry = {
 	name: string;
@@ -843,7 +842,10 @@ export function ProjectFilesPanel({
 			: null;
 
 	return (
-		<WorkspacePanelFrame id="project-files-panel">
+		<div
+			id="project-files-panel"
+			className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+		>
 			<div
 				className="flex shrink-0 flex-col border-r border-border bg-sidebar/40"
 				style={{ width: COLUMN_WIDTH }}
@@ -1207,7 +1209,7 @@ export function ProjectFilesPanel({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</WorkspacePanelFrame>
+		</div>
 	);
 }
 

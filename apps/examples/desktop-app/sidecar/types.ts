@@ -24,6 +24,8 @@ export type ChatTurnAttachments = {
 
 export type ChatSessionCommandRequest = {
 	sessionId?: string;
+	newSessionId?: string;
+	visibleContext?: unknown;
 	prompt?: string;
 	promptId?: string;
 	checkpointRunCount?: number;
@@ -41,6 +43,7 @@ export type ChatSessionCommandRequest = {
 	| {
 			action:
 				| "start"
+				| "create_side"
 				| "attach"
 				| "send"
 				| "stop"
@@ -147,6 +150,12 @@ export type SidecarWebSocketClient = {
 };
 
 export type SidecarContext = {
+	temporarySideConversations: {
+		closing: boolean;
+		closed: Set<string>;
+		byParent: Map<string, string>;
+		pending: Map<string, { sessionId: string; promise: Promise<unknown> }>;
+	};
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;

@@ -347,6 +347,35 @@ struct DesktopBackendState {
     shutting_down: AtomicBool,
 }
 
+#[cfg(any(not(unix), test))]
+fn request_sidecar_shutdown(endpoint: &str) -> bool {
+    use std::io::Write;
+    use std::net::{SocketAddr, TcpStream};
+
+    let Ok(url) = tauri::Url::parse(endpoint) else {
+        return false;
+    };
+    if url.host_str() != Some("127.0.0.1") {
+        return false;
+    }
+    let Some(port) = url.port() else {
+        return false;
+    };
+    let timeout = Duration::from_millis(500);
+    let Ok(mut stream) =
+        TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], port)), timeout)
+    else {
+        return false;
+    };
+    let _ = stream.set_write_timeout(Some(timeout));
+    let _ = stream.set_read_timeout(Some(timeout));
+    if write!(stream, "POST /shutdown HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").is_err() { return false; }
+    let mut response = String::new();
+    BufReader::new(stream)
+        .read_line(&mut response)
+        .is_ok_and(|_| response.starts_with("HTTP/1.1 200"))
+}
+
 impl DesktopBackendState {
     fn is_shutting_down(&self) -> bool {
         self.shutting_down.load(AtomicOrdering::Acquire)
@@ -354,6 +383,8 @@ impl DesktopBackendState {
 
     fn stop(&self) {
         self.shutting_down.store(true, AtomicOrdering::Release);
+        #[cfg(not(unix))]
+        let endpoint = self.ws_endpoint.lock().ok().and_then(|value| value.clone());
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
@@ -365,12 +396,17 @@ impl DesktopBackendState {
                 // exits itself, finishing session persistence as an orphan.
                 #[cfg(unix)]
                 let _ = Command::new("kill").arg(child.id().to_string()).status();
-                // Windows has no SIGTERM equivalent, so terminate outright.
-                // Reap the child too: TerminateProcess is quick, and the
-                // update-restart path needs the bundled CLI's file lock
-                // released before the NSIS installer replaces it.
+                // Windows needs the existing HTTP shutdown path so temporary
+                // side chats stop before their Hub client disconnects. Preserve
+                // the forced-exit fallback for an unresponsive sidecar.
                 #[cfg(not(unix))]
                 {
+                    if endpoint.as_deref().is_some_and(request_sidecar_shutdown) {
+                        let deadline = Instant::now() + Duration::from_millis(5500);
+                        while matches!(child.try_wait(), Ok(None)) && Instant::now() < deadline {
+                            thread::sleep(Duration::from_millis(25));
+                        }
+                    }
                     let _ = child.kill();
                     let _ = child.wait();
                 }
@@ -2087,6 +2123,28 @@ mod tests {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn graceful_shutdown_uses_the_existing_local_http_endpoint() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 512];
+            let read = stream.read(&mut request).unwrap();
+            assert!(request[..read].starts_with(b"POST /shutdown HTTP/1.1\r\n"));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+        assert!(request_sidecar_shutdown(&format!(
+            "ws://127.0.0.1:{port}/transport?approval_token=test"
+        )));
+        server.join().unwrap();
+        assert!(!request_sidecar_shutdown("ws://example.com:3126/transport"));
     }
 
     fn wait_until_tracked_child_exits(state: &Arc<DesktopBackendState>) {

@@ -19,6 +19,122 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it.each([
+		"parent",
+		"side",
+	])("removes the deleted %s thread without removing the other conversation", (target) => {
+		let state = createDesktopAppState("parent", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			session: createSession("side"),
+		});
+		const sideThreadId = state.threads[1].id;
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: target,
+			deletedThreadId: target === "parent" ? "parent" : sideThreadId,
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(
+			state.threads.some(
+				(thread) =>
+					thread.id === (target === "parent" ? "parent" : sideThreadId),
+			),
+		).toBe(false);
+		expect(
+			state.threads.some(
+				(thread) =>
+					thread.id === (target === "parent" ? sideThreadId : "parent"),
+			),
+		).toBe(true);
+	});
+
+	it("opens and reopens a child without changing the parent selection or identity", () => {
+		let state = createDesktopAppState(
+			"parent-thread",
+			settingsSection,
+			"local",
+		);
+		const parent = state.threads[0];
+		const navigation = state.navigation;
+		const child = createSession("side");
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			session: child,
+		});
+		const childThreadId = state.threads[1].id;
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads[0]).toBe(parent);
+		state = desktopAppReducer(state, {
+			type: "set-side-panel-visible",
+			threadId: childThreadId,
+			visible: false,
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "other",
+			environmentId: "local",
+		});
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.threads[1].sidePanelVisible).toBe(false);
+		state = desktopAppReducer(state, {
+			type: "open-side",
+			session: child,
+			submission: { question: "continue" },
+		});
+		expect(state.threads[1].id).toBe(childThreadId);
+		expect(state.threads[1].sidePanelVisible).toBe(true);
+		expect(state.threads).toHaveLength(3);
+		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe(
+			"continue",
+		);
+		expect(state.navigation.current.activeThreadId).toBe(parent.id);
+	});
+
+	it("retains a side relation and consumes its one-shot question without altering the parent", () => {
+		let state = createDesktopAppState("main-thread", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "main-thread",
+			sessionId: "main",
+		});
+		const parent = state.threads[0];
+		const session = {
+			...createSession("side"),
+			metadata: {
+				title: "Side: Main",
+				desktopSideConversation: { parentSessionId: "main" },
+			},
+		};
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session,
+			environmentId: "local",
+			initialSideSubmission: { question: "why?" },
+		});
+		const sideId = state.navigation.current.activeThreadId;
+		expect(state.threads[0]).toBe(parent);
+		expect(state.threads[1].initialPromptDraft).toBeUndefined();
+		expect(state.threads[1].pendingSideSubmissions?.[0]?.question).toBe("why?");
+		const submission = state.threads[1].pendingSideSubmissions?.[0];
+		if (!submission) throw new Error("Missing queued question");
+		state = desktopAppReducer(state, {
+			type: "consume-initial-side-submission",
+			threadId: sideId,
+			submission,
+		});
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session,
+			environmentId: "local",
+		});
+		expect(state.threads[1].pendingSideSubmissions).toEqual([]);
+		expect(state.threads[1].historySession?.metadata).toEqual(session.metadata);
+		expect(state.threads[0]).toBe(parent);
+	});
+
 	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
 		let state = createDesktopAppState("new-local", settingsSection, "local");
 		state = desktopAppReducer(state, {

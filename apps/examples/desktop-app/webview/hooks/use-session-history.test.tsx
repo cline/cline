@@ -67,8 +67,8 @@ let root: Root;
 let current: SessionHistoryHook;
 let pendingLists: PendingList[];
 
-function HookHarness() {
-	current = useSessionHistory({});
+function HookHarness(options: Parameters<typeof useSessionHistory>[0] = {}) {
+	current = useSessionHistory(options);
 	return null;
 }
 
@@ -107,6 +107,61 @@ afterEach(async () => {
 	container.remove();
 	vi.useRealTimers();
 	vi.restoreAllMocks();
+});
+
+it("keeps side unread on its parent until the side is viewed, without refreshing history for side events", async () => {
+	const side = sessionKey({ sessionId: "side", environmentId: "local" });
+	const parent = sessionKey({ sessionId: "main", environmentId: "local" });
+	const parents = new Map([[side, parent]]);
+	const render = async (visibleSideSessionId?: string) =>
+		act(async () =>
+			root.render(
+				<HookHarness
+					activeSessionId={parent}
+					sideSessionParents={parents}
+					visibleSideSessionId={visibleSideSessionId}
+				/>,
+			),
+		);
+	await render();
+	await flush();
+	await act(async () => pendingLists[0].resolve([sessionRow("main")]));
+	const listCalls = () =>
+		invokeMock.mock.calls.filter(
+			([command]) => command === "list_discovered_sessions",
+		).length;
+	const before = listCalls();
+	await act(async () => {
+		subscribers.get("chat_event")?.({ sessionId: "side", stream: "chat_text" });
+		subscribers.get("chat_session_status")?.({
+			sessionId: "side",
+			status: "running",
+		});
+	});
+	expect(current.unreadSessionIds.size).toBe(0);
+	await act(async () =>
+		subscribers.get("chat_event")?.({ sessionId: "side", stream: "chat_done" }),
+	);
+	expect(current.unreadSessionIds).toEqual(new Set([parent]));
+	expect(current.unreadSideSessionIds).toEqual(new Set([side]));
+	await act(async () => current.openThread(parent));
+	expect(current.unreadSessionIds.has(parent)).toBe(true);
+	await flush(2500);
+	expect(listCalls()).toBe(before);
+	await render(side);
+	expect(current.unreadSessionIds.size).toBe(0);
+	await render();
+	await act(async () =>
+		subscribers.get("tool_approval_state")?.({
+			sessionId: "side",
+			items: [{ requestId: "approve" }],
+		}),
+	);
+	expect(current.unreadSessionIds).toEqual(new Set([parent]));
+	await act(async () =>
+		subscribers.get("session_deleted")?.({ sessionId: "side" }),
+	);
+	expect(current.unreadSessionIds.size).toBe(0);
 });
 
 describe("useSessionHistory session mapping", () => {

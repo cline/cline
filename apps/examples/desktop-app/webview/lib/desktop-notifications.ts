@@ -265,7 +265,16 @@ function addSeenRequest(seen: Set<string>, requestId: string): boolean {
 	return true;
 }
 
-export function watchDesktopNotifications(): () => void {
+export function watchDesktopNotifications({
+	resolveSession,
+	isSideVisible,
+}: {
+	resolveSession?: (
+		sessionId: string,
+		environmentId: string,
+	) => Promise<{ sideParentTitle?: string } | null>;
+	isSideVisible?: (sessionId: string, environmentId: string) => boolean;
+} = {}): () => void {
 	if (!isTauriAvailable()) {
 		return () => {};
 	}
@@ -286,21 +295,35 @@ export function watchDesktopNotifications(): () => void {
 
 	const notify = async (input: {
 		eventType: DesktopNotificationEventType;
+		environmentId: string;
 		sessionId: string;
 		title: string;
 		body: string;
 	}) => {
 		const preference = readDesktopNotificationSettings()[input.eventType];
-		if (!preference.enabled || (await isMainWindowFocused()) || disposed) {
+		if (!preference.enabled || disposed) return;
+		const session = resolveSession
+			? await resolveSession(input.sessionId, input.environmentId).catch(
+					() => null,
+				)
+			: {};
+		if (!session || disposed) return;
+		const side = session.sideParentTitle !== undefined;
+		if (side && input.eventType === "taskCompletion") return;
+		if (
+			(await isMainWindowFocused()) &&
+			(!side || isSideVisible?.(input.sessionId, input.environmentId) !== false)
+		)
 			return;
-		}
 		if ((await ensurePermission()) !== "granted" || disposed) {
 			return;
 		}
 		try {
 			await desktopClient.invoke("show_session_notification", {
-				title: input.title,
-				body: concise(input.body),
+				title: session.sideParentTitle ?? input.title,
+				body: concise(
+					side ? `Side chat · ${input.title}: ${input.body}` : input.body,
+				),
 				sessionId: input.sessionId,
 				sound: preference.sound ? notificationSound() : undefined,
 			});
@@ -329,6 +352,7 @@ export function watchDesktopNotifications(): () => void {
 			}
 			void notify({
 				eventType: "taskCompletion",
+				environmentId,
 				sessionId,
 				title: "Task completed",
 				body: "Cline finished working and the result is ready.",
@@ -337,6 +361,7 @@ export function watchDesktopNotifications(): () => void {
 		}
 		void notify({
 			eventType: "sessionError",
+			environmentId,
 			sessionId,
 			title: "Task failed",
 			body: detail || "Cline encountered an error while running this task.",
@@ -423,6 +448,7 @@ export function watchDesktopNotifications(): () => void {
 				const toolName = asNonEmptyString(item.toolName) || "A tool";
 				void notify({
 					eventType: "approvalNeeded",
+					environmentId: eventEnvironmentId(payload),
 					sessionId,
 					title: "Approval needed",
 					body: `${toolName} is waiting for your approval.`,
@@ -449,6 +475,7 @@ export function watchDesktopNotifications(): () => void {
 			}
 			void notify({
 				eventType: "questionAsked",
+				environmentId: eventEnvironmentId(payload),
 				sessionId,
 				title: "Cline has a question",
 				body:

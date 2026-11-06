@@ -115,6 +115,8 @@ export type SessionPendingAction = {
 } | null;
 
 export type UseSessionHistoryOptions = {
+	sideSessionParents?: ReadonlyMap<string, string>;
+	visibleSideSessionId?: string | null;
 	activeSessionId?: string | null;
 	onOpenSession?: (session: SessionHistoryItem) => void;
 	onDeleteSession?: (sessionId: string, environmentId: string) => void;
@@ -587,6 +589,8 @@ function mergeDiscoveredSessions(
 }
 
 export function useSessionHistory({
+	sideSessionParents,
+	visibleSideSessionId,
 	activeSessionId,
 	onOpenSession,
 	onDeleteSession,
@@ -606,6 +610,35 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	const sideSessionsRef = useRef({
+		parents: sideSessionParents,
+		visible: visibleSideSessionId,
+	});
+	sideSessionsRef.current = {
+		parents: sideSessionParents,
+		visible: visibleSideSessionId,
+	};
+	const handleSideActivity = useCallback(
+		(id: string, needsAttention: boolean) => {
+			if (!sideSessionsRef.current.parents?.has(id)) return false;
+			if (needsAttention && sideSessionsRef.current.visible !== id) {
+				setUnreadSessionIds((current) =>
+					current.has(id) ? current : new Set([...current, id]),
+				);
+			}
+			return true;
+		},
+		[],
+	);
+	useEffect(() => {
+		if (!visibleSideSessionId) return;
+		setUnreadSessionIds((current) => {
+			if (!current.has(visibleSideSessionId)) return current;
+			const next = new Set(current);
+			next.delete(visibleSideSessionId);
+			return next;
+		});
+	}, [visibleSideSessionId]);
 	// Rows a view currently has on screen beyond the default window (the
 	// sessions view reports its visible page and clears it on unmount). Each
 	// call replaces the previous set rather than adding to it, so the set is
@@ -1212,6 +1245,12 @@ export function useSessionHistory({
 			if (!sessionId) {
 				return;
 			}
+			setUnreadSessionIds((current) => {
+				if (!current.has(sessionId)) return current;
+				const next = new Set(current);
+				next.delete(sessionId);
+				return next;
+			});
 			// usageLoadingRef is left to the pending read's own finally: it is
 			// the in-flight gauge for the read cap, so freeing the slot here would
 			// let a fifth read start while the deleted row's read is still running.
@@ -1272,6 +1311,15 @@ export function useSessionHistory({
 				if (!sessionId) {
 					return;
 				}
+				if (
+					handleSideActivity(
+						sessionId,
+						record.status === "completed" ||
+							record.status === "failed" ||
+							record.status === "error",
+					)
+				)
+					return;
 				const known = sessionsRef.current.some(
 					(session) => sessionKey(session) === sessionId,
 				);
@@ -1305,6 +1353,23 @@ export function useSessionHistory({
 				}
 			},
 		);
+		const unsubscribeSideRequests = [
+			"tool_approval_state",
+			"ask_question_requested",
+		].map((name) =>
+			desktopClient.subscribe(name, (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as { sessionId?: string; items?: unknown[] };
+				if (!record.sessionId) return;
+				handleSideActivity(
+					sessionKey({
+						sessionId: record.sessionId,
+						environmentId: eventEnvironmentId(payload),
+					}),
+					name === "ask_question_requested" || Boolean(record.items?.length),
+				);
+			}),
+		);
 		// Account/org switches must refresh the sidebar without waiting for polling.
 		const unsubscribeCloudScope = desktopClient.subscribe(
 			"cloud_sessions_changed",
@@ -1333,13 +1398,15 @@ export function useSessionHistory({
 				}
 				const record = payload as SidecarSessionStateEvent;
 				if (record.sessionId?.trim()) {
-					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
-						force: true,
-					});
 					const sessionId = sessionKey({
 						sessionId: record.sessionId.trim(),
 						environmentId: record.environmentId,
 					});
+					if (handleSideActivity(sessionId, true)) return;
+					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
+						force: true,
+					});
+
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
 							const next = new Set(current);
@@ -1380,6 +1447,8 @@ export function useSessionHistory({
 				if (!sessionId) {
 					return;
 				}
+				if (handleSideActivity(sessionId, record.stream === "chat_done"))
+					return;
 				const known = sessionsRef.current.some(
 					(session) => sessionKey(session) === sessionId,
 				);
@@ -1406,12 +1475,13 @@ export function useSessionHistory({
 			);
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
+			for (const unsubscribe of unsubscribeSideRequests) unsubscribe();
 			unsubscribeCloudScope();
 			unsubscribeTransportEnded();
 			unsubscribeTransportImport();
 			unsubscribeTransportChatEvent();
 		};
-	}, [activeSessionId, scheduleRefresh]);
+	}, [activeSessionId, scheduleRefresh, handleSideActivity]);
 
 	useEffect(() => {
 		const recent = sessions
@@ -1893,7 +1963,12 @@ export function useSessionHistory({
 		sessionById,
 		sessions,
 		threads: threadsWithScheduled,
-		unreadSessionIds,
+		unreadSideSessionIds: new Set(
+			[...unreadSessionIds].filter((id) => sideSessionParents?.has(id)),
+		),
+		unreadSessionIds: new Set(
+			[...unreadSessionIds].map((id) => sideSessionParents?.get(id) ?? id),
+		),
 	};
 }
 

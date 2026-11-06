@@ -1114,34 +1114,43 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
-	it("copies a user message without its transport envelope", async () => {
+	it.each([
+		[
+			"user",
+			'<user_input mode="act">Original prompt</user_input>',
+			"Original prompt",
+		],
+		["assistant", "Original **answer**", "Original **answer**"],
+	] as const)("copies the %s message content", async (role, content, expected) => {
 		const writeText = vi.fn(async () => undefined);
 		Object.assign(navigator, { clipboard: { writeText } });
 		await renderMessages([
 			{
-				id: "copyable-user",
+				id: "copyable-message",
 				sessionId: "session-1",
-				role: "user",
-				content: '<user_input mode="act">Original prompt</user_input>',
+				role,
+				content,
 				createdAt: 1,
 			},
 		]);
 
 		const copyButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Copy user message"]',
+			`button[aria-label="Copy ${role} message"]`,
 		);
 		vi.useFakeTimers();
 		try {
 			await act(async () => copyButton?.click());
 
 			expect(writeText).toHaveBeenCalledOnce();
-			expect(writeText).toHaveBeenCalledWith("Original prompt");
+			expect(writeText).toHaveBeenCalledWith(expected);
 			expect(copyButton?.getAttribute("aria-label")).toBe(
-				"Copied user message",
+				`Copied ${role} message`,
 			);
 
 			await act(async () => vi.runOnlyPendingTimers());
-			expect(copyButton?.getAttribute("aria-label")).toBe("Copy user message");
+			expect(copyButton?.getAttribute("aria-label")).toBe(
+				`Copy ${role} message`,
+			);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -2688,5 +2697,40 @@ describe("ChatMessages last turn receipt", () => {
 			status: "running",
 		});
 		expect(receipts()).toHaveLength(0);
+	});
+});
+
+describe("side chat empty state", () => {
+	it("shows the welcome copy only for a ready empty side", async () => {
+		await renderMessages([], { sideEmpty: true, status: "idle" });
+		expect(container.textContent).toContain("Side chat");
+		expect(container.textContent).toContain(
+			"Ask a related question while the main chat continues.",
+		);
+		await renderMessages(
+			[
+				{
+					id: "reply",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Saved response",
+					createdAt: Date.now(),
+				},
+			],
+			{ sideEmpty: true },
+		);
+		expect(container.textContent).not.toContain("Side chat");
+		expect(container.textContent).toContain("Saved response");
+	});
+	it.each([
+		{ sideEmpty: false },
+		{ isSessionSwitching: true },
+		{ status: "running" as const },
+		{ status: "starting" as const },
+		{ error: "Failed to load" },
+		{ chatTransportState: "reconnecting" as const },
+	])("does not flash empty copy over unresolved or active state: %o", async (state) => {
+		await renderMessages([], { sideEmpty: true, ...state });
+		expect(container.textContent).not.toContain("Side chat");
 	});
 });

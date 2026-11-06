@@ -612,3 +612,50 @@ describe("AgentHeader subagent session badge", () => {
 		);
 	});
 });
+
+it("toggles side chat from the existing toolbar without a second creation action", async () => {
+	const host = container;
+	const open = vi.fn();
+	const main = vi.fn();
+	await act(async () =>
+		root.render(
+			<AgentHeader
+				title="Main"
+				status="idle"
+				onOpenSide={open}
+				onShowMain={main}
+				sideOpen
+			/>,
+		),
+	);
+	const side = host.querySelector<HTMLButtonElement>(
+		'[aria-label="Hide side chat"]',
+	);
+	expect(side?.getAttribute("aria-pressed")).toBe("true");
+	await act(async () => side?.click());
+	expect(open).toHaveBeenCalledOnce();
+	const back = [...host.querySelectorAll("button")].find(
+		(button) => button.textContent === "Main",
+	);
+	await act(async () => back?.click());
+	expect(main).toHaveBeenCalledOnce();
+});
+
+it("labels the hidden side affordance with its action and pending attention", async () => {
+	await act(async () =>
+		root.render(
+			<AgentHeader
+				title="Main"
+				status="idle"
+				onOpenSide={vi.fn()}
+				sideOpen={false}
+				sideAttention="Needs input"
+			/>,
+		),
+	);
+	const button = container.querySelector(
+		'[aria-label="Show side chat: Needs input"]',
+	);
+	expect(button?.getAttribute("aria-pressed")).toBe("false");
+	expect(button?.getAttribute("title")).toBe("Show side chat · Needs input");
+});

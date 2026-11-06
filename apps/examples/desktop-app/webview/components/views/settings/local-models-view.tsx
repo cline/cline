@@ -295,7 +295,7 @@ function RuntimePicker({
 	);
 }
 
-export function LocalModelsContent() {
+export function LocalModelsContent({ composerId }: { composerId?: string }) {
 	const [runtime, setRuntime] = useState(readPreferredRuntime);
 	const runtimeRef = useRef(runtime);
 	const refreshGenerationRef = useRef(0);
@@ -510,7 +510,7 @@ export function LocalModelsContent() {
 			});
 			// The composer only offers providers whose models it knows about.
 			publishProviderModels(provider, await loadProviderModels(provider));
-			selectChatModel(provider, model);
+			selectChatModel(provider, model, composerId);
 			setChatSelection({ provider, model });
 			// Warm the model up so the first message doesn't wait on a cold load.
 			await loadModel(model, contextWindow);

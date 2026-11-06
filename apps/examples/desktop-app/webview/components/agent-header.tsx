@@ -11,6 +11,7 @@ import {
 	FileDiff,
 	FolderTree,
 	Loader2,
+	MessageSquare,
 	MoreHorizontal,
 	Plus,
 	SquareTerminal,
@@ -45,6 +46,10 @@ type AgentHeaderProps = {
 	renamingTitle?: boolean;
 	onRenameTitle?: (nextTitle: string) => Promise<void> | void;
 	onNewThread?: () => void;
+	onOpenSide?: () => void;
+	onShowMain?: () => void;
+	sideOpen?: boolean;
+	sideAttention?: string;
 	onDeleteSession?: () => void;
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
@@ -84,6 +89,10 @@ function AgentHeaderImpl({
 	renamingTitle,
 	onRenameTitle,
 	onNewThread,
+	onOpenSide,
+	onShowMain,
+	sideOpen,
+	sideAttention,
 	onDeleteSession,
 	canDeleteSession,
 	deletingSession,
@@ -180,6 +189,30 @@ function AgentHeaderImpl({
 								</span>
 							</Button>
 						) : null}
+						{onShowMain && (
+							<Button variant="toolbar" size="sm" onClick={onShowMain}>
+								Main
+							</Button>
+						)}
+						{onOpenSide && (
+							<Button
+								variant="toolbar"
+								size="icon-xs"
+								aria-label={
+									sideAttention
+										? `${sideOpen ? "Hide" : "Show"} side chat: ${sideAttention}`
+										: `${sideOpen ? "Hide" : "Show"} side chat`
+								}
+								title={`${sideOpen ? "Hide" : "Show"} side chat${sideAttention ? ` · ${sideAttention}` : ""}`}
+								aria-pressed={sideOpen}
+								onClick={onOpenSide}
+							>
+								<MessageSquare className="size-4" />
+								{sideAttention && (
+									<span className="size-1.5 rounded-full bg-primary" />
+								)}
+							</Button>
+						)}
 						{onToggleFiles ? (
 							<Button
 								aria-label={

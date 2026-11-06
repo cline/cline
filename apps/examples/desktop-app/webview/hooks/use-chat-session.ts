@@ -48,6 +48,7 @@ import type {
 	ToolCallStartEvent,
 	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
+import { captureVisibleSideContext } from "@/hooks/side-conversation/visible-context";
 import { toast } from "@/hooks/use-toast";
 import {
 	type ChatMessage,
@@ -84,6 +85,12 @@ import {
 	registerHostHomeDirectory,
 	registerTaskWorktreeRoot,
 } from "@/lib/workspace-paths";
+import {
+	CreateSideConversationResultSchema,
+	readSideConfig,
+	type SideConfig,
+	SideConfigSchema,
+} from "../../shared/side-conversation";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
@@ -588,7 +595,10 @@ function dispatchCoreLog(chunk: string): void {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useChatSession(environmentId: string) {
+export function useChatSession(
+	environmentId: string,
+	mainConfig?: ChatSessionConfig,
+) {
 	const subscribeToEnvironment = useCallback(
 		(name: string, listener: (payload: unknown) => void) =>
 			desktopClient.subscribe(name, (payload) => {
@@ -600,9 +610,32 @@ export function useChatSession(environmentId: string) {
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
-	const [config, setConfig] = useState<ChatSessionConfig>(() =>
+	const [storedConfig, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
 	);
+	const config = useMemo(() => {
+		if (
+			!mainConfig ||
+			storedConfig.selectionSource === "side" ||
+			BUSY_STATUSES.has(status)
+		)
+			return storedConfig;
+		return {
+			...storedConfig,
+			selectionSource: "main" as const,
+			provider: mainConfig.provider,
+			model: mainConfig.model,
+			apiKey: mainConfig.apiKey,
+			providerAuth: mainConfig.providerAuth,
+			thinking: mainConfig.thinking,
+			reasoningEffort: mainConfig.reasoningEffort,
+			mode: mainConfig.mode,
+			autoApproveTools: mainConfig.autoApproveTools,
+			enableTools: mainConfig.enableTools,
+		};
+	}, [mainConfig, storedConfig, status]);
+	const pendingSideSettings = useRef<Promise<unknown>>(Promise.resolve());
+	const retrySideSettingsWrite = useRef<(() => Promise<unknown>) | null>(null);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -623,12 +656,28 @@ export function useChatSession(environmentId: string) {
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
-	const [pendingToolApprovals, setPendingToolApprovals] = useState<
+	const [pendingToolApprovals, storeToolApprovals] = useState<
 		ToolApprovalRequestItem[]
 	>([]);
-	const [pendingAskQuestions, setPendingAskQuestions] = useState<
+	const [pendingAskQuestions, storeAskQuestions] = useState<
 		AskQuestionRequestItem[]
 	>([]);
+	const interactionRevision = useRef({ approvals: 0, questions: 0 });
+	const [interactionsKnown, setInteractionsKnown] = useState(false);
+	const setPendingToolApprovals = useCallback(
+		(value: React.SetStateAction<ToolApprovalRequestItem[]>) => {
+			interactionRevision.current.approvals++;
+			storeToolApprovals(value);
+		},
+		[],
+	);
+	const setPendingAskQuestions = useCallback(
+		(value: React.SetStateAction<AskQuestionRequestItem[]>) => {
+			interactionRevision.current.questions++;
+			storeAskQuestions(value);
+		},
+		[],
+	);
 	const [promptsInQueue, setPromptsInQueueState] = useState<PromptInQueue[]>(
 		[],
 	);
@@ -652,6 +701,7 @@ export function useChatSession(environmentId: string) {
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
 	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
+	const unsentOptimisticUserIdsRef = useRef<Set<string>>(new Set());
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
@@ -1053,7 +1103,10 @@ export function useChatSession(environmentId: string) {
 							historyMessages.length === 0 ||
 							!historyMessages.some(
 								(message) =>
-									message.role === "assistant" || message.role === "error",
+									message.role === "assistant" ||
+									message.role === "error" ||
+									(message.role === "tool" &&
+										message.meta?.hookEventName === "history_tool_result"),
 							)
 						) {
 							// Persistence has not caught up: keep the live state
@@ -1083,6 +1136,19 @@ export function useChatSession(environmentId: string) {
 
 	const postSession = useCallback(
 		async (body: Record<string, unknown>) => {
+			if (body.action === "start" || body.action === "send") {
+				const pending = pendingSideSettings.current;
+				try {
+					await pending;
+				} catch {
+					if (
+						pendingSideSettings.current === pending &&
+						retrySideSettingsWrite.current
+					)
+						pendingSideSettings.current = retrySideSettingsWrite.current();
+					await pendingSideSettings.current;
+				}
+			}
 			const bodyConfig =
 				body.config &&
 				typeof body.config === "object" &&
@@ -1513,6 +1579,8 @@ export function useChatSession(environmentId: string) {
 		refreshSessionDiffSummary,
 		sessionId,
 		setPromptsInQueue,
+		setPendingAskQuestions,
+		setPendingToolApprovals,
 	]);
 
 	// Fallback for sessions with no tool events in the hook log (e.g. sessions
@@ -1559,40 +1627,63 @@ export function useChatSession(environmentId: string) {
 		setDiffSummary(diffState.summary);
 	}, [sessionId, messages, fileDiffs.length, sessionDiffCwd]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Session identity scopes requests; reconnects retain them.
 	useEffect(() => {
-		const activeSessionId = sessionId;
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
-		if (!activeSessionId) {
-			return;
-		}
+	}, [
+		environmentId,
+		sessionId,
+		setPendingToolApprovals,
+		setPendingAskQuestions,
+	]);
+
+	useEffect(() => {
+		setInteractionsKnown(false);
+		if (!sessionId || chatTransportState !== "connected") return;
 		let cancelled = false;
+		const refresh = async (): Promise<void> => {
+			const revision = { ...interactionRevision.current };
+			const [approvals, questions] = await Promise.allSettled([
+				desktopClient.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
+					environmentId,
+					sessionId,
+					limit: 20,
+				}),
+				desktopClient.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+					environmentId,
+					sessionId,
+				}),
+			]);
+			if (cancelled) return;
+			// A resolution or new request supersedes an in-flight snapshot.
+			if (
+				revision.approvals !== interactionRevision.current.approvals ||
+				revision.questions !== interactionRevision.current.questions
+			) {
+				void refresh();
+				return;
+			}
+			if (approvals.status === "fulfilled")
+				storeToolApprovals(
+					approvals.value.filter((item) => item.sessionId === sessionId),
+				);
+			if (questions.status === "fulfilled")
+				storeAskQuestions(
+					questions.value.filter((item) => item.sessionId === sessionId),
+				);
+			setInteractionsKnown(
+				approvals.status === "fulfilled" && questions.status === "fulfilled",
+			);
+		};
+		void refresh();
+		return () => {
+			cancelled = true;
+		};
+	}, [environmentId, sessionId, chatTransportState]);
 
-		void desktopClient
-			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
-				environmentId,
-				sessionId: activeSessionId,
-				limit: 20,
-			})
-			.then((pending) => {
-				if (!cancelled) {
-					setPendingToolApprovals(pending);
-				}
-			})
-			.catch(() => {});
-
-		void desktopClient
-			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
-				environmentId,
-				sessionId: activeSessionId,
-			})
-			.then((pending) => {
-				if (!cancelled) {
-					setPendingAskQuestions(pending);
-				}
-			})
-			.catch(() => {});
-
+	useEffect(() => {
+		if (!sessionId) return;
 		const unsubscribe = subscribeToEnvironment(
 			"tool_approval_state",
 			(payload) => {
@@ -1601,18 +1692,15 @@ export function useChatSession(environmentId: string) {
 					sessionId?: string;
 					items?: ToolApprovalRequestItem[];
 				};
-				if (record.sessionId !== activeSessionId) return;
+				if (record.sessionId !== sessionId) return;
 				setPendingToolApprovals(
 					Array.isArray(record.items) ? record.items : [],
 				);
 			},
 		);
 
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, [environmentId, sessionId, subscribeToEnvironment]);
+		return unsubscribe;
+	}, [sessionId, subscribeToEnvironment, setPendingToolApprovals]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_requested", (payload) => {
@@ -1633,7 +1721,7 @@ export function useChatSession(environmentId: string) {
 				return [...prev, item];
 			});
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_answered", (payload) => {
@@ -1646,7 +1734,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("ask_question_cancelled", (payload) => {
@@ -1659,7 +1747,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, [subscribeToEnvironment]);
+	}, [subscribeToEnvironment, setPendingAskQuestions]);
 
 	useEffect(() => {
 		return subscribeToEnvironment("prompts_in_queue_state", (payload) => {
@@ -2885,6 +2973,7 @@ export function useChatSession(environmentId: string) {
 					outstandingOptimisticUserIdsRef.current.delete(
 						optimisticUserMessageId,
 					);
+					unsentOptimisticUserIdsRef.current.delete(optimisticUserMessageId);
 					setMessages((prev) =>
 						prev.filter((message) => message.id !== optimisticUserMessageId),
 					);
@@ -2894,6 +2983,7 @@ export function useChatSession(environmentId: string) {
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
+				unsentOptimisticUserIdsRef.current.add(optimisticUserMessageId);
 				if (parsed.executionTarget === "cloud") {
 					cloudOptimisticStatesRef.current.set(optimisticUserMessageId, {
 						sessionId: plannedSessionId,
@@ -2916,6 +3006,7 @@ export function useChatSession(environmentId: string) {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				setConfig(parsed);
 				setStatus("starting");
 			} else if (optimisticQueuedPromptId) {
 				// Invalidate any in-flight server queue double-check: its snapshot
@@ -3106,6 +3197,8 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.add(activeSessionId);
 				}
+				if (optimisticUserMessageId)
+					unsentOptimisticUserIdsRef.current.delete(optimisticUserMessageId);
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -3129,11 +3222,11 @@ export function useChatSession(environmentId: string) {
 				failureGenerationAtSubmission === failureTurnGenerationRef.current;
 			const settleAbortedSend = () => {
 				if (!abortedRef.current || !failureOwnerCurrent()) return false;
+				abortedReconcileEpoch = turnEpochAtDispatch;
 				if (
 					authoritativeStatusRevisionRef.current ===
 					abortStatusRevisionRef.current
 				) {
-					abortedReconcileEpoch = turnEpochRef.current;
 					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				}
@@ -3685,7 +3778,7 @@ export function useChatSession(environmentId: string) {
 				setError(errorMessage(error));
 			}
 		},
-		[environmentId],
+		[environmentId, setPendingToolApprovals],
 	);
 
 	const approveToolApproval = useCallback(
@@ -3709,7 +3802,7 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		},
-		[environmentId],
+		[environmentId, setPendingAskQuestions],
 	);
 
 	const restoreCheckpoint = useCallback(
@@ -3774,6 +3867,8 @@ export function useChatSession(environmentId: string) {
 			resetCounters,
 			status,
 			setPromptsInQueue,
+			setPendingAskQuestions,
+			setPendingToolApprovals,
 		],
 	);
 
@@ -3881,6 +3976,7 @@ export function useChatSession(environmentId: string) {
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
 		outstandingOptimisticUserIdsRef.current.clear();
+		unsentOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
 		lastCoreErrorBySessionRef.current = {};
 		cloudOptimisticStatesRef.current.clear();
@@ -3911,10 +4007,12 @@ export function useChatSession(environmentId: string) {
 		resetCounters,
 		clearLiveToolRefs,
 		setPromptsInQueue,
+		setPendingAskQuestions,
+		setPendingToolApprovals,
 	]);
 
 	const hydrateSession = useCallback(
-		async (session: SessionHistoryItem) => {
+		async (session: SessionHistoryItem): Promise<boolean> => {
 			if (
 				(session.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !==
 				environmentId
@@ -3936,18 +4034,20 @@ export function useChatSession(environmentId: string) {
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
 			setSessionId(session.sessionId);
+			const sideConfig = readSideConfig(session.metadata);
 			setConfig((prev) => ({
 				...prev,
 				environmentId,
 				sessionId: session.sessionId,
+				...sideConfig,
 				executionTarget: session.origin === "cloud" ? "cloud" : "local",
 				repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
 				branch:
 					session.origin === "cloud"
 						? getSessionMetadataGitBranch(session.metadata)
 						: undefined,
-				provider: session.provider || prev.provider,
-				model: session.model || prev.model,
+				provider: sideConfig?.provider || session.provider || prev.provider,
+				model: sideConfig?.model || session.model || prev.model,
 				workspaceRoot: session.workspaceRoot || prev.workspaceRoot,
 				cwd: session.workspaceRoot || session.cwd || prev.cwd,
 			}));
@@ -3971,6 +4071,7 @@ export function useChatSession(environmentId: string) {
 				sessionStatus: typeof session.status,
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
+				unsentOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
@@ -4016,7 +4117,7 @@ export function useChatSession(environmentId: string) {
 						maxMessages: MAX_MESSAGES,
 					},
 				);
-				if (hydrationRequestIdRef.current !== requestId) return;
+				if (hydrationRequestIdRef.current !== requestId) return false;
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
@@ -4034,6 +4135,7 @@ export function useChatSession(environmentId: string) {
 						branch?: string;
 						prompt?: string;
 						environmentId?: string;
+						metadata?: unknown;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -4057,7 +4159,7 @@ export function useChatSession(environmentId: string) {
 						setError(errorMessage(err));
 						return undefined;
 					});
-				if (hydrationRequestIdRef.current !== requestId) return;
+				if (hydrationRequestIdRef.current !== requestId) return false;
 				if (
 					attached?.environmentId !== undefined &&
 					attached.environmentId !== environmentId
@@ -4066,8 +4168,10 @@ export function useChatSession(environmentId: string) {
 						`Session ${session.sessionId} attached to environment ${attached.environmentId}, not ${environmentId}.`,
 					);
 				}
+				const attachedSideConfig = readSideConfig(attached?.metadata);
 				setConfig((prev) => ({
 					...prev,
+					...attachedSideConfig,
 					environmentId,
 					sessionId: session.sessionId,
 					executionTarget: session.origin === "cloud" ? "cloud" : "local",
@@ -4077,8 +4181,18 @@ export function useChatSession(environmentId: string) {
 						(session.origin === "cloud"
 							? getSessionMetadataGitBranch(session.metadata)
 							: undefined),
-					provider: attached?.provider || session.provider || prev.provider,
-					model: attached?.model || session.model || prev.model,
+					provider:
+						attachedSideConfig?.provider ||
+						attached?.provider ||
+						sideConfig?.provider ||
+						session.provider ||
+						prev.provider,
+					model:
+						attachedSideConfig?.model ||
+						attached?.model ||
+						sideConfig?.model ||
+						session.model ||
+						prev.model,
 					workspaceRoot:
 						attached?.workspaceRoot ||
 						session.workspaceRoot ||
@@ -4116,7 +4230,7 @@ export function useChatSession(environmentId: string) {
 									historyMessages,
 								),
 					);
-					return;
+					return attached !== undefined;
 				}
 
 				const synthesized: ChatMessage[] = [];
@@ -4136,12 +4250,14 @@ export function useChatSession(environmentId: string) {
 					synthesized,
 					(attached?.status || session.status) as SessionHistoryStatus,
 				);
+				return attached !== undefined;
 			} catch (err) {
-				if (hydrationRequestIdRef.current !== requestId) return;
+				if (hydrationRequestIdRef.current !== requestId) return false;
 				const msg = errorMessage(err);
 				setError(msg);
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
+				return false;
 			} finally {
 				if (hydrationRequestIdRef.current === requestId) {
 					setIsHydratingSession(false);
@@ -4159,7 +4275,39 @@ export function useChatSession(environmentId: string) {
 			resetStreamDedupe,
 			resetCounters,
 			setPromptsInQueue,
+			setPendingAskQuestions,
+			setPendingToolApprovals,
 		],
+	);
+
+	const createSideConversation = useCallback(
+		async (newSessionId: string) => {
+			const sourceSessionId = activeSessionIdRef.current;
+			if (!sourceSessionId)
+				throw new Error(
+					"Start a local conversation before opening a side conversation.",
+				);
+			const visibleContext = captureVisibleSideContext({
+				messages: messagesRef.current,
+				sessionId: sourceSessionId,
+				environmentId,
+				queuedIds: new Set([
+					...promptsInQueueRef.current.map((prompt) => prompt.id),
+					...unsentOptimisticUserIdsRef.current,
+				]),
+				unconfirmedIds: outstandingOptimisticUserIdsRef.current,
+			});
+			return CreateSideConversationResultSchema.parse(
+				await postSession({
+					action: "create_side",
+					visibleContext,
+					sessionId: sourceSessionId,
+					newSessionId,
+					config,
+				}),
+			);
+		},
+		[config, environmentId, postSession],
 	);
 
 	const forkSession = useCallback(
@@ -4319,6 +4467,41 @@ export function useChatSession(environmentId: string) {
 		],
 	);
 
+	const updateSideSettings = useCallback(
+		(patch: Partial<SideConfig>) => {
+			if (!sessionId || BUSY_STATUSES.has(status)) return;
+			const changingProvider =
+				patch.provider !== undefined && patch.provider !== config.provider;
+			const next: ChatSessionConfig = {
+				...config,
+				...patch,
+				...(changingProvider ? { apiKey: "", providerAuth: undefined } : {}),
+				selectionSource: "side",
+			};
+			const snapshot = SideConfigSchema.parse({
+				...next,
+				autoApproveTools: next.autoApproveTools !== false,
+			});
+			setConfig(next);
+			const persist = () =>
+				desktopClient.invoke("update_chat_session_metadata", {
+					sessionId,
+					environmentId,
+					metadata: { desktopSideConfig: snapshot },
+				});
+			retrySideSettingsWrite.current = persist;
+			const save = pendingSideSettings.current
+				.catch(() => undefined)
+				.then(persist);
+			pendingSideSettings.current = save;
+			void save.catch((error) => {
+				if (pendingSideSettings.current === save)
+					setErrorState(errorMessage(error), sessionId);
+			});
+		},
+		[config, environmentId, sessionId, setErrorState, status],
+	);
+
 	return {
 		sessionId,
 		status,
@@ -4337,8 +4520,10 @@ export function useChatSession(environmentId: string) {
 		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
+		interactionsKnown,
 		setConfig,
 		setWorkspacePath,
+		updateSideSettings,
 		start,
 		hydrateSession,
 		sendPrompt,
@@ -4350,6 +4535,7 @@ export function useChatSession(environmentId: string) {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		createSideConversation,
 		proceedWhileRunning,
 		abort,
 		stop: abort,

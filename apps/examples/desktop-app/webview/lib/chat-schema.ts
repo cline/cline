@@ -14,6 +14,7 @@ export const ProviderAuthInfoSchema = z.object({
 }) satisfies z.ZodType<ProviderAuthInfo>;
 
 export const ChatSessionConfigSchema = z.object({
+	selectionSource: z.enum(["main", "side"]).optional(),
 	sessionId: z.string().min(1).optional(),
 	executionTarget: z.enum(["local", "cloud"]).default("local"),
 	repoUrl: z.string().optional(),
@@ -24,7 +25,7 @@ export const ChatSessionConfigSchema = z.object({
 	provider: z.string().min(1),
 	providerAuth: ProviderAuthInfoSchema.optional(),
 	model: z.string().min(1),
-	mode: z.enum(["act", "plan"]).default("act"),
+	mode: z.enum(["act", "plan", "yolo"]).default("act"),
 	apiKey: z.string(),
 	systemPrompt: z.string().optional(),
 	rules: z.string().optional(),

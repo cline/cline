@@ -7,18 +7,24 @@
 
 const FOCUS_PROMPT_INPUT_EVENT = "cline:focus-prompt-input";
 
-export function requestPromptInputFocus(): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-	// Deferred so a focus request issued alongside a navigation (e.g. the New
-	// button remounting the chat pane) reaches the freshly mounted input.
+export function requestPromptInputFocus(composerId: string): void {
+	if (typeof window === "undefined") return;
+	// Navigation may mount the addressed composer in the next render.
 	window.setTimeout(() => {
-		window.dispatchEvent(new Event(FOCUS_PROMPT_INPUT_EVENT));
+		window.dispatchEvent(
+			new CustomEvent(FOCUS_PROMPT_INPUT_EVENT, { detail: composerId }),
+		);
 	}, 0);
 }
 
-export function subscribeToPromptInputFocus(listener: () => void): () => void {
-	window.addEventListener(FOCUS_PROMPT_INPUT_EVENT, listener);
-	return () => window.removeEventListener(FOCUS_PROMPT_INPUT_EVENT, listener);
+export function subscribeToPromptInputFocus(
+	composerId: string,
+	listener: () => void,
+): () => void {
+	const handleFocus = (event: Event) => {
+		if (event instanceof CustomEvent && event.detail === composerId) listener();
+	};
+	window.addEventListener(FOCUS_PROMPT_INPUT_EVENT, handleFocus);
+	return () =>
+		window.removeEventListener(FOCUS_PROMPT_INPUT_EVENT, handleFocus);
 }

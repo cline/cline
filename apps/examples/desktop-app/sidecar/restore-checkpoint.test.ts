@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTemporarySideState } from "./side-conversation/lifecycle";
 import { handleChatSessionCommand } from "./chat-session";
 import {
 	persistSessionMessages,
@@ -42,6 +43,7 @@ describe("restore_checkpoint", () => {
 		persistSessionMessages(sessionId, fullMessages);
 
 		const ctx = {
+			temporarySideConversations: createTemporarySideState(),
 			liveSessions: new Map([
 				[
 					sessionId,
