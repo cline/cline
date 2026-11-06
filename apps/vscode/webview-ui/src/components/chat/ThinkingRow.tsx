@@ -14,6 +14,9 @@ interface ThinkingRowProps {
 	showChevron?: boolean
 }
 
+// Distance (px) from the bottom within which the user still counts as pinned
+const SCROLL_BOTTOM_THRESHOLD = 8
+
 export const ThinkingRow = memo(
 	({
 		showTitle = false,
@@ -26,6 +29,10 @@ export const ThinkingRow = memo(
 		showChevron = true,
 	}: ThinkingRowProps) => {
 		const scrollRef = useRef<HTMLDivElement>(null)
+		// Whether the stream should keep the latest reasoning in view. Flips to
+		// false while the user has scrolled up so new chunks stop moving the
+		// viewport, and back to true once they return to the bottom.
+		const isPinnedToBottomRef = useRef(true)
 		const [canScrollUp, setCanScrollUp] = useState(false)
 		const [canScrollDown, setCanScrollDown] = useState(false)
 
@@ -34,13 +41,15 @@ export const ThinkingRow = memo(
 				const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
 				setCanScrollUp(scrollTop > 1)
 				setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
+				isPinnedToBottomRef.current = scrollHeight - scrollTop - clientHeight <= SCROLL_BOTTOM_THRESHOLD
 			}
 		}, [])
 
-		// Only auto-scroll to bottom during streaming (showCursor=true)
-		// For expanded collapsed thinking, start at top
+		// Keep the latest reasoning in view as it streams in, but only while the
+		// user is at the bottom; once they scroll up, their position is left
+		// alone so they can read earlier output until they scroll back down.
 		useEffect(() => {
-			if (scrollRef.current && isVisible) {
+			if (scrollRef.current && isVisible && isPinnedToBottomRef.current) {
 				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
 			}
 			checkScrollable()
