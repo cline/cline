@@ -1,4 +1,5 @@
 import type { AgentEvent, CoreSessionEvent } from "@cline/core"
+import type { SubscriptionUsageSnapshot } from "@cline/shared"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
@@ -20,6 +21,9 @@ function normalizeModelId(modelId: string): string {
 type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
 
 export interface SdkSessionEventCoordinatorOptions {
+	getProviderId?: () => string | undefined
+	getCodexAuthVersion?: () => number
+	getCodexAuthChangedAt?: () => number
 	messageTranslatorState: MessageTranslatorState
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
@@ -44,8 +48,47 @@ export interface SdkSessionEventCoordinatorOptions {
 export class SdkSessionEventCoordinator {
 	private readonly translateSessionEvent: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 
+	private subscriptionUsage?: SubscriptionUsageSnapshot
+	private subscriptionUsageSessionId?: string
+	private subscriptionUsageProviderId?: string
+	private codexAuthVersion: number
+	private subscriptionUsageInvalidatedAt = 0
+
 	constructor(private readonly options: SdkSessionEventCoordinatorOptions) {
+		this.subscriptionUsageProviderId = options.getProviderId?.()
+		this.codexAuthVersion = options.getCodexAuthVersion?.() ?? 0
 		this.translateSessionEvent = options.translateSessionEvent ?? translateSessionEvent
+	}
+
+	invalidateSubscriptionUsage(changedAt = Date.now()): void {
+		this.subscriptionUsage = undefined
+		// Fence the whole old-auth run, including later requests/retries in that run.
+		this.subscriptionUsageInvalidatedAt = Math.max(this.subscriptionUsageInvalidatedAt, changedAt)
+	}
+
+	handleSubscriptionUsageContextChange(): void {
+		const providerId = this.options.getProviderId?.()
+		const authVersion = this.options.getCodexAuthVersion?.() ?? 0
+		if (providerId !== this.subscriptionUsageProviderId || authVersion !== this.codexAuthVersion) {
+			this.invalidateSubscriptionUsage(
+				providerId === this.subscriptionUsageProviderId ? this.options.getCodexAuthChangedAt?.() : undefined,
+			)
+			this.subscriptionUsageProviderId = providerId
+			this.codexAuthVersion = authVersion
+		}
+		const sessionId = this.options.sessions.getActiveSession()?.sessionId
+		if (sessionId !== this.subscriptionUsageSessionId) {
+			this.subscriptionUsage = undefined
+			this.subscriptionUsageSessionId = sessionId
+		}
+	}
+
+	getSubscriptionUsage(): SubscriptionUsageSnapshot | undefined {
+		return this.subscriptionUsageSessionId === this.options.sessions.getActiveSession()?.sessionId &&
+			this.subscriptionUsageProviderId === this.options.getProviderId?.() &&
+			this.codexAuthVersion === (this.options.getCodexAuthVersion?.() ?? 0)
+			? this.subscriptionUsage
+			: undefined
 	}
 
 	async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
@@ -56,6 +99,35 @@ export class SdkSessionEventCoordinator {
 			Logger.debug(
 				`[SdkController] Ignoring stale SDK event for session ${event.payload.sessionId}; active=${activeSession?.sessionId ?? "none"}`,
 			)
+			return
+		}
+
+		if (event.type === "agent_event" && event.payload.event.type === "subscription_usage") {
+			this.handleSubscriptionUsageContextChange()
+			const previousUsage = this.subscriptionUsage
+			const { usage, runStartedAt } = event.payload.event
+			if (
+				!event.payload.event.parentAgentId &&
+				event.payload.teamRole !== "teammate" &&
+				usage.providerId === "openai-codex" &&
+				usage.providerId === this.options.getProviderId?.() &&
+				Number.isFinite(runStartedAt) &&
+				runStartedAt > this.subscriptionUsageInvalidatedAt &&
+				(!previousUsage || usage.capturedAt > previousUsage.capturedAt)
+			) {
+				this.subscriptionUsage = {
+					providerId: usage.providerId,
+					source: "codex-response-headers",
+					capturedAt: usage.capturedAt,
+					windows: usage.windows.map(({ id, usedPercent, windowMinutes, resetsAt }) => ({
+						id,
+						usedPercent,
+						windowMinutes,
+						resetsAt,
+					})),
+				}
+				await this.options.postStateToWebview().catch(() => undefined)
+			}
 			return
 		}
 

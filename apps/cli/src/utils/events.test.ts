@@ -63,6 +63,29 @@ describe("handleEvent text formatting", () => {
 		});
 	});
 
+	it("omits quota observations from direct and team JSON output", () => {
+		setCurrentOutputMode("json");
+		const event: AgentEvent = {
+			type: "subscription_usage",
+			runStartedAt: 1000,
+			usage: {
+				providerId: "openai-codex",
+				source: "codex-response-headers",
+				capturedAt: 2000,
+				windows: [{ id: "primary", usedPercent: 125.75 }],
+			},
+		};
+		handleEvent(event, {} as Config);
+		handleTeamEvent({
+			type: "agent_event",
+			agentId: "worker",
+			event,
+		} as TeamEvent);
+		expect(output).toBe("");
+		expect(errorOutput).toBe("");
+		setCurrentOutputMode("text");
+	});
+
 	it("adds a ⎿ before text that follows a tool block", () => {
 		handleEvent(
 			{

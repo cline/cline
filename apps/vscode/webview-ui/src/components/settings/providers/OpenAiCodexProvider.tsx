@@ -1,6 +1,7 @@
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { SubscriptionUsage } from "@/components/common/SubscriptionUsage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
@@ -102,6 +103,8 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 					</div>
 				)}
 			</div>
+
+			{openAiCodexIsAuthenticated && <SubscriptionUsage providerId={OPENAI_CODEX_PROVIDER_ID} />}
 
 			{showModelOptions && (
 				<>

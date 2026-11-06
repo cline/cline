@@ -71,6 +71,14 @@ Owns model/provider runtime concerns:
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
+- Direct `openai-codex` passively reads six numeric quota response headers at
+  `finish-step`: primary/secondary used-percent, window-minutes, and reset-at.
+  `subscription-usage` becomes `subscription_usage` with runtime agent identity;
+  finite nonnegative reported percentages remain intact, including values over 100.
+  Quota values bypass logs, telemetry, generic chunks, history/persistence,
+  hub projection, and CLI JSON output. VS Code keeps the latest report in memory,
+  accepts primary-agent reports only, and fences session/provider/auth changes
+  and older webview packets. No usage endpoint or polling is added.
 - AI SDK response `X-Request-ID` metadata travels on the existing model `finish`
   event into `afterModel.requestId`. It identifies the final surfaced step, not
   every hidden HTTP retry. Hosts can use existing model hooks for observations

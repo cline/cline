@@ -329,6 +329,8 @@ export function handleAgentEvent(
 					: undefined,
 		},
 	});
+	// Plan snapshots stay on the ephemeral typed path, outside generic output.
+	if (event.type === "subscription_usage") return;
 	emit({
 		type: "chunk",
 		payload: {

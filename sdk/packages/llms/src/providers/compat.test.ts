@@ -364,27 +364,34 @@ describe("createGatewayApiHandler.createMessage", () => {
 	});
 
 	it.each([
-		["openai-responses", "openai"],
-		["anthropic", "anthropic"],
-	])("retains live model protocol %s through the handler", async (apiProtocol, family) => {
+		["openai-responses", "openai", "opencode-go"],
+		["anthropic", "anthropic", "opencode-go"],
+		["openai-responses", "openai", "openai-codex"],
+	])("retains live protocol %s and excludes quota from ApiStream", async (apiProtocol, family, providerId) => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
+				yield {
+					type: "finish-step",
+					response: { headers: { "x-codex-primary-used-percent": "125.75" } },
+				};
 				yield { type: "finish", finishReason: "stop" };
 			})(),
 		});
 		const handler = createGatewayApiHandler({
-			providerId: "opencode-go",
+			providerId,
 			modelId: "new-live-model",
 			apiKey: "test-key",
 			knownModels: {
 				"new-live-model": { id: "new-live-model", metadata: { apiProtocol } },
 			},
 		});
-		for await (const _chunk of handler.createMessage("", [
+		const chunks = [];
+		for await (const chunk of handler.createMessage("", [
 			{ role: "user", content: "Hello" },
-		])) {
-			// Exercise the live catalog -> handler -> gateway projection.
-		}
+		]))
+			chunks.push(chunk);
+		expect(chunks.at(-1)?.type).toBe("done");
+		expect(JSON.stringify(chunks)).not.toMatch(/subscription|125\.75/);
 		expect(streamTextSpy.mock.calls.at(-1)?.[0].model).toMatchObject({
 			modelId: "new-live-model",
 			family,
