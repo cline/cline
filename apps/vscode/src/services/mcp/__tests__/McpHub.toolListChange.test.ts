@@ -25,7 +25,7 @@ interface MinimalConnection {
 		config: string
 		status: string
 		disabled?: boolean
-		tools?: Array<{ name: string; description?: string; inputSchema?: object }>
+		tools?: Array<{ name: string; description?: string; inputSchema?: object; annotations?: object }>
 	}
 }
 
@@ -71,7 +71,7 @@ function makeConnection(
 	tools: string[],
 	disabled = false,
 	timeout = 60,
-	toolOverrides: Record<string, Partial<{ description: string; inputSchema: object }>> = {},
+	toolOverrides: Record<string, Partial<{ description: string; inputSchema: object; annotations: object }>> = {},
 ): MinimalConnection {
 	return {
 		server: {
@@ -98,8 +98,8 @@ describe("McpHub tool list change detection", () => {
 			const connections = [makeConnection("server-a", "connected", ["tool1", "tool2"])]
 			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
 			entries.should.deepEqual([
-				["server-a", "tool1", null, {}, 60_000],
-				["server-a", "tool2", null, {}, 60_000],
+				["server-a", "tool1", null, {}, null, 60_000],
+				["server-a", "tool2", null, {}, null, 60_000],
 			])
 		})
 
@@ -109,7 +109,7 @@ describe("McpHub tool list change detection", () => {
 				makeConnection("server-b", "disconnected", ["tool2"]),
 			]
 			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
-			entries.should.deepEqual([["server-a", "tool1", null, {}, 60_000]])
+			entries.should.deepEqual([["server-a", "tool1", null, {}, null, 60_000]])
 		})
 
 		it("should exclude tools from disabled servers", () => {
@@ -144,6 +144,14 @@ describe("McpHub tool list change detection", () => {
 			const fp1 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"], false, 60)])
 			const fp2 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"], false, 120)])
 			fp1.should.not.equal(fp2)
+		})
+
+		it("should produce different fingerprints when a tool's annotations change", () => {
+			const before = computeToolFingerprint([makeConnection("s1", "connected", ["tool1"])])
+			const after = computeToolFingerprint([
+				makeConnection("s1", "connected", ["tool1"], false, 60, { tool1: { annotations: { readOnlyHint: true } } }),
+			])
+			before.should.not.equal(after)
 		})
 
 		it("should produce different fingerprints for different descriptions", () => {
