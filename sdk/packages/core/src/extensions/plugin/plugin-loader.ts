@@ -24,6 +24,8 @@ export interface LoadAgentPluginFromPathOptions {
 	exportName?: string;
 	cwd?: string;
 	useCache?: boolean;
+	/** Fresh module evaluation that still reuses the transform cache. */
+	freshModule?: boolean;
 	session?: PluginSetupContext["session"];
 	client?: PluginSetupContext["client"];
 	user?: PluginSetupContext["user"];
@@ -109,6 +111,7 @@ export async function loadAgentPluginFromPath(
 	const absolutePath = resolve(options.cwd ?? process.cwd(), pluginPath);
 	const moduleExports = await importPluginModule(absolutePath, {
 		useCache: options.useCache,
+		freshModule: options.freshModule,
 	});
 	const exportName = options.exportName ?? "plugin";
 	const plugin = (moduleExports.default ??
@@ -135,7 +138,7 @@ export async function loadAgentPluginFromPath(
 					logger: options.logger ?? _ctx.logger,
 					telemetry: options.telemetry ?? _ctx.telemetry,
 				};
-				return originalSetup(api, ctx);
+				return originalSetup.call(pluginTyped, api, ctx);
 			}
 		: undefined;
 

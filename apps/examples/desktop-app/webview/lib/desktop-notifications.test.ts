@@ -62,6 +62,25 @@ afterEach(() => {
 });
 
 describe("desktop notifications", () => {
+	it("does not deduplicate completion notifications across hosts", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+		for (const environmentId of ["local", "remote"]) {
+			emit("chat_session_ended", {
+				sessionId: "same-id",
+				environmentId,
+				reason: "completed",
+			});
+			emit("chat_session_ended", {
+				sessionId: "same-id",
+				environmentId,
+				reason: "completed",
+			});
+		}
+		await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
+		stop();
+	});
+
 	it("notifies once when a background approval remains in state snapshots", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();

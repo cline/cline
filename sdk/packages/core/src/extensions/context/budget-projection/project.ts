@@ -3,6 +3,7 @@ import type {
 	MessageWithMetadata,
 	ToolResultContent,
 } from "@cline/shared";
+import { isTurnStartMessage } from "../compaction-shared";
 import type {
 	BudgetAction,
 	BudgetMutationAction,
@@ -69,21 +70,12 @@ function totalTokens(
 	);
 }
 
-function isToolResultOnlyUserMessage(message: MessageWithMetadata): boolean {
-	return (
-		message.role === "user" &&
-		Array.isArray(message.content) &&
-		message.content.length > 0 &&
-		message.content.every((block) => block.type === "tool_result")
-	);
-}
-
 export function findLatestTypedUserMessageIndex(
 	messages: MessageWithMetadata[],
 ): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const message = messages[index];
-		if (message.role === "user" && !isToolResultOnlyUserMessage(message)) {
+		if (isTurnStartMessage(message)) {
 			return index;
 		}
 	}
@@ -95,7 +87,7 @@ function findFirstTypedUserMessageIndex(
 ): number {
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
-		if (message.role === "user" && !isToolResultOnlyUserMessage(message)) {
+		if (isTurnStartMessage(message)) {
 			return index;
 		}
 	}

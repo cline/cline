@@ -47,4 +47,11 @@ describe("withPendingUserMessage", () => {
 
 		expect(withPendingUserMessage([task], { afterTs: 1, message: followup })).toEqual([task, followup])
 	})
+
+	it("treats a task row as confirmation of a follow-up bubble that restarted the task", () => {
+		const followup: ClineMessage = { ts: 3, type: "say", say: "user_feedback", text: "revised prompt" }
+		const restarted: ClineMessage = { ts: 4, type: "say", say: "task", text: "revised prompt" }
+
+		expect(withPendingUserMessage([restarted], { afterTs: 2, message: followup })).toEqual([restarted])
+	})
 })

@@ -42,7 +42,7 @@ const NON_BEDROCK_API_KEY_ENV = new Set([
 // additionally auto-prefixed so they work without the toggle.
 
 const BEDROCK_GEO_PROFILE_PREFIX_PATTERN =
-	/^(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\./;
+	/^(?:us|us-gov|eu|apac|jp|au|in|ca|sa|global)\./;
 
 // Documented fallback-heuristic exception (see packages/llms/AGENTS.md):
 // a maintained, intentionally narrow id-pattern list of foundation-model
@@ -62,6 +62,10 @@ const BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS: readonly RegExp[] = [
 	// Claude 3.7 predates tier-first naming but launched profile-only.
 	/^anthropic\.claude-3-7-/,
 	/^amazon\.nova-(?:2|micro|lite|pro|premier)/,
+	// OpenAI GPT-5.x / GPT-6 (Sol, Luna, Astra, Terra) launched profile-only;
+	// gpt-oss has on-demand throughput and keeps its bare id
+	// (cline/cline#14468).
+	/^openai\.gpt-(?!oss-)/,
 	/^deepseek\./,
 	/^meta\.llama3-[23]-/,
 	/^meta\.llama4-/,
@@ -77,6 +81,8 @@ const AU_INFERENCE_PROFILE_REGIONS = new Set([
 	"ap-southeast-2",
 	"ap-southeast-4",
 ]);
+
+const IN_INFERENCE_PROFILE_REGIONS = new Set(["ap-south-1", "ap-south-2"]);
 
 interface BedrockModelIdOptions {
 	region?: string;
@@ -162,6 +168,9 @@ function geoProfileCandidates(region: string | undefined): string[] {
 		}
 		if (AU_INFERENCE_PROFILE_REGIONS.has(region)) {
 			return ["au.", "apac."];
+		}
+		if (IN_INFERENCE_PROFILE_REGIONS.has(region)) {
+			return ["in.", "apac."];
 		}
 		return ["apac."];
 	}

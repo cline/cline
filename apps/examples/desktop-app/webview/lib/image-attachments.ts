@@ -1,4 +1,25 @@
-import { SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared/browser";
+import {
+	DEFAULT_MAX_IMAGE_BASE64_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+} from "@cline/shared/browser";
+
+export function cloudImageAttachmentError(
+	files: Pick<File, "size">[],
+): string | undefined {
+	if (files.length > 5) return "Attach up to 5 images.";
+	const encodedSizes = files.map((file) => 4 * Math.ceil(file.size / 3));
+	if (encodedSizes.some((size) => size > DEFAULT_MAX_IMAGE_BASE64_BYTES)) {
+		return "Each image must be 3.75 MB or smaller.";
+	}
+	if (
+		encodedSizes.reduce((total, size) => total + size, 0) >
+		DEFAULT_MAX_TOTAL_MEDIA_BYTES
+	) {
+		return "Attachments must be 6 MB or smaller in total.";
+	}
+	return undefined;
+}
 
 const IMAGE_MEDIA_TYPES: Record<string, string> = {
 	png: "image/png",
@@ -40,5 +61,14 @@ export function isUnsupportedImageAttachment(
 	return (
 		mediaType !== undefined &&
 		!(SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)
+	);
+}
+
+export function isSupportedImageAttachment(
+	file: Pick<File, "name" | "type">,
+): boolean {
+	return (
+		imageAttachmentMediaType(file) !== undefined &&
+		!isUnsupportedImageAttachment(file)
 	);
 }

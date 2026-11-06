@@ -1,11 +1,23 @@
 import type { SessionHookEvent } from "@/lib/session-diff";
 
 export type ProcessContext = {
+	environmentId: string;
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
+	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
+	taskWorktreeRoot?: string;
 	platform?: string;
 	appVersion?: string;
+	activeEnvironmentId?: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+		workspaceRoot?: string;
+		platform?: string;
+		arch?: string;
+	} | null;
 };
 
 export type AgentChunkEvent = {
@@ -89,12 +101,16 @@ export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cacheReadTokens?: number;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
 		totalCost?: number;
 	};
 	iterations?: number;
+	/** The sidecar rebuilt the session after Cline Hub restarted mid-turn. */
+	hubInterrupted?: boolean;
 	finishReason?:
 		| "completed"
 		| "max_iterations"
@@ -112,12 +128,19 @@ export type ChatApiResult = {
 };
 
 export type ChatSessionCommandResponse = {
+	environmentId?: string;
 	sessionId?: string;
 	cwd?: string;
 	workspaceRoot?: string;
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	/** A plugin slash command ran in the sidecar and no turn was started. */
+	commandHandled?: boolean;
+	/** One line per plugin the started session could not load. */
+	pluginWarnings?: string[];
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;

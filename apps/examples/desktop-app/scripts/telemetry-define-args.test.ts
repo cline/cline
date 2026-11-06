@@ -46,6 +46,21 @@ describe("telemetryDefineArgs", () => {
 		const defines = defineMap(telemetryDefineArgs({}));
 		expect(defines["process.env.OTEL_TELEMETRY_ENABLED"]).toBe('""');
 		expect(defines["process.env.OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe('""');
+		expect(defines["process.env.OTEL_TRACES_EXPORTER"]).toBe('""');
+	});
+
+	it("inlines the trace policy vars the Langfuse relay reads at runtime", () => {
+		const defines = defineMap(
+			telemetryDefineArgs({
+				CLINE_TRACE_SAMPLE_PERCENT: "25",
+				CLINE_TRACE_RECORD_CONTENT: "true",
+			}),
+		);
+		expect(defines["process.env.CLINE_TRACE_SAMPLE_PERCENT"]).toBe('"25"');
+		expect(defines["process.env.CLINE_TRACE_RECORD_CONTENT"]).toBe('"true"');
+		const unset = defineMap(telemetryDefineArgs({}));
+		expect(unset["process.env.CLINE_TRACE_SAMPLE_PERCENT"]).toBe('""');
+		expect(unset["process.env.CLINE_TRACE_RECORD_CONTENT"]).toBe('""');
 	});
 
 	it("includes API key defines only when the vars are set", () => {

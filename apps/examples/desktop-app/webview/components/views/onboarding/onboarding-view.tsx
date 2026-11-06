@@ -3,6 +3,7 @@
 import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
+	Check,
 	CheckCircle2,
 	ChevronDown,
 	ExternalLink,
@@ -25,6 +26,7 @@ import {
 import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -51,6 +53,18 @@ import {
 import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+const CLINE_PASS_SUBSCRIBE_URL =
+	"https://app.cline.bot/onboarding/individual-plan";
+
+const CLINE_SIGN_IN_BENEFITS = [
+	"Regular free model promotions",
+	"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
+	"No API key needed",
+];
+
+type ClineRecommendedModelsResponse = {
+	free?: { id: string; name?: string; description?: string }[];
+};
 
 export const GITHUB_ONBOARDING_FEATURE_FLAG = "code-onboarding-github";
 
@@ -229,7 +243,7 @@ function SetupOptionHeader({
 	title,
 }: {
 	accessory?: React.ReactNode;
-	description: string;
+	description: React.ReactNode;
 	icon: React.ReactNode;
 	title: string;
 }) {
@@ -240,7 +254,7 @@ function SetupOptionHeader({
 			</span>
 			<div className="min-w-0 mt-1 max-[720px]:col-span-3 max-[720px]:col-start-1 max-[720px]:row-start-2 max-[720px]:mt-0">
 				<h4 className="text-lg font-semibold text-foreground">{title}</h4>
-				<p className="mt-2 text-sm text-muted-foreground">{description}</p>
+				<div className="mt-2 text-sm text-muted-foreground">{description}</div>
 			</div>
 			{accessory ? (
 				<div className="mt-1 max-[720px]:col-start-3 max-[720px]:row-start-1 max-[720px]:mt-0">
@@ -322,75 +336,29 @@ function ConnectStep({
 	onSkip: () => void;
 }) {
 	const { user, refreshAccount } = useAccount();
-	const [signingIn, setSigningIn] = useState(false);
-	const deviceUserCode = useOAuthUserCode(signingIn);
-	const [signInError, setSignInError] = useState<string | null>(null);
-	const [clineApiKey, setClineApiKey] = useState("");
-	const [clineKeySaving, setClineKeySaving] = useState(false);
-	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
-
-	// Increments whenever the user cancels a pending browser sign-in so a
-	// stale OAuth round-trip (which can dangle until the transport timeout)
-	// cannot advance or error the UI after the user has moved on.
-	const signInAttemptRef = useRef(0);
-
-	const signInWithCline = useCallback(async () => {
-		signInAttemptRef.current += 1;
-		const attempt = signInAttemptRef.current;
-		setSigningIn(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
-			if (signInAttemptRef.current !== attempt) {
-				// The sign-in completed after the user cancelled but before the
-				// backend processed the cancellation, so credentials were saved.
-				// Refresh the account so the card reflects the real signed-in
-				// state instead of silently diverging from disk.
+	const {
+		signIn: signInWithCline,
+		cancelSignIn: cancelSignInWithCline,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async (signal) => {
+			if (signal.aborted) {
+				// Credentials may have been saved before cancellation reached the backend.
 				void refreshAccount();
 				return;
 			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
-			onConnected({ kind: "cline" });
-		} catch (error) {
-			if (signInAttemptRef.current !== attempt) {
-				return;
-			}
-			setSignInError(getErrorMessage(error));
-		} finally {
-			// The login may have persisted credentials; drop the short-lived
-			// catalog cache so the app reloads them instead of a pre-save copy.
-			invalidateProviderCatalogCache();
-			if (signInAttemptRef.current === attempt) {
-				setSigningIn(false);
-			}
-		}
-	}, [onConnected, refreshAccount]);
-
-	const cancelSignInWithCline = useCallback(() => {
-		signInAttemptRef.current += 1;
-		setSigningIn(false);
-		// Cancel the backend browser round-trip so a later-completed
-		// authorization in the abandoned tab can never persist credentials.
-		// Retry transient delivery failures; if the transport itself is gone,
-		// the sidecar cancels pending logins when the connection closes.
-		void (async () => {
-			for (let attempt = 0; attempt < 3; attempt++) {
-				try {
-					await desktopClient.invoke("cancel_provider_oauth_login", {
-						provider: "cline",
-					});
-					return;
-				} catch {
-					await new Promise((resolve) =>
-						setTimeout(resolve, 250 * (attempt + 1)),
-					);
-				}
-			}
-		})();
-	}, []);
+			if (!signal.aborted) onConnected({ kind: "cline" });
+		},
+		onSettled: invalidateProviderCatalogCache,
+	});
+	const deviceUserCode = useOAuthUserCode(signingIn);
+	const [clineApiKey, setClineApiKey] = useState("");
+	const [clineKeySaving, setClineKeySaving] = useState(false);
+	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
 
 	const connectWithClineApiKey = useCallback(async () => {
 		const key = clineApiKey.trim();
@@ -560,7 +528,19 @@ function ConnectStep({
 								Recommended
 							</Badge>
 						}
-						description="Latest models with regular free promos. No API keys needed."
+						description={
+							<ul className="flex flex-col gap-1">
+								{CLINE_SIGN_IN_BENEFITS.map((benefit) => (
+									<li className="flex gap-2" key={benefit}>
+										<Check
+											aria-hidden="true"
+											className="mt-0.5 size-3.5 shrink-0 text-primary"
+										/>
+										<span>{benefit}</span>
+									</li>
+								))}
+							</ul>
+						}
 						icon={<ClineLogo className="size-5" />}
 						title="Sign in with Cline"
 					/>
@@ -600,7 +580,8 @@ function ConnectStep({
 							</Button>
 							{signingIn ? (
 								<Button
-									onClick={cancelSignInWithCline}
+									disabled={cancelling}
+									onClick={() => void cancelSignInWithCline()}
 									size="md"
 									tone="neutral"
 									type="button"
@@ -992,6 +973,80 @@ function ImportHistoryStep({
 	);
 }
 
+/**
+ * Shown after a Cline sign-in: the free models available right now (from the
+ * same feed as the composer's Free tier, bundled fallback offline) and the
+ * ClinePass upsell. The feed is display-only here; the user picks a model in
+ * the composer.
+ */
+function ClineModelsSummary() {
+	const [freeModels, setFreeModels] = useState<
+		NonNullable<ClineRecommendedModelsResponse["free"]>
+	>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		desktopClient
+			.invoke<ClineRecommendedModelsResponse>("list_cline_recommended_models")
+			.then((response) => {
+				if (!cancelled) {
+					setFreeModels(response?.free ?? []);
+				}
+			})
+			.catch(() => {
+				// The upsell still renders without the model list.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	return (
+		<div
+			className="mt-6 w-full rounded-xl border border-border bg-background p-5 text-left"
+			data-onboarding-cline-models
+		>
+			{freeModels.length > 0 ? (
+				<>
+					<h2 className="text-sm font-semibold text-foreground">Free models</h2>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Try with limited usage at no cost.
+					</p>
+					<ul className="mt-3 flex flex-wrap gap-1.5">
+						{freeModels.map((model) => (
+							<li key={model.id}>
+								<Badge variant="outline">
+									{model.name?.trim() || model.id}
+								</Badge>
+							</li>
+						))}
+					</ul>
+					<div className="my-4 border-t border-border" />
+				</>
+			) : null}
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="min-w-0 flex-1">
+					<h2 className="text-sm font-semibold text-foreground">ClinePass</h2>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Generous usage across the best open weights models like DeepSeek,
+						Kimi, and GLM.
+					</p>
+				</div>
+				<Button
+					onClick={() => void openExternalUrl(CLINE_PASS_SUBSCRIBE_URL)}
+					size="sm"
+					tone="neutral"
+					type="button"
+					variant="surface"
+				>
+					Get ClinePass
+					<ExternalLink className="size-3.5" />
+				</Button>
+			</div>
+		</div>
+	);
+}
+
 function DoneStep({
 	connection,
 	onFinish,
@@ -1011,6 +1066,7 @@ function DoneStep({
 						? `${connection.providerName} is connected.`
 						: "Your Cline account is connected."}
 				</p>
+				{connection?.kind === "cline" ? <ClineModelsSummary /> : null}
 				<Button
 					className="mt-8 w-full max-w-64"
 					onClick={onFinish}

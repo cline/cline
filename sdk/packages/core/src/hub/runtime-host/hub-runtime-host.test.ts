@@ -1,8 +1,15 @@
-import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+	AgentEvent,
+	AgentToolContext,
+	HubEventEnvelope,
+} from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
+import type { CoreSessionEvent } from "../../types/events";
+import type { HubTransportContext } from "../server/handlers/context";
+import { projectSessionEvent } from "../server/handlers/session-event-projector";
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
@@ -71,6 +78,169 @@ function agentDoneEvents(events: unknown[]) {
 }
 
 describe("HubRuntimeHost", () => {
+	it("round-trips worker identity without consuming the parent's completion", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: CoreSessionEvent[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+		const ctx = {
+			buildEvent: (event, payload, sessionId) => ({
+				version: "v1",
+				event,
+				payload,
+				sessionId,
+			}),
+			publish: (event: HubEventEnvelope) =>
+				onEvent?.(JSON.parse(JSON.stringify(event))),
+		} as HubTransportContext;
+		const workerEvents: AgentEvent[] = [
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "text",
+				text: "Worker observation",
+			},
+			{ type: "content_end", contentType: "text", text: "Worker observation" },
+			{
+				type: "content_start",
+				contentType: "reasoning",
+				reasoning: "Checking UI",
+			},
+			{
+				type: "content_end",
+				contentType: "reasoning",
+				reasoning: "Checked UI",
+			},
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				input: {},
+			},
+			{
+				type: "content_update",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				update: { progress: "reading" },
+			},
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "capture",
+				output: "captured",
+			},
+			{
+				type: "done",
+				reason: "completed",
+				text: "Worker complete",
+				iterations: 1,
+			},
+		];
+		for (const event of workerEvents)
+			await projectSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						...event,
+						agentId: "worker",
+						conversationId: "worker-conversation",
+						parentAgentId: "lead",
+					},
+				},
+			});
+		for (const hookEventName of ["tool_call", "tool_result"] as const)
+			await projectSessionEvent(ctx, {
+				type: "hook",
+				payload: {
+					sessionId: "sess-1",
+					hookEventName,
+					agentId: "worker",
+					conversationId: "worker-conversation",
+					parentAgentId: "lead",
+					toolName: "read_files",
+				},
+			});
+		const workerFrames = events.filter((event) => event.type === "agent_event");
+		expect(workerFrames).toHaveLength(workerEvents.length + 2);
+		for (const frame of workerFrames)
+			if (frame.type === "agent_event")
+				expect(frame.payload.event).toMatchObject({
+					agentId: "worker",
+					conversationId: "worker-conversation",
+					parentAgentId: "lead",
+				});
+		const parentEvents: AgentEvent[] = [
+			{
+				type: "content_start",
+				contentType: "text",
+				text: "Combining findings",
+			},
+			{
+				type: "done",
+				reason: "completed",
+				text: "Parent complete",
+				iterations: 2,
+			},
+		];
+		for (const event of parentEvents)
+			await projectSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						...event,
+						agentId: "lead",
+						conversationId: "parent-conversation",
+						parentAgentId: null,
+					},
+				},
+			});
+		onEvent?.({
+			version: "v1",
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { reason: "completed" },
+		});
+		expect(agentDoneEvents(events).map((event) => event.payload.event)).toEqual(
+			[
+				expect.objectContaining({
+					text: "Worker complete",
+					parentAgentId: "lead",
+				}),
+				expect.objectContaining({
+					text: "Parent complete",
+					parentAgentId: null,
+				}),
+			],
+		);
+		expect(events.filter((event) => event.type === "ended")).toHaveLength(1);
+	});
+
 	afterEach(() => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();
@@ -671,7 +841,10 @@ describe("HubRuntimeHost", () => {
 		expect(eventOrder).toEqual(["tool-started", "approval-requested"]);
 	});
 
-	it("uses one app runtime capability object for hub tool executors and approvals", async () => {
+	it.each([
+		true,
+		false,
+	])("retains app capabilities after failed deletion and cleans up on retry (deleted=%s)", async (deleted) => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
 			onEvent = listener;
@@ -690,8 +863,7 @@ describe("HubRuntimeHost", () => {
 					},
 				},
 			})
-			.mockResolvedValueOnce({ ok: true, payload: {} })
-			.mockResolvedValueOnce({ ok: true, payload: {} });
+			.mockResolvedValue({ ok: true, payload: {} });
 		const askQuestion = vi.fn(
 			async (
 				_question: string,
@@ -715,6 +887,19 @@ describe("HubRuntimeHost", () => {
 			config: createConfig(),
 			source: SessionSource.CLI,
 			capabilities: appCapabilities,
+			localRuntime: {
+				extraTools: [
+					{
+						name: "custom_tool",
+						description: "Custom tool",
+						inputSchema: { type: "object" },
+						successContext: "Keep going.",
+						policyDependencies: ["delegate_tool"],
+						executionMode: "sequential",
+						execute: async () => "done",
+					},
+				],
+			},
 		});
 		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
 		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
@@ -725,9 +910,20 @@ describe("HubRuntimeHost", () => {
 						executor: "askQuestion",
 						capabilityName: "tool_executor.askQuestion",
 					},
+					{
+						kind: "tool",
+						name: "custom_tool",
+						successContext: "Keep going.",
+						policyDependencies: ["delegate_tool"],
+						executionMode: "sequential",
+					},
 				],
 			},
 		});
+
+		commandMock.mockRejectedValueOnce(new Error("delete failed"));
+		await expect(host.deleteSession("sess-1")).rejects.toThrow("delete failed");
+		expect(host.hasSessionSubscription("sess-1")).toBe(true);
 
 		onEvent?.({
 			version: "v1",
@@ -812,6 +1008,13 @@ describe("HubRuntimeHost", () => {
 			},
 			"sess-1",
 		);
+		commandMock.mockResolvedValueOnce({ ok: true, payload: { deleted } });
+		await expect(host.deleteSession("sess-1")).resolves.toBe(deleted);
+		expect(commandMock).toHaveBeenLastCalledWith("session.delete", {
+			sessionId: "sess-1",
+		});
+		expect(host.hasSessionSubscription("sess-1")).toBe(false);
+		await host.dispose();
 	});
 
 	it("passes cancellation into long-running hub capability handlers", async () => {
@@ -1090,7 +1293,11 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
-	it("maps hub usage updates back to agent usage events with identity", async () => {
+	it.each([
+		undefined,
+		0,
+		4,
+	])("round-trips projected usage with reasoning=%s and agent identity", async (reasoningTokenCount) => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
 			onEvent = listener;
@@ -1120,32 +1327,45 @@ describe("HubRuntimeHost", () => {
 			prompt: "Hey",
 		});
 
-		onEvent?.({
-			version: "v1",
-			event: "usage.updated",
-			sessionId: "sess-1",
+		const ctx = {
+			sessionHost: {
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+			},
+			buildEvent: vi.fn<HubTransportContext["buildEvent"]>(
+				(event, payload, sessionId) => ({
+					version: "v1",
+					event,
+					payload,
+					sessionId,
+				}),
+			),
+			publish: (event: HubEventEnvelope) => {
+				// Exercise the wire representation, including omitted optional fields.
+				onEvent?.(JSON.parse(JSON.stringify(event)));
+			},
+		} as unknown as HubTransportContext;
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
 			payload: {
-				delta: {
+				sessionId: "sess-1",
+				teamAgentId: "investigator",
+				teamRole: "teammate",
+				event: {
+					type: "usage",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
 					inputTokens: 7,
 					outputTokens: 5,
 					cacheReadTokens: 2,
 					cacheWriteTokens: 1,
-					totalCost: 0.12,
-				},
-				totals: {
-					inputTokens: 17,
-					outputTokens: 8,
-					cacheReadTokens: 3,
-					cacheWriteTokens: 3,
+					cost: 0.12,
+					reasoningTokenCount,
+					totalInputTokens: 17,
+					totalOutputTokens: 8,
+					totalCacheReadTokens: 3,
+					totalCacheWriteTokens: 3,
 					totalCost: 0.23,
-				},
-				agent: {
-					kind: "teammate",
-					agentId: "agent-teammate-1",
-					conversationId: "conv-teammate-1",
-					parentAgentId: "lead",
-					teamAgentId: "investigator",
-					teamRole: "teammate",
 				},
 			},
 		});
@@ -1168,6 +1388,7 @@ describe("HubRuntimeHost", () => {
 							cacheReadTokens: 2,
 							cacheWriteTokens: 1,
 							cost: 0.12,
+							reasoningTokenCount,
 							totalInputTokens: 17,
 							totalOutputTokens: 8,
 							totalCacheReadTokens: 3,
@@ -1741,6 +1962,34 @@ describe("HubRuntimeHost", () => {
 		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
 
+	it("sends session title renames as an explicit title, not folded into metadata", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.updateSession("sess-1", { title: "Renamed session" }),
+		).resolves.toEqual({ updated: true });
+		expect(commandMock).toHaveBeenCalledWith("session.update", {
+			sessionId: "sess-1",
+			title: "Renamed session",
+		});
+	});
+
+	it("encodes a metadata clear as an empty record so the hub does not drop it", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.updateSession("sess-1", { metadata: null });
+		expect(commandMock).toHaveBeenCalledWith("session.update", {
+			sessionId: "sess-1",
+			metadata: {},
+		});
+	});
+
 	it("throws when the hub rejects settings list", async () => {
 		commandMock.mockResolvedValue({
 			ok: false,
@@ -1812,5 +2061,137 @@ describe("HubRuntimeHost", () => {
 			"sess-1",
 		);
 		expect(disposeMock).toHaveBeenCalledTimes(1);
+	});
+});
+
+it("sends atomic first-prompt steering through the Hub without listing the queue", async () => {
+	const { HubRuntimeHost } = await import("./hub-runtime-host");
+	const result = {
+		sessionId: "session",
+		prompts: [{ id: "current-head", prompt: "current", delivery: "steer" }],
+		updated: true,
+	};
+	commandMock.mockResolvedValue({ payload: result });
+	const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+	try {
+		expect(
+			await host.pendingPrompts.steerFirst({ sessionId: "session" }),
+		).toMatchObject(result);
+		expect(commandMock).toHaveBeenCalledExactlyOnceWith(
+			"session.steer_first_pending_prompt",
+			{ sessionId: "session" },
+			"session",
+		);
+	} finally {
+		await host.dispose();
+	}
+});
+
+describe("HubRuntimeHost MCP Apps commands", () => {
+	beforeEach(() => {
+		commandMock.mockReset();
+	});
+
+	it("sends MCP Apps requests as session-scoped hub commands", async () => {
+		const binding = {
+			serverName: "weather",
+			toolName: "show_weather",
+			resourceUri: "ui://weather/view.html",
+		};
+		commandMock
+			.mockResolvedValueOnce({ ok: true, payload: { binding } })
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: { result: { contents: [] } },
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				payload: { result: { content: [] } },
+			});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.resolveMcpAppTool("sess-1", "weather__show_weather"),
+		).resolves.toEqual(binding);
+		await expect(
+			host.readMcpAppResource("sess-1", {
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			}),
+		).resolves.toEqual({ contents: [] });
+		await expect(
+			host.callMcpAppTool("sess-1", {
+				serverName: "weather",
+				toolName: "refresh_view",
+				arguments: { city: "Lisbon" },
+			}),
+		).resolves.toEqual({ content: [] });
+
+		expect(commandMock.mock.calls).toEqual([
+			[
+				"session.mcp_apps.resolve_tool",
+				{ sessionId: "sess-1", toolName: "weather__show_weather" },
+				"sess-1",
+				{ timeoutMs: null },
+			],
+			[
+				"session.mcp_apps.read_resource",
+				{
+					sessionId: "sess-1",
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				},
+				"sess-1",
+				{ timeoutMs: null },
+			],
+			[
+				"session.mcp_apps.call_tool",
+				{
+					sessionId: "sess-1",
+					serverName: "weather",
+					toolName: "refresh_view",
+					arguments: { city: "Lisbon" },
+				},
+				"sess-1",
+				{ timeoutMs: null, retryAfterDispatch: false },
+			],
+		]);
+	});
+
+	it("resolves no app tool when the hub does not support MCP Apps", async () => {
+		commandMock.mockRejectedValue(
+			Object.assign(
+				new Error(
+					"Unsupported hub schedule command: session.mcp_apps.resolve_tool",
+				),
+				{ code: "unsupported_command" },
+			),
+		);
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.resolveMcpAppTool("sess-1", "weather__show_weather"),
+		).resolves.toBeUndefined();
+	});
+
+	it("surfaces hub errors from MCP Apps commands", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "mcp_apps_call_tool_failed",
+				message: "cannot be called by an app",
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.callMcpAppTool("sess-1", {
+				serverName: "weather",
+				toolName: "summarize",
+			}),
+		).rejects.toThrow("cannot be called by an app");
 	});
 });

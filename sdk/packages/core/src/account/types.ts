@@ -14,6 +14,8 @@ export interface ClineAccountUser {
 	createdAt: string;
 	updatedAt: string;
 	organizations: ClineAccountOrganization[];
+	/** Web app path where the user manages data use and Cline Bench preferences. */
+	dataPrivacyPath?: string;
 }
 
 export interface UserRemoteConfigOrganization {

@@ -1,8 +1,10 @@
 import { estimateRequestInputTokens } from "@cline/shared";
+import { resolveConnectionProviderConfig } from "../../services/llms/handler-factory";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
+	recordCompactionCancelled,
 	type TelemetryCompactionStrategy,
 } from "../../services/telemetry/core-events";
 import {
@@ -28,6 +30,7 @@ import {
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
 	findLatestSummaryIndex,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -50,6 +53,12 @@ export interface ContextPipelinePrepareTurnInput {
 	 * successful LLM request.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Actual provider-reported input tokens for the previous request this run,
+	 * used as a floor on the char-based estimate so dense content still triggers
+	 * compaction. See AgentPrepareTurnContext.previousRequestInputTokens.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -85,6 +94,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Overrides layered over `config.compaction`. */
+	compaction?: Partial<CoreCompactionConfig>;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -260,6 +271,9 @@ export function createContextCompactionPrepareTurn(
 		| "providerConfig"
 		| "providerId"
 		| "modelId"
+		| "apiKey"
+		| "baseUrl"
+		| "headers"
 		| "compaction"
 		| "logger"
 		| "telemetry"
@@ -271,17 +285,14 @@ export function createContextCompactionPrepareTurn(
 			context: ContextPipelinePrepareTurnInput,
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
-	const userCompaction = config.compaction;
-	if (userCompaction?.enabled !== true) {
+	const userCompaction: CoreCompactionConfig = {
+		...config.compaction,
+		...options.compaction,
+	};
+	if (userCompaction.enabled !== true) {
 		return undefined;
 	}
 
-	const providerConfig =
-		config.providerConfig ??
-		({
-			providerId: config.providerId,
-			modelId: config.modelId,
-		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -311,16 +322,52 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const maxInputTokens =
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: context.model.info?.maxInputTokens,
-				contextWindow: context.model.info?.contextWindow,
-			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
+			maxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+		});
+		// An unknown model limit is not evidence that the request is full.
+		// Custom models can have any context window; using a guessed limit here
+		// can trigger compaction even on a new session's system prompt/tools.
+		// Manual compaction and provider-confirmed overflow recovery still need
+		// a working budget, so only those modes use the default.
+		if (effectiveMode === "auto" && modelMaxInputTokens === undefined) {
+			return undefined;
+		}
+		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
+		// The char-based estimate under-counts dense content (disassembly, image
+		// dumps, minified sources). When the provider's actual count for the
+		// PREVIOUS request already exceeds our estimate for the (larger) current
+		// transcript, the estimator is demonstrably under-counting, so scale the
+		// whole budget down by that ratio. Scaling the budget rather than just the
+		// trigger keeps every downstream number — trigger, target and the
+		// projection's message costs — in the same estimate units while still
+		// corresponding to the provider's real limit; raising only the trigger
+		// would start a compaction that then retains too much and still overflows.
+		//
+		// Deliberately conservative: it never loosens the budget, engages only on
+		// direct evidence of under-counting, and is capped so a tiny estimate
+		// cannot collapse the budget.
+		const actualPreviousInputTokens =
+			typeof context.previousRequestInputTokens === "number" &&
+			context.previousRequestInputTokens > 0
+				? context.previousRequestInputTokens
+				: 0;
+		const underestimateFactor =
+			actualPreviousInputTokens > 0 && requestInputTokens > 0
+				? Math.min(
+						MAX_INPUT_UNDERESTIMATE_FACTOR,
+						Math.max(1, actualPreviousInputTokens / requestInputTokens),
+					)
+				: 1;
+		const maxInputTokens = rawMaxInputTokens / underestimateFactor;
 		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
 		const messageTriggerTokens = translateRequestBudgetToMessages(
 			requestTriggerTokens,
 			requestOverheadTokens,
 		);
+		// Equivalent to comparing the provider's actual count against the unscaled
+		// trigger, because the budget above already carries the ratio.
 		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode: effectiveMode,
@@ -333,6 +380,9 @@ export function createContextCompactionPrepareTurn(
 			messageInputTokens,
 			requestOverheadTokens,
 			maxInputTokens,
+			rawMaxInputTokens,
+			actualPreviousInputTokens,
+			underestimateFactor,
 			requestTriggerTokens,
 			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
@@ -423,8 +473,11 @@ export function createContextCompactionPrepareTurn(
 
 		const builtinOptions = {
 			context: compactionContext,
+			// Resolved per turn from the live session config, with the same
+			// precedence as the main request, so the summarizer never sends
+			// credentials the host has since refreshed or replaced.
 			providerConfig: {
-				...providerConfig,
+				...resolveConnectionProviderConfig(config),
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
@@ -433,92 +486,106 @@ export function createContextCompactionPrepareTurn(
 		};
 		let executedStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;
-		if (effectiveMode === "overflow_recovery") {
-			// The provider already rejected the request, so recovery must end
-			// deterministically: the agentic strategy's own summarizer call could
-			// overflow the same window (its input budgeting trusts the same
-			// estimator that just undercounted). A custom compactor gets first
-			// shot — it sees mode "overflow_recovery" and owns its transcript
-			// invariants — but its result is held to the same bar basic
-			// compaction aims for: strictly smaller than the input (the runtime
-			// refuses to retry with a request that is not smaller) AND within
-			// the recovery token target. A marginal shrink would spend the
-			// run's single retry on a request that still cannot fit. On throw,
-			// decline, or an insufficient result, basic compaction runs so
-			// recovery never depends on another successful LLM request.
-			if (userCompaction?.compact) {
+		const recordCancellation = () => {
+			recordCompactionCancelled(config.telemetry, {
+				mode: effectiveMode,
+				strategy: executedStrategy,
+			});
+		};
+		context.abortSignal.addEventListener("abort", recordCancellation, {
+			once: true,
+		});
+		try {
+			if (effectiveMode === "overflow_recovery") {
+				// The provider already rejected the request, so recovery must end
+				// deterministically: the agentic strategy's own summarizer call could
+				// overflow the same window (its input budgeting trusts the same
+				// estimator that just undercounted). A custom compactor gets first
+				// shot — it sees mode "overflow_recovery" and owns its transcript
+				// invariants — but its result is held to the same bar basic
+				// compaction aims for: strictly smaller than the input (the runtime
+				// refuses to retry with a request that is not smaller) AND within
+				// the recovery token target. A marginal shrink would spend the
+				// run's single retry on a request that still cannot fit. On throw,
+				// decline, or an insufficient result, basic compaction runs so
+				// recovery never depends on another successful LLM request.
+				if (userCompaction?.compact) {
+					try {
+						result = await userCompaction.compact(compactionContext);
+					} catch (error) {
+						if (isCompactionCancellation(error, context.abortSignal)) {
+							throw error;
+						}
+						config.logger?.log(
+							"Custom compaction failed during overflow recovery; falling back to basic compaction",
+							{
+								severity: "warn",
+								...describeCompactionError(error),
+							},
+						);
+						result = undefined;
+					}
+					if (result?.messages) {
+						const customMessageTokens = result.messages.reduce(
+							(total: number, message) =>
+								total + estimateMessageTokens(message),
+							0,
+						);
+						// The full acceptance bar, covering every degenerate size: a
+						// non-empty transcript (an empty one erases the request being
+						// retried), strictly smaller than the input (the runtime
+						// refuses a retry that is not smaller), and within the
+						// recovery token target (a marginal shrink spends the run's
+						// single retry on a request that still cannot fit). Both size
+						// comparisons use the token estimator rather than serialized
+						// length so they are expressed in the same unit as the target.
+						const acceptable =
+							result.messages.length > 0 &&
+							customMessageTokens < messageInputTokens &&
+							customMessageTokens <= messageTargetTokens;
+						if (!acceptable) {
+							config.logger?.log(
+								"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to basic compaction",
+								{
+									severity: "warn",
+									customMessageCount: result.messages.length,
+									customMessageTokens,
+									messageTargetTokens,
+								},
+							);
+							result = undefined;
+						}
+					}
+				}
+				if (!result?.messages) {
+					executedStrategy = "basic";
+					result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+				}
+			} else if (userCompaction?.compact) {
+				result = await userCompaction.compact(compactionContext);
+			} else {
 				try {
-					result = await userCompaction.compact(compactionContext);
+					result = await runBuiltinStrategy(builtinOptions);
 				} catch (error) {
-					if (isCompactionCancellation(error, context.abortSignal)) {
+					if (
+						strategy !== "agentic" ||
+						isCompactionCancellation(error, context.abortSignal)
+					) {
 						throw error;
 					}
 					config.logger?.log(
-						"Custom compaction failed during overflow recovery; falling back to basic compaction",
+						"Agentic compaction failed; falling back to basic compaction",
 						{
 							severity: "warn",
 							...describeCompactionError(error),
 						},
 					);
-					result = undefined;
-				}
-				if (result?.messages) {
-					const customMessageTokens = result.messages.reduce(
-						(total: number, message) => total + estimateMessageTokens(message),
-						0,
-					);
-					// The full acceptance bar, covering every degenerate size: a
-					// non-empty transcript (an empty one erases the request being
-					// retried), strictly smaller than the input (the runtime
-					// refuses a retry that is not smaller), and within the
-					// recovery token target (a marginal shrink spends the run's
-					// single retry on a request that still cannot fit). Both size
-					// comparisons use the token estimator rather than serialized
-					// length so they are expressed in the same unit as the target.
-					const acceptable =
-						result.messages.length > 0 &&
-						customMessageTokens < messageInputTokens &&
-						customMessageTokens <= messageTargetTokens;
-					if (!acceptable) {
-						config.logger?.log(
-							"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to basic compaction",
-							{
-								severity: "warn",
-								customMessageCount: result.messages.length,
-								customMessageTokens,
-								messageTargetTokens,
-							},
-						);
-						result = undefined;
-					}
+					executedStrategy = "basic";
+					result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
 				}
 			}
-			if (!result?.messages) {
-				executedStrategy = "basic";
-				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
-			}
-		} else if (userCompaction?.compact) {
-			result = await userCompaction.compact(compactionContext);
-		} else {
-			try {
-				result = await runBuiltinStrategy(builtinOptions);
-			} catch (error) {
-				if (
-					strategy !== "agentic" ||
-					isCompactionCancellation(error, context.abortSignal)
-				) {
-					throw error;
-				}
-				config.logger?.log(
-					"Agentic compaction failed; falling back to basic compaction",
-					{
-						severity: "warn",
-						...describeCompactionError(error),
-					},
-				);
-				executedStrategy = "basic";
-				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
-			}
+		} finally {
+			context.abortSignal.removeEventListener("abort", recordCancellation);
 		}
 
 		const durationMs = Date.now() - startedAt;
@@ -661,18 +728,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	importedFrom: string;
 	next?: ContextPipelinePrepareTurn;
 }): ContextPipelinePrepareTurn {
-	const summarize = createContextCompactionPrepareTurn(
-		{
-			...input.config,
-			compaction: {
-				...input.config.compaction,
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 0,
-			},
-		},
-		{ mode: "manual" },
-	);
+	// Pass the live config through (not a copy) so the summary uses the
+	// credentials and model current on the resumed turn.
+	const summarize = createContextCompactionPrepareTurn(input.config, {
+		mode: "manual",
+		compaction: { enabled: true, strategy: "agentic", preserveRecentTokens: 0 },
+	});
 	let pending = summarize !== undefined;
 	return async (context) => {
 		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {
@@ -708,6 +769,15 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
+	 * The runtime's provider-request transform (extension message builders +
+	 * `MessageBuilder.buildForApi`), i.e. what produced `context.apiMessages`
+	 * from `context.messages`. Re-compaction swaps in a projected transcript
+	 * and must estimate against its API-safe form, not the raw projection.
+	 */
+	prepareApiMessages: (
+		messages: CoreCompactionContext["messages"],
+	) => Promise<CoreCompactionContext["messages"]>;
+	/**
 	 * Persist a freshly-computed compaction state. `sourceMessages` are the
 	 * exact canonical messages the state's source-prefix hash was computed
 	 * over; hosts must validate projection against these rather than a
@@ -733,7 +803,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: await input.prepareApiMessages(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {

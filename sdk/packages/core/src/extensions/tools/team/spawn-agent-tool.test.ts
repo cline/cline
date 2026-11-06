@@ -1,6 +1,10 @@
 import type { AgentConfig } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDelegatedAgentConfigProvider } from "./delegated-agent";
+import {
+	createUxVerifierTool,
+	UX_VERIFIER_INSTRUCTIONS,
+} from "./ux-verification";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -38,6 +42,66 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 describe("createSpawnAgentTool", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it("runs UX verification through the existing child runtime and lifecycle", async () => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		const input = {
+			task: "Check http://localhost:3000 with the existing browser",
+			checklist: [
+				{ id: "dialog", steps: ["Click Open"], expected: "Dialog is visible" },
+			],
+		};
+		const observations = JSON.stringify({
+			subtitle: "Local browser",
+			checks: [
+				{
+					id: "dialog",
+					title: "Dialog opens",
+					subtitle: "Modal is visible",
+					status: "passed",
+					screenshotPath: "/tmp/dialog.png",
+				},
+			],
+		});
+		runMock.mockResolvedValue({
+			text: observations,
+			iterations: 2,
+			finishReason: "completed",
+			usage: { inputTokens: 11, outputTokens: 7 },
+		});
+		const onSubAgentStart = vi.fn();
+		const onSubAgentEnd = vi.fn();
+		const controller = new AbortController();
+		const spawn = createSpawnAgentTool({
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+			}),
+			onSubAgentStart,
+			onSubAgentEnd,
+		});
+		const result = await createUxVerifierTool(spawn).execute(input, {
+			agentId: "lead",
+			iteration: 1,
+			signal: controller.signal,
+		});
+		expect(result).toMatchObject({
+			text: observations,
+			usage: { inputTokens: 11, outputTokens: 7 },
+		});
+		expect(runMock).toHaveBeenCalledWith(JSON.stringify(input));
+		expect(agentConstructorSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: UX_VERIFIER_INSTRUCTIONS,
+				parentAgentId: "lead",
+				abortSignal: controller.signal,
+			}),
+		);
+		expect(onSubAgentStart).toHaveBeenCalledOnce();
+		expect(onSubAgentEnd).toHaveBeenCalledWith(
+			expect.objectContaining({ result }),
+		);
 	});
 
 	it("creates a sub-agent, forwards callbacks, and returns normalized output", async () => {

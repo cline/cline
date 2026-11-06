@@ -9,6 +9,7 @@ import {
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
+import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -363,6 +364,9 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			if (ctx.hubStartup) {
+				ws.send(encodeSidecarEvent("hub_status", ctx.hubStartup.status));
+			}
 			// Replay a pending mismatch so webviews that connect (or reload)
 			// after detection still prompt the user to update and restart.
 			if (ctx.hubBuildMismatch) {
@@ -406,6 +410,10 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			// wait so the sidecar cannot retain an abandoned authorization attempt.
 			cancelProviderOAuthLoginsForOwner(ws);
 			cancelMcpOAuthAuthorizationsForOwner(ws);
+			// Composio connects finish in the external browser; abandon (revoke
+			// + tombstone) any this connection started so a flow completed after
+			// the webview is gone cannot materialize connector tools.
+			abandonComposioConnectsForOwner(ws);
 		},
 	};
 }

@@ -16,6 +16,7 @@ import type {
 	HubCommandTransport,
 	HubConnectionAuthority,
 } from "./command-transport";
+import { HistoryTransferPool } from "./history-transfer";
 import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
@@ -68,7 +69,7 @@ function commandErrorReply(
 function registrationAuthority(
 	frame: HubCommandFrame,
 	serverWorkspaceRoot?: string,
-	allowRegisteredWorkspace = false,
+	tokenAuthenticated = false,
 ): HubConnectionAuthority {
 	const registration = (frame.envelope.payload ??
 		{}) as unknown as HubClientRegistration;
@@ -78,13 +79,14 @@ function registrationAuthority(
 		throw new Error("Registration clientId must match the command connection");
 	}
 	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
-	const authorizedRoot = allowRegisteredWorkspace
+	const authorizedRoot = tokenAuthenticated
 		? requestedRoot || serverWorkspaceRoot?.trim()
 		: serverWorkspaceRoot?.trim();
-	if (!authorizedRoot) return { clientId };
+	const authentication = tokenAuthenticated ? { tokenAuthenticated: true } : {};
+	if (!authorizedRoot) return { clientId, ...authentication };
 	const workspaceRoot = resolve(authorizedRoot);
 	if (
-		!allowRegisteredWorkspace &&
+		!tokenAuthenticated &&
 		requestedRoot &&
 		resolve(requestedRoot) !== workspaceRoot
 	) {
@@ -105,12 +107,14 @@ function registrationAuthority(
 	}
 	return {
 		clientId,
+		...authentication,
 		workspaceContext: { workspaceRoot, cwd },
-		...(allowRegisteredWorkspace ? { crossWorkspace: true } : {}),
+		...(tokenAuthenticated ? { crossWorkspace: true } : {}),
 	};
 }
 
 export class BrowserWebSocketHubAdapter {
+	private readonly historyTransfers = new HistoryTransferPool();
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
@@ -119,10 +123,11 @@ export class BrowserWebSocketHubAdapter {
 
 	attach(
 		socket: BrowserHubSocketLike,
-		options: { allowRegisteredWorkspace?: boolean } = {},
+		options: { tokenAuthenticated?: boolean } = {},
 	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		const historyOwner = {};
 		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
@@ -141,6 +146,7 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			if (envelope.event === "cloud.event" && !authority) return;
 			sendFrame({ kind: "event", envelope });
 		};
 
@@ -148,6 +154,23 @@ export class BrowserWebSocketHubAdapter {
 			try {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
+					case "history.cancel": {
+						if (
+							authority &&
+							typeof frame.clientId === "string" &&
+							frame.clientId.trim() === authority.clientId &&
+							typeof frame.requestId === "string" &&
+							frame.requestId.trim() &&
+							typeof frame.sessionId === "string"
+						) {
+							this.historyTransfers.cancel(
+								historyOwner,
+								frame.requestId,
+								frame.sessionId.trim(),
+							);
+						}
+						break;
+					}
 					case "command": {
 						let registration: HubConnectionAuthority | undefined;
 						if (authority && frame.envelope.command === "client.register") {
@@ -180,7 +203,7 @@ export class BrowserWebSocketHubAdapter {
 								registration = registrationAuthority(
 									frame,
 									this.workspaceRoot,
-									options.allowRegisteredWorkspace,
+									options.tokenAuthenticated,
 								);
 							} catch (error) {
 								sendFrame({
@@ -194,7 +217,20 @@ export class BrowserWebSocketHubAdapter {
 								break;
 							}
 						}
+						if (
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.historyCursor !== undefined &&
+							frame.envelope.payload?.chunkHistory !== true
+						) {
+							throw new Error("History cursors require chunkHistory");
+						}
 						const startedAt = performance.now();
+						const historyAbort =
+							authority &&
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.chunkHistory === true
+								? new AbortController()
+								: undefined;
 						let settled = false;
 						const context = commandLogContext(frame);
 						logHubMessage("info", "command.start", context);
@@ -205,15 +241,24 @@ export class BrowserWebSocketHubAdapter {
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
-						const commandPromise = this.transport.command(
-							frame.envelope,
-							authority ?? null,
-						);
+						const read = () =>
+							this.transport.command(frame.envelope, authority ?? null);
+						const commandPromise = historyAbort
+							? this.historyTransfers.command(
+									frame.envelope,
+									historyOwner,
+									read,
+									historyAbort.signal,
+								)
+							: read();
 						commandPromise.then(
 							(lateReply) => {
 								if (!settled) return;
 								logHubMessage(
-									lateReply.ok ? "warn" : "error",
+									lateReply.ok ||
+										lateReply.error?.code === "history_transfer_closed"
+										? "warn"
+										: "error",
 									"command.late_end",
 									{
 										...context,
@@ -249,6 +294,7 @@ export class BrowserWebSocketHubAdapter {
 											new Promise<HubReplyEnvelope>((resolve) => {
 												timeoutTimer = setTimeout(() => {
 													timedOut = true;
+													historyAbort?.abort();
 													captureSdkError(this.telemetry, {
 														component: "core",
 														operation: "hub.command_timeout",
@@ -280,6 +326,7 @@ export class BrowserWebSocketHubAdapter {
 						settled = timedOut;
 						clearTimeout(slowTimer);
 						if (timeoutTimer) clearTimeout(timeoutTimer);
+						if (historyAbort && closed) return;
 						const durationMs = Math.round(performance.now() - startedAt);
 						if (timedOut) {
 							logHubMessage("error", "command.timeout", {
@@ -308,6 +355,7 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								void this.historyTransfers.close(historyOwner);
 								authority = undefined;
 							}
 						}
@@ -475,6 +523,7 @@ export class BrowserWebSocketHubAdapter {
 				return;
 			}
 			closed = true;
+			void this.historyTransfers.close(historyOwner);
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();
 			}

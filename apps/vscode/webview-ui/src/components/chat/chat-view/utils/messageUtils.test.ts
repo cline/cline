@@ -1,5 +1,9 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { readUiMessages } from "../../../../../../src/sdk/legacy-state-reader"
 import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
@@ -52,6 +56,29 @@ const createAskMessage = (
 })
 
 describe("filterVisibleMessages", () => {
+	it("keeps a saved legacy conversation visible without showing Focus Chain checklists", () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-legacy-chat-"))
+		try {
+			const taskDir = join(dataDir, "tasks", "legacy-task")
+			mkdirSync(taskDir, { recursive: true })
+			const task = createTaskMessage(1, "Build an API")
+			const reply = createTextMessage(3, "The API is ready")
+			writeFileSync(
+				join(taskDir, "ui_messages.json"),
+				JSON.stringify([
+					task,
+					{ ts: 2, type: "say", say: "task_progress", text: "- [ ] Build an API" },
+					reply,
+					{ ts: 4, type: "say", say: "task_progress", text: "- [x] Build an API" },
+				]),
+			)
+
+			expect(filterVisibleMessages(readUiMessages("legacy-task", dataDir))).toEqual([task, reply])
+		} finally {
+			rmSync(dataDir, { recursive: true, force: true })
+		}
+	})
+
 	it("hides exact user feedback echoes for selected follow-up options", () => {
 		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
 		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Use this")])

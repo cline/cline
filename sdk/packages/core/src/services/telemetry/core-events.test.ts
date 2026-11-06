@@ -4,6 +4,7 @@ import {
 	type ITelemetryService,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -15,9 +16,11 @@ import {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureGitSnapshot,
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureRunIdle,
 	captureScheduleRun,
 	captureTaskCompleted,
 	captureTaskCreated,
@@ -28,10 +31,35 @@ import {
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
 	clearAccountTelemetryIdentity,
+	type GitSnapshotProperties,
 	identifyAccount,
+	recordCompactionCancelled,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
+
+const gitSnapshot: GitSnapshotProperties = {
+	schema_version: 1,
+	sessionId: "session-1",
+	ulid: "session-1",
+	providerId: "cline",
+	workspace_id: "opaque-workspace",
+	workspace_root_count: 2,
+	observation_window_id: "window-1",
+	observation_sequence: 1,
+	observed_at: "2026-01-01T00:00:00.000Z",
+	boundary: "model_call",
+	request_id: "backend-request",
+	request_id_status: "present",
+	git: {
+		state: "ok",
+		head_sha: "a".repeat(40),
+		dirty: false,
+		staged: false,
+		unstaged: false,
+		untracked: false,
+	},
+};
 
 interface TelemetryStub {
 	telemetry: ITelemetryService;
@@ -66,6 +94,41 @@ function captureCallAt(
 	return arg;
 }
 
+describe("recordCompactionCancelled", () => {
+	test("records the catalog counter with mode and strategy", () => {
+		const { telemetry } = createTelemetryStub();
+		const recordCounter = vi.fn();
+		telemetry.recordCounter = recordCounter;
+		recordCompactionCancelled(telemetry, {
+			mode: "manual",
+			strategy: "agentic",
+		});
+		expect(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL).toBe(
+			"cline.compaction.cancelled.total",
+		);
+		expect(recordCounter).toHaveBeenCalledExactlyOnceWith(
+			CORE_TELEMETRY_EVENTS.TASK.COMPACTION_CANCELLED_TOTAL,
+			1,
+			{ mode: "manual", strategy: "agentic" },
+			"Compaction attempts cancelled via their abort signal",
+		);
+	});
+
+	test("does not interrupt cancellation when telemetry is absent or throws", () => {
+		const properties = { mode: "auto", strategy: "custom" } as const;
+		expect(() =>
+			recordCompactionCancelled(undefined, properties),
+		).not.toThrow();
+		const { telemetry } = createTelemetryStub();
+		telemetry.recordCounter = () => {
+			throw new Error("telemetry failed");
+		};
+		expect(() =>
+			recordCompactionCancelled(telemetry, properties),
+		).not.toThrow();
+	});
+});
+
 describe("captureExtensionActivated", () => {
 	test("emits user.extension_activated as a normal opt-out-respecting event", () => {
 		const stub = createTelemetryStub();
@@ -79,6 +142,23 @@ describe("captureExtensionActivated", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureExtensionActivated(undefined)).not.toThrow();
+	});
+});
+
+describe("captureGitSnapshot", () => {
+	test("uses the catalog event and preserves the typed payload as ordinary telemetry", () => {
+		const stub = createTelemetryStub();
+		captureGitSnapshot(stub.telemetry, gitSnapshot);
+		expect(CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT).toBe("task.git_snapshot");
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			properties: gitSnapshot,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureGitSnapshot(undefined, gitSnapshot)).not.toThrow();
 	});
 });
 
@@ -158,6 +238,9 @@ describe("CORE_TELEMETRY_EVENTS", () => {
 			TASK_PROVIDER_STREAM_FAILED_EVENT,
 		);
 		expect(CORE_TELEMETRY_EVENTS.TASK.CANCELLED).toBe(TASK_CANCELLED_EVENT);
+		expect(CORE_TELEMETRY_EVENTS.TASK.MAX_TOKENS_RECOVERY).toBe(
+			TASK_MAX_TOKENS_RECOVERY_EVENT,
+		);
 	});
 
 	test("re-exports the task lifecycle telemetry helper", () => {
@@ -344,6 +427,31 @@ describe("captureWorkspacePathResolved", () => {
 				resolution_type: "fallback_to_primary",
 			}),
 		).not.toThrow();
+	});
+});
+
+describe("captureRunIdle", () => {
+	test("emits task.run_idle and drops a missing session id", () => {
+		const stub = createTelemetryStub();
+		captureRunIdle(stub.telemetry, {
+			ulid: undefined,
+			agentId: "agent-1",
+			runId: "run-1",
+			idleMs: 60_000,
+			lastEventType: "tool-started",
+			isSubagent: true,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.RUN_IDLE,
+			properties: {
+				agentId: "agent-1",
+				runId: "run-1",
+				idleMs: 60_000,
+				lastEventType: "tool-started",
+				isSubagent: true,
+			},
+		});
 	});
 });
 
@@ -651,6 +759,18 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			adapters: [adapter],
 		});
 		captureExtensionActivated(service);
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
+	test("captureGitSnapshot respects the ordinary opt-out path", () => {
+		const { adapter, emit, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({ adapters: [adapter] });
+		expect(service.isEnabled()).toBe(false);
+		captureGitSnapshot(service, gitSnapshot);
+		expect(emit).toHaveBeenCalledWith(
+			CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			expect.objectContaining(gitSnapshot),
+		);
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 

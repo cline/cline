@@ -36,7 +36,7 @@ export function QueuedPrompts(props: {
 					? "Waiting. ↑/↓ navigate, Tab edit, Esc cancels turn"
 					: `Steered next. ↑/↓ navigate, Tab edit, ${escapeHint}`
 				: `↑/↓ navigate, Enter steer, Tab edit, ${escapeHint}`
-		: "↑ steer or edit messages";
+		: "Enter with empty input to steer first · ↑ select or edit";
 
 	return (
 		<box

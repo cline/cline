@@ -4,23 +4,20 @@ Shared visual foundations and reusable React presentation primitives for Cline
 web products. The package lets teams adopt the same semantic theme and agent
 chat language without adopting another product's routes, state, or runtime.
 
-The package is configured for public npm releases on its own version and
-release cycle. Its API is still pre-stable, so consumers should pin an exact
-version and review compatibility notes when updating. Check availability with
-`npm view @cline/ui version`; an `E404` means the first release is still pending.
+The package is published to npm with the SDK packages and shares their version.
+Its API is still pre-stable, so consumers should pin an exact version and review
+compatibility notes when updating.
 
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
 
 ## Install
 
-After the initial release is available:
-
 ```bash
 bun add --exact @cline/ui
 ```
 
-Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
+Use `@cline/ui@nightly` only for deliberate previews. Monorepo consumers use
 `"@cline/ui": "workspace:*"` instead.
 
 ## Entry points
@@ -38,6 +35,22 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
+| `@cline/ui/components/message-scroller` | Shadcn message scrolling, turn anchors, visibility hooks, and centered scroll controls | React 19 |
+| `@cline/ui/components/message-scroller.css` | Framework-neutral scroller styles (also included in `components.css`) | Theme tokens |
+
+`@shadcn/react` is pinned to 0.3.1 with a Bun dependency patch in
+`patches/@shadcn%2Freact@0.3.1.patch`. The patch consumes anchors from loaded
+and prepended history and distinguishes existing rows from replacement DOM
+nodes, so prompt acknowledgment and typing-indicator replacement preserve the
+reader's position. Keep the patch when upgrading until upstream passes
+`tests/message-scroller.test.tsx`. Consumers installing outside this monorepo
+must apply the same patch until an upstream release includes the fix.
+
+`MessageScroller` composes `@shadcn/react/message-scroller`. It provides turn
+anchoring, streaming follow behavior, message jumps, and visibility tracking.
+The dedicated entry point requires React 19; see the
+[message scroller guide](./ADOPTION.md#message-scroller) for composition and
+transcript outline examples.
 
 `SessionStatus` uses semantic tone colors by default. Set
 `--cline-ui-session-status-color` on the component to override its dot color
@@ -51,6 +64,10 @@ registers package-namespaced mappings and the packaged component sources so
 their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
+
+`AgentConversationLayout`, `AgentConversationHeader`, and `AgentSessionContent`
+share welcome/conversation geometry and header groups through host-owned slots.
+See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
 accent, neutral, and destructive tones. Both default to `type="button"` so they
@@ -88,9 +105,15 @@ static when reduced motion is requested.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` keeps option selection locally and submits explicitly. The
-host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+`AgentAskQuestion` answers single-choice items as soon as an option is picked
+and also accepts a typed custom answer. The host owns pending answers, errors,
+and response transport. Multiple-choice items set `multiple: true` and provide
+`onAnswers` for explicit array submission.
+
+`AgentComposer` and its body, field, textarea, actions, attachments, and settings
+primitives share the desktop input presentation without taking ownership of
+drafts, keyboard handling, models, uploads, or runtime actions. See the
+[composer adoption contract](./ADOPTION.md#composer-presentation).
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
@@ -99,13 +122,21 @@ The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`palette.css` and `tokens.css` are the canonical theme sources;
-`scoped-tokens.css` and the internal component Tailwind mapping are generated
-from them and `theme.css`. Contributors change the source theme files and run
-`bun run generate:theme`; tests and CI reject drift in either generated output.
-Consumers may import either public token entry point.
+The solid colors in `palette.css`, the semantic values in `tokens.css`, and
+the mappings in `theme.css` are the authored sources. `bun run generate:theme`
+derives alpha colors in `palette.css`, then generates `scoped-tokens.css` and
+the internal component Tailwind mapping. Tests and CI reject drift in all
+derived values. Consumers may import either public token entry point.
 
 ## Theme usage
+
+Existing consumers can keep `text-destructive` for error text and
+`bg-destructive text-destructive-foreground` for filled actions. The Tailwind
+mapping uses `--error-text` for destructive text and `--destructive` (the
+`--error-solid` alias) for backgrounds, borders, and rings. The label stays
+white through `--destructive-foreground`. Opacity modifiers, interaction
+variants, and the namespaced `cline-ui` utilities follow the same mapping.
+Framework-neutral CSS should use `--error-text` for readable error text.
 
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
@@ -149,7 +180,7 @@ normal Tailwind utilities inherit Cline defaults without custom adapters.
 Theme authors work through three layers:
 
 1. Cline-owned 12-step solid and alpha palettes: Slate as `--neutral-*`,
-   Violet as `--accent-*`, Ruby as `--error-*`, Green as `--success-*`, Amber
+   Iris as `--accent-*`, Vermilion as `--error-*`, Emerald as `--success-*`, Amber
    as `--warning-*`, and Sky as `--info-*`.
 2. Readable visual roles such as `--surface-1`, `--text-2`, `--border-1`, and
    `--success-surface`.
@@ -161,8 +192,17 @@ Tailwind exposes the role and compatibility layers, but intentionally does not
 register every raw palette step. Brand artwork may use the separate
 `--brand-*` colors.
 
-The palette values are derived from Radix Colors 3.0.0 under the included MIT
-license; `@cline/ui` does not depend on Radix Colors at runtime.
+Iris, Vermilion, and Emerald use Cline brand OKLCH scales. Neutral scales
+began with Radix Colors 3.0.0 under the included MIT license. Solid colors are
+authored; alpha counterparts are generated to reproduce those colors over each
+mode's `--neutral-1` within 3/255 per sRGB channel. This equivalence applies over
+`--neutral-1`, not arbitrary host backgrounds. No palette package is required
+at runtime.
+
+Use `--accent-foreground` and the status `-text` roles for small colored text.
+Pair solid fills with their foreground or `-contrast` roles.
+The existing token names and component APIs remain available. Typography adds
+`--text-xxs` for 11px text at the default 15px root size.
 
 ## Agent-chat usage
 
@@ -220,18 +260,64 @@ transcript states.
 
 For assistant Markdown, `@cline/ui/components/markdown` exports the shared
 Streamdown configuration — `markdownCodeHighlighter` (lazy Shiki with GitHub
-light/dark themes) and `agentMarkdownControls` — and
+light/dark themes), `agentMarkdownControls`, and the opt-in
+`createLazyMermaidPlugin` / `agentMarkdownControlsWithMermaid` pair — and
 `@cline/ui/components/markdown.css` carries the matching chat styling (quiet
 single-box code blocks with a hover copy control, chat-scale headings, table
-cards). Import the CSS unlayered so it wins over Streamdown's Tailwind
-utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, and
-`@shikijs/themes` installed (optional peer dependencies). Products keep their
-own `<Streamdown>` wrapper for link and image policy. Give each conversation a bounded height through an explicit height or
-a complete flex/min-height chain so its viewport can scroll.
+cards). The Mermaid plugin dynamically imports the renderer only after a
+`mermaid` fence is encountered and enforces strict security for model-authored
+source. Import the CSS unlayered so it wins over Streamdown's Tailwind
+utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, `@shikijs/themes`,
+and (when enabling diagrams) `mermaid` installed as optional peer dependencies.
+Products keep their own `<Streamdown>` wrapper for link and image policy.
+
+Hosts that want a native-looking diagram block register
+`createMermaidRenderer()` from `@cline/ui/components/mermaid-block` through
+`<Streamdown plugins={{ renderers: [createMermaidRenderer()] }} />` instead of
+the `mermaid` diagram plugin (Streamdown consults `renderers` first, so the
+built-in block is skipped). The block shows the diagram's filename in its
+header — from the fence title (```` ```mermaid title="my-diagram" ````), the
+diagram's frontmatter `title:`, or a name derived from its contents — and
+offers zoom, fullscreen, copy, and a Download menu with PNG and Mermaid
+source (`.mmd`) only. Diagrams use Mermaid's `base` theme with variables
+resolved from the live design tokens (`--card`, `--foreground`, `--primary`,
+...) as concrete sRGB, follow light/dark (`.dark` on the root) and the accent
+palette, and re-render when either changes; a diagram's own `%%{init}%%`,
+frontmatter `config:`, `classDef`, and `style` still override the site theme.
+PNG exports are opaque (filled with the surface color), rendered at 2x-3x
+(following the device pixel ratio, not Streamdown's fixed 5x), and capped at
+4096px on the longest edge, re-encoding smaller if needed, so they stay under
+the ~5 MiB image attachment limit. The pure naming, theming, and
+sizing logic lives in `@cline/ui/components/mermaid-diagram` (DOM-free).
+
+Give
+each conversation a bounded height through an explicit height or a complete
+flex/min-height chain so its viewport can scroll.
+
+Diagram links need host handling. Mermaid's strict mode blocks scripts and
+dangerous URL schemes, but a `click <node> "https://…"` directive still renders
+a live anchor inside the SVG, and Streamdown injects that SVG with
+`dangerouslySetInnerHTML` — so it never passes through the `a` component a
+product supplies. The plugin therefore runs `neutralizeDiagramLinks` over
+rendered output: navigable `href` / `xlink:href` / `target` attributes are
+removed, and an http(s) destination is preserved on the attribute exported as
+`DIAGRAM_LINK_HREF_ATTRIBUTE` (`data-cline-diagram-href`). Diagram links are
+inert by default; a host that wants them clickable should read that attribute
+and route the destination through its own link policy. Treat them as untrusted:
+a diagram's visible label is authored independently of its destination, so
+confirm before opening rather than reusing a "looks honest" heuristic.
 
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
+
+## Session-row presentation
+
+The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`. Desktop uses these for its existing session row, rename
+frame, and hover metadata. Hosts retain their icons, actions, rename input,
+menus, data formatting, and session behavior. See the session-row section in
+[ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
 
 ## Storybook
 
@@ -276,49 +362,72 @@ ownership model settle.
 
 ## Releases
 
-The standalone `ui-publish.yml` workflow validates the package and publishes
-only after a manual dispatch from `main`. Production releases use the npm
-`latest` tag; deliberate previews use `next`. UI releases do not trigger the
-SDK release, GitHub releases, or Slack announcements.
+`@cline/ui` is released with the SDK packages and shares their version. The
+`sdk-publish.yml` workflow (or `bun release sdk` locally) publishes it after
+`@cline/sdk`: production releases use the npm `latest` tag and nightly builds
+use `nightly`. See [Publishing](../../CONTRIBUTING.md#publishing).
 
-### Publish a preview
+Earlier standalone releases used `0.1.0` and `0.2.0-next.N`. The SDK moved to
+`0.2.0` when the UI joined it, so SDK releases continue that version line.
 
-Prepare an unused `0.2.0-next.N` version in this package's `package.json`,
-regenerate the workspace lockfile with Bun if needed, and merge the release
-commit to `main`. Keep `internal: true`: the UI package has its own release
-workflow and is excluded from SDK-wide version bumps.
+### 0.2.0-next.10 compatibility notes
 
-After merging the version change, dispatch:
+This preview packages the already-merged desktop UI updates for external
+consumers:
 
-```sh
-gh workflow run ui-publish.yml \
-  --repo cline/cline \
-  --ref main \
-  -f npm_tag=next \
-  -f confirm_publish=publish
+- `SearchCombobox.onOpen` is an optional callback for refreshing a catalog when
+  its picker opens. Hosts still own fetching, selection, and error handling.
+- A single queued prompt is visible immediately with its existing edit/remove/
+  steer controls. Multiple prompts retain the collapsible list. This does not
+  add a runtime queue operation or an Enter-to-steer shortcut to consumers.
+- `ToolFileDiff` derives its options from the peer component, allowing the
+  published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
+
+Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
+explicitly to enable catalog refresh.
+
+Monorepo consumers retain `workspace:*`; rebuild with `bun -F @cline/ui build`
+and restart the consuming app. External consumers should pin an exact version,
+commit their lockfile, and update deliberately. The package is ESM and its
+React components target browser applications. A complete Tailwind theme also
+requires Tailwind v4 and the two font packages shown above.
+
+`AgentContextUsage` supplies the desktop context ring, accessible trigger label,
+and usage-detail body through a render callback. The host keeps its existing
+button/popover behavior and passes its formatted cost separately from the latest
+request's context tokens. See [context usage](./ADOPTION.md#context-usage).
+
+### UX verification reports
+
+`AgentUxVerification` renders the shared `UxVerificationReport` contract from `@cline/shared/browser` as an evidence carousel. It supports passed/failed/blocked checks, titles, observations, thumbnails, keyboard navigation and optional slideshow. Pass `state="running"` while verification runs, then `state="completed"` with its report. Invalid output or `state="error"` displays a failure state rather than a success count.
+
+Inline screenshots use the existing safe Blob renderer. Hosts can supply `renderScreenshot(check, className, presentation)` to resolve authenticated asset references, and `onExpandScreenshot(check)` to open their focus-managed image viewer. The component owns no transport or upload client. Its styles ship in `@cline/ui/components.css`; see the **Agent/UX verification** Storybook stories.
+
+When the carousel has focus, Left/Right switch slides and Space toggles slideshow playback without scrolling the page. Arrow navigation pauses playback. Space on a focused button retains that button’s normal action.
+
+Screenshot evidence uses the existing `GeneratedMedia` image contract: `id`, `modality: "image"`, a supported raster `mediaType`, and `source` (`base64`, `url`, or `artifact`). Optional `name` and `sizeBytes` metadata are preserved. Persist artifact IDs in reports and let the host resolve access URLs when displaying them; the shared component does not invent or refresh signed URLs.
+
+A Desktop consumer can pass `check.screenshot` directly to its existing `ArtifactImage` component from the cloud-artifact integration, without converting between image formats:
+
+```tsx
+<AgentUxVerification
+  output={report}
+  state="completed"
+  renderScreenshot={(check, className, presentation) =>
+    check.screenshot?.source.type === "artifact" ? (
+      <ArtifactImage
+        media={check.screenshot}
+        sessionId={sessionId}
+        className={className}
+        interactive={presentation !== "thumbnail"}
+      />
+    ) : undefined
+  }
+/>
 ```
 
-The workflow builds dependencies, runs UI and integration checks, builds
-Storybook, tests the packed artifact, and publishes that artifact with
-provenance. It rejects a version that already exists. Recheck registry versions
-before release preparation; if the version was taken, commit the next unused
-prerelease before dispatching. Publishing does not happen when the PR merges.
+`ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.
 
-After the run succeeds, verify that the registry's `next` tag points to the
-prepared version and that `latest` is unchanged. Install the exact preview in
-an external consumer and verify its build, styles, keyboard interaction, and
-disabled states:
+A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. For example, an artifact renderer returns `undefined` for inline screenshots so the shared Blob rendering and image-load fallback stay active.
 
-```sh
-bun add --exact '@cline/ui@<prepared-version>'
-```
-
-Commit the consumer's manifest and lockfile. Monorepo consumers retain
-`workspace:*`; rebuild with `bun -F @cline/ui build` and restart the consuming
-app. If a preview regresses, pin the previous version and publish a corrected
-prerelease instead of replacing an existing version.
-
-The install command above pins the resolved release. Commit the consumer
-lockfile and update deliberately. The package is ESM and its React components
-target browser applications. A complete Tailwind theme also requires Tailwind
-v4 and the two font packages shown above.
+`presentation` is `"slide"` or `"thumbnail"`. Thumbnail content lives inside the selection button and must not render buttons, links or other interactive controls. Hosts should disable retry controls in that context while keeping recovery available in the main view. `GeneratedMediaContent` shows its unavailable fallback if inline image bytes fail to decode, including in expanded host viewers.

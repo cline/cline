@@ -1,11 +1,4 @@
-import {
-	mkdtempSync,
-	readdirSync,
-	readFileSync,
-	utimesSync,
-	writeFileSync,
-} from "node:fs";
-import { access } from "node:fs/promises";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -19,11 +12,13 @@ import {
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
+import { APICallError } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
 	createGateway,
+	DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
 	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
 	resolveGatewayRequestMaxTokens,
 } from "./gateway";
@@ -95,22 +90,28 @@ function createFetchMock() {
 	};
 }
 
-vi.mock("ai", () => ({
-	jsonSchema: (schema: unknown, options: unknown) => ({
-		jsonSchema: schema,
-		...(options && typeof options === "object" ? options : {}),
-	}),
-	generateImage: (input: unknown) => generateImageSpy(input),
-	streamText: (input: unknown) => streamTextSpy(input),
-	// `wrapLanguageModel` is used by the openai-compatible and mistral
-	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
-	// is exercised by its own unit tests; here we just need an identity
-	// pass-through so the vendor factories' downstream `model:` callbacks
-	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV4` interface, so we
-	// can't call the real `wrapLanguageModel` either way.)
-	wrapLanguageModel: ({ model }: { model: unknown }) => model,
-}));
+vi.mock("ai", async (importOriginal) => {
+	const { APICallError, RetryError } =
+		await importOriginal<typeof import("ai")>();
+	return {
+		APICallError,
+		RetryError,
+		jsonSchema: (schema: unknown, options: unknown) => ({
+			jsonSchema: schema,
+			...(options && typeof options === "object" ? options : {}),
+		}),
+		generateImage: (input: unknown) => generateImageSpy(input),
+		streamText: (input: unknown) => streamTextSpy(input),
+		// `wrapLanguageModel` is used by the openai-compatible and mistral
+		// vendors to attach `splitToolImagesMiddleware`. The middleware itself
+		// is exercised by its own unit tests; here we just need an identity
+		// pass-through so the vendor factories' downstream `model:` callbacks
+		// keep returning the spy-produced mock objects unchanged. (The mock
+		// objects don't satisfy the real `LanguageModelV4` interface, so we
+		// can't call the real `wrapLanguageModel` either way.)
+		wrapLanguageModel: ({ model }: { model: unknown }) => model,
+	};
+});
 
 vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
@@ -297,29 +298,70 @@ async function captureReasoningOptions({
 }
 
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
-const originalCaptureProviderRequest =
-	process.env.CLINE_CAPTURE_PROVIDER_REQUEST;
-const originalCaptureWire = process.env.CLINE_CAPTURE_WIRE;
-const originalCaptureDir = process.env.CLINE_CAPTURE_DIR;
-const originalCaptureDataDir = process.env.CLINE_DATA_DIR;
-const originalCaptureMaxPreviewBytes =
-	process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES;
-const originalCaptureCleanup = process.env.CLINE_CAPTURE_CLEANUP;
-
-function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
-	return readdirSync(dir)
-		.filter((file) => file.endsWith(".provider-request.json"))
-		.sort()
-		.map(
-			(file) =>
-				JSON.parse(readFileSync(join(dir, file), "utf8")) as Record<
-					string,
-					unknown
-				>,
-		);
-}
 
 describe("sdk-gateway", () => {
+	it.each([
+		["unknown", "unknown"],
+		["other", "unknown"],
+		["unexpected", "unknown"],
+		["aborted", "unknown"],
+		[undefined, "unknown"],
+		["stop", "stop"],
+		["length", "max-tokens"],
+		["tool-calls", "tool-calls"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves finish reason %s as %s", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Partial" },
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
+	it.each([
+		["stop", "stop"],
+		["unknown", "unknown"],
+		["length", "max-tokens"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves %s as %s when a tool was streamed", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "echo-1",
+					toolName: "echo",
+					input: {},
+				},
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
@@ -385,60 +427,64 @@ describe("sdk-gateway", () => {
 		} else {
 			process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
 		}
-		if (originalCaptureProviderRequest === undefined) {
-			delete process.env.CLINE_CAPTURE_PROVIDER_REQUEST;
-		} else {
-			process.env.CLINE_CAPTURE_PROVIDER_REQUEST =
-				originalCaptureProviderRequest;
-		}
-		if (originalCaptureWire === undefined) {
-			delete process.env.CLINE_CAPTURE_WIRE;
-		} else {
-			process.env.CLINE_CAPTURE_WIRE = originalCaptureWire;
-		}
-		if (originalCaptureDir === undefined) {
-			delete process.env.CLINE_CAPTURE_DIR;
-		} else {
-			process.env.CLINE_CAPTURE_DIR = originalCaptureDir;
-		}
-		if (originalCaptureDataDir === undefined) {
-			delete process.env.CLINE_DATA_DIR;
-		} else {
-			process.env.CLINE_DATA_DIR = originalCaptureDataDir;
-		}
-		if (originalCaptureMaxPreviewBytes === undefined) {
-			delete process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES;
-		} else {
-			process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES =
-				originalCaptureMaxPreviewBytes;
-		}
-		if (originalCaptureCleanup === undefined) {
-			delete process.env.CLINE_CAPTURE_CLEANUP;
-		} else {
-			process.env.CLINE_CAPTURE_CLEANUP = originalCaptureCleanup;
-		}
 	});
 
-	it("uses the old default output cap when request max tokens are omitted", () => {
+	it("defaults to a fraction of the model's advertised output budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 			}),
+		).toBe(Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION));
+	});
+
+	it("never lowers the default below the flat cap for a model with a small output budget", () => {
+		// The catalog fraction (30% of 8,000 = 2,400) is smaller than the flat
+		// default, so the flat default applies here instead — the model's own
+		// output-budget cap (pushed separately below) is what then clamps the
+		// result down to what this model can actually emit (8,000), not the
+		// fraction shrinking the default further on top of that.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { maxOutputTokens: 8_000, contextWindow: 200_000 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_000);
+	});
+
+	it("falls back to the flat default when the model advertises no output budget", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+	});
+
+	it("honors an explicit caller default over the catalog fraction", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				defaultMaxOutputTokens: 16_000,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(16_000);
 	});
 
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
-				reasoningBudgetTokens: 50_000,
+				reasoningBudgetTokens: 70_000,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 				outputReserveTokens: 1_024,
 			}),
-		).toBe(51_024);
+		).toBe(71_024);
 
 		// Still clamped by the model's max output tokens.
 		expect(
@@ -523,10 +569,12 @@ describe("sdk-gateway", () => {
 		expect(estimatedTokens).toBeGreaterThan(4_000);
 	});
 
-	it("applies the old default output cap when the request omits max tokens", async () => {
+	it("defaults max tokens to a fraction of the model output budget", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream(request: { maxTokens?: number }) {
-				expect(request.maxTokens).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+				expect(request.maxTokens).toBe(
+					Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION),
+				);
 				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
 			},
 		}));
@@ -615,6 +663,8 @@ describe("sdk-gateway", () => {
 				tags: true,
 				conversationId: true,
 				runId: true,
+				agentId: true,
+				modelRequestId: true,
 				iteration: true,
 				providerId: true,
 				modelId: true,
@@ -1300,6 +1350,44 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("includes the response x-request-id in stream error messages", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "error",
+					error: new APICallError({
+						message: "Unauthorized",
+						url: "https://api.cline.bot/api/v1/chat/completions",
+						requestBodyValues: {},
+						statusCode: 401,
+						responseHeaders: { "X-Request-ID": "req_abc123" },
+						responseBody: JSON.stringify({
+							error: { message: "Unauthorized: re-authenticate" },
+						}),
+					}),
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			requestId: "req_abc123",
+			error: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+		});
+	});
+
 	it("preserves valid mixed text when a generated image is rejected", async () => {
 		const oversized = "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4);
 		streamTextSpy.mockReturnValue({
@@ -1500,6 +1588,8 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
+				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2333,6 +2423,8 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
+			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -2411,6 +2503,9 @@ describe("sdk-gateway", () => {
 								input: ["text", "image"],
 								output: ["text", "image"],
 							},
+							reasoningOptions: [
+								{ type: "budget_tokens", min: 128, max: 32_768 },
+							],
 						},
 					],
 				},
@@ -2548,6 +2643,155 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Invalid API key",
 			errorClass: "unknown",
+			errorRetryable: false,
+			errorReported: false,
+		});
+	});
+
+	it("reports a thrown socket reader error at the provider boundary", async () => {
+		const error = Object.assign(
+			new Error("The socket connection was closed unexpectedly"),
+			{
+				code: "ConnectionClosed",
+			},
+		);
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "reasoning-delta", text: "partial reasoning" };
+				throw error;
+			})(),
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				metadata: {
+					runId: "run-test",
+					agentId: "agent-test",
+					sessionId: "session-test",
+					conversationId: "conversation-test",
+					modelRequestId: "request-test",
+					iteration: 3,
+				},
+			}),
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ error, severity: "error" }),
+		);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "llms",
+				operation: "provider.stream",
+				severity: "error",
+				runId: "run-test",
+				agentId: "agent-test",
+				sessionId: "session-test",
+				conversationId: "conversation-test",
+				modelRequestId: "request-test",
+				iteration: 3,
+				errorPhase: "stream_read",
+				error_code: "ConnectionClosed",
+				error_message: error.message,
+			}),
+		});
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: error.message,
+			errorReported: true,
+		});
+		expect(
+			capture.mock.calls.filter(([call]) => call.event === "sdk.error"),
+		).toHaveLength(1);
+	});
+
+	it.each([
+		"AbortError",
+		"TimeoutError",
+	])("classifies %s cancellation independently of provider failure", async (name) => {
+		const controller = new AbortController();
+		const reason = new DOMException("request aborted", name);
+		controller.abort(reason);
+		streamTextSpy.mockImplementation(
+			(input: { onAbort?: (event: { reason: unknown }) => Promise<void> }) => {
+				return {
+					fullStream: (async function* () {
+						await input.onAbort?.({ reason });
+						yield { type: "abort", reason };
+					})(),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				signal: controller.signal,
+			}),
+		);
+		const errors = capture.mock.calls.filter(
+			([call]) => call.event === "sdk.error",
+		);
+		if (name === "TimeoutError") {
+			expect(errors).toHaveLength(1);
+			expect(errors[0]?.[0].properties).toMatchObject({
+				error_type: "TimeoutError",
+				errorPhase: "timeout",
+				severity: "error",
+			});
+		} else {
+			expect(errors).toHaveLength(0);
+			expect(logger.error).not.toHaveBeenCalled();
+		}
+	});
+
+	it("uses three SDK stream retries without allowing another whole-turn retry", async () => {
+		const error = {
+			message: "upstream timeout",
+			code: "504",
+			isRetryable: true,
+		};
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error });
+				return { fullStream: makeStreamParts([{ type: "error", error }]) };
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+			maxRetries: 3,
+			streamRetries: 3,
+		});
+		expect(events.at(-1)).toMatchObject({
+			reason: "error",
+			errorRetryable: false,
 		});
 	});
 
@@ -2695,6 +2939,47 @@ describe("sdk-gateway", () => {
 		expect(sdkErrors).toHaveLength(5);
 	});
 
+	it("rate-limits stream failures that differ only by request ID", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = new APICallError({
+				message: "Unauthorized",
+				url: "https://api.cline.bot/api/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 401,
+				responseHeaders: { "x-request-id": `req_${"abcdefghijklmnopqrst"[i]}` },
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+		expect(sdkErrors[0]?.[0]).toMatchObject({
+			properties: { error_message: "Unauthorized", requestId: "req_a" },
+		});
+	});
+
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
 		streamTextSpy.mockImplementation(() => {
 			throw new Error("No output generated. Check the stream for errors.", {
@@ -2763,6 +3048,8 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: "Invalid API key",
 				errorClass: "unknown",
+				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2803,6 +3090,8 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
+			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -2839,6 +3128,8 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Instructions are required",
 			errorClass: "unknown",
+			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -3399,6 +3690,7 @@ describe("sdk-gateway", () => {
 			fullStream: makeStreamParts([
 				{
 					type: "finish",
+					finishReason: "stop",
 					usage: {
 						prompt_tokens: 9125,
 						completion_tokens: 96,
@@ -5727,8 +6019,11 @@ describe("sdk-gateway", () => {
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
-			providerOptionsKey: "vercel-ai-gateway",
-			aliasKey: "vercelAiGateway",
+			// Hyphenated openai-compatible ids are written under the camelCase
+			// alias only; the raw name would trigger the AI SDK deprecation
+			// warning on every chunk.
+			providerOptionsKey: "vercelAiGateway",
+			aliasKey: undefined,
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
@@ -6178,12 +6473,13 @@ describe("sdk-gateway", () => {
 					vercelAiGateway: expect.objectContaining({
 						reasoning: { exclude: true },
 					}),
-					"vercel-ai-gateway": expect.objectContaining({
-						reasoning: { exclude: true },
-					}),
 				}),
 			}),
 		);
+		expect(
+			(streamTextSpy.mock.calls[3]?.[0] as { providerOptions?: object })
+				.providerOptions,
+		).not.toHaveProperty("vercel-ai-gateway");
 		// Unlisted GLM ids route explicit enablement through the portable
 		// top-level reasoning option instead of the routed include shape.
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
@@ -6676,214 +6972,6 @@ describe("sdk-gateway", () => {
 		expect(createProvider).toHaveBeenCalledOnce();
 	});
 
-	it("writes AI SDK prompt captures with request metadata correlation", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([
-				{
-					type: "finish",
-					finishReason: "stop",
-					usage: { inputTokens: 1, outputTokens: 1 },
-				},
-			]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [
-				{
-					providerId: "openrouter",
-					apiKey: "test-key",
-				},
-			],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: {
-					captureId: "cap-session-1-run-1-2",
-					sessionId: "session-1",
-					runId: "run-1",
-					conversationId: "conv-1",
-					iteration: 2,
-				},
-			}),
-		);
-
-		const records = readCaptureRecords(captureDir);
-		expect(records).toHaveLength(1);
-		expect(readdirSync(captureDir)).toContain(
-			"cap-session-1-run-1-2.ai_sdk_prompt.1.provider-request.json",
-		);
-		expect(records[0]).toMatchObject({
-			captureStage: "ai_sdk_prompt",
-			attempt: 1,
-			mode: "summary",
-			correlation: {
-				captureId: "cap-session-1-run-1-2",
-				sessionId: "session-1",
-				runId: "run-1",
-				conversationId: "conv-1",
-				iteration: 2,
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-			},
-		});
-		expect(records[0]?.summary).toMatchObject({
-			messages: {
-				messageCount: 1,
-				roleCounts: { user: 1 },
-				messages: [
-					expect.objectContaining({
-						index: 0,
-						role: "user",
-						sha256: expect.any(String),
-					}),
-				],
-			},
-		});
-		expect(records[0]).not.toHaveProperty("payload");
-	});
-
-	it("falls back to a stable per-request capture filename without captureId", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-fallback-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: { runId: "run-fallback", iteration: 4 },
-			}),
-		);
-
-		const files = readdirSync(captureDir).filter((file) =>
-			file.endsWith(".provider-request.json"),
-		);
-		expect(files).toHaveLength(1);
-		expect(files[0]).toMatch(
-			/^cap_run-fallback_4_[a-f0-9]{16}\.ai_sdk_prompt\.1\.provider-request\.json$/,
-		);
-	});
-
-	it("honors the full capture preview byte cap override", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-full-capture-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "full";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES = "24";
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [
-				{
-					providerId: "openrouter",
-					apiKey: "test-key",
-				},
-			],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: [
-					{
-						id: "user_full",
-						role: "user",
-						content: [{ type: "text", text: "Hello ".repeat(50) }],
-						createdAt: Date.now(),
-					},
-				],
-			}),
-		);
-
-		const payload = readCaptureRecords(captureDir)[0]?.payload as
-			| { preview?: string; truncated?: boolean }
-			| undefined;
-		expect(payload).toMatchObject({ truncated: true });
-		expect(
-			Buffer.byteLength(payload?.preview ?? "", "utf8"),
-		).toBeLessThanOrEqual(24);
-	});
-
-	it("does not write provider request captures without an explicit capture or data dir", async () => {
-		const cwd = process.cwd();
-		const tempCwd = mkdtempSync(join(tmpdir(), "llms-capture-cwd-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		delete process.env.CLINE_CAPTURE_DIR;
-		delete process.env.CLINE_DATA_DIR;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		try {
-			process.chdir(tempCwd);
-			const gateway = createGateway({
-				providerConfigs: [
-					{
-						providerId: "openrouter",
-						apiKey: "test-key",
-					},
-				],
-			});
-
-			await collect(
-				await gateway.stream({
-					providerId: "openrouter",
-					modelId: "anthropic/claude-test",
-					messages: baseMessages,
-				}),
-			);
-
-			await expect(
-				access(join(tempCwd, ".cline", "provider-request-captures")),
-			).rejects.toThrow();
-		} finally {
-			process.chdir(cwd);
-		}
-	});
-
-	it("does not wrap provider fetch when wire capture is disabled", async () => {
-		const customFetch = vi.fn() as unknown as typeof fetch;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [
-				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
-			],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-			}),
-		);
-
-		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
-			fetch?: typeof fetch;
-		};
-		expect(config.fetch).toBe(customFetch);
-	});
-
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
 		const { fetchMock: customFetchMock, fetch: customFetch } =
 			createFetchMock();
@@ -7078,6 +7166,102 @@ describe("sdk-gateway", () => {
 		expect(headers.get("x-existing")).toBe("kept");
 	});
 
+	describe("aimlapi.com attribution", () => {
+		const ATTRIBUTION = [
+			"x-aimlapi-source",
+			"x-aimlapi-partner-id",
+			"x-aimlapi-integration-repo",
+			"x-aimlapi-integration-version",
+			"http-referer",
+			"x-title",
+		];
+
+		/** The fetch the aimlapi provider hands its vendor SDK, built around a
+		 *  fetch the HOST supplied, so the wrap is proven to survive one. */
+		async function aimlapiWireFetch(providerId = "aimlapi") {
+			const { fetchMock, fetch: hostFetch } = createFetchMock();
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+			});
+			const gateway = createGateway({
+				providerConfigs: [{ providerId, apiKey: "test-key", fetch: hostFetch }],
+			});
+			await collect(
+				await gateway.stream({
+					providerId,
+					modelId: "anthropic/claude-sonnet-5",
+					messages: baseMessages,
+				}),
+			);
+			const config = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as {
+				fetch?: typeof fetch;
+			};
+			return {
+				fetchMock,
+				send: async (url: string) => {
+					await config.fetch?.(url, {
+						method: "POST",
+						headers: { "x-existing": "kept" },
+						body: "{}",
+					});
+					const init = fetchMock.mock.calls.at(-1)?.[1] as
+						| RequestInit
+						| undefined;
+					return new Headers(init?.headers);
+				},
+			};
+		}
+
+		it("is added for api.aimlapi.com, through a host-supplied fetch", async () => {
+			const { fetchMock, send } = await aimlapiWireFetch();
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+
+			expect(fetchMock).toHaveBeenCalledOnce();
+			expect(headers.get("x-aimlapi-source")).toBe("agent/cline");
+			expect(headers.get("x-aimlapi-partner-id")).toBe(
+				"part_HSyUEqWOLXYAn56CBHNOMBlj",
+			);
+			expect(headers.get("x-aimlapi-partner-id")).toMatch(
+				/^part_[A-Za-z0-9]{1,64}$/,
+			);
+			expect(headers.get("x-aimlapi-integration-repo")).toBe("cline/cline");
+			expect(headers.get("http-referer")).toBe("https://cline.bot");
+			expect(headers.get("x-title")).toBe("Cline");
+			expect(headers.get("x-existing")).toBe("kept");
+		});
+
+		it("is NOT sent when the provider is pointed anywhere else", async () => {
+			const { send } = await aimlapiWireFetch();
+			for (const url of [
+				// look-alikes a suffix or substring test would attribute
+				"https://api.aimlapi.com.example.net/v1/chat/completions",
+				"https://notapi.aimlapi.com/v1/chat/completions",
+				// userinfo: the real host is evil.example
+				"https://api.aimlapi.com@evil.example/v1/chat/completions",
+				// the apex and a sibling are not the inference gateway
+				"https://aimlapi.com/v1/chat/completions",
+				"https://staging.api.aimlapi.com/v1/chat/completions",
+				// a plain baseUrl override: proxy, staging, local
+				"https://proxy.example.test/v1/chat/completions",
+				"http://localhost:8080/v1/chat/completions",
+			]) {
+				const headers = await send(url);
+				for (const name of ATTRIBUTION) {
+					expect(headers.has(name), `${name} leaked to ${url}`).toBe(false);
+				}
+				expect(headers.get("x-existing")).toBe("kept");
+			}
+		});
+
+		it("leaves every other provider's fetch untouched", async () => {
+			const { send } = await aimlapiWireFetch("openai-compatible");
+			const headers = await send("https://api.aimlapi.com/v1/chat/completions");
+			for (const name of ATTRIBUTION) {
+				expect(headers.has(name)).toBe(false);
+			}
+		});
+	});
+
 	it("preserves explicit configured header sticky session values", async () => {
 		const { fetchMock: customFetchMock, fetch: customFetch } =
 			createFetchMock();
@@ -7230,176 +7414,5 @@ describe("sdk-gateway", () => {
 			fetch?: typeof fetch;
 		};
 		expect(config.fetch).toBe(customFetch);
-	});
-
-	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-wire-capture-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		process.env.CLINE_CAPTURE_WIRE = "true";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		const customFetch = vi.fn(
-			async () => new Response("ok"),
-		) as unknown as typeof fetch;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [
-				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
-			],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: { runId: "run-wire", iteration: 3 },
-			}),
-		);
-
-		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
-			fetch?: typeof fetch;
-		};
-		expect(config.fetch).not.toBe(customFetch);
-		await config.fetch?.("https://example.test/v1/chat/completions", {
-			method: "POST",
-			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
-		});
-
-		expect(customFetch).toHaveBeenCalledOnce();
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const records = readCaptureRecords(captureDir);
-		expect(records.map((record) => record.captureStage)).toEqual([
-			"ai_sdk_prompt",
-			"wire_request",
-		]);
-		expect(records[1]).toMatchObject({
-			captureStage: "wire_request",
-			correlation: {
-				runId: "run-wire",
-				iteration: 3,
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-			},
-			summary: {
-				messages: {
-					messageCount: 1,
-					roleCounts: { user: 1 },
-					messages: [
-						expect.objectContaining({
-							index: 0,
-							role: "user",
-							sha256: expect.any(String),
-						}),
-					],
-				},
-			},
-		});
-	});
-
-	it("increments capture attempts instead of overwriting repeated wire requests", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-wire-attempts-"));
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		process.env.CLINE_CAPTURE_WIRE = "true";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		const customFetch = vi.fn(
-			async () => new Response("ok"),
-		) as unknown as typeof fetch;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [
-				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
-			],
-		});
-
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: { captureId: "cap-repeat", runId: "run-repeat" },
-			}),
-		);
-
-		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
-			fetch?: typeof fetch;
-		};
-		await config.fetch?.("https://example.test/v1/chat/completions", {
-			method: "POST",
-			body: JSON.stringify({ messages: [{ role: "user", content: "first" }] }),
-		});
-		await config.fetch?.("https://example.test/v1/chat/completions", {
-			method: "POST",
-			body: JSON.stringify({ messages: [{ role: "user", content: "second" }] }),
-		});
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		expect(
-			readdirSync(captureDir)
-				.filter((file) => file.endsWith(".provider-request.json"))
-				.sort(),
-		).toEqual([
-			"cap-repeat.ai_sdk_prompt.1.provider-request.json",
-			"cap-repeat.wire_request.1.provider-request.json",
-			"cap-repeat.wire_request.2.provider-request.json",
-		]);
-		const records = readCaptureRecords(captureDir);
-		expect(records.map((record) => record.attempt)).toEqual([1, 1, 2]);
-	});
-
-	it("prunes old capture files unless cleanup is disabled", async () => {
-		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-cleanup-"));
-		const oldFile = join(
-			captureDir,
-			"old.ai_sdk_prompt.1.provider-request.json",
-		);
-		writeFileSync(oldFile, "{}\n", { mode: 0o600 });
-		const oldDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
-		utimesSync(oldFile, oldDate, oldDate);
-		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
-		process.env.CLINE_CAPTURE_DIR = captureDir;
-		streamTextSpy.mockReturnValue({
-			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
-		});
-
-		const gateway = createGateway({
-			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
-		});
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: { captureId: "cap-cleanup-on" },
-			}),
-		);
-
-		expect(readdirSync(captureDir)).not.toContain(
-			"old.ai_sdk_prompt.1.provider-request.json",
-		);
-
-		const keepDir = mkdtempSync(join(tmpdir(), "llms-capture-keep-"));
-		const keepFile = join(keepDir, "old.ai_sdk_prompt.1.provider-request.json");
-		writeFileSync(keepFile, "{}\n", { mode: 0o600 });
-		utimesSync(keepFile, oldDate, oldDate);
-		process.env.CLINE_CAPTURE_DIR = keepDir;
-		process.env.CLINE_CAPTURE_CLEANUP = "off";
-		await collect(
-			await gateway.stream({
-				providerId: "openrouter",
-				modelId: "anthropic/claude-test",
-				messages: baseMessages,
-				metadata: { captureId: "cap-cleanup-off" },
-			}),
-		);
-
-		expect(readdirSync(keepDir)).toContain(
-			"old.ai_sdk_prompt.1.provider-request.json",
-		);
 	});
 });

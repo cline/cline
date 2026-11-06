@@ -1,6 +1,12 @@
 import type { McpServer } from "@shared/mcp"
 import { describe, expect, it } from "vitest"
-import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
+import {
+	getMatchingSlashCommands,
+	getMcpPromptCommands,
+	removeSlashCommand,
+	slashCommandRegex,
+	validateSlashCommand,
+} from "../slash-commands"
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -17,6 +23,41 @@ function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
 }
 
 describe("slash-commands", () => {
+	describe("removeSlashCommand", () => {
+		it.each([
+			"\nhello world",
+			"\r\nhello world",
+			"\n  hello world",
+		])("preserves following-line whitespace in %j", (suffix) => {
+			expect(removeSlashCommand(`/newtask${suffix}`, 8)).toEqual({
+				newText: suffix,
+				newPosition: 0,
+			})
+		})
+
+		it("preserves the prefix and following-line text for a command in the middle", () => {
+			expect(removeSlashCommand("Please /newtask\nhello world", 15)).toEqual({
+				newText: "Please \nhello world",
+				newPosition: 7,
+			})
+		})
+
+		it.each([
+			["/newtask hello world", "hello world"],
+			["/newtask  hello world", " hello world"],
+		])("removes only the immediately following space from %j", (text, newText) => {
+			expect(removeSlashCommand(text, 8)).toEqual({ newText, newPosition: 0 })
+		})
+
+		it("removes a command at the end of the input", () => {
+			expect(removeSlashCommand("Please /newtask", 15)).toEqual({ newText: "Please ", newPosition: 7 })
+		})
+
+		it("leaves text without a command at the cursor unchanged", () => {
+			expect(removeSlashCommand("hello world", 5)).toEqual({ newText: "hello world", newPosition: 5 })
+		})
+	})
+
 	describe("getMcpPromptCommands", () => {
 		it("should return empty array when no servers provided", () => {
 			const result = getMcpPromptCommands([])

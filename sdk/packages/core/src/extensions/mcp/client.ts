@@ -8,6 +8,8 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { ReadResourceResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { createMcpAppsClientCapabilities } from "./apps";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -17,6 +19,7 @@ import {
 } from "./oauth";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerRegistration,
@@ -47,15 +50,18 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Initialize budget when no timeout is configured. This wait sits on the
 // session-create critical path, which the hub caps at 30s
 // (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
-// then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
-// ones like Oracle SQLcl, uvx downloading a package on first run) need an
-// explicit `timeout`, which overrides this in either direction. Dead commands
-// still fail fast through the spawn error/exit path; only an alive-but-silent
-// server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// then Content-Length framing), so the doubled total MUST stay under that cap
+// with headroom or a hung server takes the whole session down with it. 10s
+// covers the launchers marketplace servers actually use: `npx`/`uvx` through
+// cmd.exe on Windows routinely take 3-6s to reach initialize even with a warm
+// cache (a 3s budget silently dropped every such server from the session),
+// while the worst case (~20s per server, probed in parallel) still clears
+// the hub deadline. Servers slower than this (JVM-based ones like Oracle
+// SQLcl, a package download on first run) need an explicit `timeout`, which
+// overrides this in either direction. Dead commands still fail fast through
+// the spawn error/exit path; only an alive-but-silent server waits out this
+// budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 10_000;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
@@ -214,13 +220,18 @@ class StdioMcpClient implements McpServerClient {
 	private framedParser = new FramedMessageParser();
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
+	// Set when a write to the current child's stdin failed; see spawnProcess.
+	private stdinFailure: string | undefined;
+	private stdinFailureTimer: ReturnType<typeof setTimeout> | undefined;
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private readonly mcpApps: boolean;
 
-	constructor(registration: McpServerRegistration) {
+	constructor(registration: McpServerRegistration, mcpApps = false) {
 		this.registration = registration;
+		this.mcpApps = mcpApps;
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
@@ -246,7 +257,7 @@ class StdioMcpClient implements McpServerClient {
 
 		const initializeParams = {
 			protocolVersion: MCP_PROTOCOL_VERSION,
-			capabilities: {},
+			capabilities: this.mcpApps ? createMcpAppsClientCapabilities() : {},
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
 		await this.ensureAgentPluginDataDirectory();
@@ -301,6 +312,7 @@ class StdioMcpClient implements McpServerClient {
 		this.connected = false;
 		this.process = undefined;
 		this.processClose = undefined;
+		this.clearStdinFailureTimer();
 		this.failAllPending(
 			new Error(`Disconnected from MCP server "${this.registration.name}".`),
 		);
@@ -355,6 +367,7 @@ class StdioMcpClient implements McpServerClient {
 				name?: string;
 				description?: string;
 				inputSchema?: Record<string, unknown>;
+				_meta?: Record<string, unknown>;
 			}>;
 		};
 		return (result.tools ?? [])
@@ -365,6 +378,7 @@ class StdioMcpClient implements McpServerClient {
 					name: string;
 					description?: string;
 					inputSchema: Record<string, unknown>;
+					_meta?: Record<string, unknown>;
 				} =>
 					typeof tool?.name === "string" &&
 					typeof tool.inputSchema === "object" &&
@@ -374,6 +388,11 @@ class StdioMcpClient implements McpServerClient {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				...(tool._meta &&
+				typeof tool._meta === "object" &&
+				!Array.isArray(tool._meta)
+					? { _meta: tool._meta }
+					: {}),
 			}));
 	}
 
@@ -393,6 +412,26 @@ class StdioMcpClient implements McpServerClient {
 		);
 	}
 
+	async readResource(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult> {
+		const result = ReadResourceResultSchema.safeParse(
+			await this.request(
+				"resources/read",
+				{ uri: request.uri },
+				undefined,
+				request.context?.signal,
+			),
+		);
+		if (!result.success) {
+			throw new Error(
+				`MCP server "${this.registration.name}" returned an invalid resources/read result: ${result.error.message}`,
+			);
+		}
+		return result.data;
+	}
+
 	private spawnProcess(protocolMode: StdioProtocolMode): void {
 		const transport = this.registration.transport;
 		if (transport.type !== "stdio") {
@@ -404,6 +443,8 @@ class StdioMcpClient implements McpServerClient {
 		this.framedParser = new FramedMessageParser();
 		this.newlineParser = new NewlineMessageParser();
 		this.stderrBuffer = "";
+		this.stdinFailure = undefined;
+		this.clearStdinFailureTimer();
 		this.protocolMode = protocolMode;
 
 		const platformOptions =
@@ -445,18 +486,50 @@ class StdioMcpClient implements McpServerClient {
 				new Error(`MCP process error: ${toErrorMessage(error)}`),
 			);
 		});
+		// A server that dies or closes stdin while a request is still being
+		// written fails that write asynchronously on the stdin stream. Without
+		// a listener Node raises it as an uncaught exception on the host
+		// process. Either way the connection is dead: nothing holds the pipe's
+		// read end any more, so no further request can reach the server.
+		// A server on its way out gets the graceful window to exit, so the
+		// "exit" handler reports its own code and stderr. One still running
+		// after that fails the pending requests here and is shut down with the
+		// same SIGTERM -> SIGKILL escalation as disconnect().
+		child.stdin.on("error", (error) => {
+			if (this.process !== child) {
+				return;
+			}
+			this.stdinFailure ??= toErrorMessage(error);
+			if (this.stdinFailureTimer !== undefined) {
+				return;
+			}
+			this.stdinFailureTimer = setTimeout(() => {
+				this.stdinFailureTimer = undefined;
+				if (this.process !== child) {
+					return;
+				}
+				this.failAllPending(
+					new Error(
+						`MCP server "${this.registration.name}" stopped reading its input before the request was fully delivered (${this.stdinFailure}) and did not exit.`,
+					),
+				);
+				void this.disconnect().catch(() => {});
+			}, STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+			this.stdinFailureTimer.unref();
+		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {
 				return;
 			}
 			this.connected = false;
 			this.process = undefined;
+			this.clearStdinFailureTimer();
 			const suffix = this.stderrBuffer.trim()
 				? ` stderr: ${this.stderrBuffer.trim()}`
 				: "";
 			this.failAllPending(
 				new Error(
-					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}`,
+					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}${this.describeStdinFailure()}`,
 				),
 			);
 		});
@@ -587,8 +660,22 @@ class StdioMcpClient implements McpServerClient {
 
 	private createTimeoutError(method: string, timeoutMs: number): Error {
 		return new Error(
-			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method),
+			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method) +
+				this.describeStdinFailure(),
 		);
+	}
+
+	private clearStdinFailureTimer(): void {
+		if (this.stdinFailureTimer !== undefined) {
+			clearTimeout(this.stdinFailureTimer);
+			this.stdinFailureTimer = undefined;
+		}
+	}
+
+	private describeStdinFailure(): string {
+		return this.stdinFailure === undefined
+			? ""
+			: ` The server stopped reading its input before the request was fully delivered (${this.stdinFailure}).`;
 	}
 
 	private notify(method: string, params?: Record<string, unknown>): void {
@@ -647,6 +734,7 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 	/** Keep literal configured headers on the declared MCP origin only. */
 	restrictConfiguredHeadersToOrigin?: boolean;
+	mcpApps?: boolean;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -714,10 +802,15 @@ class SdkUrlMcpClient implements McpServerClient {
 			: undefined;
 		let client: Client | undefined;
 		try {
-			client = new Client({
-				name: this.options.clientName?.trim() || "@cline/core",
-				version: this.options.clientVersion?.trim() || "0.0.0",
-			});
+			client = new Client(
+				{
+					name: this.options.clientName?.trim() || "@cline/core",
+					version: this.options.clientVersion?.trim() || "0.0.0",
+				},
+				this.options.mcpApps
+					? { capabilities: createMcpAppsClientCapabilities() }
+					: undefined,
+			);
 			const transport = createMcpSdkTransport({
 				registration: this.registration,
 				oauthProvider,
@@ -771,6 +864,7 @@ class SdkUrlMcpClient implements McpServerClient {
 					!Array.isArray(tool.inputSchema)
 						? tool.inputSchema
 						: {},
+				...(tool._meta ? { _meta: tool._meta } : {}),
 			}));
 		} catch (error) {
 			return await this.handleOperationError(error);
@@ -790,6 +884,24 @@ class SdkUrlMcpClient implements McpServerClient {
 					arguments: request.arguments ?? {},
 				},
 				undefined,
+				{
+					timeout: this.requestTimeoutMs,
+					signal: request.context?.signal,
+				},
+			);
+		} catch (error) {
+			return await this.handleOperationError(error);
+		}
+	}
+
+	async readResource(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult> {
+		const client = await this.ensureConnectedClient();
+		try {
+			return await client.readResource(
+				{ uri: request.uri },
 				{
 					timeout: this.requestTimeoutMs,
 					signal: request.context?.signal,
@@ -868,7 +980,7 @@ export function createDefaultMcpServerClientFactory(
 ): McpServerClientFactory {
 	return (registration) =>
 		registration.transport.type === "stdio"
-			? new StdioMcpClient(registration)
+			? new StdioMcpClient(registration, options.mcpApps)
 			: new SdkUrlMcpClient(registration, options);
 }
 

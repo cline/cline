@@ -140,14 +140,21 @@ export function withLatestAssistantTurnMetadata(
 	const firstNewMessageIndex = previousMessages.length;
 	const assistantIndexes: number[] = [];
 	for (let index = firstNewMessageIndex; index < next.length; index += 1) {
-		if (next[index]?.role === "assistant") {
+		if (
+			next[index]?.role === "assistant" &&
+			next[index]?.metadata?.displayOnly !== true
+		) {
 			assistantIndexes.push(index);
 		}
 	}
 	if (assistantIndexes.length === 0) {
 		const lastAssistantIndex = [...next]
 			.reverse()
-			.findIndex((message) => message.role === "assistant");
+			.findIndex(
+				(message) =>
+					message.role === "assistant" &&
+					message.metadata?.displayOnly !== true,
+			);
 		if (lastAssistantIndex === -1) {
 			return next;
 		}

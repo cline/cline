@@ -98,7 +98,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	v0: {},
 	wandb: {
-		signupUrl: "https://wandb.ai",
+		signupUrl: "https://wandb.ai/settings",
 	},
 	xiaomi: {},
 	"tencent-tokenhub": {
@@ -106,6 +106,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	chutes: {
 		signupUrl: "https://chutes.ai/app/api",
+	},
+	aiand: {
+		signupUrl: "https://console.aiand.com/",
 	},
 	"zai-coding-plan": {},
 }
@@ -165,10 +168,11 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	poolside: "Poolside",
 	together: "Together",
 	v0: "Vercel v0",
-	wandb: "W&B",
+	wandb: "CoreWeave",
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
+	aiand: "ai&",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 

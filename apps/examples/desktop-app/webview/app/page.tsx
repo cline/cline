@@ -1,9 +1,12 @@
 "use client";
 
+import type { HandoffGitPreview } from "@cline/core/cloud";
+import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
-import { Loader2 } from "lucide-react";
+import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
+	Activity,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -13,7 +16,9 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
@@ -25,6 +30,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -32,34 +38,80 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ToastAction } from "@/components/ui/toast";
+import { normalizeTitle } from "@/components/utils";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import {
+	CloudHandoffGitConfirmation,
+	CloudHandoffStatus,
+} from "@/components/views/chat/cloud-handoff";
+import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
+import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
 	WindowTitleBarContent,
 	WindowTitleBarProvider,
 } from "@/components/window-title-bar";
-import { AccountProvider } from "@/contexts/account-context";
+import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { useAppUpdate } from "@/hooks/use-app-update";
+import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	getInitialChatConfig,
+	getInitialCloudModel,
+} from "@/hooks/chat-session/constants";
+import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useHubStartup } from "@/hooks/use-hub-startup";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
+import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
+import {
+	HANDOFF_PROGRESS_LABELS,
+	isExpectedHandoffSourceActive,
+	parseHandoffCommand,
+	validateHandoffAttachments,
+} from "@/lib/cloud-handoff";
+import {
+	createHandoffLifecycle,
+	type HandoffLifecycle,
+	type HandoffOpenResult,
+	type HandoffProgressEventPayload,
+} from "@/lib/cloud-handoff-lifecycle";
+import {
+	type CloudHandoffUiAction,
+	type CloudHandoffUiState,
+	cloudHandoffUiReducer,
+	type HandoffDraft,
+} from "@/lib/cloud-handoff-ui-state";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
+import {
+	humanizeCloudSessionError,
+	parseCloudSessionError,
+} from "@/lib/cloud-session-error";
 import {
 	createDesktopAppState,
 	type DesktopAppLocation,
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	isTauriAvailable,
+	openExternalUrl,
+} from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
@@ -67,10 +119,20 @@ import {
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	cloudImageAttachmentError,
 	imageAttachmentMediaType,
+	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
+import {
+	areShortcutsSuspended,
+	formatAccelerator,
+	matchesAccelerator,
+	useKeybindings,
+} from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
+import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
+import { writeExecutionTargetToWindow } from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -84,25 +146,65 @@ import {
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
 } from "@/lib/provider-model-catalog";
+import type {
+	RemoteEnvironmentConnectResult,
+	RemoteEnvironmentListResult,
+	RemoteEnvironmentProfile,
+} from "@/lib/remote-environments";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
 } from "@/lib/session-agents";
 import {
+	type ChangesScope,
+	sumChanges,
+	useSessionChanges,
+} from "@/lib/session-changes";
+import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
+import { resolveSessionHeaderStatus } from "@/lib/session-status";
+import {
+	clampTerminalPanelHeight,
+	readTerminalPanelState,
+	type TerminalPanelState,
+	writeTerminalPanelState,
+} from "@/lib/terminal-panel-state";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+import {
+	markCurrentWhatsNewSeen,
+	markWhatsNewSeen,
+	pendingWhatsNew,
+} from "@/lib/whats-new";
+import type { WhatsNewRelease } from "@/lib/whats-new-content";
+import {
+	readWorkInFromWindow,
+	startsNewThread,
+	TASK_WORKTREE_DELETE_WARNING,
+	type WorkIn,
+	writeWorkInToWindow,
+} from "@/lib/work-in-selection";
+import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
+import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
+	isTaskWorktreePath,
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+import type {
+	HandoffResponse,
+	PrepareHandoffResult,
+} from "../../sidecar/cloud-handoff";
 
 // Lazily loaded views: none of these are needed for the first paint of the
 // chat shell, so keeping them out of the entry chunk shortens app startup.
@@ -130,6 +232,15 @@ const SessionsView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+// xterm.js is only needed once the panel opens.
+const TerminalPanel = dynamic(
+	() =>
+		import("@/components/terminal-panel").then(
+			(module) => module.TerminalPanel,
+		),
+	{ ssr: false },
+);
+
 const OnboardingView = dynamic(
 	() =>
 		import("@/components/views/onboarding/onboarding-view").then(
@@ -141,12 +252,28 @@ const OnboardingView = dynamic(
 	},
 );
 
-const DiffView = dynamic(
-	() =>
-		import("@/components/views/chat/diff-view").then(
-			(module) => module.DiffView,
-		),
-	{ loading: viewLoading, ssr: false },
+const loadProjectFilesPanel = () =>
+	import("@/components/views/chat/project-files-panel");
+const loadChangesPanel = () => import("@/components/views/chat/changes-panel");
+
+// Holds a workspace panel's grid cell at its final width while the chunk
+// loads; an empty cell would let the composer flow into it for a few frames.
+const workspacePanelLoading = () => (
+	<aside
+		aria-hidden
+		className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+		style={{ width: readWorkspacePanelWidth() }}
+	/>
+);
+
+const ProjectFilesPanel = dynamic(
+	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
+	{ loading: workspacePanelLoading, ssr: false },
+);
+
+const ChangesPanel = dynamic(
+	() => loadChangesPanel().then((module) => module.ChangesPanel),
+	{ loading: workspacePanelLoading, ssr: false },
 );
 
 function makeThreadId(): string {
@@ -154,30 +281,239 @@ function makeThreadId(): string {
 }
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
+// Over SSH every refresh is a fresh ssh login on the remote host; branch
+// switches made through the picker refresh immediately regardless.
+const REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS = 30_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
+
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
+
+// Git preparation and cloud startup each need their own timeout budget.
+const HANDOFF_STAGE_TIMEOUT_MS = 25 * 60_000;
+
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
+): string {
+	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
+	const [longRunning, setLongRunning] = useState(false);
+	useEffect(() => {
+		if (!active) {
+			setLongRunning(false);
+			return;
+		}
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
+}
+
+type OpenSessionOptions = {
+	draft?: HandoffDraft;
+	environmentId?: string;
+	silent?: boolean;
+	expectedActiveThreadId?: string;
+};
+
+function CloudProvisioningPane({ phase }: { phase: string }) {
+	return (
+		<div className="px-6 py-6">
+			<div
+				aria-live="polite"
+				className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"
+			>
+				<LoaderCircle className="h-4 w-4 animate-spin" />
+				<span className="cline-chat-streaming-title">{phase}</span>
+			</div>
+		</div>
+	);
+}
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
 	if (preferredTitle) {
 		return preferredTitle.slice(0, 70);
 	}
-	const line = options.prompt?.trim().split("\n")[0]?.trim();
+	const line = normalizeTitle(options.prompt).split("\n")[0]?.trim();
 	if (line) return line.slice(0, 70);
 	return "New session";
 }
 
+// A reload discards every terminal tab, so shells from the previous page
+// load are unreachable. Memoized per page load: Activity re-runs App's effects
+// on a backend reconnect, when the live tabs still own their shells. The
+// terminal is only offered once this resolves, so a restored panel's new
+// shell cannot be caught by the reap.
+let terminalReap: Promise<void> | null = null;
+function reapOrphanedTerminals(): Promise<void> {
+	terminalReap ??= import("@tauri-apps/api/core")
+		.then(({ invoke }) => invoke("terminal_kill_all"))
+		.then(
+			() => undefined,
+			() => undefined,
+		);
+	return terminalReap;
+}
+
 export default function Home() {
+	const startup = useHubStartup();
+	const hubReady =
+		startup.transport === "connected" && startup.hub.state === "ready";
+	// Mount the app once the Hub is first ready, then hide it with Activity
+	// whenever the Hub is not ready. Hidden Activity content keeps its state
+	// (open conversations) but unmounts effects, so its dialogs, including
+	// portaled ones, release focus traps and body pointer-events.
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		if (hubReady) setLoaded(true);
+	}, [hubReady]);
+	return (
+		<>
+			{loaded ? (
+				<Activity mode={hubReady ? "visible" : "hidden"}>
+					<App />
+				</Activity>
+			) : null}
+			{hubReady ? null : <HubStartupScreen {...startup} />}
+			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
+			<HubUpdateRequiredDialog />
+		</>
+	);
+}
+
+function App() {
 	const [initialThreadId] = useState(makeThreadId);
+	// Outlive keyed chat panes without re-rendering the app on every keystroke.
+	const { current: promptDrafts } = useRef(new PromptDraftCache());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
-		(threadId) => createDesktopAppState(threadId, "General"),
+		(threadId) =>
+			createDesktopAppState(
+				threadId,
+				"General",
+				LOCAL_WORKSPACE_ENVIRONMENT_ID,
+			),
 	);
+	const [handoffUiState, dispatchHandoffUi] = useReducer(
+		cloudHandoffUiReducer,
+		{},
+	);
+	const [gitConfirmation, setGitConfirmation] =
+		useState<HandoffGitPreview | null>(null);
+	const gitDecisionRef = useRef<((approved: boolean) => void) | null>(null);
+	const confirmHandoffGit = useCallback(
+		(plan: HandoffGitPreview) =>
+			new Promise<boolean>((resolve) => {
+				gitDecisionRef.current?.(false);
+				gitDecisionRef.current = resolve;
+				setGitConfirmation(plan);
+			}),
+		[],
+	);
+	const finishGitConfirmation = useCallback((approved: boolean) => {
+		const resolve = gitDecisionRef.current;
+		gitDecisionRef.current = null;
+		setGitConfirmation(null);
+		resolve?.(approved);
+	}, []);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
+	// The terminal panel is app-level so it stays open across session
+	// switches; the PTY needs the native shell, so browser mode never offers it.
+	const [terminalAvailable, setTerminalAvailable] = useState(false);
+	const [terminalPanel, setTerminalPanel] = useState<TerminalPanelState>({
+		open: false,
+		height: 280,
+	});
+	useEffect(() => {
+		if (isTauriAvailable()) {
+			void reapOrphanedTerminals().then(() => setTerminalAvailable(true));
+		}
+		const stored = readTerminalPanelState();
+		setTerminalPanel({
+			...stored,
+			height: clampTerminalPanelHeight(stored.height, window.innerHeight),
+		});
+	}, []);
+	const updateTerminalPanel = useCallback(
+		(patch: Partial<TerminalPanelState>) => {
+			setTerminalPanel((current) => {
+				const next = { ...current, ...patch };
+				writeTerminalPanelState(next);
+				return next;
+			});
+		},
+		[],
+	);
+	const handleToggleTerminal = useCallback(() => {
+		setTerminalPanel((current) => {
+			const next = { ...current, open: !current.open };
+			writeTerminalPanelState(next);
+			if (!next.open) requestPromptInputFocus();
+			return next;
+		});
+	}, []);
+	const handleCloseTerminal = useCallback(() => {
+		updateTerminalPanel({ open: false });
+		requestPromptInputFocus();
+	}, [updateTerminalPanel]);
+	const handleTerminalHeightChange = useCallback(
+		(height: number) => {
+			updateTerminalPanel({
+				height: clampTerminalPanelHeight(height, window.innerHeight),
+			});
+		},
+		[updateTerminalPanel],
+	);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -185,8 +521,38 @@ export default function Home() {
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const environmentSelectionRevision = useRef(0);
+	const localEnvironmentSelection = useMemo(
+		createLocalEnvironmentSelection,
+		[],
+	);
+	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
+		RemoteEnvironmentProfile[]
+	>([]);
+	const [
+		remoteEnvironmentProfilesLoading,
+		setRemoteEnvironmentProfilesLoading,
+	] = useState(true);
+	const [remoteDirectoryPicker, setRemoteDirectoryPicker] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const remoteDirectoryPickerResolverRef = useRef<
+		((path: string | null) => void) | null
+	>(null);
+	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
+	useEffect(() => {
+		const threadIds = new Set(threads.map((thread) => thread.id));
+		for (const threadId of promptDrafts.keys()) {
+			if (!threadIds.has(threadId)) promptDrafts.delete(threadId);
+		}
+	}, [promptDrafts, threads]);
 	const { activeThreadId, settingsSection, view } = navigation.current;
+	const activeEnvironmentId =
+		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
 	const navigate = useCallback((destination: AppLocation) => {
 		dispatchApp({ type: "navigate", destination });
@@ -207,7 +573,13 @@ export default function Home() {
 	useAppUpdate();
 
 	useEffect(() => {
-		setShowOnboarding(!hasCompletedOnboarding());
+		const onboarded = hasCompletedOnboarding();
+		setShowOnboarding(!onboarded);
+		// Returning users get the catch-up once; first-run users see onboarding
+		// instead, and completing it marks the catch-up as seen.
+		if (onboarded) {
+			setWhatsNew(pendingWhatsNew());
+		}
 		const handleReset = () => setShowOnboarding(true);
 		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
 		return () =>
@@ -231,16 +603,239 @@ export default function Home() {
 		void syncDesktopWindowTitle();
 	}, []);
 
+	useRemoteEnvironmentBootstrap(
+		environmentSelectionRevision,
+		useCallback(
+			(
+				remoteEnvironment: RemoteWorkspaceEnvironment | null,
+				isFirstLoad: boolean,
+			) => {
+				setActiveRemoteEnvironment(remoteEnvironment);
+				// Later loads follow a reconnect; a new draft would replace the
+				// conversation that is still open.
+				if (isFirstLoad && remoteEnvironment) {
+					dispatchApp({
+						type: "select-environment-draft",
+						threadId: makeThreadId(),
+						environmentId: remoteEnvironment.id,
+					});
+				}
+			},
+			[],
+		),
+	);
+
+	useEffect(() => {
+		if (view !== "chat") return;
+		let revision = 0;
+		const refresh = () => {
+			const requestRevision = ++revision;
+			setRemoteEnvironmentProfilesLoading(true);
+			void desktopClient
+				.invoke<RemoteEnvironmentListResult>("list_remote_environments")
+				.then((result) => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfiles(result.profiles);
+				})
+				.catch(() => {
+					// The Settings > Remote surface owns profile-management errors.
+				})
+				.finally(() => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfilesLoading(false);
+				});
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"remote_environment_profiles_changed",
+			refresh,
+		);
+		refresh();
+		return () => {
+			++revision;
+			unsubscribe();
+		};
+	}, [view]);
+
+	useEffect(
+		() => () => {
+			remoteDirectoryPickerResolverRef.current?.(null);
+			remoteDirectoryPickerResolverRef.current = null;
+		},
+		[],
+	);
+
 	useEffect(() => watchDesktopTrayStatus(), []);
 	useEffect(() => watchDesktopNotifications(), []);
 
-	const handleNewThread = useCallback(() => {
-		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+	const createThreadForEnvironment = useCallback((environmentId: string) => {
+		dispatchApp({
+			type: "new-thread",
+			threadId: makeThreadId(),
+			environmentId,
+		});
 		requestPromptInputFocus();
 	}, []);
+	const handleNewThread = useCallback(() => {
+		createThreadForEnvironment(activeEnvironmentId);
+	}, [activeEnvironmentId, createThreadForEnvironment]);
+	const selectEnvironmentDraft = useCallback((environmentId: string) => {
+		dispatchApp({
+			type: "select-environment-draft",
+			environmentId,
+			threadId: makeThreadId(),
+		});
+	}, []);
+	const handleSelectEnvironment = useCallback(
+		async (environmentId: string) => {
+			environmentSelectionRevision.current += 1;
+			if (environmentId === activeRemoteEnvironment?.id) {
+				// Already connected (e.g. after navigating Back to a local draft);
+				// reconnecting would tear down and rebuild the remote runtime.
+				selectEnvironmentDraft(environmentId);
+				return;
+			}
+			try {
+				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
+					await localEnvironmentSelection.select(
+						async () => {
+							if (activeRemoteEnvironment) {
+								await desktopClient.invoke(
+									"disconnect_remote_environment",
+									{ id: activeRemoteEnvironment.id },
+									{ timeoutMs: null },
+								);
+							}
+						},
+						() => {
+							setActiveRemoteEnvironment(null);
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						},
+					);
+					return;
+				}
+
+				const result =
+					await desktopClient.invoke<RemoteEnvironmentConnectResult>(
+						"connect_remote_environment",
+						{ id: environmentId },
+						{ timeoutMs: null },
+					);
+				const connectedEnvironmentId = result.environmentId.trim();
+				const homeDir = result.homeDir.trim() || result.workspaceRoot.trim();
+				if (
+					connectedEnvironmentId !== environmentId ||
+					result.activeEnvironmentId !== connectedEnvironmentId ||
+					result.activeProfileId !== connectedEnvironmentId ||
+					!homeDir
+				) {
+					throw new Error(
+						"The SSH host connected without a valid environment identity or home directory.",
+					);
+				}
+
+				const storedWorkspace = readWorkspaceSelectionFromWindow(
+					connectedEnvironmentId,
+				);
+				if (!storedWorkspace.lastWorkspace) {
+					writeWorkspaceSelectionToWindow(connectedEnvironmentId, {
+						...storedWorkspace,
+						lastWorkspace: homeDir,
+					});
+				}
+				setActiveRemoteEnvironment({
+					id: connectedEnvironmentId,
+					homeDir,
+				});
+				selectEnvironmentDraft(connectedEnvironmentId);
+			} catch (error) {
+				toast({
+					title:
+						environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+							? "Unable to switch to Local"
+							: "Unable to connect to SSH host",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				throw error;
+			}
+		},
+		[
+			activeRemoteEnvironment,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+		],
+	);
+	const pickRemoteWorkspaceDirectory = useCallback(
+		(environment: RemoteWorkspaceEnvironment): Promise<string | null> => {
+			remoteDirectoryPickerResolverRef.current?.(null);
+			return new Promise((resolve) => {
+				remoteDirectoryPickerResolverRef.current = resolve;
+				setRemoteDirectoryPicker(environment);
+			});
+		},
+		[],
+	);
+	const completeRemoteDirectoryPicker = useCallback((path: string | null) => {
+		const resolve = remoteDirectoryPickerResolverRef.current;
+		remoteDirectoryPickerResolverRef.current = null;
+		setRemoteDirectoryPicker(null);
+		resolve?.(path);
+	}, []);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("remote_environment_changed", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const event = payload as {
+					status?: unknown;
+					environmentId?: unknown;
+					homeDir?: unknown;
+					workspaceRoot?: unknown;
+				};
+				if (
+					event.status === "connected" &&
+					typeof event.environmentId === "string" &&
+					typeof event.homeDir === "string"
+				) {
+					environmentSelectionRevision.current += 1;
+					selectLocalDraftWhenChatVisibleRef.current = false;
+					setActiveRemoteEnvironment({
+						id: event.environmentId,
+						homeDir: event.homeDir,
+					});
+				}
+				if (event.status === "disconnected") {
+					environmentSelectionRevision.current += 1;
+					completeRemoteDirectoryPicker(null);
+					setActiveRemoteEnvironment(null);
+					localEnvironmentSelection.onDisconnected(() => {
+						if (view === "chat") {
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						} else {
+							selectLocalDraftWhenChatVisibleRef.current = true;
+						}
+					});
+				}
+			}),
+		[
+			completeRemoteDirectoryPicker,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+			view,
+		],
+	);
+
+	useEffect(() => {
+		if (view !== "chat" || !selectLocalDraftWhenChatVisibleRef.current) {
+			return;
+		}
+		selectLocalDraftWhenChatVisibleRef.current = false;
+		selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+	}, [selectEnvironmentDraft, view]);
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
+		markCurrentWhatsNewSeen();
 		setShowOnboarding(false);
 		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
@@ -254,27 +849,70 @@ export default function Home() {
 	}, []);
 
 	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			dispatchApp({ type: "open-session", session, initialPromptDraft });
+		async (
+			session: SessionHistoryItem,
+			initialPromptDraft?: string,
+			initialAttachments?: File[],
+		): Promise<HandoffOpenResult> => {
+			if (initialAttachments) {
+				const thread = threadsRef.current.find(
+					(item) =>
+						item.environmentId === session.environmentId &&
+						(item.sessionId === session.sessionId ||
+							item.historySession?.sessionId === session.sessionId),
+				);
+				const draft = thread && promptDrafts.get(thread.id);
+				if (draft && (draft.text.trim() || draft.attachments.length)) {
+					toast({
+						title: "Your cloud draft is unchanged",
+						description:
+							"Send or clear it before restoring the handoff prompt.",
+					});
+					return { opened: false };
+				}
+			}
+			dispatchApp({
+				type: "open-session",
+				session,
+				environmentId: session.environmentId,
+				initialPromptDraft,
+				initialAttachments,
+			});
+			return { opened: true };
 		},
-		[],
+		[promptDrafts],
 	);
 
 	const handleDeleteSession = useCallback(
-		(deletedSessionId: string, deletedThreadId?: string) => {
+		(
+			deletedSessionId: string,
+			deletedThreadId?: string,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
 			dispatchApp({
 				type: "delete-session",
+				environmentId,
 				deletedSessionId,
 				deletedThreadId,
 				fallbackThreadId: makeThreadId(),
+				fallbackEnvironmentId: activeEnvironmentId,
 			});
 		},
-		[],
+		[activeEnvironmentId],
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
-		(sessionId: string, metadata: SessionMetadata) => {
-			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
+		(
+			sessionId: string,
+			metadata: SessionMetadata,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
+			dispatchApp({
+				type: "update-session-metadata",
+				sessionId,
+				metadata,
+				environmentId,
+			});
 		},
 		[],
 	);
@@ -291,23 +929,34 @@ export default function Home() {
 			if (!sessionId) {
 				return;
 			}
-			handleDeleteSession(sessionId);
+			handleDeleteSession(sessionId, undefined, eventEnvironmentId(payload));
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySessionId =
-		threads.find((thread) => thread.id === activeThreadId)?.historySession
-			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	// A thread opened from history carries its session record; one started
+	// fresh in the app only has the runtime session id bound by thread-started.
+	// Both must resolve so the sidebar highlights a session begun in the app.
+	const activeHistorySessionId = activeThread?.historySession
+		? sessionKey(activeThread.historySession)
+		: activeThread?.sessionId
+			? sessionKey({
+					sessionId: activeThread.sessionId,
+					environmentId: activeThread.environmentId,
+				})
+			: null;
+	const activeLocationRef = useRef(appState.navigation.current);
+	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
-			handleNewThread();
+			selectEnvironmentDraft(activeEnvironmentId);
+			requestPromptInputFocus();
 			return;
 		}
 		navigateWith({ view: "chat" });
 		requestPromptInputFocus();
-	}, [activeThread, handleNewThread, navigateWith]);
+	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
@@ -327,39 +976,60 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, and Cmd/Ctrl+, for settings.
+	// App shortcuts come from keybindings.json (Settings → Keybindings).
+	const keybindings = useKeybindings();
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (showOnboarding) {
+			if (showOnboarding || areShortcutsSuspended()) {
 				return;
 			}
-			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-				return;
-			}
-			if (event.key === "n" || event.key === "N") {
+			if (matchesAccelerator(event, keybindings["new-session"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleNewThread();
-			} else if (event.key === "p" || event.key === "P") {
+			} else if (matchesAccelerator(event, keybindings["command-bar"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				setCommandBarOpen((current) => !current);
-			} else if (event.key === ",") {
+			} else if (matchesAccelerator(event, keybindings["open-settings"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleViewChange("settings");
+			} else if (
+				terminalAvailable &&
+				matchesAccelerator(event, keybindings["toggle-terminal"].key)
+			) {
+				// Capture phase, so this also wins while focus is inside xterm.
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				handleToggleTerminal();
 			}
 		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
-	const handleThreadStarted = useCallback((threadId: string) => {
-		dispatchApp({ type: "thread-started", threadId });
-	}, []);
+		// Consume app shortcuts before React's local input handlers can act on
+		// the same event (for example, Mod+Enter submitting a prompt).
+		window.addEventListener("keydown", handleKeyDown, true);
+		return () => window.removeEventListener("keydown", handleKeyDown, true);
+	}, [
+		handleNewThread,
+		handleToggleTerminal,
+		handleViewChange,
+		keybindings,
+		showOnboarding,
+		terminalAvailable,
+	]);
+	const handleThreadStarted = useCallback(
+		(threadId: string, sessionId?: string) => {
+			dispatchApp({ type: "thread-started", threadId, sessionId });
+		},
+		[],
+	);
 	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
 		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
 	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
-		onDeleteSession: handleDeleteSession,
+		onDeleteSession: (sessionId, environmentId) =>
+			handleDeleteSession(sessionId, undefined, environmentId),
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
@@ -368,32 +1038,147 @@ export default function Home() {
 		sessionHistoryRef.current = sessionHistory.sessions;
 	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string) => {
+		async (
+			sessionId: string,
+			options: OpenSessionOptions = {},
+		): Promise<HandoffOpenResult | undefined> => {
+			const environmentId = options.environmentId;
+			if (
+				!isExpectedHandoffSourceActive(
+					options.expectedActiveThreadId,
+					activeLocationRef.current.activeThreadId,
+					activeLocationRef.current.view,
+				)
+			) {
+				return undefined;
+			}
 			const cachedSession = sessionHistoryRef.current.find(
-				(session) => session.sessionId === sessionId,
+				(session) =>
+					session.sessionId === sessionId &&
+					session.environmentId ===
+						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
-				return;
+				return await handleOpenSession(
+					cachedSession,
+					options.draft?.text,
+					options.draft?.attachments,
+				);
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ sessionId },
+					{
+						environmentId: environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+						sessionId: sessionId,
+					},
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
-				handleOpenSession(session);
+				if (
+					!isExpectedHandoffSourceActive(
+						options.expectedActiveThreadId,
+						activeLocationRef.current.activeThreadId,
+						activeLocationRef.current.view,
+					)
+				) {
+					return undefined;
+				}
+				if (
+					environmentId !== undefined &&
+					session.environmentId !== environmentId
+				) {
+					throw new Error(
+						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
+					);
+				}
+				return await handleOpenSession(
+					session,
+					options.draft?.text,
+					options.draft?.attachments,
+				);
 			} catch (error) {
-				toast({
-					title: "Unable to open run",
-					description: error instanceof Error ? error.message : String(error),
-					variant: "destructive",
-				});
+				if (!options.silent) {
+					toast({
+						title: "Unable to open run",
+						description: humanizeCloudSessionError(
+							error instanceof Error ? error.message : String(error),
+						),
+						variant: "destructive",
+					});
+				}
+				return { opened: false };
 			}
 		},
 		[handleOpenSession],
+	);
+	const openSessionFromNavigation = useCallback(
+		async (sessionId: string) => {
+			await handleOpenSessionById(sessionId);
+		},
+		[handleOpenSessionById],
+	);
+	const handoffLifecycleRef = useRef<HandoffLifecycle | null>(null);
+	if (handoffLifecycleRef.current === null) {
+		handoffLifecycleRef.current = createHandoffLifecycle({
+			dispatch: dispatchHandoffUi,
+			isSourceVisible: (sourceSessionId) => {
+				const location = activeLocationRef.current;
+				const thread =
+					threadsRef.current.find(
+						(thread) => thread.id === location.activeThreadId,
+					) ?? threadsRef.current[0];
+				return (
+					location.view === "chat" &&
+					thread?.environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					(thread.sessionId ?? thread.historySession?.sessionId) ===
+						sourceSessionId
+				);
+			},
+			dismissConfirmation: () => finishGitConfirmation(false),
+			toast: ({ connectUrl, ...toastFields }) =>
+				toast({
+					...toastFields,
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				}),
+		});
+	}
+	const handoffLifecycle = handoffLifecycleRef.current;
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_sessions_changed", () => {
+				handoffLifecycle.reset();
+			}),
+		[handoffLifecycle],
+	);
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const progress = payload as Partial<HandoffProgressEventPayload>;
+				const { sourceSessionId, phase } = progress;
+				if (
+					!sourceSessionId?.trim() ||
+					!phase ||
+					!(phase in HANDOFF_PROGRESS_LABELS)
+				) {
+					return;
+				}
+				void handoffLifecycle.onEvent({
+					...progress,
+					sourceSessionId,
+					phase,
+				});
+			}),
+		[handoffLifecycle],
 	);
 	useEffect(
 		() =>
@@ -405,8 +1190,17 @@ export default function Home() {
 					case "open-settings":
 						handleViewChange("settings");
 						break;
+					case "open-keybindings":
+						handleSettingsSectionChange("Keybindings");
+						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
+						break;
+					case "export-diagnostics":
+						setExportDiagnosticsOpen(true);
+						break;
+					case "check-for-updates":
+						void checkForUpdateAndNotify();
 						break;
 					case "zoom-in":
 					case "zoom-out":
@@ -415,11 +1209,21 @@ export default function Home() {
 						break;
 				}
 			}),
-		[handleNewThread, handleOpenSessionById, handleViewChange],
+		[
+			handleNewThread,
+			handleOpenSessionById,
+			handleSettingsSectionChange,
+			handleViewChange,
+		],
 	);
+
 	const historyWorkspacePaths = useMemo(
-		() => workspacePathsFromSessions(sessionHistory.sessions),
-		[sessionHistory.sessions],
+		() =>
+			workspacePathsFromSessions(
+				sessionHistory.sessions,
+				activeThread?.environmentId ?? activeEnvironmentId,
+			),
+		[activeEnvironmentId, activeThread?.environmentId, sessionHistory.sessions],
 	);
 	// A child agent session names its parent, but only the history list knows the
 	// parent's title — resolve it here so the chat header can point back to it.
@@ -430,10 +1234,19 @@ export default function Home() {
 			return undefined;
 		}
 		const title = sessionHistory.threads.find(
-			(thread) => thread.id === parentSessionId,
+			(thread) =>
+				thread.id ===
+				sessionKey({
+					sessionId: parentSessionId,
+					environmentId: activeThread.environmentId,
+				}),
 		)?.title;
 		return { sessionId: parentSessionId, title };
-	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
+	}, [
+		activeThread?.historySession?.parentSessionId,
+		activeThread?.environmentId,
+		sessionHistory.threads,
+	]);
 
 	return (
 		<AccountProvider>
@@ -490,33 +1303,97 @@ export default function Home() {
 										inert={view === "settings" ? true : undefined}
 									>
 										<ChatThreadPane
-											key={activeThread.id}
+											key={`${activeThread.id}:${activeThread.environmentId}`}
+											handoffUiState={handoffUiState}
+											onHandoffUiAction={dispatchHandoffUi}
+											environmentId={activeThread.environmentId}
+											environmentProfiles={remoteEnvironmentProfiles}
+											environmentProfilesLoading={
+												remoteEnvironmentProfilesLoading
+											}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+											onPickRemoteWorkspaceDirectory={
+												pickRemoteWorkspaceDirectory
+											}
+											onSelectEnvironment={handleSelectEnvironment}
+											remoteEnvironment={
+												activeRemoteEnvironment?.id ===
+												activeThread.environmentId
+													? activeRemoteEnvironment
+													: null
+											}
 											historySession={activeThread.historySession}
+											liveHistorySession={
+												activeHistorySessionId
+													? sessionHistory.sessionById.get(
+															activeHistorySessionId,
+														)
+													: undefined
+											}
+											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
+											handoffLifecycle={handoffLifecycle}
+											confirmHandoffGit={confirmHandoffGit}
+											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
 											}
-											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											onUpdateSessionMetadata={(sessionId, metadata) =>
+												handleUpdateSessionMetadata(
+													sessionId,
+													metadata,
+													activeThread.environmentId,
+												)
+											}
 											threadId={activeThread.id}
-											onDeleteSession={handleDeleteSession}
+											onDeleteSession={(sessionId, threadId) =>
+												handleDeleteSession(
+													sessionId,
+													threadId,
+													activeThread.environmentId,
+												)
+											}
 											onNewThread={handleNewThread}
 											onOpenSession={handleOpenSession}
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("Providers")
+											}
+											onOpenLocalModels={() =>
+												handleSettingsSectionChange("Local Models")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
 											onThreadStarted={handleThreadStarted}
+											terminal={
+												terminalAvailable
+													? {
+															open: terminalPanel.open,
+															height: terminalPanel.height,
+															shortcut: keybindings["toggle-terminal"].key
+																? formatAccelerator(
+																		keybindings["toggle-terminal"].key,
+																	)
+																: undefined,
+															onToggle: handleToggleTerminal,
+															onClose: handleCloseTerminal,
+															onHeightChange: handleTerminalHeightChange,
+														}
+													: undefined
+											}
 										/>
 									</div>
 								) : null}
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
+											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
 									</div>
@@ -540,12 +1417,53 @@ export default function Home() {
 					) : null}
 				</WindowTitleBarProvider>
 			</SidebarProvider>
-			<HubUpdateRequiredDialog />
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
+			{gitConfirmation ? (
+				<CloudHandoffGitConfirmation
+					plan={gitConfirmation}
+					onDecision={finishGitConfirmation}
+				/>
+			) : null}
+			<QuitHoldHandler bindings={keybindings} />
+			{whatsNew ? (
+				<WhatsNewDialog
+					onOpenChange={(open) => {
+						if (!open) {
+							markWhatsNewSeen(whatsNew.id);
+							setWhatsNew(null);
+						}
+					}}
+					onShowAllChanges={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("About");
+					}}
+					onOpenConnectors={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("Customize");
+					}}
+					open={!showOnboarding}
+					release={whatsNew}
+				/>
+			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
+				onOpenSession={openSessionFromNavigation}
 				open={commandBarOpen && !showOnboarding}
 			/>
+			{remoteDirectoryPicker ? (
+				<RemoteDirectoryPicker
+					environmentId={remoteDirectoryPicker.id}
+					homeDir={remoteDirectoryPicker.homeDir}
+					onCancel={() => completeRemoteDirectoryPicker(null)}
+					onSelect={completeRemoteDirectoryPicker}
+					open
+				/>
+			) : null}
 		</AccountProvider>
 	);
 }
@@ -558,41 +1476,89 @@ export default function Home() {
 let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
+	confirmHandoffGit,
 	threadId,
+	promptDrafts,
+	environmentId,
+	environmentProfiles,
+	environmentProfilesLoading,
 	historySession,
+	liveHistorySession,
+	initialAttachments,
 	initialPromptDraft,
+	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
+	onAddSshHost,
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenLocalModels,
+	onOpenAccountSettings,
+	onPickRemoteWorkspaceDirectory,
+	onSelectEnvironment,
 	parentSession,
+	remoteEnvironment,
 	onThreadStarted,
+	handoffUiState,
+	onHandoffUiAction,
+	terminal,
 }: {
 	threadId: string;
+	promptDrafts: PromptDraftCache;
+	environmentId: string;
+	environmentProfiles: RemoteEnvironmentProfile[];
+	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
+	liveHistorySession?: SessionHistoryItem;
+	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	handoffLifecycle: Omit<HandoffLifecycle, "onEvent">;
+	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
 	) => void;
+	onAddSshHost: () => void;
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
 	) => void;
-	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	onOpenSessionById?: (
+		sessionId: string,
+		options?: OpenSessionOptions,
+	) => HandoffOpenResult | undefined | Promise<HandoffOpenResult | undefined>;
+	onPickRemoteWorkspaceDirectory: (
+		environment: RemoteWorkspaceEnvironment,
+	) => Promise<string | null>;
+	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenLocalModels?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	onThreadStarted?: (threadId: string) => void;
+	onThreadStarted?: (threadId: string, sessionId?: string) => void;
+	handoffUiState: CloudHandoffUiState;
+	onHandoffUiAction: (action: CloudHandoffUiAction) => void;
+	remoteEnvironment: RemoteWorkspaceEnvironment | null;
+	/** Absent when the integrated terminal cannot run (browser mode). */
+	terminal?: {
+		open: boolean;
+		height: number;
+		/** Display form of the toggle shortcut; undefined when unbound. */
+		shortcut?: string;
+		onToggle: () => void;
+		onClose: () => void;
+		onHeightChange: (height: number) => void;
+	};
 }) {
 	const {
 		sessionId,
@@ -600,8 +1566,11 @@ function ChatThreadPane({
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
+		historyPreview,
+		isCloudSessionExpired,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting,
 		config,
 		messages,
 		error,
@@ -625,21 +1594,51 @@ function ChatThreadPane({
 		reset,
 		abort,
 		hydrateSession,
-	} = useChatSession();
-	// The live composer text lives inside ChatInputBar so typing does not
-	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
-	// pushes external updates (quick actions, undo, resets) via promptDraft.
-	const promptInputRef = useRef("");
-	const [promptDraft, setPromptDraft] = useState({ version: 0, value: "" });
-	const setPromptInput = useCallback((value: string) => {
-		promptInputRef.current = value;
-		setPromptDraft((prev) => ({ version: prev.version + 1, value }));
+	} = useChatSession(environmentId);
+	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
+	// the sidebar) can close this pane even when it was not opened from history.
+	useEffect(() => {
+		if (sessionId) {
+			onThreadStarted?.(threadId, sessionId);
+		}
+	}, [onThreadStarted, sessionId, threadId]);
+	const {
+		draftRef,
+		pendingAttachments,
+		setPendingAttachments,
+		clearPromptForSend,
+		clearDraftForHandoff,
+		promptDraft,
+		setPromptInput,
+		handlePromptInputChange,
+	} = usePromptDraft(promptDrafts, threadId);
+	const [workInSelection, setWorkInSelection] =
+		useState<WorkIn>(readWorkInFromWindow);
+	const setWorkIn = useCallback((next: WorkIn) => {
+		setWorkInSelection(next);
+		writeWorkInToWindow(next);
 	}, []);
-	const handlePromptInputChange = useCallback((value: string) => {
-		promptInputRef.current = value;
+	// The Changes pane and the Files + Git panel share the right-hand column.
+	const [workspacePanel, setWorkspacePanel] = useState<
+		"changes" | "files" | null
+	>(null);
+	const [changesScope, setChangesScope] = useState<ChangesScope>("session");
+	const [changesPath, setChangesPath] = useState<string | null>(null);
+	const toggleFilesPanel = useCallback(
+		() =>
+			setWorkspacePanel((current) => (current === "files" ? null : "files")),
+		[],
+	);
+	const toggleChangesPanel = useCallback(() => {
+		setChangesScope("session");
+		setChangesPath(null);
+		setWorkspacePanel((current) => (current === "changes" ? null : "changes"));
 	}, []);
-	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [showDiffView, setShowDiffView] = useState(false);
+	const reviewLastTurn = useCallback((path?: string) => {
+		setChangesScope("last-turn");
+		setChangesPath(path ?? null);
+		setWorkspacePanel("changes");
+	}, []);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -650,8 +1649,81 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
+	// Wait for the flag before falling back from remembered Cloud to Local.
+	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
+		boolean | null
+	>(null);
+	const cloudAgentsEnabled =
+		cloudAgentsFlagEnabled === true &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const sourceSessionId = sessionId ?? historySession?.sessionId;
+	// Handoff state is keyed by local session id; another environment may reuse the id.
+	const handoffUi =
+		sourceSessionId && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? handoffUiState[sourceSessionId]
+			: undefined;
+	const { user: accountUser, activeOrganization } = useAccount();
+	const accountUserId = accountUser?.id ?? null;
+	const openGitHubConnect = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization],
+	);
+	useEffect(() => {
+		void accountUserId;
+		let cancelled = false;
+		let retryTimer: number | undefined;
+		let attempts = 0;
+		const fetchFlags = () => {
+			desktopClient
+				.invoke("get_feature_flags", {})
+				.then((flags) => {
+					if (!cancelled) {
+						setCloudAgentsFlagEnabled(
+							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+						);
+					}
+				})
+				.catch(() => {
+					attempts += 1;
+					if (cancelled) {
+						return;
+					}
+					if (attempts < 10) {
+						retryTimer = window.setTimeout(fetchFlags, 2_000);
+					} else {
+						setCloudAgentsFlagEnabled(false);
+					}
+				});
+		};
+		fetchFlags();
+		return () => {
+			cancelled = true;
+			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+		};
+	}, [accountUserId]);
+	// Worktrees are cut by the local sidecar's git, so they are only offered
+	// for the local environment. The choice also only holds while the
+	// workspace is a git repo; a plain folder (or pending discovery) silently
+	// falls back to running locally.
+	const canWorkInWorktree =
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		config.executionTarget !== "cloud" &&
+		historySession?.origin !== "cloud";
+	const workIn: WorkIn =
+		canWorkInWorktree &&
+		workInSelection === "worktree" &&
+		gitBranch &&
+		gitBranch !== "no-git"
+			? "worktree"
+			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
-		Record<string, { apiKey: string }>
+		Record<string, { apiKey: string; auth?: ProviderAuthInfo }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>(
@@ -670,7 +1742,7 @@ function ChatThreadPane({
 		filterWorkspacePaths(
 			mergeWorkspacePaths(
 				knownWorkspacePaths,
-				readWorkspaceSelectionFromWindow().workspaces,
+				readWorkspaceSelectionFromWindow(environmentId).workspaces,
 			),
 		),
 	);
@@ -690,27 +1762,137 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
-	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
+	const isCloudSession =
+		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const liveHistoryStatus = historySession
+		? (liveHistorySession?.status ?? historySession.status)
+		: undefined;
+	const headerStatus = resolveSessionHeaderStatus({
+		chatStatus: status,
+		isCloudSession,
+		liveHistoryStatus,
+	});
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
+	useEffect(() => {
+		setLiveProvisioningPhase(undefined);
+		return desktopClient.subscribe("chat_session_status", (payload) => {
+			if (
+				payload &&
+				typeof payload === "object" &&
+				"sessionId" in payload &&
+				payload.sessionId === sessionId &&
+				"phase" in payload
+			) {
+				setLiveProvisioningPhase(
+					payload.phase === "ready"
+						? undefined
+						: readCloudProvisioningPhase(payload.phase),
+				);
+			}
+		});
+	}, [sessionId]);
+	const isProvisioningCloudSession =
+		isCloudSession &&
+		status === "starting" &&
+		(liveHistoryStatus === "provisioning" ||
+			liveProvisioningPhase !== undefined);
+	const provisioningPhase = useCloudProvisioningPhase(
+		config.repoUrl || historySession?.repoUrl,
+		isCloudSession && status === "starting",
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(
+				liveHistorySession?.metadata?.provisioningPhase,
+			) ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
+	);
+	const activeWorkspaceCwd = isCloudSession
+		? ""
+		: (config.cwd || config.workspaceRoot || "").trim();
+	// Shells are spawned by the native app on this machine, so only local
+	// sessions get a terminal; cloud sandboxes and SSH hosts do not.
+	const terminalEnabled =
+		terminal !== undefined &&
+		!isCloudSession &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const terminalTitle = terminal?.shortcut
+		? `Toggle terminal (${terminal.shortcut})`
+		: "Toggle terminal";
+	const terminalToggle =
+		terminalEnabled && terminal ? (
+			<Button
+				aria-label={terminal.open ? "Hide terminal" : "Show terminal"}
+				aria-pressed={terminal.open}
+				className={cn(
+					"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover",
+					terminal.open && "border-primary/40 bg-primary/10",
+				)}
+				onClick={terminal.onToggle}
+				size="sm"
+				title={terminalTitle}
+				type="button"
+				variant="ghost"
+			>
+				<SquareTerminal className="size-3.5" />
+				Terminal
+			</Button>
+		) : undefined;
+	// Threads opened on Cloud have no captured Local config.
+	const localConfigRef = useRef<Pick<
+		ChatSessionConfig,
+		"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
+	> | null>(
+		config.executionTarget === "cloud"
+			? null
+			: {
+					provider: config.provider,
+					model: config.model,
+					apiKey: config.apiKey,
+					workspaceRoot: config.workspaceRoot,
+					cwd: config.cwd,
+				},
+	);
 
 	useEffect(() => {
 		setWorkspaces((current) => {
+			const stored = readWorkspaceSelectionFromWindow(environmentId);
 			const merged = filterWorkspacePaths(
-				mergeWorkspacePaths(knownWorkspacePaths, current),
+				mergeWorkspacePaths(knownWorkspacePaths, stored.workspaces),
 			);
 			return current.length === merged.length &&
 				current.every((workspace, index) => workspace === merged[index])
 				? current
 				: merged;
 		});
-	}, [knownWorkspacePaths]);
+	}, [environmentId, knownWorkspacePaths]);
 
 	useEffect(() => {
-		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
-		writeWorkspaceSelectionToWindow({
+		// Do not persist a sandbox's synthetic path as the local workspace.
+		if (
+			config.executionTarget === "cloud" ||
+			(config.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !== environmentId
+		) {
+			return;
+		}
+		const active = (config.workspaceRoot || config.cwd || "").trim();
+		// A task worktree is transient: keep remembering the repo it was cut
+		// from, so the next thread (and next launch) start back on that repo.
+		const lastWorkspace = isTaskWorktreePath(active)
+			? readWorkspaceSelectionFromWindow(environmentId).lastWorkspace
+			: active;
+		writeWorkspaceSelectionToWindow(environmentId, {
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
 		});
-	}, [config.cwd, config.workspaceRoot, workspaces]);
+	}, [
+		config.cwd,
+		config.environmentId,
+		config.executionTarget,
+		config.workspaceRoot,
+		environmentId,
+		workspaces,
+	]);
 
 	const providerCredentialsRequestRef = useRef(0);
 	const loadProviderCredentials = useCallback(async () => {
@@ -720,7 +1902,8 @@ function ChatThreadPane({
 			if (providerCredentialsRequestRef.current !== requestId) {
 				return;
 			}
-			const next: Record<string, { apiKey: string }> = {};
+			const next: Record<string, { apiKey: string; auth?: ProviderAuthInfo }> =
+				{};
 			const nextContextWindows: Record<string, Record<string, number>> = {};
 			let anyConnected = false;
 			for (const provider of payload.providers ?? []) {
@@ -730,6 +1913,7 @@ function ChatThreadPane({
 				}
 				next[id] = {
 					apiKey: provider.apiKey?.trim() ?? "",
+					auth: provider.auth,
 				};
 				if (isProviderConnected(provider)) {
 					anyConnected = true;
@@ -782,14 +1966,21 @@ function ChatThreadPane({
 			return;
 		}
 		const nextApiKey = selected.apiKey;
-		if (config.apiKey === nextApiKey) {
+		if (config.apiKey === nextApiKey && config.providerAuth === selected.auth) {
 			return;
 		}
 		setConfig((prev) => ({
 			...prev,
 			apiKey: nextApiKey,
+			providerAuth: selected?.auth,
 		}));
-	}, [config.apiKey, config.provider, providerCredentials, setConfig]);
+	}, [
+		config.apiKey,
+		config.provider,
+		config.providerAuth,
+		providerCredentials,
+		setConfig,
+	]);
 
 	const getWorkspaceCwd = useCallback(
 		() =>
@@ -809,10 +2000,13 @@ function ChatThreadPane({
 			return;
 		}
 		try {
-			const payload = await desktopClient.invoke<{ branch?: string }>(
-				"get_git_branch",
-				{ cwd },
-			);
+			const payload = await desktopClient.invoke<{
+				environmentId: string;
+				branch?: string;
+			}>("get_git_branch", { cwd, environmentId });
+			if (payload.environmentId !== environmentId) {
+				return;
+			}
 			if (!gitBranchRequestGateRef.current.commit(requestId)) {
 				return;
 			}
@@ -821,7 +2015,7 @@ function ChatThreadPane({
 		} catch {
 			// Preserve the latest successful branch through transient failures.
 		}
-	}, [getWorkspaceCwd]);
+	}, [environmentId, getWorkspaceCwd]);
 
 	const invalidateGitBranch = useCallback(() => {
 		gitBranchRequestGateRef.current.invalidate();
@@ -840,9 +2034,13 @@ function ChatThreadPane({
 		}
 		try {
 			const payload = await desktopClient.invoke<{
+				environmentId: string;
 				current?: string;
 				branches?: string[];
-			}>("list_git_branches", { cwd });
+			}>("list_git_branches", { cwd, environmentId });
+			if (payload.environmentId !== environmentId) {
+				return { current: "no-git", branches: [] };
+			}
 			const current = payload?.current?.trim() || "no-git";
 			const branches = Array.isArray(payload?.branches)
 				? payload.branches.filter((item) => item.trim().length > 0)
@@ -851,7 +2049,7 @@ function ChatThreadPane({
 		} catch {
 			return { current: "no-git", branches: [] };
 		}
-	}, [getWorkspaceCwd]);
+	}, [environmentId, getWorkspaceCwd]);
 
 	const switchGitBranch = useCallback(
 		async (nextBranch: string): Promise<boolean> => {
@@ -860,10 +2058,17 @@ function ChatThreadPane({
 				return false;
 			}
 			try {
-				await desktopClient.invoke<{ branch?: string }>("checkout_git_branch", {
+				const payload = await desktopClient.invoke<{
+					environmentId: string;
+					branch?: string;
+				}>("checkout_git_branch", {
 					cwd,
 					branch: nextBranch,
+					environmentId,
 				});
+				if (payload.environmentId !== environmentId) {
+					return false;
+				}
 				invalidateGitBranch();
 				await refreshGitBranch();
 				return true;
@@ -871,7 +2076,7 @@ function ChatThreadPane({
 				return false;
 			}
 		},
-		[getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
+		[environmentId, getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -886,10 +2091,14 @@ function ChatThreadPane({
 			// process cwd fallback); it renders via its own registration in the
 			// selector and welcome screen instead of joining the catalog.
 			return filterWorkspacePaths(
-				mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]),
+				mergeWorkspacePaths(
+					knownWorkspacePaths,
+					readWorkspaceSelectionFromWindow(environmentId).workspaces,
+					[preferred, current],
+				),
 			);
 		},
-		[knownWorkspacePaths],
+		[environmentId, knownWorkspacePaths],
 	);
 
 	const refreshWorkspaces = useCallback(
@@ -897,7 +2106,7 @@ function ChatThreadPane({
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
 				setWorkspaces((current) => {
-					const merged = mergeWorkspacePaths(results, current);
+					const merged = results;
 					return current.length === merged.length &&
 						current.every((workspace, index) => workspace === merged[index])
 						? current
@@ -934,6 +2143,7 @@ function ChatThreadPane({
 					valid?: boolean;
 					path?: string;
 				}>("validate_workspace_directory", {
+					environmentId,
 					path: nextWorkspace,
 				})
 				.catch(() => ({ valid: false, path: undefined }));
@@ -962,7 +2172,7 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
+		[environmentId, invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
@@ -971,16 +2181,19 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
-
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
 			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
 			// and offer manual path entry instead of a silent no-op.
+			if (remoteEnvironment) {
+				return await onPickRemoteWorkspaceDirectory(remoteEnvironment);
+			}
 			try {
 				const selected = await desktopClient.invoke<string | null>(
 					"pick_workspace_directory",
 					{
+						environmentId,
 						initialPath: initialPath?.trim() || undefined,
 					},
 				);
@@ -997,7 +2210,7 @@ function ChatThreadPane({
 				);
 			}
 		},
-		[],
+		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
 
 	useEffect(() => {
@@ -1013,7 +2226,9 @@ function ChatThreadPane({
 		};
 		const intervalId = window.setInterval(
 			refreshVisibleBranch,
-			GIT_BRANCH_REFRESH_INTERVAL_MS,
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+				? GIT_BRANCH_REFRESH_INTERVAL_MS
+				: REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS,
 		);
 		window.addEventListener("focus", refreshVisibleBranch);
 		document.addEventListener("visibilitychange", refreshVisibleBranch);
@@ -1022,7 +2237,7 @@ function ChatThreadPane({
 			window.removeEventListener("focus", refreshVisibleBranch);
 			document.removeEventListener("visibilitychange", refreshVisibleBranch);
 		};
-	}, [activeWorkspaceCwd, refreshGitBranch]);
+	}, [activeWorkspaceCwd, environmentId, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
@@ -1051,92 +2266,402 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPromptInput("");
-		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
+	}, [historySession, manualTitle, reset, threadId]);
 
 	useEffect(() => {
 		if (!historySession) {
 			return;
 		}
+		const hasInitialComposerState =
+			initialPromptDraft !== undefined || initialAttachments !== undefined;
+		if (hasInitialComposerState) {
+			const preserveComposer =
+				historySession.origin === "cloud" &&
+				Boolean(
+					draftRef.current.text.trim() || draftRef.current.attachments.length,
+				);
+			if (!preserveComposer) {
+				setPromptInput(initialPromptDraft ?? "");
+				setPendingAttachments(
+					initialAttachments ? [...initialAttachments] : [],
+				);
+			}
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		setPromptInput(initialPromptDraft ?? "");
-		if (initialPromptDraft !== undefined) {
-			onInitialPromptDraftConsumed?.(threadId);
+		if (!hasInitialComposerState) {
+			// Opening the current live session's sidebar row now reuses this pane.
+			// Don't reset its stream/attachments just to hydrate the same session.
+			if (historySession.sessionId === sessionId) return;
 		}
-		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
 	}, [
 		historySession,
 		hydrateSession,
+		draftRef,
+		initialAttachments,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
+		sessionId,
+		setPendingAttachments,
 		setPromptInput,
 		threadId,
 	]);
 
-	const handleAttachFiles = useCallback((files: File[]) => {
-		const supportedFiles = files.filter(
-			(file) => !isUnsupportedImageAttachment(file),
-		);
-		if (supportedFiles.length !== files.length) {
-			toast({
-				title: "Unsupported image format",
-				description:
-					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
-			});
-		}
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+	const isNewThread = startsNewThread(sessionId, messages);
+
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const supportedFiles = files.filter((file) =>
+				isCloudSession
+					? isSupportedImageAttachment(file)
+					: !isUnsupportedImageAttachment(file),
 			);
-			const next = [...prev];
-			for (const file of supportedFiles) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: isCloudSession
+						? "Unsupported cloud attachment"
+						: "Unsupported image format",
+					description: isCloudSession
+						? "Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files."
+						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+				});
 			}
-			return next;
-		});
-	}, []);
+			setPendingAttachments((current) => {
+				const existing = new Set(
+					current.map(
+						(file) => `${file.name}:${file.size}:${file.lastModified}`,
+					),
+				);
+				const next = [...current];
+				for (const file of supportedFiles) {
+					const key = `${file.name}:${file.size}:${file.lastModified}`;
+					if (!existing.has(key)) {
+						existing.add(key);
+						next.push(file);
+					}
+				}
+				const error = isCloudSession && cloudImageAttachmentError(next);
+				if (error) {
+					toast({ title: "Cloud attachment limit", description: error });
+					return current;
+				}
+				return next;
+			});
+		},
+		[isCloudSession, setPendingAttachments],
+	);
+
+	const handleRestoreHandoffDraft = useCallback(
+		async (destination: "local" | "cloud") => {
+			if (!sourceSessionId) return;
+			if (
+				destination === "cloud" &&
+				handoffUi?.status === "complete" &&
+				handoffUi.unsentDraft
+			) {
+				const opened = await onOpenSessionById?.(handoffUi.sessionId, {
+					draft: handoffUi.unsentDraft,
+					expectedActiveThreadId: threadId,
+				});
+				if (opened?.opened) {
+					onHandoffUiAction({
+						type: "cloud_draft_restored",
+						sourceSessionId,
+						draft: handoffUi.unsentDraft,
+					});
+				}
+				return;
+			}
+			const draft =
+				handoffUi?.preparationFailure?.draft ??
+				(handoffUi?.status === "failed"
+					? {
+							text: handoffUi.retryDraft,
+							attachments: handoffUi.retryAttachments,
+						}
+					: undefined);
+			if (!draft) return;
+			if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
+				toast({
+					title: "Your current draft is unchanged",
+					description: "Send or clear it before restoring the /cloud draft.",
+				});
+				return;
+			}
+			setPromptInput(draft.text ? `/cloud ${draft.text}` : "/cloud");
+			setPendingAttachments([...draft.attachments]);
+			onHandoffUiAction({
+				type:
+					handoffUi?.status === "failed"
+						? "dismiss"
+						: "preparation_draft_restored",
+				sourceSessionId,
+			});
+		},
+		[
+			draftRef,
+			setPromptInput,
+			setPendingAttachments,
+			handoffUi,
+			onHandoffUiAction,
+			onOpenSessionById,
+			threadId,
+			sourceSessionId,
+		],
+	);
+
+	const prepareHandoff = useCallback(
+		async (nextCommand: string) => {
+			const sourceSessionId = sessionId ?? historySession?.sessionId;
+			const commandDraft = nextCommand ? `/cloud ${nextCommand}` : "/cloud";
+			if (isCloudSession) {
+				setPromptInput(commandDraft);
+				toast({
+					title: "Already in Cline Cloud",
+					description: "Handoff is available from local sessions.",
+				});
+				return;
+			}
+			if (!sourceSessionId) {
+				setPromptInput(commandDraft);
+				toast({
+					title: "Start the local session first",
+					description: "Send at least one message before handing off to cloud.",
+				});
+				return;
+			}
+			if (
+				status === "starting" ||
+				status === "running" ||
+				status === "stopping" ||
+				promptsInQueue.length > 0
+			) {
+				setPromptInput(commandDraft);
+				toast({
+					title: "Wait for the current turn",
+					description:
+						"Handoff can start once the local agent is idle and its prompt queue is empty.",
+				});
+				return;
+			}
+			const attachmentError = validateHandoffAttachments(pendingAttachments);
+			if (attachmentError) {
+				setPromptInput(commandDraft);
+				toast({
+					title: "Handoff is not ready",
+					description: attachmentError,
+					variant: "destructive",
+				});
+				return;
+			}
+
+			const signal =
+				handoffUi?.status === "progress"
+					? undefined
+					: handoffLifecycle.onPreparationStarted(sourceSessionId);
+			if (!signal) {
+				setPromptInput(commandDraft);
+				toast({
+					title: "Handoff is already starting",
+					description: "Wait for the current handoff request to finish.",
+				});
+				return;
+			}
+			const sourceAttachments = [...pendingAttachments];
+			let handoffAttemptId: string | undefined;
+			const restoreDraft = clearDraftForHandoff(commandDraft);
+			try {
+				onHandoffUiAction({
+					type: "prepare",
+					sourceSessionId,
+				});
+				const attachments = await serializeAttachments(sourceAttachments);
+				if (signal.aborted) return;
+				const preparation = await desktopClient.invoke<PrepareHandoffResult>(
+					"chat_session_command",
+					{
+						request: {
+							action: "handoff",
+							operation: "prepare",
+							sessionId: sourceSessionId,
+							completedHandoffAttemptId:
+								handoffLifecycle.getCompletedAttemptId(sourceSessionId),
+							config,
+						},
+					},
+					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS, signal },
+				);
+				if (signal.aborted) return;
+				if ("cancelled" in preparation) {
+					handoffLifecycle.reset();
+					return;
+				}
+				if ("previousHandoff" in preparation) {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error: new Error(
+							"Your earlier cloud task completed. Check it before starting another task.",
+						),
+						nextCommand,
+						sourceAttachments,
+						silent: true,
+					});
+					handoffLifecycle.onRecovered(
+						sourceSessionId,
+						preparation.previousHandoff,
+					);
+					return;
+				}
+				const { gitPreparation } = preparation;
+				const approved = await confirmHandoffGit(gitPreparation);
+				if (signal.aborted) return;
+				if (!approved) {
+					await desktopClient.invoke("chat_session_command", {
+						request: {
+							action: "handoff",
+							operation: "discard",
+							sessionId: sourceSessionId,
+							config: { environmentId },
+							gitPreparationId: gitPreparation.id,
+						},
+					});
+					if (signal.aborted) return;
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error: new Error("Cloud preparation cancelled."),
+						nextCommand,
+						sourceAttachments,
+						silent: true,
+					});
+					return;
+				}
+				handoffAttemptId = handoffLifecycle.onRpcStarted(
+					sourceSessionId,
+					sourceAttachments,
+				);
+				onHandoffUiAction({ type: "start", sourceSessionId });
+				onHandoffUiAction({
+					type: "progress",
+					sourceSessionId,
+					phase: "checking",
+					message: "Publishing the approved Git checkpoint...",
+				});
+				const result = await desktopClient.invoke<HandoffResponse>(
+					"chat_session_command",
+					{
+						request: {
+							action: "handoff",
+							operation: "launch",
+							sessionId: sourceSessionId,
+							config: { environmentId },
+							handoffAttemptId,
+							gitPreparationId: gitPreparation.id,
+							nextCommand: nextCommand || undefined,
+							attachments: attachments.userImages.length
+								? attachments
+								: undefined,
+						},
+					},
+					{ timeoutMs: 2 * HANDOFF_STAGE_TIMEOUT_MS, signal },
+				);
+				if (signal.aborted) return;
+				if ("cancelled" in result) {
+					handoffLifecycle.reset();
+					return;
+				}
+				await handoffLifecycle.onRpcResolved(sourceSessionId, {
+					handoffAttemptId,
+					result,
+				});
+			} catch (error) {
+				if (signal.aborted) return;
+				if (handoffAttemptId) {
+					await handoffLifecycle.onRpcRejected(sourceSessionId, {
+						handoffAttemptId,
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				} else {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				}
+			} finally {
+				if (signal.aborted && !handoffAttemptId) restoreDraft();
+			}
+		},
+		[
+			clearDraftForHandoff,
+			confirmHandoffGit,
+			config,
+			environmentId,
+			handoffLifecycle,
+			historySession?.sessionId,
+			isCloudSession,
+			handoffUi?.status,
+			pendingAttachments,
+			promptsInQueue.length,
+			sessionId,
+			setPromptInput,
+			status,
+			onHandoffUiAction,
+		],
+	);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
+			const handoff = parseHandoffCommand(trimmed);
+			if (handoff && cloudAgentsEnabled) {
+				await prepareHandoff(handoff.nextCommand);
+				return;
+			}
 			if (!trimmed && pendingAttachments.length === 0) {
+				return;
+			}
+			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
 				return;
 			}
 			onThreadStarted?.(threadId);
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			const promptTaken = await sendPrompt(trimmed, toSend);
+			const restorePrompt = clearPromptForSend();
+			const promptTaken = await sendPrompt(trimmed, toSend, {
+				inNewWorktree: workIn === "worktree" && isNewThread,
+			});
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
-			// without retyping. Leave anything they typed meanwhile alone.
-			if (!promptTaken && promptInputRef.current.trim() === "") {
-				setPromptInput(trimmed);
+			// without retyping, but only if this pane still owns the unchanged draft.
+			if (!promptTaken && restorePrompt(trimmed)) {
 				handleAttachFiles(toSend);
 			}
 		},
 		[
+			clearPromptForSend,
+			config.repoUrl,
 			handleAttachFiles,
+			isCloudSession,
+			isNewThread,
 			onThreadStarted,
 			pendingAttachments,
+			prepareHandoff,
 			sendPrompt,
-			setPromptInput,
+			sessionId,
+			setPendingAttachments,
 			threadId,
+			cloudAgentsEnabled,
+			workIn,
 		],
 	);
 
@@ -1201,6 +2726,7 @@ function ChatThreadPane({
 			const cwd = config.cwd ?? workspaceRoot;
 			const forkedHistorySession: SessionHistoryItem = {
 				sessionId: result.newSessionId,
+				environmentId: config.environmentId,
 				status: "completed",
 				provider: config.provider,
 				model: config.model,
@@ -1223,6 +2749,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -1263,6 +2799,7 @@ function ChatThreadPane({
 				"delete_chat_session",
 				{
 					sessionId: activeSessionToDelete,
+					environmentId,
 				},
 			);
 			if (!deleted) {
@@ -1281,13 +2818,13 @@ function ChatThreadPane({
 				new CustomEvent("cline:session-deleted", {
 					detail: {
 						sessionId: activeSessionToDelete,
+						environmentId,
 					},
 				}),
 			);
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
-			setShowDiffView(false);
 			void reset();
 		} catch (error) {
 			const description =
@@ -1306,11 +2843,121 @@ function ChatThreadPane({
 	}, [
 		activeSessionToDelete,
 		deletingSession,
+		environmentId,
 		onDeleteSession,
 		reset,
 		threadId,
+		setPendingAttachments,
 		setPromptInput,
 	]);
+
+	const handleExecutionTargetChange = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
+				return;
+			}
+			setConfig((prev) => {
+				if (target === prev.executionTarget) return prev;
+				if (target === "cloud") {
+					localConfigRef.current = {
+						provider: prev.provider,
+						model: prev.model,
+						apiKey: prev.apiKey,
+						workspaceRoot: prev.workspaceRoot,
+						cwd: prev.cwd,
+					};
+					return {
+						...prev,
+						executionTarget: "cloud",
+						provider: "cline",
+						model: getInitialCloudModel(prev.provider, prev.model),
+						apiKey: providerCredentials.cline?.apiKey ?? "",
+						workspaceRoot: "",
+						cwd: "",
+					};
+				}
+				const captured = localConfigRef.current;
+				const local =
+					captured ??
+					getInitialChatConfig(environmentId, { executionTarget: "local" });
+				return {
+					...prev,
+					provider: local.provider,
+					model: local.model,
+					apiKey: local.apiKey,
+					// Prefer a validated workspace; retain the saved path while discovery
+					// is pending so persistence does not overwrite it with an empty value.
+					workspaceRoot:
+						captured?.workspaceRoot ||
+						prev.workspaceRoot ||
+						local.workspaceRoot,
+					cwd: captured?.cwd || prev.cwd || local.cwd,
+					executionTarget: "local",
+					repoUrl: undefined,
+					branch: undefined,
+				};
+			});
+			if (target === "cloud") {
+				setPendingAttachments([]);
+			}
+		},
+		[
+			environmentId,
+			providerCredentials.cline?.apiKey,
+			setConfig,
+			cloudAgentsEnabled,
+			setPendingAttachments,
+		],
+	);
+	// Automatic fallbacks must not overwrite the user's preference.
+	const handleSelectExecutionTarget = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
+				return;
+			}
+			writeExecutionTargetToWindow(target);
+			handleExecutionTargetChange(target);
+		},
+		[cloudAgentsEnabled, handleExecutionTargetChange],
+	);
+
+	// Reset only new composers when the flag turns off; existing sessions attach.
+	useEffect(() => {
+		if (
+			cloudAgentsFlagEnabled !== null &&
+			!cloudAgentsEnabled &&
+			config.executionTarget === "cloud" &&
+			!historySession &&
+			!sessionId
+		) {
+			handleExecutionTargetChange("local");
+		}
+	}, [
+		cloudAgentsEnabled,
+		cloudAgentsFlagEnabled,
+		config.executionTarget,
+		historySession,
+		handleExecutionTargetChange,
+		sessionId,
+	]);
+
+	const handleCloudRepoUrlChange = useCallback(
+		(repoUrl: string) => {
+			setConfig((prev) =>
+				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
+			);
+		},
+		[setConfig],
+	);
+
+	const handleCloudBranchChange = useCallback(
+		(branch: string) => {
+			setConfig((prev) =>
+				prev.branch === branch ? prev : { ...prev, branch },
+			);
+		},
+		[setConfig],
+	);
 
 	const attachmentList = useMemo(
 		() =>
@@ -1321,22 +2968,26 @@ function ChatThreadPane({
 			})),
 		[pendingAttachments],
 	);
-	const handleRemoveAttachment = useCallback((id: string) => {
-		setPendingAttachments((prev) =>
-			prev.filter((file, index) => {
-				const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-				return fileId !== id;
-			}),
-		);
-	}, []);
+	const handleRemoveAttachment = useCallback(
+		(id: string) => {
+			setPendingAttachments((prev) =>
+				prev.filter((file, index) => {
+					const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+					return fileId !== id;
+				}),
+			);
+		},
+		[setPendingAttachments],
+	);
 	const handleAbort = useCallback(() => {
 		void abort();
 	}, [abort]);
 	const handleModelChange = useCallback(
-		(nextModel: string) =>
+		(nextModel: string) => {
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
-			),
+			);
+		},
 		[setConfig],
 	);
 	const handleModeToggle = useCallback(
@@ -1352,13 +3003,18 @@ function ChatThreadPane({
 			setConfig((prev) => {
 				const selected = providerCredentials[nextProvider];
 				const nextApiKey = selected?.apiKey ?? "";
-				if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+				if (
+					prev.provider === nextProvider &&
+					prev.apiKey === nextApiKey &&
+					prev.providerAuth === selected?.auth
+				) {
 					return prev;
 				}
 				return {
 					...prev,
 					provider: nextProvider,
 					apiKey: nextApiKey,
+					providerAuth: selected?.auth,
 				};
 			}),
 		[providerCredentials, setConfig],
@@ -1367,37 +3023,58 @@ function ChatThreadPane({
 		(prompt: string) => void handleSend(prompt),
 		[handleSend],
 	);
+	const handleOpenHandoffProgressLink = useCallback(() => {
+		if (!handoffUi || !("dashboardUrl" in handoffUi) || !handoffUi.dashboardUrl)
+			return;
+		const { dashboardUrl, sessionId: targetSessionId } = handoffUi;
+		void (async () => {
+			if (cloudAgentsEnabled && targetSessionId && onOpenSessionById) {
+				const opened = await onOpenSessionById(targetSessionId, {
+					silent: true,
+					expectedActiveThreadId: threadId,
+				});
+				if (!opened || opened.opened) return;
+			}
+			await openExternalUrl(dashboardUrl);
+		})().catch(() =>
+			toast({
+				title: "Unable to open the browser",
+				description: `Open the cloud task: ${dashboardUrl}`,
+				variant: "destructive",
+			}),
+		);
+	}, [handoffUi, cloudAgentsEnabled, onOpenSessionById, threadId]);
 
 	const firstUserMessage = messages.find(
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
+		(isCloudSession && getSessionMetadataTitle(liveHistorySession?.metadata)) ||
+		manualTitle ||
+		getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
 		title: hideDeletedSessionUi ? undefined : metadataTitle,
 		prompt: hideDeletedSessionUi
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const hasDiffChanges = summary.additions + summary.deletions > 0;
-	const headerDiff = useMemo(
-		() => ({
-			additions: summary.additions,
-			deletions: summary.deletions,
-		}),
-		[summary.additions, summary.deletions],
-	);
-	const handleOpenDiff = useCallback(() => {
-		if (summary.additions + summary.deletions > 0) {
-			setShowDiffView(true);
-		}
-	}, [summary.additions, summary.deletions]);
-
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const showingHistoryPreview =
+		isCloudSession &&
+		isHydratingSession &&
+		messages.length === 0 &&
+		historyPreview.length > 0;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: showingHistoryPreview
+			? historyPreview
+			: messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
+	const cloudSessionError = isCloudSession
+		? parseCloudSessionError(displayedError)
+		: null;
 	const importedFromTool = readImportedFromTool(
 		visibleHistorySession?.metadata,
 	);
@@ -1406,18 +3083,26 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
+	// Existing empty sessions are loading or empty, never a fresh prompt.
 	const isWelcomeState =
-		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
+		displayedMessages.length === 0 &&
+		!displayedIsSwitching &&
+		!displayedError &&
+		!isProvisioningCloudSession &&
+		!historySession;
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
 		displayedStatus === "stopping";
 	const derivedAgentActivity = useMemo(
 		() =>
-			buildSessionAgentActivity(displayedMessages, {
-				sessionActive: isSessionActive,
-			}),
-		[displayedMessages, isSessionActive],
+			buildSessionAgentActivity(
+				showingHistoryPreview ? [] : displayedMessages,
+				{
+					sessionActive: isSessionActive,
+				},
+			),
+		[displayedMessages, isSessionActive, showingHistoryPreview],
 	);
 	// The roster is read for every displayed session, not gated on the tally
 	// above: that tally only sees the newest messages, so gating on it would hide
@@ -1429,7 +3114,8 @@ function ChatThreadPane({
 		loading: agentsLoading,
 		error: agentsError,
 	} = useSessionAgents({
-		sessionId: displayedSessionId,
+		environmentId,
+		sessionId: isCloudSession ? null : displayedSessionId,
 		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
 	});
@@ -1443,8 +3129,10 @@ function ChatThreadPane({
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
-		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
-		[onOpenSessionById],
+		async (agentSessionId: string) => {
+			await onOpenSessionById?.(agentSessionId, { environmentId });
+		},
+		[environmentId, onOpenSessionById],
 	);
 
 	const handleRenameTitle = useCallback(
@@ -1456,6 +3144,7 @@ function ChatThreadPane({
 			try {
 				await desktopClient.invoke("update_chat_session_title", {
 					sessionId: activeSessionForTitle,
+					environmentId,
 					title: nextTitle,
 				});
 				const normalizedTitle = nextTitle.trim();
@@ -1468,27 +3157,31 @@ function ChatThreadPane({
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
 							sessionId: activeSessionForTitle,
+							environmentId,
 							title: normalizedTitle,
 						},
 					}),
 				);
+			} catch (error) {
+				toast({
+					title: "Rename failed",
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
+					variant: "destructive",
+				});
 			} finally {
 				setRenamingSession(false);
 			}
 		},
 		[
 			activeSessionForTitle,
+			environmentId,
 			historySession?.metadata,
 			onUpdateSessionMetadata,
 			renamingSession,
 		],
 	);
-
-	useEffect(() => {
-		if (!hasDiffChanges) {
-			setShowDiffView(false);
-		}
-	}, [hasDiffChanges]);
 
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
@@ -1510,6 +3203,53 @@ function ChatThreadPane({
 			pickWorkspaceDirectory,
 			selectChat,
 		],
+	);
+
+	const pullRequestSource = useMemo(
+		() => ({ cwd: resolvedWorkspaceRoot, branch: gitBranch }),
+		[resolvedWorkspaceRoot, gitBranch],
+	);
+
+	// Fetch the panel's code as soon as a session could show it, so the first
+	// toggle opens it without waiting on the chunk.
+	const mayBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	useEffect(() => {
+		if (mayBrowseFiles) {
+			void loadProjectFilesPanel();
+			void loadChangesPanel();
+		}
+	}, [mayBrowseFiles]);
+
+	// Each turn adds a user message and each tool call a tool message, so the
+	// key changes with every turn and every edit mid-turn.
+	const activityKey = useMemo(() => {
+		let users = 0;
+		let tools = 0;
+		for (const message of messages) {
+			if (message.role === "user") users++;
+			else if (message.role === "tool") tools++;
+		}
+		return `${users}:${tools}`;
+	}, [messages]);
+	const { changes: sessionChanges, current: sessionChangesCurrent } =
+		useSessionChanges({
+			enabled: mayBrowseFiles,
+			environmentId,
+			sessionId,
+			cwd: config.cwd || resolvedWorkspaceRoot,
+			// Tool calls and turn boundaries both move the working tree; the tool-event
+			// diff only refreshes when a turn ends, so it can't drive this.
+			refreshKey: `${status}:${activityKey}`,
+		});
+	// Git checkpoints when the workspace has them, otherwise the tool-event
+	// reconstruction.
+	const headerDiff = useMemo(
+		() =>
+			sessionChanges?.session
+				? sumChanges(sessionChanges.session.files)
+				: { additions: summary.additions, deletions: summary.deletions },
+		[sessionChanges, summary.additions, summary.deletions],
 	);
 
 	const isAppReady =
@@ -1535,9 +3275,13 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = (
+	const chatComposer = (
 		<ChatInputBar
+			sessionId={sessionId}
+			readOnly={isCloudSessionExpired || showingHistoryPreview}
 			attachments={attachmentList}
+			cloudHandoffAvailable={cloudAgentsEnabled}
+			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
@@ -1548,6 +3292,7 @@ function ChatThreadPane({
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
+			onOpenLocalModels={onOpenLocalModels}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1555,6 +3300,10 @@ function ChatThreadPane({
 			onProviderChange={handleProviderChange}
 			onSend={handleSendPrompt}
 			gitBranch={gitBranch}
+			cloudBranch={config.branch}
+			executionTarget={isCloudSession ? "cloud" : "local"}
+			hasActiveSession={Boolean(sessionId)}
+			repoUrl={config.repoUrl}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
@@ -1563,11 +3312,39 @@ function ChatThreadPane({
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
+			placeholder={showingHistoryPreview ? "Getting session ready…" : undefined}
+			isCompacting={isCompacting}
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
 	);
+	const composer = (
+		<div className="w-full">
+			{handoffUi && sourceSessionId && (
+				<CloudHandoffStatus
+					state={handoffUi}
+					onOpenCloud={handleOpenHandoffProgressLink}
+					onRestoreDraft={handleRestoreHandoffDraft}
+					onConnectGitHub={openGitHubConnect}
+					onDismiss={() =>
+						onHandoffUiAction({ type: "dismiss", sourceSessionId })
+					}
+				/>
+			)}
+			{chatComposer}
+		</div>
+	);
+
+	const cloudConnectUrl =
+		cloudSessionError?.code === "github_not_connected"
+			? cloudSessionError.connectUrl
+			: undefined;
+	// Cloud runs have no reachable workspace, and the welcome state has no
+	// session to browse alongside yet.
+	const canBrowseFiles = mayBrowseFiles;
+	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
+	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -1576,7 +3353,17 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: filesPanelVisible || changesPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+				}
+				disabled={isCloudSessionExpired || showingHistoryPreview}
+				description={
+					isCloudSession
+						? "Images will be added to your next message"
+						: undefined
 				}
 				onAttachFiles={handleAttachFiles}
 			>
@@ -1584,25 +3371,38 @@ function ChatThreadPane({
 					<WindowTitleBarContent>
 						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 							<AgentHeader
-								agentActivity={agentActivity}
-								agents={agents}
+								agentActivity={isCloudSession ? undefined : agentActivity}
+								agents={isCloudSession ? undefined : agents}
 								agentsError={agentsError}
 								agentsLoading={agentsLoading}
 								onAgentsOpenChange={setAgentPanelOpen}
 								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={onOpenSessionById}
+								onOpenParentSession={onOpenAgentSession}
 								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={Boolean(activeSessionForTitle)}
+								canEditTitle={
+									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
+								}
 								canDeleteSession={Boolean(activeSessionToDelete)}
 								deletingSession={deletingSession}
-								diff={headerDiff}
+								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
+								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+								filesOpen={filesPanelVisible}
+								pullRequest={isCloudSession ? undefined : pullRequestSource}
+								onToggleChanges={
+									canBrowseFiles ? toggleChangesPanel : undefined
+								}
+								changesOpen={changesPanelVisible}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
-								status={status}
+								status={headerStatus}
 								title={threadTitle}
+								onToggleTerminal={
+									terminalEnabled ? terminal?.onToggle : undefined
+								}
+								terminalOpen={terminalEnabled && terminal?.open}
+								terminalShortcut={terminal?.shortcut}
 							/>
 						</div>
 					</WindowTitleBarContent>
@@ -1610,12 +3410,11 @@ function ChatThreadPane({
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						showDiffView ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
+							<CloudProvisioningPane phase="Opening session..." />
 						) : (
 							<ChatMessages
 								onAnswerAskQuestion={handleAnswerAskQuestion}
@@ -1623,23 +3422,66 @@ function ChatThreadPane({
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
 								activityLabel={activityLabel}
-								error={displayedError}
+								error={cloudSessionError?.message ?? displayedError}
+								errorAction={
+									cloudConnectUrl
+										? {
+												label: "Connect GitHub",
+												onClick: () => openGitHubConnect(cloudConnectUrl),
+											}
+										: undefined
+								}
 								importedFromTool={importedFromTool}
 								messages={displayedMessages}
-								onEditMessage={handleEditMessage}
-								onRestoreCheckpoint={handleRestoreCheckpoint}
-								onForkSession={handleForkSession}
-								onProceedWhileRunning={proceedWhileRunning}
+								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									isCloudSession ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={isCloudSession ? undefined : handleForkSession}
+								onProceedWhileRunning={
+									isCloudSession ? undefined : proceedWhileRunning
+								}
+								startingLabel={
+									isProvisioningCloudSession
+										? provisioningPhase
+										: isCloudSession && !displayedSessionId
+											? provisioningPhase
+											: undefined
+								}
+								onFixCredentials={handleFixCredentials}
+								lastTurnChanges={
+									canBrowseFiles && sessionChangesCurrent
+										? sessionChanges?.lastTurn
+										: undefined
+								}
+								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
 								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={displayedStatus}
+								isHistoryPreview={showingHistoryPreview}
+								isSessionSwitching={
+									displayedIsSwitching && !showingHistoryPreview
+								}
+								status={
+									isProvisioningCloudSession ? "starting" : displayedStatus
+								}
 							/>
 						)
 					}
 					composer={composer}
+					environmentSelector={
+						<EnvironmentSelector
+							activeEnvironmentId={environmentId}
+							cloudEnabled={cloudAgentsEnabled}
+							executionTarget={isCloudSession ? "cloud" : "local"}
+							onSelectExecutionTarget={handleSelectExecutionTarget}
+							loading={environmentProfilesLoading}
+							onAddSshHost={onAddSshHost}
+							onSelectEnvironment={onSelectEnvironment}
+							profiles={environmentProfiles}
+						/>
+					}
 					gitBranch={gitBranch}
 					notice={
 						providersLoaded &&
@@ -1653,10 +3495,64 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={
+						onOpenSessionById
+							? async (sessionId) => {
+									await onOpenSessionById(sessionId);
+								}
+							: undefined
+					}
 					onSwitchGitBranch={switchGitBranch}
+					executionTarget={isCloudSession ? "cloud" : "local"}
+					repoUrl={config.repoUrl ?? ""}
+					cloudBranch={config.branch ?? ""}
+					onRepoUrlChange={handleCloudRepoUrlChange}
+					onCloudBranchChange={handleCloudBranchChange}
+					cloudAgentsEnabled={
+						cloudAgentsEnabled ||
+						(cloudAgentsFlagEnabled === null &&
+							config.executionTarget === "cloud")
+					}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					workIn={workIn}
+					terminalToggle={terminalToggle}
+					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
 				/>
+				{changesPanelVisible ? (
+					<ChangesPanel
+						changes={sessionChanges}
+						cwd={config.cwd || resolvedWorkspaceRoot}
+						environmentId={environmentId}
+						fallbackFileDiffs={fileDiffs}
+						onClose={toggleChangesPanel}
+						onOpenGit={() => setWorkspacePanel("files")}
+						onScopeChange={(scope) => {
+							setChangesScope(scope);
+							setChangesPath(null);
+						}}
+						onSelectPath={setChangesPath}
+						scope={changesScope}
+						selectedPath={changesPath}
+					/>
+				) : null}
+				{filesPanelVisible ? (
+					<ProjectFilesPanel
+						cwd={config.cwd || config.workspaceRoot}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onClose={toggleFilesPanel}
+						workspaceRoot={resolvedWorkspaceRoot}
+					/>
+				) : null}
 			</AttachmentDropZone>
+			{terminalEnabled && terminal?.open ? (
+				<TerminalPanel
+					cwd={activeWorkspaceCwd}
+					height={terminal.height}
+					onClose={terminal.onClose}
+					onHeightChange={terminal.onHeightChange}
+				/>
+			) : null}
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {
@@ -1670,7 +3566,13 @@ function ChatThreadPane({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This session will be removed from local history.
+							{isCloudSession
+								? "This cloud session and its workspace will be deleted."
+								: "This session will be removed from local history."}
+							{!isCloudSession &&
+							isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

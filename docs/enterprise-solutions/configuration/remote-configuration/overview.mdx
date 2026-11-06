@@ -29,6 +29,36 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
   </Card>
 </CardGroup>
 
+## Which products support each control
+
+Cline products read the organization's remote configuration when a member signs in to the organization. Each product supports only the controls marked Yes below. Members who use Cline Desktop or the CLI can choose other providers and MCP servers.
+
+| Control | VS Code and JetBrains | CLI | Cline Desktop |
+|---|---|---|---|
+| Rules and workflows | Yes | Yes | No |
+| Skills | Yes | No | No |
+| Allowed providers and provider settings | Yes | No | No |
+| Members can't switch organization or use a personal account | Yes | No | No |
+| Enable MCP Marketplace (when off, also blocks local MCP servers) | Yes | No | No |
+| Allow members to use their own servers (MCP) | Yes | No | No |
+| Organization MCP servers | Yes | No | No |
+| Cline Telemetry | Yes | No | No |
+| Allow YOLO mode | No | No | No |
+| Allow Kanban | No | No | No |
+
+The VS Code and JetBrains extensions show a lock icon on settings that the organization controls. Admins and Owners can choose **Opt out of remote config** on the Account page to work without the organization's settings; members can't.
+
+To choose which products to recommend, check which controls your organization relies on. For example, if members must use only your approved providers, deploy the VS Code or JetBrains extension.
+
+### Files Cline writes to the workspace
+
+To apply the organization's rules and workflows, Cline writes them, and a copy of the organization's settings, into the folder it's working in: `.cline/enterprise/` in the CLI, and `.cline/remote-config/` in the VS Code and JetBrains extensions. Cline rewrites these files when the organization's settings change. The copy of the settings can include the access keys for [prompt storage](/enterprise-solutions/monitoring/prompt-storage), so add these patterns to your repository's `.gitignore`. The `**/` prefix also matches the folders below the repository root, for example when someone opens a subfolder in VS Code:
+
+```text
+**/.cline/enterprise/
+**/.cline/remote-config/
+```
+
 ## Supported Providers
 
 Cline supports remote configuration for the following inference providers:

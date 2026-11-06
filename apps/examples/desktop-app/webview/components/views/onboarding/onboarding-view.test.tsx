@@ -15,10 +15,13 @@ import {
 	sortProvidersForApiKeySetup,
 } from "./onboarding-view";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, openExternalUrl } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	openExternalUrl: vi.fn(),
+}));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
-	openExternalUrl: vi.fn(),
+	openExternalUrl,
 }));
 
 const GITHUB_STEP_ENABLED_FLAGS = {
@@ -220,6 +223,15 @@ describe("OnboardingView", () => {
 		const clineOption = container.querySelector(
 			'[data-onboarding-option="cline"]',
 		);
+		expect(
+			Array.from(clineOption?.querySelectorAll("li") ?? []).map((item) =>
+				item.textContent?.trim(),
+			),
+		).toEqual([
+			"Regular free model promotions",
+			"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
+			"No API key needed",
+		]);
 		const apiKeyOption = container.querySelector(
 			'[data-onboarding-option="api-key"]',
 		);
@@ -389,6 +401,16 @@ describe("OnboardingView", () => {
 			if (command === "get_feature_flags") {
 				return GITHUB_STEP_ENABLED_FLAGS;
 			}
+			if (command === "list_cline_recommended_models") {
+				return {
+					recommended: [],
+					free: [
+						{ id: "deepseek/deepseek-v4-flash", name: "deepseek-v4-flash" },
+						{ id: "cline-free/solar-pro4", name: "Solar Pro 4" },
+					],
+					clinePass: [],
+				};
+			}
 			return {};
 		});
 		await render();
@@ -408,6 +430,19 @@ describe("OnboardingView", () => {
 		// The redesigned completion step places transparent content over a static,
 		// wide version of the hero grid.
 		expect(container.textContent).toContain("You're all set");
+		// A Cline sign-in ends on the current free models plus the ClinePass upsell.
+		const clineModels = container.querySelector(
+			"[data-onboarding-cline-models]",
+		);
+		expect(clineModels?.textContent).toContain("Free models");
+		expect(clineModels?.textContent).toContain("deepseek-v4-flash");
+		expect(clineModels?.textContent).toContain("Solar Pro 4");
+		await act(async () => {
+			buttonByText("Get ClinePass").click();
+		});
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/onboarding/individual-plan",
+		);
 		const doneGrid = container.querySelector<HTMLElement>(
 			'[data-welcome-hero-variant="grid-only"]',
 		);
@@ -480,10 +515,16 @@ describe("OnboardingView", () => {
 			buttonByText("Get started").click();
 		});
 
-		// OAuth login that never resolves (browser round-trip abandoned).
+		let rejectLogin!: (error: Error) => void;
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "run_provider_oauth_login") {
-				return await new Promise(() => undefined);
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				rejectLogin(new Error("Sign-in cancelled"));
+				return { cancelled: true };
 			}
 			if (command === "cline_account") {
 				throw new Error("No Cline account auth token found");
@@ -508,6 +549,62 @@ describe("OnboardingView", () => {
 		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
 			provider: "cline",
 		});
+	});
+
+	it("stays on Welcome when sign-in completes after Back", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishLogin!: () => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise<void>((resolve) => {
+					finishLogin = resolve;
+				});
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Back"]')
+				?.click();
+		});
+		expect(buttonByText("Get started")).toBeDefined();
+		await act(async () => finishLogin());
+		expect(buttonByText("Get started")).toBeDefined();
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(invoke).not.toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => buttonByText("Get started").click());
+		expect(container.textContent).toContain("Signed in as");
+	});
+
+	it("keeps sign-in busy during account refresh and does not advance after Cancel", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishRefresh!: (user: { email: string; displayName: string }) => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return await new Promise((resolve) => {
+					finishRefresh = resolve;
+				});
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () => buttonByText("Cancel").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () =>
+			finishRefresh({ email: "dev@example.com", displayName: "Dev" }),
+		);
+		expect(container.textContent).toContain("Signed in as");
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(buttonByText("Continue").disabled).toBe(false);
 	});
 
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
@@ -654,9 +751,13 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			// The browser round-trip must get the extended OAuth deadline, not
+			// the default 120s command deadline (cline/cline#14201).
+			{ timeoutMs: 15 * 60_000, signal: expect.any(AbortSignal) },
+		);
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {
 			buttonByText("Skip for now").click();

@@ -140,7 +140,6 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
-			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
 				return false
 			// NOTE: reasoning passes through to be included in tool groups

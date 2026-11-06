@@ -29,6 +29,18 @@ describe("desktop connector lifecycle", () => {
 		});
 	});
 
+	it("runs connector commands through the bundled CLI when the shell provides one", () => {
+		expect(
+			__test__.buildCliConnectCommand("/repo", ["telegram"], {
+				desktopCliPath: "C:\\Program Files\\Cline\\cline-cli.exe",
+				execPath: "C:\\Program Files\\Cline\\cline-cli.exe",
+			}),
+		).toEqual({
+			launcher: "C:\\Program Files\\Cline\\cline-cli.exe",
+			childArgs: ["connect", "telegram"],
+		});
+	});
+
 	it("uses the atomic restart command for an active channel", () => {
 		expect(
 			__test__.buildConnectorLaunchArgs(["telegram", "-k", "token"], true),

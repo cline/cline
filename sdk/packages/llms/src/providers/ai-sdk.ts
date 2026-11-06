@@ -44,7 +44,15 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
-import { classifyProviderError } from "./error-classification";
+import {
+	createStreamErrorTelemetry,
+	isTimeoutReason,
+} from "../services/stream-error-telemetry";
+import { wrapFetchForAimlapiAttribution } from "./aimlapi/attribution";
+import {
+	classifyProviderError,
+	isRetryableBeyondSdkRetries,
+} from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
@@ -54,9 +62,10 @@ import {
 	resolveModelFamily,
 } from "./model-facts";
 import {
-	recordProviderRequestCapture,
-	wrapFetchForProviderRequestCapture,
-} from "./provider-request-capture";
+	appendRequestId,
+	extractResponseRequestId,
+	findRequestIdHeader,
+} from "./response-request-id";
 import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
@@ -65,7 +74,10 @@ import {
 	applyBedrockCachePointToLastUserMessage,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
-import { resolvePortableReasoning } from "./routing/portable-reasoning";
+import {
+	reconcilePortableReasoning,
+	resolvePortableReasoning,
+} from "./routing/portable-reasoning";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -326,9 +338,9 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
-	const reasoning = resolvePortableReasoning(request);
+	const reasoning = resolvePortableReasoning(request, { context });
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
@@ -384,8 +396,12 @@ function buildAiSdkRequestMessages(
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
+	const includeReasoning = shouldIncludeReasoningHistory(request, context);
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
-		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		includeReasoning,
+		fillMissingReasoning:
+			includeReasoning &&
+			context.model.metadata?.interleavedReasoningField === "reasoning_content",
 		supportedInputModalities:
 			context.model.modalities?.input ??
 			(context.model.capabilities
@@ -644,10 +660,12 @@ async function withAiSdkLangfuseTraceContext<T>(
 	const sessionId =
 		typeof metadata.sessionId === "string" ? metadata.sessionId : undefined;
 
-	if (!enabled || (!distinctId && !sessionId && !tags?.length)) {
+	if (!enabled) {
 		return await callback();
 	}
 
+	// Operator env tags/metadata are merged inside the runtime, which also
+	// skips propagation when nothing at all is set.
 	const runtime = await import("../services/langfuse-telemetry");
 	return await runtime.withLangfuseTraceAttributes(
 		true,
@@ -710,6 +728,12 @@ function buildAiSdkRuntimeContext(
 			? { conversationId: metadata.conversationId }
 			: {}),
 		...(typeof metadata.runId === "string" ? { runId: metadata.runId } : {}),
+		...(typeof metadata.agentId === "string"
+			? { agentId: metadata.agentId }
+			: {}),
+		...(typeof metadata.modelRequestId === "string"
+			? { modelRequestId: metadata.modelRequestId }
+			: {}),
 		...(typeof metadata.iteration === "number"
 			? { iteration: metadata.iteration }
 			: {}),
@@ -724,6 +748,7 @@ function toAiSdkMessages(
 	systemPrompt?: string,
 	options?: {
 		includeReasoning?: boolean;
+		fillMissingReasoning?: boolean;
 		supportedInputModalities?: readonly string[];
 	},
 ) {
@@ -820,6 +845,17 @@ function toAiSdkMessages(
 					isError: part.isError ?? false,
 				});
 			}
+		}
+
+		// Models with interleaved reasoning reject assistant history that has
+		// none (it was compacted away, or came from another model). A single
+		// space is the smallest value such providers accept; empty is rejected.
+		if (
+			options?.fillMissingReasoning &&
+			message.role === "assistant" &&
+			!content.some((part) => part.type === "reasoning" && part.text.trim())
+		) {
+			content.unshift({ type: "reasoning", text: " " });
 		}
 
 		// A message left empty only because its reasoning was dropped is
@@ -995,20 +1031,22 @@ function resolveAiSdkSystemPrompt(
 		: request.systemPrompt;
 }
 
-function mapFinishReason(
-	value: unknown,
-	sawToolCalls: boolean,
-): AgentModelFinishReason {
-	if (value === "tool-calls" || value === "tool_calls" || sawToolCalls) {
-		return "tool-calls";
+function mapFinishReason(value: unknown): AgentModelFinishReason {
+	// Consume the AI SDK unified reason; raw provider values belong in diagnostics.
+	switch (value) {
+		case "stop":
+			return "stop";
+		case "tool-calls":
+			return "tool-calls";
+		case "length":
+			return "max-tokens";
+		case "content-filter":
+			return "content-filter";
+		case "error":
+			return "error";
+		default:
+			return "unknown";
 	}
-	if (value === "length" || value === "max_tokens") {
-		return "max-tokens";
-	}
-	if (value === "error") {
-		return "error";
-	}
-	return "stop";
 }
 
 function getUsageValue(
@@ -1059,12 +1097,26 @@ function getNestedUsageValue(
 	return getNumericValue(current) ?? 0;
 }
 
+/**
+ * AI SDK request-start retries (`maxRetries`) handle transient failures before
+ * streaming begins, with backoff that honors `retry-after` headers. Provider
+ * error parts received after streaming starts use `streamRetries` instead.
+ *
+ * Exhausted request-start retries (`RetryError`) and terminal stream error parts
+ * do not trigger the agent's whole-turn retry, so the retry budgets do not
+ * multiply. See `captureStreamError` and `isRetryableBeyondSdkRetries`.
+ */
+const MODEL_REQUEST_MAX_RETRIES = 3;
+const MODEL_STREAM_MAX_RETRIES = 3;
+
 type UsagePath = readonly [string] | readonly [string, string];
 
 const REASONING_TOKEN_PATHS: UsagePath[] = [
 	["outputTokenDetails", "reasoningTokens"],
 	["output_tokens_details", "reasoning_tokens"],
 	["completion_tokens_details", "reasoning_tokens"],
+	// AI SDK v4's nested outputTokens shape ({ total, text, reasoning, ... }).
+	["outputTokens", "reasoning"],
 	["reasoningTokens"],
 	["reasoning_tokens"],
 ];
@@ -1315,6 +1367,19 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		// Providers report reasoning tokens as a subset of outputTokens (e.g.
+		// OpenAI's completion_tokens_details.reasoning_tokens), not additional
+		// to it. Strip them back out here so outputTokens reflects the actual
+		// non-reasoning output, with reasoningTokenCount tracked separately —
+		// otherwise every downstream consumer (session totals, telemetry,
+		// Harbor's n_output_tokens) double-books reasoning as both its own
+		// count and part of "output". Cost above is computed from the
+		// pre-subtraction outputTokens, since reasoning tokens are still
+		// billed at the output rate.
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
@@ -1407,20 +1472,55 @@ function extractGoogleThoughtMetadata(
  * `extractErrorMessage`.
  */
 interface CapturedStreamError {
+	error: unknown;
+	phase:
+		| "stream_callback"
+		| "stream_part"
+		| "stream_read"
+		| "result"
+		| "request_start"
+		| "timeout";
 	message: string;
 	errorClass: ProviderErrorClass;
+	/**
+	 * Whether the agent loop's turn-level retry may re-run this turn, decided
+	 * while the structured error is still in hand and forwarded as
+	 * `errorRetryable` on the `finish` event (the flattened message the agent
+	 * loop receives cannot carry it). Transient by the AI SDK's own typed
+	 * `isRetryable` flag, except that request-start RetryErrors and terminal
+	 * stream error parts have already spent the SDK's retry budget. The
+	 * turn-level retry must not multiply those attempts.
+	 */
+	retryable: boolean;
 	/**
 	 * This layer already recorded `sdk.error` telemetry for the failure.
 	 * Forwarded as `errorReported` on the `finish` event so the agent loop
 	 * does not report the same failure a second time.
 	 */
 	reported?: boolean;
+	requestId?: string;
+	baseMessage: string;
 }
 
-function captureStreamError(error: unknown): CapturedStreamError {
+function captureStreamError(
+	error: unknown,
+	phase: CapturedStreamError["phase"] = "stream_callback",
+): CapturedStreamError {
+	const requestId = extractResponseRequestId(error);
+	const baseMessage = extractErrorMessage(error);
 	return {
-		message: extractErrorMessage(error),
+		error,
+		phase,
+		message: appendRequestId(baseMessage, requestId),
+		baseMessage,
+		...(requestId ? { requestId } : {}),
 		errorClass: classifyProviderError(error),
+		// Error parts reaching the consumer have exhausted AI SDK stream recovery.
+		// Do not multiply its retry budget in the agent's whole-turn retry loop.
+		retryable:
+			phase !== "stream_callback" &&
+			phase !== "stream_part" &&
+			isRetryableBeyondSdkRetries(error),
 	};
 }
 
@@ -1431,10 +1531,11 @@ async function* emitAiSdkEvents(
 	pricingValue?: unknown,
 	capturedError?: { current: CapturedStreamError | undefined },
 	modelToolAdapters?: BuiltModelTools,
+	reportError?: (error: CapturedStreamError) => Promise<void>,
 ): AsyncIterable<AgentModelEvent> {
-	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
+	let requestId: string | undefined;
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
@@ -1459,6 +1560,14 @@ async function* emitAiSdkEvents(
 	try {
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
+				if (part.type === "start-step") {
+					requestId = undefined;
+					continue;
+				}
+				if (part.type === "finish-step") {
+					requestId = findRequestIdHeader(part.response?.headers);
+					continue;
+				}
 				if (part.type === "text-delta") {
 					const text =
 						(part.textDelta as string | undefined) ??
@@ -1589,7 +1698,6 @@ async function* emitAiSdkEvents(
 						};
 						continue;
 					}
-					sawToolCalls = true;
 					sawVisibleContent = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
@@ -1745,7 +1853,6 @@ async function* emitAiSdkEvents(
 							continue;
 						}
 					}
-					sawToolCalls = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
 						(part.id as string | undefined) ??
@@ -1783,18 +1890,23 @@ async function* emitAiSdkEvents(
 				if (part.type === "finish") {
 					finishUsage = part.usage ?? part.totalUsage;
 					finishProviderMetadata = part.providerMetadata;
-					finishReason =
-						part.finishReason ?? part.rawFinishReason ?? part.reason;
+					finishReason = part.finishReason;
 				}
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? captureStreamError(part.error);
+						capturedError?.current ??
+						captureStreamError(part.error, "stream_part");
 					break;
 				}
 
 				if (part.type === "abort") {
 					streamAborted = true;
+					if (isTimeoutReason(part.reason)) {
+						streamError =
+							capturedError?.current ??
+							captureStreamError(part.reason, "timeout");
+					}
 					break;
 				}
 			}
@@ -1806,7 +1918,8 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? captureStreamError(error);
+		streamError =
+			capturedError?.current ?? captureStreamError(error, "stream_read");
 	}
 
 	if (!streamError) {
@@ -1917,7 +2030,8 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? captureStreamError(error);
+				streamError =
+					capturedError?.current ?? captureStreamError(error, "result");
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -1934,11 +2048,16 @@ async function* emitAiSdkEvents(
 		};
 	}
 
+	if (streamError) await reportError?.(streamError);
+
+	const finishRequestId = requestId ?? streamError?.requestId;
 	yield {
 		type: "finish",
-		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
+		reason: streamError ? "error" : mapFinishReason(finishReason),
+		...(finishRequestId ? { requestId: finishRequestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,
 	};
 }
@@ -2072,15 +2191,78 @@ function createAiSdkProvider(
 			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
+			let recordTraceError: ((error: unknown) => Promise<void>) | undefined;
+			let getAiSdkCallId: (() => string | undefined) | undefined;
+			let reportedError: CapturedStreamError | undefined;
+			const reportError = async (
+				captured: CapturedStreamError,
+				operation = "provider.stream",
+			) => {
+				if (reportedError === captured) return;
+				// Explicit user/steering cancellation is not a provider failure.
+				if (
+					request.signal?.aborted &&
+					!isTimeoutReason(request.signal.reason) &&
+					!isTimeoutReason(captured.error)
+				)
+					return;
+				reportedError = captured;
+				const runtimeContext = buildAiSdkRuntimeContext(request, context);
+				const correlation = Object.fromEntries(
+					[
+						"runId",
+						"agentId",
+						"sessionId",
+						"conversationId",
+						"modelRequestId",
+						"iteration",
+					].flatMap((key) =>
+						runtimeContext[key] === undefined
+							? []
+							: [[key, runtimeContext[key]]],
+					),
+				);
+				if (log?.error) {
+					log.error("[ai-sdk] provider error", {
+						...correlation,
+						providerId: request.providerId,
+						error: captured.error,
+						severity: "error",
+					});
+				} else {
+					log?.log(`[ai-sdk] provider error: ${captured.message}`, {
+						providerId: request.providerId,
+						severity: "error",
+					});
+				}
+				captured.reported = captureSdkError(context.telemetry, {
+					component: "llms",
+					operation,
+					error: captured.error,
+					errorMessage: captured.baseMessage,
+					severity: "error",
+					handled: true,
+					context: {
+						...correlation,
+						aiSdkCallId: getAiSdkCallId?.(),
+						errorPhase: captured.phase,
+						errorTurnRetryable: captured.retryable,
+						providerId: request.providerId,
+						modelId: request.modelId,
+						providerKind: kind,
+						requestId: captured.requestId,
+					},
+				});
+				await recordTraceError?.(captured.error);
+			};
 			try {
 				const provider = await createProviderModule(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
+						fetch: wrapFetchForAimlapiAttribution(
+							wrapFetchForStickySession(config.fetch, request, context),
+							request.providerId,
 						),
 					},
 					context,
@@ -2141,21 +2323,6 @@ function createAiSdkProvider(
 						);
 					}
 					const prompt = resolveImageGenerationPrompt(request, context);
-					recordProviderRequestCapture({
-						stage: "ai_sdk_prompt",
-						request,
-						payload: {
-							operation: "generate_image",
-							prompt:
-								typeof prompt === "string"
-									? prompt
-									: {
-											text: prompt.text,
-											imageCount: prompt.images.length,
-										},
-							providerOptions,
-						},
-					});
 					const result = await generateImage({
 						model: provider.operations.imageGeneration(
 							context.model.id,
@@ -2199,10 +2366,12 @@ function createAiSdkProvider(
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const aiSdkTelemetry = await resolveGatewayAiSdkTelemetry(
-					config.providerId,
-					request,
+				const streamTelemetry = createStreamErrorTelemetry(
+					await resolveGatewayAiSdkTelemetry(config.providerId, request),
 				);
+				const aiSdkTelemetry = streamTelemetry.telemetry;
+				recordTraceError = streamTelemetry.recordError;
+				getAiSdkCallId = streamTelemetry.getCallId;
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2236,22 +2405,15 @@ function createAiSdkProvider(
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request);
-				const requestConfig = provider.buildStreamConfig
-					? provider.buildStreamConfig(request, context)
-					: buildAiSdkStreamConfig(request, context);
-				recordProviderRequestCapture({
-					stage: "ai_sdk_prompt",
-					request,
-					payload: {
-						messages,
-						...(useSystemOption ? { system: systemPrompt } : {}),
-						tools,
-						providerOptions,
-						...requestConfig,
-						...(portableReasoning ? { reasoning: portableReasoning } : {}),
-					},
-				});
+				const portableReasoning = reconcilePortableReasoning(
+					resolvePortableReasoning(request, { adapter: kind, context }),
+					providerOptions,
+				);
+				// Reasoning is decided once above, after provider options are known.
+				const { reasoning: _configReasoning, ...requestConfig } =
+					provider.buildStreamConfig
+						? provider.buildStreamConfig(request, context)
+						: buildAiSdkStreamConfig(request, context);
 				stream = await withAiSdkLangfuseTraceContext(
 					aiSdkTelemetry.isEnabled,
 					request,
@@ -2266,6 +2428,7 @@ function createAiSdkProvider(
 							...(useSystemOption ? { system: systemPrompt } : {}),
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
+							maxRetries: MODEL_REQUEST_MAX_RETRIES,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
 								...aiSdkTelemetry,
@@ -2280,6 +2443,8 @@ function createAiSdkProvider(
 									tags: true,
 									conversationId: true,
 									runId: true,
+									agentId: true,
+									modelRequestId: true,
 									iteration: true,
 									providerId: true,
 									modelId: true,
@@ -2292,36 +2457,21 @@ function createAiSdkProvider(
 								? { stopWhen: stepCountIs(8) }
 								: {}),
 							...requestConfig,
+							streamRetries: MODEL_STREAM_MAX_RETRIES,
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
+							onLanguageModelCallStart: () => {
+								capturedError.current = undefined;
+							},
 							onError: ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
-								const msg = captured.message;
 								capturedError.current = captured;
-								if (log?.error) {
-									log.error("[ai-sdk] stream error", {
-										providerId: request.providerId,
-										error: streamError,
-										severity: "error",
-									});
-								} else if (log) {
-									log.log(`[ai-sdk] stream error: ${msg}`, {
-										providerId: request.providerId,
-										severity: "error",
-									});
-								}
-								captured.reported = captureSdkError(context.telemetry, {
-									component: "llms",
-									operation: "provider.stream",
-									error: streamError,
-									errorMessage: msg,
-									severity: "error",
-									handled: true,
-									context: {
-										providerId: request.providerId,
-										modelId: request.modelId,
-										providerKind: kind,
-									},
-								});
+								streamTelemetry.captureError(streamError);
+							},
+							onAbort: async ({ reason }) => {
+								if (!isTimeoutReason(reason)) return;
+								const captured = captureStreamError(reason, "timeout");
+								capturedError.current = captured;
+								await reportError(captured);
 							},
 						}) as unknown as AiSdkStreamResult,
 				);
@@ -2339,44 +2489,22 @@ function createAiSdkProvider(
 					context.model.metadata?.pricing,
 					capturedError,
 					modelToolAdapters,
+					reportError,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const captured = capturedError.current ?? captureStreamError(error);
-				const msg = captured.message;
-				if (log?.error) {
-					log.error("[ai-sdk] provider error", {
-						providerId: request.providerId,
-						error,
-						severity: "error",
-					});
-				} else if (log) {
-					log.log(`[ai-sdk] provider error: ${msg}`, {
-						providerId: request.providerId,
-						severity: "error",
-					});
-				}
-				const reported = captureSdkError(context.telemetry, {
-					component: "llms",
-					operation: "provider.create_or_stream",
-					error,
-					errorMessage: msg,
-					severity: "error",
-					handled: true,
-					context: {
-						providerId: request.providerId,
-						modelId: request.modelId,
-						providerKind: kind,
-					},
-				});
+				const captured =
+					capturedError.current ?? captureStreamError(error, "request_start");
+				await reportError(captured, "provider.create_or_stream");
 				yield {
 					type: "finish",
 					reason: "error",
-					error: msg,
+					error: captured.message,
 					errorClass: captured.errorClass,
-					errorReported: reported || captured.reported,
+					errorRetryable: captured.retryable,
+					errorReported: captured.reported,
 				};
 			}
 		},

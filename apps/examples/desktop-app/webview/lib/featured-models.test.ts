@@ -50,7 +50,7 @@ describe("buildModelPickerData", () => {
 			label: "Claude Opus 5",
 			section: "recommended",
 		});
-		expect(options[1]).toMatchObject({ badge: "Free", section: "free" });
+		expect(options[1]).toMatchObject({ badge: undefined, section: "free" });
 		// The "all" tier is sorted by display name, not raw id.
 		expect(options[2]?.label).toBe("AAA First");
 	});
@@ -143,7 +143,7 @@ describe("buildModelPickerData", () => {
 			["cline-free/longcat-2.0", "free"],
 		]);
 		expect(options[0]?.label).toBe("DeepSeek V4 Flash");
-		expect(options.slice(2).every((option) => option.badge === "Free")).toBe(
+		expect(options.slice(2).every((option) => option.badge === undefined)).toBe(
 			true,
 		);
 	});

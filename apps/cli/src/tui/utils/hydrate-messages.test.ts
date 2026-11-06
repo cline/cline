@@ -6,6 +6,17 @@ import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { hydrateSessionMessages } from "./hydrate-messages";
 
 describe("hydrateSessionMessages", () => {
+	it("restores display-only errors as error entries", () => {
+		expect(
+			hydrateSessionMessages([
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "Provider unavailable" }],
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			]),
+		).toEqual([{ kind: "error", text: "Provider unavailable" }]);
+	});
 	it("renders regular user messages", () => {
 		const messages = [
 			{

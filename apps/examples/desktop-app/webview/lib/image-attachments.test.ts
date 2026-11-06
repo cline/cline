@@ -2,11 +2,36 @@
 import { describe, expect, it } from "vitest";
 import { serializeAttachments } from "../hooks/chat-session/attachments";
 import {
+	cloudImageAttachmentError,
 	imageAttachmentMediaType,
+	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "./image-attachments";
 
 describe("image attachments", () => {
+	it.each([
+		[[3_932_160], undefined],
+		[[3_932_161], "Each image"],
+		[[3_145_728, 3_145_728], undefined],
+		[[3_145_728, 3_145_729], "in total"],
+		[[1, 1, 1, 1, 1], undefined],
+		[[1, 1, 1, 1, 1, 1], "up to 5"],
+	] as const)("checks cloud image budgets for %j", (sizes, error) => {
+		const result = cloudImageAttachmentError(sizes.map((size) => ({ size })));
+		if (error) expect(result).toContain(error);
+		else expect(result).toBeUndefined();
+	});
+	it.each([
+		["photo.png", "image/png", true],
+		["photo.jfif", "", true],
+		["photo.webp", "application/octet-stream", true],
+		["photo.heic", "", false],
+		["diagram.svg", "image/svg+xml", false],
+		["notes.txt", "text/plain", false],
+	])("validates cloud image attachment %s (%s)", (name, type, expected) => {
+		expect(isSupportedImageAttachment({ name, type })).toBe(expected);
+	});
+
 	it.each([
 		"photo.jfif",
 		"photo.JPE",

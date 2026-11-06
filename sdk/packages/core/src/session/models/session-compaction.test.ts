@@ -272,3 +272,50 @@ describe("session compaction state", () => {
 		expect(state).toBeUndefined();
 	});
 });
+
+describe("display-only history and compaction", () => {
+	const conversation = [
+		{ id: "u1", role: "user" as const, content: "first" },
+		{ id: "u2", role: "user" as const, content: "retry" },
+		{ id: "a2", role: "assistant" as const, content: "answer" },
+	];
+	const error = {
+		id: "error",
+		role: "assistant" as const,
+		content: "provider failed",
+		metadata: { displayOnly: true, displayRole: "error" },
+	};
+	const history = [conversation[0], error, ...conversation.slice(1)];
+	const summary = [{ role: "user" as const, content: "summary" }];
+
+	it("uses the same anchors for persisted and runtime history", () => {
+		const fromHistory = createSessionCompactionState({
+			sourceMessages: history,
+			compactedMessages: summary,
+		});
+		const fromRuntime = createSessionCompactionState({
+			sourceMessages: conversation,
+			compactedMessages: summary,
+		});
+		expect(fromHistory.source_message_count).toBe(conversation.length);
+		expect(fromHistory.source_prefix_hash).toBe(fromRuntime.source_prefix_hash);
+		expect(projectSessionCompactionState(fromHistory, conversation)).toEqual(
+			summary,
+		);
+		expect(projectSessionCompactionState(fromRuntime, history)).toEqual(
+			summary,
+		);
+	});
+
+	it("excludes display-only entries from the boundary and appended tail", () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [...conversation, error],
+			compactedMessages: summary,
+		});
+		expect(state.source_last_message_key).toBe("id:a2");
+		const tail = { role: "user" as const, content: "continue" };
+		expect(
+			projectSessionCompactionState(state, [...history, error, tail]),
+		).toEqual([...summary, tail]);
+	});
+});

@@ -51,6 +51,65 @@ describe("SubprocessSandbox runtime resolution", () => {
 		).toBe("node");
 	});
 
+	it("uses the current compiled Bun executable without relying on PATH", () => {
+		const path = "/opt/cline/cline";
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe(path);
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: false, selfExecPath: path },
+			}),
+		).toBe("node");
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: "/other/cline",
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe("node");
+	});
+
+	it("retains system CA trust when a compiled executable becomes the helper runtime", () => {
+		const executable = "/opt/cline/cline";
+		const originalExecPath = process.execPath;
+		vi.stubGlobal("Bun", {});
+		try {
+			process.execPath = executable;
+			expect(
+				buildSubprocessSandboxCommand(["bootstrap.js"], {
+					execPath: executable,
+					env: {},
+					execArgv: [],
+				}),
+			).toEqual([executable, "--use-system-ca", "bootstrap.js"]);
+		} finally {
+			process.execPath = originalExecPath;
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("uses the host launcher without switching the executable to plain Bun", () => {
+		expect(
+			buildSubprocessSandboxCommand(["/embedded/plugin-sandbox-bootstrap.js"], {
+				launcher: {
+					command: "/opt/cline/cline",
+					argsPrefix: ["--plugin-sandbox"],
+				},
+			}),
+		).toEqual([
+			"/opt/cline/cline",
+			"--plugin-sandbox",
+			"/embedded/plugin-sandbox-bootstrap.js",
+		]);
+	});
+
 	it("allows an explicit helper runtime override", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({
@@ -102,6 +161,23 @@ describe("SubprocessSandbox runtime resolution", () => {
 });
 
 describe("SubprocessSandbox call", () => {
+	it("clears plain Bun mode for host-dispatched children without mutating the parent environment", async () => {
+		vi.stubEnv("CLINE_BUILD_ENV", "production");
+		vi.stubEnv("BUN_BE_BUN", "parent-value");
+		const sandbox = new SubprocessSandbox({
+			launcher: { command: process.execPath, argsPrefix: [] },
+			bootstrapScript:
+				"process.on('message', m => process.send({type:'response', id:m.id, ok:true, result:process.env.BUN_BE_BUN ?? null}));",
+		});
+		try {
+			await expect(sandbox.call("environment", {})).resolves.toBeNull();
+			expect(process.env.BUN_BE_BUN).toBe("parent-value");
+		} finally {
+			await sandbox.shutdown();
+			vi.unstubAllEnvs();
+		}
+	});
+
 	it("rejects non-serializable payloads without arming the timeout shutdown", async () => {
 		const sandbox = new SubprocessSandbox({
 			name: "sandbox-serialization-test",

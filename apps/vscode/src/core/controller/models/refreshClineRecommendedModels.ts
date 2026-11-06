@@ -13,6 +13,7 @@ export interface ClineRecommendedModelsData {
 	recommended: ClineRecommendedModelData[]
 	free: ClineRecommendedModelData[]
 	clinePass?: ClineRecommendedModelData[]
+	clineCloud?: ClineRecommendedModelData[]
 }
 
 const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
@@ -38,6 +39,11 @@ export async function refreshClineRecommendedModels(): Promise<ClineRecommendedM
 	})()
 
 	return pendingRefresh
+}
+
+/** The last successfully fetched list, without fetching; undefined before the first success. */
+export function getCachedClineRecommendedModels(): ClineRecommendedModelsData | undefined {
+	return inMemoryCache?.data
 }
 
 export function resetClineRecommendedModelsCacheForTests(): void {

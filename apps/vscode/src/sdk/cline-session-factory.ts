@@ -8,6 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
+import { BlockList, isIP } from "node:net"
 import {
 	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
@@ -15,6 +16,7 @@ import {
 	getProviderAuthHandler,
 	type ProviderSettings,
 	readCompactionStrategyGlobally,
+	resolveClineDefaultModelId,
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
@@ -35,13 +37,12 @@ import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
-import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { fetch } from "@/shared/net"
+import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -51,6 +52,12 @@ import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
+import {
+	isReasoningEffort,
+	normalizeProviderReasoningSettings,
+	type ProviderReasoningSettings,
+	type SessionReasoningConfig,
+} from "./provider-reasoning"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
@@ -76,6 +83,11 @@ export interface SessionConfigInput {
 	workspaceRoot?: string
 	/** Current mode (act/plan) */
 	mode?: Mode
+	/** Runtime identity when execution happens outside the extension host. */
+	runtime?: {
+		modelSelection: { providerId: string; modelId: string }
+		platform: string
+	}
 }
 
 /** Active session state tracked by the factory */
@@ -84,6 +96,12 @@ export interface ActiveSession {
 	sessionId: string
 	/** The config used to start the active session. */
 	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
+	/**
+	 * The mode the session's tools were built for. It can differ from the
+	 * persisted mode setting while a start or rebuild is in flight, so mode
+	 * switches compare against this rather than the setting.
+	 */
+	mode?: Mode
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
@@ -92,6 +110,12 @@ export interface ActiveSession {
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+	/**
+	 * Prompts Core holds in this session's queue. Core drains the queue itself
+	 * as soon as a turn ends, so a session with queued prompts is about to run
+	 * again and is not idle for passive rebuilds.
+	 */
+	queuedPromptCount: number
 }
 
 function createSdkLogger() {
@@ -133,19 +157,39 @@ async function resolveIsMultiRootWorkspace(): Promise<boolean> {
 	}
 }
 
+/**
+ * Client identity the SDK reports for this host: the session's
+ * `extensionContext.client`, and the source of the Cline surface headers
+ * (`X-CLIENT-TYPE`, `X-PLATFORM`, …). Standalone requests (commit message
+ * generation) call this too, so a one-shot request and a task from the same
+ * host report the same client by construction — there is no second mapping
+ * to keep in step. Falls back to the extension's own identity when the host
+ * bridge can't answer.
+ */
+export interface HostClientContext {
+	name: string
+	version: string
+	platform?: string
+	platformVersion?: string
+	isMultiRoot: boolean
+}
+
+export async function resolveClineRequestClientContext(): Promise<HostClientContext> {
+	const [hostIdentity, isMultiRoot] = await Promise.all([resolveHostIdentity(), resolveIsMultiRootWorkspace()])
+	return {
+		name: hostIdentity?.clineType || ClineClient.VSCode,
+		version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+		platform: hostIdentity?.platform || undefined,
+		platformVersion: hostIdentity?.version || undefined,
+		isMultiRoot,
+	}
+}
+
 function resolveWorkspaceName(workspacePath: string): string {
 	const trimmed = workspacePath.trim()
 	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
 	const name = withoutTrailingSeparators.split(/[\\/]/).filter(Boolean).pop()?.trim()
 	return name || "workspace"
-}
-
-type ReasoningEffort = NonNullable<CoreSessionConfig["reasoningEffort"]>
-type ProviderReasoningSettings = NonNullable<ProviderSettings["reasoning"]>
-type SessionReasoningConfig = Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
-
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
-	return value === "low" || value === "medium" || value === "high" || value === "xhigh"
 }
 
 function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | undefined): boolean {
@@ -154,44 +198,6 @@ function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | 
 
 function providerSettingsProviderId(providerId: string): string {
 	return toSdkProviderId(providerId)
-}
-
-/**
- * Convert SDK provider-level reasoning settings into the SDK session fields that
- * are actually forwarded as model options. Keep `thinking` and
- * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
- *
- * A persisted `budgetTokens` without an effort (written by older extension
- * versions or the legacy-state migration) is honored by mapping the budget
- * onto the effort scale, so users who had extended thinking enabled keep it
- * enabled after upgrading to the effort-based control.
- */
-export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
-	if (!reasoning) {
-		return {}
-	}
-
-	if (reasoning.enabled === false || reasoning.effort === "none") {
-		return { thinking: false }
-	}
-
-	const effort = isReasoningEffort(reasoning.effort)
-		? reasoning.effort
-		: reasoningEffortFromThinkingBudget(reasoning.budgetTokens)
-
-	if (reasoning.enabled === true) {
-		return {
-			thinking: true,
-			...(effort ? { reasoningEffort: effort } : {}),
-		}
-	}
-
-	if (isReasoningEffort(reasoning.effort)) {
-		return { reasoningEffort: reasoning.effort }
-	}
-
-	// Legacy budget with no explicit enabled/effort: treat as thinking-on.
-	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
@@ -354,7 +360,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
-	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	fireworks: "fireworksApiKey",
@@ -570,7 +575,14 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
+	const sdkProviderId = toSdkProviderId(providerId)
+	// OpenAI Compatible endpoints are user-supplied, so use the URL as entered
+	// rather than inheriting the OpenAI default `/v1` path.
+	if (sdkProviderId === "openai-compatible") {
+		return trimmed
+	}
+
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}
@@ -613,6 +625,55 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Resolve Azure OpenAI settings (API version / Entra ID auth) for the OpenAI
+ * Compatible provider. The webview saves them only to legacy state
+ * (`azureApiVersion` / `azureIdentity`); the providers.json `azure` block is
+ * the fallback for entries written by the CLI onboarding or the one-shot
+ * legacy migration. Without this mapping the SDK gateway never appends
+ * `?api-version=` to Azure deployment URLs and Azure rejects every request
+ * with "Resource not found" (#13655).
+ *
+ * Values resolved from legacy state are also mirrored into providers.json so
+ * the CLI — which reads only providers.json — sees the same Azure
+ * configuration the extension uses. The legacy migration never updates
+ * existing entries, so this mirror is the only ongoing sync for these fields.
+ */
+export function resolveAzureProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "azure"> | undefined {
+	const apiVersion = config.azureApiVersion?.trim() || undefined
+	const useIdentity = typeof config.azureIdentity === "boolean" ? config.azureIdentity : undefined
+
+	let stored: ProviderSettings | undefined
+	try {
+		stored = getProviderSettingsManager().getProviderSettings("openai-compatible")
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json")
+	}
+
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return stored?.azure ? { azure: stored.azure } : undefined
+	}
+
+	const azure: NonNullable<ProviderSettings["azure"]> = {
+		...(stored?.azure ?? {}),
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
+	}
+
+	if (stored?.azure?.apiVersion !== azure.apiVersion || stored?.azure?.useIdentity !== azure.useIdentity) {
+		try {
+			getProviderSettingsManager().saveProviderSettings(
+				{ ...(stored ?? {}), provider: "openai-compatible", azure },
+				{ setLastUsed: false },
+			)
+		} catch {
+			Logger.warn("[SessionFactory] Failed to mirror Azure settings into providers.json")
+		}
+	}
+
+	return { azure }
+}
+
 type OllamaProviderConfig = {
 	modelInfo?: { id: string; name: string; contextWindow: number }
 	timeoutMs?: number
@@ -647,6 +708,56 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 		...(typeof timeoutMs === "number" && timeoutMs > 0 ? { timeoutMs } : {}),
 		...(modelId ? { modelInfo: { id: modelId, name: modelId, contextWindow } } : {}),
 	}
+}
+
+/**
+ * Providers whose base URL commonly points at a local model server. Those
+ * can spend longer than undici's 300s idle timeouts producing the first
+ * token, so they get `fetchWithoutIdleTimeouts` when the base URL is on the
+ * local network. Remote gateways (and every other provider) keep the
+ * proxy-aware fetch: on VS Code it honours `http.proxy`, which
+ * `fetchWithoutIdleTimeouts` cannot, and it keeps the dead-connection cap.
+ */
+const LOCAL_SERVER_PROVIDERS = new Set(["lmstudio", "ollama", "openai-compatible", "litellm"])
+
+const LOCAL_NETWORK_ADDRESSES = new BlockList()
+for (const [address, prefix] of [
+	["127.0.0.0", 8],
+	["0.0.0.0", 32],
+	["10.0.0.0", 8],
+	["172.16.0.0", 12],
+	["192.168.0.0", 16],
+	["169.254.0.0", 16],
+	["100.64.0.0", 10],
+] as const) {
+	LOCAL_NETWORK_ADDRESSES.addSubnet(address, prefix, "ipv4")
+}
+LOCAL_NETWORK_ADDRESSES.addAddress("::1", "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fc00::", 7, "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fe80::", 10, "ipv6")
+
+// An unset base URL means the provider's localhost default.
+function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
+	if (!baseUrl) {
+		return true
+	}
+	let host: string
+	try {
+		host = new URL(baseUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase()
+	} catch {
+		return false
+	}
+	// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) against the
+	// IPv4 rules, so no unwrapping is needed.
+	const family = isIP(host)
+	if (family) {
+		return LOCAL_NETWORK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
+	}
+	return !host.includes(".") || /\.(localhost|local|internal)$/.test(host)
+}
+
+export function resolveProviderFetch(sdkProviderId: string, baseUrl: string | undefined): typeof globalThis.fetch {
+	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) && isLocalNetworkUrl(baseUrl) ? fetchWithoutIdleTimeouts : fetch
 }
 
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
@@ -787,6 +898,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let azureProviderConfig: Pick<ProviderSettings, "azure"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -796,7 +908,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// builds or other hosts may carry SDK catalog spellings (e.g.
 		// `openai-compatible`); fold them back to the legacy spelling the
 		// provider-keyed maps below are keyed by.
-		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		const modeProvider =
+			input.runtime?.modelSelection.providerId ??
+			(mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider)
 		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
@@ -804,7 +918,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			apiKey = resolveApiKey(providerId, apiConfig)
 
 			// Resolve model ID
-			modelId = resolveModelId(providerId, mode, apiConfig)
+			modelId = input.runtime?.modelSelection.modelId ?? resolveModelId(providerId, mode, apiConfig)
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
@@ -832,6 +946,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "ollama") {
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
+			}
+
+			// The OpenAI Compatible provider is spelled "openai" after the
+			// legacy fold above; keep the SDK spelling as a defensive alias.
+			if (providerId === "openai" || providerId === "openai-compatible") {
+				azureProviderConfig = resolveAzureProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -885,6 +1005,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 		modelId = modelId || ""
 	} else {
+		// A Cline user with no saved model starts on the first free model
+		// (live feed, else bundled list, else the Cline default).
+		if (!modelId && providerId === "cline") {
+			modelId = await resolveClineDefaultModelId().catch(() => undefined)
+		}
 		modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
 	}
 	if (!apiKey && apiConfig) {
@@ -923,7 +1048,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
-			platform: process.platform,
+			platform: input.runtime?.platform ?? process.platform,
 			// The extension never exposes switch_to_act_mode (unlike the CLI):
 			// matching the legacy extension, the user must flip the Plan/Act
 			// toggle themselves, so the plan contract must not tell the model to
@@ -960,8 +1085,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
-	const hostIdentity = await resolveHostIdentity()
-	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	const client = await resolveClineRequestClientContext()
 	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
 	try {
 		// Constructing the settings manager loads providers.json and models.json into
@@ -994,6 +1118,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
 		...(cloudProviderConfig ?? {}),
+		// Only spread when defined: an explicit `azure: undefined` key would
+		// clobber the providers.json azure block core merges in downstream
+		// (buildProviderConfig spreads this session config over stored settings).
+		...(azureProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
@@ -1004,7 +1132,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// straight from providerConfig — notably the compaction summarizer, which
 		// otherwise falls back to a small default output cap (CLINE-2911).
 		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
-		fetch,
+		fetch: resolveProviderFetch(sdkProviderId, baseUrl),
 	}
 
 	const config: CoreSessionConfig = {
@@ -1043,19 +1171,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		logger: sdkLogger,
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
-			client: {
-				name: hostIdentity?.clineType || ClineClient.VSCode,
-				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
-				platform: hostIdentity?.platform || undefined,
-				platformVersion: hostIdentity?.version || undefined,
-				isMultiRoot,
-			},
+			client,
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,
 				workspaceName: resolveWorkspaceName(workspaceRoot),
 				ide: "VS Code",
-				platform: process.platform,
+				platform: input.runtime?.platform ?? process.platform,
 				mode: mode === "plan" ? "plan" : "act",
 			},
 			logger: sdkLogger,

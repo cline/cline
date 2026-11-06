@@ -1,6 +1,7 @@
 import type {
 	AgentExtension,
 	AgentHooks,
+	AgentRuntimeEvent,
 	AgentTool,
 	AgentToolContext,
 	ConsecutiveMistakeLimitDecision,
@@ -53,7 +54,7 @@ import type {
 	LocalRuntimeStartOptions,
 	RuntimeSessionConfig,
 } from "../../runtime/host/runtime-host";
-import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { loadRulesForSystemPromptFromRecords } from "../../runtime/safety/rules";
 import type { CoreSessionConfig } from "../../types/config";
 
 type RequestCapability = (
@@ -116,6 +117,22 @@ function parseToolContribution(
 			? record.capabilityName.trim()
 			: "";
 	const inputSchema = cloneRecord(record.inputSchema);
+	const policyDependencies = record.policyDependencies;
+	const executionMode = record.executionMode;
+	if (
+		executionMode !== undefined &&
+		executionMode !== "sequential" &&
+		executionMode !== "parallel"
+	)
+		return undefined;
+	if (
+		policyDependencies !== undefined &&
+		(!Array.isArray(policyDependencies) ||
+			!policyDependencies.every(
+				(name): name is string => typeof name === "string" && name.length > 0,
+			))
+	)
+		return undefined;
 	if (
 		!name ||
 		!description ||
@@ -132,6 +149,11 @@ function parseToolContribution(
 		name,
 		description,
 		inputSchema,
+		...(policyDependencies === undefined ? {} : { policyDependencies }),
+		...(executionMode === undefined ? {} : { executionMode }),
+		...(typeof record.successContext === "string"
+			? { successContext: record.successContext }
+			: {}),
 		...(cloneRecord(record.lifecycle)
 			? { lifecycle: cloneRecord(record.lifecycle) }
 			: {}),
@@ -401,11 +423,7 @@ function createUserInstructionServiceProxy(
 						id: "cline-hub-user-instructions:rules",
 						source: "hub-user-instructions",
 						content: () =>
-							formatRulesForSystemPrompt(
-								snapshot.records.rule
-									.map((record) => record.item)
-									.filter((rule) => rule.disabled !== true),
-							),
+							loadRulesForSystemPromptFromRecords(snapshot.records.rule),
 					});
 				}
 				if (options.registerSkillsTool) {
@@ -482,6 +500,9 @@ function createToolProxies(
 		description: contribution.description,
 		inputSchema: contribution.inputSchema,
 		lifecycle: contribution.lifecycle as AgentTool["lifecycle"],
+		successContext: contribution.successContext,
+		policyDependencies: contribution.policyDependencies,
+		executionMode: contribution.executionMode,
 		async execute(input, context) {
 			const response = await requestCapability(
 				sessionId,
@@ -503,6 +524,18 @@ function createToolProxies(
 	}));
 }
 
+// Per-chunk stream events never leave the hub as hook traffic. A proxied
+// onEvent call serializes the full runtime snapshot, persists it as a
+// capability event, and blocks the agent loop on a client round trip, so
+// forwarding every streamed token turned a reasoning model's output rate into
+// hundreds of KB of IPC and SQLite writes per chunk (#14091).
+const STREAMING_EVENT_TYPES = new Set<AgentRuntimeEvent["type"]>([
+	"assistant-text-delta",
+	"assistant-reasoning-delta",
+	"tool-call-delta",
+	"tool-updated",
+]);
+
 function createHookProxies(
 	sessionId: string,
 	targetClientId: string,
@@ -516,6 +549,12 @@ function createHookProxies(
 		const contribution = available.get(name);
 		if (!contribution) continue;
 		hooks[name] = async (ctx: unknown) => {
+			if (
+				name === "onEvent" &&
+				STREAMING_EVENT_TYPES.has((ctx as AgentRuntimeEvent).type)
+			) {
+				return undefined;
+			}
 			const response = await requestCapability(
 				sessionId,
 				contribution.capabilityName,

@@ -1,4 +1,7 @@
-import { projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	projectSessionMessagesForDisplay,
+	resolveMessageDisplayRole,
+} from "@cline/core";
 import {
 	formatDisplayUserInput,
 	isGeneratedMedia,
@@ -55,6 +58,16 @@ function sessionTitle(record: Record<string, unknown>): string {
 	const prompt = asString(record.prompt) ?? asString(metadata.prompt);
 	if (prompt) return prompt.length > 34 ? `${prompt.slice(0, 31)}...` : prompt;
 	return basename(asString(record.workspaceRoot) ?? asString(record.cwd));
+}
+
+export function formatClientDetails(client: TrackedClient): string {
+	const details = [
+		client.version ? `v${client.version}` : undefined,
+		client.pid !== undefined ? `pid ${client.pid}` : undefined,
+	].filter(Boolean);
+	return details.length > 0
+		? `${formatClientName(client)} (${details.join(", ")})`
+		: formatClientName(client);
 }
 
 export function formatClientName(client: TrackedClient): string {
@@ -210,7 +223,7 @@ export function mapHistoryToWebviewMessages(
 				? (message as unknown as Record<string, unknown>)
 				: { content: message };
 		const messageKey = asString(record.id) ?? `history-${sourceIndex}`;
-		const rawRole = asString(record.role)?.toLowerCase();
+		const rawRole = resolveMessageDisplayRole(record);
 		let role: WebviewChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
 				? rawRole

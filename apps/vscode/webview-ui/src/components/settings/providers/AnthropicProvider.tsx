@@ -1,6 +1,6 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -11,7 +11,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { getModeSpecificFields } from "../utils/providerUtils"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "anthropic"
@@ -30,8 +30,7 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
 	const {
@@ -54,8 +53,6 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		write,
 	})
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
-	const adaptiveThinkingDefaultEffort =
-		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))
@@ -82,8 +79,8 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		)
 	}
 
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({ reasoning: { enabled: effort !== "none", effort } }).catch((err) =>
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) =>
 			console.error("Failed to update Anthropic reasoning effort:", err),
 		)
 	}
@@ -122,17 +119,17 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						<ReasoningEffortSelector
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
-							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
+							value={reasoningEffort}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
+							value={reasoningEffort}
 						/>
 					) : null}
 

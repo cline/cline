@@ -7,6 +7,7 @@ import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
 	isModelToolEnabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -14,6 +15,7 @@ import {
 	readToolAutoApproveGlobally,
 	readTuiThemeGlobally,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
@@ -359,6 +361,22 @@ describe("global-settings", () => {
 			// Blank values normalize to unset instead of persisting whitespace.
 			writeGlobalSettings({ tuiTheme: "  " });
 			expect(readTuiThemeGlobally()).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the cloud model globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCloudModelIdGlobally()).toBeUndefined();
+			setCloudModelIdGlobally("cline-pass/kimi-k3.1-pro");
+			expect(readCloudModelIdGlobally()).toBe("cline-pass/kimi-k3.1-pro");
+			writeGlobalSettings({ cloudModelId: "  " });
+			expect(readCloudModelIdGlobally()).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

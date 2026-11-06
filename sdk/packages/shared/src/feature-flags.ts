@@ -1,10 +1,14 @@
 export const FeatureFlag = {
 	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
-	/** Makes the Cloud sessions opt-in visible in the Cline Code desktop app. */
+	/** Enables Cloud sessions in the Cline Code desktop app. */
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
+	/** Enables Composio connectors for the signed-in Cline account. */
+	CLINE_COMPOSIO_BETA: "CLINE_COMPOSIO_BETA",
+	/** Tells new cloud session agents to verify visual changes with computer use. */
+	CLOUD_COMPUTER_USE: "cloud-computer-use",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -30,6 +34,10 @@ export interface FeatureFlagsContext {
 	distinctId?: string;
 	/** Authenticated Cline account/user ID, when available. */
 	userId?: string | null;
+	/**
+	 * Authenticated account email, when available. Providers do not send it anywhere.
+	 */
+	email?: string | null;
 	/** Optional SDK consumer name, e.g. `my-production-app`. */
 	clientName?: string;
 }
@@ -68,6 +76,8 @@ export const FeatureFlagDefaultValue: Partial<
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
+	[FeatureFlag.CLINE_COMPOSIO_BETA]: false,
+	[FeatureFlag.CLOUD_COMPUTER_USE]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

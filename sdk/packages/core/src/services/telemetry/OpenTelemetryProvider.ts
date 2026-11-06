@@ -1,3 +1,4 @@
+import { LangfuseAttributesSpanProcessor } from "@cline/llms";
 import type {
 	BasicLogger,
 	ITelemetryService,
@@ -126,6 +127,13 @@ export interface OpenTelemetryProviderOptions
 	> {
 	serviceName?: string;
 	serviceVersion?: string;
+	/**
+	 * Extra OTel resource attributes stamped on every span, log, and metric
+	 * this provider exports (collectors and Langfuse surface them as
+	 * `resourceAttributes.*`). For process-level facts such as which client
+	 * started a shared hub daemon; per-event metadata belongs on the event.
+	 */
+	resourceAttributes?: Record<string, string | number | boolean>;
 	enabled?: boolean;
 	logsExporter?: string | OpenTelemetryExporterKind[];
 	metricsExporter?: string | OpenTelemetryExporterKind[];
@@ -163,6 +171,7 @@ export class OpenTelemetryProvider {
 	constructor(options: OpenTelemetryProviderOptions = {}) {
 		this.options = options;
 		const resource = resourceFromAttributes({
+			...options.resourceAttributes,
 			[ATTR_SERVICE_NAME]: options.serviceName ?? "cline",
 			...(options.serviceVersion
 				? { [ATTR_SERVICE_VERSION]: options.serviceVersion }
@@ -312,7 +321,9 @@ export class OpenTelemetryProvider {
 
 		const tracerProvider = new NodeTracerProvider({
 			resource,
-			spanProcessors: processors,
+			spanProcessors: hasOtlpProcessor
+				? [new LangfuseAttributesSpanProcessor(), ...processors]
+				: processors,
 		});
 		if (hasOtlpProcessor) {
 			// Console-only tracing must not read as the collector relay

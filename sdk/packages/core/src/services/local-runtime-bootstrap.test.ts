@@ -273,6 +273,95 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it.each([
+		{ label: "missing", systemPrompt: undefined },
+		{ label: "blank", systemPrompt: " \n\t" },
+	])("builds the default system prompt from execution-host workspace context when the prompt is $label", async ({
+		systemPrompt,
+	}) => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const workspaceRoot = mkdtempSync(
+			join(tmpdir(), "remote-bootstrap-prompt-"),
+		);
+		const input = createStartInput();
+		const config = input.config as Omit<
+			typeof input.config,
+			"mode" | "systemPrompt"
+		> & {
+			mode: "act" | "plan";
+			rules?: string;
+			systemPrompt?: string;
+		};
+		config.cwd = workspaceRoot;
+		config.workspaceRoot = workspaceRoot;
+		if (systemPrompt === undefined) {
+			delete config.systemPrompt;
+		} else {
+			config.systemPrompt = systemPrompt;
+		}
+		config.mode = "plan";
+		config.rules = "# Remote Rule\n\nOnly inspect the execution host.";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-remote-prompt",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.systemPrompt).toContain(
+			`1. Platform: ${process.platform}`,
+		);
+		expect(bootstrap.config.systemPrompt).toContain(
+			`4. Working Directory: ${workspaceRoot}`,
+		);
+		expect(bootstrap.config.systemPrompt).toContain(
+			"# Workspace Configuration",
+		);
+		expect(bootstrap.config.systemPrompt).toContain(workspaceRoot);
+		expect(bootstrap.config.systemPrompt).toContain(
+			"Only inspect the execution host.",
+		);
+		expect(bootstrap.config.systemPrompt).toContain("# Plan Mode");
+		expect(bootstrap.runtimeBuilderInput.config.systemPrompt).toBe(
+			bootstrap.config.systemPrompt,
+		);
+	});
+
+	it("preserves an explicit system prompt exactly", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const input = createStartInput();
+		const explicitPrompt = "  Use the caller-owned prompt verbatim.  \n";
+		input.config.systemPrompt = explicitPrompt;
+		const config = input.config as typeof input.config & { rules?: string };
+		config.rules = "This rule belongs only in a generated prompt.";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-explicit-prompt",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.systemPrompt).toBe(explicitPrompt);
+	});
+
 	it("filters globally disabled plugin tools before extension setup", async () => {
 		vi.resetModules();
 		resetModulesAfterEach = true;
@@ -433,6 +522,189 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		);
 
 		expect(registeredTools).toEqual(["compatible_tool"]);
+	});
+
+	it("gives two sessions only the plugins their policies enable and reports failures", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-plugin-policy-bootstrap-")),
+		);
+		setHomeDir(join(root, "home"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "global-settings.json");
+		const { PluginRegistry, resetProcessPluginRegistryForTests } = await import(
+			"../extensions/plugin/plugin-registry"
+		);
+		resetProcessPluginRegistryForTests(new PluginRegistry());
+		const writePlugin = (name: string, body: string) => {
+			const path = join(root, `${name}.js`);
+			writeFileSync(path, body, "utf8");
+			return path;
+		};
+		const toolPlugin = (name: string) =>
+			writePlugin(
+				name,
+				`export default {
+	name: "${name}",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({ name: "${name}_tool", description: "", inputSchema: {}, execute: () => "ok" });
+	},
+};`,
+			);
+		const pluginPaths = [
+			toolPlugin("alpha"),
+			toolPlugin("beta"),
+			writePlugin("broken", `throw new Error("broken on import");`),
+		];
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const start = (sessionId: string, plugins: Record<string, unknown>) =>
+			prepareLocalRuntimeBootstrap({
+				input: { ...createStartInput(), plugins } as never,
+				localRuntime: { pluginPaths } as never,
+				sessionId,
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+		const pluginNames = (
+			bootstrap: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>,
+		) =>
+			(bootstrap.extensions ?? [])
+				.map((extension) => extension.name)
+				.filter((name) => ["alpha", "beta", "broken"].includes(name));
+
+		try {
+			const first = await start("sess-a", { beta: { enabled: false } });
+			const second = await start("sess-b", {
+				"*": { enabled: false },
+				beta: { enabled: true },
+			});
+
+			expect(pluginNames(first)).toEqual(["alpha"]);
+			expect(pluginNames(second)).toEqual(["beta"]);
+			expect(first.pluginIssues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						name: "broken",
+						state: "failed",
+						lastError: expect.objectContaining({
+							phase: "import",
+							message: expect.stringContaining("broken on import"),
+						}),
+					}),
+					expect.objectContaining({
+						name: "beta",
+						state: "disabled",
+						reason: "session_policy",
+					}),
+				]),
+			);
+		} finally {
+			resetProcessPluginRegistryForTests(undefined);
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("gives new or reloaded plugin tools only to sessions started afterwards", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-plugin-new-sessions-")),
+		);
+		setHomeDir(join(root, "home"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "global-settings.json");
+		const workspace = join(root, "workspace");
+		const pluginDir = join(workspace, ".cline", "plugins");
+		mkdirSync(pluginDir, { recursive: true });
+		const { PluginRegistry, resetProcessPluginRegistryForTests } = await import(
+			"../extensions/plugin/plugin-registry"
+		);
+		const registry = new PluginRegistry();
+		resetProcessPluginRegistryForTests(registry);
+		const writePlugin = (file: string, name: string, toolName: string) =>
+			writeFileSync(
+				join(pluginDir, file),
+				`export default {
+	name: "${name}",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({ name: "${toolName}", description: "", inputSchema: {}, execute: () => "${toolName}" });
+	},
+};`,
+				"utf8",
+			);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const start = (sessionId: string) =>
+			prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspace,
+						workspaceRoot: workspace,
+					},
+				},
+				sessionId,
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+		// Setup runs on a session's first turn, which can come long after it
+		// started; run it explicitly to see which tools each session ends up with.
+		const toolsOf = async (
+			bootstrap: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>,
+		) => {
+			const names: string[] = [];
+			for (const extension of bootstrap.extensions ?? []) {
+				if (!["existing", "added"].includes(extension.name)) continue;
+				await extension.setup?.(
+					{
+						registerTool: (tool: { name: string }) => names.push(tool.name),
+						registerCommand: () => {},
+						registerMessageBuilder: () => {},
+						registerRule: () => {},
+						registerProvider: () => {},
+						registerAutomationEventType: () => {},
+						registerMcpServer: () => {},
+					},
+					{},
+				);
+			}
+			return names.sort();
+		};
+
+		try {
+			writePlugin("existing.js", "existing", "tool_v1");
+			const before = await start("started-before");
+
+			// Change the plugins while that session is still waiting for its
+			// first turn: edit one plugin and add another.
+			writePlugin("existing.js", "existing", "tool_v2");
+			writePlugin("added.js", "added", "added_tool");
+			const after = await start("started-after");
+
+			expect(await toolsOf(before)).toEqual(["tool_v1"]);
+			expect(await toolsOf(after)).toEqual(["added_tool", "tool_v2"]);
+
+			// An explicit reload behaves the same way.
+			writePlugin("existing.js", "existing", "tool_v3");
+			const beforeReload = await start("started-before-reload");
+			writePlugin("existing.js", "existing", "tool_v4");
+			await registry.reload("existing");
+			const afterReload = await start("started-after-reload");
+			expect(await toolsOf(beforeReload)).toEqual(["added_tool", "tool_v3"]);
+			expect(await toolsOf(afterReload)).toEqual(["added_tool", "tool_v4"]);
+		} finally {
+			resetProcessPluginRegistryForTests(undefined);
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("threads active plugin skill directories into the runtime builder input", async () => {

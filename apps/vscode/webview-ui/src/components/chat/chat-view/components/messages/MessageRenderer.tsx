@@ -105,13 +105,14 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				message={messageOrGroup}
 				mode={mode}
-				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
+				onCancelCommand={() => messageHandlers.executeButtonAction({ type: "cancel" })}
 				onHeightChange={onHeightChange}
 				onLastRowContentChange={onLastRowContentChange}
 				onSetQuote={onSetQuote}
 				onToggleExpand={onToggleExpand}
 				reasoningContent={reasoningData.reasoning}
 				responseStarted={reasoningData.responseStarted}
+				retryFailedRequest={messageHandlers.retryFailedRequest}
 				sendMessageFromChatRow={messageHandlers.handleSendMessage}
 			/>
 		</div>

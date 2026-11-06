@@ -119,7 +119,8 @@ export function createSpawnAgentTool(
 ): AgentTool<SpawnAgentInput, SpawnAgentOutput> {
 	return createTool<SpawnAgentInput, SpawnAgentOutput>({
 		name: "spawn_agent",
-		description: `Spawn a sub-agent with a custom system prompt for specialized tasks. Use when delegating work that benefits from focused expertise.`,
+		executionMode: "parallel",
+		description: `Spawn a sub-agent with custom instructions for a specialized task. Waits for the sub-agent to finish and returns its result before your next step.`,
 		inputSchema: zodToJsonSchema(SpawnAgentInputSchema),
 		execute: async (input, context) => {
 			const tools = config.createSubAgentTools

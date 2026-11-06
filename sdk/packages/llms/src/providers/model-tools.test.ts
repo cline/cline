@@ -13,10 +13,19 @@ describe("supportsModelTool", () => {
 		["anthropic", undefined],
 		["openai-native", undefined],
 		["openai-codex", undefined],
-		["gemini", undefined],
 		["vertex", "gemini-3.1-pro-preview"],
 	])("supports native web search for %s / %s", (providerId, modelId) => {
 		expect(supportsModelTool({ providerId, modelId }, "web_search")).toBe(true);
+	});
+
+	it("does not offer native web search on the Gemini API", () => {
+		expect(
+			supportsModelTool(
+				{ providerId: "gemini", modelId: "gemini-3.5-flash-lite" },
+				"web_search",
+			),
+		).toBe(false);
+		expect(providerOffersModelTool("gemini", "web_search")).toBe(false);
 	});
 
 	it("normalizes aliases before resolving support", () => {

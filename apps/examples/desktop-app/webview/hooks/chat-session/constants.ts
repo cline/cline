@@ -1,8 +1,17 @@
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "@cline/llms/browser";
+import { CLINE_DEFAULT_MODEL_ID, isClineProvider } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+import { desktopClient } from "@/lib/desktop-client";
+import {
+	type ExecutionTarget,
+	readExecutionTargetFromWindow,
+	readModelSelectionStorageFromWindow,
+} from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
-import { readWorkspaceSelectionFromWindow } from "@/lib/workspace-paths";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	readWorkspaceSelectionFromWindow,
+} from "@/lib/workspace-paths";
 
 export const CHAT_TRANSPORT_UNAVAILABLE_MESSAGE =
 	"Chat connection is unavailable. Reopen the app window to restore realtime chat.";
@@ -13,12 +22,52 @@ export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
 export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-connection";
 
+const BUNDLED_DEFAULT_MODEL_ID =
+	GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ?? CLINE_DEFAULT_MODEL_ID;
+
+let liveDefaultModelId: string | undefined;
+let liveDefaultModelRequest: Promise<string | undefined> | undefined;
+
+/**
+ * Loads the live feed's first free model in the background. Never awaited by
+ * the UI: callers keep the bundled default until it resolves, and it resolves
+ * to undefined (keeping the bundled default) when the feed is unreachable.
+ */
+export function loadLiveClineDefaultModelId(): Promise<string | undefined> {
+	liveDefaultModelRequest ??= desktopClient
+		.invoke<{ free?: { id: string }[] }>("list_cline_recommended_models")
+		.then((response) => {
+			liveDefaultModelId = response?.free?.[0]?.id || undefined;
+			return liveDefaultModelId;
+		})
+		.catch(() => undefined);
+	return liveDefaultModelRequest;
+}
+
+/**
+ * Whether `config` is still the untouched new-user default, so a late live
+ * default may replace it without overriding anything the user chose.
+ */
+export function isUntouchedDefaultModel(config: ChatSessionConfig): boolean {
+	return (
+		config.provider === DEFAULT_CHAT_CONFIG.provider &&
+		config.model === BUNDLED_DEFAULT_MODEL_ID &&
+		// Cloud picks are stored under their own scope.
+		!readModelSelectionStorageFromWindow(config.executionTarget)
+			.lastModelByProvider[config.provider]
+	);
+}
+
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
+	executionTarget: "local",
+	repoUrl: undefined,
 	workspaceRoot: "",
 	cwd: "",
+	environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	provider: "cline",
-	model: CLINE_DEFAULT_MODEL_ID,
+	// New users start on the first bundled free model.
+	model: BUNDLED_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
 	mode: "act",
 	systemPrompt: undefined,
@@ -31,9 +80,12 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-export function getInitialChatConfig(): ChatSessionConfig {
+export function getInitialChatConfig(
+	environmentId: string,
+	options?: { executionTarget?: ExecutionTarget },
+): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
-	const workspaceSelection = readWorkspaceSelectionFromWindow();
+	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider
 		? (selection.lastModelByProvider[rememberedProvider] ??
@@ -47,13 +99,47 @@ export function getInitialChatConfig(): ChatSessionConfig {
 		(provider === DEFAULT_CHAT_CONFIG.provider
 			? rememberedModelForDefaultProvider
 			: undefined) ||
-		DEFAULT_CHAT_CONFIG.model;
+		(liveDefaultModelId ?? DEFAULT_CHAT_CONFIG.model);
 
-	return {
+	const local: ChatSessionConfig = {
 		...DEFAULT_CHAT_CONFIG,
+		environmentId,
 		provider,
 		model,
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
 	};
+	// Cloud preferences apply only to the local environment.
+	const executionTarget =
+		options?.executionTarget ??
+		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? readExecutionTargetFromWindow()
+			: "local");
+	if (executionTarget !== "cloud") {
+		return local;
+	}
+	return {
+		...local,
+		executionTarget: "cloud",
+		provider: DEFAULT_CHAT_CONFIG.provider,
+		model: getInitialCloudModel(provider, model),
+		workspaceRoot: "",
+		cwd: "",
+	};
+}
+
+/**
+ * The Cloud model picked in the model picker, else the local Cline/ClinePass
+ * model. Once the cloud catalog loads, the picker replaces a model it does not
+ * offer with the first ClinePass model for local ClinePass users, else the
+ * Cline default.
+ */
+export function getInitialCloudModel(
+	localProvider: string,
+	localModel: string,
+): string {
+	return (
+		readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
+		(isClineProvider(localProvider) ? localModel : CLINE_DEFAULT_MODEL_ID)
+	);
 }
