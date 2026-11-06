@@ -30,7 +30,10 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget, currentCloudTask } = useExtensionState()
+	const cloudSessionId = currentCloudTask?.sessionId
+	const latestCloudSessionId = useRef(cloudSessionId)
+	latestCloudSessionId.current = cloudSessionId
 	const {
 		setInputValue,
 		activeQuote,
@@ -146,6 +149,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}),
 					).catch((error) => console.error("Failed to track prompt submit:", error))
 				}
+				let clearedDraftRevision: number | undefined
 				const clearSentMessageState = () => {
 					setInputValue("")
 					setActiveQuote(null)
@@ -153,13 +157,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages([])
 					setSelectedFiles([])
 					setEnableButtons(false)
+					if (cloudSessionId) clearedDraftRevision = chatState.getDraftSnapshot().revision
 				}
 				const restorePendingMessageState = () => {
-					setInputValue(text)
-					setActiveQuote(activeQuote)
+					if (cloudSessionId && latestCloudSessionId.current !== cloudSessionId) return
+					if (!cloudSessionId || chatState.getDraftSnapshot().revision === clearedDraftRevision) {
+						setInputValue(text)
+						setActiveQuote(activeQuote)
+						setSelectedImages(images)
+						setSelectedFiles(files)
+					}
 					setSendingDisabled(sendingDisabled)
-					setSelectedImages(images)
-					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
 				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
@@ -217,7 +225,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						if (!cloudSessionId || pendingResponseIdRef.current === id) restorePendingMessageState()
 						throw error
 					}
 				}
@@ -438,6 +446,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
+			cloudSessionId,
 		],
 	)
 
