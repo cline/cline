@@ -5,6 +5,7 @@ import type {
 	AgentBeforeToolContext,
 	AgentExtension,
 	AgentHooks,
+	AgentMessage,
 	AgentRunLifecycleContext,
 	AgentRuntimeEvent,
 	BasicLogger,
@@ -574,6 +575,23 @@ function textFromMessageContent(
 		.join("");
 }
 
+function latestUserPromptMessage(
+	snapshot: AgentRunLifecycleContext["snapshot"],
+): AgentMessage | undefined {
+	for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
+		const message = snapshot.messages[index];
+		// Injected hook-context blocks and runtime reminders are user-role
+		// messages with a system display role; they are not user prompts.
+		if (
+			message?.role === "user" &&
+			message.metadata?.displayRole !== "system"
+		) {
+			return message;
+		}
+	}
+	return undefined;
+}
+
 function beforeToolResultFromControl(
 	control: HookCommandControl | undefined,
 ):
@@ -649,6 +667,10 @@ export function createHookAuditHooks(options: {
 		appendFileSync(logPath, line, "utf8");
 	};
 
+	// Message ids already logged as prompt_submit; beforeRun fires on every
+	// run including continue(), whose snapshot still holds earlier prompts.
+	const loggedPromptIds = new Set<string>();
+
 	return {
 		beforeRun: async (ctx: AgentRunLifecycleContext) => {
 			const commandCtx = runStartContext(ctx, "");
@@ -657,6 +679,23 @@ export function createHookAuditHooks(options: {
 				hookName: "agent_start",
 				taskStart: { taskMetadata: {} },
 			});
+			// Orchestrated sessions seed the prompt into the runtime's
+			// initial messages; it is never emitted as message-added, so
+			// record it here the way the file hooks dispatch it. The
+			// message-added path in onEvent covers runtimes that receive
+			// the prompt as run input instead.
+			const promptMessage = latestUserPromptMessage(ctx.snapshot);
+			if (promptMessage && !loggedPromptIds.has(promptMessage.id)) {
+				loggedPromptIds.add(promptMessage.id);
+				append({
+					...createPayloadBase(commandCtx, runtimeOptions),
+					hookName: "prompt_submit",
+					userPromptSubmit: {
+						prompt: textFromMessageContent(promptMessage.content),
+						attachments: [],
+					},
+				});
+			}
 			return undefined;
 		},
 		beforeTool: async (ctx: AgentBeforeToolContext) => {
@@ -745,6 +784,7 @@ export function createHookAuditHooks(options: {
 				{ snapshot: event.snapshot },
 				textFromMessageContent(event.message.content),
 			);
+			loggedPromptIds.add(event.message.id);
 			append({
 				...createPayloadBase(commandCtx, runtimeOptions),
 				hookName: "prompt_submit",
@@ -986,53 +1026,78 @@ export function createHookConfigFileHooks(
 	};
 
 	const hooks: AgentHooks = {};
-	if (
+	const hasRunStartHooks =
 		(commandMap.agent_start?.length ?? 0) > 0 ||
-		(commandMap.agent_resume?.length ?? 0) > 0 ||
-		(commandMap.prompt_submit?.length ?? 0) > 0
-	) {
-		if (
-			(commandMap.agent_start?.length ?? 0) > 0 ||
-			(commandMap.agent_resume?.length ?? 0) > 0
-		) {
-			hooks.beforeRun = async (ctx: AgentRunLifecycleContext) => {
+		(commandMap.agent_resume?.length ?? 0) > 0;
+	const hasPromptSubmitHooks = (commandMap.prompt_submit?.length ?? 0) > 0;
+	// Message ids already dispatched as prompt_submit; beforeRun fires on
+	// every run including continue(), whose snapshot still holds earlier
+	// prompts that must not be dispatched twice.
+	const dispatchedPromptIds = new Set<string>();
+	if (hasRunStartHooks || hasPromptSubmitHooks) {
+		hooks.beforeRun = async (ctx: AgentRunLifecycleContext) => {
+			let control: HookCommandControl | undefined;
+			if (hasRunStartHooks) {
 				const hookName =
 					process.env.CLINE_HOOK_AGENT_RESUME === "1"
 						? "agent_resume"
 						: "agent_start";
-				const control = await runAgentStart(
+				control = await runAgentStart(
 					baseContextFromSnapshot(ctx.snapshot),
 					hookName,
 				);
-				return stopOrContextResultFromControl(control);
-			};
-		}
-		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
-			// prompt_submit dispatches on message-added, which has no return
-			// channel, so prompt hooks at this layer cannot cancel or inject
-			// context. Note the two host paths differ: a directly-driven
-			// runtime pushes the prompt as run input (visible here, absent
-			// from the beforeRun snapshot), while orchestrated sessions seed
-			// the prompt into the runtime's initial messages (visible to
-			// beforeRun, never emitted as message-added).
-			hooks.onEvent = async (event: AgentRuntimeEvent) => {
+			}
+			// Orchestrated sessions seed the prompt into the runtime's
+			// initial messages, so it shows up in the beforeRun snapshot but
+			// is never emitted as message-added; dispatch it here like the
+			// VS Code adapter does. The message-added path below covers
+			// runtimes that receive the prompt as run input instead. A
+			// cancelling run-start hook skips the prompt dispatch, as the
+			// extension does.
+			if (hasPromptSubmitHooks && control?.cancel !== true) {
+				const promptMessage = latestUserPromptMessage(ctx.snapshot);
 				if (
-					event.type !== "message-added" ||
-					event.message.role !== "user" ||
-					// Injected hook-context blocks are user-role messages with a
-					// system display role; they are not user prompts.
-					event.message.metadata?.displayRole === "system"
+					promptMessage &&
+					!dispatchedPromptIds.has(promptMessage.id)
 				) {
-					return;
+					dispatchedPromptIds.add(promptMessage.id);
+					await runPromptSubmit(
+						runStartContext(
+							ctx,
+							textFromMessageContent(promptMessage.content),
+						),
+					);
 				}
-				await runPromptSubmit(
-					runStartContext(
-						{ snapshot: event.snapshot },
-						textFromMessageContent(event.message.content),
-					),
-				);
-			};
-		}
+			}
+			return stopOrContextResultFromControl(control);
+		};
+	}
+	if (hasPromptSubmitHooks) {
+		// prompt_submit dispatches on message-added, which has no return
+		// channel, so prompt hooks at this layer cannot cancel or inject
+		// context. Note the two host paths differ: a directly-driven
+		// runtime pushes the prompt as run input (visible here, absent
+		// from the beforeRun snapshot), while orchestrated sessions seed
+		// the prompt into the runtime's initial messages (visible to
+		// beforeRun, never emitted as message-added).
+		hooks.onEvent = async (event: AgentRuntimeEvent) => {
+			if (
+				event.type !== "message-added" ||
+				event.message.role !== "user" ||
+				// Injected hook-context blocks are user-role messages with a
+				// system display role; they are not user prompts.
+				event.message.metadata?.displayRole === "system"
+			) {
+				return;
+			}
+			dispatchedPromptIds.add(event.message.id);
+			await runPromptSubmit(
+				runStartContext(
+					{ snapshot: event.snapshot },
+					textFromMessageContent(event.message.content),
+				),
+			);
+		};
 	}
 	if ((commandMap.tool_call?.length ?? 0) > 0) {
 		hooks.beforeTool = async (ctx: AgentBeforeToolContext) => {
