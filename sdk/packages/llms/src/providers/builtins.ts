@@ -891,6 +891,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "openuncensored",
+		name: "Open Uncensored",
+		description: "Uncensored and abliterated open-weight models",
+		family: "openai-compatible",
+		defaultModelId: "deepseek-v4.1-flash-1017-uncensored",
+		apiKeyEnv: ["OPENUNCENSORED_API_KEY"],
+		defaults: { baseUrl: "https://openuncensored.com/api/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
