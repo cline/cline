@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import { Badge } from "../components/badge";
 import { Button, IconButton } from "../components/button";
+import { Dialog } from "../components/dialog";
 import { ItemCard, type ItemCardProps } from "../components/item-card";
 import { Switch } from "../components/switch";
 
@@ -226,6 +227,51 @@ export const WarningStatus: Story = {
 export const ErrorStatus: Story = {
 	...TrailingStatus,
 	args: { ...TrailingStatus.args, actions: <StatusBadge status="failed" /> },
+};
+export const StatusInteraction: Story = {
+	...TrailingStatus,
+	args: { ...TrailingStatus.args, title: "Code review" },
+	render: function StatusInteraction(args) {
+		const [open, setOpen] = useState(false);
+		const [failed, setFailed] = useState(true);
+		return (
+			<>
+				<ItemCardExample
+					{...args}
+					primaryAction={{
+						label: "Open item details",
+						onClick: () => setOpen(true),
+					}}
+					actions={<StatusBadge status={failed ? "failed" : "installed"} />}
+				/>
+				<Dialog
+					open={open}
+					onOpenChange={setOpen}
+					title={args.title}
+					description={args.description}
+					size="sm"
+					footer={
+						failed ? (
+							<Button
+								onClick={() => {
+									setFailed(false);
+									setOpen(false);
+								}}
+							>
+								Retry installation
+							</Button>
+						) : undefined
+					}
+				>
+					<p>
+						{failed
+							? "The download timed out. Retry to update the card status."
+							: "Installation is complete."}
+					</p>
+				</Dialog>
+			</>
+		);
+	},
 };
 export const Selected: Story = { args: { selected: true } };
 export const EmptyDescription: Story = { args: { description: "" } };

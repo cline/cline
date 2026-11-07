@@ -3,6 +3,7 @@
 @import "./components/banner.css";
 @import "./components/detail-list-item.css";
 @import "./components/detail-list.css";
+@import "./components/dialog.css";
 @import "./components/empty-state.css";
 @import "./components/item-card.css";
 @import "./components/section-heading.css";

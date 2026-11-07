@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	Button, IconButton, Badge,
-	Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading,
+	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -84,11 +84,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge, Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading]) {
+for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-for (const name of ["button", "banner", "detail-list", "detail-list-item", "empty-state", "item-card", "section-heading"]) {
+for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "item-card", "section-heading"]) {
  const path = "./components/" + name + ".css";
  if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
   throw new Error("packed component stylesheet is missing: " + name);
@@ -242,7 +242,7 @@ async function verifyDeclarations(root: string): Promise<void> {
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, Banner, DetailList, DetailListItem, EmptyState, ItemCard, SectionHeading, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -251,8 +251,10 @@ createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
+createElement(AlertDialog, { open: false, onOpenChange() {}, title: "Confirm", description: "Continue?", confirmLabel: "Continue", onConfirm() {} });
 createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload", label: "Reload", onClick() {} }], ref: createRef<HTMLDivElement>() });
 createElement(DetailList, { ref: createRef<HTMLDListElement>() }, createElement(DetailListItem, { title: "Path", description: "/project" }));
+createElement(Dialog, { open: false, onOpenChange() {}, title: "Details" });
 createElement(EmptyState, { title: "No files", description: "Add a file." });
 createElement(ItemCard, { title: "Skill", description: "A reusable skill" });
 createElement(SectionHeading, { title: "Skills", count: 2 });
