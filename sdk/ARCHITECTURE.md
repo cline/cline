@@ -1372,3 +1372,7 @@ fixes, retries, evidence publication and assembling the opt-in
 The cloud computer-use prompt requests this delegation when available and keeps
 manual verification as a fallback. Report persistence, UI grouping, image access
 and rendering continue through the existing host boundaries.
+
+### Hub subscription reconnect shutdown
+
+Subscription reconnects stop recovering a managed Hub when the client closes or no subscriptions remain. The client checks this after a failed connection and again after Hub recovery, so an asynchronous recovery cannot reopen a closed client. This does not cancel daemon startup that has already begun.
