@@ -220,6 +220,11 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
+`Dialog` and `AlertDialog` portal to `document.body` by default. For scoped themes,
+pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
+that clip overflow or constrain fixed positioning. Use a callback ref stored
+in state to pass the mounted element.
+
 Do not import `theme.css` for this scoped setup. That entry point deliberately
 registers the complete, generic Cline utility vocabulary and is intended only
 for applications that want Cline to own those utility names globally.
@@ -935,6 +940,7 @@ the app. Key the provider by session ID when switching transcripts.
 
 Import these components from `@cline/ui` with theme tokens and
 `@cline/ui/components.css`. React 18.3 or 19 is required.
+`Dialog` and `AlertDialog` also require a compatible React DOM version.
 Hosts own data, navigation, persistence, loading state, and action callbacks.
 See Storybook for examples and visual variants.
 
@@ -1012,3 +1018,30 @@ The banner owns button size and tone; `destructive: true` opts into destructive 
 Use `onDismiss` to show its dismiss button and `dismissLabel` to customize the
 accessible name. The host removes the banner. Errors default to `role="alert"`;
 other tones default to `role="status"`. Override `role` for static content.
+
+### Dialog
+
+`Dialog` is controlled by `open` and `onOpenChange`; `title` supplies its accessible
+name. It supports `description`, scrollable children, and a host-owned `footer`.
+Footer buttons do not dismiss it automatically. Sizes are `sm` (32rem),
+`md` (40rem, default), and `lg` (48rem), bounded by the viewport.
+
+Escape, outside click, and the close button request dismissal. The content receives
+initial focus; focus returns to the opener if it remains mounted. Use
+`onOpenAutoFocus`/`onCloseAutoFocus` with `preventDefault()` to override this.
+`showCloseButton={false}` hides only the button; guard `onOpenChange` to prevent
+all dismissal while pending. Pass `portalContainer` for scoped themes.
+
+### Alert dialog
+
+`AlertDialog` is controlled by `open` and `onOpenChange`, with required `title`,
+`description`, `confirmLabel`, and `onConfirm`. Cancel receives initial focus
+unless disabled, when the dialog content receives focus. Focus returns to the
+opener if it remains mounted. Outside clicks do not dismiss it; Escape and
+actions request closure through `onOpenChange`.
+
+Call `event.preventDefault()` in `onConfirm` or `onCancel` to keep it open for
+asynchronous work. Promises are not awaited. Hosts handle errors, loading labels,
+`confirmDisabled`, and `cancelDisabled`; guard `onOpenChange` to block Escape
+while pending. `confirmTone` accepts Button tones and defaults to `neutral`;
+`cancelLabel` defaults to “Cancel”. Pass `portalContainer` for scoped themes.
