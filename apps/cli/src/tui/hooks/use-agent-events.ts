@@ -158,6 +158,9 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 							break;
 						}
 						case "reasoning": {
+							// Late reasoning must not split a single assistant message.
+							// This only affects display; the runtime retains the full output.
+							if (activeInlineStreamRef.current === "text") break;
 							const chunk =
 								event.redacted && !event.reasoning
 									? "[redacted]"
@@ -198,8 +201,12 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 				case "content_end": {
 					switch (event.contentType) {
 						case "text":
-						case "reasoning":
 							closeInlineStream();
+							break;
+						case "reasoning":
+							if (activeInlineStreamRef.current === "reasoning") {
+								closeInlineStream();
+							}
 							break;
 						case "tool": {
 							closeInlineStream();
