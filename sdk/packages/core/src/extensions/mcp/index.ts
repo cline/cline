@@ -49,6 +49,7 @@ export {
 	updateMcpSettingsFileSync,
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
+export { defaultMcpToolNameTransform } from "./name-transform";
 export type {
 	AuthorizeMcpServerOAuthOptions,
 	AuthorizeMcpServerOAuthResult,
