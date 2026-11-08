@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
+// Diff counts are part of the product's own copy, so pin the grouping locale:
+// the numbers must not change shape with the host locale.
+const COUNT_LOCALE = "en-US";
+
 export type AgentPullRequestCheck = {
 	name: string;
 	state: "pending" | "success" | "failure" | "skipped";
@@ -297,10 +301,10 @@ export function AgentPullRequestBar({
 											title={`${pr.additions} additions, ${pr.deletions} deletions`}
 										>
 											<span className="cline-ui-pr-bar__tone--success text-cline-ui-success-text">
-												+{pr.additions.toLocaleString()}
+												+{pr.additions.toLocaleString(COUNT_LOCALE)}
 											</span>{" "}
 											<span className="cline-ui-pr-bar__tone--failure text-cline-ui-error-text">
-												−{pr.deletions.toLocaleString()}
+												−{pr.deletions.toLocaleString(COUNT_LOCALE)}
 											</span>
 										</span>
 									)}

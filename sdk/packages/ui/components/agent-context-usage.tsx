@@ -2,6 +2,10 @@
 
 import type { ReactNode } from "react";
 
+// Token counts are part of the product's own copy, so pin the grouping locale:
+// a `pl-PL` host rendered "1 500" where the design and tests show "1,500".
+const COUNT_LOCALE = "en-US";
+
 /** Current request context metrics, not accumulated session token traffic. */
 export interface AgentContextUsageData {
 	tokensIn: number;
@@ -63,7 +67,7 @@ export function AgentContextUsage({
 	const circumference = 2 * Math.PI * radius;
 
 	return children({
-		triggerLabel: `Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`,
+		triggerLabel: `Context window: ${totalTokens.toLocaleString(COUNT_LOCALE)} of ${contextWindow.toLocaleString(COUNT_LOCALE)} tokens used (${percent}%)`,
 		ring: (
 			<svg
 				aria-hidden="true"
@@ -133,7 +137,7 @@ export function AgentContextUsage({
 					<div className="flex items-center justify-between gap-4">
 						<span className="text-cline-ui-muted-foreground">Input tokens</span>
 						<span className="font-cline-ui-mono text-cline-ui-foreground">
-							{usage.tokensIn.toLocaleString()}
+							{usage.tokensIn.toLocaleString(COUNT_LOCALE)}
 						</span>
 					</div>
 					<div className="flex items-center justify-between gap-4">
@@ -141,7 +145,7 @@ export function AgentContextUsage({
 							Output tokens
 						</span>
 						<span className="font-cline-ui-mono text-cline-ui-foreground">
-							{usage.tokensOut.toLocaleString()}
+							{usage.tokensOut.toLocaleString(COUNT_LOCALE)}
 						</span>
 					</div>
 					<div className="flex items-center justify-between gap-4">
@@ -149,7 +153,7 @@ export function AgentContextUsage({
 							Cached tokens
 						</span>
 						<span className="font-cline-ui-mono text-cline-ui-foreground">
-							{usage.cacheReadTokens.toLocaleString()}
+							{usage.cacheReadTokens.toLocaleString(COUNT_LOCALE)}
 						</span>
 					</div>
 					{costLabel || costLabel === 0 ? (
@@ -173,7 +177,7 @@ function formatCompactTokens(value: number): string {
 	if (value >= 1_000) {
 		return `${formatCompactUnit(value / 1_000)}k`;
 	}
-	return value.toLocaleString();
+	return value.toLocaleString(COUNT_LOCALE);
 }
 
 function formatCompactUnit(value: number): string {

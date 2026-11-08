@@ -144,3 +144,32 @@ it("keeps the missing-branch fallback and refresh without showing a misleading P
 		container.querySelector('[aria-label="Refresh pull request status"]'),
 	).not.toBeNull();
 });
+
+it("groups the diff counts with the en-US separator whatever the host locale", async () => {
+	const wideDiff: AgentPullRequestData = {
+		repository: "cline/core",
+		branch: "feature",
+		pullRequest: {
+			number: 8,
+			title: "Wide diff",
+			url: "https://github.com/cline/core/pull/8",
+			state: "OPEN",
+			isDraft: false,
+			mergeable: "UNKNOWN",
+			mergeStateStatus: "CLEAN",
+			additions: 1234,
+			deletions: 5678,
+		},
+	};
+	await act(async () =>
+		root.render(
+			<AgentPullRequestBar
+				data={wideDiff}
+				onRefresh={() => {}}
+				renderChecks={(trigger) => trigger}
+			/>,
+		),
+	);
+	expect(container.textContent).toContain("+1,234");
+	expect(container.textContent).toContain("−5,678");
+});
