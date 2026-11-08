@@ -37,7 +37,11 @@ export async function resolveSystemPrompt(input: {
 	});
 }
 
-const FILE_MENTION_PREFIX = String.raw`(?:\/|~\/|\.{1,2}\/)`;
+// Absolute/relative path prefixes for `@file` mentions. Windows paths
+// (`C:\dir\file`), UNC shares (`\\server\share\file`) and backslash-relative
+// forms (`.\file`, `..\file`, `~\file`) are mentions too, not just the POSIX
+// shapes: without them a mention typed on a Windows host was left unexpanded.
+const FILE_MENTION_PREFIX = String.raw`(?:[A-Za-z]:[\\/]|\\\\|\/|~[\\/]|\.{1,2}[\\/])`;
 const FILE_MENTION_PATTERN_TEST = new RegExp(
 	String.raw`@(?:"${FILE_MENTION_PREFIX}[^"\r\n]+"|${FILE_MENTION_PREFIX}\S+)`,
 	"i",
@@ -75,7 +79,7 @@ function extractFileMentions(
 }
 
 function resolveMentionPath(filePath: string): string {
-	if (filePath.startsWith("~/")) {
+	if (filePath.startsWith("~/") || filePath.startsWith("~\\")) {
 		return resolve(homedir(), filePath.slice(2));
 	}
 	return resolve(filePath);
