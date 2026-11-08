@@ -5,8 +5,9 @@ import { LMStudioProvider } from "./LMStudioProvider"
 
 const mocks = vi.hoisted(() => ({
 	commitSelection: vi.fn(),
-	handleFieldChange: vi.fn(),
 	getLmStudioModels: vi.fn(),
+	updateApiConfigurationPartial: vi.fn(),
+	updateApiConfigurationProto: vi.fn(),
 	useExtensionState: vi.fn(),
 	useProviderConfig: vi.fn(),
 	useProviderModelSelection: vi.fn(),
@@ -28,13 +29,9 @@ vi.mock("@/hooks/useProviderModelSelection", () => ({
 vi.mock("@/services/grpc-client", () => ({
 	ModelsServiceClient: {
 		getLmStudioModels: mocks.getLmStudioModels,
+		updateApiConfigurationPartial: mocks.updateApiConfigurationPartial,
+		updateApiConfigurationProto: mocks.updateApiConfigurationProto,
 	},
-}))
-
-vi.mock("../utils/useApiConfigurationHandlers", () => ({
-	useApiConfigurationHandlers: () => ({
-		handleFieldChange: mocks.handleFieldChange,
-	}),
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -123,6 +120,8 @@ describe("LMStudioProvider", () => {
 		mocks.commitSelection.mockResolvedValue(undefined)
 		mocks.write.mockResolvedValue(undefined)
 		mocks.getLmStudioModels.mockResolvedValue({ values: [] })
+		mocks.updateApiConfigurationPartial.mockResolvedValue({})
+		mocks.updateApiConfigurationProto.mockResolvedValue({})
 		mocks.useExtensionState.mockReturnValue({ apiConfiguration: {} })
 		mocks.useProviderModelSelection.mockReturnValue({
 			selectedModel: { modelId: "" },
@@ -189,5 +188,36 @@ describe("LMStudioProvider", () => {
 				expect.objectContaining({ value: "http://lmstudio.local:1234" }),
 			),
 		)
+	})
+
+	it("keeps a newly picked model when it updates the context window", async () => {
+		const models = [
+			{ id: "model-a", loaded_context_length: 4096, max_context_length: 32768 },
+			{ id: "model-b", loaded_context_length: 8192, max_context_length: 32768 },
+		]
+		mocks.getLmStudioModels.mockResolvedValue({ values: models.map((model) => JSON.stringify(model)) })
+		mocks.useExtensionState.mockReturnValue({
+			apiConfiguration: { actModeApiProvider: "lmstudio", actModeLmStudioModelId: "model-a", lmStudioMaxTokens: "4096" },
+		})
+		mocks.useProviderModelSelection.mockReturnValue({
+			selectedModel: { modelId: "model-a" },
+			commitModelSelection: mocks.commitSelection,
+		})
+
+		await renderProvider()
+		fireEvent.change(await screen.findByRole("combobox"), { target: { value: "model-b" } })
+
+		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledWith(expect.objectContaining({ modelId: "model-b" })))
+		await waitFor(() =>
+			expect(mocks.updateApiConfigurationPartial).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiConfiguration: expect.objectContaining({ lmStudioMaxTokens: "8192" }),
+					updateMask: ["lmStudioMaxTokens"],
+				}),
+			),
+		)
+		// The configuration in webview state still names model-a at this point.
+		// Writing it back in full would undo the pick on the extension side.
+		expect(mocks.updateApiConfigurationProto).not.toHaveBeenCalled()
 	})
 })
