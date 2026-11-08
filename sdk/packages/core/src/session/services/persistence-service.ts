@@ -442,6 +442,18 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
+	private async resolveLastActivityAt(row: SessionRow): Promise<string> {
+		const messagesUpdatedAt =
+			await this.manifestStore.readMessagesUpdatedAt(row);
+		if (
+			messagesUpdatedAt !== undefined &&
+			Date.parse(messagesUpdatedAt) > Date.parse(row.updatedAt)
+		) {
+			return messagesUpdatedAt;
+		}
+		return row.updatedAt;
+	}
+
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
@@ -470,7 +482,7 @@ export class UnifiedSessionPersistenceService {
 			// Detection can happen days after the process died, e.g. on the first
 			// listing after a restart. Stamping it as the end or update time makes
 			// an old session read as active "now" in history lists.
-			const lastActivityAt = latest.updatedAt;
+			const lastActivityAt = await this.resolveLastActivityAt(latest);
 
 			const changed = await this.adapter.updateSession({
 				sessionId: latest.sessionId,
