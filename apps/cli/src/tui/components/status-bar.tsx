@@ -62,7 +62,10 @@ export function formatStatusBarUsageText(input: {
 	totalCost: number;
 	providerId: string;
 }): string {
-	const tokens = `(${input.totalTokens.toLocaleString()})`;
+	// The usage line is part of the CLI's own copy, so it must not change shape
+	// with the host locale: a `pl-PL` host rendered "12 345" where the docs,
+	// screenshots and tests show "12,345".
+	const tokens = `(${input.totalTokens.toLocaleString("en-US")})`;
 	const costText = formatCostText(input.providerId, input.totalCost);
 
 	if (!costText) {
