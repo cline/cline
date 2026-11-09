@@ -1,3 +1,5 @@
+@import "./control-sizes.css";
+
 /* Preserve native visibility even when a control has host layout utilities. */
 .cline-ui-button[hidden]:not([hidden="until-found"]) {
 	display: none;
@@ -78,12 +80,12 @@
 	}
 
 	.cline-ui-button-xs {
-		--cline-ui-button-height: calc(7 * var(--spacing, 0.25rem));
+		--cline-ui-button-height: var(--cline-ui-control-height);
 		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 3);
 		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 2.5);
 		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 1.5);
 		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 1.5);
-		border-radius: var(--radius-md);
+		border-radius: var(--cline-ui-control-radius);
 		gap: calc(var(--spacing, 0.25rem) * 1.5);
 		font-size: var(--text-xs);
 		line-height: var(--text-xs--line-height);
@@ -95,12 +97,12 @@
 	}
 
 	.cline-ui-button-sm {
-		--cline-ui-button-height: calc(8 * var(--spacing, 0.25rem));
+		--cline-ui-button-height: var(--cline-ui-control-height);
 		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 3.5);
 		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 3);
 		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 1.8);
 		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 1.8);
-		border-radius: var(--radius-md);
+		border-radius: var(--cline-ui-control-radius);
 		gap: calc(var(--spacing, 0.25rem) * 1.5);
 		font-size: var(--text-sm);
 		line-height: var(--text-sm--line-height);
@@ -112,11 +114,12 @@
 	}
 
 	.cline-ui-button-md {
-		--cline-ui-button-height: calc(9 * var(--spacing, 0.25rem));
+		--cline-ui-button-height: var(--cline-ui-control-height);
 		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
 		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 3.5);
 		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 2);
 		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 2);
+		border-radius: var(--cline-ui-control-radius);
 		gap: calc(var(--spacing, 0.25rem) * 2);
 		font-size: var(--text-sm);
 		line-height: var(--text-sm--line-height);
@@ -124,11 +127,12 @@
 	}
 
 	.cline-ui-button-lg {
-		--cline-ui-button-height: calc(10 * var(--spacing, 0.25rem));
+		--cline-ui-button-height: var(--cline-ui-control-height);
 		--cline-ui-button-icon-size: calc(var(--spacing, 0.25rem) * 4);
 		--cline-ui-button-padding-inline: calc(var(--spacing, 0.25rem) * 4);
 		--cline-ui-button-leading-padding: calc(var(--spacing, 0.25rem) * 2.5);
 		--cline-ui-button-trailing-padding: calc(var(--spacing, 0.25rem) * 3);
+		border-radius: var(--cline-ui-control-radius);
 		gap: calc(var(--spacing, 0.25rem) * 2.5);
 		font-size: var(--text-md);
 		line-height: var(--text-md--line-height);
