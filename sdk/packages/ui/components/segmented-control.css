@@ -1,8 +1,8 @@
 @layer components {
 	.cline-ui-segmented-control {
 		color-scheme: light;
-		--cline-ui-segmented-height: calc(9 * var(--spacing, 0.25rem));
-		--cline-ui-segmented-radius: var(--radius-lg);
+		--cline-ui-segmented-height: var(--cline-ui-control-height);
+		--cline-ui-segmented-radius: var(--cline-ui-control-radius);
 		--cline-ui-segmented-inner-radius: max(
 			0px,
 			calc(var(--cline-ui-segmented-radius) - var(--cline-ui-segmented-padding))
@@ -50,8 +50,6 @@
 	}
 
 	.cline-ui-segmented-control[data-size="xs"] {
-		--cline-ui-segmented-height: calc(7 * var(--spacing, 0.25rem));
-		--cline-ui-segmented-radius: var(--radius-md);
 		--cline-ui-segmented-icon-size: 0.875rem;
 		--cline-ui-segmented-gap: calc(0.5 * var(--spacing, 0.25rem));
 		--cline-ui-segmented-padding: calc(0.5 * var(--spacing, 0.25rem));
@@ -62,8 +60,6 @@
 	}
 
 	.cline-ui-segmented-control[data-size="sm"] {
-		--cline-ui-segmented-height: calc(8 * var(--spacing, 0.25rem));
-		--cline-ui-segmented-radius: var(--radius-md);
 		--cline-ui-segmented-gap: calc(0.75 * var(--spacing, 0.25rem));
 		--cline-ui-segmented-padding: calc(0.75 * var(--spacing, 0.25rem));
 
@@ -73,7 +69,6 @@
 	}
 
 	.cline-ui-segmented-control[data-size="lg"] {
-		--cline-ui-segmented-height: calc(10 * var(--spacing, 0.25rem));
 		--cline-ui-segmented-icon-size: 1.25rem;
 
 		font-size: var(--text-md);
