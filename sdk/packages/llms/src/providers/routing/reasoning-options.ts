@@ -1,4 +1,5 @@
 import {
+	type GatewayModelDefinition,
 	type GatewayProviderContext,
 	type GatewayStreamRequest,
 	isClineProvider,
@@ -27,6 +28,32 @@ function clampBudget(
 		maximum,
 	);
 	return Math.min(Math.max(Math.floor(budgetTokens), minimum), cappedMaximum);
+}
+
+/**
+ * Settle a caller's preference to go without reasoning against what the model
+ * is known to accept. A model whose catalog entry advertises an off option
+ * gets an explicit disable; any other model keeps the caller's remaining
+ * settings, since a disable sent blind is rejected by some endpoints. An
+ * explicit disable is left alone.
+ */
+export function resolveReasoningPreference(
+	reasoning: GatewayStreamRequest["reasoning"],
+	model: Pick<GatewayModelDefinition, "reasoningOptions">,
+): GatewayStreamRequest["reasoning"] {
+	if (!reasoning?.preferOff) {
+		return reasoning;
+	}
+	const { preferOff: _preferOff, ...settings } = reasoning;
+	if (settings.enabled === false) {
+		return settings;
+	}
+	if (getModelReasoningControls(model.reasoningOptions)?.supportsOff) {
+		return { enabled: false };
+	}
+	return Object.values(settings).some((value) => value !== undefined)
+		? settings
+		: undefined;
 }
 
 /**

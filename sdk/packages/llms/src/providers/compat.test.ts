@@ -584,6 +584,36 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(serializedMessages).not.toContain("drop me");
 	});
 
+	it.each([
+		[{ preferThinkingOff: true }, undefined],
+		[{ thinking: false }, "none"],
+		[{ thinking: false, preferThinkingOff: true }, "none"],
+	] as const)("maps %o on an unlisted OpenAI-compatible model to reasoning %s", async (config, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "gpt-6-astra",
+			apiKey: "test-key",
+			baseUrl: "https://example.test/v1",
+			...config,
+		});
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the request is built.
+		}
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { reasoning?: unknown }
+			| undefined;
+		expect(call?.reasoning).toBe(expected);
+	});
+
 	it("adds Azure API version to deployment-style OpenAI-compatible requests", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
