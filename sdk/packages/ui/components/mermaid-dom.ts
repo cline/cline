@@ -23,7 +23,7 @@ import {
 const TOKEN_VARIABLES = {
 	background: "--card",
 	border: "--border",
-	error: "--destructive",
+	error: "--error-text",
 	foreground: "--foreground",
 	muted: "--muted",
 	mutedForeground: "--muted-foreground",

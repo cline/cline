@@ -1,17 +1,7 @@
-import { setTimeout as delay } from "node:timers/promises"
 import { randomUUID } from "node:crypto"
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	rmdirSync,
-	rmSync,
-	statSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { Logger } from "@/shared/services/Logger"
 
 const SETTINGS_LOCK_STALE_MS = 10_000
