@@ -47,18 +47,6 @@ type Story = StoryObj<typeof Pagination>;
 
 export const Default: Story = {};
 
-export const Compact: Story = {
-	args: { size: "xxs", defaultPage: 3 },
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"The pagination-only xxs size is 1.5rem tall at default spacing, with radius-sm corners, text-xxs typography, and 0.75rem arrow icons. The default component size remains xs.",
-			},
-		},
-	},
-};
-
 export const CompactManyPages: Story = {
 	args: { size: "xxs", pageCount: 1_000_000, defaultPage: 500_000 },
 };
@@ -86,6 +74,14 @@ export const Controlled: Story = {
 };
 
 export const Sizes: Story = {
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"The pagination-only xxs size is 1.5rem tall at default spacing, with radius-sm corners, text-xxs typography, and 0.75rem arrow icons. The default component size remains xs.",
+			},
+		},
+	},
 	render: (args) => (
 		<div className="grid justify-items-center gap-6">
 			{(["xxs", "xs", "sm", "md", "lg"] as const).map((size) => (
