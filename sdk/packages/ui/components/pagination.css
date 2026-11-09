@@ -5,8 +5,8 @@
 
 @layer components {
 	.cline-ui-pagination {
-		--cline-ui-pagination-height: calc(7 * var(--spacing, 0.25rem));
-		--cline-ui-pagination-radius: var(--radius-md);
+		--cline-ui-pagination-height: var(--cline-ui-control-height);
+		--cline-ui-pagination-radius: var(--cline-ui-control-radius);
 		display: inline-flex;
 		align-items: center;
 		gap: var(--spacing, 0.25rem);
@@ -42,18 +42,7 @@
 		letter-spacing: var(--text-xs--letter-spacing);
 	}
 
-	.cline-ui-pagination[data-size="sm"] {
-		--cline-ui-pagination-height: calc(8 * var(--spacing, 0.25rem));
-	}
-
-	.cline-ui-pagination[data-size="md"] {
-		--cline-ui-pagination-height: calc(9 * var(--spacing, 0.25rem));
-		--cline-ui-pagination-radius: var(--radius-lg);
-	}
-
 	.cline-ui-pagination[data-size="lg"] {
-		--cline-ui-pagination-height: calc(10 * var(--spacing, 0.25rem));
-		--cline-ui-pagination-radius: var(--radius-lg);
 		font-size: var(--text-md);
 		line-height: var(--text-md--line-height);
 		letter-spacing: var(--text-md--letter-spacing);

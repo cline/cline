@@ -281,7 +281,11 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			<nav
 				{...props}
 				aria-label={ariaLabel}
-				className={clsx("cline-ui-pagination", className)}
+				className={clsx(
+					"cline-ui-pagination",
+					size !== "xxs" && `cline-ui-control-size-${size}`,
+					className,
+				)}
 				data-slot="pagination"
 				data-size={size}
 				data-disabled={disabled || undefined}
