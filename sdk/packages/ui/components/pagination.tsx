@@ -327,10 +327,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 								? total
 								: event.key === "ArrowRight"
 									? focused + (rtl ? -1 : 1)
-									: event.key === "ArrowLeft"
-										? focused + (rtl ? 1 : -1)
-										: undefined;
-					if (next === undefined) return;
+									: focused + (rtl ? 1 : -1);
 					event.preventDefault();
 					// Reselection does not rerender, so move focus independently.
 					navRef.current
