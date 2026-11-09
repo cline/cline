@@ -427,6 +427,38 @@ describe.each([
 		expect(states[0]?.pluginName).toBe("ui-twin");
 	}, 60_000);
 
+	it("holds the kept plugin's setup state even when more overridden copies published first", async () => {
+		const copies = Array.from({ length: 9 }, (_, index) =>
+			join(dir, `ui-crowd-${index}.mjs`),
+		);
+		for (const [index, copyPath] of copies.entries()) {
+			const kept = index === copies.length - 1;
+			await writeFile(
+				copyPath,
+				[
+					"export default {",
+					"  name: 'ui-crowd',",
+					"  manifest: { capabilities: ['hooks'] },",
+					"  async setup(api, ctx) {",
+					"    api.registerUiSlot({ slot: 'composer.suggestions', onAction: () => ({ outcome: 'ok' }) });",
+					...(kept
+						? ["    await new Promise((resolve) => setTimeout(resolve, 100));"]
+						: []),
+					`    ctx.ui.update('composer.suggestions', { status: 'ready', title: 'T', revision: '${kept ? "kept" : `copy-${index}`}', items: [], canRefresh: false });`,
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+		}
+
+		const { states } = await loadWithUi(copies.at(-1) ?? "", {
+			pluginPaths: copies,
+		});
+
+		expect(states.map(revisionOf)).toEqual(["kept"]);
+	}, 60_000);
+
 	it("drops UI state from a bootstrap whose descriptors register no slots", async () => {
 		const bootstrapPath = join(dir, "old-bootstrap.mjs");
 		await writeFile(

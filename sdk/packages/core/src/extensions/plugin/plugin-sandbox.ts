@@ -508,7 +508,11 @@ export async function loadSandboxedPlugins(
 			: withTimeoutFallback(options.setupTimeoutMs, 4000);
 	const initTimeoutMs = importTimeoutMs + (setupTimeoutMs ?? 0);
 	const toolUpdates: ToolUpdateRoutes = new Map();
-	const uiStates = createUiStateGate(options.transport, options.onUiState);
+	const uiStates = createUiStateGate(
+		options.transport,
+		options.onUiState,
+		(options.pluginPaths?.length ?? 0) * (options.uiSlots?.length ?? 0),
+	);
 	const onEvent = (event: { name: string; payload?: unknown }) => {
 		const payload = event.payload as Record<string, unknown> | undefined;
 		if (event.name === TOOL_UPDATE_EVENT) {
