@@ -421,7 +421,7 @@ try {
 		: await pack(packageRoot, join(temporaryRoot, "pack"));
 	// The packed UI pins @cline/shared to the workspace version, which is not on
 	// the registry yet during a release, so both consumers install the local pack.
-	// Bun needs an override to resolve the unpublished workspace version.
+	// npm dedupes onto it directly; Bun needs an override to resolve it.
 	const sharedArchive = await pack(
 		join(packageRoot, "../shared"),
 		join(temporaryRoot, "shared-pack"),
@@ -455,14 +455,16 @@ try {
 		"tailwindcss",
 	]);
 
-	// Validate Node and React 18 compatibility using the same Bun package manager.
-	const nodeConsumer = join(temporaryRoot, "node-consumer");
-	createConsumer(nodeConsumer, { "@cline/shared": `file:${sharedArchive}` });
+	// The workspace uses Bun, but published consumers must also install via npm.
+	const npmConsumer = join(temporaryRoot, "npm-consumer");
+	createConsumer(npmConsumer);
 	await run(
 		[
-			process.execPath,
-			"add",
+			"npm",
+			"install",
 			"--ignore-scripts",
+			"--no-audit",
+			"--no-fund",
 			archive,
 			sharedArchive,
 			"react@18.3.1",
@@ -474,17 +476,17 @@ try {
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
-		nodeConsumer,
+		npmConsumer,
 	);
-	await run(["node", "--input-type=module", "-e", importCheck], nodeConsumer);
-	await verifyDeclarations(nodeConsumer);
-	await verifyTailwindContract(nodeConsumer, [
-		process.execPath,
-		"x",
+	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	await verifyDeclarations(npmConsumer);
+	await verifyTailwindContract(npmConsumer, [
+		"npx",
+		"--no-install",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });
