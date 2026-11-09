@@ -7,6 +7,7 @@
 @import "./components/empty-state.css";
 @import "./components/item-card.css";
 @import "./components/section-heading.css";
+@import "./components/tooltip.css";
 @import "./components/agent-changes.css";
 @import "./components/agent-pull-request-bar.css";
 @import "./components/agent-approval-card.css";

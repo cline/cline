@@ -62,6 +62,10 @@ The package also provides `SectionHeading`, `DetailList`/`DetailListItem`,
 and action handling. Dialogs also require React DOM and support scoped themes
 through `portalContainer`. Hosts retain data, navigation, persistence, and action state.
 
+`Tooltip` wraps a focusable trigger with hover and keyboard descriptions. Use
+`TooltipProvider` to share hover timing across a group; see the
+[tooltip guide](./ADOPTION.md#tooltips) for timing and scoped portals.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 

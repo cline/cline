@@ -220,8 +220,8 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
-`Dialog` and `AlertDialog` portal to `document.body` by default. For scoped themes,
-pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
+`Dialog`, `AlertDialog`, and `Tooltip` portal to `document.body` by default. For
+scoped themes, pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
 that clip overflow or constrain fixed positioning. Use a callback ref stored
 in state to pass the mounted element.
 
@@ -1102,3 +1102,28 @@ The host owns saving state, errors, retries, and completion. `confirmTone` accep
 Button tones and defaults to `neutral`; `cancelLabel` defaults to “Cancel”. Pass
 `portalContainer` for scoped themes. Existing consumers retain immediate
 confirmation closure and Escape dismissal by default.
+
+## Tooltips
+
+`Tooltip` takes a plain-text `content` description and one focusable child that
+forwards its ref and event props, such as `Button`, `IconButton`, or a native link.
+The trigger keeps its existing `aria-describedby`, event handlers, and ref. Keep
+an accessible name on the trigger; tooltip text is supplemental. Native disabled
+buttons cannot receive keyboard focus.
+
+```tsx
+<Tooltip content="Create a conversation">
+  <Button>New conversation</Button>
+</Tooltip>
+```
+
+Hover and keyboard focus open the tooltip; Escape, blur, and trigger clicks dismiss
+it. Hover opens immediately by default. Set `delayDuration` in milliseconds for a
+hover delay; keyboard focus stays immediate. Wrap a group in `TooltipProvider` to
+share `delayDuration` and `skipDelayDuration` (the interval during which neighboring
+tooltips open without waiting). A Tooltip's `delayDuration` overrides its provider.
+
+Use `side` (default `top`), `align` (default `center`), and `sideOffset` (default 6)
+for placement. Import theme tokens and `@cline/ui/components.css`, and install
+compatible React and React DOM versions (18.3 or 19). Pass `portalContainer` inside
+`.cline-ui-theme` when using scoped tokens.
