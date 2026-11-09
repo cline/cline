@@ -699,9 +699,7 @@ describe("Pagination", () => {
 				".cline-ui-pagination__track",
 			)?.style.gridAutoColumns;
 			expect(marker?.style.inlineSize).toBe(pageButton(page).style.inlineSize);
-			expect(marker?.style.translate).toBe(
-				`calc(calc(${slot} * ${step}) + var(--spacing, 0.25rem))`,
-			);
+			expect(marker?.style.translate).toBe(`calc(${slot} * ${step})`);
 			expect(marker?.textContent).toBe("");
 		}
 	});

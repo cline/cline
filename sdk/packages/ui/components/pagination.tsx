@@ -112,10 +112,9 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 		const buttonSize = size === "xxs" ? "xs" : size;
 		// Long page numbers widen the slots without changing the control height.
 		const pageWidth = `max(${height}, ${String(total).length + 1}ch)`;
-		const step = `calc(${pageWidth} + 2 * var(--spacing, 0.25rem))`;
 		const position = useCallback(
-			(index: number) => `calc(${index} * ${step})`,
-			[step],
+			(index: number) => `calc(${index} * ${pageWidth})`,
+			[pageWidth],
 		);
 
 		// Restore focus after a page button is removed, even when the strip stays put.
@@ -217,7 +216,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			<div
 				className="cline-ui-pagination__cell"
 				key={number}
-				style={{ inlineSize: step }}
+				style={{ inlineSize: pageWidth }}
 			>
 				{visible ? (
 					<Button
@@ -246,7 +245,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			<span
 				aria-hidden="true"
 				className="cline-ui-pagination__cell cline-ui-pagination__ellipsis"
-				style={{ inlineSize: step }}
+				style={{ inlineSize: pageWidth }}
 			>
 				…
 			</span>
@@ -263,7 +262,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 						className="cline-ui-pagination__track"
 						ref={trackRef}
 						style={{
-							gridAutoColumns: step,
+							gridAutoColumns: pageWidth,
 							translate: position(renderStart - start),
 						}}
 					>
@@ -355,7 +354,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 						className="cline-ui-pagination__marker"
 						style={{
 							inlineSize: pageWidth,
-							translate: `calc(${position(selectedIndex)} + var(--spacing, 0.25rem))`,
+							translate: position(selectedIndex),
 						}}
 					/>
 				</div>
