@@ -144,6 +144,7 @@
 		"components/segmented-control.tsx",
 		"components/file-browser-actions.tsx",
 		"components/file-browser-navigation.tsx",
+		"components/file-browser-tree.tsx",
 		"components/file-browser.css",
 		"components/file-browser.tsx"
 	],

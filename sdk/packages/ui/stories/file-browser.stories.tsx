@@ -4,6 +4,7 @@ import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
 import { Streamdown } from "streamdown";
 import "../components/markdown.css";
+import { Button } from "../components/button.js";
 import {
 	FileBrowser,
 	FileBrowserContent,
@@ -218,6 +219,65 @@ export const NestedFolders: Story = {
 					/>
 				) : null}
 			</FileBrowser>
+		);
+	},
+};
+
+const largeFiles = Array.from({ length: 10_000 }, (_, index) => ({
+	path: `packages/package-${String(Math.floor(index / 100)).padStart(3, "0")}/file-${String(index % 100).padStart(3, "0")}.ts`,
+}));
+
+export const LargeTree: Story = {
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"10,000 files with automatic windowing. Tab and Shift+Tab traverse every expanded row. This example host removes the selected file on Delete to demonstrate focus recovery.",
+			},
+		},
+	},
+	render: function LargeBrowser(args) {
+		const [items, setItems] = useState(largeFiles);
+		const [selectedPath, setSelectedPath] = useState<string | null>(null);
+		return (
+			<>
+				<p className="mb-3 text-sm text-muted-foreground">
+					{items.length.toLocaleString()} files. Tab through the tree; press
+					Delete to remove the selected file.
+				</p>
+				<FileBrowser
+					{...args}
+					files={items}
+					selectedPath={selectedPath}
+					onSelect={setSelectedPath}
+					onKeyDown={(event) => {
+						if (event.key === "Delete" && selectedPath) {
+							event.preventDefault();
+							setItems((current) =>
+								current.filter((file) => file.path !== selectedPath),
+							);
+							setSelectedPath(null);
+						}
+					}}
+				>
+					{selectedPath ? (
+						<FileBrowserContent
+							path={selectedPath}
+							content={`// ${selectedPath}\nexport const ready = true;`}
+							showActions={false}
+						/>
+					) : null}
+				</FileBrowser>
+				<Button
+					className="mt-3"
+					onClick={() => {
+						setItems(largeFiles);
+						setSelectedPath(null);
+					}}
+				>
+					Reset files
+				</Button>
+			</>
 		);
 	},
 };
