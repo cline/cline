@@ -58,7 +58,8 @@ export function useUndoSent({
 	 * that went with it and no verb, since no turn ran. Otherwise, including when
 	 * the runtime started it before the removal landed, the turn is forked away
 	 * from before the sent message, after stopping a run the fork would refuse,
-	 * and the fork's draft gets the prompt and those files back.
+	 * and the fork's draft gets the prompt and those files back. Once its turn
+	 * started, the same text in the queue is a later prompt, so it stays.
 	 */
 	const undoSent = useCallback(
 		async (composer: SuggestionComposer) => {
@@ -67,10 +68,16 @@ export function useUndoSent({
 			undoInFlightRef.current = true;
 			const { abort, onAttachFiles, onRemoveQueuedPrompt, promptsInQueue } =
 				latest.current;
-			try {
-				const queuedPrompt = promptsInQueue.find((item) =>
-					samePrompt(item.prompt, sent.prompt),
+			const findTarget = () =>
+				findSentMessage(
+					latest.current.messages,
+					sent.prompt,
+					sendSnapshotRef.current.runCount,
 				);
+			try {
+				const queuedPrompt = findTarget()
+					? undefined
+					: promptsInQueue.find((item) => samePrompt(item.prompt, sent.prompt));
 				if (queuedPrompt) {
 					if (await onRemoveQueuedPrompt(queuedPrompt.id)) {
 						composer.setDraft(takenBackDraft(sent.prompt, composer.draft()));
@@ -82,11 +89,7 @@ export function useUndoSent({
 					}
 					if (localRef.current.sent !== sent) return;
 				}
-				const target = findSentMessage(
-					latest.current.messages,
-					sent.prompt,
-					sendSnapshotRef.current.runCount,
-				);
+				const target = findTarget();
 				if (!target) {
 					if (queuedPrompt) toast({ title: NOT_TAKEN_BACK });
 					return;

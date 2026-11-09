@@ -316,6 +316,33 @@ describe("useSuggestionTrayKeys", () => {
 		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3, []);
 	});
 
+	it("Ctrl+3 forks a started sent prompt and leaves the same text queued again after it", async () => {
+		const onUndoTurn = vi.fn(async () => undefined);
+		const onRemoveQueuedPrompt = vi.fn(async () => undefined);
+		const abort = vi.fn(async () => undefined);
+		const tray = await mountReady({ abort, onRemoveQueuedPrompt, onUndoTurn });
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			messages: [userMessage("m-sent", SENT_PROMPT, 1)],
+			promptsInQueue: [{ id: "q-again", prompt: SENT_PROMPT, steer: false }],
+		});
+
+		await press(tray.composer(), UNDO);
+		await tray.update({ status: "cancelled" });
+		await settle(100);
+
+		expect(onRemoveQueuedPrompt).not.toHaveBeenCalled();
+		expect(tray.composer().value).toBe("");
+		expect(abort).toHaveBeenCalledTimes(1);
+		expect(onUndoTurn).toHaveBeenCalledExactlyOnceWith(
+			"m-sent",
+			SENT_PROMPT,
+			1,
+			[],
+		);
+	});
+
 	it("Ctrl+3 is inert while only an earlier copy of the sent prompt exists", async () => {
 		const onUndoTurn = vi.fn(async () => undefined);
 		const abort = vi.fn(async () => undefined);
