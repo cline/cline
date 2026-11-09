@@ -1127,3 +1127,40 @@ Use `side` (default `top`), `align` (default `center`), and `sideOffset` (defaul
 for placement. Import theme tokens and `@cline/ui/components.css`, and install
 compatible React and React DOM versions (18.3 or 19). Pass `portalContainer` inside
 `.cline-ui-theme` when using scoped tokens.
+
+## Selection controls
+
+Import these controls from `@cline/ui` with theme tokens and `@cline/ui/components.css`.
+Supply an accessible group name and unique, non-empty option values.
+
+### Pill selector
+
+`PillSelector` and `PillSelectorItem` provide single selection with horizontal
+scrolling. Left/Right and Home/End move focus; Space/Enter selects. Clicking the
+selected item emits `""`; ignore that value to require a selection:
+
+```tsx
+<PillSelector aria-label="Categories" value={category}
+  onValueChange={(value) => { if (value) setCategory(value); }}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+</PillSelector>
+```
+
+Use `defaultValue` for uncontrolled state. Groups and items support `disabled`;
+`dir` controls RTL behavior. Sizes are `sm` (2rem) and `md` (default, 2.25rem)
+at default spacing. The host owns filtering; this control does not submit a form value.
+
+### Segmented control
+
+`SegmentedControl` accepts `options` with `value` and readable `label` fields.
+Use `value`/`onValueChange` for controlled selection or `defaultValue` for internal
+state. Native radios support arrow-key selection, `name`, `required`, and `form`;
+uncontrolled groups follow form resets without emitting a user change.
+
+Options accept `icon`, `disabled`, and `tooltip`. `iconOnly` hides labels visually;
+provide an icon for every option. Group `disabled` disables all options, and `dir`
+controls layout. Sizes `xs`, `sm`, `md` (default), and `lg` match the
+[Button heights and corner radii](#buttons). Selection motion respects reduced motion.
+Pass `tooltipPortalContainer` inside `.cline-ui-theme` for scoped tooltips;
+an enclosing `TooltipProvider` shares hover timing.
