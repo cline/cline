@@ -71,7 +71,6 @@ export const DetailList = forwardRef<HTMLDListElement, DetailListProps>(
 						valueTracks,
 						actionTrack,
 					].join(" "),
-					"--cline-ui-detail-list-value-columns": valueTracks,
 					"--cline-ui-detail-list-column-count": columns.length,
 					"--cline-ui-detail-list-actions-width": actionTrack,
 					...style,
