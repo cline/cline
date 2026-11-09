@@ -6,6 +6,7 @@ import {
 	memo,
 	type PointerEvent,
 	useCallback,
+	useEffect,
 	useId,
 	useLayoutEffect,
 	useMemo,
@@ -15,6 +16,9 @@ import {
 import { buttonVariants } from "./button.js";
 import { ButtonControl } from "./button-control.js";
 import type { FileBrowserFile } from "./file-browser.js";
+
+const useBrowserLayoutEffect =
+	typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 type FileNode = { name: string; path: string; children?: FileNode[] };
 
@@ -187,7 +191,7 @@ export function FileBrowserNavigation({
 	const resize = (next: number) =>
 		setWidth(Math.min(maximumWidth(), Math.max(MIN_SIDEBAR_WIDTH, next)));
 
-	useLayoutEffect(() => {
+	useBrowserLayoutEffect(() => {
 		const sidebar = sidebarRef.current;
 		const layout = sidebar?.parentElement;
 		if (!sidebar || !layout) return;
