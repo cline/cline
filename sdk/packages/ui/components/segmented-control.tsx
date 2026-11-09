@@ -129,7 +129,11 @@ export const SegmentedControl = forwardRef<
 		return (
 			<fieldset
 				{...props}
-				className={clsx("cline-ui-segmented-control", className)}
+				className={clsx(
+					"cline-ui-segmented-control",
+					`cline-ui-control-size-${size}`,
+					className,
+				)}
 				data-icon-only={iconOnly || undefined}
 				data-size={size}
 				data-slot="segmented-control"
