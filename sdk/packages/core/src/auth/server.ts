@@ -31,6 +31,7 @@ export interface OAuthServerCloseInfo {
 }
 
 export interface LocalOAuthServerOptions {
+	signal?: AbortSignal;
 	host?: string;
 	ports: number[];
 	callbackPath: string;
@@ -72,6 +73,7 @@ export interface LocalOAuthServer {
 export async function startLocalOAuthServer(
 	options: LocalOAuthServerOptions,
 ): Promise<LocalOAuthServer> {
+	options.signal?.throwIfAborted();
 	const http = await import("node:http");
 
 	const host = options.host ?? "127.0.0.1";
@@ -90,7 +92,12 @@ export async function startLocalOAuthServer(
 		deferred.resolve(value);
 	};
 
+	const abort = () => {
+		close();
+		settle(null);
+	};
 	const close = () => {
+		options.signal?.removeEventListener("abort", abort);
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = null;
@@ -118,6 +125,7 @@ export async function startLocalOAuthServer(
 	};
 
 	const waitForCallback = async () => {
+		if (settled) return deferred.promise;
 		timeout = setTimeout(() => {
 			close();
 			settle(null);
@@ -200,6 +208,11 @@ export async function startLocalOAuthServer(
 		}
 
 		if (bindResult.bound) {
+			if (options.signal?.aborted) {
+				close();
+				options.signal.throwIfAborted();
+			}
+			options.signal?.addEventListener("abort", abort, { once: true });
 			boundPort = port;
 			const callbackUrl = `http://${host}:${port}${options.callbackPath}`;
 			if (options.onListening) {

@@ -37,6 +37,8 @@ const DRAIN_REFUSED_COMMANDS = new Set<string>([
 	"plugins.commands.run",
 	"plugins.commands.list",
 	"providers.settings.save",
+	"providers.oauth.start",
+	"providers.account.action",
 	"providers.add",
 	"providers.models.update",
 ]);

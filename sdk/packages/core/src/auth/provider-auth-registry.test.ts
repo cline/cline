@@ -100,6 +100,9 @@ describe("provider auth registry", () => {
 			},
 		);
 
+		expect(loginClineOAuth).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "cline-pass" }),
+		);
 		expect(getProviderSettings).toHaveBeenCalledWith("cline");
 		expect(saved).toMatchObject({
 			provider: "cline",
@@ -156,6 +159,9 @@ describe("provider auth registry", () => {
 			},
 		});
 
+		expect(loginClineOAuth).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "cline" }),
+		);
 		expect(getProviderSettings).toHaveBeenCalledWith("cline");
 		expect(saved).toMatchObject({
 			provider: "cline",
