@@ -9,7 +9,7 @@
 		--cline-ui-pagination-radius: var(--cline-ui-control-radius);
 		display: inline-flex;
 		align-items: center;
-		gap: var(--spacing, 0.25rem);
+		gap: 0;
 		max-inline-size: 100%;
 		color: var(--foreground);
 		font-size: var(--text-sm);
@@ -98,6 +98,11 @@
 	.cline-ui-pagination__page {
 		padding: 0;
 		color: var(--foreground);
+	}
+
+	.cline-ui-pagination .cline-ui-pagination__page:focus-visible {
+		/* Keep the ring inside the tightly packed, clipped page slots. */
+		outline-offset: -2px;
 	}
 
 	.cline-ui-pagination .cline-ui-button.cline-ui-pagination__page,
