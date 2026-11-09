@@ -14,7 +14,7 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-	Button, IconButton, Badge,
+	Button, IconButton, Badge, Pagination,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -83,12 +83,16 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge]) {
+for (const control of [Button, IconButton, Badge, Pagination]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
 if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
  throw new Error("packed button stylesheet is missing");
+}
+
+if (!existsSync(fileURLToPath(new URL("./components/pagination.css", packageJsonUrl))) || !componentStyles.includes("./components/pagination.css")) {
+ throw new Error("packed pagination stylesheet is missing");
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -238,7 +242,7 @@ async function verifyDiffDeclarations(root: string): Promise<void> {
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, Pagination, type PaginationSize, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -246,6 +250,7 @@ createElement(Badge, { ...spanProps, ref: createRef<HTMLSpanElement>() });
 createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
+createElement(Pagination, { pageCount: 10, page: 2, size: "xxs" satisfies PaginationSize, onPageChange(page) { page.toFixed(); }, ref: createRef<HTMLElement>() });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
@@ -388,6 +393,11 @@ async function verifyTailwindContract(
 		]) {
 			expectCandidate(output, candidate);
 		}
+		expectFragment(
+			output,
+			".cline-ui-pagination__track",
+			"packed pagination CSS",
+		);
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,

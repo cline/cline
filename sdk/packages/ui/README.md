@@ -107,6 +107,9 @@ feedback, and badge variants.
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
+`Pagination` provides accessible numbered page navigation with bounded rendering
+and controlled or internal selection. See [pagination usage](./ADOPTION.md#pagination).
+
 `Switch` is a native checkbox styled as a switch, with `sm` and `md` sizes
 (default: `md`). It supports
 `checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.

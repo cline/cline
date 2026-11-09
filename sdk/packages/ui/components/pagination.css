@@ -1,0 +1,161 @@
+/* Preserve native visibility even when a host adds layout utilities. */
+.cline-ui-pagination[hidden]:not([hidden="until-found"]) {
+	display: none;
+}
+
+@layer components {
+	.cline-ui-pagination {
+		--cline-ui-pagination-height: calc(7 * var(--spacing, 0.25rem));
+		--cline-ui-pagination-radius: var(--radius-md);
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing, 0.25rem);
+		max-inline-size: 100%;
+		color: var(--foreground);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.cline-ui-pagination[data-size="xxs"] {
+		--cline-ui-pagination-height: calc(6 * var(--spacing, 0.25rem));
+		--cline-ui-pagination-radius: var(--radius-sm);
+		font-size: var(--text-xxs);
+		line-height: var(--text-xxs--line-height);
+		letter-spacing: var(--text-xxs--letter-spacing);
+	}
+
+	/* The compact size is local to pagination; its buttons reuse the xs variant. */
+	.cline-ui-pagination[data-size="xxs"] .cline-ui-button {
+		--cline-ui-button-height: var(--cline-ui-pagination-height);
+		--cline-ui-button-icon-size: calc(3 * var(--spacing, 0.25rem));
+		border-radius: var(--cline-ui-pagination-radius);
+		font-size: inherit;
+		line-height: inherit;
+		letter-spacing: inherit;
+	}
+
+	.cline-ui-pagination[data-size="xs"] {
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+
+	.cline-ui-pagination[data-size="sm"] {
+		--cline-ui-pagination-height: calc(8 * var(--spacing, 0.25rem));
+	}
+
+	.cline-ui-pagination[data-size="md"] {
+		--cline-ui-pagination-height: calc(9 * var(--spacing, 0.25rem));
+		--cline-ui-pagination-radius: var(--radius-lg);
+	}
+
+	.cline-ui-pagination[data-size="lg"] {
+		--cline-ui-pagination-height: calc(10 * var(--spacing, 0.25rem));
+		--cline-ui-pagination-radius: var(--radius-lg);
+		font-size: var(--text-md);
+		line-height: var(--text-md--line-height);
+		letter-spacing: var(--text-md--letter-spacing);
+	}
+
+	.cline-ui-pagination__pages {
+		/* Mirror geometry as a unit in RTL, then restore the numeral direction. */
+		direction: ltr;
+		position: relative;
+		flex-shrink: 0;
+		isolation: isolate;
+	}
+
+	.cline-ui-pagination__row {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		block-size: 100%;
+	}
+
+	.cline-ui-pagination__viewport {
+		position: relative;
+		flex-shrink: 0;
+		/* Let focus outlines breathe while clipping outgoing numbers. */
+		clip-path: inset(-4px 0);
+	}
+
+	.cline-ui-pagination__track {
+		position: absolute;
+		inset-block: 0;
+		display: grid;
+		grid-template-rows: minmax(0, 1fr);
+		grid-auto-flow: column;
+	}
+
+	.cline-ui-pagination__cell {
+		display: grid;
+		flex-shrink: 0;
+		place-items: center;
+	}
+
+	.cline-ui-pagination__marker {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		background: var(--neutral-a5);
+		pointer-events: none;
+	}
+
+	.cline-ui-pagination__page {
+		padding: 0;
+		color: var(--foreground);
+	}
+
+	.cline-ui-pagination .cline-ui-button.cline-ui-pagination__page,
+	.cline-ui-pagination .cline-ui-button.cline-ui-pagination__page:hover {
+		background: transparent;
+	}
+
+	.cline-ui-pagination .cline-ui-pagination__page[aria-current="page"] {
+		color: var(--foreground);
+	}
+
+	.cline-ui-pagination__outgoing {
+		color: var(--foreground);
+		font-weight: var(--font-weight-medium);
+	}
+
+	.cline-ui-pagination[data-disabled] .cline-ui-pagination__marker {
+		opacity: 0.5;
+	}
+
+	.cline-ui-pagination:dir(rtl) .cline-ui-pagination__arrow > svg {
+		transform: rotate(180deg);
+	}
+
+	.cline-ui-pagination:dir(rtl)
+		:is(
+			.cline-ui-pagination__pages,
+			.cline-ui-pagination__page,
+			.cline-ui-pagination__outgoing
+		) {
+		transform: scaleX(-1);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.cline-ui-pagination__marker {
+			/* A single destination also lets rapid clicks retarget in place. */
+			transition: clip-path 240ms cubic-bezier(0.22, 1, 0.36, 1);
+		}
+	}
+
+	@media (forced-colors: active) {
+		.cline-ui-pagination__marker {
+			display: none;
+		}
+
+		.cline-ui-pagination
+			.cline-ui-button.cline-ui-pagination__page[aria-current="page"] {
+			forced-color-adjust: none;
+			background: Highlight;
+			color: HighlightText;
+		}
+	}
+}
