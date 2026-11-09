@@ -1541,6 +1541,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							textAreaRef.current = el
 						}}
+						// Native spell check only knows the webview's dictionary language, so it
+						// underlines identifiers, paths and non-English words (e.g. in the JetBrains
+						// JCEF webview, which always ships an en-US dictionary).
+						spellCheck={false}
 						style={{
 							width: "100%",
 							boxSizing: "border-box",
