@@ -149,3 +149,9 @@ export {
 	CarouselNext,
 	type CarouselApi,
 } from "./carousel.js";
+
+export {
+	Pagination,
+	type PaginationProps,
+	type PaginationSize,
+} from "./pagination.js";

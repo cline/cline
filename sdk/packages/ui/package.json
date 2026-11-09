@@ -118,7 +118,9 @@
 		"components/agent-ux-verification.css",
 		"components/button-control.tsx",
 		"components/button.css",
-		"components/control-sizes.css"
+		"components/control-sizes.css",
+		"components/pagination.tsx",
+		"components/pagination.css"
 	],
 	"sideEffects": [
 		"./components.css",
