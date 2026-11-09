@@ -260,6 +260,13 @@ export interface GatewayStreamRequest {
 		enabled?: boolean;
 		effort?: ReasoningEffort;
 		budgetTokens?: number;
+		/**
+		 * The caller would rather the model did not reason on this request but
+		 * has not been told to disable it. The gateway turns it into a disable
+		 * only for a model whose catalog entry advertises an off option, and
+		 * otherwise lets the other fields stand.
+		 */
+		preferOff?: boolean;
 	};
 	signal?: AbortSignal;
 }
