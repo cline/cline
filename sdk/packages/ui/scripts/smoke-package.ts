@@ -402,6 +402,11 @@ async function verifyTailwindContract(
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,
+			"--cline-ui-control-height:",
+			"packed control sizing tokens",
+		);
+		expectFragment(
+			output,
 			".cline-ui-switch__input:checked",
 			"packed switch states",
 		);
