@@ -6,6 +6,7 @@ import {
 	type ComponentPropsWithoutRef,
 	forwardRef,
 	useCallback,
+	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
 	useRef,
@@ -41,6 +42,8 @@ const clamp = (value: number, min: number, max: number) =>
 const integer = (value: number, fallback: number) =>
 	Number.isFinite(value) ? Math.floor(value) : fallback;
 const pageLabel = (page: number) => `Go to page ${page}`;
+const useBrowserLayoutEffect =
+	typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** A bounded number strip with a sliding rounded selection. Hosts own page data. */
 export const Pagination = forwardRef<HTMLElement, PaginationProps>(
@@ -120,7 +123,11 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 		};
 
 		// Restore focus after a page button is removed, even when the strip stays put.
-		useLayoutEffect(() => {
+		useBrowserLayoutEffect(() => {
+			if (!navRef.current) {
+				pageHasFocus.current = false;
+				return;
+			}
 			if (
 				pageHasFocus.current &&
 				(previous.current.page !== current ||
@@ -132,7 +139,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			}
 		});
 
-		useLayoutEffect(() => {
+		useBrowserLayoutEffect(() => {
 			const before = previous.current;
 			const interrupted = interruptedTrack.current;
 			interruptedTrack.current = null;
@@ -303,6 +310,9 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 					onKeyDown?.(event);
 					if (
 						event.defaultPrevented ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey ||
 						disabled ||
 						!["Home", "End", "ArrowRight", "ArrowLeft"].includes(event.key) ||
 						!(event.target as HTMLElement).hasAttribute("data-page")

@@ -13,6 +13,8 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import {
 	Button, IconButton, Badge, Pagination,
 	AgentConversationHeader,
@@ -86,6 +88,19 @@ const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
 for (const control of [Button, IconButton, Badge, Pagination]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
+// Empty pagination must also render without layout-effect warnings under React 18.
+const serverErrors = [];
+const originalConsoleError = console.error;
+try {
+ console.error = (...args) => serverErrors.push(args);
+ if (renderToString(createElement(Pagination, { pageCount: 0 })) !== "") {
+  throw new Error("empty pagination emitted server markup");
+ }
+} finally {
+ console.error = originalConsoleError;
+}
+if (serverErrors.length) throw new Error("pagination server render warned: " + serverErrors.flat().join(" "));
+
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
 if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
  throw new Error("packed button stylesheet is missing");

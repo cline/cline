@@ -90,11 +90,16 @@ async function click(button: HTMLButtonElement) {
 	await act(async () => button.click());
 }
 
-async function key(button: HTMLButtonElement, value: string) {
+async function key(
+	button: HTMLButtonElement,
+	value: string,
+	options: KeyboardEventInit = {},
+) {
 	const event = new KeyboardEvent("keydown", {
 		key: value,
 		bubbles: true,
 		cancelable: true,
+		...options,
 	});
 	await act(async () => button.dispatchEvent(event));
 	return event;
@@ -589,6 +594,22 @@ describe("Pagination", () => {
 		expect(currentPage()).toBe(3);
 	});
 
+	it.each([
+		"altKey",
+		"ctrlKey",
+		"metaKey",
+	] as const)("preserves native keyboard shortcuts with %s", async (modifier) => {
+		const onPageChange = vi.fn();
+		await render(
+			<Pagination defaultPage={3} pageCount={10} onPageChange={onPageChange} />,
+		);
+		pageButton(3).focus();
+		const event = await key(pageButton(3), "ArrowLeft", { [modifier]: true });
+		expect(event.defaultPrevented).toBe(false);
+		expect(currentPage()).toBe(3);
+		expect(onPageChange).not.toHaveBeenCalled();
+	});
+
 	it("retains focus when shrinking results removes the selected page", async () => {
 		await render(<Pagination pageCount={10} defaultPage={9} />);
 		pageButton(9).focus();
@@ -622,6 +643,23 @@ describe("Pagination", () => {
 		expect(document.activeElement).toBe(document.body);
 		await render(<Pagination page={2} pageCount={10} />);
 		expect(document.activeElement).toBe(document.body);
+	});
+
+	it("keeps outside focus when results return after an empty result set", async () => {
+		const content = (pageCount: number) => (
+			<>
+				<input aria-label="Filter results" />
+				<Pagination pageCount={pageCount} />
+			</>
+		);
+		await render(content(10));
+		pageButton(1).focus();
+		await render(content(0));
+		const input = container.querySelector("input");
+		input?.focus();
+		expect(document.activeElement).toBe(input);
+		await render(content(10));
+		expect(document.activeElement).toBe(input);
 	});
 
 	it("updates the forwarded ref as an empty result set becomes populated and empty again", async () => {
