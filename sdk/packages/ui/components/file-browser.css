@@ -32,6 +32,7 @@
 		overflow: auto;
 		border-inline-end: 1px solid var(--border);
 		padding: 0.5rem;
+		row-gap: 0.125rem;
 	}
 	.cline-ui-file-browser__resize-handle {
 		position: absolute;
@@ -72,6 +73,17 @@
 	}
 	.cline-ui-file-browser__tree > li + li {
 		margin-top: 0.125rem;
+	}
+	.cline-ui-file-browser__virtual-tree {
+		position: relative;
+		overflow-anchor: none;
+	}
+	.cline-ui-file-browser__virtual-tree li {
+		position: absolute;
+		inset-inline: 0;
+	}
+	.cline-ui-file-browser__virtual-tree .cline-ui-file-browser__tree > li + li {
+		margin-top: 0;
 	}
 	.cline-ui-file-browser__entry.cline-ui-button {
 		--cline-ui-button-leading-padding: calc(

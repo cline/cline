@@ -1,135 +1,19 @@
 "use client";
 
-import { ChevronDown, FileText, Folder } from "lucide-react";
 import {
 	type CSSProperties,
-	memo,
 	type PointerEvent,
-	useCallback,
 	useEffect,
 	useId,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
-import { buttonVariants } from "./button.js";
-import { ButtonControl } from "./button-control.js";
 import type { FileBrowserFile } from "./file-browser.js";
+import { FileBrowserTree } from "./file-browser-tree.js";
 
 const useBrowserLayoutEffect =
 	typeof document === "undefined" ? useEffect : useLayoutEffect;
-
-type FileNode = { name: string; path: string; children?: FileNode[] };
-
-function buildFileTree(files: readonly FileBrowserFile[]): FileNode[] {
-	const roots: FileNode[] = [];
-	const nodesByPath = new Map<string, FileNode>();
-	for (const file of files) {
-		let siblings = roots;
-		let path = "";
-		const parts = file.path.split("/");
-		parts.forEach((name, index) => {
-			path = path ? `${path}/${name}` : name;
-			let node = nodesByPath.get(path);
-			if (!node) {
-				node = {
-					name,
-					path,
-					...(index < parts.length - 1 ? { children: [] } : {}),
-				};
-				siblings.push(node);
-				nodesByPath.set(path, node);
-			}
-			if (node.children) siblings = node.children;
-		});
-	}
-	const sort = (nodes: FileNode[]) => {
-		nodes.sort(
-			(a, b) =>
-				Number(Boolean(b.children)) - Number(Boolean(a.children)) ||
-				a.name.localeCompare(b.name),
-		);
-		for (const node of nodes) if (node.children) sort(node.children);
-	};
-	sort(roots);
-	return roots;
-}
-
-const entryClassName = buttonVariants({
-	className: "cline-ui-file-browser__entry",
-	size: "xs",
-	tone: "neutral",
-	variant: "ghost",
-});
-
-// Fixed-width rows need neither per-button width observers nor rerenders while resizing.
-const FileTree = memo(function FileTreeView({
-	nodes,
-	selectedPath,
-	onSelect,
-	collapsed,
-	onToggle,
-	depth = 0,
-}: {
-	nodes: FileNode[];
-	selectedPath?: string | null;
-	onSelect: (path: string) => void;
-	collapsed: ReadonlySet<string>;
-	onToggle: (path: string) => void;
-	depth?: number;
-}) {
-	return (
-		<ul className="cline-ui-file-browser__tree">
-			{nodes.map((node) => {
-				const expanded = !collapsed.has(node.path);
-				const Icon = node.children ? Folder : FileText;
-				return (
-					<li key={node.path}>
-						<ButtonControl
-							aria-current={selectedPath === node.path ? "page" : undefined}
-							aria-expanded={node.children ? expanded : undefined}
-							className={entryClassName}
-							onClick={() => {
-								if (!node.children) return onSelect(node.path);
-								onToggle(node.path);
-							}}
-							style={{ "--cline-ui-file-depth": depth } as CSSProperties}
-							title={node.path}
-							type="button"
-						>
-							<Icon
-								aria-hidden="true"
-								className="cline-ui-button__icon"
-								data-icon="leading"
-								focusable="false"
-							/>
-							<span className="cline-ui-file-browser__name">{node.name}</span>
-							{node.children ? (
-								<ChevronDown
-									aria-hidden="true"
-									className="cline-ui-button__icon"
-									data-icon="trailing"
-									focusable="false"
-								/>
-							) : null}
-						</ButtonControl>
-						{node.children && expanded ? (
-							<FileTree
-								collapsed={collapsed}
-								onToggle={onToggle}
-								depth={depth + 1}
-								nodes={node.children}
-								onSelect={onSelect}
-								selectedPath={selectedPath}
-							/>
-						) : null}
-					</li>
-				);
-			})}
-		</ul>
-	);
-});
 
 const MIN_SIDEBAR_WIDTH = 160;
 const MAX_SIDEBAR_WIDTH = 480;
@@ -160,18 +44,6 @@ export function FileBrowserNavigation({
 	onSelect: (path: string) => void;
 	label: string;
 }) {
-	const nodes = useMemo(() => buildFileTree(files), [files]);
-	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
-		() => new Set(),
-	);
-	const toggleFolder = useCallback((path: string) => {
-		setCollapsed((current) => {
-			const next = new Set(current);
-			if (next.has(path)) next.delete(path);
-			else next.add(path);
-			return next;
-		});
-	}, []);
 	const id = useId();
 	const sidebarRef = useRef<HTMLDivElement>(null);
 	const drag = useRef<{
@@ -234,19 +106,13 @@ export function FileBrowserNavigation({
 				} as CSSProperties
 			}
 		>
-			<nav
-				aria-label={label}
-				className="cline-ui-file-browser__navigation"
+			<FileBrowserTree
+				files={files}
+				selectedPath={selectedPath}
+				onSelect={onSelect}
+				label={label}
 				id={id}
-			>
-				<FileTree
-					collapsed={collapsed}
-					onToggle={toggleFolder}
-					nodes={nodes}
-					onSelect={onSelect}
-					selectedPath={selectedPath}
-				/>
-			</nav>
+			/>
 			{/* biome-ignore lint/a11y/useSemanticElements: This focusable separator adjusts pane width rather than marking a thematic break. */}
 			<div
 				aria-controls={id}
