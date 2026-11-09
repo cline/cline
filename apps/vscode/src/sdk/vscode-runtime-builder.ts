@@ -84,8 +84,8 @@ export interface VscodeExtraToolsOptions {
 	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
-export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
-	const provider = new McpHubToolProvider(mcpHub, { mode: options?.mode })
+export async function createVscodeExtraTools(mcpHub: McpHub, options: VscodeExtraToolsOptions): Promise<AgentTool[]> {
+	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode })
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
 			try {
@@ -115,7 +115,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 	// Add the custom run_commands tool when a terminal manager is available.
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
-	if (options?.getTerminalManager) {
+	if (options.getTerminalManager) {
 		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 		tools.push(
 			createVscodeRunCommandsTool({
