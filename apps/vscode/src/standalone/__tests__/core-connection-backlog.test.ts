@@ -42,16 +42,19 @@ describe("core connection stream backlog (cline/cline#15031)", () => {
 		const backlog = new StreamBacklog()
 
 		let settled = 0
+		const posted: Promise<unknown>[] = []
 		await dispatchCoreConnectionRequest(
 			write,
 			streamRequest(),
 			() => true,
 			async (postMessage) => {
 				for (let seq = 0; seq < POSTS; seq++) {
-					void postMessage({
-						type: "grpc_response",
-						grpc_response: { request_id: "state-1", message: { seq }, is_streaming: true },
-					}).then(() => settled++)
+					posted.push(
+						postMessage({
+							type: "grpc_response",
+							grpc_response: { request_id: "state-1", message: { seq }, is_streaming: true },
+						}).then(() => settled++),
+					)
 				}
 			},
 			backlog,
@@ -68,9 +71,8 @@ describe("core connection stream backlog (cline/cline#15031)", () => {
 		// Host catches up: nothing coalesces, every stale response is still
 		// written in order, and the queue empties.
 		releaseFirstWrite()
-		while (settled < POSTS) {
-			await Bun.sleep(5)
-		}
+		await Promise.all(posted)
+		expect(settled).toBe(POSTS)
 		expect(completedSeqs).toEqual(Array.from({ length: POSTS }, (_, i) => i))
 		expect(backlog.depth(METHOD)).toBe(0)
 		// The window they drained in still peaked at its starting depth; the next,

@@ -12,7 +12,10 @@
  * A crashed core cannot report its own exit, so the spawn right after an
  * unexpected exit also carries the predecessor's exit code and uptime. That is
  * what tells a heap exhausted minutes into a turn from one that leaked for a
- * whole shift, without a heap snapshot.
+ * whole shift, without a heap snapshot. The host decides when those two are
+ * present: only on the direct successor of an unexpected exit, whatever that
+ * successor's own spawn reason is (a user restart after a crash still reports
+ * the crash). The core does not cross-check them against the reason.
  */
 import { CORE_SPAWN_REASONS, type CoreSpawnReason } from "@cline/shared"
 
