@@ -71,6 +71,10 @@ uses native radios for form-aware selection. See the
 [selection controls guide](./ADOPTION.md#selection-controls) for keyboard behavior
 and controlled state.
 
+`FileBrowser`/`FileBrowserContent` combine collapsible file navigation, a resizable
+preview pane, and host-owned source editing. See the
+[file browser guide](./ADOPTION.md#file-browser) for loading, actions, and scoped portals.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 
