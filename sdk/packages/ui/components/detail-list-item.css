@@ -118,13 +118,17 @@
 		margin: 0;
 	}
 	.cline-ui-detail-list-item__values {
+		display: grid;
 		grid-column: 2 / -2;
+		grid-template-columns: subgrid;
+		column-gap: var(--cline-ui-detail-list-gap);
 		font-size: var(--text-xs);
 		line-height: var(--text-xs--line-height);
 	}
 	.cline-ui-detail-list-item__fields {
 		display: grid;
-		grid-template-columns: var(--cline-ui-detail-list-value-columns);
+		grid-column: 1 / -1;
+		grid-template-columns: subgrid;
 		align-items: center;
 		gap: var(--cline-ui-detail-list-gap);
 		margin: 0;
@@ -160,6 +164,7 @@
 		.cline-ui-detail-list-item__values {
 			grid-column: 1 / -1;
 			grid-row: calc(var(--cline-ui-detail-list-item-row-span) + 1);
+			grid-template-columns: minmax(0, 1fr);
 			margin-top: 0.5rem;
 		}
 		.cline-ui-detail-list-item__fields {
