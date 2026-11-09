@@ -900,6 +900,22 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://inference.runanywhere.ai/v1" },
 	},
 	{
+		id: "teamorouter",
+		name: "TeamoRouter",
+		description:
+			"One API key for Claude, GPT, Gemini, DeepSeek, GLM, Kimi and Qwen",
+		family: "openai-compatible",
+		defaultModelId: "claude-sonnet-5-5",
+		apiKeyEnv: ["TEAMOROUTER_API_KEY"],
+		defaults: {
+			// One root serves both /chat/completions and the Anthropic-compatible
+			// /messages; routing picks the endpoint per model from models.dev.
+			baseUrl: "https://api.teamorouter.com/v1",
+			headers: { "X-Client-Source": "cline-teamorouter" },
+		},
+		metadata: { routing: { modelApiProtocol: true } },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
