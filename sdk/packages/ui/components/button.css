@@ -260,6 +260,8 @@
 
 	@media (prefers-reduced-motion: no-preference) {
 		.cline-ui-button:not([data-press-scale="false"]) {
+			/* Keep SVG pixel snapping consistent before, during, and after a press. */
+			will-change: scale;
 			transition: scale 40ms ease-out;
 		}
 
