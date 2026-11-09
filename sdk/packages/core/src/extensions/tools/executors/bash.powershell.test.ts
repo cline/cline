@@ -91,6 +91,19 @@ for (const shell of shells) {
 				});
 			});
 
+			it("reports a cmdlet error instead of a stale native exit code", async () => {
+				await expect(
+					executor(
+						`${nativeExitCommand(42)}; Write-Error 'cmdlet-failed' -ErrorAction Continue`,
+						process.cwd(),
+						ctx,
+					),
+				).rejects.toMatchObject({
+					exitCode: 1,
+					output: expect.stringContaining("cmdlet-failed"),
+				});
+			});
+
 			it("preserves an explicit script exit", async () => {
 				await expect(
 					executor("exit 23", process.cwd(), ctx),
