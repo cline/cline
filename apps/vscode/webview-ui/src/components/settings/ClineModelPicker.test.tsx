@@ -215,7 +215,7 @@ describe("ClineModelPicker", () => {
 
 		fireEvent.click(screen.getByText("ClineFree"))
 
-		expect(screen.getByText("No free models are available for cloud tasks right now.")).toBeInTheDocument()
+		expect(screen.getByText("No free models are listed for cloud tasks right now.")).toBeInTheDocument()
 		// The local Free list is not the cloud's.
 		expect(screen.queryByText("Local Only")).not.toBeInTheDocument()
 	})

@@ -515,7 +515,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 					{visibleTab.id === "clinePass" && cloudSelection?.clinePassNotice}
 					{visibleTab.id === "clineCloud" && featuredModelsLoaded && visibleTab.models.length === 0 && (
 						<p className="text-xs m-0 py-1 text-(--vscode-descriptionForeground)">
-							No free models are available for cloud tasks right now.
+							No free models are listed for cloud tasks right now.
 						</p>
 					)}
 					{visibleTab.models.map((model) => (
