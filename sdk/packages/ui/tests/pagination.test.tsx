@@ -153,7 +153,7 @@ function mockTrackOffset(offset: string) {
 			return element.matches(".cline-ui-pagination__track")
 				? new Proxy(style, {
 						get(target, property) {
-							if (property === "insetInlineStart") return offset;
+							if (property === "translate") return offset;
 							if (property === "gridAutoColumns") return "40px";
 							return Reflect.get(target, property, target);
 						},
@@ -683,6 +683,29 @@ describe("Pagination", () => {
 		expect(animate).not.toHaveBeenCalled();
 	});
 
+	it("moves one page-sized marker from the first through the middle to the last slot", async () => {
+		for (const [page, slot] of [
+			[1, 0],
+			[2, 1],
+			[5, 2],
+			[9, 3],
+			[10, 4],
+		] as const) {
+			await render(<Pagination page={page} pageCount={10} />);
+			const marker = container.querySelector<HTMLElement>(
+				".cline-ui-pagination__marker",
+			);
+			const step = container.querySelector<HTMLElement>(
+				".cline-ui-pagination__track",
+			)?.style.gridAutoColumns;
+			expect(marker?.style.inlineSize).toBe(pageButton(page).style.inlineSize);
+			expect(marker?.style.translate).toBe(
+				`calc(calc(${slot} * ${step}) + var(--spacing, 0.25rem))`,
+			);
+			expect(marker?.textContent).toBe("");
+		}
+	});
+
 	it("renders each multi-digit page number once during page transitions", async () => {
 		mockMotion(false);
 		await render(<Pagination defaultPage={5_000} pageCount={10_000} />);
@@ -736,8 +759,8 @@ describe("Pagination", () => {
 		for (const animation of replacements) {
 			const step = (animation.element as HTMLElement).style.gridAutoColumns;
 			expect(animation.keyframes).toEqual([
-				{ insetInlineStart: "-98.5px" },
-				{ insetInlineStart: `calc(-4 * ${step})` },
+				{ translate: "-98.5px" },
+				{ translate: `calc(-4 * ${step})` },
 			]);
 			expect(animation.element.firstElementChild?.textContent).toBe("3");
 		}
@@ -767,8 +790,8 @@ describe("Pagination", () => {
 		for (const animation of replacements) {
 			const step = (animation.element as HTMLElement).style.gridAutoColumns;
 			expect(animation.keyframes).toEqual([
-				{ insetInlineStart: "-24px" },
-				{ insetInlineStart: `calc(-1 * ${step})` },
+				{ translate: "-24px" },
+				{ translate: `calc(-1 * ${step})` },
 			]);
 		}
 		for (const animation of previousAnimations) {
@@ -791,8 +814,8 @@ describe("Pagination", () => {
 		for (const animation of replacements) {
 			const step = (animation.element as HTMLElement).style.gridAutoColumns;
 			expect(animation.keyframes).toEqual([
-				{ insetInlineStart: "-98px" },
-				{ insetInlineStart: `calc(-4 * ${step})` },
+				{ translate: "-98px" },
+				{ translate: `calc(-4 * ${step})` },
 			]);
 			expect(animation.element.firstElementChild?.textContent).toBe("4");
 		}
@@ -818,7 +841,7 @@ describe("Pagination", () => {
 		for (const track of container.querySelectorAll<HTMLElement>(
 			".cline-ui-pagination__track",
 		)) {
-			expect(track.style.insetInlineStart).toBe(
+			expect(track.style.translate).toBe(
 				`calc(-4 * ${track.style.gridAutoColumns})`,
 			);
 			expect(track.firstElementChild?.textContent).toBe("4");
@@ -856,8 +879,8 @@ describe("Pagination", () => {
 		const resumed = animations[1];
 		const step = (resumed?.element as HTMLElement).style.gridAutoColumns;
 		expect(resumed?.keyframes).toEqual([
-			{ insetInlineStart: `calc(-3 * ${step})` },
-			{ insetInlineStart: `calc(-4 * ${step})` },
+			{ translate: `calc(-3 * ${step})` },
+			{ translate: `calc(-4 * ${step})` },
 		]);
 	});
 
@@ -876,8 +899,8 @@ describe("Pagination", () => {
 		const reversed = animations[1];
 		const step = (reversed?.element as HTMLElement).style.gridAutoColumns;
 		expect(reversed?.keyframes).toEqual([
-			{ insetInlineStart: "-178px" },
-			{ insetInlineStart: `calc(-4 * ${step})` },
+			{ translate: "-178px" },
+			{ translate: `calc(-4 * ${step})` },
 		]);
 		expect(reversed?.element.firstElementChild?.textContent).toBe("4");
 	});

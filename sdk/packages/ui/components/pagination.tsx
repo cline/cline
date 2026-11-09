@@ -117,10 +117,6 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			(index: number) => `calc(${index} * ${step})`,
 			[step],
 		);
-		const markerClip = (index: number) => {
-			const start = `calc(${index} * ${step} + var(--spacing, 0.25rem))`;
-			return `inset(0 calc(100% - ${start} - ${pageWidth}) 0 ${start} round var(--cline-ui-pagination-radius))`;
-		};
 
 		// Restore focus after a page button is removed, even when the strip stays put.
 		useBrowserLayoutEffect(() => {
@@ -171,17 +167,15 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			const from = interrupted
 				? `${offset}px`
 				: position(renderStart - before.start);
+			// Transform movement keeps the strip's layout fixed during each frame.
 			const animation = track.animate(
-				[
-					{ insetInlineStart: from },
-					{ insetInlineStart: position(renderStart - start) },
-				],
+				[{ translate: from }, { translate: position(renderStart - start) }],
 				{ duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
 			);
 			return () => {
 				if (animation.playState === "running") {
 					const style = getComputedStyle(track);
-					const offset = Number.parseFloat(style.insetInlineStart);
+					const offset = Number.parseFloat(style.translate);
 					const step = Number.parseFloat(style.gridAutoColumns);
 					if (Number.isFinite(offset) && Number.isFinite(step) && step > 0)
 						interruptedTrack.current = { offset, step, renderStart };
@@ -270,7 +264,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 						ref={trackRef}
 						style={{
 							gridAutoColumns: step,
-							insetInlineStart: position(renderStart - start),
+							translate: position(renderStart - start),
 						}}
 					>
 						{renderedPages.map((number) =>
@@ -355,7 +349,10 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 					<div
 						aria-hidden="true"
 						className="cline-ui-pagination__marker"
-						style={{ clipPath: markerClip(selectedIndex) }}
+						style={{
+							inlineSize: pageWidth,
+							translate: `calc(${position(selectedIndex)} + var(--spacing, 0.25rem))`,
+						}}
 					/>
 				</div>
 				<IconButton
