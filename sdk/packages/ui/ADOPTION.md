@@ -1182,3 +1182,35 @@ controls layout. Sizes `xs`, `sm`, `md` (default), and `lg` match the
 [Button heights and corner radii](#buttons). Selection motion respects reduced motion.
 Pass `tooltipPortalContainer` inside `.cline-ui-theme` for scoped tooltips;
 an enclosing `TooltipProvider` shares hover timing.
+
+## File browser
+
+`FileBrowser` combines a collapsible tree with children in its content pane. Pass
+unique root-relative paths with `/` separators; the host loads files and controls
+`selectedPath` through `onSelect`. Folders sort first and start expanded.
+
+```tsx
+<FileBrowser aria-label="Skill content" files={files}
+  selectedPath={path} onSelect={setPath}>
+  <FileBrowserContent key={path} path={path} content={source}
+    preview={<Markdown content={source} />} />
+</FileBrowser>
+```
+
+Drag the divider to resize, use arrows/Home/End while it has focus, or double-click
+to reset. `loading` on FileBrowser shows both skeletons; on FileBrowserContent
+it preserves navigation and resizing.
+The default content height is 36rem; override `--cline-ui-file-browser-body-height`.
+
+`FileBrowserContent` shows Source/Preview when `preview` exists and preserves
+`content` verbatim in Source mode. For editing, pass a controlled editor as
+`source`; it stays mounted across mode switches. `defaultMode` is `preview`;
+use `defaultMode="source"` to start editing, and `sourceLabel` to rename that option.
+Key by path to reset mode/scroll on file selection. `headerLabel` replaces the path heading.
+Loading and host children take precedence over source/preview content.
+
+File actions use `actionPath` or `path` unchanged. Copy uses the Clipboard API
+unless `onCopyPath` is supplied. `onOpenFileLocation` enables the reveal action;
+rejections show inline errors. Use `showActions={false}` to hide the menu and
+`actionsPortalContainer` for scoped themes. Hosts own Markdown/link handling,
+clipboard bridges, editor state, save actions, and error recovery.
