@@ -323,7 +323,8 @@ const RETRYABLE_STATUSES = new Set([
 /**
  * Provider `code`/`type` values for capacity failures. They arrive on in-band
  * error parts that carry no HTTP status, so the status rule above has nothing
- * to decide on.
+ * to decide on. Mostly redundant once the AI SDK derives `isRetryable` from
+ * these fields itself (vercel/ai#24525): the typed path above then wins.
  */
 const RETRYABLE_CODES = new Set([
 	"server_is_overloaded",

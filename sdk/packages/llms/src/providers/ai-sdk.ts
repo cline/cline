@@ -2526,6 +2526,8 @@ function createAiSdkProvider(
 									errorClass: captured.errorClass,
 									context: correlationProperties(),
 								});
+								// Remove once the AI SDK waits between stream retries itself
+								// (vercel/ai#24524); the notice and telemetry above stay.
 								await sleep(wait.delayMs, request.signal);
 							},
 							onAbort: async ({ reason }) => {
