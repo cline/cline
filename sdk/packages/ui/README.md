@@ -66,6 +66,11 @@ through `portalContainer`. Hosts retain data, navigation, persistence, and actio
 `TooltipProvider` to share hover timing across a group; see the
 [tooltip guide](./ADOPTION.md#tooltips) for timing and scoped portals.
 
+`PillSelector`/`PillSelectorItem` provide category filtering; `SegmentedControl`
+uses native radios for form-aware selection. See the
+[selection controls guide](./ADOPTION.md#selection-controls) for keyboard behavior
+and controlled state.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 
