@@ -25,9 +25,19 @@ describe("MCP tool annotations over the proto boundary", () => {
 			title: "Get file text",
 			readOnlyHint: true,
 			destructiveHint: false,
-			idempotentHint: undefined,
-			openWorldHint: undefined,
 		})
+	})
+
+	it("drop an empty title on the way back", () => {
+		const [server] = convertProtoMcpServersToMcpServers(
+			convertMcpServersToProtoMcpServers([
+				serverWithTools([
+					{ name: "get_file_text", inputSchema: { type: "object" }, annotations: { title: "", readOnlyHint: true } },
+				]),
+			]),
+		)
+
+		should(server.tools?.[0].annotations).deepEqual({ title: undefined, readOnlyHint: true })
 	})
 
 	it("stay absent for a tool the server left undeclared", () => {

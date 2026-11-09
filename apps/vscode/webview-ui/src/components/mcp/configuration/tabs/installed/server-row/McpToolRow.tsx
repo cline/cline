@@ -21,8 +21,10 @@ export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
  * hint is shown: an undeclared tool gets no badge, since absence of a hint is
  * not a statement about the tool.
  */
-// Only a declared read-only tool gets a badge: readOnlyHint false is the spec
-// default, so marking it would suggest undeclared tools are safe.
+// Only a declared read-only tool gets a badge: that is the set Plan mode can
+// run without asking. Labelling the rest either marks undeclared tools as
+// read-write, which is wrong for an old server's getters, or needs a noisy
+// third "unknown" label. Rows without a badge say nothing either way.
 const ToolHintBadge = ({ tool }: { tool: McpTool }) => {
 	if (tool.annotations?.readOnlyHint !== true) {
 		return null

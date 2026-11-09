@@ -146,12 +146,19 @@ describe("McpHub tool list change detection", () => {
 			fp1.should.not.equal(fp2)
 		})
 
-		it("should produce different fingerprints when a tool's annotations change", () => {
-			const before = computeToolFingerprint([makeConnection("s1", "connected", ["tool1"])])
-			const after = computeToolFingerprint([
-				makeConnection("s1", "connected", ["tool1"], false, 60, { tool1: { annotations: { readOnlyHint: true } } }),
-			])
-			before.should.not.equal(after)
+		it("should produce different fingerprints when a tool's annotations appear or change value", () => {
+			const withTool = (annotations?: object) =>
+				computeToolFingerprint([
+					makeConnection("s1", "connected", ["tool1"], false, 60, annotations ? { tool1: { annotations } } : {}),
+				])
+			const undeclared = withTool()
+			const readOnly = withTool({ readOnlyHint: true })
+			const writable = withTool({ readOnlyHint: false })
+			const readOnlyTitled = withTool({ readOnlyHint: true, title: "Tool one" })
+			undeclared.should.not.equal(readOnly)
+			readOnly.should.not.equal(writable)
+			readOnly.should.not.equal(readOnlyTitled)
+			withTool({ readOnlyHint: true }).should.equal(readOnly)
 		})
 
 		it("should produce different fingerprints for different descriptions", () => {
