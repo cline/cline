@@ -119,6 +119,46 @@ describe("Tooltip", () => {
 		expect(document.activeElement).toBe(nextControl);
 	});
 
+	it.each([
+		undefined,
+		"button-help",
+	])("preserves descriptions on an asChild link with outer description %s", async (description) => {
+		await render(
+			<>
+				<p id="link-help">Opens the workspace settings.</p>
+				<p id="button-help">Manage your workspace.</p>
+				<Tooltip content="Open settings">
+					<Button asChild aria-describedby={description}>
+						<a href="#settings" aria-describedby="link-help">
+							Settings
+						</a>
+					</Button>
+				</Tooltip>
+			</>,
+		);
+		const link = container.querySelector("a");
+		if (!link) throw new Error("Missing tooltip link trigger");
+		await act(async () => link.focus());
+		expect(tooltip()?.textContent).toBe("Open settings");
+		expect(link.getAttribute("aria-describedby")?.split(" ")).toEqual(
+			["link-help", description, tooltip()?.id].filter(Boolean),
+		);
+		await act(async () => {
+			link.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Escape",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		});
+		expect(tooltip()).toBeNull();
+		expect(link.getAttribute("aria-describedby")?.split(" ")).toEqual(
+			["link-help", description].filter(Boolean),
+		);
+		expect(document.activeElement).toBe(link);
+	});
+
 	it("preserves the shared Button ref, focus handler, and action without adding a trigger wrapper", async () => {
 		const ref = createRef<HTMLButtonElement>();
 		const onFocus = vi.fn();
