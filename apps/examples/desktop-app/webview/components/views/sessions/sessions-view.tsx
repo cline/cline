@@ -8,6 +8,8 @@ import {
 	ChevronRight,
 	ChevronsLeft,
 	Cloud,
+	Copy,
+	Download,
 	Filter,
 	Folder,
 	GitFork,
@@ -20,7 +22,14 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+	type ComponentType,
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
@@ -33,6 +42,13 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -52,11 +68,15 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { toast } from "@/hooks/use-toast";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
-import { isTaskWorktreePath } from "@/lib/workspace-paths";
+import {
+	isTaskWorktreePath,
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+} from "@/lib/workspace-paths";
 
 type SessionsViewProps = {
 	activeSessionId?: string | null;
@@ -64,6 +84,17 @@ type SessionsViewProps = {
 };
 
 const PAGE_SIZE = 10;
+
+/**
+ * The row's actions are offered from two menus (the three-dots button and
+ * right-click), so they are rendered once against whichever menu's parts.
+ */
+type SessionMenuItem = ComponentType<{
+	children?: ReactNode;
+	onClick?: () => void;
+	variant?: "default" | "destructive";
+}>;
+type SessionMenuSeparator = ComponentType<Record<string, never>>;
 
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
@@ -143,6 +174,23 @@ function sessionFilterDetails(
 		thread.provider ? `provider:${thread.provider}` : undefined,
 		thread.model ? `model:${thread.model}` : undefined,
 	].filter((detail): detail is string => Boolean(detail));
+}
+
+/**
+ * Export copies the history file from this machine's disk, so it only applies
+ * to local sessions: cloud and SSH sessions keep their history elsewhere.
+ */
+function canExportSessionHistory(
+	thread: SessionThread,
+	session?: SessionHistoryItem,
+): boolean {
+	if (thread.origin === "cloud" || session?.origin === "cloud") {
+		return false;
+	}
+	return (
+		(session?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
+		LOCAL_WORKSPACE_ENVIRONMENT_ID
+	);
 }
 
 function sortTimestamp(session?: SessionHistoryItem) {
@@ -329,6 +377,21 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		}
 	};
 
+	// Takes the runtime session id, not `thread.id`: the latter is the UI key
+	// that also encodes the environment.
+	const copySessionId = async (sessionId: string) => {
+		try {
+			await navigator.clipboard.writeText(sessionId);
+			toast({ title: "Session ID copied" });
+		} catch {
+			toast({
+				variant: "destructive",
+				title: "Copy failed",
+				description: "The session ID could not be copied to the clipboard.",
+			});
+		}
+	};
+
 	const confirmDelete = async () => {
 		if (!deleteCandidate) {
 			return;
@@ -493,230 +556,256 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 									session?.endedAt ||
 									session?.startedAt,
 							);
-							return (
-								<div
-									className={cn(
-										// Fixed height: every row is the same size so the table
-										// never reflows as long values wrap or hydrate in.
-										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
-										activeSessionId === thread.id
-											? "bg-surface-hover"
-											: "hover:bg-surface-hover-lighter",
-									)}
-									key={thread.id}
-								>
-									{isEditing ? (
-										<form
-											className="col-span-6 grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4"
-											onSubmit={(event) => {
-												event.preventDefault();
-												void submitRename(thread);
-											}}
+							const renderActions = (
+								Item: SessionMenuItem,
+								Separator: SessionMenuSeparator,
+							) => (
+								<>
+									{thread.origin !== "cloud" ? (
+										<Item
+											onClick={() =>
+												void history.setThreadPinned(thread.id, !thread.pinned)
+											}
 										>
-											<div className="col-span-2 flex min-w-0 items-center gap-2">
-												<Input
-													aria-label={`Rename ${thread.title}`}
-													autoFocus
-													className="h-8"
-													disabled={pendingKind === "rename"}
-													onChange={(event) =>
-														setEditingTitle(event.target.value)
-													}
-													onKeyDown={(event) => {
-														if (event.key === "Escape") {
-															event.preventDefault();
-															cancelRename();
-														}
-													}}
-													value={editingTitle}
-												/>
-												<Button
-													aria-label="Save title"
-													className="h-8 rounded-md px-2.5"
-													disabled={
-														pendingKind === "rename" || !editingTitle.trim()
-													}
-													size="sm"
-													type="submit"
-												>
-													{pendingKind === "rename" ? (
-														<Loader2 className="size-4 animate-spin" />
-													) : (
-														<Check className="size-4" />
-													)}
-												</Button>
-												<Button
-													aria-label="Cancel rename"
-													className="h-8 rounded-md px-2.5"
-													disabled={pendingKind === "rename"}
-													onClick={cancelRename}
-													size="sm"
-													type="button"
-													variant="outline"
-												>
-													<X className="size-4" />
-												</Button>
-											</div>
-											<span
-												className="truncate text-muted-foreground"
-												title={modelLabel(thread)}
-											>
-												{modelLabel(thread)}
-											</span>
-											<span className="text-muted-foreground">
-												{tokensLabel(thread)}
-											</span>
-											<span className="text-muted-foreground">
-												{formatCostUsd(thread.totalCostUsd) ?? "-"}
-											</span>
-											<span className="text-muted-foreground">
-												{updated || thread.time}
-											</span>
-										</form>
-									) : (
-										// A native <button> suppresses drag-to-select, so the row is a
-										// plain container with button semantics: the cells stay
-										// selectable and a click that ends a selection does not open
-										// the session.
-										// biome-ignore lint/a11y/useSemanticElements: buttons are not text-selectable
-										<div
-											aria-disabled={Boolean(pendingKind)}
-											className={cn(
-												"col-span-6 grid select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-												pendingKind ? "cursor-default" : "cursor-pointer",
-											)}
-											onClick={() => openRow(thread)}
-											onKeyDown={(event) => {
-												if (event.key !== "Enter" && event.key !== " ") {
-													return;
-												}
-												event.preventDefault();
-												openRow(thread);
-											}}
-											role="button"
-											tabIndex={pendingKind ? -1 : 0}
-										>
-											<span className="flex min-w-0 items-center gap-3 font-semibold">
-												<span className="sr-only">Open session: </span>
-												<SessionStatus
-													className="shrink-0"
-													label={`Session status: ${thread.status}`}
-													showLabel={false}
-													style={
-														{
-															"--cline-ui-session-status-color":
-																sessionStatusColor(thread.status),
-														} as CSSProperties
-													}
-													tone={sessionStatusTone(thread.status)}
-												/>
-												<span className="truncate">{thread.title}</span>
-												{thread.origin === "cloud" ? (
-													<Cloud
-														aria-label="Cloud session"
-														className="size-3.5 shrink-0 text-muted-foreground"
-													/>
-												) : null}
-												{thread.pinned ? (
-													<Pin
-														aria-label="Pinned"
-														className="size-3.5 shrink-0 fill-current text-muted-foreground"
-													/>
-												) : null}
-											</span>
-											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-												{thread.origin === "cloud" ? (
-													<Cloud className="size-3.5 shrink-0" />
-												) : (
-													<Folder className="size-3.5 shrink-0" />
+											<Pin
+												className={cn(
+													"size-4",
+													thread.pinned && "fill-current",
 												)}
-												<span
-													className="truncate"
-													title={thread.repoUrl || workspace}
+											/>
+											{thread.pinned ? "Unpin" : "Pin"}
+										</Item>
+									) : null}
+									<Item onClick={() => startRename(thread)}>
+										<Pencil className="size-4" />
+										Rename
+									</Item>
+									{thread.origin !== "cloud" ? (
+										<Item onClick={() => void history.forkThread(thread.id)}>
+											<GitFork className="size-4" />
+											Fork
+										</Item>
+									) : null}
+									{canExportSessionHistory(thread, session) ? (
+										<Item onClick={() => void history.exportThread(thread.id)}>
+											<Download className="size-4" />
+											Export
+										</Item>
+									) : null}
+									{session?.sessionId ? (
+										<Item onClick={() => void copySessionId(session.sessionId)}>
+											<Copy className="size-4" />
+											Copy Session ID
+										</Item>
+									) : null}
+									<Separator />
+									<Item
+										onClick={() => setDeleteCandidate(thread)}
+										variant="destructive"
+									>
+										<Trash2 className="size-4" />
+										Delete
+									</Item>
+								</>
+							);
+							return (
+								<ContextMenu key={thread.id}>
+									{/* Off while renaming, so the title input keeps the system
+								    menu (paste, etc.), and while an action is in flight. */}
+									<ContextMenuTrigger
+										asChild
+										disabled={isEditing || Boolean(pendingKind)}
+									>
+										<div
+											className={cn(
+												// Fixed height: every row is the same size so the table
+												// never reflows as long values wrap or hydrate in.
+												"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
+												activeSessionId === thread.id
+													? "bg-surface-hover"
+													: "hover:bg-surface-hover-lighter",
+											)}
+										>
+											{isEditing ? (
+												<form
+													className="col-span-6 grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4"
+													onSubmit={(event) => {
+														event.preventDefault();
+														void submitRename(thread);
+													}}
 												>
-													{thread.origin === "cloud"
-														? thread.repoUrl || "Cloud repository"
-														: workspace
-															? basenamePath(workspace)
-															: "No workspace"}
-												</span>
-											</span>
-											<span
-												className="truncate text-muted-foreground"
-												title={modelLabel(thread)}
-											>
-												{modelLabel(thread)}
-											</span>
-											<span className="truncate text-muted-foreground">
-												{tokensLabel(thread)}
-											</span>
-											<span className="truncate text-muted-foreground">
-												{formatCostUsd(thread.totalCostUsd) ?? "-"}
-											</span>
-											<span className="truncate text-muted-foreground">
-												{updated || thread.time}
-											</span>
-										</div>
-									)}
-									<div>
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<button
-													aria-label={`Session actions for ${thread.title}`}
-													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-													disabled={Boolean(pendingKind)}
-													type="button"
-												>
-													{pendingKind ? (
-														<Loader2 className="size-4 animate-spin" />
-													) : (
-														<MoreHorizontal className="size-4" />
-													)}
-												</button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end" sideOffset={6}>
-												{thread.origin !== "cloud" ? (
-													<DropdownMenuItem
-														onClick={() =>
-															void history.setThreadPinned(
-																thread.id,
-																!thread.pinned,
-															)
-														}
-													>
-														<Pin
-															className={cn(
-																"size-4",
-																thread.pinned && "fill-current",
-															)}
+													<div className="col-span-2 flex min-w-0 items-center gap-2">
+														<Input
+															aria-label={`Rename ${thread.title}`}
+															autoFocus
+															className="h-8"
+															disabled={pendingKind === "rename"}
+															onChange={(event) =>
+																setEditingTitle(event.target.value)
+															}
+															onKeyDown={(event) => {
+																if (event.key === "Escape") {
+																	event.preventDefault();
+																	cancelRename();
+																}
+															}}
+															value={editingTitle}
 														/>
-														{thread.pinned ? "Unpin" : "Pin"}
-													</DropdownMenuItem>
-												) : null}
-												<DropdownMenuItem onClick={() => startRename(thread)}>
-													<Pencil className="size-4" />
-													Rename
-												</DropdownMenuItem>
-												{thread.origin !== "cloud" ? (
-													<DropdownMenuItem
-														onClick={() => void history.forkThread(thread.id)}
+														<Button
+															aria-label="Save title"
+															className="h-8 rounded-md px-2.5"
+															disabled={
+																pendingKind === "rename" || !editingTitle.trim()
+															}
+															size="sm"
+															type="submit"
+														>
+															{pendingKind === "rename" ? (
+																<Loader2 className="size-4 animate-spin" />
+															) : (
+																<Check className="size-4" />
+															)}
+														</Button>
+														<Button
+															aria-label="Cancel rename"
+															className="h-8 rounded-md px-2.5"
+															disabled={pendingKind === "rename"}
+															onClick={cancelRename}
+															size="sm"
+															type="button"
+															variant="outline"
+														>
+															<X className="size-4" />
+														</Button>
+													</div>
+													<span
+														className="truncate text-muted-foreground"
+														title={modelLabel(thread)}
 													>
-														<GitFork className="size-4" />
-														Fork
-													</DropdownMenuItem>
-												) : null}
-												<DropdownMenuSeparator />
-												<DropdownMenuItem
-													onClick={() => setDeleteCandidate(thread)}
-													variant="destructive"
+														{modelLabel(thread)}
+													</span>
+													<span className="text-muted-foreground">
+														{tokensLabel(thread)}
+													</span>
+													<span className="text-muted-foreground">
+														{formatCostUsd(thread.totalCostUsd) ?? "-"}
+													</span>
+													<span className="text-muted-foreground">
+														{updated || thread.time}
+													</span>
+												</form>
+											) : (
+												// A native <button> suppresses drag-to-select, so the row is a
+												// plain container with button semantics: the cells stay
+												// selectable and a click that ends a selection does not open
+												// the session.
+												// biome-ignore lint/a11y/useSemanticElements: buttons are not text-selectable
+												<div
+													aria-disabled={Boolean(pendingKind)}
+													className={cn(
+														"col-span-6 grid select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+														pendingKind ? "cursor-default" : "cursor-pointer",
+													)}
+													onClick={() => openRow(thread)}
+													onKeyDown={(event) => {
+														if (event.key !== "Enter" && event.key !== " ") {
+															return;
+														}
+														event.preventDefault();
+														openRow(thread);
+													}}
+													role="button"
+													tabIndex={pendingKind ? -1 : 0}
 												>
-													<Trash2 className="size-4" />
-													Delete
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</div>
-								</div>
+													<span className="flex min-w-0 items-center gap-3 font-semibold">
+														<span className="sr-only">Open session: </span>
+														<SessionStatus
+															className="shrink-0"
+															label={`Session status: ${thread.status}`}
+															showLabel={false}
+															style={
+																{
+																	"--cline-ui-session-status-color":
+																		sessionStatusColor(thread.status),
+																} as CSSProperties
+															}
+															tone={sessionStatusTone(thread.status)}
+														/>
+														<span className="truncate">{thread.title}</span>
+														{thread.pinned ? (
+															<Pin
+																aria-label="Pinned"
+																className="size-3.5 shrink-0 fill-current text-muted-foreground"
+															/>
+														) : null}
+													</span>
+													<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+														{thread.origin === "cloud" ? (
+															<Cloud
+																aria-label="Cloud session"
+																className="size-3.5 shrink-0"
+															/>
+														) : (
+															<Folder className="size-3.5 shrink-0" />
+														)}
+														<span
+															className="truncate"
+															title={thread.repoUrl || workspace}
+														>
+															{thread.origin === "cloud"
+																? thread.repoUrl || "Cloud repository"
+																: workspace
+																	? basenamePath(workspace)
+																	: "No workspace"}
+														</span>
+													</span>
+													<span
+														className="truncate text-muted-foreground"
+														title={modelLabel(thread)}
+													>
+														{modelLabel(thread)}
+													</span>
+													<span className="truncate text-muted-foreground">
+														{tokensLabel(thread)}
+													</span>
+													<span className="truncate text-muted-foreground">
+														{formatCostUsd(thread.totalCostUsd) ?? "-"}
+													</span>
+													<span className="truncate text-muted-foreground">
+														{updated || thread.time}
+													</span>
+												</div>
+											)}
+											<div>
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<button
+															aria-label={`Session actions for ${thread.title}`}
+															className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+															disabled={Boolean(pendingKind)}
+															type="button"
+														>
+															{pendingKind ? (
+																<Loader2 className="size-4 animate-spin" />
+															) : (
+																<MoreHorizontal className="size-4" />
+															)}
+														</button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end" sideOffset={6}>
+														{renderActions(
+															DropdownMenuItem,
+															DropdownMenuSeparator,
+														)}
+													</DropdownMenuContent>
+												</DropdownMenu>
+											</div>
+										</div>
+									</ContextMenuTrigger>
+									<ContextMenuContent>
+										{renderActions(ContextMenuItem, ContextMenuSeparator)}
+									</ContextMenuContent>
+								</ContextMenu>
 							);
 						})}
 						{filteredThreads.length > 0 ? (

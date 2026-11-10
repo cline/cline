@@ -109,6 +109,66 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("useSessionHistory exportThread", () => {
+	async function renderWithSession() {
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("ses-export")]);
+			await Promise.resolve();
+		});
+		return current.threads[0].id;
+	}
+
+	function mockExport(picked: string | null) {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "pick_save_file_path") return picked;
+			if (command === "export_chat_session_history") {
+				return { path: picked };
+			}
+			return [];
+		});
+	}
+
+	it("saves the history to the file the user chose in the save dialog", async () => {
+		const threadId = await renderWithSession();
+		mockExport("/Users/dev/exports/renamed.json");
+
+		let exported: boolean | undefined;
+		await act(async () => {
+			exported = await current.exportThread(threadId);
+		});
+
+		expect(exported).toBe(true);
+		// The dialog opens on the name the history file has on disk.
+		expect(invokeMock).toHaveBeenCalledWith("pick_save_file_path", {
+			defaultFileName: "ses-export.messages.json",
+		});
+		expect(invokeMock).toHaveBeenCalledWith("export_chat_session_history", {
+			environmentId: "local",
+			sessionId: "ses-export",
+			destinationPath: "/Users/dev/exports/renamed.json",
+		});
+		expect(current.pendingAction).toBeNull();
+	});
+
+	it("does nothing when the save dialog is dismissed", async () => {
+		const threadId = await renderWithSession();
+		mockExport(null);
+
+		let exported: boolean | undefined;
+		await act(async () => {
+			exported = await current.exportThread(threadId);
+		});
+
+		expect(exported).toBe(false);
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"export_chat_session_history",
+			expect.anything(),
+		);
+	});
+});
+
 describe("useSessionHistory session mapping", () => {
 	it("accepts refreshed titles without reverting a rename during the refresh", async () => {
 		const row = (title: string) => ({

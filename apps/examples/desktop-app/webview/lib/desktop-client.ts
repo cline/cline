@@ -271,6 +271,7 @@ export function writeDesktopDebugLog(payload: unknown): void {
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
+	"pick_save_file_path",
 	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",

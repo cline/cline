@@ -50,7 +50,9 @@ function renderView({
 	mayHaveMoreSessions = false,
 	threads = [thread],
 	hasLoadedHistory = true,
+	environmentId = session.environmentId,
 }: {
+	environmentId?: string;
 	openThread?: ReturnType<typeof vi.fn>;
 	loadAllSessions?: ReturnType<typeof vi.fn>;
 	loadOlderSessions?: ReturnType<typeof vi.fn>;
@@ -61,6 +63,7 @@ function renderView({
 } = {}) {
 	const history = {
 		deleteThread: vi.fn(),
+		exportThread: vi.fn(),
 		forkThread: vi.fn(),
 		hasLoadedHistory,
 		isLoadingMore: false,
@@ -73,7 +76,10 @@ function renderView({
 		requestUsage,
 		setThreadPinned: vi.fn(),
 		sessionById: new Map(
-			threads.map((item) => [item.id, { ...session, sessionId: item.id }]),
+			threads.map((item) => [
+				item.id,
+				{ ...session, environmentId, sessionId: item.id },
+			]),
 		),
 		threads,
 	};
@@ -183,9 +189,10 @@ describe("SessionsView table", () => {
 		const view = renderView({ threads: [cloudThread] });
 		await view.render();
 
-		expect(
-			container.querySelector('[aria-label="Cloud session"]'),
-		).not.toBeNull();
+		// One cloud marker, in the Workspace column; none beside the title.
+		const markers = container.querySelectorAll('[aria-label="Cloud session"]');
+		expect(markers).toHaveLength(1);
+		expect(markers[0].closest(".font-semibold")).toBeNull();
 		expect(container.textContent).toContain("https://github.com/cline/cline");
 	});
 
@@ -290,6 +297,190 @@ describe("SessionsView table", () => {
 		});
 
 		expect(view.loadAllSessions).toHaveBeenCalledOnce();
+	});
+
+	async function openActionsMenu() {
+		const actions = container.querySelector<HTMLButtonElement>(
+			`button[aria-label="Session actions for ${thread.title}"]`,
+		);
+		await act(async () => {
+			actions?.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+				}),
+			);
+		});
+		return Array.from(
+			document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+		);
+	}
+
+	it("exports a local session's history from the actions menu", async () => {
+		const view = renderView();
+		await view.render();
+
+		const exportItem = (await openActionsMenu()).find(
+			(item) => item.textContent === "Export",
+		);
+		expect(exportItem).not.toBeUndefined();
+		await act(async () => {
+			exportItem?.click();
+		});
+
+		expect(view.history.exportThread).toHaveBeenCalledExactlyOnceWith(
+			thread.id,
+		);
+	});
+
+	it("does not offer export for cloud sessions", async () => {
+		const view = renderView({ threads: [{ ...thread, origin: "cloud" }] });
+		await view.render();
+
+		const labels = (await openActionsMenu()).map((item) => item.textContent);
+		expect(labels).toContain("Rename");
+		expect(labels).not.toContain("Export");
+	});
+
+	it("does not offer export for sessions on a remote environment", async () => {
+		const view = renderView({ environmentId: "ssh-box" });
+		await view.render();
+
+		const labels = (await openActionsMenu()).map((item) => item.textContent);
+		expect(labels).toContain("Rename");
+		expect(labels).not.toContain("Export");
+	});
+
+	it("copies the runtime session id, not the UI thread key", async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.assign(navigator, { clipboard: { writeText } });
+		// A thread's id is a UI key that also encodes the environment.
+		const threadKey = JSON.stringify(["local", "ses-runtime-id"]);
+		const history = {
+			...renderView().history,
+			threads: [{ ...thread, id: threadKey }],
+			sessionById: new Map([
+				[threadKey, { ...session, sessionId: "ses-runtime-id" }],
+			]),
+		};
+		await act(async () => {
+			root.render(
+				<SessionsView
+					history={
+						history as unknown as React.ComponentProps<
+							typeof SessionsView
+						>["history"]
+					}
+				/>,
+			);
+		});
+
+		const copyItem = (await openActionsMenu()).find(
+			(item) => item.textContent === "Copy Session ID",
+		);
+		expect(copyItem).not.toBeUndefined();
+		await act(async () => {
+			copyItem?.click();
+		});
+
+		expect(writeText).toHaveBeenCalledExactlyOnceWith("ses-runtime-id");
+	});
+
+	it("offers Copy Session ID for cloud sessions too", async () => {
+		const view = renderView({ threads: [{ ...thread, origin: "cloud" }] });
+		await view.render();
+
+		const labels = (await openActionsMenu()).map((item) => item.textContent);
+		expect(labels).toContain("Copy Session ID");
+	});
+
+	async function rightClickRow() {
+		const row = container.querySelector<HTMLElement>('[role="button"]');
+		await act(async () => {
+			row?.dispatchEvent(
+				new MouseEvent("contextmenu", {
+					bubbles: true,
+					cancelable: true,
+					button: 2,
+				}),
+			);
+		});
+		return Array.from(
+			document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+		);
+	}
+
+	it("offers the same actions on right-click as the three-dots menu", async () => {
+		const view = renderView();
+		await view.render();
+		const fromButton = (await openActionsMenu()).map(
+			(item) => item.textContent,
+		);
+		expect(fromButton).toEqual([
+			"Pin",
+			"Rename",
+			"Fork",
+			"Export",
+			"Copy Session ID",
+			"Delete",
+		]);
+
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await renderView().render();
+
+		const fromRightClick = (await rightClickRow()).map(
+			(item) => item.textContent,
+		);
+		expect(fromRightClick).toEqual(fromButton);
+	});
+
+	it("runs an action chosen from the right-click menu without opening the session", async () => {
+		const view = renderView();
+		await view.render();
+
+		const exportItem = (await rightClickRow()).find(
+			(item) => item.textContent === "Export",
+		);
+		await act(async () => {
+			exportItem?.click();
+		});
+
+		expect(view.history.exportThread).toHaveBeenCalledExactlyOnceWith(
+			thread.id,
+		);
+		expect(view.openThread).not.toHaveBeenCalled();
+	});
+
+	it("starts a rename from the right-click menu and then leaves the title input its own menu", async () => {
+		const view = renderView();
+		await view.render();
+
+		const renameItem = (await rightClickRow()).find(
+			(item) => item.textContent === "Rename",
+		);
+		await act(async () => {
+			renameItem?.click();
+		});
+
+		const input = container.querySelector<HTMLInputElement>(
+			`input[aria-label="Rename ${thread.title}"]`,
+		);
+		expect(input).not.toBeNull();
+		expect(input?.value).toBe(thread.title);
+
+		// While renaming, right-click must fall through to the system menu.
+		const event = new MouseEvent("contextmenu", {
+			bubbles: true,
+			cancelable: true,
+			button: 2,
+		});
+		await act(async () => {
+			input?.dispatchEvent(event);
+		});
+		expect(event.defaultPrevented).toBe(false);
+		expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
 	});
 
 	it("warns that deleting a task-worktree session also removes its worktree", async () => {

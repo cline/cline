@@ -935,6 +935,47 @@ async fn pick_workspace_directory(
     rx.await.ok().flatten()
 }
 
+/// Native "Save as" dialog. Returns the full path the user chose, or None when
+/// they cancel. The dialog itself confirms replacing an existing file.
+#[tauri::command]
+async fn pick_save_file_path(
+    app: tauri::AppHandle,
+    default_file_name: Option<String>,
+) -> Option<String> {
+    let default_file_name = default_file_name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    // Threading mirrors pick_workspace_directory above.
+    let _ = app.run_on_main_thread(move || {
+        #[cfg(target_os = "linux")]
+        {
+            let mut dialog = rfd::AsyncFileDialog::new();
+            if let Some(name) = default_file_name {
+                dialog = dialog.set_file_name(name);
+            }
+            let picked = dialog.save_file();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_string_lossy().to_string()));
+            });
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(name) = default_file_name {
+                dialog = dialog.set_file_name(name);
+            }
+            let _ = tx.send(
+                dialog
+                    .save_file()
+                    .map(|path| path.to_string_lossy().to_string()),
+            );
+        }
+    });
+    rx.await.ok().flatten()
+}
+
 #[tauri::command]
 fn get_update_status(update_state: State<'_, Arc<UpdateState>>) -> UpdateStatus {
     update_state.snapshot()
@@ -1705,6 +1746,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             pick_workspace_directory,
+            pick_save_file_path,
             open_mcp_settings_file,
             get_update_status,
             restart_to_apply_update,

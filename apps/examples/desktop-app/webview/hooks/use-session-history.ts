@@ -111,7 +111,7 @@ type SidecarChatEvent = {
 
 export type SessionPendingAction = {
 	sessionId: string;
-	action: "rename" | "fork" | "delete";
+	action: "rename" | "fork" | "delete" | "export";
 } | null;
 
 export type UseSessionHistoryOptions = {
@@ -1715,6 +1715,57 @@ export function useSessionHistory({
 		[getSessionByThreadId, onOpenSession, scheduleRefresh],
 	);
 
+	// Copies the session history file stored on disk to wherever the user
+	// saves it. Local sessions only: cloud and SSH history is not on this disk.
+	const exportThread = useCallback(
+		async (threadId: string) => {
+			const sourceSession = getSessionByThreadId(threadId);
+			if (!sourceSession) return false;
+			try {
+				const picked = await desktopClient.invoke<string | null>(
+					"pick_save_file_path",
+					{
+						// The name the history file has on disk; the user can change it.
+						defaultFileName: `${sourceSession.sessionId}.messages.json`,
+					},
+				);
+				const destinationPath = typeof picked === "string" ? picked : "";
+				if (!destinationPath.trim()) {
+					// The user dismissed the save dialog.
+					return false;
+				}
+				setPendingAction({ sessionId: threadId, action: "export" });
+				const result = await desktopClient.invoke<{ path?: string }>(
+					"export_chat_session_history",
+					{
+						environmentId:
+							sourceSession.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+						sessionId: sourceSession.sessionId,
+						destinationPath,
+					},
+				);
+				toast({
+					title: "Session exported",
+					description: `Saved to ${result?.path || destinationPath}`,
+				});
+				return true;
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title: "Export failed",
+					description:
+						error instanceof Error && error.message.trim()
+							? error.message
+							: "The session history could not be exported.",
+				});
+				return false;
+			} finally {
+				setPendingAction(null);
+			}
+		},
+		[getSessionByThreadId],
+	);
+
 	const deleteThread = useCallback(
 		async (threadId: string) => {
 			const sourceSession = getSessionByThreadId(threadId);
@@ -1889,6 +1940,7 @@ export function useSessionHistory({
 		requestUsage,
 		setThreadPinned,
 		deleteThread,
+		exportThread,
 		forkThread,
 		sessionById,
 		sessions,
