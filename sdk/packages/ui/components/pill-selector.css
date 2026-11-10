@@ -17,6 +17,11 @@
 		display: none;
 	}
 
+	.cline-ui-pill-selector[data-overflow="wrap"] {
+		flex-wrap: wrap;
+		overflow: visible;
+	}
+
 	.cline-ui-pill-selector__item {
 		position: relative;
 		isolation: isolate;

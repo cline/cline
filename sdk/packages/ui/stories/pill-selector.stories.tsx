@@ -73,6 +73,7 @@ const meta: Meta<typeof PillSelector> = {
 		children: { control: false },
 		onValueChange: { action: "selection changed" },
 		size: { control: "select", options: ["sm", "md"] },
+		overflow: { control: "select", options: ["scroll", "wrap"] },
 	},
 };
 
@@ -190,6 +191,23 @@ export const Narrow: Story = {
 	render: (args) => (
 		<div className="w-full max-w-72">
 			<PillSelector {...args} className="w-full" />
+		</div>
+	),
+};
+
+export const Wrapped: Story = {
+	args: { overflow: "wrap", children: <InventoryItems /> },
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"Categories wrap to fit the available width. All arrow keys traverse enabled items in DOM order; Home and End reach the first and last item. Focus remains visible when rows extend beyond a scrolling parent.",
+			},
+		},
+	},
+	render: (args) => (
+		<div className="w-full max-w-72">
+			<PillSelector {...args} />
 		</div>
 	),
 };

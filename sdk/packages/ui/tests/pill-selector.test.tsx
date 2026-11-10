@@ -123,9 +123,11 @@ describe("PillSelector", () => {
 	});
 
 	it.each([
-		false,
-		true,
-	])("forwards focus before scrolling unless prevented=%s", async (preventDefault) => {
+		["scroll", false],
+		["scroll", true],
+		["wrap", false],
+		["wrap", true],
+	] as const)("forwards focus before scrolling with overflow=%s unless prevented=%s", async (overflow, preventDefault) => {
 		const calls: string[] = [];
 		const onFocus = vi.fn((event: FocusEvent<HTMLButtonElement>) => {
 			calls.push("focus");
@@ -133,7 +135,7 @@ describe("PillSelector", () => {
 			if (preventDefault) event.preventDefault();
 		});
 		await render(
-			<PillSelector aria-label="Categories">
+			<PillSelector aria-label="Categories" overflow={overflow}>
 				<PillSelectorItem onFocus={onFocus} value="skills">
 					Skills
 				</PillSelectorItem>
@@ -158,13 +160,17 @@ describe("PillSelector", () => {
 		}
 	});
 
-	it("moves keyboard focus past disabled items and loops without changing selection", async () => {
+	it.each([
+		"scroll",
+		"wrap",
+	] as const)("moves keyboard focus past disabled items and loops without changing selection with overflow=%s", async (overflow) => {
 		const onValueChange = vi.fn();
 		await render(
 			<PillSelector
 				aria-label="Categories"
 				defaultValue="all"
 				onValueChange={onValueChange}
+				overflow={overflow}
 			>
 				<PillSelectorItem value="all">All</PillSelectorItem>
 				<PillSelectorItem disabled value="plugins">
@@ -187,5 +193,35 @@ describe("PillSelector", () => {
 		expect(document.activeElement).toBe(item("All"));
 		expect(item("All").getAttribute("aria-checked")).toBe("true");
 		expect(onValueChange).not.toHaveBeenCalled();
+	});
+
+	it("uses both arrow axes in DOM order for wrapped items and respects RTL", async () => {
+		await render(
+			<PillSelector
+				aria-label="Categories"
+				overflow="wrap"
+				dir="rtl"
+				defaultValue="all"
+			>
+				<PillSelectorItem value="all">All</PillSelectorItem>
+				<PillSelectorItem disabled value="plugins">
+					Plugins
+				</PillSelectorItem>
+				<PillSelectorItem value="skills">Skills</PillSelectorItem>
+				<PillSelectorItem value="mcp">MCP</PillSelectorItem>
+			</PillSelector>,
+		);
+		await act(async () => item("All").focus());
+		await pressKey(item("All"), "ArrowDown");
+		expect(document.activeElement).toBe(item("Skills"));
+		await pressKey(item("Skills"), "ArrowLeft");
+		expect(document.activeElement).toBe(item("MCP"));
+		await pressKey(item("MCP"), "ArrowUp");
+		expect(document.activeElement).toBe(item("Skills"));
+		await pressKey(item("Skills"), "ArrowUp");
+		expect(document.activeElement).toBe(item("All"));
+		await pressKey(item("All"), "ArrowUp");
+		expect(document.activeElement).toBe(item("MCP"));
+		expect(item("All").getAttribute("aria-checked")).toBe("true");
 	});
 });

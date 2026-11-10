@@ -1151,6 +1151,24 @@ Use `defaultValue` for uncontrolled state. Groups and items support `disabled`;
 `dir` controls RTL behavior. Sizes are `sm` (2rem) and `md` (default, 2.25rem)
 at default spacing. The host owns filtering; this control does not submit a form value.
 
+`overflow="scroll"` (the default) keeps one horizontally scrolling row.
+Use `overflow="wrap"` to fit categories across multiple lines; focus outlines
+remain visible without horizontal scrolling. In wrapped mode, Up/Down and
+Left/Right move focus through enabled items in DOM order, including across line
+breaks. Horizontal arrows respect `dir`, and Home/End still reach the first/last
+item. This is ordered navigation, not spatial grid navigation. Selection still
+requires Space/Enter or a click. Focused items scroll into view in an enclosing
+scroll region; an item `onFocus` handler can call `preventDefault()` to take over.
+
+```tsx
+<PillSelector aria-label="Installed categories" overflow="wrap"
+  value={category} onValueChange={(value) => setCategory(value || "all")}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+  <PillSelectorItem value="plugins">Plugins</PillSelectorItem>
+</PillSelector>
+```
+
 ### Segmented control
 
 `SegmentedControl` accepts `options` with `value` and readable `label` fields.
