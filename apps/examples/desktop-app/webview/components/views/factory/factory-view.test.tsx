@@ -13,6 +13,8 @@ import { FactoryView } from "./factory-view";
 const mocks = vi.hoisted(() => ({
 	tasks: [] as AgendaTaskRecord[],
 	refresh: vi.fn(async () => {}),
+	toast: vi.fn(),
+	createTask: vi.fn(),
 	startFactoryQueue: vi.fn(async () => ({ queued: 1 })),
 	updateAgendaTask: vi.fn(),
 	approveAgendaTask: vi.fn(),
@@ -23,10 +25,12 @@ const mocks = vi.hoisted(() => ({
 	),
 	subscribe: vi.fn(() => () => {}),
 }));
+vi.mock("@/hooks/use-toast", () => ({ toast: mocks.toast }));
 vi.mock("@/hooks/use-agenda-tasks", () => ({
 	useAgendaTasks: () => ({
 		tasks: mocks.tasks,
 		refresh: mocks.refresh,
+		createTask: mocks.createTask,
 		isLoading: false,
 	}),
 }));
@@ -71,6 +75,19 @@ let root: Root;
 beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.invoke.mockImplementation(async () => []);
+	mocks.createTask.mockImplementation(async () => {
+		const created = task({ status: "pending_approval" });
+		mocks.tasks = [...mocks.tasks, created];
+		return created;
+	});
+	mocks.tasks = [];
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
+	window.localStorage.clear();
 	sessionStorage.clear();
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	container = document.createElement("div");
@@ -91,13 +108,24 @@ function button(label: string): HTMLButtonElement {
 
 function changeInput(selector: string, value: string) {
 	const input = document.querySelector(selector);
-	if (!(input instanceof HTMLInputElement))
+	if (
+		!(input instanceof HTMLInputElement) &&
+		!(input instanceof HTMLTextAreaElement)
+	)
 		throw new Error(`Missing input ${selector}`);
 	Object.getOwnPropertyDescriptor(
-		HTMLInputElement.prototype,
+		input instanceof HTMLInputElement
+			? HTMLInputElement.prototype
+			: HTMLTextAreaElement.prototype,
 		"value",
 	)?.set?.call(input, value);
 	input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function selectTab(label: string) {
+	button(label).dispatchEvent(
+		new MouseEvent("mousedown", { bubbles: true, button: 0 }),
+	);
 }
 
 describe("Factory workflow", () => {
@@ -374,6 +402,13 @@ describe("Factory workflow", () => {
 			),
 		);
 		await act(async () => button("Export activity").click());
+		await act(async () => {
+			const summary = Array.from(document.querySelectorAll("summary")).find(
+				(item) => item.textContent?.trim() === "Configuration",
+			);
+			if (!summary) throw new Error("Missing configuration");
+			summary.click();
+		});
 		const select = document.querySelector(
 			'[aria-label="Apply workflow preset"]',
 		);
@@ -463,7 +498,10 @@ describe("Factory workflow", () => {
 			),
 		);
 		await act(async () => button("Export activity").click());
-		expect(document.body.textContent).toContain("revision 3 (previous brief)");
+		await act(async () => selectTab("Verification"));
+		expect(document.body.textContent).toContain(
+			"revision 3 (previous execution — not current evidence)",
+		);
 		expect(document.body.textContent).not.toContain(
 			"Changes are ready for your review",
 		);
@@ -597,6 +635,7 @@ describe("Factory workflow", () => {
 			}),
 		];
 		await act(async () => render());
+		await act(async () => button("Edit").click());
 		const brief = document.querySelector('textarea[aria-label="Design brief"]');
 		expect(brief).toBeInstanceOf(HTMLTextAreaElement);
 		if (brief instanceof HTMLTextAreaElement)
@@ -627,7 +666,8 @@ describe("Factory workflow", () => {
 				/>,
 			),
 		);
-		await act(async () => button("New feature").click());
+		await act(async () => button("Add work").click());
+		await act(async () => selectTab("GitHub / Linear issue"));
 		await act(async () =>
 			changeInput("#feature-issue", "https://github.com/owner/repo/issues/7"),
 		);
@@ -657,8 +697,157 @@ describe("Factory workflow", () => {
 		});
 		await act(async () => button("Import").click());
 		expect(document.querySelector("#feature-name")).toBeNull();
-		expect(document.body.textContent).toContain("Design brief");
+		expect(document.body.textContent).toContain("Plan");
 	});
+	it.each([
+		{
+			provider: "github",
+			id: "I_example",
+			url: "https://github.com/example/repo/issues/7",
+		},
+		{
+			provider: "linear",
+			id: "issue-example",
+			url: "https://linear.app/example/issue/APP-7",
+		},
+	])("adds imported $provider work to the queue with its source and without starting an agent", async (source) => {
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_import_issue"
+				? {
+						title: "Investigate slow search",
+						description: "Reproduce the reported delay.",
+						source,
+					}
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => selectTab("GitHub / Linear issue"));
+		await act(async () => changeInput("#feature-issue", source.url));
+		expect(button("Add and scope").disabled).toBe(true);
+		await act(async () => button("Import").click());
+		await act(async () => changeInput("#feature-repository", "/other"));
+		expect(button("Add and scope").disabled).toBe(true);
+		await act(async () => button("Import").click());
+		const checkbox = document.querySelector('input[type="checkbox"]');
+		if (!(checkbox instanceof HTMLInputElement))
+			throw new Error("Missing scoping choice");
+		await act(async () => checkbox.click());
+		expect(button("Add to queue").disabled).toBe(false);
+		expect(button("Add to queue").form?.checkValidity()).toBe(true);
+		await act(async () => button("Add to queue").click());
+		expect(mocks.createTask).toHaveBeenCalledTimes(1);
+		expect(mocks.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Investigate slow search",
+				instructions: "Reproduce the reported delay.",
+				workspaceRoot: "/other",
+				cwd: "/other",
+				factory: expect.objectContaining({
+					sourceIssue: source,
+					publishPullRequest: false,
+				}),
+			}),
+		);
+		expect(mocks.designFactoryTask).not.toHaveBeenCalled();
+	});
+
+	it("adds a direct request once and reports scoping startup failure without offering a duplicate submission", async () => {
+		mocks.designFactoryTask.mockRejectedValueOnce(
+			new Error("Provider unavailable"),
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => {
+			changeInput("#feature-name", "Investigate search");
+			changeInput("#feature-request", "Find why search is slow.");
+		});
+		expect(button("Add and scope").disabled).toBe(false);
+		expect(button("Add and scope").form?.checkValidity()).toBe(true);
+		await act(async () => button("Add and scope").click());
+		expect(mocks.createTask).toHaveBeenCalledTimes(1);
+		expect(mocks.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				instructions: "Find why search is slow.",
+				factory: expect.objectContaining({ sourceIssue: undefined }),
+			}),
+		);
+		expect(mocks.designFactoryTask).toHaveBeenCalledWith("feature-1");
+		expect(mocks.toast).toHaveBeenCalledWith({
+			title: "Scoping could not start",
+			description:
+				"Work was added, but scoping could not start: Provider unavailable",
+			variant: "destructive",
+		});
+		expect(document.querySelector("#feature-name")).toBeNull();
+		expect(container.textContent).toContain(
+			"Work was added, but scoping could not start: Provider unavailable",
+		);
+	});
+
+	it("ignores a late import after closing Add work and surfaces import failures on retry", async () => {
+		mocks.tasks = [task()];
+		let finish: (value: unknown) => void = () => {
+			throw new Error("Import not started");
+		};
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_import_issue"
+				? new Promise((resolve) => {
+						finish = resolve;
+					})
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => selectTab("GitHub / Linear issue"));
+		await act(async () =>
+			changeInput("#feature-issue", "https://github.com/example/repo/issues/7"),
+		);
+		await act(async () => button("Import").click());
+		expect(button("GitHub / Linear issue").disabled).toBe(true);
+		await act(async () => button("Close").click());
+		await act(async () => finish({ existingTaskId: "feature-1" }));
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(mocks.createTask).not.toHaveBeenCalled();
+		mocks.invoke.mockImplementation(async (command) => {
+			if (command === "factory_import_issue")
+				throw new Error("Check your Linear credentials and issue access.");
+			return [];
+		});
+		await act(async () => button("Add work").click());
+		await act(async () => selectTab("GitHub / Linear issue"));
+		await act(async () =>
+			changeInput("#feature-issue", "https://linear.app/example/issue/APP-7"),
+		);
+		await act(async () => button("Import").click());
+		expect(document.body.textContent).toContain(
+			"Check your Linear credentials and issue access.",
+		);
+		expect(button("Import").disabled).toBe(false);
+		expect(button("Add and scope").disabled).toBe(true);
+	});
+
 	it.each([
 		"watching",
 		"blocked",
@@ -729,6 +918,7 @@ describe("Factory workflow", () => {
 			`Needs you (${phase === "watching" ? 0 : 1})`,
 		);
 		await act(async () => button("Export activity").click());
+		await act(async () => selectTab("Verification"));
 		if (phase === "closed") {
 			expect(document.body.textContent).not.toContain("Resume PR follow-up");
 			expect(document.body.textContent).not.toContain("Pause PR follow-up");

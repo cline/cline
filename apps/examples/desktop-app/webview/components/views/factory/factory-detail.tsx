@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MemoizedMarkdown } from "@/components/ui/markdown";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import type { AskQuestionRequestItem } from "@/hooks/chat-session/types";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
@@ -56,6 +58,9 @@ export function FeatureDetail({
 		initialPromptDraft?: string,
 	) => Promise<void>;
 }) {
+	const [editing, setEditing] = useState(false);
+	const [runsLoading, setRunsLoading] = useState(true);
+	const [evidenceError, setEvidenceError] = useState<string | null>(null);
 	const [instructions, setInstructions] = useState(task.instructions);
 	const [draftRevision, setDraftRevision] = useState(task.revision);
 	const [config, setConfig] = useState(task.factory ?? DEFAULT_FACTORY);
@@ -107,18 +112,25 @@ export function FeatureDetail({
 		task.status === "failed";
 	useEffect(() => {
 		let active = true;
+		setRunsLoading(true);
+		setEvidenceError(null);
 		void desktopClient
 			.getFactoryTask(task.taskId)
 			.then((result) => {
-				if (active) setRuns(result.runs ?? []);
+				if (active) {
+					setRuns(result.runs ?? []);
+					setRunsLoading(false);
+				}
 			})
 			.catch((cause: unknown) => {
-				if (active)
-					setError(
+				if (active) {
+					setRunsLoading(false);
+					setEvidenceError(
 						cause instanceof Error
 							? cause.message
 							: "Unable to load execution evidence.",
 					);
+				}
 			});
 		return () => {
 			active = false;
@@ -133,7 +145,10 @@ export function FeatureDetail({
 		diff?.runId === run?.runId && diff?.commit === state?.candidate?.commit
 			? diff?.files
 			: null;
-	const currentEvidence = run?.taskRevision === task.revision;
+	const matchesTask =
+		run?.taskRevision === task.revision &&
+		run?.runId === (task.currentRunId ?? task.lastRunId);
+	const currentEvidence = matchesTask && !runsLoading && !evidenceError;
 	const canFollowUp =
 		task.status === "completed" &&
 		task.factory?.watchPullRequest &&
@@ -144,6 +159,26 @@ export function FeatureDetail({
 		state?.pullRequestWatch?.paused ||
 		state?.phase === "blocked" ||
 		state?.phase === "ready";
+	const sessions = new Map<string, string>();
+	if (designSession) sessions.set(designSession, "Designer");
+	const designProgress = task.factoryDesignProgress;
+	if (designProgress && designProgress.phase !== "designing") {
+		for (const reviewer of designProgress.reviewerSessions)
+			sessions.set(
+				reviewer.sessionId,
+				`Plan reviewer ${reviewer.reviewerIndex + 1}${designProgress.revision === task.revision ? "" : " (previous plan)"}`,
+			);
+	}
+	for (const reviewer of task.factoryDesignReview?.reviews ?? [])
+		sessions.set(
+			reviewer.sessionId,
+			`Plan reviewer ${reviewer.reviewerIndex + 1}${task.factoryDesignReview?.revision === task.revision ? "" : " (previous plan)"}`,
+		);
+	for (const [index, session] of (state?.sessions ?? []).entries())
+		sessions.set(
+			session.sessionId,
+			`${session.role === "builder" ? "Implementer" : session.role === "reviewer" ? "Reviewer" : "Verifier"} ${index + 1}${matchesTask ? "" : " (previous execution)"}`,
+		);
 	async function perform(action: () => Promise<void>) {
 		setBusy(true);
 		setError(null);
@@ -172,7 +207,7 @@ export function FeatureDetail({
 		return saved;
 	}
 	return (
-		<>
+		<Tabs defaultValue="plan">
 			<DialogHeader>
 				<DialogTitle>{task.title}</DialogTitle>
 				<DialogDescription>
@@ -209,7 +244,8 @@ export function FeatureDetail({
 						? (state?.phase ?? task.status.replaceAll("_", " "))
 						: task.status.replaceAll("_", " ")}
 				</span>
-				{state ? (
+
+				{state && currentEvidence ? (
 					<span className="text-xs text-muted-foreground">
 						{state.phase === "watching"
 							? "Watching CI and review comments · "
@@ -222,157 +258,20 @@ export function FeatureDetail({
 					</span>
 				)}
 			</div>
-			{error || task.error || state?.error ? (
+			{error ||
+			evidenceError ||
+			task.error ||
+			(currentEvidence && state?.error) ? (
 				<p
 					role="alert"
 					className="rounded-md border border-destructive/30 p-3 text-sm text-destructive"
 				>
-					{error || state?.error || task.error}
+					{error ||
+						evidenceError ||
+						(currentEvidence ? state?.error : undefined) ||
+						task.error}
 				</p>
 			) : null}
-			{state && currentEvidence ? (
-				<section
-					className="space-y-3 rounded-lg border p-4"
-					aria-label="Factory outcome"
-				>
-					<div className="flex flex-wrap items-center gap-3 text-sm">
-						<span>
-							{state.humanApproval
-								? "Checked off"
-								: state.phase === "blocked"
-									? "Needs attention"
-									: state.phase === "ready"
-										? "Local result awaiting your stamp"
-										: state.pullRequestChecks?.status === "passed"
-											? "Required CI passed"
-											: "Factory is handling this feature"}
-						</span>
-						{state.usage ? (
-							<span className="text-muted-foreground">
-								Recorded model cost ${state.usage.totals.totalCost.toFixed(2)}
-								{state.usage.unknownSessionIds.length
-									? ` · ${state.usage.unknownSessionIds.length} sessions have unknown cost`
-									: ""}
-							</span>
-						) : null}
-						<span className="text-muted-foreground">
-							{state.attempts?.length ?? 0} execution attempts
-						</span>
-					</div>
-					{task.status === "completed" &&
-					!state.humanApproval &&
-					!state.audit?.finding &&
-					!state.pullRequestWatch?.pending &&
-					questions.length === 0 &&
-					(state.phase === "ready" ||
-						(state.phase === "watching" &&
-							state.pullRequestChecks?.status === "passed" &&
-							state.pullRequestChecks.headCommit ===
-								state.candidate?.commit)) &&
-					state.candidate ? (
-						<Button
-							disabled={busy}
-							onClick={() =>
-								void perform(async () => {
-									await desktopClient.invoke("task.factory.stamp", {
-										taskId: task.taskId,
-										expectedHead: state.candidate?.commit,
-										allWorkspaces: true,
-									});
-								})
-							}
-						>
-							Check off this result
-						</Button>
-					) : null}
-					{task.status !== "in_progress" ? (
-						<Button
-							variant="outline"
-							disabled={busy || Boolean(state.audit)}
-							onClick={() =>
-								void perform(async () => {
-									await desktopClient.invoke("task.factory.audit", {
-										taskId: task.taskId,
-										allWorkspaces: true,
-									});
-								})
-							}
-						>
-							{state.audit
-								? "Selected for sample review"
-								: "Sample this outcome"}
-						</Button>
-					) : null}
-					{state.audit ? (
-						<div className="space-y-2">
-							<Textarea
-								aria-label="Sample review finding"
-								placeholder="What did the factory miss? Leave empty if the sample passed."
-								value={auditFinding}
-								onChange={(event) => setAuditFinding(event.target.value)}
-								disabled={busy}
-							/>
-							<Button
-								variant="outline"
-								disabled={busy}
-								onClick={() =>
-									void perform(async () => {
-										await desktopClient.invoke("task.factory.audit", {
-											taskId: task.taskId,
-											finding: auditFinding,
-											allWorkspaces: true,
-										});
-									})
-								}
-							>
-								Record sample review
-							</Button>
-							{state.audit.finding ? (
-								<>
-									<p className="text-sm">{state.audit.finding}</p>
-									<Button
-										variant="outline"
-										disabled={busy}
-										onClick={() =>
-											void perform(async () => {
-												const improvement =
-													await desktopClient.createAgendaTask({
-														type: "todo",
-														title: `Improve verification: ${task.title}`,
-														scope: task.scope,
-														workspaceRoot: task.workspaceRoot,
-														cwd: task.cwd,
-														allWorkspaces: true,
-														instructions: `Investigate this sampled factory failure and fix the responsible check, skill, or environment. Reuse existing owners. Prove the changed verification catches this failure and preserves representative passing behavior. Do not weaken quality gates.\n\nFinding: ${state.audit?.finding}\nOriginal acceptance brief: ${task.instructions}\nCandidate: ${state.candidate?.commit ?? "unavailable"}`,
-														factory: {
-															...(task.factory ?? DEFAULT_FACTORY),
-															checks: [],
-															implementationUnits: undefined,
-															watchPullRequest: false,
-															sourceIssue: undefined,
-															publishPullRequest: false,
-														},
-														modelSelection: task.modelSelection,
-														expiresAt: new Date(
-															Date.now() + 90 * 86_400_000,
-														).toISOString(),
-														originTaskId: task.taskId,
-													});
-												await desktopClient.designFactoryTask(
-													improvement.taskId,
-												);
-											})
-										}
-									>
-										Create factory improvement
-									</Button>
-								</>
-							) : null}
-						</div>
-					) : null}
-				</section>
-			) : null}
-
 			{questions.length ? (
 				<section className="space-y-3 rounded-lg border border-amber-500/30 p-4">
 					<h3 className="text-sm font-semibold">Needs your answer</h3>
@@ -407,448 +306,670 @@ export function FeatureDetail({
 					/>
 				</section>
 			) : null}
-			<section className="space-y-3">
-				<div className="flex items-center justify-between gap-3">
-					<h3 className="text-sm font-semibold">Design brief</h3>
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={busy || !editable}
-						onClick={() =>
-							void perform(async () => {
-								const saved = await save();
-								const result = await desktopClient.designFactoryTask(
-									saved.taskId,
-								);
-								setDesignSession(result.sessionId);
-								setDesignStarted(true);
-							})
-						}
-					>
-						{task.originSessionId ? "Refine design" : "Interview with agent"}
-					</Button>
-				</div>
-				<p className="text-xs leading-5 text-muted-foreground">
-					The agent reads your request, docs and repository, then asks about
-					unresolved requirements here. The agreed brief and checks are saved
-					for your approval. Approval authorizes agent tools and these check
-					commands on your machine, using an isolated Git worktree. The worktree
-					is not a security sandbox.
-				</p>
-				{designStarted ? (
-					<output className="block text-xs text-muted-foreground">
-						Design interview started. Questions will appear here as the agent
-						reads the context.
-					</output>
-				) : null}
-				{designSession ? (
-					<Button
-						size="sm"
-						variant="ghost"
-						onClick={() => void onOpenSession(designSession)}
-					>
-						Open design conversation <ArrowUpRight className="ml-1 size-3" />
-					</Button>
-				) : null}
-				{dirty && task.revision !== draftRevision ? (
-					<p role="alert" className="text-xs text-amber-600">
-						The agent saved a newer brief. Reload it before making further
-						changes.
-						<Button
-							size="sm"
-							variant="link"
-							onClick={() => {
-								setInstructions(task.instructions);
-								setConfig(task.factory ?? DEFAULT_FACTORY);
-								setDraftRevision(task.revision);
-								setSavedDraft({
-									revision: task.revision,
-									instructions: task.instructions,
-									config: task.factory ?? DEFAULT_FACTORY,
-								});
-							}}
-						>
-							Load saved brief
-						</Button>
-					</p>
-				) : null}
-				<Textarea
-					aria-label="Design brief"
-					disabled={!editable || busy}
-					value={instructions}
-					onChange={(event) => setInstructions(event.target.value)}
-					rows={7}
-				/>
-				<label className={labelClass} htmlFor="feature-documents">
-					Reference docs
-					<Input
-						id="feature-documents"
-						type="file"
-						accept=".md,.markdown,.txt,text/plain,text/markdown"
-						multiple
-						disabled={!editable || busy}
-						onChange={(event) => {
-							const files = Array.from(event.target.files ?? []);
-							event.target.value = "";
-							void perform(async () => {
-								if (
-									files.some(
-										(file) =>
-											!/\.(md|markdown|txt)$/i.test(file.name) ||
-											file.size > 100_000,
-									)
-								)
-									throw new Error(
-										"Use Markdown or text files up to 100 KB each.",
-									);
-								if ((config.documents?.length ?? 0) + files.length > 10)
-									throw new Error("Attach up to 10 reference docs.");
-								const attachments = await serializeAttachments(files);
-								setConfig((current) => ({
-									...current,
-									documents: [
-										...(current.documents ?? []),
-										...attachments.userFiles,
-									],
-								}));
-							});
-						}}
-					/>
-				</label>
-				{config.documents?.map((doc, index) => (
-					<div
-						key={`${doc.name}-${index}`}
-						className="flex items-center justify-between rounded border px-3 py-1 text-xs"
-					>
-						<span>{doc.name}</span>
-						<Button
-							size="icon"
-							variant="ghost"
-							aria-label={`Remove ${doc.name}`}
-							disabled={!editable || busy}
-							onClick={() =>
-								setConfig({
-									...config,
-									documents: config.documents?.filter((_, i) => i !== index),
-								})
-							}
-						>
-							<X className="size-3" />
-						</Button>
-					</div>
-				))}
-			</section>
-			<FactoryWorkflowEditor
-				config={config}
-				disabled={!editable || busy}
-				onChange={setConfig}
-			/>
-			{task.factoryDesignReview ? (
-				<section className="space-y-3">
-					<h3 className="text-sm font-semibold">
-						Plan review · revision {task.factoryDesignReview.revision}
-						{dirty || task.factoryDesignReview.revision !== task.revision
-							? " (previous draft)"
-							: ""}
-					</h3>
-					{task.factoryDesignReview.reviews.map((result) => (
-						<ReviewResult
-							key={result.reviewerIndex}
-							label={`Plan reviewer ${result.reviewerIndex + 1}`}
-							review={result.review}
-							sessionId={result.sessionId}
-							onOpenSession={onOpenSession}
-						/>
-					))}
-				</section>
-			) : null}
-			<section className="space-y-3">
-				<div className="flex items-center justify-between">
-					<h3 className="text-sm font-semibold">
-						Required checks and evidence
-					</h3>
-					<Button
-						variant="ghost"
-						size="sm"
-						disabled={!editable || busy}
-						onClick={() =>
-							setConfig({
-								...config,
-								checks: [
-									...config.checks,
-									{ name: "", command: "", kind: "test", artifacts: [] },
-								],
-							})
-						}
-					>
-						<Plus className="mr-1 size-3" />
-						Add check
-					</Button>
-				</div>
-				<p className="text-xs leading-5 text-muted-foreground">
-					Commands run in the feature worktree. For UI changes, require
-					screenshots or recordings; for backend changes, include route/API or
-					end-to-end tests. Artifact paths are relative to the worktree.
-				</p>
-				{config.checks.map((check, index) => (
-					<CheckEditor
-						key={index}
-						check={check}
-						disabled={!editable || busy}
-						onChange={(next) =>
-							setConfig({
-								...config,
-								checks: config.checks.map((item, i) =>
-									i === index ? next : item,
-								),
-							})
-						}
-						onRemove={() =>
-							setConfig({
-								...config,
-								checks: config.checks.filter((_, i) => i !== index),
-							})
-						}
-					/>
-				))}
-				{config.checks.length === 0 ? (
-					<p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-						Add at least one concrete verification command before approval.
-					</p>
-				) : null}
-			</section>
-			<div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-3">
-				<label className={labelClass}>
-					Design approval
-					<select
-						className={selectClass}
-						disabled={!editable || busy}
-						value={config.approval}
-						onChange={(event) =>
-							setConfig({
-								...config,
-								approval:
-									event.target.value === "automatic" ? "automatic" : "required",
-							})
-						}
-					>
-						<option value="required">Upfront approval</option>
-						<option value="automatic">Automatic</option>
-					</select>
-				</label>
-				<label className={labelClass} htmlFor="feature-repairs">
-					Repair rounds
-					<Input
-						id="feature-repairs"
-						type="number"
-						min={0}
-						max={10}
-						disabled={!editable || busy}
-						value={config.maxRepairRounds}
-						onChange={(event) =>
-							setConfig({
-								...config,
-								maxRepairRounds: Math.max(
-									0,
-									Math.min(10, Number(event.target.value)),
-								),
-							})
-						}
-					/>
-				</label>
-				<div className={labelClass}>
-					Execution<p className="pt-2 text-sm font-normal">Local</p>
-					<p className="text-xs font-normal text-muted-foreground">
-						Cloud runner not connected yet.
-					</p>
-				</div>
-			</div>
-			<label className="flex items-start gap-2 text-sm">
-				<input
-					type="checkbox"
-					className="mt-1"
-					disabled={!editable || busy}
-					checked={config.publishPullRequest}
-					onChange={(event) =>
-						setConfig({ ...config, publishPullRequest: event.target.checked })
-					}
-				/>
-				<span>
-					Publish a draft PR after checks and review pass
-					<span className="mt-1 block text-xs text-muted-foreground">
-						Off: retain tested changes on the local feature branch for
-						inspection.
-					</span>
-				</span>
-			</label>
-			{config.publishPullRequest ? (
-				<label className="flex items-start gap-2 text-sm">
-					<input
-						type="checkbox"
-						className="mt-1"
-						disabled={!editable || busy}
-						checked={config.watchPullRequest ?? false}
-						onChange={(event) =>
-							setConfig({ ...config, watchPullRequest: event.target.checked })
-						}
-					/>
-					<span>
-						Babysit the PR after publishing
-						<span className="mt-1 block text-xs text-muted-foreground">
-							Watch CI and review comments, repair within the round limit, and
-							reply after verification. You decide when to merge.
-						</span>
-					</span>
-				</label>
-			) : null}
-			{state ? (
-				<section className="space-y-3 border-t pt-4">
-					<h3 className="text-sm font-semibold">
-						Review packet · revision {run?.taskRevision}
-						{currentEvidence ? "" : " (previous brief)"}
-					</h3>
-					<p className="break-all font-mono text-xs text-muted-foreground">
-						{state.workspace.branch}
-						{state.candidate?.commit
-							? ` · ${state.candidate.commit.slice(0, 12)}`
-							: ""}
-					</p>
-					<p className="break-all text-xs text-muted-foreground">
-						{state.workspace.path}
-					</p>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={busy || !state.candidate?.commit}
-						onClick={() =>
-							void perform(async () => {
-								const diff = await desktopClient.invoke<SessionFileDiff[]>(
-									"factory_get_diff",
-									{ taskId: task.taskId, runId: run?.runId },
-								);
-								setDiff({
-									runId: run?.runId,
-									commit: state.candidate?.commit,
-									files: diff,
-								});
-							})
-						}
-					>
-						Review changes
-					</Button>
-					{fileDiffs ? (
-						<div className="flex h-[32rem] flex-col overflow-hidden rounded-lg border">
-							<DiffView
-								title={`Feature changes · ${state.candidate?.commit.slice(0, 12) ?? "candidate"}`}
-								environmentId={LOCAL_WORKSPACE_ENVIRONMENT_ID}
-								cwd={state.workspace.path}
-								fileDiffs={fileDiffs}
-								onClose={() => setDiff(null)}
-							/>
-						</div>
-					) : null}
-					{state.pullRequestUrl ? (
-						<PullRequestBar
-							cwd={state.workspace.path}
-							branch={state.workspace.branch}
-						/>
-					) : null}
-					{state.candidate?.checks.map((check, index) => (
-						<div
-							className="rounded-lg border p-3"
-							key={`${check.name}-${index}`}
-						>
-							<div className="flex justify-between text-sm">
-								<strong>{check.name}</strong>
-								<span
-									className={
-										check.status === "passed"
-											? "text-emerald-600"
-											: "text-destructive"
-									}
-								>
-									{check.status}
-								</span>
-							</div>
-							<code className="mt-2 block break-all text-xs text-muted-foreground">
-								{check.command}
-							</code>
-							<details className="mt-2 text-xs">
-								<summary className="cursor-pointer">
-									Output
-									{check.exitCode !== null ? ` · exit ${check.exitCode}` : ""}
-								</summary>
-								<pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/30 p-2">
-									{check.output || "No output recorded."}
-								</pre>
-							</details>
-							{check.artifacts.map((artifact) => (
-								<EvidencePreview
-									key={artifact.path}
-									taskId={task.taskId}
-									runId={run?.runId ?? ""}
-									artifact={artifact}
-								/>
-							))}
-						</div>
-					))}
-					{state.candidate?.reviews.map((result) => (
-						<ReviewResult
-							key={result.reviewerIndex}
-							label={`Final reviewer ${result.reviewerIndex + 1}`}
-							review={result.review}
-							sessionId={result.sessionId}
-							onOpenSession={onOpenSession}
-						/>
-					))}
-					{state.candidate?.verification ? (
-						<>
-							<ReviewResult
-								label="Agent verification"
-								review={state.candidate.verification.review}
-								sessionId={state.candidate.verification.sessionId}
-								onOpenSession={onOpenSession}
-							/>
-							{state.candidate.verification.artifacts.map((artifact) => (
-								<EvidencePreview
-									key={artifact.path}
-									taskId={task.taskId}
-									runId={run?.runId ?? ""}
-									artifact={artifact}
-								/>
-							))}
-						</>
-					) : null}
+
+			{sessions.size ? (
+				<details className="rounded-lg border p-3">
+					<summary className="cursor-pointer text-sm">
+						Sessions · {sessions.size}
+					</summary>
+
 					<div className="flex flex-wrap gap-2">
-						{state.sessions.map((session, index) => (
+						{[...sessions].map(([sessionId, label]) => (
 							<Button
-								key={session.sessionId}
+								key={sessionId}
 								size="sm"
 								variant="outline"
-								onClick={() => void onOpenSession(session.sessionId)}
+								onClick={() => void onOpenSession(sessionId)}
 							>
-								{session.role} transcript {index + 1}
+								{label}
 								<ArrowUpRight className="ml-1 size-3" />
 							</Button>
 						))}
 					</div>
-					{state.pullRequestUrl ? (
+				</details>
+			) : null}
+			<TabsList aria-label="Feature pages">
+				<TabsTrigger value="plan">Plan</TabsTrigger>
+				<TabsTrigger value="verification">Verification</TabsTrigger>
+			</TabsList>
+			<TabsContent value="plan" className="space-y-4">
+				<section className="space-y-3">
+					<div className="flex items-center justify-between gap-3">
+						<h3 className="text-sm font-semibold">
+							Plan{" "}
+							{dirty ? (
+								<span className="font-normal text-amber-600">
+									· Unsaved draft
+								</span>
+							) : null}
+						</h3>
 						<Button
-							onClick={() => void openExternalUrl(state.pullRequestUrl || "")}
+							size="sm"
+							variant="ghost"
+							disabled={!editable}
+							onClick={() => setEditing((value) => !value)}
 						>
-							Review draft PR
-							<ArrowUpRight className="ml-2 size-3" />
+							{editing ? "Preview" : "Edit"}
 						</Button>
-					) : state.phase === "ready" &&
-						currentEvidence &&
-						task.status === "completed" ? (
-						<p className="text-sm text-emerald-600">
-							Checks and independent review passed. Changes are ready for your
-							review on the feature branch.
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy || !editable}
+							onClick={() =>
+								void perform(async () => {
+									const saved = await save();
+									const result = await desktopClient.designFactoryTask(
+										saved.taskId,
+									);
+									setDesignSession(result.sessionId);
+									setDesignStarted(true);
+								})
+							}
+						>
+							{task.originSessionId ? "Refine design" : "Interview with agent"}
+						</Button>
+					</div>
+					<p className="text-xs leading-5 text-muted-foreground">
+						The agent reads your request, docs and repository, then asks about
+						unresolved requirements here. The agreed brief and checks are saved
+						for your approval. Approval authorizes agent tools and these check
+						commands on your machine, using an isolated Git worktree. The
+						worktree is not a security sandbox.
+					</p>
+					{designStarted ? (
+						<output className="block text-xs text-muted-foreground">
+							Design interview started. Questions will appear here as the agent
+							reads the context.
+						</output>
+					) : null}
+					{designSession ? (
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => void onOpenSession(designSession)}
+						>
+							Open design conversation <ArrowUpRight className="ml-1 size-3" />
+						</Button>
+					) : null}
+					{dirty && task.revision !== draftRevision ? (
+						<p role="alert" className="text-xs text-amber-600">
+							The agent saved a newer brief. Reload it before making further
+							changes.
+							<Button
+								size="sm"
+								variant="link"
+								onClick={() => {
+									setInstructions(task.instructions);
+									setConfig(task.factory ?? DEFAULT_FACTORY);
+									setDraftRevision(task.revision);
+									setSavedDraft({
+										revision: task.revision,
+										instructions: task.instructions,
+										config: task.factory ?? DEFAULT_FACTORY,
+									});
+								}}
+							>
+								Load saved brief
+							</Button>
+						</p>
+					) : null}
+					{editing ? (
+						<Textarea
+							aria-label="Design brief"
+							disabled={!editable || busy}
+							value={instructions}
+							onChange={(event) => setInstructions(event.target.value)}
+							rows={7}
+						/>
+					) : (
+						<MemoizedMarkdown
+							content={instructions || "No plan has been recorded yet."}
+							classNames="text-sm"
+						/>
+					)}
+					{config.documents?.length ? (
+						<p className="text-xs text-muted-foreground">
+							Reference docs:{" "}
+							{config.documents.map((doc) => doc.name).join(", ")}
 						</p>
 					) : null}
 				</section>
-			) : null}
+				{task.factoryDesignReview ? (
+					<section className="space-y-3">
+						<h3 className="text-sm font-semibold">
+							Plan review · revision {task.factoryDesignReview.revision}
+							{dirty || task.factoryDesignReview.revision !== task.revision
+								? " (previous draft)"
+								: ""}
+						</h3>
+						{task.factoryDesignReview.reviews.map((result) => (
+							<ReviewResult
+								key={result.reviewerIndex}
+								label={`Plan reviewer ${result.reviewerIndex + 1}`}
+								review={result.review}
+								sessionId={result.sessionId}
+								onOpenSession={onOpenSession}
+							/>
+						))}
+					</section>
+				) : null}
+				<details className="space-y-4 rounded-lg border p-4">
+					<summary className="cursor-pointer text-sm font-medium">
+						Configuration
+					</summary>
+
+					<label className={labelClass} htmlFor="feature-documents">
+						Reference docs
+						<Input
+							id="feature-documents"
+							type="file"
+							accept=".md,.markdown,.txt,text/plain,text/markdown"
+							multiple
+							disabled={!editable || busy}
+							onChange={(event) => {
+								const files = Array.from(event.target.files ?? []);
+								event.target.value = "";
+								void perform(async () => {
+									if (
+										files.some(
+											(file) =>
+												!/\.(md|markdown|txt)$/i.test(file.name) ||
+												file.size > 100_000,
+										)
+									)
+										throw new Error(
+											"Use Markdown or text files up to 100 KB each.",
+										);
+									if ((config.documents?.length ?? 0) + files.length > 10)
+										throw new Error("Attach up to 10 reference docs.");
+									const attachments = await serializeAttachments(files);
+									setConfig((current) => ({
+										...current,
+										documents: [
+											...(current.documents ?? []),
+											...attachments.userFiles,
+										],
+									}));
+								});
+							}}
+						/>
+					</label>
+					{config.documents?.map((doc, index) => (
+						<div
+							key={`${doc.name}-${index}`}
+							className="flex items-center justify-between rounded border px-3 py-1 text-xs"
+						>
+							<span>{doc.name}</span>
+							<Button
+								size="icon"
+								variant="ghost"
+								aria-label={`Remove ${doc.name}`}
+								disabled={!editable || busy}
+								onClick={() =>
+									setConfig({
+										...config,
+										documents: config.documents?.filter((_, i) => i !== index),
+									})
+								}
+							>
+								<X className="size-3" />
+							</Button>
+						</div>
+					))}
+					<FactoryWorkflowEditor
+						config={config}
+						disabled={!editable || busy}
+						onChange={setConfig}
+					/>
+					<section className="space-y-3">
+						<div className="flex items-center justify-between">
+							<h3 className="text-sm font-semibold">
+								Required checks and evidence
+							</h3>
+							<Button
+								variant="ghost"
+								size="sm"
+								disabled={!editable || busy}
+								onClick={() =>
+									setConfig({
+										...config,
+										checks: [
+											...config.checks,
+											{ name: "", command: "", kind: "test", artifacts: [] },
+										],
+									})
+								}
+							>
+								<Plus className="mr-1 size-3" />
+								Add check
+							</Button>
+						</div>
+						<p className="text-xs leading-5 text-muted-foreground">
+							Commands run in the feature worktree. For UI changes, require
+							screenshots or recordings; for backend changes, include route/API
+							or end-to-end tests. Artifact paths are relative to the worktree.
+						</p>
+						{config.checks.map((check, index) => (
+							<CheckEditor
+								key={index}
+								check={check}
+								disabled={!editable || busy}
+								onChange={(next) =>
+									setConfig({
+										...config,
+										checks: config.checks.map((item, i) =>
+											i === index ? next : item,
+										),
+									})
+								}
+								onRemove={() =>
+									setConfig({
+										...config,
+										checks: config.checks.filter((_, i) => i !== index),
+									})
+								}
+							/>
+						))}
+						{config.checks.length === 0 ? (
+							<p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+								Add at least one concrete verification command before approval.
+							</p>
+						) : null}
+					</section>
+					<div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-3">
+						<label className={labelClass}>
+							Design approval
+							<select
+								className={selectClass}
+								disabled={!editable || busy}
+								value={config.approval}
+								onChange={(event) =>
+									setConfig({
+										...config,
+										approval:
+											event.target.value === "automatic"
+												? "automatic"
+												: "required",
+									})
+								}
+							>
+								<option value="required">Upfront approval</option>
+								<option value="automatic">Automatic</option>
+							</select>
+						</label>
+						<label className={labelClass} htmlFor="feature-repairs">
+							Repair rounds
+							<Input
+								id="feature-repairs"
+								type="number"
+								min={0}
+								max={10}
+								disabled={!editable || busy}
+								value={config.maxRepairRounds}
+								onChange={(event) =>
+									setConfig({
+										...config,
+										maxRepairRounds: Math.max(
+											0,
+											Math.min(10, Number(event.target.value)),
+										),
+									})
+								}
+							/>
+						</label>
+						<div className={labelClass}>
+							Execution<p className="pt-2 text-sm font-normal">Local</p>
+							<p className="text-xs font-normal text-muted-foreground">
+								Cloud runner not connected yet.
+							</p>
+						</div>
+					</div>
+					<label className="flex items-start gap-2 text-sm">
+						<input
+							type="checkbox"
+							className="mt-1"
+							disabled={!editable || busy}
+							checked={config.publishPullRequest}
+							onChange={(event) =>
+								setConfig({
+									...config,
+									publishPullRequest: event.target.checked,
+								})
+							}
+						/>
+						<span>
+							Publish a draft PR after checks and review pass
+							<span className="mt-1 block text-xs text-muted-foreground">
+								Off: retain tested changes on the local feature branch for
+								inspection.
+							</span>
+						</span>
+					</label>
+					{config.publishPullRequest ? (
+						<label className="flex items-start gap-2 text-sm">
+							<input
+								type="checkbox"
+								className="mt-1"
+								disabled={!editable || busy}
+								checked={config.watchPullRequest ?? false}
+								onChange={(event) =>
+									setConfig({
+										...config,
+										watchPullRequest: event.target.checked,
+									})
+								}
+							/>
+							<span>
+								Babysit the PR after publishing
+								<span className="mt-1 block text-xs text-muted-foreground">
+									Watch CI and review comments, repair within the round limit,
+									and reply after verification. You decide when to merge.
+								</span>
+							</span>
+						</label>
+					) : null}
+				</details>
+			</TabsContent>
+			<TabsContent value="verification" className="space-y-4">
+				{runsLoading ? (
+					<p className="text-sm text-muted-foreground">Loading verification…</p>
+				) : !state && !evidenceError ? (
+					<p className="text-sm text-muted-foreground">
+						No verification has been recorded yet.
+					</p>
+				) : null}
+
+				{state ? (
+					<section className="space-y-3 border-t pt-4">
+						<h3 className="text-sm font-semibold">
+							Verification · revision {run?.taskRevision}
+							{runsLoading
+								? " (refreshing…)"
+								: evidenceError
+									? " (cached; refresh failed)"
+									: currentEvidence
+										? dirty
+											? " (saved plan; draft edits not verified)"
+											: ""
+										: " (previous execution — not current evidence)"}
+						</h3>
+						{state.error && !currentEvidence ? (
+							<p className="text-sm text-muted-foreground">
+								Recorded error: {state.error}
+							</p>
+						) : null}
+						<p className="break-all font-mono text-xs text-muted-foreground">
+							{state.workspace.branch}
+							{state.candidate?.commit
+								? ` · ${state.candidate.commit.slice(0, 12)}`
+								: ""}
+						</p>
+						<p className="break-all text-xs text-muted-foreground">
+							{state.workspace.path}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={busy || !state.candidate?.commit}
+							onClick={() =>
+								void perform(async () => {
+									const diff = await desktopClient.invoke<SessionFileDiff[]>(
+										"factory_get_diff",
+										{ taskId: task.taskId, runId: run?.runId },
+									);
+									setDiff({
+										runId: run?.runId,
+										commit: state.candidate?.commit,
+										files: diff,
+									});
+								})
+							}
+						>
+							Review changes
+						</Button>
+						{fileDiffs ? (
+							<div className="flex h-[32rem] flex-col overflow-hidden rounded-lg border">
+								<DiffView
+									title={`Feature changes · ${state.candidate?.commit.slice(0, 12) ?? "candidate"}`}
+									environmentId={LOCAL_WORKSPACE_ENVIRONMENT_ID}
+									cwd={state.workspace.path}
+									fileDiffs={fileDiffs}
+									onClose={() => setDiff(null)}
+								/>
+							</div>
+						) : null}
+						{state.pullRequestUrl && currentEvidence ? (
+							<PullRequestBar
+								cwd={state.workspace.path}
+								branch={state.workspace.branch}
+							/>
+						) : null}
+						{state.candidate?.checks.map((check, index) => (
+							<div
+								className="rounded-lg border p-3"
+								key={`${check.name}-${index}`}
+							>
+								<div className="flex justify-between text-sm">
+									<strong>{check.name}</strong>
+									<span
+										className={
+											check.status === "passed"
+												? "text-emerald-600"
+												: "text-destructive"
+										}
+									>
+										{check.status}
+									</span>
+								</div>
+								<code className="mt-2 block break-all text-xs text-muted-foreground">
+									{check.command}
+								</code>
+								<details className="mt-2 text-xs">
+									<summary className="cursor-pointer">
+										Output
+										{check.exitCode !== null ? ` · exit ${check.exitCode}` : ""}
+									</summary>
+									<pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/30 p-2">
+										{check.output || "No output recorded."}
+									</pre>
+								</details>
+								{check.artifacts.map((artifact) => (
+									<EvidencePreview
+										key={`${run?.runId}:${state.candidate?.commit}:${artifact.path}`}
+										taskId={task.taskId}
+										runId={run?.runId ?? ""}
+										artifact={artifact}
+									/>
+								))}
+							</div>
+						))}
+						{state.candidate?.reviews.map((result) => (
+							<ReviewResult
+								key={result.reviewerIndex}
+								label={`Final reviewer ${result.reviewerIndex + 1}`}
+								review={result.review}
+								sessionId={result.sessionId}
+								onOpenSession={onOpenSession}
+							/>
+						))}
+						{state.candidate?.verification ? (
+							<>
+								<ReviewResult
+									label="Agent verification"
+									review={state.candidate.verification.review}
+									sessionId={state.candidate.verification.sessionId}
+									onOpenSession={onOpenSession}
+								/>
+								{state.candidate.verification.artifacts.map((artifact) => (
+									<EvidencePreview
+										key={`${run?.runId}:${state.candidate?.commit}:${artifact.path}`}
+										taskId={task.taskId}
+										runId={run?.runId ?? ""}
+										artifact={artifact}
+									/>
+								))}
+							</>
+						) : null}
+						{state.pullRequestUrl ? (
+							<Button
+								onClick={() => void openExternalUrl(state.pullRequestUrl || "")}
+							>
+								Review draft PR
+								<ArrowUpRight className="ml-2 size-3" />
+							</Button>
+						) : state.phase === "ready" &&
+							currentEvidence &&
+							task.status === "completed" ? (
+							<p className="text-sm text-emerald-600">
+								Checks and independent review passed. Changes are ready for your
+								review on the feature branch.
+							</p>
+						) : null}
+					</section>
+				) : null}
+				{state && currentEvidence ? (
+					<section
+						className="space-y-3 rounded-lg border p-4"
+						aria-label="Factory outcome"
+					>
+						<div className="flex flex-wrap items-center gap-3 text-sm">
+							<span>
+								{state.humanApproval
+									? "Checked off"
+									: state.phase === "blocked"
+										? "Needs attention"
+										: state.phase === "ready"
+											? "Local result awaiting your stamp"
+											: state.pullRequestChecks?.status === "passed"
+												? "Required CI passed"
+												: "Factory is handling this feature"}
+							</span>
+							{state.usage ? (
+								<span className="text-muted-foreground">
+									Recorded model cost ${state.usage.totals.totalCost.toFixed(2)}
+									{state.usage.unknownSessionIds.length
+										? ` · ${state.usage.unknownSessionIds.length} sessions have unknown cost`
+										: ""}
+								</span>
+							) : null}
+							<span className="text-muted-foreground">
+								{state.attempts?.length ?? 0} execution attempts
+							</span>
+						</div>
+						{task.status === "completed" &&
+						!state.humanApproval &&
+						!state.audit?.finding &&
+						!state.pullRequestWatch?.pending &&
+						questions.length === 0 &&
+						(state.phase === "ready" ||
+							(state.phase === "watching" &&
+								state.pullRequestChecks?.status === "passed" &&
+								state.pullRequestChecks.headCommit ===
+									state.candidate?.commit)) &&
+						state.candidate ? (
+							<Button
+								disabled={busy}
+								onClick={() =>
+									void perform(async () => {
+										await desktopClient.invoke("task.factory.stamp", {
+											taskId: task.taskId,
+											expectedHead: state.candidate?.commit,
+											allWorkspaces: true,
+										});
+									})
+								}
+							>
+								Check off this result
+							</Button>
+						) : null}
+						{task.status !== "in_progress" ? (
+							<Button
+								variant="outline"
+								disabled={busy || Boolean(state.audit)}
+								onClick={() =>
+									void perform(async () => {
+										await desktopClient.invoke("task.factory.audit", {
+											taskId: task.taskId,
+											allWorkspaces: true,
+										});
+									})
+								}
+							>
+								{state.audit
+									? "Selected for sample review"
+									: "Sample this outcome"}
+							</Button>
+						) : null}
+						{state.audit ? (
+							<div className="space-y-2">
+								<Textarea
+									aria-label="Sample review finding"
+									placeholder="What did the factory miss? Leave empty if the sample passed."
+									value={auditFinding}
+									onChange={(event) => setAuditFinding(event.target.value)}
+									disabled={busy}
+								/>
+								<Button
+									variant="outline"
+									disabled={busy}
+									onClick={() =>
+										void perform(async () => {
+											await desktopClient.invoke("task.factory.audit", {
+												taskId: task.taskId,
+												finding: auditFinding,
+												allWorkspaces: true,
+											});
+										})
+									}
+								>
+									Record sample review
+								</Button>
+								{state.audit.finding ? (
+									<>
+										<p className="text-sm">{state.audit.finding}</p>
+										<Button
+											variant="outline"
+											disabled={busy}
+											onClick={() =>
+												void perform(async () => {
+													const improvement =
+														await desktopClient.createAgendaTask({
+															type: "todo",
+															title: `Improve verification: ${task.title}`,
+															scope: task.scope,
+															workspaceRoot: task.workspaceRoot,
+															cwd: task.cwd,
+															allWorkspaces: true,
+															instructions: `Investigate this sampled factory failure and fix the responsible check, skill, or environment. Reuse existing owners. Prove the changed verification catches this failure and preserves representative passing behavior. Do not weaken quality gates.\n\nFinding: ${state.audit?.finding}\nOriginal acceptance brief: ${task.instructions}\nCandidate: ${state.candidate?.commit ?? "unavailable"}`,
+															factory: {
+																...(task.factory ?? DEFAULT_FACTORY),
+																checks: [],
+																implementationUnits: undefined,
+																watchPullRequest: false,
+																sourceIssue: undefined,
+																publishPullRequest: false,
+															},
+															modelSelection: task.modelSelection,
+															expiresAt: new Date(
+																Date.now() + 90 * 86_400_000,
+															).toISOString(),
+															originTaskId: task.taskId,
+														});
+													await desktopClient.designFactoryTask(
+														improvement.taskId,
+													);
+												})
+											}
+										>
+											Create factory improvement
+										</Button>
+									</>
+								) : null}
+							</div>
+						) : null}
+					</section>
+				) : null}
+			</TabsContent>
 			<div className="flex flex-wrap justify-end gap-2 border-t pt-4">
 				{canFollowUp ? (
 					<>
@@ -937,7 +1058,7 @@ export function FeatureDetail({
 					</p>
 				)}
 			</div>
-		</>
+		</Tabs>
 	);
 }
 
@@ -1095,13 +1216,13 @@ function ReviewResult({
 			<h4 className="font-medium">
 				{label} · {review.verdict.replaceAll("_", " ")}
 			</h4>
-			<p className="mt-2 whitespace-pre-wrap text-muted-foreground">
-				{review.summary}
-			</p>
+			<MemoizedMarkdown content={review.summary} classNames="mt-2 text-sm" />
 			{review.findings.length ? (
 				<ul className="mt-2 list-disc space-y-1 pl-5">
 					{review.findings.map((finding) => (
-						<li key={finding}>{finding}</li>
+						<li key={finding}>
+							<MemoizedMarkdown content={finding} classNames="text-sm" />
+						</li>
 					))}
 				</ul>
 			) : null}
@@ -1125,7 +1246,7 @@ function ReviewResult({
 				size="sm"
 				onClick={() => void onOpenSession(sessionId)}
 			>
-				Open transcript
+				Open {label.toLowerCase()} session
 				<ArrowUpRight className="ml-1 size-3" />
 			</Button>
 		</div>

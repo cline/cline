@@ -10,7 +10,7 @@ import {
 	Play,
 	Plus,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { toast } from "@/hooks/use-toast";
 import {
 	type FactoryAttention,
 	useFactoryAttention,
@@ -288,7 +290,7 @@ export function FactoryView({
 					</Button>
 					<Button onClick={() => setCreating(true)}>
 						<Plus className="mr-2 size-4" />
-						New feature
+						Add work
 					</Button>
 				</div>
 			</header>
@@ -528,13 +530,13 @@ export function FactoryView({
 			<Dialog open={creating} onOpenChange={setCreating}>
 				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
 					<DialogHeader>
-						<DialogTitle>Start with a feature request</DialogTitle>
+						<DialogTitle>Add work</DialogTitle>
 						<DialogDescription>
-							Explore the design with an agent, then approve the brief and
-							checks before implementation.
+							Describe a request or import a GitHub or Linear issue. Add it to
+							the queue, or start scoping it with an agent.
 						</DialogDescription>
 					</DialogHeader>
-					<NewFeature
+					<AddWork
 						workspacePaths={workspacePaths}
 						onExisting={(taskId) => {
 							setCreating(false);
@@ -545,6 +547,7 @@ export function FactoryView({
 							request,
 							workspaceRoot,
 							sourceIssue,
+							startScoping,
 						}) => {
 							const model = getInitialChatConfig(
 								LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -569,7 +572,19 @@ export function FactoryView({
 							});
 							setCreating(false);
 							selectTask(task.taskId);
-							await desktopClient.designFactoryTask(task.taskId);
+							if (startScoping) {
+								try {
+									await desktopClient.designFactoryTask(task.taskId);
+								} catch (cause) {
+									const message = `Work was added, but scoping could not start: ${cause instanceof Error ? cause.message : "Open the plan to retry."}`;
+									setError(message);
+									toast({
+										title: "Scoping could not start",
+										description: message,
+										variant: "destructive",
+									});
+								}
+							}
 						}}
 					/>
 				</DialogContent>
@@ -580,7 +595,7 @@ export function FactoryView({
 					if (!open) selectTask(null);
 				}}
 			>
-				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
 					{selected ? (
 						<FeatureDetail
 							key={selected.taskId}
@@ -599,7 +614,7 @@ export function FactoryView({
 	);
 }
 
-function NewFeature({
+function AddWork({
 	workspacePaths,
 	onCreate,
 	onExisting,
@@ -611,8 +626,18 @@ function NewFeature({
 		request: string;
 		workspaceRoot: string;
 		sourceIssue?: FactoryTaskConfig["sourceIssue"];
+		startScoping: boolean;
 	}) => Promise<void>;
 }) {
+	const [source, setSource] = useState("describe");
+	const [startScoping, setStartScoping] = useState(true);
+	const active = useRef(true);
+	useEffect(() => {
+		active.current = true;
+		return () => {
+			active.current = false;
+		};
+	}, []);
 	const [title, setTitle] = useState("");
 	const [request, setRequest] = useState("");
 	const [workspaceRoot, setWorkspaceRoot] = useState(workspacePaths[0] || "");
@@ -626,111 +651,24 @@ function NewFeature({
 			className="space-y-5"
 			onSubmit={(event) => {
 				event.preventDefault();
+				if (busy || (source === "issue" && !sourceIssue)) return;
 				setBusy(true);
 				setError(null);
 				void onCreate({
 					title: title.trim(),
 					request: request.trim(),
 					workspaceRoot: workspaceRoot.trim(),
-					sourceIssue,
+					sourceIssue: source === "issue" ? sourceIssue : undefined,
+					startScoping,
 				})
 					.catch((cause: unknown) =>
 						setError(
-							cause instanceof Error
-								? cause.message
-								: "Unable to create feature.",
+							cause instanceof Error ? cause.message : "Unable to add work.",
 						),
 					)
 					.finally(() => setBusy(false));
 			}}
 		>
-			<div className="space-y-2 rounded-lg border p-3">
-				<label className={labelClass} htmlFor="feature-issue">
-					Start from a GitHub or Linear issue
-				</label>
-				<div className="flex gap-2">
-					<Input
-						id="feature-issue"
-						type="url"
-						placeholder="Paste issue URL"
-						value={issueUrl}
-						disabled={busy}
-						onChange={(event) => {
-							setIssueUrl(event.target.value);
-							setSourceIssue(undefined);
-						}}
-					/>
-					<Button
-						type="button"
-						variant="outline"
-						disabled={busy || !issueUrl.trim() || !workspaceRoot.trim()}
-						onClick={() => {
-							setBusy(true);
-							setError(null);
-							void desktopClient
-								.invoke<{
-									title: string;
-									description: string;
-									source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
-									existingTaskId?: string;
-								}>("factory_import_issue", {
-									url: issueUrl.trim(),
-									cwd: workspaceRoot.trim(),
-								})
-								.then((issue) => {
-									if (issue.existingTaskId) {
-										onExisting(issue.existingTaskId);
-										return;
-									}
-									setTitle(issue.title);
-									setRequest(issue.description);
-									setSourceIssue(issue.source);
-								})
-								.catch((cause: unknown) =>
-									setError(
-										cause instanceof Error
-											? cause.message
-											: "Unable to import issue.",
-									),
-								)
-								.finally(() => setBusy(false));
-						}}
-					>
-						Import
-					</Button>
-				</div>
-				<p className="text-xs text-muted-foreground">
-					Choose the repository below, then import with your existing
-					connection. You can edit the request before creating it.
-				</p>
-				{sourceIssue ? (
-					<output className="block text-xs text-emerald-600">
-						Issue imported. Its source link will stay with the feature.
-					</output>
-				) : null}
-			</div>
-			<label className={labelClass} htmlFor="feature-name">
-				Feature name
-				<Input
-					id="feature-name"
-					required
-					maxLength={200}
-					value={title}
-					onChange={(event) => setTitle(event.target.value)}
-					placeholder="Add export to the activity view"
-				/>
-			</label>
-			<label className={labelClass} htmlFor="feature-request">
-				What should change?
-				<Textarea
-					id="feature-request"
-					required
-					rows={5}
-					value={request}
-					onChange={(event) => setRequest(event.target.value)}
-					placeholder="Describe the outcome and who needs it. The design interview will help clarify the rest."
-				/>
-			</label>
 			<label className={labelClass} htmlFor="feature-repository">
 				Repository
 				<div className="flex gap-2">
@@ -739,20 +677,29 @@ function NewFeature({
 						id="feature-repository"
 						list="factory-workspaces"
 						value={workspaceRoot}
-						onChange={(event) => setWorkspaceRoot(event.target.value)}
+						disabled={busy}
+						onChange={(event) => {
+							setWorkspaceRoot(event.target.value);
+							setSourceIssue(undefined);
+						}}
 						placeholder="/path/to/repository"
 					/>
 					<Button
 						type="button"
 						variant="outline"
 						aria-label="Choose repository"
+						disabled={busy}
 						onClick={() => {
+							setBusy(true);
 							void desktopClient
 								.invoke<string | null>("pick_workspace_directory", {
 									initialPath: workspaceRoot,
 								})
 								.then((path) => {
-									if (path) setWorkspaceRoot(path);
+									if (path && active.current) {
+										setWorkspaceRoot(path);
+										setSourceIssue(undefined);
+									}
 								})
 								.catch((cause: unknown) =>
 									setError(
@@ -760,7 +707,8 @@ function NewFeature({
 											? cause.message
 											: "Unable to open picker. Enter a path.",
 									),
-								);
+								)
+								.finally(() => setBusy(false));
 						}}
 					>
 						<FolderOpen className="size-4" />
@@ -772,6 +720,134 @@ function NewFeature({
 					))}
 				</datalist>
 			</label>
+			<Tabs
+				value={source}
+				onValueChange={(value) => {
+					setSource(value);
+					setSourceIssue(undefined);
+					setError(null);
+				}}
+			>
+				<TabsList aria-label="Work source">
+					<TabsTrigger value="describe" disabled={busy}>
+						Describe work
+					</TabsTrigger>
+					<TabsTrigger value="issue" disabled={busy}>
+						GitHub / Linear issue
+					</TabsTrigger>
+				</TabsList>
+				<TabsContent value="describe" className="text-xs text-muted-foreground">
+					Add a feature request, bug report, or investigation.
+				</TabsContent>
+				<TabsContent value="issue">
+					<div className="space-y-2 rounded-lg border p-3">
+						<label className={labelClass} htmlFor="feature-issue">
+							Issue URL
+						</label>
+						<div className="flex gap-2">
+							<Input
+								id="feature-issue"
+								type="url"
+								placeholder="Paste issue URL"
+								value={issueUrl}
+								disabled={busy}
+								onChange={(event) => {
+									setIssueUrl(event.target.value);
+									setSourceIssue(undefined);
+								}}
+							/>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={busy || !issueUrl.trim() || !workspaceRoot.trim()}
+								onClick={() => {
+									setBusy(true);
+									setError(null);
+									void desktopClient
+										.invoke<{
+											title: string;
+											description: string;
+											source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
+											existingTaskId?: string;
+										}>("factory_import_issue", {
+											url: issueUrl.trim(),
+											cwd: workspaceRoot.trim(),
+										})
+										.then((issue) => {
+											if (!active.current) return;
+											if (issue.existingTaskId) {
+												onExisting(issue.existingTaskId);
+												return;
+											}
+											setTitle(issue.title);
+											setRequest(issue.description);
+											setSourceIssue(issue.source);
+										})
+										.catch((cause: unknown) =>
+											setError(
+												cause instanceof Error
+													? cause.message
+													: "Unable to import issue.",
+											),
+										)
+										.finally(() => setBusy(false));
+								}}
+							>
+								Import
+							</Button>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							Import an issue once using your existing GitHub or Linear access.
+							You can edit the request before adding it; this does not subscribe
+							to future updates.
+						</p>
+						{sourceIssue ? (
+							<output className="block text-xs text-emerald-600">
+								Issue imported. Its source link will stay with this work.
+							</output>
+						) : null}
+					</div>
+				</TabsContent>
+			</Tabs>
+			<label className={labelClass} htmlFor="feature-name">
+				Title
+				<Input
+					id="feature-name"
+					required
+					maxLength={200}
+					value={title}
+					disabled={busy}
+					onChange={(event) => setTitle(event.target.value)}
+					placeholder="Fix a bug, investigate a problem, or build something"
+				/>
+			</label>
+			<label className={labelClass} htmlFor="feature-request">
+				What needs to be done?
+				<Textarea
+					id="feature-request"
+					required
+					rows={5}
+					value={request}
+					disabled={busy}
+					onChange={(event) => setRequest(event.target.value)}
+					placeholder="Describe the problem or desired outcome. The agent can help clarify scope and checks."
+				/>
+			</label>
+
+			<label className="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={startScoping}
+					disabled={busy}
+					onChange={(event) => setStartScoping(event.target.checked)}
+				/>
+				Start scoping after adding
+			</label>
+			<p className="text-xs text-muted-foreground">
+				{startScoping
+					? "An agent will read the request and ask any missing questions. Implementation waits for your plan approval."
+					: "Save to Queued without starting an agent."}
+			</p>
 			{error ? (
 				<p role="alert" className="text-sm text-destructive">
 					{error}
@@ -779,12 +855,16 @@ function NewFeature({
 			) : null}
 			<Button
 				disabled={
-					busy || !title.trim() || !request.trim() || !workspaceRoot.trim()
+					busy ||
+					!title.trim() ||
+					!request.trim() ||
+					!workspaceRoot.trim() ||
+					(source === "issue" && !sourceIssue)
 				}
 				type="submit"
 				className="w-full"
 			>
-				{busy ? "Creating…" : "Create feature"}
+				{busy ? "Working…" : startScoping ? "Add and scope" : "Add to queue"}
 			</Button>
 		</form>
 	);
