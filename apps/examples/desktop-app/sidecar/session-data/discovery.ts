@@ -196,8 +196,12 @@ export function mergeDiscoveredSessionLists(
 				"",
 		});
 	}
-	const activityTime = (record: JsonRecord) =>
-		Math.max(
+	const activityTime = (record: JsonRecord) => {
+		if (record.origin === "cloud") {
+			const activity = record.lastActivityAt ?? record.startedAt;
+			return parseTimestamp(activity as string | number | undefined);
+		}
+		return Math.max(
 			...[
 				record.lastActivityAt,
 				record.updatedAt,
@@ -205,6 +209,7 @@ export function mergeDiscoveredSessionLists(
 				record.startedAt,
 			].map((value) => parseTimestamp(value as string | number | undefined)),
 		);
+	};
 	return Array.from(merged.values())
 		.sort(
 			(left, right) =>
