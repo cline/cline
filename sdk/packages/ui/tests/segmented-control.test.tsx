@@ -190,6 +190,84 @@ describe("SegmentedControl", () => {
 		expect(new FormData(form()).getAll("theme")).toEqual(["light"]);
 	});
 
+	it("resets when an external form mounts after the control", async () => {
+		const onValueChange = vi.fn();
+		const control = (
+			<SegmentedControl
+				aria-label="Color theme"
+				defaultValue="system"
+				form="preferences"
+				name="theme"
+				onValueChange={onValueChange}
+				options={options}
+			/>
+		);
+		const layout = (showForm: boolean) => (
+			<>
+				{control}
+				{showForm ? <form id="preferences" /> : null}
+			</>
+		);
+		await render(layout(false));
+		expect(fieldset().form).toBeNull();
+		await render(layout(true));
+		expect(fieldset().form).toBe(form());
+		await act(async () => input("dark").click());
+		expect(new FormData(form()).getAll("theme")).toEqual(["dark"]);
+		await act(async () => form().reset());
+		expect(
+			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+		).toBe("0");
+		expect(input("system").checked).toBe(true);
+		expect(input("dark").checked).toBe(false);
+		expect(new FormData(form()).getAll("theme")).toEqual(["system"]);
+		expect(onValueChange).toHaveBeenCalledExactlyOnceWith("dark");
+	});
+
+	it("follows a replaced external form and ignores unrelated resets", async () => {
+		const control = (
+			<SegmentedControl
+				aria-label="Color theme"
+				defaultValue="system"
+				form="preferences"
+				name="theme"
+				options={options}
+			/>
+		);
+		const layout = (formKey: string) => (
+			<>
+				{control}
+				<form
+					id="preferences"
+					key={formKey}
+					onReset={(event) => event.stopPropagation()}
+				/>
+				<form id="unrelated" />
+			</>
+		);
+		await render(layout("original"));
+		const originalForm = form();
+		await act(async () => input("dark").click());
+		await render(layout("replacement"));
+		expect(form()).not.toBe(originalForm);
+		expect(fieldset().form).toBe(form());
+		const unrelatedForm =
+			container.querySelector<HTMLFormElement>("#unrelated");
+		if (!unrelatedForm) throw new Error("Expected an unrelated form");
+		await act(async () => unrelatedForm.reset());
+		expect(input("dark").checked).toBe(true);
+		expect(
+			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+		).toBe("2");
+		await act(async () => form().reset());
+		expect(
+			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+		).toBe("0");
+		expect(input("system").checked).toBe(true);
+		expect(input("dark").checked).toBe(false);
+		expect(new FormData(form()).getAll("theme")).toEqual(["system"]);
+	});
+
 	it("resets uncontrolled selection to its default without emitting a user change", async () => {
 		const onValueChange = vi.fn();
 		await render(

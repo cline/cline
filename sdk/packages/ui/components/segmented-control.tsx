@@ -93,12 +93,13 @@ export const SegmentedControl = forwardRef<
 			[],
 		);
 
-		// The form prop can move this fieldset between external form owners.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: Rebind when the native form association changes.
 		useEffect(() => {
-			const ownerForm = fieldsetRef.current?.form;
-			if (!ownerForm) return;
+			// The external form may mount later or be replaced without a render.
+			const root = fieldsetRef.current?.getRootNode();
+			if (!root) return;
 			const handleReset = (event: Event) => {
+				const ownerForm = fieldsetRef.current?.form;
+				if (!ownerForm || event.target !== ownerForm) return;
 				// Wait for the native reset, including a host's preventDefault().
 				queueMicrotask(() => {
 					if (event.defaultPrevented) return;
@@ -115,9 +116,9 @@ export const SegmentedControl = forwardRef<
 					}
 				});
 			};
-			ownerForm.addEventListener("reset", handleReset);
-			return () => ownerForm.removeEventListener("reset", handleReset);
-		}, [form]);
+			root.addEventListener("reset", handleReset, true);
+			return () => root.removeEventListener("reset", handleReset, true);
+		}, []);
 
 		const content = (option: SegmentedControlOption) => (
 			<span className="cline-ui-segmented-control__segment">
