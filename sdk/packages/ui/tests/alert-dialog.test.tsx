@@ -1,31 +1,15 @@
 // @vitest-environment jsdom
 
-import { act, type MouseEvent, type ReactNode, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, type MouseEvent, useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 import {
 	AlertDialog,
 	type AlertDialogProps,
 } from "../components/alert-dialog.js";
+import { clickOutside, createDomFixture, pressKey } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
-});
-
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
 
 function dialog() {
 	return document.querySelector<HTMLElement>('[role="alertdialog"]');
@@ -37,38 +21,6 @@ function button(label: string) {
 	);
 	if (!match) throw new Error(`Missing button: ${label}`);
 	return match;
-}
-
-async function pressKey(target: Element, key: string, shiftKey = false) {
-	await act(async () => {
-		target.dispatchEvent(
-			new KeyboardEvent("keydown", {
-				key,
-				shiftKey,
-				bubbles: true,
-				cancelable: true,
-			}),
-		);
-	});
-}
-
-async function clickOutside() {
-	// Radix installs its document pointer listener on the next task, avoiding
-	// treating the pointer event that opened a dialog as an outside interaction.
-	await act(async () => {
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const overlay = document.querySelector(
-			'[data-slot="alert-dialog-overlay"]',
-		);
-		if (!overlay) throw new Error("Missing alert dialog overlay");
-		overlay.dispatchEvent(
-			new MouseEvent("pointerdown", {
-				bubbles: true,
-				cancelable: true,
-				button: 0,
-			}),
-		);
-	});
 }
 
 function Example({
@@ -102,12 +54,12 @@ function Example({
 
 describe("AlertDialog", () => {
 	it("keeps its content and overlay inside an explicitly scoped theme", async () => {
-		container.className = "cline-ui-theme dark";
-		await render(<Example portalContainer={container} />);
-		expect(dialog()?.closest(".cline-ui-theme")).toBe(container);
-		expect(dialog()?.closest(".dark")).toBe(container);
+		dom.container.className = "cline-ui-theme dark";
+		await render(<Example portalContainer={dom.container} />);
+		expect(dialog()?.closest(".cline-ui-theme")).toBe(dom.container);
+		expect(dialog()?.closest(".dark")).toBe(dom.container);
 		expect(
-			container.querySelector('[data-slot="alert-dialog-overlay"]'),
+			dom.container.querySelector('[data-slot="alert-dialog-overlay"]'),
 		).not.toBeNull();
 		expect(document.activeElement).toBe(button("Cancel"));
 	});
@@ -128,7 +80,7 @@ describe("AlertDialog", () => {
 		const content = dialog();
 		const titleId = content?.getAttribute("aria-labelledby");
 		const descriptionId = content?.getAttribute("aria-describedby");
-		expect(container.getAttribute("aria-hidden")).toBe("true");
+		expect(dom.container.getAttribute("aria-hidden")).toBe("true");
 		expect(titleId && document.getElementById(titleId)?.textContent).toBe(
 			"Delete session?",
 		);
@@ -175,7 +127,7 @@ describe("AlertDialog", () => {
 	it("ignores outside pointer interactions without requesting dismissal", async () => {
 		const onOpenChange = vi.fn();
 		await render(<Example onOpenChange={onOpenChange} />);
-		await clickOutside();
+		await clickOutside('[data-slot="alert-dialog-overlay"]');
 		expect(onOpenChange).not.toHaveBeenCalled();
 		expect(dialog()).not.toBeNull();
 		expect(document.activeElement).toBe(button("Cancel"));
@@ -287,7 +239,7 @@ describe("AlertDialog", () => {
 			/>,
 		);
 		await pressKey(button("Cancel"), "Escape");
-		await clickOutside();
+		await clickOutside('[data-slot="alert-dialog-overlay"]');
 		expect(onOpenChange).not.toHaveBeenCalled();
 		await act(async () =>
 			button(action === "confirm" ? "Delete" : "Cancel").click(),
@@ -312,39 +264,38 @@ describe("AlertDialog", () => {
 		expect(dialog()).toBeNull();
 	});
 
-	it("focuses the content when cancel is disabled and confirmation remains available", async () => {
-		await render(<Example cancelDisabled />);
-		expect(button("Delete").disabled).toBe(false);
-		expect(document.activeElement).toBe(dialog());
-	});
-
-	it("keeps focus inside a pending dialog with both actions disabled", async () => {
+	it.each([
+		false,
+		true,
+	])("focuses the content with cancel disabled and confirmDisabled=%s", async (confirmDisabled) => {
 		const onOpenChange = vi.fn();
 		await render(
 			<Example
 				cancelDisabled
-				confirmDisabled
-				confirmLabel="Updating…"
+				confirmDisabled={confirmDisabled}
 				onOpenChange={onOpenChange}
 			/>,
 		);
-		expect(dialog()?.contains(document.activeElement)).toBe(true);
+		expect(button("Delete").disabled).toBe(confirmDisabled);
+		expect(document.activeElement).toBe(dialog());
 		await act(async () => {
 			button("Cancel").click();
-			button("Updating…").click();
+			if (confirmDisabled) button("Delete").click();
 		});
 		expect(onOpenChange).not.toHaveBeenCalled();
 		expect(dialog()).not.toBeNull();
 	});
 
 	it.each([
-		{ action: "Delete", nativeBlur: false },
-		{ action: "Delete", nativeBlur: true },
-		{ action: "Cancel", nativeBlur: false },
-		{ action: "Cancel", nativeBlur: true },
-	])("recovers focus when $action becomes disabled with native blur=$nativeBlur", async ({
+		{ action: "Delete", nativeBlur: false, disableBoth: false },
+		{ action: "Delete", nativeBlur: true, disableBoth: false },
+		{ action: "Cancel", nativeBlur: false, disableBoth: false },
+		{ action: "Cancel", nativeBlur: true, disableBoth: false },
+		{ action: "Delete", nativeBlur: false, disableBoth: true },
+	])("recovers focus when $action becomes disabled with native blur=$nativeBlur and disableBoth=$disableBoth", async ({
 		action,
 		nativeBlur,
+		disableBoth,
 	}) => {
 		await render(<Example />);
 		await act(async () => button(action).focus());
@@ -352,8 +303,8 @@ describe("AlertDialog", () => {
 		if (nativeBlur) await act(async () => button(action).blur());
 		await render(
 			<Example
-				confirmDisabled={action === "Delete"}
-				cancelDisabled={action === "Cancel"}
+				confirmDisabled={disableBoth || action === "Delete"}
+				cancelDisabled={disableBoth || action === "Cancel"}
 			/>,
 		);
 		expect(document.activeElement).toBe(dialog());
@@ -374,13 +325,6 @@ describe("AlertDialog", () => {
 		await act(async () => target.focus());
 		await render(view(true));
 		expect(document.activeElement).toBe(target);
-	});
-
-	it("moves focused confirmation to the content when both actions become pending", async () => {
-		await render(<Example />);
-		await act(async () => button("Delete").focus());
-		await render(<Example confirmDisabled cancelDisabled />);
-		expect(document.activeElement).toBe(dialog());
 	});
 
 	it("allows a controlled parent to reject dismissal and then close or reopen", async () => {
