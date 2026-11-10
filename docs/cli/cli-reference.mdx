@@ -332,7 +332,7 @@ cline kanban
 | `CLINE_BUILD_ENV` | Set to `development` for debug features |
 | `CLINE_DEBUG_PORT_BASE` | Base port for Node.js inspector |
 
-The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow. [.clineignore](/customization/clineignore#enforcing-clineignore-with-a-hook) shows a hook that blocks tool calls this way.
+The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow. Hooks don't run in yolo mode, which is the default for prompt and piped runs, so pass `--act` on those runs to keep the hook: `cline --act "your prompt"`. [.clineignore](/customization/clineignore#enforcing-clineignore-with-a-hook) shows a hook that blocks tool calls this way.
 
 ## JSON Output for Agent Runs
 

@@ -124,8 +124,11 @@ cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and
 # Start Cline CLI without a prompt to enter interactive mode
 cline
 
-# Single prompt (one-shot) - includes tools, spawn, and teams
+# Single prompt (one-shot) - runs in yolo mode: no spawn, teams, or hooks
 cline "Audit this package and propose fixes"
+
+# One-shot in act mode - keeps the full tool set, spawn, teams, and hooks
+cline --act "Audit this package and propose fixes"
 
 # Interactive mode with a starting prompt
 cline -i "Let's work on this together. First, analyze the current state."
@@ -142,9 +145,9 @@ cline --yolo --retries 5 "Refactor this package"
 # Override consecutive internal mistake (retry) limit (default: 3)
 cline --retries 5 "Fix failing tests"
 
-# Team workflow with persistent name
-cline --team-name my-team "Plan, implement, and verify release checklist"
-cline --team-name my-team "Continue yesterday's team workflow"
+# Team workflow with persistent name (teams need act mode in one-shot runs)
+cline --act --team-name my-team "Plan, implement, and verify release checklist"
+cline --act --team-name my-team "Continue yesterday's team workflow"
 
 # Show verbose run stats (elapsed time, tokens, estimated cost when available)
 cline -v "Explain quantum computing"
@@ -267,7 +270,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--kanban` | Run the external `kanban` app |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
 | `-z, --zen` | Dispatch the task to the background hub and exit the CLI immediately |
-| `--team-name <name>` | Override the runtime team state name |
+| `--team-name <name>` | Override the runtime team state name. Ignored in yolo mode, so pass `--act` with it on one-shot runs |
 | `-h, --help` | Show help and exit |
 | `-v, --verbose` | Show verbose runtime diagnostics |
 | `-V, --version` | Show version and exit |
