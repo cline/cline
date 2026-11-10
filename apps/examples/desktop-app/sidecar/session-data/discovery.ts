@@ -198,12 +198,15 @@ export function mergeDiscoveredSessionLists(
 	}
 	const activityTime = (record: JsonRecord) =>
 		Math.max(
-			...[
-				record.lastActivityAt,
-				record.origin === "cloud" ? undefined : record.updatedAt,
-				record.endedAt,
-				record.startedAt,
-			].map((value) => parseTimestamp(value as string | number | undefined)),
+			...(record.origin === "cloud"
+				? [record.lastActivityAt ?? record.startedAt]
+				: [
+						record.lastActivityAt,
+						record.updatedAt,
+						record.endedAt,
+						record.startedAt,
+					]
+			).map((value) => parseTimestamp(value as string | number | undefined)),
 		);
 	return Array.from(merged.values())
 		.sort(

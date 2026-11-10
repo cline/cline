@@ -22,16 +22,19 @@ describe("desktop session discovery", () => {
 		undefined,
 		"2026-07-20T11:00:00Z",
 	])("keeps cloud metadata updates out of activity ordering (%s)", (lastActivityAt) => {
-		const cloud = cloudSessionToDiscoveryRecord({
-			id: "ses-idle",
-			status: "ready",
-			sandboxUrl: "",
-			repoContext: {},
-			metadata: { modelId: "model" },
-			createdAt: "2026-07-20T10:00:00Z",
-			lastActivityAt,
-			updatedAt: "2026-07-20T16:00:00Z",
-		});
+		const cloud = {
+			...cloudSessionToDiscoveryRecord({
+				id: "ses-idle",
+				status: "ready",
+				sandboxUrl: "",
+				repoContext: {},
+				metadata: { modelId: "model" },
+				createdAt: "2026-07-20T10:00:00Z",
+				lastActivityAt,
+				updatedAt: "2026-07-20T16:00:00Z",
+			}),
+			endedAt: "2026-07-20T16:00:00Z",
+		};
 		const local = {
 			sessionId: "local-recent",
 			startedAt: "2026-07-20T14:00:00Z",
