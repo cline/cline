@@ -26,6 +26,9 @@ function maximumSidebarWidth(layoutWidth: number) {
 	);
 }
 
+const inlineDirection = (element: Element) =>
+	getComputedStyle(element).direction === "rtl" ? -1 : 1;
+
 // Share these limits with CSS, including the loading skeleton.
 export const fileBrowserLayoutStyle = {
 	"--cline-ui-file-sidebar-min": `${MIN_SIDEBAR_WIDTH}px`,
@@ -127,8 +130,7 @@ export function FileBrowserNavigation({
 				onKeyDown={(event) => {
 					const sidebar = sidebarRef.current;
 					if (!sidebar) return;
-					const direction =
-						getComputedStyle(sidebar).direction === "rtl" ? -1 : 1;
+					const direction = inlineDirection(sidebar);
 					const current = sidebar.getBoundingClientRect().width;
 					const step = event.shiftKey ? 32 : 10;
 					if (event.key === "ArrowLeft") resize(current - step * direction);
@@ -149,7 +151,7 @@ export function FileBrowserNavigation({
 						pointerId: event.pointerId,
 						startX: event.clientX,
 						startWidth: sidebar.getBoundingClientRect().width,
-						direction: getComputedStyle(sidebar).direction === "rtl" ? -1 : 1,
+						direction: inlineDirection(sidebar),
 					};
 					setResizing(true);
 				}}

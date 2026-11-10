@@ -2,7 +2,7 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { IconButton } from "./button.js";
 
 export interface FileBrowserActionHandlers {
@@ -27,17 +27,11 @@ export function FileBrowserActions({
 	const [copied, setCopied] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
-	const mounted = useRef(true);
-	useEffect(() => {
-		mounted.current = true;
-		return () => {
-			mounted.current = false;
-		};
-	}, []);
 
+	// A result that arrives after the file changes is ignored: the host keys this
+	// menu by path and only shows errors for the current one.
 	const runAction = async (action: "open" | "copy") => {
-		if (!path || pending.current || (action === "open" && !onOpenFileLocation))
-			return;
+		if (pending.current) return;
 		pending.current = true;
 		setBusy(true);
 		onError(null);
@@ -48,19 +42,17 @@ export function FileBrowserActions({
 			} else {
 				if (onCopyPath) await onCopyPath(path);
 				else await navigator.clipboard.writeText(path);
-				if (mounted.current) setCopied(true);
+				setCopied(true);
 			}
 		} catch {
-			if (mounted.current) {
-				onError(
-					action === "open"
-						? "Could not open file location."
-						: "Could not copy path.",
-				);
-			}
+			onError(
+				action === "open"
+					? "Could not open file location."
+					: "Could not copy path.",
+			);
 		} finally {
 			pending.current = false;
-			if (mounted.current) setBusy(false);
+			setBusy(false);
 		}
 	};
 
@@ -87,7 +79,7 @@ export function FileBrowserActions({
 					>
 						<DropdownMenu.Item
 							className="cline-ui-file-browser__menu-item"
-							disabled={!path || !onOpenFileLocation || busy}
+							disabled={!onOpenFileLocation || busy}
 							onSelect={() => void runAction("open")}
 						>
 							<LocationIcon aria-hidden="true" />
@@ -95,7 +87,7 @@ export function FileBrowserActions({
 						</DropdownMenu.Item>
 						<DropdownMenu.Item
 							className="cline-ui-file-browser__menu-item"
-							disabled={!path || busy}
+							disabled={busy}
 							onSelect={() => void runAction("copy")}
 						>
 							{copied ? (

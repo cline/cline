@@ -26,13 +26,20 @@
 		flex-shrink: 0;
 	}
 	.cline-ui-file-browser__navigation {
+		--cline-ui-file-icon-size: calc(var(--spacing, 0.25rem) * 3);
+		--cline-ui-file-icon-gap: 0.375rem;
+		--cline-ui-file-indent: calc(
+			var(--cline-ui-file-icon-size) +
+			var(--cline-ui-file-icon-gap)
+		);
+		--cline-ui-file-row-height: calc(var(--text-xs--line-height) + 0.75rem);
+		--cline-ui-file-row-gap: 0.125rem;
 		box-sizing: border-box;
 		width: 100%;
 		max-height: calc(var(--cline-ui-file-browser-body-height, 36rem) + 3rem);
 		overflow: auto;
 		border-inline-end: 1px solid var(--border);
 		padding: 0.5rem;
-		row-gap: 0.125rem;
 	}
 	.cline-ui-file-browser__resize-handle {
 		position: absolute;
@@ -71,36 +78,83 @@
 		padding: 0;
 		list-style: none;
 	}
-	.cline-ui-file-browser__tree > li + li {
-		margin-top: 0.125rem;
-	}
-	.cline-ui-file-browser__virtual-tree {
+	.cline-ui-file-browser__tree > li {
 		position: relative;
-		overflow-anchor: none;
 	}
-	.cline-ui-file-browser__virtual-tree li {
+	.cline-ui-file-browser__tree > li + li,
+	.cline-ui-file-browser__tree .cline-ui-file-browser__tree {
+		margin-top: var(--cline-ui-file-row-gap);
+	}
+	/* Each nested row draws its own connector, so guides follow layout while folders fold. */
+	.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::before,
+	.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::after {
+		--cline-ui-file-guide-elbow: calc(
+			var(--cline-ui-file-row-height) /
+			2 +
+			0.5px -
+			5px
+		);
+		content: "";
+		box-sizing: border-box;
 		position: absolute;
-		inset-inline: 0;
+		z-index: 1;
+		inset-inline-start: calc(
+			0.5rem +
+			(var(--cline-ui-file-depth) - 1) *
+			var(--cline-ui-file-indent) +
+			var(--cline-ui-file-icon-size) /
+			2 -
+			0.5px
+		);
+		border-inline-start: 1px solid currentColor;
+		pointer-events: none;
+		color: var(--border-2);
 	}
-	.cline-ui-file-browser__virtual-tree .cline-ui-file-browser__tree > li + li {
-		margin-top: 0;
+	/* Elbow into the row. */
+	.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::before {
+		inset-block-start: var(--cline-ui-file-guide-elbow);
+		width: calc(
+			var(--cline-ui-file-icon-size) /
+			2 +
+			var(--cline-ui-file-icon-gap) /
+			2
+		);
+		height: 5px;
+		border-block-end: 1px solid currentColor;
+		border-end-start-radius: 4px;
+	}
+	/* Trunk from the previous row: past this row's subtree, or to the last row's elbow. */
+	.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::after {
+		inset-block: calc(-1 * var(--cline-ui-file-row-gap)) 0;
+	}
+	.cline-ui-file-browser__tree
+		.cline-ui-file-browser__tree
+		> li:last-child::after {
+		inset-block-end: auto;
+		height: calc(
+			var(--cline-ui-file-row-gap) +
+			var(--cline-ui-file-guide-elbow)
+		);
 	}
 	.cline-ui-file-browser__entry.cline-ui-button {
+		--cline-ui-button-icon-size: var(--cline-ui-file-icon-size);
 		--cline-ui-button-leading-padding: calc(
 			0.5rem +
 			var(--cline-ui-file-depth) *
-			0.75rem
+			var(--cline-ui-file-indent)
 		);
 		--cline-ui-button-trailing-padding: 0.5rem;
+		display: flex;
 		width: 100%;
 		min-width: 0;
-		height: auto;
+		height: var(--cline-ui-file-row-height);
 		justify-content: flex-start;
-		gap: 0.375rem;
+		gap: var(--cline-ui-file-icon-gap);
 		padding: 0.375rem 0.5rem;
 		color: var(--muted-foreground);
 		font-weight: var(--font-weight-normal);
 		text-align: start;
+		transition: none;
 	}
 	.cline-ui-file-browser__entry:hover,
 	.cline-ui-file-browser__entry[aria-current="page"] {
@@ -110,6 +164,9 @@
 		color: var(--foreground);
 		font-weight: var(--font-weight-medium);
 	}
+	.cline-ui-file-browser__entry.cline-ui-button:active {
+		background-color: var(--neutral-a4);
+	}
 	.cline-ui-file-browser__name,
 	.cline-ui-file-browser__path {
 		min-width: 0;
@@ -117,11 +174,23 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.cline-ui-file-browser__entry > [data-icon="trailing"] {
+	.cline-ui-file-browser__chevron {
 		margin-inline-start: auto;
+		opacity: 0;
 	}
-	.cline-ui-file-browser__entry[aria-expanded="true"] > [data-icon="trailing"] {
-		transform: rotate(180deg);
+	.cline-ui-file-browser__entry:hover > .cline-ui-file-browser__chevron,
+	.cline-ui-file-browser__entry:focus-visible
+		> .cline-ui-file-browser__chevron {
+		opacity: 1;
+	}
+	.cline-ui-file-browser__entry[aria-expanded="true"]
+		> .cline-ui-file-browser__chevron {
+		scale: 1 -1;
+	}
+	@media (hover: none) {
+		.cline-ui-file-browser__chevron {
+			opacity: 1;
+		}
 	}
 	.cline-ui-file-browser__content {
 		min-width: 0;
@@ -202,6 +271,45 @@
 		color: var(--muted-foreground);
 		line-height: var(--text-xs--line-height);
 	}
+	.cline-ui-file-browser__breadcrumbs {
+		position: relative;
+		flex: 1;
+	}
+	.cline-ui-file-browser__path-visible,
+	.cline-ui-file-browser__path-measure {
+		display: flex;
+		align-items: center;
+		column-gap: 0.25rem;
+	}
+	/* Unconstrained copy of every segment, used to decide what fits. */
+	.cline-ui-file-browser__path-measure {
+		position: absolute;
+		inset-block-start: 0;
+		inset-inline-start: 0;
+		visibility: hidden;
+		pointer-events: none;
+	}
+	.cline-ui-file-browser__path-segment,
+	.cline-ui-file-browser__path-ellipsis,
+	.cline-ui-file-browser__path-separator {
+		flex-shrink: 0;
+	}
+	.cline-ui-file-browser__path-separator {
+		width: 0.75rem;
+		height: 0.75rem;
+		opacity: 0.6;
+	}
+	.cline-ui-file-browser__path-segment[data-current] {
+		color: var(--foreground);
+	}
+	/* A filename wider than the header still truncates instead of clipping. */
+	.cline-ui-file-browser__path-visible
+	> .cline-ui-file-browser__path-segment[data-current] {
+		min-width: 0;
+		flex-shrink: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 	/* Stable height while requests finish and display modes change. */
 	.cline-ui-file-browser__body {
 		height: var(--cline-ui-file-browser-body-height, 36rem);
@@ -246,6 +354,7 @@
 		line-height: var(--text-sm--line-height);
 		letter-spacing: var(--text-sm--letter-spacing);
 	}
+	.cline-ui-file-browser__path-full,
 	.cline-ui-file-browser__loading-label,
 	.cline-ui-file-browser__action-status {
 		position: absolute;
@@ -316,14 +425,19 @@
 		}
 	}
 	@media (prefers-reduced-motion: no-preference) {
-		.cline-ui-file-browser__entry > [data-icon="trailing"] {
-			transition: transform 180ms ease-in-out;
-		}
 		.cline-ui-file-browser__skeleton-block {
 			animation: cline-ui-file-browser-pulse 1.8s ease-in-out infinite;
 		}
+		/* Matches FOLD_DURATION in file-browser-tree.tsx. */
+		.cline-ui-file-browser__chevron {
+			transition: scale 120ms ease-in-out;
+		}
 	}
 	@media (forced-colors: active) {
+		.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::before,
+		.cline-ui-file-browser__tree .cline-ui-file-browser__tree > li::after {
+			color: CanvasText;
+		}
 		.cline-ui-file-browser__frame,
 		.cline-ui-file-browser__menu {
 			border: 1px solid CanvasText;
