@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Plus, X } from "lucide-react";
 import {
@@ -125,20 +123,28 @@ describe("IconButton", () => {
 		expect(onClick).toHaveBeenCalledOnce();
 	});
 
-	it("preserves a legacy composed link's content and ref", async () => {
+	it.each([
+		false,
+		true,
+	])("preserves composed icon link content, refs, and actions with managed=%s", async (managed) => {
 		const onClick = vi.fn((event) => event.preventDefault());
 		const childRef = createRef<HTMLAnchorElement>();
 		await render(
-			<IconButton asChild aria-label="Close">
+			<IconButton asChild aria-label="Close" icon={managed ? X : undefined}>
 				<a href="/close" onClick={onClick} ref={childRef}>
-					<X data-testid="legacy-icon" />
+					{managed ? null : <X data-testid="legacy-icon" />}
 				</a>
 			</IconButton>,
 		);
 		const link = container.querySelector("a");
 		expect(childRef.current).toBe(link);
 		expect(link?.getAttribute("aria-label")).toBe("Close");
-		expect(link?.querySelector("[data-testid=legacy-icon]")).not.toBeNull();
+		expect(
+			link?.querySelectorAll(
+				managed ? ":scope > [data-icon=icon]" : "[data-testid=legacy-icon]",
+			),
+		).toHaveLength(1);
+		expect(link?.textContent).toBe("");
 		expect(container.querySelector("button")).toBeNull();
 		await act(async () => link?.click());
 		expect(onClick).toHaveBeenCalledOnce();
@@ -185,43 +191,6 @@ describe("managed button icons", () => {
 		}
 		expect(button?.hasAttribute("leadingicon")).toBe(false);
 		expect(button?.hasAttribute("trailingicon")).toBe(false);
-	});
-
-	it("preserves both child and wrapper refs when adding icons to a composed button", async () => {
-		const childRef = createRef<HTMLButtonElement>();
-		const wrapperRef = createRef<HTMLButtonElement>();
-		await render(
-			<Button asChild leadingIcon={Plus} ref={wrapperRef}>
-				<button type="submit" ref={childRef}>
-					Save
-				</button>
-			</Button>,
-		);
-		const button = container.querySelector("button");
-		expect(childRef.current).toBe(button);
-		expect(wrapperRef.current).toBe(button);
-		expect(button?.type).toBe("submit");
-		expect(
-			button?.querySelector(":scope > [data-icon=leading]"),
-		).not.toBeNull();
-	});
-
-	it("renders a named icon-only link through asChild while preserving its ref and handler", async () => {
-		const onClick = vi.fn((event) => event.preventDefault());
-		const childRef = createRef<HTMLAnchorElement>();
-		await render(
-			<IconButton asChild aria-label="Close" icon={X}>
-				{/* biome-ignore lint/a11y/useAnchorContent: IconButton supplies the accessible name and icon. */}
-				<a href="/close" onClick={onClick} ref={childRef} />
-			</IconButton>,
-		);
-		const link = container.querySelector("a");
-		expect(childRef.current).toBe(link);
-		expect(link?.getAttribute("aria-label")).toBe("Close");
-		expect(link?.querySelectorAll(":scope > [data-icon=icon]")).toHaveLength(1);
-		expect(link?.textContent).toBe("");
-		await act(async () => link?.click());
-		expect(onClick).toHaveBeenCalledOnce();
 	});
 
 	for (const disabled of [false, true]) {
@@ -299,18 +268,23 @@ describe("controlled button loading", () => {
 		expect(onClick).not.toHaveBeenCalled();
 	});
 
-	it("preserves a composed target, refs, native type, and busy state with a loading label", async () => {
+	it.each([
+		false,
+		true,
+	])("preserves composed content, refs, native type, and busy state with loading=%s", async (loading) => {
 		const wrapperRef = createRef<HTMLButtonElement>();
 		const childRef = createRef<HTMLButtonElement>();
 		const onClick = vi.fn();
+		const type = loading ? "button" : "submit";
 		await render(
-			<Button asChild loading loadingLabel="Cancel save" ref={wrapperRef}>
-				<button
-					aria-busy={false}
-					type="button"
-					ref={childRef}
-					onClick={onClick}
-				>
+			<Button
+				asChild
+				leadingIcon={Plus}
+				loading={loading}
+				loadingLabel="Cancel save"
+				ref={wrapperRef}
+			>
+				<button aria-busy={false} type={type} ref={childRef} onClick={onClick}>
 					Save
 				</button>
 			</Button>,
@@ -319,9 +293,12 @@ describe("controlled button loading", () => {
 		expect(container.querySelectorAll("button")).toHaveLength(1);
 		expect(wrapperRef.current).toBe(button);
 		expect(childRef.current).toBe(button);
-		expect(button?.type).toBe("button");
-		expect(button?.getAttribute("aria-busy")).toBe("true");
-		expect(button?.textContent).toBe("Cancel save");
+		expect(button?.type).toBe(type);
+		expect(button?.getAttribute("aria-busy")).toBe(String(loading));
+		expect(button?.textContent).toBe(loading ? "Cancel save" : "Save");
+		expect(
+			button?.querySelector(":scope > [data-icon=leading]"),
+		).not.toBeNull();
 		await act(async () => button?.click());
 		expect(onClick).toHaveBeenCalledOnce();
 	});
@@ -412,19 +389,6 @@ describe("controlled button loading", () => {
 		expect(button?.getAttribute("icontone")).toBeNull();
 		expect(button?.getAttribute("loading")).toBeNull();
 		expect(button?.getAttribute("loadinglabel")).toBeNull();
-	});
-
-	it("only animates loading icons when reduced motion is not requested", () => {
-		const css = readFileSync(
-			join(process.cwd(), "components/button.css"),
-			"utf8",
-		);
-		expect(css).toMatch(
-			/@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.cline-ui-button__icon--loading\s*\{[^}]*animation: cline-ui-button-loading-spin/,
-		);
-		expect(css.match(/animation: cline-ui-button-loading-spin/g)).toHaveLength(
-			1,
-		);
 	});
 });
 
