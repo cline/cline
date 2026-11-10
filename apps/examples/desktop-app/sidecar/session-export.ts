@@ -1,6 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
-import { copyFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import {
 	findArtifactUnderDir,
 	rootSessionIdFrom,
@@ -57,6 +58,39 @@ function isSameFile(a: string, b: string): boolean {
 	}
 }
 
+/** Read complete JSON bytes that were unchanged for the duration of the read.
+ * The Hub rewrites history in place, so a read can overlap a truncate/write.
+ * Retry those reads before touching the destination, keeping the original bytes.
+ */
+async function readSessionHistorySnapshot(sourcePath: string): Promise<Buffer> {
+	for (let attempt = 0; attempt < 5; attempt += 1) {
+		if (attempt > 0) await setTimeout(25);
+		const before = await stat(sourcePath, { bigint: true });
+		const snapshot = await readFile(sourcePath);
+		const after = await stat(sourcePath, { bigint: true });
+		if (
+			before.dev !== after.dev ||
+			before.ino !== after.ino ||
+			before.size !== after.size ||
+			after.size !== BigInt(snapshot.length) ||
+			before.mtimeNs !== after.mtimeNs ||
+			before.ctimeNs !== after.ctimeNs
+		) {
+			continue;
+		}
+		try {
+			JSON.parse(snapshot.toString("utf8"));
+		} catch (error) {
+			if (error instanceof SyntaxError) continue;
+			throw error;
+		}
+		return snapshot;
+	}
+	throw new Error(
+		"Session history is being updated or contains incomplete JSON. Try exporting again.",
+	);
+}
+
 /**
  * Copies a session's history file, unchanged, to the exact `destinationPath`
  * the user chose in the save dialog. An existing file there is replaced: the
@@ -97,6 +131,7 @@ export async function exportSessionHistoryFile(input: {
 			"Choose a different location: that is the session's own history file.",
 		);
 	}
-	await copyFile(sourcePath, path);
+	const snapshot = await readSessionHistorySnapshot(sourcePath);
+	await writeFile(path, snapshot);
 	return { sourcePath, path, fileName: basename(path) };
 }

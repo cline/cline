@@ -91,7 +91,8 @@ const PAGE_SIZE = 10;
  */
 type SessionMenuItem = ComponentType<{
 	children?: ReactNode;
-	onClick?: () => void;
+	disabled?: boolean;
+	onSelect?: () => void;
 	variant?: "default" | "destructive";
 }>;
 type SessionMenuSeparator = ComponentType<Record<string, never>>;
@@ -563,7 +564,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								<>
 									{thread.origin !== "cloud" ? (
 										<Item
-											onClick={() =>
+											onSelect={() =>
 												void history.setThreadPinned(thread.id, !thread.pinned)
 											}
 										>
@@ -576,31 +577,39 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											{thread.pinned ? "Unpin" : "Pin"}
 										</Item>
 									) : null}
-									<Item onClick={() => startRename(thread)}>
+									<Item onSelect={() => startRename(thread)}>
 										<Pencil className="size-4" />
 										Rename
 									</Item>
 									{thread.origin !== "cloud" ? (
-										<Item onClick={() => void history.forkThread(thread.id)}>
+										<Item onSelect={() => void history.forkThread(thread.id)}>
 											<GitFork className="size-4" />
 											Fork
 										</Item>
 									) : null}
 									{canExportSessionHistory(thread, session) ? (
-										<Item onClick={() => void history.exportThread(thread.id)}>
+										<Item
+											disabled={
+												thread.status === "running" ||
+												thread.status === "provisioning"
+											}
+											onSelect={() => void history.exportThread(thread.id)}
+										>
 											<Download className="size-4" />
 											Export
 										</Item>
 									) : null}
 									{session?.sessionId ? (
-										<Item onClick={() => void copySessionId(session.sessionId)}>
+										<Item
+											onSelect={() => void copySessionId(session.sessionId)}
+										>
 											<Copy className="size-4" />
 											Copy Session ID
 										</Item>
 									) : null}
 									<Separator />
 									<Item
-										onClick={() => setDeleteCandidate(thread)}
+										onSelect={() => setDeleteCandidate(thread)}
 										variant="destructive"
 									>
 										<Trash2 className="size-4" />

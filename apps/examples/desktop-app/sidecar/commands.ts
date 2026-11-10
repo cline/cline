@@ -2829,6 +2829,9 @@ export async function handleCommand(
 		return merged;
 	}
 	if (command === "export_chat_session_history") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("session export requires a trusted desktop connection");
+		}
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		// Only local sessions keep their history on this machine's disk.
@@ -2838,6 +2841,17 @@ export async function handleCommand(
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		if (binding?.kind === "ssh") {
 			throw new Error("Only local sessions can be exported.");
+		}
+		const session = await binding?.sessionManager.get(sessionId);
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (
+			session?.status === "running" ||
+			liveSession?.busy ||
+			liveSession?.status === "running"
+		) {
+			throw new Error(
+				"Wait until the session stops running before exporting its history.",
+			);
 		}
 		let recordedMessagesPath: string | undefined;
 		try {

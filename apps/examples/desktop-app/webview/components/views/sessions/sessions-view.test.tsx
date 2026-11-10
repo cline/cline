@@ -334,6 +334,23 @@ describe("SessionsView table", () => {
 		);
 	});
 
+	it.each([
+		"running",
+		"provisioning",
+	] as const)("disables export for a %s session", async (status) => {
+		const view = renderView({ threads: [{ ...thread, status }] });
+		await view.render();
+
+		const exportItem = (await openActionsMenu()).find(
+			(item) => item.textContent === "Export",
+		);
+		expect(exportItem?.getAttribute("aria-disabled")).toBe("true");
+		await act(async () => {
+			exportItem?.click();
+		});
+		expect(view.history.exportThread).not.toHaveBeenCalled();
+	});
+
 	it("does not offer export for cloud sessions", async () => {
 		const view = renderView({ threads: [{ ...thread, origin: "cloud" }] });
 		await view.render();
