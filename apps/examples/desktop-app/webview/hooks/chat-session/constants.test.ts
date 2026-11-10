@@ -37,9 +37,7 @@ describe("live Cline default model", () => {
 		invoke.mockRejectedValue(new Error("offline"));
 		const c = await load();
 		expect(await c.loadLiveClineDefaultModelId()).toBeUndefined();
-		expect(c.isUntouchedDefaultModel(c.getInitialChatConfig("local"))).toBe(
-			true,
-		);
+		expect(c.isUntouchedDefaultModel(c.getInitialChatConfig("local"))).toBe(true);
 	});
 
 	it("does not treat a remembered model as untouched", async () => {
@@ -51,9 +49,7 @@ describe("live Cline default model", () => {
 			lastProvider: "cline",
 			lastModelByProvider: { cline: "x/y" },
 		});
-		expect(c.isUntouchedDefaultModel(c.getInitialChatConfig("local"))).toBe(
-			false,
-		);
+		expect(c.isUntouchedDefaultModel(c.getInitialChatConfig("local"))).toBe(false);
 	});
 
 	it("does not treat a saved cloud model as untouched", async () => {
