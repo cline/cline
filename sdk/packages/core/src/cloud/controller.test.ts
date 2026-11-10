@@ -17,6 +17,7 @@ import {
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 } from "./controller";
+import { reduceCloudEvent } from "./state";
 import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
@@ -40,6 +41,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 	let messages: MessageWithMetadata[] = [];
 	let hasInner = true;
 	let runtimeStatus = "idle";
+	let runtimeUpdatedAt = Date.parse(record.createdAt);
 	const commands: Array<{
 		command: string;
 		payload: unknown;
@@ -106,6 +108,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 					session: {
 						sessionId: "inner",
 						status: runtimeStatus,
+						updatedAt: runtimeUpdatedAt,
 						metadata: { model: "model" },
 					},
 				};
@@ -114,7 +117,13 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 					throw Object.assign(new Error("session not found"), {
 						code: "session_not_found",
 					});
-				result = { session: { sessionId: "inner", status: runtimeStatus } };
+				result = {
+					session: {
+						sessionId: "inner",
+						status: runtimeStatus,
+						updatedAt: runtimeUpdatedAt,
+					},
+				};
 			}
 			if (name === "session.list")
 				result = {
@@ -182,6 +191,9 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		setStatus: (value: string) => {
 			runtimeStatus = value;
 		},
+		setUpdatedAt: (value: number) => {
+			runtimeUpdatedAt = value;
+		},
 		setHasInner: (value: boolean) => {
 			hasInner = value;
 		},
@@ -222,6 +234,82 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("does not invent run activity when an event has no timestamp", () => {
+		const state = {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.parse(record.createdAt),
+			status: "running",
+		};
+		reduceCloudEvent(
+			state,
+			{
+				version: "v1",
+				event: "run.completed",
+				sessionId: record.id,
+				payload: {},
+			},
+			new Map(),
+			record.id,
+		);
+		expect(state).not.toHaveProperty("lastActivityAt");
+	});
+	it("keeps connected conversation recency across passive reconnects", async () => {
+		const f = fixture();
+		const activity = "2026-07-20T10:00:00.000Z";
+		f.setUpdatedAt(Date.parse(activity));
+		f.api.list.mockResolvedValue([{ ...record, lastActivityAt: activity }]);
+		try {
+			await f.controller.attach(record.id);
+			await f.controller.readMessages(record.id);
+			await f.getConnectionOptions().resolveConnectionHeaders?.();
+			f.api.list.mockResolvedValue([
+				{ ...record, lastActivityAt: "2026-07-20T12:00:00.000Z" },
+			]);
+			await f.getConnectionOptions().resolveConnectionHeaders?.();
+			await f.controller.readMessages(record.id);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				activity,
+			);
+			expect(
+				f.controller.getCachedDiscoveryRecord(record.id)?.lastActivityAt,
+			).toBe(activity);
+			const missedActivity = "2026-07-20T11:00:00.000Z";
+			f.setUpdatedAt(Date.parse(missedActivity));
+			await f.controller.readMessages(record.id);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				missedActivity,
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("keeps genuine run activity when REST and rehydration timestamps lag", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		const f = fixture();
+		f.setUpdatedAt(Date.parse("2026-07-20T10:00:00.000Z"));
+		try {
+			await f.controller.attach(record.id);
+			await f.controller.readMessages(record.id);
+			vi.setSystemTime(new Date("2026-07-20T12:00:00.000Z"));
+			f.emit("run.started");
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				"2026-07-20T12:00:00.000Z",
+			);
+			vi.setSystemTime(new Date("2026-07-20T12:05:00.000Z"));
+			f.emit("run.completed", { reason: "completed" });
+			f.setStatus("completed");
+			await f.controller.readMessages(record.id);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				"2026-07-20T12:05:00.000Z",
+			);
+		} finally {
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
 	it.each([
 		750, 2000,
 	])("bounds a pending organization lookup by the %ims discovery budget", async (timeoutMs) => {

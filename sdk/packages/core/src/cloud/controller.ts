@@ -698,7 +698,16 @@ export class CloudSessionController {
 	 * making account/environment availability a prerequisite for opening it. */
 	getCachedDiscoveryRecord(sessionId: string): JsonRecord | undefined {
 		const record = this.knownSessions.get(sessionId);
-		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
+		return record ? this.discoveryRecord(record) : undefined;
+	}
+
+	private discoveryRecord(record: CloudSessionRecord): JsonRecord {
+		const projected = cloudSessionToDiscoveryRecord(record);
+		const activityAt = this.sessions.get(record.id)?.lastActivityAt;
+		if (activityAt !== undefined) {
+			projected.lastActivityAt = new Date(activityAt).toISOString();
+		}
+		return projected;
 	}
 
 	/** Revalidates a cached row by id when the active-scope list does not include it. */
@@ -1023,8 +1032,8 @@ export class CloudSessionController {
 			].map((record) => [record.id, record]),
 		);
 		const listed = [...recordsById.values()].map((record) => {
-			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.sessions.get(record.id);
+			const projected = this.discoveryRecord(record);
 			if (!live) {
 				return projected;
 			}
@@ -3365,6 +3374,13 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
+		const activityAt = updatedAt(row);
+		if (live && Number.isFinite(activityAt) && activityAt > 0) {
+			live.lastActivityAt = Math.max(
+				live.lastActivityAt ?? live.startedAt,
+				activityAt,
+			);
+		}
 		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&

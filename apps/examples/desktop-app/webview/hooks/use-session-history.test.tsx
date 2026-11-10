@@ -113,6 +113,7 @@ it.each([
 	undefined,
 	"2026-07-20T11:00:00.000Z",
 ])("keeps cloud ordering and time stable when only hydration timestamps change (%s)", async (lastActivityAt) => {
+	vi.setSystemTime(new Date("2026-07-20T18:00:00.000Z"));
 	const rows = (endedAt: string, activity = lastActivityAt) => [
 		{ ...sessionRow("local-recent"), endedAt: "2026-07-20T15:00:00.000Z" },
 		{
@@ -131,6 +132,7 @@ it.each([
 	const initialTime = current.threads.find(
 		(thread) => thread.origin === "cloud",
 	)?.time;
+	expect(initialTime).toBe(lastActivityAt ? "7h" : "8h");
 	await flush(12_000);
 	await act(async () =>
 		pendingLists[1].resolve(rows("2026-07-20T16:00:00.000Z")),

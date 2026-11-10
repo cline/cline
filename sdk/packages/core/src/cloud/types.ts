@@ -53,6 +53,8 @@ export type CloudSessionState = {
 	promptsInQueue: CloudQueuedPrompt[];
 	busy: boolean;
 	startedAt: number;
+	/** Conversation recency from Hub records and run events, not proxy connections. */
+	lastActivityAt?: number;
 	endedAt?: number;
 	status: string;
 	prompt?: string;
