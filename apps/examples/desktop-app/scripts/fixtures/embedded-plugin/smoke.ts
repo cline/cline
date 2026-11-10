@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { isMainThread } from "node:worker_threads";
 import { getAllProviders } from "@cline/llms/browser";
@@ -39,13 +38,36 @@ export default {
 		if (!marker) {
 			throw new Error("Missing CLINE_TEST_PLUGIN_RESULT_PATH");
 		}
-		const nested = spawnSync(process.execPath, ["--telemetry-selfcheck"], {
+		// Avoid blocking the plugin worker while its child starts and exits.
+		const nested = Bun.spawn([process.execPath, "--telemetry-selfcheck"], {
 			env: process.env,
-			encoding: "utf8",
-			timeout: 10000,
+			stdin: "ignore",
+			stdout: "pipe",
+			stderr: "pipe",
 		});
-		if (nested.status !== 0) throw new Error(nested.stderr);
-		JSON.parse(nested.stdout);
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			nested.kill("SIGKILL");
+		}, 10_000);
+		try {
+			const [status, stdout, stderr] = await Promise.all([
+				nested.exited,
+				new Response(nested.stdout).text(),
+				new Response(nested.stderr).text(),
+			]);
+			if (timedOut)
+				throw new Error(`Telemetry selfcheck exceeded 10 seconds: ${stderr}`);
+			if (status !== 0)
+				throw new Error(
+					stderr || `Telemetry selfcheck exited with code ${status}`,
+				);
+			JSON.parse(stdout);
+		} finally {
+			clearTimeout(timer);
+			if (nested.exitCode === null) nested.kill("SIGKILL");
+			await nested.exited;
+		}
 		const tool = createTool({
 			name: "embedded_ping",
 			description: "Packaged SDK tool",
