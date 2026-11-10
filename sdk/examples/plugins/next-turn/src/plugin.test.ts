@@ -1,14 +1,18 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentMessage, AgentRunResult } from "@cline/shared";
+import type {
+	AgentMessage,
+	AgentRunResult,
+	AsideRequest,
+	AsideResult,
+	PluginAsides,
+} from "@cline/shared";
 import {
-	Allowance,
-	fileLedgerStore,
-	type LedgerLine,
-} from "./planner/allowance";
-import type { Complete, CompleteRequest } from "./planner/completer";
+	PLANNER_MAX_OUTPUT_TOKENS,
+	PLANNER_TIMEOUT_MS,
+} from "./planner/planner";
 import { RepoReader } from "./planner/repo";
 import type { RunCommand } from "./planner/run";
 import {
@@ -270,14 +274,12 @@ afterEach(async () => {
 });
 
 type Pending = {
-	request: CompleteRequest;
-	answer(text: string | null): void;
-	fail(error: Error): void;
+	request: AsideRequest;
+	answer(text: string): void;
+	end(result: AsideResult): void;
 };
 
-function harness(
-	options: { callsPerHour?: number; timeoutMs?: number; run?: RunCommand } = {},
-) {
+function harness(options: { timeoutMs?: number; run?: RunCommand } = {}) {
 	const dir = mkdtempSync(join(tmpdir(), "next-turn-"));
 	dirs.push(dir);
 	writeFileSync(
@@ -285,24 +287,32 @@ function harness(
 		JSON.stringify({ scripts: { check: "tsc", dev: "x" } }),
 	);
 	writeFileSync(join(dir, "bun.lock"), "");
-	const ledgerPath = join(dir, "data", "planner.jsonl");
 	const events: NextTurnSuggestionsEvent[] = [];
 	const pending: Pending[] = [];
-	const complete: Complete = (request) =>
-		new Promise((resolve, reject) => {
-			pending.push({
-				request,
-				answer: (text) => resolve(text === null ? null : { text }),
-				fail: reject,
-			});
-		});
+	const asides: PluginAsides = {
+		ask: (request) =>
+			new Promise((resolve) => {
+				pending.push({
+					request,
+					answer: (text) =>
+						resolve({
+							status: "ok",
+							text,
+							transport: "fresh",
+							usage: {
+								inputTokens: 0,
+								outputTokens: 0,
+								cacheReadTokens: 0,
+								cacheWriteTokens: 0,
+							},
+							calledTools: [],
+						}),
+					end: resolve,
+				});
+			}),
+	};
 	const plugin = createNextTurnPlugin({
 		planner: {
-			complete,
-			allowance: new Allowance(
-				fileLedgerStore(ledgerPath),
-				options.callsPerHour,
-			),
 			run: options.run ?? (async () => GIT_STATUS),
 			repo: new RepoReader(),
 			timeoutMs: options.timeoutMs,
@@ -314,6 +324,7 @@ function harness(
 		{
 			session: { sessionId: "sess-1" },
 			workspaceInfo: { rootPath: dir },
+			asides,
 			emitEvent: (_name: string, payload: unknown) =>
 				events.push(payload as NextTurnSuggestionsEvent),
 			onDispose: (fn: () => void | Promise<void>) => {
@@ -325,10 +336,15 @@ function harness(
 	const finish = (
 		runId: string,
 		status: "completed" | "aborted" | "failed" = "completed",
-		options: { provider?: boolean; request?: string } = {},
+		options: {
+			provider?: boolean;
+			request?: string;
+			continuation?: "team_runs" | "queued_prompt";
+		} = {},
 	) =>
 		plugin.hooks?.afterRun?.({
 			snapshot: {},
+			...(options.continuation ? { continuation: options.continuation } : {}),
 			result: run(
 				status,
 				[
@@ -347,23 +363,11 @@ function harness(
 				"Edited a.ts.",
 			),
 		} as never);
-	const ledger = (): LedgerLine[] => {
-		try {
-			return readFileSync(ledgerPath, "utf8")
-				.trim()
-				.split("\n")
-				.map((line) => JSON.parse(line) as LedgerLine);
-		} catch {
-			return [];
-		}
-	};
 	return {
 		plugin,
 		events,
 		pending,
 		finish,
-		ledger,
-		dir,
 		dispose: () => dispose(),
 	};
 }
@@ -419,22 +423,26 @@ test("the planner reads the turn, the git state and the repository's commands, r
 		request: "make the client retry. token=aaaaaaaaaa",
 	});
 	await until(() => pending.length === 1, "the planner call");
-	const { input, chat, sessionId } = pending[0]?.request ?? {};
-	expect(chat).toEqual({ providerId: "anthropic", modelId: "claude-x" });
-	expect(sessionId).toBe("sess-1");
-	expect(input?.system).toContain(
+	const { system, prompt, ...bounds } = pending[0]?.request ?? {};
+	expect(bounds).toEqual({
+		runId: "run-1",
+		context: "none",
+		maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
+		timeoutMs: PLANNER_TIMEOUT_MS,
+	});
+	expect(system).toContain(
 		"You suggest the next message a person could send to their coding agent",
 	);
-	expect(input?.user).toContain("## The turn that just ended");
-	expect(input?.user).toContain("make the client retry. token=[redacted]");
-	expect(input?.user).not.toContain("aaaaaaaaaa");
-	expect(input?.user).toContain("- write_to_file: ok");
-	expect(input?.user).toContain("- a.ts");
-	expect(input?.user).toContain("Branch: harrison/retry (012345678)");
-	expect(input?.user).toContain("Working tree: 2 changed files");
-	expect(input?.user).toContain("- Changed: M src/client.ts");
-	expect(input?.user).toContain("- Script: `bun run check`");
-	expect(input?.user).not.toContain("bun run dev");
+	expect(prompt).toContain("## The turn that just ended");
+	expect(prompt).toContain("make the client retry. token=[redacted]");
+	expect(prompt).not.toContain("aaaaaaaaaa");
+	expect(prompt).toContain("- write_to_file: ok");
+	expect(prompt).toContain("- a.ts");
+	expect(prompt).toContain("Branch: harrison/retry (012345678)");
+	expect(prompt).toContain("Working tree: 2 changed files");
+	expect(prompt).toContain("- Changed: M src/client.ts");
+	expect(prompt).toContain("- Script: `bun run check`");
+	expect(prompt).not.toContain("bun run dev");
 });
 
 test("a run that starts after the planner call began makes its answer stale", async () => {
@@ -442,25 +450,23 @@ test("a run that starts after the planner call began makes its answer stale", as
 	await finish("run-1");
 	await until(() => pending.length === 1, "the first planner call");
 	await plugin.hooks?.beforeRun?.({ snapshot: {} } as never);
-	expect(pending[0]?.request.signal.aborted).toBe(true);
 	pending[0]?.answer(MODEL_ANSWER);
 	await settle();
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
 });
 
 test("an answer that lands in the same tick a new run starts is dropped", async () => {
-	const { plugin, events, pending, finish, ledger } = harness();
+	const { plugin, events, pending, finish } = harness();
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
 	pending[0]?.answer(MODEL_ANSWER);
 	plugin.hooks?.beforeRun?.({ snapshot: {} } as never);
-	await until(() => ledger().length === 1, "the ledger line");
+	await settle();
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
-	expect(ledger()[0]?.outcome).toBe("aborted");
 });
 
-test("an answer for an older run is dropped even when its call ignored the abort", async () => {
-	const { events, pending, finish, ledger } = harness();
+test("an answer for an older run is dropped", async () => {
+	const { events, pending, finish } = harness();
 	await finish("run-1");
 	await until(() => pending.length === 1, "run 1's planner call");
 	await finish("run-2");
@@ -474,21 +480,30 @@ test("an answer for an older run is dropped even when its call ignored the abort
 	pending[1]?.answer(MODEL_ANSWER);
 	await until(() => events.length === 3, "run 2's model set");
 	expect(events[2]).toMatchObject({ runId: "run-2", source: "model" });
-	expect(ledger().map((line) => line.outcome)).toEqual(["aborted", "ok"]);
 });
 
-test("a model failure keeps the rule set and says nothing", async () => {
-	const { events, pending, finish, ledger } = harness();
-	await finish("run-1");
-	await until(() => pending.length === 1, "the planner call");
-	pending[0]?.fail(new Error("provider down"));
-	await until(() => ledger().length === 1, "the ledger line");
-	expect(events.map((event) => event.source)).toEqual(["rules"]);
-	expect(ledger()[0]?.outcome).toBe("error");
-});
+const NO_ANSWER: AsideResult[] = [
+	{ status: "error", error: "provider down" },
+	{ status: "timeout" },
+	{ status: "superseded" },
+	{ status: "skipped", reason: "budget" },
+	{ status: "skipped", reason: "disabled" },
+];
+
+for (const result of NO_ANSWER) {
+	const ending = result.status === "skipped" ? result.reason : result.status;
+	test(`an aside that ends as ${ending} keeps the rule set and says nothing`, async () => {
+		const { events, pending, finish } = harness();
+		await finish("run-1");
+		await until(() => pending.length === 1, "the planner call");
+		pending[0]?.end(result);
+		await settle();
+		expect(events.map((event) => event.source)).toEqual(["rules"]);
+	});
+}
 
 test("an answer with no usable row is rejected and the rule set stays", async () => {
-	const { events, pending, finish, ledger } = harness();
+	const { events, pending, finish } = harness();
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
 	pending[0]?.answer(
@@ -499,110 +514,55 @@ test("an answer with no usable row is rejected and the rule set stays", async ()
 			],
 		}),
 	);
-	await until(() => ledger().length === 1, "the ledger line");
+	await settle();
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
-	expect(ledger()[0]?.outcome).toBe("unparseable");
 });
 
-test("a call that outlasts the timeout is aborted and the rule set stays", async () => {
-	const { events, pending, finish, ledger } = harness({ timeoutMs: 20 });
+test("the planner's deadline is the aside's timeout", async () => {
+	const { pending, finish } = harness({ timeoutMs: 20 });
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
-	await until(() => ledger().length === 1, "the ledger line");
-	expect(pending[0]?.request.signal.aborted).toBe(true);
-	expect(ledger()[0]?.outcome).toBe("timeout");
-	pending[0]?.answer(MODEL_ANSWER);
+	expect(pending[0]?.request.timeoutMs).toBe(20);
+});
+
+test("a turn with no model reply is never sent to a model", async () => {
+	const { events, pending, finish } = harness();
+	await finish("run-1", "completed", { provider: false });
 	await settle();
+	expect(pending).toHaveLength(0);
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
 });
 
-test("the hourly allowance caps the model calls and the rule set still goes out", async () => {
-	const { events, pending, finish } = harness({ callsPerHour: 2 });
-	for (const runId of ["run-1", "run-2"]) {
-		await finish(runId);
-		await until(() => pending.length === (runId === "run-1" ? 1 : 2));
-		pending.at(-1)?.answer(MODEL_ANSWER);
-		await until(
-			() => events.filter((event) => event.source === "model").length > 0,
-		);
-		events.length = 0;
-	}
-	await finish("run-3");
+test("a turn the host continues with another run gets its rule set and no aside", async () => {
+	const { events, pending, finish } = harness();
+	await finish("run-1", "completed", { continuation: "queued_prompt" });
 	await settle();
-	expect(pending).toHaveLength(2);
-	expect(events.map((event) => [event.runId, event.source])).toEqual([
-		["run-3", "rules"],
-	]);
+	expect(pending).toHaveLength(0);
+	expect(events.map((event) => event.source)).toEqual(["rules"]);
 });
 
-test("the allowance is shared through the ledger file across plugin instances", async () => {
-	const first = harness({ callsPerHour: 1 });
-	await first.finish("run-1");
-	await until(() => first.pending.length === 1);
-	first.pending[0]?.answer(MODEL_ANSWER);
-	await until(() => first.ledger().length === 1);
-	const dir = first.dir;
-	let secondCalls = 0;
-	const second = createNextTurnPlugin({
-		planner: {
-			complete: async () => {
-				secondCalls += 1;
-				return null;
-			},
-			allowance: new Allowance(
-				fileLedgerStore(join(dir, "data", "planner.jsonl")),
-				1,
-			),
-			run: async () => GIT_STATUS,
-			repo: new RepoReader(),
-		},
-	});
+test("a host that offers no asides leaves the plugin rule-only", async () => {
 	const events: NextTurnSuggestionsEvent[] = [];
-	second.setup?.(
+	const plugin = createNextTurnPlugin();
+	plugin.setup?.(
 		{} as never,
 		{
-			session: { sessionId: "sess-1" },
-			workspaceInfo: { rootPath: dir },
 			emitEvent: (_name: string, payload: unknown) =>
 				events.push(payload as NextTurnSuggestionsEvent),
 		} as never,
 	);
-	await second.hooks?.afterRun?.({
+	await plugin.hooks?.afterRun?.({
 		snapshot: {},
-		result: run(
-			"completed",
-			[
-				message("user", [{ type: "text", text: "go" }]),
-				{
-					...message("assistant", [{ type: "text", text: "done" }]),
-					modelInfo: { provider: "anthropic", id: "claude-x" },
-				},
-			],
-			"run-9",
-		),
+		result: run("completed", [
+			message("user", [{ type: "text", text: "edit a.ts" }]),
+			{
+				...message("assistant", [{ type: "text", text: "done" }]),
+				modelInfo: { provider: "anthropic", id: "claude-x" },
+			},
+		]),
 	} as never);
 	await settle();
-	expect(secondCalls).toBe(0);
 	expect(events.map((event) => event.source)).toEqual(["rules"]);
-});
-
-test("a chat with no known provider is never sent to a model and costs no allowance", async () => {
-	const { events, pending, finish, ledger } = harness({ callsPerHour: 1 });
-	await finish("run-1", "completed", { provider: false });
-	await settle();
-	expect(pending).toHaveLength(0);
-	await finish("run-2");
-	await until(() => pending.length === 1, "run 2's planner call");
-	pending[0]?.answer(null);
-	await settle();
-	expect(ledger()).toEqual([]);
-	await finish("run-3");
-	await until(() => pending.length === 2, "run 3's planner call");
-	expect(events.map((event) => event.source)).toEqual([
-		"rules",
-		"rules",
-		"rules",
-	]);
 });
 
 test("after a failed turn the first suggestion deals with the failure even when the model skipped it", async () => {
@@ -622,8 +582,8 @@ test("after a failed turn the first suggestion deals with the failure even when 
 	]);
 });
 
-test("subagent runs are not planned and ending the session aborts the call", async () => {
-	const { plugin, pending, finish, dispose } = harness();
+test("subagent runs are not planned and an answer after the session ended is dropped", async () => {
+	const { plugin, events, pending, finish, dispose } = harness();
 	await plugin.hooks?.afterRun?.({
 		snapshot: { parentAgentId: "parent" },
 		result: run("completed"),
@@ -632,9 +592,10 @@ test("subagent runs are not planned and ending the session aborts the call", asy
 	expect(pending).toHaveLength(0);
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
-	expect(pending[0]?.request.signal.aborted).toBe(false);
 	await dispose();
-	expect(pending[0]?.request.signal.aborted).toBe(true);
+	pending[0]?.answer(MODEL_ANSWER);
+	await settle();
+	expect(events.map((event) => event.source)).toEqual(["rules"]);
 });
 
 test("a workspace that is not a repository still plans, with no git section", async () => {
@@ -650,8 +611,8 @@ test("a workspace that is not a repository still plans, with no git section", as
 	});
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
-	expect(pending[0]?.request.input.user).not.toContain("git state");
-	expect(pending[0]?.request.input.user).not.toContain("Could not read");
+	expect(pending[0]?.request.prompt).not.toContain("git state");
+	expect(pending[0]?.request.prompt).not.toContain("Could not read");
 });
 
 test("a git read that fails says the tree is unknown, not clean", async () => {
@@ -662,7 +623,7 @@ test("a git read that fails says the tree is unknown, not clean", async () => {
 	});
 	await finish("run-1");
 	await until(() => pending.length === 1, "the planner call");
-	expect(pending[0]?.request.input.user).toContain(
+	expect(pending[0]?.request.prompt).toContain(
 		"- This folder's git state — treat as unknown, not empty.",
 	);
 });

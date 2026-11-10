@@ -21,7 +21,8 @@
 					"./src/index.ts"
 				],
 				"capabilities": [
-					"hooks"
+					"hooks",
+					"asides"
 				]
 			}
 		]

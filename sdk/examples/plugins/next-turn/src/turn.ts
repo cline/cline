@@ -154,7 +154,7 @@ export type TurnSummary = {
 	context: TurnContext;
 	/** The mode the chat's newest input was sent in; absent on input the runtime did not wrap. */
 	mode?: "act" | "plan";
-	/** The provider and model of the chat's last reply: the planner's provider. */
+	/** The provider and model of the chat's last reply. A turn without one has no model reply to plan from. */
 	chat?: ProviderChoice;
 };
 
