@@ -342,7 +342,7 @@ describe("Pagination", () => {
 		expect(onPageChange).toHaveBeenCalledOnce();
 	});
 
-	it("clamps selection when the result count shrinks without emitting a user change", async () => {
+	it("clamps selection and restores focus when results shrink without emitting a user change", async () => {
 		const onPageChange = vi.fn();
 		const control = (pageCount: number) => (
 			<Pagination
@@ -353,8 +353,11 @@ describe("Pagination", () => {
 		);
 		await render(control(10));
 		expect(currentPage()).toBe(9);
+		pageButton(9).focus();
 		await render(control(3));
 		expect(currentPage()).toBe(3);
+		expect(document.activeElement).toBe(pageButton(3));
+		expect(onPageChange).not.toHaveBeenCalled();
 		expect(pages()).toEqual([1, 2, 3]);
 		expect(buttonNamed("Next page").disabled).toBe(true);
 		await click(buttonNamed("Previous page"));
@@ -610,14 +613,6 @@ describe("Pagination", () => {
 		expect(onPageChange).not.toHaveBeenCalled();
 	});
 
-	it("retains focus when shrinking results removes the selected page", async () => {
-		await render(<Pagination pageCount={10} defaultPage={9} />);
-		pageButton(9).focus();
-		await render(<Pagination pageCount={3} defaultPage={9} />);
-		expect(currentPage()).toBe(3);
-		expect(document.activeElement).toBe(pageButton(3));
-	});
-
 	it("returns focus to the current page when shrinking the window removes a focused unselected page", async () => {
 		await render(<Pagination pageCount={10} visiblePages={9} />);
 		pageButton(5).focus();
@@ -741,26 +736,31 @@ describe("Pagination", () => {
 		}
 	});
 
-	it("rebases the number strip from its sampled position during rapid forward clicks", async () => {
+	it.each([
+		["unchanged", 7, "Next page", "-98.5px", "-98.5px", 9, "3"],
+		["advanced", 8, "Next page", "-138px", "-98px", 10, "4"],
+		["reversed", 10, "Previous page", "-138px", "-178px", 10, "4"],
+	] as const)("rebases an interrupted slide when the overscan origin is %s", async (_, startPage, direction, sampled, expected, page, firstPage) => {
 		const { animations } = mockMotion(false);
 		await render(
-			<Pagination defaultPage={7} pageCount={20} visiblePages={9} />,
+			<Pagination defaultPage={startPage} pageCount={20} visiblePages={9} />,
 		);
 		await click(buttonNamed("Next page"));
+		expect(animations).toHaveLength(1);
 		const previousAnimations = [...animations];
-		const getStyle = mockTrackOffset("-98.5px");
-		await click(buttonNamed("Next page"));
-		expect(currentPage()).toBe(9);
+		const getStyle = mockTrackOffset(sampled);
+		await click(buttonNamed(direction));
+		expect(currentPage()).toBe(page);
 
 		const replacements = animations.slice(previousAnimations.length);
 		expect(replacements).toHaveLength(1);
 		for (const animation of replacements) {
 			const step = (animation.element as HTMLElement).style.gridAutoColumns;
 			expect(animation.keyframes).toEqual([
-				{ translate: "-98.5px" },
+				{ translate: expected },
 				{ translate: `calc(-4 * ${step})` },
 			]);
-			expect(animation.element.firstElementChild?.textContent).toBe("3");
+			expect(animation.element.firstElementChild?.textContent).toBe(firstPage);
 		}
 		for (const animation of previousAnimations) {
 			expect(animation.cancel).toHaveBeenCalledOnce();
@@ -794,28 +794,6 @@ describe("Pagination", () => {
 		}
 		for (const animation of previousAnimations) {
 			expect(animation.cancel).toHaveBeenCalledOnce();
-		}
-	});
-
-	it("preserves page positions when an interrupted slide advances the overscan origin", async () => {
-		const { animations } = mockMotion(false);
-		await render(
-			<Pagination defaultPage={8} pageCount={20} visiblePages={9} />,
-		);
-		await click(buttonNamed("Next page"));
-		const previousCount = animations.length;
-		mockTrackOffset("-138px");
-		await click(buttonNamed("Next page"));
-		expect(currentPage()).toBe(10);
-		const replacements = animations.slice(previousCount);
-		expect(replacements).toHaveLength(1);
-		for (const animation of replacements) {
-			const step = (animation.element as HTMLElement).style.gridAutoColumns;
-			expect(animation.keyframes).toEqual([
-				{ translate: "-98px" },
-				{ translate: `calc(-4 * ${step})` },
-			]);
-			expect(animation.element.firstElementChild?.textContent).toBe("4");
 		}
 	});
 
@@ -880,27 +858,6 @@ describe("Pagination", () => {
 			{ translate: `calc(-3 * ${step})` },
 			{ translate: `calc(-4 * ${step})` },
 		]);
-	});
-
-	it("rebases an interrupted slide when reversing direction moves the overscan origin backwards", async () => {
-		const { animations } = mockMotion(false);
-		await render(
-			<Pagination defaultPage={10} pageCount={20} visiblePages={9} />,
-		);
-		await click(buttonNamed("Next page"));
-		mockTrackOffset("-138px");
-		await click(buttonNamed("Previous page"));
-
-		expect(currentPage()).toBe(10);
-		expect(animations).toHaveLength(2);
-		expect(animations[0]?.cancel).toHaveBeenCalledOnce();
-		const reversed = animations[1];
-		const step = (reversed?.element as HTMLElement).style.gridAutoColumns;
-		expect(reversed?.keyframes).toEqual([
-			{ translate: "-178px" },
-			{ translate: `calc(-4 * ${step})` },
-		]);
-		expect(reversed?.element.firstElementChild?.textContent).toBe("4");
 	});
 
 	it.each([
