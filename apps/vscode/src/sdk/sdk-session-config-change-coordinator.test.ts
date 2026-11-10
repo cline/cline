@@ -31,6 +31,45 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		expect(options.rebuilds.request).not.toHaveBeenCalled()
 	})
 
+	it.each([
+		{
+			name: "reasoning effort",
+			previous: { actModeApiProvider: "anthropic", actModeReasoningEffort: "low" },
+			next: { actModeApiProvider: "anthropic", actModeReasoningEffort: "high" },
+		},
+		{
+			name: "model selection",
+			previous: { actModeApiProvider: "anthropic", actModeApiModelId: "claude-sonnet" },
+			next: { actModeApiProvider: "anthropic", actModeApiModelId: "claude-opus" },
+		},
+	])("rebuilds the active task after a same-provider $name change", async ({ previous, next }) => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+
+		coordinator.handleApiConfigurationChanged(previous, next)
+
+		expect(options.rebuilds.request).toHaveBeenCalledWith("modelConfiguration", expect.any(Function))
+		await runScheduledRebuild()
+
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
+			startInput: { prompt: "start" },
+			initialMessages: [{ role: "user", content: "hello" }],
+			disposeReason: "modelConfigurationChange",
+		})
+	})
+
+	it("does not rebuild for model configuration changes in an inactive mode", () => {
+		const { coordinator, options } = makeCoordinator({ mode: "plan", activeSession: makeActiveSession() })
+
+		coordinator.handleApiConfigurationChanged(
+			{ actModeApiProvider: "anthropic", actModeReasoningEffort: "low" },
+			{ actModeApiProvider: "anthropic", actModeReasoningEffort: "high" },
+		)
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+	})
+
 	it("schedules checkpoint changes behind a running turn", () => {
 		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession({ isRunning: true }) })
 

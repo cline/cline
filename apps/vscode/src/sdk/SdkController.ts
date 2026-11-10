@@ -834,6 +834,7 @@ export class Controller {
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
+		this.sessionConfigChanges.handleApiConfigurationChanged(previous, next)
 	}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
