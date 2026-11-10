@@ -1,13 +1,7 @@
 "use client";
 
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
-import {
-	type ComponentProps,
-	type MouseEventHandler,
-	type ReactNode,
-	useEffect,
-	useRef,
-} from "react";
+import type { ComponentProps, MouseEventHandler, ReactNode } from "react";
 import { Button, type ButtonTone } from "./button.js";
 import { useDialogFocus } from "./dialog-focus.js";
 
@@ -60,25 +54,10 @@ export function AlertDialog({
 }: AlertDialogProps) {
 	const isConfirmDisabled = confirmDisabled || confirmLoading;
 	const focus = useDialogFocus({
+		open,
 		// Radix focuses Cancel unless it is disabled; keep pending dialogs focused.
 		focusContent: cancelDisabled,
 	});
-	const focusedActionRef = useRef<HTMLButtonElement | null>(null);
-
-	useEffect(() => {
-		if (!open || (!cancelDisabled && !isConfirmDisabled)) return;
-		const content = focus.contentRef.current;
-		const action = focusedActionRef.current;
-		if (!content || !action?.disabled || !content.contains(action)) return;
-		const activeElement = content.ownerDocument.activeElement;
-		// Disabling the focused action can move native focus to the document body.
-		// Recover it before Tab can escape, without moving focus from other content.
-		if (
-			activeElement === action ||
-			activeElement === content.ownerDocument.body
-		)
-			content.focus({ preventScroll: true });
-	}, [open, cancelDisabled, isConfirmDisabled, focus.contentRef]);
 
 	return (
 		<AlertDialogPrimitive.Root onOpenChange={onOpenChange} open={open}>
@@ -95,9 +74,6 @@ export function AlertDialog({
 					onOpenAutoFocus={focus.onOpenAutoFocus}
 					onEscapeKeyDown={(event) => {
 						if (!dismissible) event.preventDefault();
-					}}
-					onFocusCapture={() => {
-						focusedActionRef.current = null;
 					}}
 					ref={focus.contentRef}
 				>
@@ -123,9 +99,6 @@ export function AlertDialog({
 							<Button
 								disabled={cancelDisabled}
 								onClick={onCancel}
-								onFocus={(event) => {
-									focusedActionRef.current = event.currentTarget;
-								}}
 								size="sm"
 								tone="neutral"
 								variant="secondary"
@@ -140,9 +113,6 @@ export function AlertDialog({
 								onClick={(event) => {
 									onConfirm(event);
 									if (!closeOnConfirm) event.preventDefault();
-								}}
-								onFocus={(event) => {
-									focusedActionRef.current = event.currentTarget;
 								}}
 								size="sm"
 								tone={confirmTone}
