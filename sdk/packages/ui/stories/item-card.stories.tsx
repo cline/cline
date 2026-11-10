@@ -7,43 +7,47 @@ import {
 	MoreHorizontal,
 	TriangleAlert,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Badge } from "../components/badge";
 import { Button, IconButton } from "../components/button";
-import { Dialog } from "../components/dialog";
 import { ItemCard, type ItemCardProps } from "../components/item-card";
 import { Switch } from "../components/switch";
+import { CompactDocsPage } from "./compact-docs-page";
 
 const calendarImage = new URL(
 	"./assets/item-card/calendar.svg",
 	import.meta.url,
 ).href;
-
-function SampleImage() {
-	return <img src={calendarImage} alt="" width={24} height={24} />;
-}
+const statuses = {
+	success: { icon: Check, label: "Connected" },
+	warning: { icon: TriangleAlert, label: "Auth required" },
+	error: { icon: CircleAlert, label: "Install failed" },
+} as const;
 
 type ItemCardStoryArgs = ItemCardProps & {
-	showLeadingItem: boolean;
-	leadingItemType: "image" | "icon";
-	showTrailingItem: boolean;
-	trailingItemType: "button" | "switch" | "icon-button" | "status";
+	leadingItem: "none" | "image" | "icon";
+	trailingItem: "none" | "button" | "switch" | "icon-button" | "status";
+	status: keyof typeof statuses;
 };
 
 function TrailingItem({
 	type,
+	status,
 }: {
-	type: ItemCardStoryArgs["trailingItemType"];
+	type: ItemCardStoryArgs["trailingItem"];
+	status: ItemCardStoryArgs["status"];
 }) {
 	const [applied, setApplied] = useState(false);
 	switch (type) {
+		case "none":
+			return null;
 		case "button":
 			return (
 				<Button
 					size="xs"
 					tone="neutral"
 					variant="secondary"
-					onClick={() => setApplied(!applied)}
+					onClick={() => setApplied((value) => !value)}
 				>
 					{applied ? "Applied" : "Apply"}
 				</Button>
@@ -54,43 +58,64 @@ function TrailingItem({
 			return (
 				<IconButton icon={MoreHorizontal} aria-label="Item options" size="xs" />
 			);
-		case "status":
+		case "status": {
+			const { icon: Icon, label } = statuses[status];
 			return (
-				<Badge size="xs" tone="success" variant="ghost">
-					<Check aria-hidden="true" />
-					Active
-				</Badge>
+				<output>
+					<Badge size="xs" tone={status} variant="ghost">
+						<Icon aria-hidden="true" />
+						{label}
+					</Badge>
+				</output>
 			);
+		}
 	}
 }
 
 function ItemCardExample({
-	showLeadingItem,
-	leadingItemType,
-	showTrailingItem,
-	trailingItemType,
+	leadingItem,
+	trailingItem,
+	status,
 	...args
 }: ItemCardStoryArgs) {
 	return (
 		<ItemCard
 			{...args}
 			icon={
-				showLeadingItem ? (
-					leadingItemType === "image" ? (
-						<SampleImage />
-					) : (
-						<FileText size={20} />
-					)
+				leadingItem === "image" ? (
+					<img src={calendarImage} alt="" width={24} height={24} />
+				) : leadingItem === "icon" ? (
+					<FileText size={20} />
 				) : undefined
 			}
 			actions={
-				showTrailingItem
-					? (args.actions ?? (
-							<TrailingItem key={trailingItemType} type={trailingItemType} />
-						))
-					: undefined
+				args.actions ??
+				(trailingItem === "none" ? undefined : (
+					<TrailingItem
+						key={trailingItem}
+						type={trailingItem}
+						status={status}
+					/>
+				))
 			}
 		/>
+	);
+}
+
+function LabeledExample({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<figure className="min-w-0 space-y-2">
+			<figcaption className="text-cline-ui-muted-foreground text-cline-ui-xs">
+				{label}
+			</figcaption>
+			{children}
+		</figure>
 	);
 }
 
@@ -101,9 +126,10 @@ const meta = {
 	parameters: {
 		cardWidth: 517,
 		docs: {
+			page: CompactDocsPage,
 			description: {
 				component:
-					'A general-purpose card with optional leading and trailing items. Enable a leading image or icon and a trailing button, switch, icon button, status, or custom content independently. Both are off by default. Use Button directly for trailing actions, with size, tone, and variant set by the consumer. Use Badge with variant="ghost" for trailing statuses and secondary metadata. The optional primary action covers the whole card, including padding and passive metadata; controls and links remain independent.',
+					"A card with optional leading content, trailing controls, and metadata. Use the Playground controls to explore combinations and status tones. The primary action covers the card; trailing controls and links act independently.",
 			},
 		},
 	},
@@ -121,31 +147,33 @@ const meta = {
 	],
 	render: (args) => <ItemCardExample {...args} />,
 	args: {
-		title: "Item title",
-		description:
-			"A short description with the context needed to understand this item.",
-		showLeadingItem: false,
-		leadingItemType: "image",
-		showTrailingItem: false,
-		trailingItemType: "button",
+		title: "Code review",
+		description: "Review pull requests for bugs and regressions.",
+		leadingItem: "none",
+		trailingItem: "none",
+		status: "success",
+		selected: false,
 	},
 	argTypes: {
 		title: { control: "text" },
 		count: { control: "number" },
 		description: { control: "text" },
-		showLeadingItem: { name: "Leading item", control: "boolean" },
-		leadingItemType: {
-			name: "Leading item type",
+		selected: { control: "boolean" },
+		leadingItem: {
+			name: "Leading",
 			control: "select",
-			options: ["image", "icon"],
-			if: { arg: "showLeadingItem" },
+			options: ["none", "image", "icon"],
 		},
-		showTrailingItem: { name: "Trailing item", control: "boolean" },
-		trailingItemType: {
-			name: "Trailing item type",
+		trailingItem: {
+			name: "Trailing",
 			control: "select",
-			options: ["button", "switch", "icon-button", "status"],
-			if: { arg: "showTrailingItem" },
+			options: ["none", "button", "switch", "icon-button", "status"],
+		},
+		status: {
+			name: "Status",
+			control: "select",
+			options: ["success", "warning", "error"],
+			if: { arg: "trailingItem", eq: "status" },
 		},
 		icon: { control: false, table: { disable: true } },
 		actions: { control: false, table: { disable: true } },
@@ -158,281 +186,169 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
-export const PrimaryActionRef: Story = {
-	render: function PrimaryActionRef(args) {
-		const primaryRef = useRef<HTMLButtonElement>(null);
-		const [opened, setOpened] = useState(false);
-		return (
-			<div className="grid gap-4">
-				<Button
-					onClick={() => primaryRef.current?.focus()}
-					variant="secondary"
-					tone="neutral"
-				>
-					Focus item
-				</Button>
-				<ItemCardExample
-					{...args}
-					primaryAction={{ ref: primaryRef, onClick: () => setOpened(true) }}
-				/>
-				<output>
-					{opened
-						? "Item opened"
-						: "Focus the card, then press Enter to open it."}
-				</output>
-			</div>
-		);
-	},
-};
-export const WithCount: Story = { args: { title: "Teams", count: 18 } };
-export const LeadingImage: Story = {
-	args: { showLeadingItem: true, leadingItemType: "image" },
-};
-export const LeadingIcon: Story = {
-	args: { showLeadingItem: true, leadingItemType: "icon" },
-};
-export const TrailingButton: Story = {
-	args: { showTrailingItem: true, trailingItemType: "button" },
-};
-export const TrailingSwitch: Story = {
-	args: { showTrailingItem: true, trailingItemType: "switch" },
-};
-export const TrailingIconButton: Story = {
-	args: { showTrailingItem: true, trailingItemType: "icon-button" },
-};
-export const CompactActions: Story = {
-	parameters: { cardWidth: 320 },
-	args: {
-		title: "Code review",
-		description: "Review pull requests for bugs and regressions.",
-		showLeadingItem: true,
-		leadingItemType: "icon",
-		showTrailingItem: true,
-		trailingItemType: "button",
-	},
-};
-const statuses = {
-	connected: { icon: Check, tone: "success", label: "Connected" },
-	installed: { icon: Check, tone: "success", label: "Installed" },
-	"auth-required": {
-		icon: TriangleAlert,
-		tone: "warning",
-		label: "Auth required",
-	},
-	failed: { icon: CircleAlert, tone: "error", label: "Install failed" },
-} as const;
+export const Playground: Story = {};
 
-function StatusBadge({ status }: { status: keyof typeof statuses }) {
-	const { icon: Icon, tone, label } = statuses[status];
-	return (
-		<output>
-			<Badge size="xs" tone={tone} variant="ghost">
-				<Icon aria-hidden="true" />
-				{label}
-			</Badge>
-		</output>
-	);
-}
-
-export const TrailingStatus: Story = {
-	args: {
-		showTrailingItem: true,
-		trailingItemType: "status",
-		actions: <StatusBadge status="connected" />,
-	},
-	argTypes: { trailingItemType: { control: false } },
-};
-export const WarningStatus: Story = {
-	...TrailingStatus,
-	args: {
-		...TrailingStatus.args,
-		actions: <StatusBadge status="auth-required" />,
-	},
-};
-export const ErrorStatus: Story = {
-	...TrailingStatus,
-	args: { ...TrailingStatus.args, actions: <StatusBadge status="failed" /> },
-};
-export const StatusInteraction: Story = {
-	...TrailingStatus,
-	args: { ...TrailingStatus.args, title: "Code review" },
-	render: function StatusInteraction(args) {
-		const [open, setOpen] = useState(false);
-		const [failed, setFailed] = useState(true);
-		return (
-			<>
-				<ItemCardExample
-					{...args}
-					primaryAction={{
-						label: "Open item details",
-						onClick: () => setOpen(true),
-					}}
-					actions={<StatusBadge status={failed ? "failed" : "installed"} />}
-				/>
-				<Dialog
-					open={open}
-					onOpenChange={setOpen}
-					title={args.title}
-					description={args.description}
-					size="sm"
-					footer={
-						failed ? (
-							<Button
-								onClick={() => {
-									setFailed(false);
-									setOpen(false);
-								}}
-							>
-								Retry installation
-							</Button>
-						) : undefined
-					}
-				>
-					<p>
-						{failed
-							? "The download timed out. Retry to update the card status."
-							: "Installation is complete."}
-					</p>
-				</Dialog>
-			</>
-		);
-	},
-};
-export const Selected: Story = { args: { selected: true } };
-export const EmptyDescription: Story = { args: { description: "" } };
-export const WithFooter: Story = {
-	args: { showLeadingItem: true, footer: "Published by the Cline team" },
-};
-export const WithAdditionalContent: Story = {
-	args: {
-		children: (
-			<p className="text-cline-ui-error-text text-cline-ui-sm">
-				This item needs to be configured before use.
-			</p>
-		),
-	},
-};
-
-export const Variants: Story = {
-	parameters: { controls: { disable: true }, cardWidth: 1050 },
+export const Compositions: Story = {
+	parameters: { controls: { disable: true } },
 	render: (args) => (
-		<div className="grid gap-4 md:grid-cols-2">
-			<ItemCardExample
-				{...args}
-				showLeadingItem
-				leadingItemType="image"
-				showTrailingItem
-				trailingItemType="button"
-			/>
-			<ItemCardExample
-				{...args}
-				showLeadingItem
-				leadingItemType="icon"
-				showTrailingItem
-				trailingItemType="button"
-			/>
-			<ItemCardExample
-				{...args}
-				showLeadingItem
-				leadingItemType="image"
-				showTrailingItem
-				trailingItemType="status"
-			/>
-			<ItemCardExample
-				{...args}
-				showLeadingItem
-				leadingItemType="icon"
-				showTrailingItem
-				trailingItemType="switch"
-			/>
+		<div className="grid gap-4">
+			<LabeledExample label="Image + button">
+				<ItemCardExample
+					{...args}
+					title="Calendar"
+					description="Create events and keep your schedule up to date."
+					leadingItem="image"
+					trailingItem="button"
+				/>
+			</LabeledExample>
+			<LabeledExample label="Icon + switch + additional content">
+				<ItemCardExample {...args} leadingItem="icon" trailingItem="switch">
+					<p className="text-cline-ui-muted-foreground text-cline-ui-xs">
+						Only enabled for this workspace.
+					</p>
+				</ItemCardExample>
+			</LabeledExample>
+			<LabeledExample label="Metadata + icon button">
+				<ItemCardExample
+					{...args}
+					title="Workspace rules"
+					description={undefined}
+					count={18}
+					trailingItem="icon-button"
+					badges={<Badge variant="ghost">Global</Badge>}
+					footer="Published by the Cline team"
+				/>
+			</LabeledExample>
 		</div>
 	),
 };
-export const IndependentActions: Story = {
-	argTypes: { selected: { control: false } },
-	args: {
-		showTrailingItem: true,
-		trailingItemType: "switch",
-	},
-	render: function IndependentActions(args) {
-		const [selected, setSelected] = useState(false);
-		const [enabled, setEnabled] = useState(false);
-		return (
-			<div className="grid gap-4">
+
+export const States: Story = {
+	parameters: { controls: { disable: true }, cardWidth: 1050 },
+	render: (args) => (
+		<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-4">
+			<LabeledExample label="Selected">
+				<ItemCardExample {...args} selected />
+			</LabeledExample>
+			<LabeledExample label="Action pending">
 				<ItemCardExample
 					{...args}
-					selected={selected}
-					primaryAction={{
-						onClick: () => setSelected(!selected),
-						label: "View item details",
-					}}
 					actions={
-						args.trailingItemType === "switch" ? (
-							<Switch
-								aria-label="Enable item"
-								checked={enabled}
-								onCheckedChange={setEnabled}
-							/>
-						) : undefined
-					}
-				/>
-				<output className="text-cline-ui-xs">
-					Details: {selected ? "open" : "closed"}
-					{args.showTrailingItem && args.trailingItemType === "switch"
-						? `; item: ${enabled ? "enabled" : "disabled"}`
-						: ""}
-				</output>
-			</div>
-		);
-	},
-};
-
-export const PendingAndDisabled: Story = {
-	args: { showTrailingItem: true, trailingItemType: "button" },
-	render: (args) => (
-		<div className="grid gap-4">
-			<ItemCardExample
-				{...args}
-				actions={
-					args.trailingItemType === "button" ? (
-						<Button size="xs" tone="neutral" variant="secondary" disabled>
+						<Button
+							size="xs"
+							tone="neutral"
+							variant="secondary"
+							disabled
+							aria-busy
+						>
 							<Loader2
 								aria-hidden="true"
 								className="motion-safe:animate-spin"
 							/>
 							Applying…
 						</Button>
-					) : undefined
-				}
-			/>
-			<ItemCardExample
-				{...args}
-				primaryAction={{ onClick: () => {}, disabled: true }}
-			/>
+					}
+				/>
+			</LabeledExample>
+			<LabeledExample label="Primary action disabled">
+				<ItemCardExample
+					{...args}
+					description="The primary action is disabled. Its switch still works."
+					primaryAction={{ onClick: () => {}, disabled: true }}
+					actions={
+						<Switch aria-label="Enable item with disabled primary action" />
+					}
+				/>
+			</LabeledExample>
 		</div>
 	),
 };
-export const LongContentAndNarrow: Story = {
-	args: {
-		title: "A very long item title that needs to truncate",
-		count: 18,
-		showLeadingItem: true,
-		leadingItemType: "icon",
-		showTrailingItem: true,
-		trailingItemType: "switch",
+
+export const Interaction: Story = {
+	parameters: {
+		controls: { disable: true },
+		docs: {
+			description: {
+				story:
+					"Click the card or focus it with Tab and press Enter or Space. The switch changes independently without activating the card.",
+			},
+		},
 	},
-	render: (args) => (
-		<div className="w-full max-w-72">
-			<ItemCardExample
-				{...args}
-				badges={
-					<>
-						<Badge variant="ghost">Global</Badge>
-						<Badge variant="ghost">Shared</Badge>
-					</>
-				}
-			/>
-		</div>
-	),
+	render: function Interaction(args) {
+		const [activations, setActivations] = useState(0);
+		const [enabled, setEnabled] = useState(false);
+		return (
+			<div className="grid gap-3">
+				<ItemCardExample
+					{...args}
+					leadingItem="icon"
+					primaryAction={{
+						label: "Open Code review",
+						onClick: () => setActivations((count) => count + 1),
+					}}
+					actions={
+						<Switch
+							aria-label="Enable Code review"
+							checked={enabled}
+							onCheckedChange={setEnabled}
+						/>
+					}
+				/>
+				<output className="text-cline-ui-muted-foreground text-cline-ui-xs">
+					Card activations: {activations} · Item:{" "}
+					{enabled ? "enabled" : "disabled"}
+				</output>
+			</div>
+		);
+	},
+};
+
+export const Responsive: Story = {
+	parameters: {
+		controls: { disable: true },
+		cardWidth: 640,
+		docs: {
+			description: {
+				story:
+					"Adjust the width to compare truncation and wrapping. Below 320px, the icon and trailing control stack with the content.",
+			},
+		},
+	},
+	render: function Responsive(args) {
+		const sliderId = useId();
+		const [width, setWidth] = useState(517);
+		return (
+			<div className="grid grid-cols-1 gap-4">
+				<div className="grid gap-2">
+					<label
+						className="text-cline-ui-muted-foreground text-cline-ui-xs"
+						htmlFor={sliderId}
+					>
+						Card width: {width}px (limited to available space)
+					</label>
+					<input
+						id={sliderId}
+						type="range"
+						min={240}
+						max={600}
+						value={width}
+						onChange={(event) => setWidth(event.currentTarget.valueAsNumber)}
+						className="w-full"
+					/>
+				</div>
+				<div style={{ width, maxWidth: "100%" }}>
+					<ItemCardExample
+						{...args}
+						title="Code review guidelines for your entire workspace"
+						description="Review pull requests for bugs, regressions, and missing tests before sharing changes with your team."
+						count={18}
+						leadingItem="icon"
+						trailingItem="switch"
+						badges={<Badge variant="ghost">Global</Badge>}
+						footer="Published by the Cline team"
+					/>
+				</div>
+			</div>
+		);
+	},
 };

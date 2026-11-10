@@ -6,11 +6,12 @@ import {
 	Folder,
 	Settings2,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Badge } from "../components/badge";
 import { Button, IconButton } from "../components/button";
 import { DetailList } from "../components/detail-list";
 import { DetailListItem } from "../components/detail-list-item";
+import { CompactDocsPage } from "./compact-docs-page";
 
 const settingsPath =
 	"/Users/example/.cline/data/settings/cline_mcp_settings.json";
@@ -21,9 +22,10 @@ const meta = {
 	tags: ["autodocs"],
 	parameters: {
 		docs: {
+			page: CompactDocsPage,
 			description: {
 				component:
-					"A detail row with a title, optional leading icon, count, description, trailing text, and independent actions. No icon is shown by default. Pass an SVG component through leadingIcon; the row owns its size and spacing. Render within DetailList, which supplies the border, separators, and responsive container.",
+					"A row with optional icon, count, description, value, and actions. Render within DetailList for borders, separators, and responsive layout.",
 			},
 		},
 	},
@@ -42,9 +44,9 @@ const meta = {
 	argTypes: {
 		title: { control: "text" },
 		leadingIcon: {
-			control: false,
-			description:
-				"Optional decorative SVG component, such as Clock3. The row manages its size and spacing; omitted by default.",
+			control: "select",
+			options: ["None", "Clock", "Folder"],
+			mapping: { None: undefined, Clock: Clock3, Folder },
 		},
 		count: { control: { type: "number", min: 0, step: 1 } },
 		description: { control: "text" },
@@ -60,106 +62,45 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Playground: Story = {};
 
-export const WithLeadingIcon: Story = {
-	args: {
-		title: "Schedule",
-		leadingIcon: Clock3,
-		description: "Run this task automatically at the selected time.",
-		trailingText: "Weekdays · 9:00 AM",
-	},
-};
-
-export const WithCount: Story = {
-	args: {
-		title: "Skills",
-		description: undefined,
-		count: 1,
-		trailingText: "agent-browser",
-	},
-};
-
-export const DescriptionOnly: Story = {
-	args: {
-		title: "Authentication",
-		description: "This server does not require credentials.",
-		trailingText: undefined,
-	},
-};
-
-export const ConfigurationRequirement: Story = {
-	args: {
-		title: "CONTEXT7_API_KEY",
-		description: "Optional API key for higher rate limits.",
-		trailingText: undefined,
-	},
-	render: function ConfigurationRequirement(args) {
+export const Actions: Story = {
+	parameters: { controls: { disable: true } },
+	render: function Actions() {
 		const [message, setMessage] = useState("");
 		return (
 			<div className="grid gap-3">
 				<DetailList>
 					<DetailListItem
-						{...args}
 						title={
 							<>
-								<code>{args.title}</code>
+								<code>CONTEXT7_API_KEY</code>
 								<Badge size="xs">Optional</Badge>
 							</>
 						}
+						description="Optional API key for higher rate limits."
 						actions={
 							<Button
 								trailingIcon={ArrowUpRight}
 								size="xs"
 								tone="neutral"
 								variant="secondary"
-								onClick={() =>
-									setMessage("Get value selected. The host handles navigation.")
-								}
+								onClick={() => setMessage("Get value selected.")}
 							>
 								Get value
 							</Button>
 						}
 					/>
-				</DetailList>
-				<output className="text-cline-ui-muted-foreground text-cline-ui-xs">
-					{message}
-				</output>
-			</div>
-		);
-	},
-};
-
-export const TrailingActions: Story = {
-	args: {
-		title: "MCP settings path",
-		description: "Local configuration for your MCP servers.",
-		trailingText: settingsPath,
-	},
-	render: function TrailingActions(args) {
-		const [message, setMessage] = useState("");
-		return (
-			<div className="grid gap-3">
-				<DetailList>
 					<DetailListItem
-						{...args}
-						trailingText={
-							args.trailingText ? (
-								<code>{args.trailingText}</code>
-							) : (
-								args.trailingText
-							)
-						}
+						title="MCP settings path"
+						description="Local configuration for your MCP servers."
+						trailingText={<code>{settingsPath}</code>}
 						actions={
 							<IconButton
 								icon={EllipsisVertical}
 								aria-label="MCP settings path actions"
 								size="xs"
-								onClick={() =>
-									setMessage(
-										"Settings path actions selected. The host supplies the menu.",
-									)
-								}
+								onClick={() => setMessage("Settings path actions selected.")}
 							/>
 						}
 					/>
@@ -172,62 +113,77 @@ export const TrailingActions: Story = {
 	},
 };
 
-export const EmptyOptionalSlots: Story = {
-	args: { description: "", trailingText: <>{false}</>, actions: [] },
-	parameters: { controls: { disable: true } },
-};
-
-export const NarrowActions: Story = {
-	args: {
-		title: "Configuration",
-		leadingIcon: Settings2,
-		description: "Multiple actions wrap within the row.",
-		trailingText: "Local",
-		actions: (
-			<>
-				<Button size="sm" variant="secondary" tone="neutral">
-					Open configuration
-				</Button>
-				<Button size="sm" variant="secondary" tone="neutral">
-					Reset connection
-				</Button>
-			</>
-		),
-	},
-	decorators: [
-		(Story) => (
-			<div style={{ width: 280, maxWidth: "100%" }}>
-				<Story />
-			</div>
-		),
-	],
-};
-
-export const ResponsiveControls: Story = {
-	args: {
-		title: <label htmlFor="detail-list-project-folder">Project folder</label>,
-		leadingIcon: Folder,
-		description: "Runs in this folder and uses its project settings.",
-		trailingText: undefined,
-		actions: (
-			<div className="flex w-96 max-w-full min-w-0 items-center gap-2">
-				<input
-					id="detail-list-project-folder"
-					className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5"
-					defaultValue="/Users/example/Documents/GitHub/cline"
-				/>
-				<Button size="sm" variant="secondary" tone="neutral">
-					Browse…
-				</Button>
-			</div>
-		),
-	},
+export const Responsive: Story = {
 	parameters: {
+		controls: { disable: true },
 		docs: {
 			description: {
 				story:
-					"Resize the container: controls move below the label when the icon and text would have less than 18rem, even above the list's narrow breakpoint.",
+					"Resize to inspect button wrapping and wide controls, which stack when the icon and text have less than 18rem of space.",
 			},
 		},
+	},
+	render: function Responsive() {
+		const sliderId = useId();
+		const folderId = useId();
+		const [width, setWidth] = useState(760);
+		return (
+			<div className="grid grid-cols-1 gap-4">
+				<div className="grid gap-2">
+					<label
+						className="text-cline-ui-muted-foreground text-cline-ui-xs"
+						htmlFor={sliderId}
+					>
+						List width: {width}px (limited to available space)
+					</label>
+					<input
+						id={sliderId}
+						type="range"
+						min={280}
+						max={1000}
+						value={width}
+						onChange={(event) => setWidth(event.currentTarget.valueAsNumber)}
+						className="w-full"
+					/>
+				</div>
+				<div style={{ width, maxWidth: "100%" }}>
+					<DetailList>
+						<DetailListItem
+							title="Configuration"
+							leadingIcon={Settings2}
+							description="Multiple actions wrap within the row."
+							trailingText="Local"
+							actions={
+								<>
+									<Button size="sm" variant="secondary" tone="neutral">
+										Open configuration
+									</Button>
+									<Button size="sm" variant="secondary" tone="neutral">
+										Reset connection
+									</Button>
+								</>
+							}
+						/>
+						<DetailListItem
+							title={<label htmlFor={folderId}>Project folder</label>}
+							leadingIcon={Folder}
+							description="Runs in this folder and uses its project settings."
+							actions={
+								<div className="flex w-96 max-w-full min-w-0 items-center gap-2">
+									<input
+										id={folderId}
+										className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5"
+										defaultValue="/Users/example/Documents/GitHub/cline"
+									/>
+									<Button size="sm" variant="secondary" tone="neutral">
+										Browse…
+									</Button>
+								</div>
+							}
+						/>
+					</DetailList>
+				</div>
+			</div>
+		);
 	},
 };
