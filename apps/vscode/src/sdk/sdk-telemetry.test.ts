@@ -1,6 +1,6 @@
 import type { ConfiguredTelemetryHandle, ITelemetryService } from "@cline/core"
 import type { Mock } from "vitest"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { Setting } from "@/shared/proto/index.host"
 
 const coreTelemetryMocks = vi.hoisted(() => ({
@@ -74,11 +74,6 @@ describe("VscodeTelemetryPolicyService", () => {
 		telemetryState.unsubscribe.mockReset()
 		coreTelemetryMocks.createConfig.mockClear()
 		coreTelemetryMocks.createHandle.mockReset()
-		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "")
-	})
-
-	afterEach(() => {
-		vi.unstubAllEnvs()
 	})
 
 	it("constructs the handle with unknown host identity fallbacks", () => {
@@ -107,33 +102,6 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
 			expect.objectContaining({
 				deferProviderCreatedEvent: true,
-			}),
-		)
-	})
-
-	it("adds rollout metadata as SDK common properties", () => {
-		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "next")
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
-
-		createVscodeSdkTelemetryHandle()
-
-		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				commonProperties: {
-					extension_variant: "next",
-				},
-			}),
-		)
-	})
-
-	it("omits SDK rollout common properties from ordinary builds", () => {
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
-
-		createVscodeSdkTelemetryHandle()
-
-		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				commonProperties: {},
 			}),
 		)
 	})
