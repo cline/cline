@@ -3,15 +3,14 @@ import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { z } from "zod";
 import {
-	type FactoryPreset,
+	type FactoryPresetSettings,
 	factoryPresetSchema,
 } from "../webview/lib/factory-presets";
 
 /** Desktop-only preferences kept separate from strict shared global settings. */
-export type DesktopSettings = {
+export type DesktopSettings = FactoryPresetSettings & {
 	/** Opt-in gate for cloud sessions while the feature is in preview. */
 	cloudSessionsEnabled: boolean;
-	factoryPresets?: FactoryPreset[];
 };
 
 const DEFAULT_SETTINGS: DesktopSettings = {
@@ -33,6 +32,9 @@ export function readDesktopSettings(): DesktopSettings {
 		const parsed = z
 			.object({
 				cloudSessionsEnabled: z.unknown().optional(),
+				factoryDefaultPreset: factoryPresetSchema.shape.name
+					.optional()
+					.catch(undefined),
 				factoryPresets: z
 					.array(z.unknown())
 					.transform((items) =>
@@ -47,6 +49,9 @@ export function readDesktopSettings(): DesktopSettings {
 			.parse(JSON.parse(raw));
 		return {
 			cloudSessionsEnabled: parsed.cloudSessionsEnabled === true,
+			...(parsed.factoryDefaultPreset
+				? { factoryDefaultPreset: parsed.factoryDefaultPreset }
+				: {}),
 			...(parsed.factoryPresets
 				? { factoryPresets: parsed.factoryPresets }
 				: {}),

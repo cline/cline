@@ -29,15 +29,23 @@ export const factoryAgentSchema = z.object({
 });
 export type FactoryAgent = z.infer<typeof factoryAgentSchema>;
 
-export const factoryAgentsSchema = z.object({
-	designer: factoryAgentSchema.default({}),
-	planReviewers: z.array(factoryAgentSchema).max(4).default([]),
-	implementer: factoryAgentSchema.default({}),
-	verifier: factoryAgentSchema
-		.extend({ artifacts: z.array(z.string().trim().min(1)).max(20).optional() })
-		.optional(),
-	reviewers: z.array(factoryAgentSchema).min(1).max(4).default([{}]),
-});
+export const factoryAgentsSchema = z
+	.object({
+		designer: factoryAgentSchema.default({}),
+		planReviewers: z.array(factoryAgentSchema).max(4).default([]),
+		implementer: factoryAgentSchema.optional(),
+		implementers: z.array(factoryAgentSchema).min(1).max(4).optional(),
+		verifier: factoryAgentSchema
+			.extend({
+				artifacts: z.array(z.string().trim().min(1)).max(20).optional(),
+			})
+			.optional(),
+		reviewers: z.array(factoryAgentSchema).min(1).max(4).default([{}]),
+	})
+	.transform(({ implementer, implementers, ...agents }) => ({
+		...agents,
+		implementers: implementers ?? [implementer ?? {}],
+	}));
 export type FactoryAgents = z.infer<typeof factoryAgentsSchema>;
 export const DEFAULT_FACTORY_AGENTS: FactoryAgents = factoryAgentsSchema.parse(
 	{},

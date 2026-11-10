@@ -60,6 +60,9 @@ function managerMock(): AgendaTaskManagerApi {
 		cancelTask: vi.fn(async (_id, actor) =>
 			task({ status: "cancelled", updatedBy: actor }),
 		),
+		archiveTask: vi.fn(async () => task()),
+		restoreTask: vi.fn(async () => task()),
+		deleteTask: vi.fn(async () => {}),
 		runTask: vi.fn(async () => ({
 			task: task({ status: "in_progress" }),
 		})),
@@ -86,6 +89,80 @@ function envelope(
 }
 
 describe("HubAgendaTaskCommandService", () => {
+	it("passes queue-only creation intent to the manager and rejects a nonboolean flag", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const payload = { factory: {}, queueFactoryDesign: false };
+		expect(
+			(await service.handleCommand(envelope("task.create", payload), AUTHORITY))
+				.ok,
+		).toBe(true);
+		expect(manager.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				queueFactoryDesign: false,
+				requiresApproval: true,
+				createdBy: expect.objectContaining({
+					kind: "user",
+					clientId: "desktop",
+				}),
+			}),
+		);
+		vi.mocked(manager.createTask).mockClear();
+		expect(
+			(
+				await service.handleCommand(
+					envelope("task.create", { ...payload, queueFactoryDesign: "false" }),
+					AUTHORITY,
+				)
+			).ok,
+		).toBe(false);
+		expect(manager.createTask).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"task.archive",
+		"task.restore",
+		"task.delete",
+	] as const)("scopes %s and derives its actor from the trusted client", async (command) => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const request = envelope(command, {
+			taskId: "task_1",
+			expectedRevision: 1,
+			actor: { kind: "system" },
+		});
+		const denied = await service.handleCommand(request, {
+			...AUTHORITY,
+			workspaceContext: { workspaceRoot: "/other-repo" },
+		});
+		expect(denied.ok).toBe(false);
+		expect(manager.archiveTask).not.toHaveBeenCalled();
+		expect(manager.restoreTask).not.toHaveBeenCalled();
+		expect(manager.deleteTask).not.toHaveBeenCalled();
+		const reply = await service.handleCommand(request, AUTHORITY);
+		expect(manager.getTask).toHaveBeenCalledWith("task_1", {
+			reconcile: false,
+		});
+		expect(reply).toMatchObject({
+			ok: true,
+			payload:
+				command === "task.delete"
+					? { taskId: "task_1" }
+					: { task: { taskId: "task_1" } },
+		});
+		const mutation =
+			command === "task.archive"
+				? manager.archiveTask
+				: command === "task.restore"
+					? manager.restoreTask
+					: manager.deleteTask;
+		expect(mutation).toHaveBeenCalledWith(
+			"task_1",
+			expect.objectContaining({ kind: "user", clientId: "desktop" }),
+			1,
+		);
+	});
+
 	it("honors selected repositories only for authenticated cross-workspace clients", async () => {
 		const manager = managerMock();
 		const service = new HubAgendaTaskCommandService(manager);
@@ -277,6 +354,9 @@ describe("HubAgendaTaskCommandService", () => {
 	it.each([
 		"task.approve",
 		"task.cancel",
+		"task.archive",
+		"task.restore",
+		"task.delete",
 		"task.run",
 	] as const)("rejects %s without a revision", async (command) => {
 		const manager = managerMock();

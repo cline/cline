@@ -377,7 +377,9 @@ export class HubServerTransport implements NativeHubTransport {
 					return {
 						...agents,
 						designer: freezeFactoryAgent(task, agents.designer),
-						implementer: freezeFactoryAgent(task, agents.implementer),
+						implementers: agents.implementers.map((agent) =>
+							freezeFactoryAgent(task, agent),
+						),
 						verifier: agents.verifier
 							? {
 									...freezeFactoryAgent(task, agents.verifier),
@@ -402,7 +404,7 @@ export class HubServerTransport implements NativeHubTransport {
 					for (const agent of [
 						agents.designer,
 						...agents.planReviewers,
-						agents.implementer,
+						...agents.implementers,
 						...(agents.verifier ? [agents.verifier] : []),
 						...agents.reviewers,
 					])

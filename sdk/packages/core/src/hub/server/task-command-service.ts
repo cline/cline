@@ -21,6 +21,9 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.update",
 	"task.approve",
 	"task.cancel",
+	"task.archive",
+	"task.restore",
+	"task.delete",
 	"task.run",
 	"task.factory.start",
 	"task.factory.stop",
@@ -92,6 +95,10 @@ export class HubAgendaTaskCommandService {
 						workspaceRoot: targetWorkspace,
 						cwd: targetWorkspace,
 						requiresApproval: payload.factory !== undefined,
+						queueFactoryDesign: z
+							.boolean()
+							.optional()
+							.parse(payload.queueFactoryDesign),
 						factory:
 							payload.factory === undefined
 								? undefined
@@ -163,6 +170,27 @@ export class HubAgendaTaskCommandService {
 							typeof payload.reason === "string" ? payload.reason : undefined,
 						),
 					});
+				case "task.archive":
+				case "task.restore": {
+					await this.requireScopedTask(payload, workspaceRoot, {
+						reconcile: false,
+					});
+					const taskId = taskIdOf(payload);
+					const expectedRevision = requiredRevision(payload);
+					const task =
+						envelope.command === "task.archive"
+							? await this.tasks.archiveTask(taskId, actor, expectedRevision)
+							: await this.tasks.restoreTask(taskId, actor, expectedRevision);
+					return okReply(envelope, { task });
+				}
+				case "task.delete": {
+					await this.requireScopedTask(payload, workspaceRoot, {
+						reconcile: false,
+					});
+					const taskId = taskIdOf(payload);
+					await this.tasks.deleteTask(taskId, actor, requiredRevision(payload));
+					return okReply(envelope, { taskId });
+				}
 				case "task.run": {
 					await this.requireScopedTask(payload, workspaceRoot);
 					const result = await this.tasks.runTask(
@@ -324,8 +352,9 @@ export class HubAgendaTaskCommandService {
 	private async requireScopedTask(
 		payload: Record<string, unknown>,
 		workspaceRoot: string | undefined,
+		options?: { reconcile?: boolean },
 	) {
-		const task = await this.tasks.getTask(taskIdOf(payload));
+		const task = await this.tasks.getTask(taskIdOf(payload), options);
 		if (
 			!task ||
 			(workspaceRoot !== undefined &&

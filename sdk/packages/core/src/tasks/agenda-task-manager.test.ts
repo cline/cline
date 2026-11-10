@@ -85,6 +85,178 @@ async function createPending(
 }
 
 describe("AgendaTaskManager", () => {
+	it("restores inactive work as editable without automatic execution", async () => {
+		const { manager, runtime } = createHarness();
+		const pending = await createPending(manager);
+		const archived = await manager.archiveTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		expect(archived).toMatchObject({
+			status: "pending_approval",
+			error: undefined,
+		});
+		const restored = await manager.restoreTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		expect(restored).toMatchObject({
+			status: "pending_approval",
+			approvedRevision: undefined,
+			archivedAt: undefined,
+			error: undefined,
+			automationEligible: false,
+			revision: pending.revision + 1,
+		});
+		await manager.updateTask({
+			taskId: restored.taskId,
+			expectedRevision: restored.revision,
+			title: "Editable after restore",
+			updatedBy: { kind: "user" },
+		});
+		const policy = await manager.getAutomationPolicy();
+		await manager.setAutomationPolicy(
+			{ ...policy, mode: "unattended" },
+			{ kind: "user" },
+		);
+		vi.useFakeTimers();
+		try {
+			await manager.start();
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect((await manager.getTask(restored.taskId))?.status).toBe(
+				"pending_approval",
+			);
+			expect(runtime.startSession).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("preserves an existing task whose source cannot be read", async () => {
+		const { manager } = createHarness();
+		const pending = await createPending(manager);
+		const read = vi
+			.spyOn(AgendaTaskSpecFileStore.prototype, "readSpec")
+			.mockImplementation(() => {
+				throw new Error("Synthetic unreadable task spec");
+			});
+		try {
+			await manager.listTasks({ scope: "global" });
+			expect(
+				await manager.getTask(pending.taskId, { reconcile: false }),
+			).toMatchObject({ status: "pending_approval", archivedAt: undefined });
+		} finally {
+			read.mockRestore();
+		}
+	});
+
+	it("archives and restores completed history, then deletes only its spec and task records", async () => {
+		const { manager, runtime, root, events } = createHarness();
+		await manager.start();
+		const pending = await createPending(manager);
+		await manager.approveTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		await manager.runTask(pending.taskId, { kind: "user" }, pending.revision);
+		await vi.waitFor(async () => {
+			expect((await manager.getTask(pending.taskId))?.status).toBe("completed");
+		});
+		const history = manager.getTaskRuns(pending.taskId);
+		const retainedFile = join(root, "session-transcript.json");
+		writeFileSync(retainedFile, "independent session history");
+		const archived = await manager.archiveTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		expect(archived).toMatchObject({
+			status: "completed",
+			archivedAt: expect.any(String),
+		});
+		expect(archived.specPath && existsSync(archived.specPath)).toBe(false);
+		expect(await manager.listTasks({ scope: "global" })).toEqual([]);
+		expect(
+			await manager.listTasks({ scope: "global", includeArchived: true }),
+		).toEqual([archived]);
+		expect(manager.getTaskRuns(pending.taskId)).toEqual(history);
+		const restored = await manager.restoreTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		expect(restored).toMatchObject({
+			status: "completed",
+			archivedAt: undefined,
+		});
+		expect(restored.specPath && existsSync(restored.specPath)).toBe(true);
+		expect(manager.getTaskRuns(pending.taskId)).toEqual(history);
+		expect(runtime.startSession).toHaveBeenCalledTimes(1);
+		await manager.deleteTask(
+			pending.taskId,
+			{ kind: "user" },
+			pending.revision,
+		);
+		expect(
+			await manager.listTasks({ scope: "global", includeArchived: true }),
+		).toEqual([]);
+		expect(await manager.getTask(pending.taskId)).toBeUndefined();
+		expect(manager.getTaskRuns(pending.taskId)).toEqual([]);
+		expect(existsSync(retainedFile)).toBe(true);
+		expect(events.at(-1)).toBe("task.deleted");
+	});
+
+	it("rejects stale lifecycle requests and refuses to delete or overwrite a replacement spec", async () => {
+		const { manager, root } = createHarness();
+		const pending = await createPending(manager);
+		const current = await manager.updateTask({
+			taskId: pending.taskId,
+			expectedRevision: pending.revision,
+			title: "Revised intent",
+			updatedBy: { kind: "user" },
+		});
+		for (const operation of [
+			"archiveTask",
+			"restoreTask",
+			"deleteTask",
+		] as const) {
+			await expect(
+				manager[operation](current.taskId, { kind: "user" }, pending.revision),
+			).rejects.toThrow("stale");
+		}
+		const archived = await manager.archiveTask(
+			current.taskId,
+			{ kind: "user" },
+			current.revision,
+		);
+		if (!archived.specPath) throw new Error("Task has no spec path");
+		const files = new AgendaTaskSpecFileStore({
+			scope: "global",
+			taskSpecsDir: join(root, "specs"),
+		});
+		files.writeSpec(
+			{ ...archived, taskId: "replacement-task" },
+			{ specPath: archived.specPath, createOnly: true },
+		);
+		await manager.listTasks({ scope: "global", includeArchived: true });
+		expect(
+			await manager.getTask(current.taskId, { reconcile: false }),
+		).toMatchObject({ archivedAt: expect.any(String) });
+		await expect(
+			manager.restoreTask(current.taskId, { kind: "user" }, current.revision),
+		).rejects.toThrow("already exists");
+		await expect(
+			manager.deleteTask(current.taskId, { kind: "user" }, current.revision),
+		).rejects.toThrow("Move the conflicting file before retrying");
+		expect(files.readSpec(archived.specPath)).toMatchObject({
+			ok: true,
+			spec: { taskId: "replacement-task" },
+		});
+	});
+
 	it("retains a decision across restart, reuses its answer, and rejects a cancelled question", async () => {
 		const { manager, runtime, root } = createHarness();
 		const task = await manager.createTask({

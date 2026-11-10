@@ -16,7 +16,10 @@ import type {
 export interface AgendaTaskManagerApi {
 	createTask(input: AgendaTaskCreateInput): Promise<AgendaTaskRecord>;
 	listTasks(input?: AgendaTaskListInput): Promise<AgendaTaskRecord[]>;
-	getTask(taskId: string): Promise<AgendaTaskRecord | undefined>;
+	getTask(
+		taskId: string,
+		options?: { reconcile?: boolean },
+	): Promise<AgendaTaskRecord | undefined>;
 	updateTask(input: AgendaTaskUpdateInput): Promise<AgendaTaskRecord>;
 	approveTask(
 		taskId: string,
@@ -29,6 +32,21 @@ export interface AgendaTaskManagerApi {
 		expectedRevision: number,
 		reason?: string,
 	): Promise<AgendaTaskRecord>;
+	archiveTask(
+		taskId: string,
+		actor: AgendaTaskActor,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord>;
+	restoreTask(
+		taskId: string,
+		actor: AgendaTaskActor,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord>;
+	deleteTask(
+		taskId: string,
+		actor: AgendaTaskActor,
+		expectedRevision: number,
+	): Promise<void>;
 	runTask(
 		taskId: string,
 		actor: AgendaTaskActor,

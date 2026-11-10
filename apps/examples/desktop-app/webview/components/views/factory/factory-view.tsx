@@ -1,17 +1,16 @@
 "use client";
 
-import type { AgendaTaskRecord, FactoryTaskConfig } from "@cline/shared";
+import type { AgendaTaskRecord } from "@cline/shared";
 import { createSessionId } from "@cline/shared/browser";
 import {
 	CheckCircle2,
 	Columns3,
-	FolderOpen,
 	Loader2,
 	Pause,
 	Play,
 	Plus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,9 +19,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { toast } from "@/hooks/use-toast";
@@ -33,6 +29,8 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { DEFAULT_FACTORY, FeatureDetail } from "./factory-detail";
+import { AddWork } from "./factory-add-work";
+import { FactoryWorkflowEditor } from "./factory-workflow-editor";
 
 const COLUMNS = ["Queued", "Working", "Needs you", "Done"] as const;
 function factoryActivity(
@@ -134,7 +132,6 @@ function factoryActivity(
 							: "Loading activity…",
 	};
 }
-const labelClass = "block space-y-2 text-sm font-medium";
 
 export function FactoryView({
 	onOpenSession,
@@ -154,8 +151,12 @@ export function FactoryView({
 	const tasks = agenda.tasks.filter((task) => task.factory);
 	const attention = useFactoryAttention();
 	const [needsYouOnly, setNeedsYouOnly] = useState(false);
-	const [showOutcomes, setShowOutcomes] = useState(false);
-	const [samplesOnly, setSamplesOnly] = useState(false);
+	const [view, setView] = useState<
+		"board" | "outcomes" | "samples" | "archived"
+	>("board");
+	const showArchived = view === "archived";
+	const showOutcomes = view === "outcomes" || view === "samples";
+	const samplesOnly = view === "samples";
 	const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
 	const currentAttention = new Map(
 		attention.items
@@ -171,7 +172,10 @@ export function FactoryView({
 			.map((item) => [item.taskId, item]),
 	);
 	const boardTasks = tasks.filter(
-		(task) => task.status !== "cancelled" && task.status !== "expired",
+		(task) =>
+			!task.archivedAt &&
+			task.status !== "cancelled" &&
+			task.status !== "expired",
 	);
 	const activities = new Map(
 		boardTasks.map((task) => [
@@ -182,9 +186,12 @@ export function FactoryView({
 	const outcomes = new Map(
 		[...currentAttention.values()].map((item) => [item.taskId, item.outcome]),
 	);
-	const finished = tasks.filter((task) =>
-		["completed", "failed", "cancelled", "expired"].includes(task.status),
+	const finished = tasks.filter(
+		(task) =>
+			!task.archivedAt &&
+			["completed", "failed", "cancelled", "expired"].includes(task.status),
 	);
+	const archived = tasks.filter((task) => task.archivedAt);
 	const sampleQueue = finished.filter((task) => {
 		const audit = outcomes.get(task.taskId)?.audit;
 		return audit && !audit.reviewedAt;
@@ -192,30 +199,36 @@ export function FactoryView({
 	const needsYou = (task: AgendaTaskRecord) =>
 		activities.get(task.taskId)?.column === "Needs you";
 	const attentionCount = boardTasks.filter(needsYou).length;
-	const visibleOutcomes = (samplesOnly ? sampleQueue : finished).filter(
-		(task) => !needsYouOnly || needsYou(task),
-	);
+	const visibleOutcomes = (
+		showArchived ? archived : samplesOnly ? sampleQueue : finished
+	).filter((task) => showArchived || !needsYouOnly || needsYou(task));
 	const [selectedId, setSelectedId] = useState<string | null>(() =>
 		typeof window === "undefined"
 			? null
 			: sessionStorage.getItem("factory.selectedTask"),
 	);
 	const [creating, setCreating] = useState(false);
+	const [workflowsOpen, setWorkflowsOpen] = useState(false);
+	const [workflowConfig, setWorkflowConfig] = useState(() =>
+		structuredClone(DEFAULT_FACTORY),
+	);
 	const [busy, setBusy] = useState(false);
 	const [message, setMessage] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const selected = tasks.find((task) => task.taskId === selectedId);
-	const ready = tasks.filter(
-		(task) =>
-			(task.status === "approved" &&
-				activities.get(task.taskId)?.column === "Queued") ||
-			(task.status === "pending_approval" &&
-				task.factory?.approval === "automatic" &&
-				task.factory.checks.length > 0 &&
-				activities.get(task.taskId)?.column === "Queued" &&
-				(!task.factoryDesignProgress ||
-					task.factoryDesignProgress.phase === "complete")),
-	);
+	const ready = tasks
+		.filter((task) => !task.archivedAt)
+		.filter(
+			(task) =>
+				(task.status === "approved" &&
+					activities.get(task.taskId)?.column === "Queued") ||
+				(task.status === "pending_approval" &&
+					task.factory?.approval === "automatic" &&
+					task.factory.checks.length > 0 &&
+					activities.get(task.taskId)?.column === "Queued" &&
+					(!task.factoryDesignProgress ||
+						task.factoryDesignProgress.phase === "complete")),
+		);
 	const running = boardTasks.filter(
 		(task) => activities.get(task.taskId)?.column === "Working",
 	).length;
@@ -261,6 +274,15 @@ export function FactoryView({
 				<div className="flex flex-wrap items-center gap-2">
 					<Button
 						variant="outline"
+						onClick={() => {
+							setWorkflowConfig(structuredClone(DEFAULT_FACTORY));
+							setWorkflowsOpen(true);
+						}}
+					>
+						Workflows
+					</Button>
+					<Button
+						variant="outline"
 						disabled={busy}
 						onClick={() =>
 							void perform(async () => {
@@ -295,27 +317,31 @@ export function FactoryView({
 					</Button>
 				</div>
 			</header>
-			<div className="flex items-center gap-3 px-6 py-3 text-xs text-muted-foreground">
-				<span className="size-1.5 rounded-full bg-emerald-500" />
-				Local execution<span>·</span>
-				<span>{running} working</span>
-				<span>·</span>
-				<span>Draft PRs require opt-in</span>
-				<Button
-					variant={needsYouOnly ? "secondary" : "ghost"}
-					size="sm"
-					className="ml-auto"
-					aria-pressed={needsYouOnly}
-					onClick={() => setNeedsYouOnly((current) => !current)}
-				>
-					Needs you ({attentionCount})
-				</Button>
-			</div>
+			{!showArchived ? (
+				<div className="flex items-center gap-3 px-6 py-3 text-xs text-muted-foreground">
+					<span className="size-1.5 rounded-full bg-emerald-500" />
+					Local execution<span>·</span>
+					<span>{running} working</span>
+					<span>·</span>
+					<span>Draft PRs require opt-in</span>
+					<Button
+						variant={needsYouOnly ? "secondary" : "ghost"}
+						size="sm"
+						className="ml-auto"
+						aria-pressed={needsYouOnly}
+						onClick={() => setNeedsYouOnly((current) => !current)}
+					>
+						Needs you ({attentionCount})
+					</Button>
+				</div>
+			) : null}
 			<div className="flex flex-wrap gap-2 px-6 pb-3">
 				<Button
 					size="sm"
-					variant={!showOutcomes ? "secondary" : "ghost"}
-					onClick={() => setShowOutcomes(false)}
+					variant={!showOutcomes && !showArchived ? "secondary" : "ghost"}
+					onClick={() => {
+						setView("board");
+					}}
 				>
 					Live board
 				</Button>
@@ -323,8 +349,7 @@ export function FactoryView({
 					size="sm"
 					variant={showOutcomes && !samplesOnly ? "secondary" : "ghost"}
 					onClick={() => {
-						setShowOutcomes(true);
-						setSamplesOnly(false);
+						setView("outcomes");
 					}}
 				>
 					Outcomes ({finished.length})
@@ -333,11 +358,19 @@ export function FactoryView({
 					size="sm"
 					variant={showOutcomes && samplesOnly ? "secondary" : "ghost"}
 					onClick={() => {
-						setShowOutcomes(true);
-						setSamplesOnly(true);
+						setView("samples");
 					}}
 				>
 					Sample queue ({sampleQueue.length})
+				</Button>
+				<Button
+					size="sm"
+					variant={showArchived ? "secondary" : "ghost"}
+					onClick={() => {
+						setView("archived");
+					}}
+				>
+					Archived ({archived.length})
 				</Button>
 				<Button
 					size="sm"
@@ -365,29 +398,40 @@ export function FactoryView({
 								allWorkspaces: true,
 							});
 							await attention.refresh();
-							setShowOutcomes(true);
-							setSamplesOnly(true);
+							setView("samples");
 						})
 					}
 				>
 					Pick a random outcome
 				</Button>
 			</div>
-			{showOutcomes ? (
+			{showOutcomes || showArchived ? (
 				<div className="overflow-x-auto px-6 pb-6">
 					<p className="mb-3 text-xs text-muted-foreground">
-						Recent loaded outcomes, including failures. Random selection draws
-						from unsampled outcomes with execution evidence in this view; manual
-						samples are recorded separately.
+						{showArchived ? (
+							"Archived work is kept here. Open a feature to restore or delete it."
+						) : (
+							<>
+								Recent loaded outcomes, including failures. Random selection
+								draws from unsampled outcomes with execution evidence in this
+								view; manual samples are recorded separately.
+							</>
+						)}
 					</p>
 					<table className="w-full text-left text-sm">
 						<thead>
 							<tr className="border-b">
 								<th className="p-2">Feature</th>
-								<th className="p-2">Outcome</th>
-								<th className="p-2">Recorded model cost</th>
-								<th className="p-2">Repairs</th>
-								<th className="p-2">Sample</th>
+								<th className="p-2">{showArchived ? "Status" : "Outcome"}</th>
+								{showArchived ? (
+									<th className="p-2">Archived</th>
+								) : (
+									<>
+										<th className="p-2">Recorded model cost</th>
+										<th className="p-2">Repairs</th>
+										<th className="p-2">Sample</th>
+									</>
+								)}
 							</tr>
 						</thead>
 						<tbody>
@@ -405,23 +449,35 @@ export function FactoryView({
 											</button>
 										</td>
 										<td className="p-2">
-											{task.status === "cancelled" || task.status === "expired"
+											{showArchived ||
+											task.status === "cancelled" ||
+											task.status === "expired"
 												? task.status
 												: outcome?.humanApproval
 													? "Checked off"
 													: (outcome?.phase ?? task.status)}
 										</td>
-										<td className="p-2">
-											{outcome?.usage
-												? `$${outcome.usage.totals.totalCost.toFixed(2)}${outcome.usage.unknownSessionIds.length ? " + unknown usage" : ""}`
-												: "Unknown"}
-										</td>
-										<td className="p-2">{outcome?.repairRound ?? "—"}</td>
-										<td className="p-2">
-											{outcome?.audit
-												? `${outcome.audit.selectionReason ?? "manual"} · ${outcome.audit.reviewedAt ? (outcome.audit.finding ? "finding" : "passed") : "pending"}`
-												: "Not sampled"}
-										</td>
+										{showArchived ? (
+											<td className="p-2">
+												{task.archivedAt
+													? new Date(task.archivedAt).toLocaleString()
+													: "—"}
+											</td>
+										) : (
+											<>
+												<td className="p-2">
+													{outcome?.usage
+														? `$${outcome.usage.totals.totalCost.toFixed(2)}${outcome.usage.unknownSessionIds.length ? " + unknown usage" : ""}`
+														: "Unknown"}
+												</td>
+												<td className="p-2">{outcome?.repairRound ?? "—"}</td>
+												<td className="p-2">
+													{outcome?.audit
+														? `${outcome.audit.selectionReason ?? "manual"} · ${outcome.audit.reviewedAt ? (outcome.audit.finding ? "finding" : "passed") : "pending"}`
+														: "Not sampled"}
+												</td>
+											</>
+										)}
 									</tr>
 								);
 							})}
@@ -429,9 +485,11 @@ export function FactoryView({
 					</table>
 					{visibleOutcomes.length === 0 ? (
 						<p className="py-8 text-sm text-muted-foreground">
-							{samplesOnly
-								? "No samples waiting for review."
-								: "No finished outcomes yet."}
+							{showArchived
+								? "No archived work."
+								: samplesOnly
+									? "No samples waiting for review."
+									: "No finished outcomes yet."}
 						</p>
 					) : null}
 				</div>
@@ -449,7 +507,8 @@ export function FactoryView({
 					{message}
 				</output>
 			) : null}
-			{showOutcomes ? null : agenda.isLoading && tasks.length === 0 ? (
+			{showOutcomes || showArchived ? null : agenda.isLoading &&
+				tasks.length === 0 ? (
 				<div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
 					<Loader2 className="size-4 animate-spin" />
 					Loading features…
@@ -528,6 +587,23 @@ export function FactoryView({
 					})}
 				</div>
 			)}
+			<Dialog open={workflowsOpen} onOpenChange={setWorkflowsOpen}>
+				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Factory workflows</DialogTitle>
+						<DialogDescription>
+							Configure reusable participants and policies, save a named preset,
+							and choose the default for new work.
+						</DialogDescription>
+					</DialogHeader>
+					<FactoryWorkflowEditor
+						config={workflowConfig}
+						onChange={setWorkflowConfig}
+						disabled={false}
+						standalone
+					/>
+				</DialogContent>
+			</Dialog>
 			<Dialog open={creating} onOpenChange={setCreating}>
 				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
 					<DialogHeader>
@@ -549,6 +625,7 @@ export function FactoryView({
 							workspaceRoot,
 							sourceIssue,
 							startScoping,
+							workflow,
 						}) => {
 							const model = getInitialChatConfig(
 								LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -565,7 +642,12 @@ export function FactoryView({
 								allWorkspaces: true,
 								workspaceRoot,
 								cwd: workspaceRoot,
-								factory: { ...DEFAULT_FACTORY, sourceIssue },
+								queueFactoryDesign: startScoping,
+								factory: structuredClone({
+									...DEFAULT_FACTORY,
+									...workflow,
+									sourceIssue,
+								}),
 								modelSelection: {
 									providerId: model.provider,
 									modelId: model.model,
@@ -605,6 +687,7 @@ export function FactoryView({
 							task={selected}
 							onRefresh={agenda.refresh}
 							onOpenSession={onOpenSession}
+							onClose={() => selectTask(null)}
 							questions={currentAttention.get(selected.taskId)?.questions ?? []}
 							onAnswer={attention.answer}
 						/>
@@ -614,261 +697,5 @@ export function FactoryView({
 				</DialogContent>
 			</Dialog>
 		</div>
-	);
-}
-
-function AddWork({
-	workspacePaths,
-	onCreate,
-	onExisting,
-}: {
-	workspacePaths: string[];
-	onExisting: (taskId: string) => void;
-	onCreate: (input: {
-		title: string;
-		request: string;
-		workspaceRoot: string;
-		sourceIssue?: FactoryTaskConfig["sourceIssue"];
-		startScoping: boolean;
-	}) => Promise<void>;
-}) {
-	const [source, setSource] = useState("describe");
-	const [startScoping, setStartScoping] = useState(true);
-	const active = useRef(true);
-	useEffect(() => {
-		active.current = true;
-		return () => {
-			active.current = false;
-		};
-	}, []);
-	const [title, setTitle] = useState("");
-	const [request, setRequest] = useState("");
-	const [workspaceRoot, setWorkspaceRoot] = useState(workspacePaths[0] || "");
-	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [issueUrl, setIssueUrl] = useState("");
-	const [sourceIssue, setSourceIssue] =
-		useState<FactoryTaskConfig["sourceIssue"]>();
-	return (
-		<form
-			className="space-y-5"
-			onSubmit={(event) => {
-				event.preventDefault();
-				if (busy || (source === "issue" && !sourceIssue)) return;
-				setBusy(true);
-				setError(null);
-				void onCreate({
-					title: title.trim(),
-					request: request.trim(),
-					workspaceRoot: workspaceRoot.trim(),
-					sourceIssue: source === "issue" ? sourceIssue : undefined,
-					startScoping,
-				})
-					.catch((cause: unknown) =>
-						setError(
-							cause instanceof Error ? cause.message : "Unable to add work.",
-						),
-					)
-					.finally(() => setBusy(false));
-			}}
-		>
-			<label className={labelClass} htmlFor="feature-repository">
-				Repository
-				<div className="flex gap-2">
-					<Input
-						required
-						id="feature-repository"
-						list="factory-workspaces"
-						value={workspaceRoot}
-						disabled={busy}
-						onChange={(event) => {
-							setWorkspaceRoot(event.target.value);
-							setSourceIssue(undefined);
-						}}
-						placeholder="/path/to/repository"
-					/>
-					<Button
-						type="button"
-						variant="outline"
-						aria-label="Choose repository"
-						disabled={busy}
-						onClick={() => {
-							setBusy(true);
-							void desktopClient
-								.invoke<string | null>("pick_workspace_directory", {
-									initialPath: workspaceRoot,
-								})
-								.then((path) => {
-									if (path && active.current) {
-										setWorkspaceRoot(path);
-										setSourceIssue(undefined);
-									}
-								})
-								.catch((cause: unknown) =>
-									setError(
-										cause instanceof Error
-											? cause.message
-											: "Unable to open picker. Enter a path.",
-									),
-								)
-								.finally(() => setBusy(false));
-						}}
-					>
-						<FolderOpen className="size-4" />
-					</Button>
-				</div>
-				<datalist id="factory-workspaces">
-					{workspacePaths.map((path) => (
-						<option key={path} value={path} />
-					))}
-				</datalist>
-			</label>
-			<Tabs
-				value={source}
-				onValueChange={(value) => {
-					setSource(value);
-					setSourceIssue(undefined);
-					setError(null);
-				}}
-			>
-				<TabsList aria-label="Work source">
-					<TabsTrigger value="describe" disabled={busy}>
-						Describe work
-					</TabsTrigger>
-					<TabsTrigger value="issue" disabled={busy}>
-						GitHub / Linear issue
-					</TabsTrigger>
-				</TabsList>
-				<TabsContent value="describe" className="text-xs text-muted-foreground">
-					Add a feature request, bug report, or investigation.
-				</TabsContent>
-				<TabsContent value="issue">
-					<div className="space-y-2 rounded-lg border p-3">
-						<label className={labelClass} htmlFor="feature-issue">
-							Issue URL
-						</label>
-						<div className="flex gap-2">
-							<Input
-								id="feature-issue"
-								type="url"
-								placeholder="Paste issue URL"
-								value={issueUrl}
-								disabled={busy}
-								onChange={(event) => {
-									setIssueUrl(event.target.value);
-									setSourceIssue(undefined);
-								}}
-							/>
-							<Button
-								type="button"
-								variant="outline"
-								disabled={busy || !issueUrl.trim() || !workspaceRoot.trim()}
-								onClick={() => {
-									setBusy(true);
-									setError(null);
-									void desktopClient
-										.invoke<{
-											title: string;
-											description: string;
-											source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
-											existingTaskId?: string;
-										}>("factory_import_issue", {
-											url: issueUrl.trim(),
-											cwd: workspaceRoot.trim(),
-										})
-										.then((issue) => {
-											if (!active.current) return;
-											if (issue.existingTaskId) {
-												onExisting(issue.existingTaskId);
-												return;
-											}
-											setTitle(issue.title);
-											setRequest(issue.description);
-											setSourceIssue(issue.source);
-										})
-										.catch((cause: unknown) =>
-											setError(
-												cause instanceof Error
-													? cause.message
-													: "Unable to import issue.",
-											),
-										)
-										.finally(() => setBusy(false));
-								}}
-							>
-								Import
-							</Button>
-						</div>
-						<p className="text-xs text-muted-foreground">
-							Import an issue once using your existing GitHub or Linear access.
-							You can edit the request before adding it; this does not subscribe
-							to future updates.
-						</p>
-						{sourceIssue ? (
-							<output className="block text-xs text-emerald-600">
-								Issue imported. Its source link will stay with this work.
-							</output>
-						) : null}
-					</div>
-				</TabsContent>
-			</Tabs>
-			<label className={labelClass} htmlFor="feature-name">
-				Title
-				<Input
-					id="feature-name"
-					required
-					maxLength={200}
-					value={title}
-					disabled={busy}
-					onChange={(event) => setTitle(event.target.value)}
-					placeholder="Fix a bug, investigate a problem, or build something"
-				/>
-			</label>
-			<label className={labelClass} htmlFor="feature-request">
-				What needs to be done?
-				<Textarea
-					id="feature-request"
-					required
-					rows={5}
-					value={request}
-					disabled={busy}
-					onChange={(event) => setRequest(event.target.value)}
-					placeholder="Describe the problem or desired outcome. The agent can help clarify scope and checks."
-				/>
-			</label>
-
-			<label className="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
-					checked={startScoping}
-					disabled={busy}
-					onChange={(event) => setStartScoping(event.target.checked)}
-				/>
-				Start scoping after adding
-			</label>
-			<p className="text-xs text-muted-foreground">
-				{startScoping
-					? "An agent will read the request and ask any missing questions. Implementation waits for your plan approval."
-					: "Save to Queued without starting an agent."}
-			</p>
-			{error ? (
-				<p role="alert" className="text-sm text-destructive">
-					{error}
-				</p>
-			) : null}
-			<Button
-				disabled={
-					busy ||
-					!title.trim() ||
-					!request.trim() ||
-					!workspaceRoot.trim() ||
-					(source === "issue" && !sourceIssue)
-				}
-				type="submit"
-				className="w-full"
-			>
-				{busy ? "Working…" : startScoping ? "Add and scope" : "Add to queue"}
-			</Button>
-		</form>
 	);
 }

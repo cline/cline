@@ -502,6 +502,9 @@ describe("HubSessionClient", () => {
 		MockWebSocket.commandPayloads.set("task.update", { task });
 		MockWebSocket.commandPayloads.set("task.approve", { task });
 		MockWebSocket.commandPayloads.set("task.cancel", { task });
+		MockWebSocket.commandPayloads.set("task.archive", { task });
+		MockWebSocket.commandPayloads.set("task.restore", { task });
+		MockWebSocket.commandPayloads.set("task.delete", { taskId: task.taskId });
 		MockWebSocket.commandPayloads.set("task.run", { task, run });
 		MockWebSocket.commandPayloads.set("task.automation.get", { policy });
 		MockWebSocket.commandPayloads.set("task.automation.set", { policy });
@@ -538,6 +541,9 @@ describe("HubSessionClient", () => {
 		expect(await client.cancelTask(task.taskId, 1, "no longer needed")).toEqual(
 			task,
 		);
+		expect(await client.archiveTask(task.taskId, 1)).toEqual(task);
+		expect(await client.restoreTask(task.taskId, 1)).toEqual(task);
+		expect(await client.deleteTask(task.taskId, 1)).toBeUndefined();
 		expect(await client.runTask(task.taskId, 1)).toEqual({ task, run });
 		expect(await client.getTaskAutomation()).toEqual(policy);
 		expect(await client.setTaskAutomation(policyInput)).toEqual(policy);
@@ -562,6 +568,18 @@ describe("HubSessionClient", () => {
 					reason: "no longer needed",
 					expectedRevision: 1,
 				},
+			},
+			{
+				command: "task.archive",
+				payload: { taskId: "task-1", expectedRevision: 1 },
+			},
+			{
+				command: "task.restore",
+				payload: { taskId: "task-1", expectedRevision: 1 },
+			},
+			{
+				command: "task.delete",
+				payload: { taskId: "task-1", expectedRevision: 1 },
 			},
 			{
 				command: "task.run",

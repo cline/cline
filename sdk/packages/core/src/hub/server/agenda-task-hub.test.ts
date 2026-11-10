@@ -610,14 +610,16 @@ Verify acceptance criteria.`,
 					factory: {
 						agents: {
 							designer: { profile: "factory-designer" },
-							implementer: {
-								skills: ["factory-review"],
-								modelSelection: {
-									providerId: "anthropic",
-									modelId: "claude-sonnet-4-5",
+							implementers: [
+								{
+									skills: ["factory-review"],
+									modelSelection: {
+										providerId: "anthropic",
+										modelId: "claude-sonnet-4-5",
+									},
+									maxIterations: 40,
 								},
-								maxIterations: 40,
-							},
+							],
 							verifier: {
 								modelSelection: {
 									providerId: "openai",

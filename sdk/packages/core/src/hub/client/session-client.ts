@@ -825,6 +825,32 @@ export class HubSessionClient {
 		return result.task;
 	}
 
+	async archiveTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.archive", {
+			taskId,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async restoreTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.restore", {
+			taskId,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async deleteTask(taskId: string, expectedRevision: number): Promise<void> {
+		await this.taskCommand("task.delete", { taskId, expectedRevision });
+	}
+
 	async runTask(
 		taskId: string,
 		expectedRevision: number,

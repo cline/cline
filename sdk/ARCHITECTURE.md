@@ -719,8 +719,9 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
 - Hub `task.create` and `task.update` payloads omit actor fields; the command
   service derives the user actor from the calling Hub client. Update,
   approval, cancellation, and run requests carry the caller's displayed
-  `expectedRevision`; specifically, `task.approve`, `task.cancel`, and
-  `task.run` reject a missing or stale revision.
+  `expectedRevision`. The commands `task.approve`, `task.cancel`, `task.run`,
+  `task.archive`, `task.restore`, and `task.delete` reject a
+  missing or stale revision.
 - P0 is the most urgent priority and P5 is the least urgent. `expiresAt` is a
   required latest-start boundary: expiry prevents a new run but does not abort
   a session that already started.
@@ -735,10 +736,25 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   does not own or delete its session; the linked session remains normal
   session history that a user can reopen.
 
+Archiving cancels active work, removes its canonical Markdown spec, and retains
+the task and run history with `archivedAt`. Inactive proposals retain their design
+reviews. Archived rows are omitted from normal listings. Restore creates the
+spec without replacing an existing file. Pending or approved proposals return to
+`pending_approval` with automation disabled and approval revoked. Valid completed
+plan reviews and the intent revision remain when no intent change is needed.
+Tasks cancelled by archive receive a new revision and cleared design progress.
+Other terminal states remain unchanged. Restore does not schedule work.
+Archive pauses PR follow-up; restoring the card leaves follow-up paused.
+Permanent deletion cancels work and removes the spec, task, run records, and
+queue entry. Independent session transcripts, worktrees, and branches remain.
+The lifecycle commands authorize against the stored task before reconciliation
+so a replacement spec cannot bypass the file conflict checks.
+
 ### Hub, agent, and desktop surfaces
 
 - The Hub command family is `task.create`, `task.list`, `task.get`,
-  `task.update`, `task.approve`, `task.cancel`, `task.run`,
+  `task.update`, `task.approve`, `task.cancel`, `task.archive`, `task.restore`,
+  `task.delete`, `task.run`,
   `task.automation.get`, and `task.automation.set`. Registered task events are
   `task.created`, `task.updated`, `task.deleted`, `task.run.started`,
   `task.run.completed`, `task.run.failed`, and `task.automation.updated`.
@@ -790,6 +806,8 @@ Desktop window. Existing imported task specs retain their normal approval flow.
 questions. Task-owned design progress records the frozen agents, repair round,
 current phase, designer session, and each reviewer session and result. A generated
 brief becomes a new task revision in the same database update as its review phase.
+Plan reviewers run concurrently and persist each result as it completes; all
+reviewers must finish before approval or another design repair round.
 Restart resumes unfinished review work without repeating recorded reviewer
 results or granting another repair allowance. A user edit clears this progress
 and invalidates the old revision's reviews. Session IDs are recorded before
@@ -813,9 +831,13 @@ with ordinary final responses, and nested delegation remains disabled.
 `task.factory.start` queues approved revisions in SQLite. The manager bounds
 concurrent jobs and renews run claims. Recovery reconciles persisted attempts and
 retains repair counts. Optional implementation units run in separate worktrees,
-respect their dependencies, and integrate before candidate verification. Worker
-sessions release their runtime after each attempt. Session usage supplies costs;
-missing usage remains unknown.
+respect their dependencies, and integrate before candidate verification.
+Assignments cycle through one to four configured implementers in the original
+unit order. The first implementer handles single builds, integration, and repairs.
+Persisted attempts retain their assigned agent on resume. Legacy singular
+implementer settings normalize to a one-member roster when read.
+Worker sessions release their runtime after each attempt. Session usage supplies
+costs; missing usage remains unknown.
 
 The workflow freezes a candidate commit, runs approved checks, and starts fresh
 reviewers. After deterministic checks pass, behavioral verification and independent

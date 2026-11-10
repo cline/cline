@@ -12,6 +12,17 @@ import { ArrowUpRight, Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
@@ -45,12 +56,14 @@ const selectClass =
 export function FeatureDetail({
 	task,
 	onRefresh,
+	onClose,
 	onOpenSession,
 	questions,
 	onAnswer,
 }: {
 	task: AgendaTaskRecord;
 	onRefresh: () => Promise<void>;
+	onClose: () => void;
 	questions: AskQuestionRequestItem[];
 	onAnswer: (requestId: string, answer: string) => Promise<void>;
 	onOpenSession: (
@@ -107,9 +120,10 @@ export function FeatureDetail({
 		task.factoryDesignProgress?.revision === task.revision &&
 		task.factoryDesignProgress.phase !== "complete";
 	const editable =
-		task.status === "pending_approval" ||
-		task.status === "approved" ||
-		task.status === "failed";
+		!task.archivedAt &&
+		(task.status === "pending_approval" ||
+			task.status === "approved" ||
+			task.status === "failed");
 	useEffect(() => {
 		let active = true;
 		setRunsLoading(true);
@@ -150,6 +164,7 @@ export function FeatureDetail({
 		run?.runId === (task.currentRunId ?? task.lastRunId);
 	const currentEvidence = matchesTask && !runsLoading && !evidenceError;
 	const canFollowUp =
+		!task.archivedAt &&
 		task.status === "completed" &&
 		task.factory?.watchPullRequest &&
 		state?.pullRequestWatch &&
@@ -217,6 +232,71 @@ export function FeatureDetail({
 						: ""}
 				</DialogDescription>
 			</DialogHeader>
+			<div className="flex items-center gap-2">
+				{task.archivedAt ? (
+					<span className="mr-auto text-xs text-muted-foreground">
+						Archived
+					</span>
+				) : null}
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={busy}
+					onClick={() =>
+						void perform(async () => {
+							await desktopClient.invoke(
+								task.archivedAt ? "task.restore" : "task.archive",
+								{
+									taskId: task.taskId,
+									expectedRevision: task.revision,
+									allWorkspaces: true,
+								},
+							);
+							onClose();
+						})
+					}
+				>
+					{task.archivedAt
+						? "Restore"
+						: task.status === "in_progress" || designActive
+							? "Cancel and archive"
+							: "Archive"}
+				</Button>
+				<AlertDialog>
+					<AlertDialogTrigger asChild>
+						<Button size="sm" variant="ghost" disabled={busy}>
+							Delete…
+						</Button>
+					</AlertDialogTrigger>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Delete this task permanently?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This stops any active work and deletes the task and its run
+								history. Files, branches, and session transcripts are kept. You
+								cannot undo this.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Keep task</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={() =>
+									void perform(async () => {
+										await desktopClient.invoke("task.delete", {
+											taskId: task.taskId,
+											expectedRevision: task.revision,
+											allWorkspaces: true,
+										});
+										onClose();
+									})
+								}
+							>
+								Delete permanently
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			</div>
 			{task.factory?.sourceIssue ? (
 				<Button
 					variant="link"
@@ -272,7 +352,7 @@ export function FeatureDetail({
 						task.error}
 				</p>
 			) : null}
-			{questions.length ? (
+			{questions.length && !task.archivedAt ? (
 				<section className="space-y-3 rounded-lg border border-amber-500/30 p-4">
 					<h3 className="text-sm font-semibold">Needs your answer</h3>
 					<AgentAskQuestion
@@ -576,53 +656,11 @@ export function FeatureDetail({
 							</p>
 						) : null}
 					</section>
-					<div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-3">
-						<label className={labelClass}>
-							Design approval
-							<select
-								className={selectClass}
-								disabled={!editable || busy}
-								value={config.approval}
-								onChange={(event) =>
-									setConfig({
-										...config,
-										approval:
-											event.target.value === "automatic"
-												? "automatic"
-												: "required",
-									})
-								}
-							>
-								<option value="required">Upfront approval</option>
-								<option value="automatic">Automatic</option>
-							</select>
-						</label>
-						<label className={labelClass} htmlFor="feature-repairs">
-							Repair rounds
-							<Input
-								id="feature-repairs"
-								type="number"
-								min={0}
-								max={10}
-								disabled={!editable || busy}
-								value={config.maxRepairRounds}
-								onChange={(event) =>
-									setConfig({
-										...config,
-										maxRepairRounds: Math.max(
-											0,
-											Math.min(10, Number(event.target.value)),
-										),
-									})
-								}
-							/>
-						</label>
-						<div className={labelClass}>
-							Execution<p className="pt-2 text-sm font-normal">Local</p>
-							<p className="text-xs font-normal text-muted-foreground">
-								Cloud runner not connected yet.
-							</p>
-						</div>
+					<div className={labelClass}>
+						Execution<p className="pt-2 text-sm font-normal">Local</p>
+						<p className="text-xs font-normal text-muted-foreground">
+							Cloud runner not connected yet.
+						</p>
 					</div>
 					<label className="flex items-start gap-2 text-sm">
 						<input
@@ -738,7 +776,7 @@ export function FeatureDetail({
 								/>
 							</div>
 						) : null}
-						{state.pullRequestUrl && currentEvidence ? (
+						{state.pullRequestUrl && currentEvidence && !task.archivedAt ? (
 							<PullRequestBar
 								cwd={state.workspace.path}
 								branch={state.workspace.branch}
@@ -828,8 +866,9 @@ export function FeatureDetail({
 					</section>
 				) : null}
 				{state && currentEvidence ? (
-					<section
-						className="space-y-3 rounded-lg border p-4"
+					<fieldset
+						disabled={!!task.archivedAt}
+						className="min-w-0 space-y-3 rounded-lg border p-4"
 						aria-label="Factory outcome"
 					>
 						<div className="flex flex-wrap items-center gap-3 text-sm">
@@ -967,11 +1006,12 @@ export function FeatureDetail({
 								) : null}
 							</div>
 						) : null}
-					</section>
+					</fieldset>
 				) : null}
 			</TabsContent>
 			<div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-				{task.status === "in_progress" || (editable && designActive) ? (
+				{!task.archivedAt &&
+				(task.status === "in_progress" || (editable && designActive)) ? (
 					<Button
 						variant="destructive"
 						disabled={busy}

@@ -45,6 +45,9 @@ function managerMock(): AgendaTaskManagerApi {
 		updateTask: vi.fn(async () => task()),
 		approveTask: vi.fn(async () => task()),
 		cancelTask: vi.fn(async () => task()),
+		archiveTask: vi.fn(async () => task()),
+		restoreTask: vi.fn(async () => task()),
+		deleteTask: vi.fn(async () => {}),
 		runTask: vi.fn(async () => ({ task: task() })),
 		getAutomationPolicy: vi.fn(async () => ({
 			scopeKey: "global",

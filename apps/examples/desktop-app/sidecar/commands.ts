@@ -1399,6 +1399,9 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.update",
 	"task.approve",
 	"task.cancel",
+	"task.archive",
+	"task.restore",
+	"task.delete",
 	"task.run",
 	"task.factory.start",
 	"task.factory.stop",
@@ -1422,6 +1425,9 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.create",
 	"task.approve",
 	"task.cancel",
+	"task.archive",
+	"task.restore",
+	"task.delete",
 	"task.run",
 	"task.automation.set",
 ]);
@@ -3564,7 +3570,6 @@ export async function handleCommand(
 	}
 
 	if (
-		command === "factory_list_presets" ||
 		command === "factory_save_preset" ||
 		command === "factory_import_issue" ||
 		command === "factory_attention" ||

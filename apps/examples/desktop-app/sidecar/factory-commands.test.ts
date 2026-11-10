@@ -54,6 +54,12 @@ describe("Factory commands", () => {
 			{ taskId: "approval", status: "pending_approval" },
 			{ taskId: "automatic", status: "pending_approval" },
 			{ taskId: "failed", status: "failed" },
+			{
+				taskId: "archived",
+				status: "completed",
+				lastRunId: "run-archived",
+				archivedAt: "2026-01-01T00:00:00Z",
+			},
 		].map((task) => ({
 			...task,
 			factory:

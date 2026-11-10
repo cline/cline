@@ -157,6 +157,8 @@ export interface AgendaTaskRunRecord {
 
 export interface AgendaTaskCreateInput {
 	factory?: FactoryTaskConfig;
+	/** Queue initial Factory design unless false; applies only to this creation request. */
+	queueFactoryDesign?: boolean;
 	taskId?: string;
 	type: AgendaTaskType;
 	title: string;

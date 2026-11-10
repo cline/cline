@@ -21,6 +21,7 @@ import {
 	type AgendaTaskRuntime,
 } from "./agenda-task-manager";
 import * as factoryLocal from "./factory-local";
+import * as factoryPullRequest from "./factory-pull-request";
 import { runFactoryCommand } from "./factory-local";
 import {
 	type FactoryPullRequestSnapshot,
@@ -192,12 +193,20 @@ async function followupHarness(
 		agents: {
 			designer: {},
 			planReviewers: [],
-			implementer: {
-				modelSelection: {
-					providerId: "test-provider",
-					modelId: "followup-writer",
+			implementers: [
+				{
+					modelSelection: {
+						providerId: "test-provider",
+						modelId: "followup-writer",
+					},
 				},
-			},
+				{
+					modelSelection: {
+						providerId: "test-provider",
+						modelId: "secondary-writer",
+					},
+				},
+			],
 			reviewers: [
 				{
 					modelSelection: {
@@ -472,6 +481,69 @@ describe("durable Factory execution", () => {
 		).toBe("after\n");
 	});
 
+	it("keeps archived and restored PR follow-up paused across maintenance", async () => {
+		const h = harness();
+		const task = await h.create(2, { watchPullRequest: true });
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe(
+					"completed",
+				),
+			{ timeout: 15000 },
+		);
+		const run = h.manager.getTaskRuns(task.taskId)[0];
+		const state = run?.factory;
+		if (!state?.candidate) throw new Error("Missing verified candidate");
+		const store = new SqliteAgendaTaskStore({
+			dbPath: join(h.root, "tasks.db"),
+		});
+		try {
+			store.updateRun(run.runId, {
+				factory: {
+					...state,
+					phase: "watching",
+					pullRequestUrl: "https://github.com/example/project/pull/1",
+					pullRequestWatch: {
+						headCommit: state.candidate.commit,
+						handledFeedbackIds: [],
+					},
+				},
+			});
+		} finally {
+			store.close();
+		}
+		const read = vi
+			.spyOn(factoryPullRequest, "readFactoryPullRequest")
+			.mockRejectedValue(new Error("Unexpected PR follow-up"));
+		const sessions = vi.mocked(h.runtime.startSession).mock.calls.length;
+		vi.useFakeTimers();
+		try {
+			await h.manager.archiveTask(task.taskId, { kind: "user" }, task.revision);
+			expect(h.manager.getTaskRuns(task.taskId)[0]?.factory).toMatchObject({
+				candidate: state.candidate,
+				pullRequestWatch: { paused: true },
+			});
+			await h.manager.start();
+			await vi.advanceTimersByTimeAsync(30_000);
+			const restored = await h.manager.restoreTask(
+				task.taskId,
+				{ kind: "user" },
+				task.revision,
+			);
+			expect(restored).toMatchObject({
+				status: "completed",
+				archivedAt: undefined,
+			});
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(read).not.toHaveBeenCalled();
+			expect(h.runtime.startSession).toHaveBeenCalledTimes(sessions);
+		} finally {
+			vi.useRealTimers();
+			read.mockRestore();
+		}
+	});
+
 	it("keeps a sampled defect blocking through watch toggles on the same candidate", async () => {
 		const h = harness();
 		const task = await h.create(2, { watchPullRequest: true });
@@ -599,7 +671,7 @@ describe("durable Factory execution", () => {
 			agents: {
 				designer: {},
 				planReviewers: [],
-				implementer: {},
+				implementers: [{}],
 				reviewers: [{}],
 				verifier: {},
 			},
@@ -884,6 +956,31 @@ describe("durable Factory execution", () => {
 		);
 		const task = await h.create(0, {
 			maxCostUsd: 1,
+			agents: {
+				designer: {},
+				planReviewers: [],
+				implementers: [
+					{
+						modelSelection: {
+							providerId: "test-provider",
+							modelId: "alpha-model",
+						},
+					},
+					{
+						modelSelection: {
+							providerId: "test-provider",
+							modelId: "beta-model",
+						},
+					},
+					{
+						modelSelection: {
+							providerId: "test-provider",
+							modelId: "consumer-model",
+						},
+					},
+				],
+				reviewers: [{}],
+			},
 			implementationUnits: [
 				{ id: "alpha", instructions: "unit-alpha", dependsOn: [] },
 				{ id: "beta", instructions: "unit-beta", dependsOn: [] },
@@ -904,6 +1001,28 @@ describe("durable Factory execution", () => {
 		);
 		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
 		expect(paths.size).toBe(3);
+		expect(
+			state?.attempts
+				?.filter((attempt) => attempt.key.startsWith("unit:"))
+				.map((attempt) => [attempt.key, attempt.agent.modelSelection?.modelId])
+				.sort(),
+		).toEqual([
+			["unit:alpha", "alpha-model"],
+			["unit:beta", "beta-model"],
+			["unit:consumer", "consumer-model"],
+		]);
+		for (const [, assigned] of vi.mocked(h.runtime.runSession).mock.calls) {
+			if (
+				assigned.instructions.includes("Your isolated implementation unit:")
+			) {
+				const model = assigned.instructions.includes("unit-alpha")
+					? "alpha-model"
+					: assigned.instructions.includes("unit-beta")
+						? "beta-model"
+						: "consumer-model";
+				expect(assigned.modelSelection?.modelId).toBe(model);
+			}
+		}
 		expect(
 			state?.implementationUnits?.every((unit) => unit.status === "completed"),
 		).toBe(true);
@@ -940,6 +1059,56 @@ describe("durable Factory execution", () => {
 			state.attempts?.filter((attempt) => attempt.status === "completed"),
 		).toHaveLength(2);
 	});
+	it("resumes an interrupted builder with its frozen agent after the roster changes", async () => {
+		const h = await followupHarness();
+		const run = h.manager.getTaskRuns(h.task.taskId)[0];
+		const builder = run?.factory?.attempts?.find(
+			(attempt) => attempt.role === "builder",
+		);
+		if (!run?.factory?.agents || !builder)
+			throw new Error("Missing completed builder");
+		let state: FactoryRunState = {
+			...run.factory,
+			candidate: undefined,
+			agents: {
+				...run.factory.agents,
+				implementers: [
+					{
+						modelSelection: {
+							providerId: "test-provider",
+							modelId: "replacement",
+						},
+					},
+				],
+			},
+			attempts: [{ ...builder, status: "running" }],
+		};
+		h.runtime.reconcileSession = vi.fn(async () => ({
+			status: "resumable" as const,
+		}));
+		vi.mocked(h.runtime.startSession).mockClear();
+		await runFactoryWorkflow({
+			task: h.task,
+			run,
+			state,
+			runtime: h.runtime,
+			storageDir: h.root,
+			signal: new AbortController().signal,
+			save: (next) => {
+				state = next;
+			},
+			sessionStarted: () => {},
+		});
+		const resumed = vi
+			.mocked(h.runtime.startSession)
+			.mock.calls.find(
+				([, , , options]) => options?.sessionId === builder.sessionId,
+			);
+		expect(resumed?.[0].modelSelection?.modelId).toBe("followup-writer");
+		expect(resumed?.[3]?.factoryAgent).toEqual(builder.agent);
+		expect(state.phase).toBe("ready");
+	});
+
 	it("reconciles a completed builder after loss of its completion acknowledgement", async () => {
 		const h = await followupHarness();
 		const task = h.task;
@@ -1260,7 +1429,7 @@ describe("feature workflow", () => {
 			agents: {
 				designer: {},
 				planReviewers: [],
-				implementer: agent("writer"),
+				implementers: [agent("writer")],
 				reviewers: [agent("first"), agent("second")],
 			},
 		});
@@ -1349,7 +1518,7 @@ describe("feature workflow", () => {
 			agents: {
 				designer: {},
 				planReviewers: [],
-				implementer: {},
+				implementers: [{}],
 				reviewers: [{}],
 				verifier: { artifacts: [".evidence/screen.png"] },
 			},
@@ -1442,7 +1611,7 @@ describe("feature workflow", () => {
 			agents: {
 				designer: {},
 				planReviewers: [],
-				implementer: {},
+				implementers: [{}],
 				verifier: {},
 				reviewers: [{}],
 			},

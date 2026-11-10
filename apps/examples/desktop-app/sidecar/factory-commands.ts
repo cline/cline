@@ -12,7 +12,6 @@ import { readFactoryDiff } from "./factory-review";
 import type { JsonRecord, SidecarContext } from "./types";
 
 type FactoryCommand =
-	| "factory_list_presets"
 	| "factory_save_preset"
 	| "factory_import_issue"
 	| "factory_attention"
@@ -31,6 +30,7 @@ const tasksReplySchema = z.object({
 				.optional(),
 			originSessionId: z.string().optional(),
 			status: z.string(),
+			archivedAt: z.string().optional(),
 			error: z.string().optional(),
 			factoryDesignProgress: z
 				.unknown()
@@ -68,17 +68,25 @@ export async function handleFactoryCommand(
 	args: JsonRecord | undefined,
 	readTask: ReadTask,
 ): Promise<unknown> {
-	if (command === "factory_list_presets")
-		return readDesktopSettings().factoryPresets ?? [];
 	if (command === "factory_save_preset") {
-		const preset = factoryPresetSchema.parse(args);
+		const { useByDefault, ...preset } = factoryPresetSchema
+			.extend({ useByDefault: z.boolean().optional() })
+			.parse(args);
 		const settings = readDesktopSettings();
 		const presets = settings.factoryPresets ?? [];
 		const next = [
 			...presets.filter((item) => item.name !== preset.name),
 			preset,
 		];
-		writeDesktopSettings({ ...settings, factoryPresets: next });
+		let factoryDefaultPreset = settings.factoryDefaultPreset;
+		if (useByDefault === true) factoryDefaultPreset = preset.name;
+		else if (useByDefault === false && factoryDefaultPreset === preset.name)
+			factoryDefaultPreset = undefined;
+		writeDesktopSettings({
+			...settings,
+			factoryPresets: next,
+			factoryDefaultPreset,
+		});
 		return next;
 	}
 	const list = async () =>
@@ -117,7 +125,7 @@ export async function handleFactoryCommand(
 	const pending = [...ctx.pendingQuestions.values()].map(
 		(question) => question.item,
 	);
-	const tasks = (await list()).filter((task) => task.factory);
+	const tasks = (await list()).filter((task) => task.factory && !task.archivedAt);
 	return Promise.all(
 		tasks.map(async (task) => {
 			const { runs } =

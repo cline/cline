@@ -7,6 +7,32 @@ Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core 
 
 Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
 
+## Agenda task lifecycle
+
+`task.create` accepts the transient `queueFactoryDesign` option. Factory creation
+queues initial design by default. Set it to `false` to save a pending brief until
+an explicit `task.factory.design` command. The option is not stored in the task
+record or Markdown spec and does not authorize implementation.
+
+`HubSessionClient.archiveTask(taskId, expectedRevision)` cancels active work,
+removes the canonical task spec, and retains the task and run history. Inactive
+proposals retain their completed plan reviews. `restoreTask(taskId,
+expectedRevision)` restores an archived spec without replacing an existing file.
+Pending or approved proposals return unapproved with automation disabled. Their
+revision and valid completed plan reviews remain when intent is unchanged.
+Work cancelled by archive returns to an editable proposal with a new revision
+and cleared design progress. Other terminal states remain unchanged. Restore
+does not approve or start agents. PR follow-up
+stays paused after restore. `deleteTask(taskId, expectedRevision)` removes the
+spec, task, run records, and queue entry permanently. Session transcripts,
+worktrees, and branches remain.
+
+The corresponding Hub commands are `task.archive`, `task.restore`, and
+`task.delete`. All require a positive `expectedRevision` matching the displayed
+task. Archive and restore return `{ task }`; delete returns `{ taskId }`.
+`task.list` omits archived tasks unless `includeArchived` is true. Archive and
+restore emit `task.updated`; permanent deletion emits `task.deleted`.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed

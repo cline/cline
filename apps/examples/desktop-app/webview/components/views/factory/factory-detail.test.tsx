@@ -94,6 +94,7 @@ const run: AgendaTaskRunRecord = {
 let root: Root;
 let container: HTMLDivElement;
 const onOpenSession = vi.fn(async () => {});
+const onClose = vi.fn();
 beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.getFactoryTask.mockResolvedValue({ runs: [] });
@@ -119,6 +120,7 @@ async function render(
 					<FeatureDetail
 						task={value}
 						onRefresh={vi.fn(async () => {})}
+						onClose={onClose}
 						onOpenSession={onOpenSession}
 						questions={questions}
 						onAnswer={vi.fn(async () => {})}
@@ -144,6 +146,49 @@ async function tab(text: string) {
 		item.click();
 	});
 }
+it("archives with revision protection, surfaces conflicts, and restores without starting work", async () => {
+	await render(task);
+	mocks.invoke.mockRejectedValueOnce(new Error("Revision conflict"));
+	await act(async () => button("Archive").click());
+	expect(onClose).not.toHaveBeenCalled();
+	expect(document.body.textContent).toContain("Revision conflict");
+	await act(async () => button("Archive").click());
+	expect(mocks.invoke).toHaveBeenCalledWith("task.archive", {
+		taskId: task.taskId,
+		expectedRevision: task.revision,
+		allWorkspaces: true,
+	});
+	expect(onClose).toHaveBeenCalledTimes(1);
+	await render({ ...task, status: "cancelled", archivedAt: task.updatedAt });
+	expect(document.body.textContent).not.toContain("Approve and run");
+	await act(async () => button("Restore").click());
+	expect(mocks.invoke).toHaveBeenLastCalledWith("task.restore", {
+		taskId: task.taskId,
+		expectedRevision: task.revision,
+		allWorkspaces: true,
+	});
+	expect(onClose).toHaveBeenCalledTimes(2);
+});
+
+it("requires explicit confirmation before deleting a task", async () => {
+	await render(task);
+	await act(async () => button("Delete…").click());
+	expect(mocks.invoke).not.toHaveBeenCalledWith(
+		"task.delete",
+		expect.anything(),
+	);
+	await act(async () => button("Keep task").click());
+	expect(onClose).not.toHaveBeenCalled();
+	await act(async () => button("Delete…").click());
+	await act(async () => button("Delete permanently").click());
+	expect(mocks.invoke).toHaveBeenCalledWith("task.delete", {
+		taskId: task.taskId,
+		expectedRevision: task.revision,
+		allWorkspaces: true,
+	});
+	expect(onClose).toHaveBeenCalledOnce();
+});
+
 it("previews Markdown, preserves draft edits across tabs, and retains revision conflict handling", async () => {
 	await render(task, [
 		{

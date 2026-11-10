@@ -33,6 +33,9 @@ export type HubCapabilityName =
 	| "task.update"
 	| "task.approve"
 	| "task.cancel"
+	| "task.archive"
+	| "task.restore"
+	| "task.delete"
 	| "task.run"
 	| "task.factory.start"
 	| "task.factory.stop"
@@ -70,6 +73,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.update",
 	"task.approve",
 	"task.cancel",
+	"task.archive",
+	"task.restore",
+	"task.delete",
 	"task.run",
 	"task.factory.start",
 	"task.factory.stop",
@@ -513,6 +519,9 @@ export interface HubCommandInputMap {
 	"task.update": HubTaskUpdateInput;
 	"task.approve": HubTaskRevisionInput;
 	"task.cancel": HubTaskCancelInput;
+	"task.archive": HubTaskRevisionInput;
+	"task.restore": HubTaskRevisionInput;
+	"task.delete": HubTaskRevisionInput;
 	"task.run": HubTaskRevisionInput;
 	"task.factory.start": {
 		tasks: HubTaskRevisionInput[];
@@ -543,6 +552,9 @@ export interface HubCommandOutputMap {
 	"task.update": { task: AgendaTaskRecord };
 	"task.approve": { task: AgendaTaskRecord };
 	"task.cancel": { task: AgendaTaskRecord };
+	"task.archive": { task: AgendaTaskRecord };
+	"task.restore": { task: AgendaTaskRecord };
+	"task.delete": { taskId: string };
 	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
 	"task.factory.start": { queued: number };
 	"task.factory.stop": { stopped: boolean };
@@ -626,6 +638,9 @@ export type HubCommandName =
 	| "task.update"
 	| "task.approve"
 	| "task.cancel"
+	| "task.archive"
+	| "task.restore"
+	| "task.delete"
 	| "task.run"
 	| "task.factory.start"
 	| "task.factory.stop"

@@ -1,13 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgendaTaskRecord } from "@cline/shared";
 import { factoryTaskConfigSchema } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { HubAgendaTaskCommandService } from "../hub/server/task-command-service";
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntime,
 } from "./agenda-task-manager";
+import { SqliteAgendaTaskStore } from "./store/sqlite-task-store";
 
 const disposals: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -34,6 +36,7 @@ function gate() {
 async function harness(
 	options: {
 		maxRepairRounds?: number;
+		queueFactoryDesign?: boolean;
 		startReview?: (index: number) => Promise<void>;
 		review?: (index: number, task: AgendaTaskRecord) => Promise<string>;
 	} = {},
@@ -107,6 +110,7 @@ async function harness(
 		workspaceRoot,
 		expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 		createdBy: { kind: "user" },
+		queueFactoryDesign: options.queueFactoryDesign,
 		maxIterations: 6,
 		timeoutSeconds: 30,
 		factory: factoryTaskConfigSchema.parse({
@@ -136,6 +140,7 @@ async function harness(
 		manager,
 		runtime,
 		task,
+		dbPath: managerOptions.dbPath,
 		current,
 		approve,
 		restart: async () => {
@@ -187,14 +192,120 @@ describe("Factory design review", () => {
 		await expect(h.approve()).resolves.toMatchObject({ status: "approved" });
 	});
 
-	it("resumes queued design after create without a second UI command", async () => {
-		const h = await harness();
+	it.each([
+		undefined,
+		true,
+	])("resumes queued design after create with queueFactoryDesign=%s", async (queueFactoryDesign) => {
+		const h = await harness({ queueFactoryDesign });
 		const restarted = await h.restart();
 		await restarted.start();
 		await vi.waitFor(async () =>
 			expect((await h.current()).factoryDesignReview?.reviews).toHaveLength(2),
 		);
 		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not start queue-only design after opening, restarting, or maintenance", async () => {
+		const h = await harness({ queueFactoryDesign: false });
+		if (!h.task.workspaceRoot) throw new Error("Task has no workspace");
+		const service = new HubAgendaTaskCommandService(h.manager);
+		const reply = await service.handleCommand(
+			{
+				version: "v1",
+				requestId: "queue-only-create",
+				clientId: "desktop",
+				command: "task.create",
+				payload: {
+					type: "todo",
+					title: "Keep this brief queued",
+					instructions: "Wait for explicit scoping",
+					expiresAt: h.task.expiresAt,
+					factory: h.task.factory,
+					queueFactoryDesign: false,
+				},
+			},
+			{
+				clientId: "desktop",
+				workspaceContext: { workspaceRoot: h.task.workspaceRoot },
+			},
+		);
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { task: { status: "pending_approval" } },
+		});
+		const store = new SqliteAgendaTaskStore({ dbPath: h.dbPath });
+		try {
+			expect(store.listFactoryQueue()).toEqual([]);
+			expect(store.getTask(h.task.taskId)).not.toHaveProperty(
+				"queueFactoryDesign",
+			);
+		} finally {
+			store.close();
+		}
+		if (!h.task.specPath) throw new Error("Task has no canonical spec");
+		expect(readFileSync(h.task.specPath, "utf8")).not.toContain(
+			"queueFactoryDesign",
+		);
+		vi.useFakeTimers();
+		try {
+			await h.manager.start();
+			await vi.advanceTimersByTimeAsync(60_001);
+			const restarted = await h.restart();
+			await restarted.start();
+			await vi.advanceTimersByTimeAsync(60_001);
+			expect(await h.current()).toMatchObject({
+				status: "pending_approval",
+				factoryDesignProgress: undefined,
+				originSessionId: undefined,
+			});
+			expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+			expect(h.runtime.startSession).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("retains completed plan reviews across inactive archive and restore without starting work", async () => {
+		const h = await harness({ queueFactoryDesign: false });
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		const approved = await h.approve();
+		const archived = await h.manager.archiveTask(
+			approved.taskId,
+			{ kind: "user" },
+			approved.revision,
+		);
+		expect(archived).toMatchObject({
+			status: "approved",
+			revision: approved.revision,
+			factoryDesignReview: approved.factoryDesignReview,
+		});
+		const restored = await h.manager.restoreTask(
+			approved.taskId,
+			{ kind: "user" },
+			approved.revision,
+		);
+		expect(restored).toMatchObject({
+			status: "pending_approval",
+			approvedRevision: undefined,
+			automationEligible: false,
+			revision: approved.revision,
+			factoryDesignReview: approved.factoryDesignReview,
+			factoryDesignProgress: approved.factoryDesignProgress,
+		});
+		expect(restored.factoryDesignReview?.reviews).toHaveLength(2);
+		vi.useFakeTimers();
+		try {
+			await h.manager.start();
+			await vi.advanceTimersByTimeAsync(60_001);
+			expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+			expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(2);
+			expect(h.runtime.startSession).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("clears failed execution when design restarts and exposes a later design failure", async () => {
@@ -338,6 +449,92 @@ describe("Factory design review", () => {
 		await expect(h.approve()).rejects.toThrow("Complete plan review");
 	});
 
+	it("starts independent reviews together and retains out-of-order results before approval", async () => {
+		const first = gate();
+		const second = gate();
+		const h = await harness({
+			review: async (index) => {
+				await (index === 1 ? first : second).promise;
+				return pass;
+			},
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(() =>
+			expect(h.runtime.runDesignSession).toHaveBeenCalledTimes(3),
+		);
+		const reviewing = (await h.current()).factoryDesignProgress;
+		expect(reviewing).toMatchObject({
+			phase: "reviewing",
+			reviewerSessions: [
+				{ reviewerIndex: 0, sessionId: "review-1" },
+				{ reviewerIndex: 1, sessionId: "review-2" },
+			],
+			reviews: [],
+		});
+		await expect(h.approve()).rejects.toThrow("Complete plan review");
+		second.release();
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignReview?.reviews).toMatchObject([
+				{ reviewerIndex: 1, sessionId: "review-2" },
+			]),
+		);
+		expect((await h.current()).factoryDesignProgress?.phase).toBe("reviewing");
+		await expect(h.approve()).rejects.toThrow("Complete plan review");
+		first.release();
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		const completed = await h.current();
+		expect(completed.factoryDesignReview?.reviews).toMatchObject([
+			{ reviewerIndex: 0, sessionId: "review-1" },
+			{ reviewerIndex: 1, sessionId: "review-2" },
+		]);
+		expect(completed.factoryDesignProgress).toMatchObject({
+			reviews: completed.factoryDesignReview?.reviews,
+		});
+		await expect(h.approve()).resolves.toMatchObject({ status: "approved" });
+	});
+
+	it("aborts and drains a concurrent reviewer after its peer fails", async () => {
+		const fail = gate();
+		const peer = gate();
+		const h = await harness({
+			review: async (index) => {
+				if (index === 1) {
+					await fail.promise;
+					throw new Error("Review provider unavailable");
+				}
+				await peer.promise;
+				return pass;
+			},
+		});
+		vi.mocked(h.runtime.abortSession).mockImplementation(async (sessionId) => {
+			if (sessionId === "review-2") peer.release();
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(() =>
+			expect(h.runtime.runDesignSession).toHaveBeenCalledTimes(3),
+		);
+		fail.release();
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain(
+				"Review provider unavailable",
+			),
+		);
+		expect(h.runtime.abortSession).toHaveBeenCalledWith(
+			"review-2",
+			"Design review is no longer current",
+		);
+		expect((await h.current()).factoryDesignReview).toBeUndefined();
+		expect((await h.current()).factoryDesignProgress).toMatchObject({
+			phase: "reviewing",
+			repairRound: 0,
+			reviews: [],
+		});
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+		await expect(h.approve()).rejects.toThrow("Complete plan review");
+	});
+
 	it("collects both failed-plan judgments and blocks approval at the configured repair limit", async () => {
 		const h = await harness({
 			maxRepairRounds: 0,
@@ -388,7 +585,11 @@ describe("Factory design review", () => {
 		expect((await h.approve()).approvedRevision).toBe(task.revision);
 	});
 
-	it("aborts a reviewer whose session starts after cancellation without saving its result", async () => {
+	it.each([
+		"cancel",
+		"archive",
+		"remove-spec",
+	] as const)("aborts a late reviewer after %s without saving its result", async (action) => {
 		const held = gate();
 		const h = await harness({
 			startReview: async (index) => {
@@ -396,15 +597,28 @@ describe("Factory design review", () => {
 			},
 		});
 		await h.manager.startFactoryDesign(h.task.taskId);
-		await vi.waitFor(() =>
-			expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(2),
-		);
+		await vi.waitFor(async () => {
+			expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(2);
+			expect((await h.current()).factoryDesignReview?.reviews).toHaveLength(1);
+		});
 		const partial = await h.current();
-		await h.manager.cancelTask(
-			h.task.taskId,
-			{ kind: "user" },
-			partial.revision,
-		);
+		if (action === "cancel") {
+			await h.manager.cancelTask(
+				h.task.taskId,
+				{ kind: "user" },
+				partial.revision,
+			);
+		} else if (action === "archive") {
+			await h.manager.archiveTask(
+				h.task.taskId,
+				{ kind: "user" },
+				partial.revision,
+			);
+		} else {
+			if (!partial.specPath) throw new Error("Task has no spec path");
+			rmSync(partial.specPath);
+			await h.current();
+		}
 		held.release();
 		await vi.waitFor(() =>
 			expect(h.runtime.abortSession).toHaveBeenCalledWith(
@@ -414,10 +628,42 @@ describe("Factory design review", () => {
 		);
 		const task = await h.current();
 		expect(task.status).toBe("cancelled");
+		if (action !== "cancel")
+			expect(task.archivedAt).toEqual(expect.any(String));
 		expect(task.factoryDesignReview?.reviews).toHaveLength(1);
+		expect(task.factoryDesignSessionIds).toContain("review-2");
 		expect(
 			vi.mocked(h.runtime.runDesignSession).mock.calls.map(([id]) => id),
 		).toEqual(["designer", "review-1"]);
+		if (action === "archive") {
+			const restored = await h.manager.restoreTask(
+				task.taskId,
+				{ kind: "user" },
+				task.revision,
+			);
+			expect(restored).toMatchObject({
+				status: "pending_approval",
+				archivedAt: undefined,
+				approvedRevision: undefined,
+				automationEligible: false,
+				factoryDesignProgress: undefined,
+				factoryDesignReview: undefined,
+			});
+			expect(restored.revision).toBe(task.revision + 1);
+			await expect(
+				h.manager.updateTask({
+					taskId: task.taskId,
+					expectedRevision: restored.revision,
+					title: "Restored editable brief",
+					updatedBy: { kind: "user" },
+				}),
+			).resolves.toMatchObject({
+				title: "Restored editable brief",
+				status: "pending_approval",
+			});
+			expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+			expect(h.runtime.startSession).not.toHaveBeenCalled();
+		}
 	});
 
 	it("discards reviewer output if the user edits the proposed brief while review is running", async () => {
@@ -430,7 +676,7 @@ describe("Factory design review", () => {
 		});
 		await h.manager.startFactoryDesign(h.task.taskId);
 		await vi.waitFor(() =>
-			expect(h.runtime.runDesignSession).toHaveBeenCalledTimes(2),
+			expect(h.runtime.runDesignSession).toHaveBeenCalledTimes(3),
 		);
 		const proposal = await h.current();
 		const edited = await h.manager.updateTask({
@@ -445,7 +691,7 @@ describe("Factory design review", () => {
 		expect(task.revision).toBe(edited.revision);
 		expect(task.instructions).toBe("New user scope");
 		expect(task.factoryDesignReview).toBeUndefined();
-		expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(1);
+		expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(2);
 		await expect(h.approve()).rejects.toThrow("Complete plan review");
 	});
 });

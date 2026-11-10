@@ -22,3 +22,8 @@ export const factoryPresetSchema = z.object({
 	}),
 });
 export type FactoryPreset = z.infer<typeof factoryPresetSchema>;
+
+export type FactoryPresetSettings = {
+	factoryPresets?: FactoryPreset[];
+	factoryDefaultPreset?: string;
+};

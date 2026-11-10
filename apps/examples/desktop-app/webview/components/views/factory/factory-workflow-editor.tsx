@@ -5,10 +5,11 @@ import {
 	type FactoryAgent,
 	type FactoryTaskConfig,
 } from "@cline/shared/browser";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useFactoryPresets } from "@/hooks/use-factory-presets";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	type FactoryPreset,
@@ -17,63 +18,97 @@ import {
 import { ModelSelector } from "../chat/chat-input-bar";
 
 const noop = () => {};
+function applyPreset(
+	config: FactoryTaskConfig,
+	preset: FactoryPreset["config"],
+): FactoryTaskConfig {
+	const copied = structuredClone(preset);
+	return {
+		...config,
+		...copied,
+		agents: copied.agents,
+		maxCostUsd: copied.maxCostUsd,
+		maxRuntimeRetries: copied.maxRuntimeRetries,
+	};
+}
 export function FactoryWorkflowEditor({
 	config,
 	disabled,
 	onChange,
+	standalone = false,
 }: {
 	config: FactoryTaskConfig;
 	disabled: boolean;
 	onChange: (config: FactoryTaskConfig) => void;
+	standalone?: boolean;
 }) {
 	const agents = config.agents ?? DEFAULT_FACTORY_AGENTS;
 	const id = useId();
-	const [presets, setPresets] = useState<FactoryPreset[]>([]);
+	const {
+		presets,
+		setPresets,
+		defaultPreset,
+		setDefaultPreset,
+		loading,
+		error: loadError,
+		reload,
+	} = useFactoryPresets();
 	const [name, setName] = useState("");
 	const [error, setError] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [useByDefault, setUseByDefault] = useState(false);
+	const hydrated = useRef(false);
 	useEffect(() => {
-		let active = true;
-		void desktopClient
-			.invoke<FactoryPreset[]>("factory_list_presets")
-			.then((items) => {
-				if (active) setPresets(items);
-			})
-			.catch((cause: unknown) => {
-				if (active)
-					setError(
-						cause instanceof Error ? cause.message : "Unable to load presets.",
-					);
-			});
-		return () => {
-			active = false;
-		};
-	}, []);
+		if (loading) {
+			hydrated.current = false;
+			return;
+		}
+		if (hydrated.current || loadError) return;
+		hydrated.current = true;
+		if (!standalone || name || !defaultPreset) return;
+		const preset = presets.find((item) => item.name === defaultPreset);
+		if (preset) {
+			onChange(applyPreset(config, preset.config));
+			setName(preset.name);
+			setUseByDefault(true);
+		} else
+			setError(
+				`Default workflow “${defaultPreset}” is missing or invalid. Apply another preset or save a replacement.`,
+			);
+	}, [
+		loading,
+		loadError,
+		standalone,
+		name,
+		defaultPreset,
+		presets,
+		config,
+		onChange,
+	]);
 	return (
-		<details className="rounded-lg border p-4">
+		<details className="rounded-lg border p-4" open={standalone || undefined}>
 			<summary className="cursor-pointer text-sm font-semibold">
-				Workflow · {agents.planReviewers.length} plan reviewers ·{" "}
-				{agents.reviewers.length} final reviewers
+				Workflow · {agents.implementers.length} implementers ·{" "}
+				{agents.planReviewers.length} plan reviewers · {agents.reviewers.length}{" "}
+				final reviewers
 				{agents.verifier ? " · agent verification" : ""}
 			</summary>
-			<div className="mt-4 space-y-4">
+			<fieldset className="mt-4 space-y-4" disabled={standalone && loading}>
 				<div className="flex flex-wrap gap-2">
 					<select
 						aria-label="Apply workflow preset"
 						className="h-9 rounded-md border bg-background px-3 text-sm"
 						value=""
-						disabled={disabled}
+						disabled={disabled || loading || saving}
 						onChange={(event) => {
 							const preset = presets.find(
 								(item) => item.name === event.target.value,
 							);
 							if (preset) {
-								onChange({
-									...config,
-									...structuredClone(preset.config),
-									agents: structuredClone(preset.config.agents),
-								});
+								onChange(applyPreset(config, preset.config));
 								setName(preset.name);
+								setError("");
+								setUseByDefault(preset.name === defaultPreset);
 							}
 						}}
 					>
@@ -81,6 +116,7 @@ export function FactoryWorkflowEditor({
 						{presets.map((preset) => (
 							<option key={preset.name} value={preset.name}>
 								{preset.name}
+								{preset.name === defaultPreset ? " (default)" : ""}
 							</option>
 						))}
 					</select>
@@ -89,13 +125,16 @@ export function FactoryWorkflowEditor({
 						placeholder="Preset name"
 						className="w-44"
 						value={name}
-						disabled={disabled || saving}
-						onChange={(event) => setName(event.target.value)}
+						disabled={disabled || saving || loading}
+						onChange={(event) => {
+							setName(event.target.value);
+							setUseByDefault(event.target.value.trim() === defaultPreset);
+						}}
 					/>
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={disabled || saving || !name.trim()}
+						disabled={disabled || saving || loading || !name.trim()}
 						onClick={() => {
 							setSaving(true);
 							setError("");
@@ -104,9 +143,15 @@ export function FactoryWorkflowEditor({
 									desktopClient.invoke<FactoryPreset[]>("factory_save_preset", {
 										name,
 										config: factoryPresetConfigSchema.parse(config),
+										useByDefault,
 									}),
 								)
-								.then(setPresets)
+								.then((items) => {
+									setPresets(items);
+									if (useByDefault) setDefaultPreset(name.trim());
+									else if (defaultPreset === name.trim())
+										setDefaultPreset(undefined);
+								})
 								.catch((cause: unknown) =>
 									setError(
 										cause instanceof Error
@@ -120,24 +165,90 @@ export function FactoryWorkflowEditor({
 						Save preset
 					</Button>
 				</div>
+				<label className="flex items-center gap-2 text-sm">
+					<input
+						type="checkbox"
+						checked={useByDefault}
+						disabled={disabled || loading || saving}
+						onChange={(event) => setUseByDefault(event.target.checked)}
+					/>
+					Use this preset by default for new work (when saved)
+				</label>
+				{loading ? (
+					<p className="text-xs text-muted-foreground">Loading workflows…</p>
+				) : null}
 				<p className="text-xs text-muted-foreground">
-					Presets copy participants, repair limits, and approval policy into
-					this draft. Checks, reference docs, source issues, execution, and PR
-					settings stay with this feature. Save and approve the updated brief
-					before execution.
+					Presets copy participants, repair limits, and approval policy into new
+					work. Checks, reference docs, source issues, execution, and PR
+					settings stay with each feature.
+					{standalone
+						? " Saving a preset does not change existing work."
+						: " Save and approve the updated brief before execution."}
 				</p>
-				{agents.planReviewers.length > 0 ? (
+				{!standalone && agents.planReviewers.length > 0 ? (
 					<p className="text-xs text-muted-foreground">
 						After editing this brief, rerun the design interview and plan
 						reviews before approval. The designer may propose a revised brief.
 					</p>
 				) : null}
-				{error ? (
+				{error || loadError ? (
 					<p role="alert" className="text-xs text-destructive">
-						{error}
+						{error || loadError}
+						<Button
+							variant="ghost"
+							size="sm"
+							disabled={loading || saving}
+							onClick={() => {
+								setError("");
+								reload();
+							}}
+						>
+							Reload workflows
+						</Button>
 					</p>
 				) : null}
 				<div className="grid gap-3 sm:grid-cols-2">
+					<label htmlFor={`${id}-repairs`} className="space-y-1 text-xs">
+						<span>Repair rounds</span>
+						<Input
+							id={`${id}-repairs`}
+							type="number"
+							min={0}
+							max={10}
+							value={config.maxRepairRounds}
+							disabled={disabled}
+							onChange={(event) =>
+								onChange({
+									...config,
+									maxRepairRounds: Math.max(
+										0,
+										Math.min(10, Number(event.target.value)),
+									),
+								})
+							}
+						/>
+					</label>
+					<label htmlFor={`${id}-approval`} className="space-y-1 text-xs">
+						<span>Plan approval</span>
+						<select
+							id={`${id}-approval`}
+							className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+							value={config.approval}
+							disabled={disabled}
+							onChange={(event) =>
+								onChange({
+									...config,
+									approval:
+										event.target.value === "automatic"
+											? "automatic"
+											: "required",
+								})
+							}
+						>
+							<option value="required">Require my approval</option>
+							<option value="automatic">Run after plan reviews pass</option>
+						</select>
+					</label>
 					<label htmlFor={`${id}-retries`} className="space-y-1 text-xs">
 						<span>Runtime retries per stage</span>
 						<Input
@@ -190,72 +301,77 @@ export function FactoryWorkflowEditor({
 						onChange({ ...config, agents: { ...agents, designer } })
 					}
 				/>
-				{(["planReviewers", "reviewers"] as const).map((role) => (
-					<div key={role} className="space-y-2">
-						{agents[role].map((agent, index) => (
-							<div key={index} className="flex items-start gap-2">
-								<div className="min-w-0 flex-1">
-									<AgentEditor
-										label={`${role === "planReviewers" ? "Plan reviewer" : "Final reviewer"} ${index + 1}`}
-										agent={agent}
-										disabled={disabled}
-										onChange={(next) =>
+				{(["planReviewers", "implementers", "reviewers"] as const).map(
+					(role) => (
+						<div key={role} className="space-y-2">
+							{agents[role].map((agent, index) => (
+								<div key={index} className="flex items-start gap-2">
+									<div className="min-w-0 flex-1">
+										<AgentEditor
+											label={`${role === "planReviewers" ? "Plan reviewer" : role === "implementers" ? "Implementer" : "Final reviewer"} ${index + 1}`}
+											agent={agent}
+											disabled={disabled}
+											onChange={(next) =>
+												onChange({
+													...config,
+													agents: {
+														...agents,
+														[role]: agents[role].map((item, i) =>
+															i === index ? next : item,
+														),
+													},
+												})
+											}
+										/>
+									</div>
+									<Button
+										variant="ghost"
+										size="sm"
+										aria-label={`Remove ${role === "planReviewers" ? "plan reviewer" : role === "implementers" ? "implementer" : "final reviewer"} ${index + 1}`}
+										disabled={
+											disabled ||
+											(role !== "planReviewers" && agents[role].length === 1)
+										}
+										onClick={() =>
 											onChange({
 												...config,
 												agents: {
 													...agents,
-													[role]: agents[role].map((item, i) =>
-														i === index ? next : item,
-													),
+													[role]: agents[role].filter((_, i) => i !== index),
 												},
 											})
 										}
-									/>
+									>
+										Remove
+									</Button>
 								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									disabled={
-										disabled ||
-										(role === "reviewers" && agents[role].length === 1)
-									}
-									onClick={() =>
-										onChange({
-											...config,
-											agents: {
-												...agents,
-												[role]: agents[role].filter((_, i) => i !== index),
-											},
-										})
-									}
-								>
-									Remove
-								</Button>
-							</div>
-						))}
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={disabled || agents[role].length >= 4}
-							onClick={() =>
-								onChange({
-									...config,
-									agents: { ...agents, [role]: [...agents[role], {}] },
-								})
-							}
-						>
-							Add {role === "planReviewers" ? "plan" : "final"} reviewer
-						</Button>
-					</div>
-				))}
-				<AgentEditor
-					label="Implementer"
-					agent={agents.implementer}
-					disabled={disabled}
-					onChange={(implementer) =>
-						onChange({ ...config, agents: { ...agents, implementer } })
-					}
-				/>
+							))}
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={disabled || agents[role].length >= 4}
+								onClick={() =>
+									onChange({
+										...config,
+										agents: { ...agents, [role]: [...agents[role], {}] },
+									})
+								}
+							>
+								Add{" "}
+								{role === "planReviewers"
+									? "plan reviewer"
+									: role === "implementers"
+										? "implementer"
+										: "final reviewer"}
+							</Button>
+						</div>
+					),
+				)}
+				<p className="text-xs text-muted-foreground">
+					Independent approved units rotate through implementers in their listed
+					order. The first implementer handles a single build, integration, and
+					repairs. Started units keep their assigned implementer when resumed.
+				</p>
 				<label className="flex gap-2 text-sm">
 					<input
 						type="checkbox"
@@ -312,7 +428,7 @@ export function FactoryWorkflowEditor({
 						/>
 					</>
 				) : null}
-			</div>
+			</fieldset>
 		</details>
 	);
 }

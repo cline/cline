@@ -13,6 +13,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FactoryView } from "./factory-view";
+import { factoryPresetSchema } from "@/lib/factory-presets";
 
 const mocks = vi.hoisted(() => ({
 	tasks: [] as AgendaTaskRecord[],
@@ -78,7 +79,9 @@ let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
 	vi.clearAllMocks();
-	mocks.invoke.mockImplementation(async () => []);
+	mocks.invoke.mockImplementation(async (command) =>
+		command === "get_desktop_settings" ? {} : [],
+	);
 	mocks.createTask.mockImplementation(async (input: HubTaskCreateInput) => {
 		const created = task({ taskId: input.taskId, status: "pending_approval" });
 		mocks.tasks = [...mocks.tasks, created];
@@ -133,6 +136,239 @@ function selectTab(label: string) {
 }
 
 describe("Factory workflow", () => {
+	it("selects the saved default, displays its participants, and copies it into queued work", async () => {
+		const preset = factoryPresetSchema.parse({
+			name: "Focused",
+			config: {
+				approval: "automatic",
+				maxRepairRounds: 1,
+				agents: {
+					designer: {
+						modelSelection: { providerId: "test", modelId: "draft-model" },
+					},
+					planReviewers: [],
+					implementers: [
+						{ instructions: "Build the API" },
+						{ profile: "ui-agent" },
+					],
+					reviewers: [{}],
+					verifier: { instructions: "Exercise the feature" },
+				},
+			},
+		});
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "get_desktop_settings"
+				? { factoryPresets: [preset], factoryDefaultPreset: preset.name }
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		const workflow = document.querySelector("#feature-workflow");
+		if (!(workflow instanceof HTMLSelectElement))
+			throw new Error("Missing workflow picker");
+		expect(workflow.value).toBe("Focused");
+		expect(document.body.textContent).toContain("test / draft-model");
+		expect(document.body.textContent).toContain("Profile: ui-agent");
+		await act(async () => {
+			changeInput("#feature-name", "Export data");
+			changeInput("#feature-request", "Export CSV data.");
+			const start = document.querySelector('input[type="checkbox"]');
+			if (!(start instanceof HTMLInputElement))
+				throw new Error("Missing scoping choice");
+			start.click();
+		});
+		await act(async () => button("Add to queue").click());
+		const input: HubTaskCreateInput = mocks.createTask.mock.calls[0][0];
+		expect(input.factory).toEqual(expect.objectContaining(preset.config));
+		expect(input.factory?.agents).not.toBe(preset.config.agents);
+		expect(input.factory?.publishPullRequest).toBe(false);
+		expect(input.queueFactoryDesign).toBe(false);
+		expect(mocks.designFactoryTask).not.toHaveBeenCalled();
+	});
+
+	it("requires an explicit choice when the stored default is missing or was filtered as invalid", async () => {
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "get_desktop_settings"
+				? { factoryDefaultPreset: "Unavailable", factoryPresets: [] }
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => {
+			changeInput("#feature-name", "Export data");
+			changeInput("#feature-request", "Export CSV data.");
+		});
+		expect(document.body.textContent).toContain("missing or invalid");
+		expect(button("Add and scope").disabled).toBe(true);
+		await act(async () => {
+			const workflow = document.querySelector("#feature-workflow");
+			if (!(workflow instanceof HTMLSelectElement))
+				throw new Error("Missing workflow picker");
+			workflow.value = "";
+			workflow.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		expect(button("Add and scope").disabled).toBe(false);
+	});
+
+	it("blocks creation while workflows load or fail and allows retry", async () => {
+		let finish: (value: unknown) => void = () => {
+			throw new Error("Load not started");
+		};
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "get_desktop_settings"
+				? new Promise((resolve) => {
+						finish = resolve;
+					})
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => {
+			changeInput("#feature-name", "Export data");
+			changeInput("#feature-request", "Export CSV data.");
+		});
+		expect(button("Add and scope").disabled).toBe(true);
+		await act(async () => finish({}));
+		expect(button("Add and scope").disabled).toBe(false);
+		await act(async () => button("Close").click());
+		mocks.invoke.mockImplementation(async (command) => {
+			if (command === "get_desktop_settings")
+				throw new Error("Storage unavailable");
+			return [];
+		});
+		await act(async () => button("Add work").click());
+		expect(document.body.textContent).toContain("Storage unavailable");
+		expect(button("Add and scope").disabled).toBe(true);
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "get_desktop_settings" ? {} : [],
+		);
+		await act(async () => button("Retry workflows").click());
+		expect(document.body.textContent).not.toContain("Storage unavailable");
+	});
+
+	it("manages implementers and saves the default centrally without creating work", async () => {
+		mocks.invoke.mockImplementation(async (command, args) =>
+			command === "get_desktop_settings"
+				? {}
+				: command === "factory_save_preset"
+					? [factoryPresetSchema.parse(args)]
+					: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Workflows").click());
+		expect(document.body.textContent).toContain("Factory workflows");
+		const removeOnly = document.querySelector(
+			'[aria-label="Remove implementer 1"]',
+		);
+		if (!(removeOnly instanceof HTMLButtonElement))
+			throw new Error("Missing implementer removal");
+		expect(removeOnly.disabled).toBe(true);
+		await act(async () => button("Add implementer").click());
+		await act(async () => button("Add implementer").click());
+		await act(async () => button("Add implementer").click());
+		expect(button("Add implementer").disabled).toBe(true);
+		for (const index of [4, 3, 2]) {
+			await act(async () => {
+				const remove = document.querySelector(
+					`[aria-label="Remove implementer ${index}"]`,
+				);
+				if (!(remove instanceof HTMLButtonElement))
+					throw new Error("Missing implementer removal");
+				remove.click();
+			});
+		}
+		await act(async () => button("Add implementer").click());
+		await act(async () =>
+			changeInput(
+				'[aria-label="Implementer 2 instructions"]',
+				"Build the interface",
+			),
+		);
+		await act(async () => changeInput('[aria-label="Preset name"]', "Focused"));
+		const defaultChoice = document.querySelector('input[type="checkbox"]');
+		if (!(defaultChoice instanceof HTMLInputElement))
+			throw new Error("Missing default choice");
+		await act(async () => defaultChoice.click());
+		await act(async () => button("Save preset").click());
+		expect(mocks.invoke).toHaveBeenCalledWith(
+			"factory_save_preset",
+			expect.objectContaining({
+				name: "Focused",
+				useByDefault: true,
+				config: expect.objectContaining({
+					agents: expect.objectContaining({
+						implementers: [{}, { instructions: "Build the interface" }],
+					}),
+				}),
+			}),
+		);
+		expect(mocks.createTask).not.toHaveBeenCalled();
+		expect(
+			mocks.invoke.mock.calls.filter(
+				([command]) => command === "get_desktop_settings",
+			),
+		).toHaveLength(1);
+		await act(async () => changeInput('[aria-label="Preset name"]', ""));
+		expect(button("Save preset").disabled).toBe(true);
+	});
+
+	it("keeps archived work out of the board and outcomes and opens it from Archived", async () => {
+		mocks.tasks = [
+			task({
+				title: "Archived feature",
+				archivedAt: "2026-01-02T00:00:00Z",
+				status: "completed",
+			}),
+			task({ taskId: "active", title: "Active feature" }),
+		];
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		expect(container.textContent).not.toContain("Archived feature");
+		await act(async () => button("Outcomes").click());
+		expect(container.textContent).not.toContain("Archived feature");
+		await act(async () => button("Archived (1)").click());
+		expect(container.textContent).toContain("Archived feature");
+		expect(container.textContent).not.toContain("Active feature");
+		expect(container.textContent).not.toContain("Needs you (");
+		await act(async () => button("Archived feature").click());
+		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+			"Archived feature",
+		);
+	});
 	it("groups actual activity and human actions without treating completion as a stamp", async () => {
 		const design = factoryDesignProgressSchema.parse({
 			revision: 3,
@@ -311,7 +547,9 @@ describe("Factory workflow", () => {
 									}
 								: { runs },
 					)
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 
 		await act(async () =>
@@ -377,23 +615,27 @@ describe("Factory workflow", () => {
 			config: {
 				approval: "required",
 				maxRepairRounds: 1,
+				maxCostUsd: 1,
+				maxRuntimeRetries: 0,
 				agents: {
 					designer: {},
-					implementer: { instructions: "Keep changes small" },
+					implementers: [{ instructions: "Keep changes small" }],
 					planReviewers: [{}],
 					reviewers: [{}, {}],
 				},
 			},
 		};
 		mocks.invoke.mockImplementation(async (command) =>
-			command === "factory_list_presets"
-				? [
-						preset,
-						{
-							name: "Default",
-							config: { approval: "required", maxRepairRounds: 2 },
-						},
-					]
+			command === "get_desktop_settings"
+				? {
+						factoryPresets: [
+							preset,
+							{
+								name: "Default",
+								config: { approval: "required", maxRepairRounds: 2 },
+							},
+						],
+					}
 				: [],
 		);
 		mocks.updateAgendaTask.mockResolvedValue(task({ revision: 4 }));
@@ -423,7 +665,7 @@ describe("Factory workflow", () => {
 			select.dispatchEvent(new Event("change", { bubbles: true }));
 		});
 		await act(async () =>
-			changeInput('[aria-label="Implementer maxIterations"]', "7"),
+			changeInput('[aria-label="Implementer 1 maxIterations"]', "7"),
 		);
 		await act(async () => button("Save brief").click());
 		expect(mocks.updateAgendaTask).toHaveBeenCalledWith(
@@ -434,19 +676,23 @@ describe("Factory workflow", () => {
 					...preset.config,
 					agents: {
 						...preset.config.agents,
-						implementer: {
-							...preset.config.agents.implementer,
-							maxIterations: 7,
-						},
+						implementers: [
+							{
+								...preset.config.agents.implementers[0],
+								maxIterations: 7,
+							},
+						],
 					},
 					documents: feature.factory.documents,
 				},
 			}),
 		);
 		expect(document.body.textContent).toContain("2 final reviewers");
-		expect(preset.config.agents.implementer).toEqual({
-			instructions: "Keep changes small",
-		});
+		expect(preset.config.agents.implementers).toEqual([
+			{
+				instructions: "Keep changes small",
+			},
+		]);
 		await act(async () => {
 			select.value = "Default";
 			select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -460,6 +706,8 @@ describe("Factory workflow", () => {
 					agents: undefined,
 					approval: "required",
 					maxRepairRounds: 2,
+					maxCostUsd: undefined,
+					maxRuntimeRetries: undefined,
 				},
 			}),
 		);
@@ -592,7 +840,7 @@ describe("Factory workflow", () => {
 						]
 					: [];
 			if (command === "respond_ask_question") pending = false;
-			return [];
+			return command === "get_desktop_settings" ? {} : [];
 		});
 		await act(async () =>
 			root.render(
@@ -660,7 +908,9 @@ describe("Factory workflow", () => {
 							url: "https://github.com/owner/repo/issues/7",
 						},
 					}
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 		await act(async () =>
 			root.render(
@@ -722,7 +972,9 @@ describe("Factory workflow", () => {
 						description: "Reproduce the reported delay.",
 						source,
 					}
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 		await act(async () =>
 			root.render(
@@ -778,7 +1030,9 @@ describe("Factory workflow", () => {
 							url: "https://github.com/example/repo/issues/7",
 						},
 					}
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 		await act(async () =>
 			root.render(
@@ -859,7 +1113,9 @@ describe("Factory workflow", () => {
 				? new Promise((resolve) => {
 						finish = resolve;
 					})
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 		await act(async () =>
 			root.render(
@@ -883,7 +1139,7 @@ describe("Factory workflow", () => {
 		mocks.invoke.mockImplementation(async (command) => {
 			if (command === "factory_import_issue")
 				throw new Error("Check your Linear credentials and issue access.");
-			return [];
+			return command === "get_desktop_settings" ? {} : [];
 		});
 		await act(async () => button("Add work").click());
 		await act(async () => selectTab("GitHub / Linear issue"));
@@ -954,7 +1210,9 @@ describe("Factory workflow", () => {
 							needsAttention: phase !== "watching",
 						},
 					]
-				: [],
+				: command === "get_desktop_settings"
+					? {}
+					: [],
 		);
 		await act(async () =>
 			root.render(
