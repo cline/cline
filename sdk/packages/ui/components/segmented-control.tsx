@@ -9,10 +9,14 @@ import {
 	useEffect,
 	useId,
 	useImperativeHandle,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import { Tooltip, type TooltipProps } from "./tooltip.js";
+
+const useIsomorphicLayoutEffect =
+	typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export interface SegmentedControlOption {
 	/** A unique value within this control. */
@@ -73,6 +77,10 @@ export const SegmentedControl = forwardRef<
 		const fieldsetRef = useRef<HTMLFieldSetElement>(null);
 		const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
 		const controlled = value !== undefined;
+		const resetStateRef = useRef({ controlled, value, defaultValue });
+		useIsomorphicLayoutEffect(() => {
+			resetStateRef.current = { controlled, value, defaultValue };
+		}, [controlled, value, defaultValue]);
 		const selectedValue = controlled ? value : uncontrolledValue;
 		const selectedIndex = options.findIndex(
 			(option) => option.value === selectedValue,
@@ -94,6 +102,8 @@ export const SegmentedControl = forwardRef<
 				// Wait for the native reset, including a host's preventDefault().
 				queueMicrotask(() => {
 					if (event.defaultPrevented) return;
+					// The host may have committed a new value in its reset handler.
+					const { controlled, value, defaultValue } = resetStateRef.current;
 					const resetValue = controlled ? value : defaultValue;
 					if (!controlled) setUncontrolledValue(defaultValue);
 					// Native reset restores the original defaultChecked, even for
@@ -107,7 +117,7 @@ export const SegmentedControl = forwardRef<
 			};
 			ownerForm.addEventListener("reset", handleReset);
 			return () => ownerForm.removeEventListener("reset", handleReset);
-		}, [controlled, defaultValue, form, value]);
+		}, [form]);
 
 		const content = (option: SegmentedControlOption) => (
 			<span className="cline-ui-segmented-control__segment">
