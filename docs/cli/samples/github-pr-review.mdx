@@ -101,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          cline --act --auto-approve true 'You are a GitHub PR reviewer for this repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+          cline --auto-approve true 'You are a GitHub PR reviewer for this repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
           PR: #'"${PR_NUMBER}"'
 
@@ -192,14 +192,14 @@ cline auth --provider anthropic --apikey "..." --modelid claude-opus-5-5
 ```
 The `auth` command configures Cline in the CI environment without interactive prompts. It needs both `--apikey` and `--modelid`. You can switch providers (e.g., `openai-native`, `openrouter`) by changing the flags.
 
-### Autonomous Mode (`--act --auto-approve true`)
+### Autonomous Mode (`--auto-approve true`)
 ```bash
-cline --act --auto-approve true '...'
+cline --auto-approve true '...'
 ```
-The `--auto-approve true` flag tells Cline to run autonomously, executing approved tools without waiting for interactive confirmation. Prompt runs start in yolo mode by default, which skips hooks. `--act` keeps this run in Act mode so the workspace hooks described below still run.
+The `--auto-approve true` flag tells Cline to run autonomously, executing approved tools without waiting for interactive confirmation. Prompt runs start in yolo mode by default, so CI/CD workflows can perform the requested work immediately.
 
 ### What the Review Job Can Still Do
-With `--act --auto-approve true`, Cline can run any shell command in the review job; the CLI has no allow or deny list for shell commands. Text in a pull request could persuade Cline to do something other than review it, or change what its review says. The read-only token stops Cline from changing your repository, but the job can still read your code and your provider API key, and it can reach the internet. Use a provider key with a spending limit, and don't give the review job any other secrets.
+With `--auto-approve true`, Cline can run any shell command in the review job; the CLI has no allow or deny list for shell commands. Text in a pull request could persuade Cline to do something other than review it, or change what its review says. The read-only token stops Cline from changing your repository, but the job can still read your code and your provider API key, and it can reach the internet. Use a provider key with a spending limit, and don't give the review job any other secrets.
 
 Cline runs the hooks and plugins it finds in the workspace's `.cline/` and `.clinerules/` folders. The job checks out the base branch, so those folders come from your branch, and a pull request can't add to them or change them. Cline reads the pull request's changes with `gh pr diff`.
 

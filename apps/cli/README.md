@@ -124,10 +124,10 @@ cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and
 # Start Cline CLI without a prompt to enter interactive mode
 cline
 
-# Single prompt (one-shot) - runs in yolo mode: no spawn, teams, or hooks
+# Single prompt (one-shot) - runs in yolo mode: no spawn or teams
 cline "Audit this package and propose fixes"
 
-# One-shot in act mode - keeps the full tool set, spawn, teams, and hooks
+# One-shot in act mode - keeps the full tool set, spawn, and teams
 cline --act "Audit this package and propose fixes"
 
 # Interactive mode with a starting prompt
