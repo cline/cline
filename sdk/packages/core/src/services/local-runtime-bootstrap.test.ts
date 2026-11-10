@@ -293,9 +293,11 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			mode: "act" | "plan";
 			rules?: string;
 			systemPrompt?: string;
+			configurationRoot?: string;
 		};
 		config.cwd = workspaceRoot;
 		config.workspaceRoot = workspaceRoot;
+		config.configurationRoot = "/source-project-config";
 		if (systemPrompt === undefined) {
 			delete config.systemPrompt;
 		} else {
@@ -327,6 +329,12 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			"# Workspace Configuration",
 		);
 		expect(bootstrap.config.systemPrompt).toContain(workspaceRoot);
+		expect(bootstrap.config.systemPrompt).not.toContain(
+			config.configurationRoot,
+		);
+		expect(bootstrap.runtimeBuilderInput.config.configurationRoot).toBe(
+			config.configurationRoot,
+		);
 		expect(bootstrap.config.systemPrompt).toContain(
 			"Only inspect the execution host.",
 		);

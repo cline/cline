@@ -22,6 +22,7 @@ import {
 	prepareFactoryWorkspace,
 	publishFactoryPullRequest,
 	verifyFactoryChecks,
+	factoryCheckConfigurationFindings,
 } from "./factory-local";
 
 import {
@@ -121,6 +122,12 @@ export async function runFactoryWorkflow(
 	const responseFormat =
 		'Return only JSON matching {"verdict":"pass"|"changes_requested","summary":"...","findings":["..."],"coverage":{"static":["..."],"exercised":["..."],"unverified":["..."]}}; pass requires zero findings. If submit_and_exit is available, put that exact JSON in its summary field. Keep coverage private; never publish it.';
 	try {
+		const checkConfigurationFindings = factoryCheckConfigurationFindings(
+			config.checks,
+			task.workspaceRoot,
+		);
+		if (checkConfigurationFindings.length)
+			throw new Error(checkConfigurationFindings.join("\n"));
 		if (state.candidate && !state.attempts && !input.repairInstructions)
 			throw new Error(
 				"This Factory run predates durable attempts; inspect its candidate before starting a new implementation",

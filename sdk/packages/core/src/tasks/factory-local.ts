@@ -494,6 +494,39 @@ export async function collectFactoryArtifacts(input: {
 	return artifacts;
 }
 
+export function factoryCheckConfigurationFindings(
+	checks: FactoryCheck[],
+	sourceRoot?: string,
+): string[] {
+	const referencesSource = (command: string): boolean => {
+		if (!sourceRoot) return false;
+		let offset = command.indexOf(sourceRoot);
+		while (offset >= 0) {
+			const before = command[offset - 1];
+			const after = command[offset + sourceRoot.length];
+			if (
+				(!before || /[\s"'`=(]/.test(before)) &&
+				(!after || /[/\\\s"'`);]/.test(after))
+			)
+				return true;
+			offset = command.indexOf(sourceRoot, offset + sourceRoot.length);
+		}
+		return false;
+	};
+	return checks.flatMap((check) => [
+		...(referencesSource(check.command)
+			? [
+					`Check "${check.name}" references the original checkout. Use repository-relative paths so it checks the isolated candidate worktree.`,
+				]
+			: []),
+		...(check.kind === "ui" && check.artifacts.length === 0
+			? [
+					`UI check "${check.name}" requires fresh screenshot or recording artifacts. Use kind "test" for a syntax-only check and add a separate behavioral UI check.`,
+				]
+			: []),
+	]);
+}
+
 export async function verifyFactoryChecks(input: {
 	checks: FactoryCheck[];
 	workspace: FactoryWorkspace;

@@ -147,6 +147,46 @@ async function harness(
 }
 
 describe("Factory design review", () => {
+	it("repairs source-checkout check paths before plan review and approval", async () => {
+		const h = await harness();
+		vi.mocked(h.runtime.runDesignSession)
+			.mockImplementationOnce(async () => ({
+				status: "completed",
+				summary: JSON.stringify({
+					instructions: "Check the candidate behavior",
+					checks: [
+						{
+							name: "Behavior",
+							kind: "test",
+							command: `node "${h.task.workspaceRoot}/check.mjs"`,
+						},
+					],
+				}),
+			}))
+			.mockImplementationOnce(async (_id, task) => {
+				expect(task.instructions).toContain("references the original checkout");
+				expect(h.runtime.startDesignReviewSession).not.toHaveBeenCalled();
+				return {
+					status: "completed",
+					summary: JSON.stringify({
+						instructions: "Check the candidate behavior",
+						checks: [
+							{ name: "Behavior", kind: "test", command: "node check.mjs" },
+						],
+					}),
+				};
+			});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		expect((await h.current()).factoryDesignProgress?.repairRound).toBe(1);
+		expect((await h.current()).factory?.checks[0]?.command).toBe(
+			"node check.mjs",
+		);
+		await expect(h.approve()).resolves.toMatchObject({ status: "approved" });
+	});
+
 	it("resumes queued design after create without a second UI command", async () => {
 		const h = await harness();
 		const restarted = await h.restart();

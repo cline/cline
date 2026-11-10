@@ -697,6 +697,32 @@ describe("durable Factory execution", () => {
 		expect(state?.repairRound).toBe(0);
 	});
 
+	it.each([
+		"source checkout",
+		"missing UI evidence",
+	])("rejects %s checks before approval or execution", async (scenario) => {
+		const h = harness();
+		const task = await h.create(2, {
+			checks: [
+				{
+					name: "Behavior",
+					kind: scenario === "source checkout" ? "test" : "ui",
+					command:
+						scenario === "source checkout"
+							? `node "${h.repo}/check.mjs"`
+							: "node --check app.js",
+					artifacts: [],
+				},
+			],
+		});
+		await expect(h.start(task)).rejects.toThrow(
+			scenario === "source checkout"
+				? "references the original checkout"
+				: "requires fresh screenshot",
+		);
+		expect(h.runtime.startSession).not.toHaveBeenCalled();
+	});
+
 	it("runs independent units in separate worktrees and integrates dependencies before their consumer", async () => {
 		const h = harness();
 		const original = h.runtime.runSession;

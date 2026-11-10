@@ -728,6 +728,13 @@ export class HubServerTransport implements NativeHubTransport {
 		const modelId =
 			task.modelSelection?.modelId?.trim() ||
 			(providerId === "cline" ? CLINE_DEFAULT_MODEL_ID : "");
+		const executionRule =
+			task.factory &&
+			task.cwd &&
+			task.workspaceRoot &&
+			resolve(task.cwd) !== resolve(task.workspaceRoot)
+				? `Factory execution directory: ${task.cwd}. File-location references under the original project root ${task.workspaceRoot} refer to matching paths in this assigned worktree. Inspect, edit, and run checks against the candidate worktree; never edit the original project. Preserve literal code and data requirements unchanged; this mapping applies to file locations, not their contents.`
+				: undefined;
 		const metadata = withSessionHistoryOriginMetadata(
 			{
 				title: task.title,
@@ -754,14 +761,21 @@ export class HubServerTransport implements NativeHubTransport {
 				requestId: createSessionId("task_session_"),
 				clientId,
 				payload: {
-					workspaceRoot: task.workspaceRoot,
+					workspaceRoot: task.factory ? task.cwd : task.workspaceRoot,
 					cwd: task.cwd,
 					sessionConfig: {
 						sessionId: desiredSessionId,
+						configurationRoot: task.factory
+							? (task.workspaceRoot ?? task.cwd)
+							: undefined,
 						skills,
 						providerId,
 						modelId,
-						systemPrompt: task.systemPrompt ?? "",
+						systemPrompt:
+							executionRule && task.systemPrompt?.trim()
+								? `${task.systemPrompt}\n\n${executionRule}`
+								: (task.systemPrompt ?? ""),
+						rules: executionRule,
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,
 						enableTools: true,
@@ -876,11 +890,14 @@ export class HubServerTransport implements NativeHubTransport {
 		task: AgendaTaskRecord,
 		run: Pick<AgendaTaskRunRecord, "requestedByClientId">,
 	): Promise<AgendaTaskRuntimeResult> {
+		const executionRoot = task.factory
+			? task.cwd
+			: (task.workspaceRoot ?? task.cwd);
 		const resources = task.resourcePaths.length
-			? `\n\nRelevant resources (paths are relative to workspace root ${task.workspaceRoot}):\n${task.resourcePaths
+			? `\n\nRelevant resources (paths are relative to workspace root ${executionRoot}):\n${task.resourcePaths
 					.map(
-						(path) =>
-							`- ${path} (absolute: ${resolve(task.workspaceRoot ?? task.cwd ?? "", path)})`,
+						(resourcePath) =>
+							`- ${resourcePath} (absolute: ${resolve(executionRoot ?? "", resourcePath)})`,
 					)
 					.join("\n")}`
 			: "";

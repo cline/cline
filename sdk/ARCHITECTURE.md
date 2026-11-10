@@ -800,9 +800,12 @@ Factory role completed successfully.
 Participants resolve the existing configured-agent profiles, then apply explicit
 role overrides within task limits. The resolved profiles are stored with design
 and execution progress. Skills, tools, provider, and model reach the normal Hub
-session builder. The project workspace root supplies configuration and skills;
-commands execute in the attempt's isolated working directory. Builder and
-designer questions use the existing tool-contribution bridge with manager-owned
+session builder. Factory sessions set both `cwd` and `workspaceRoot` to the
+attempt workspace,
+so prompts, workspace metadata, and tools describe the candidate checkout.
+`configurationRoot` preserves the source project for configured profiles and
+skills. Recovery rebuilds this configuration from the persisted task and attempt.
+Builder and designer questions use the existing tool-contribution bridge with manager-owned
 persistence, so answering does not require the original Desktop connection.
 Reviewers return findings instead of asking interactive questions. Roles finish
 with ordinary final responses, and nested delegation remains disabled.

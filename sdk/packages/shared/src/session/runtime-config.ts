@@ -59,6 +59,8 @@ export interface SessionPromptConfig {
 export interface SessionWorkspaceConfig {
 	cwd: string;
 	workspaceRoot?: string;
+	/** Project configuration and skills root when execution uses an isolated workspace. */
+	configurationRoot?: string;
 }
 
 export interface SessionExecutionConfig {

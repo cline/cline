@@ -421,7 +421,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		) {
 			modelTools.push({ name: "image_generation", outputFormat: "png" });
 		}
-		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
+		const workspaceConfigRoot =
+			config.configurationRoot ?? config.workspaceRoot ?? config.cwd;
 		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
 		const tools: AgentTool[] = [];

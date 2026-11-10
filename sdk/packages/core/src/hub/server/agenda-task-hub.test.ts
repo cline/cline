@@ -27,6 +27,7 @@ vi.mock("node:fs", async (importOriginal) => {
 });
 
 import type {
+	SendSessionInput,
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
@@ -144,9 +145,15 @@ Verify acceptance criteria.`,
 				};
 			},
 		);
-		const runTurn = vi.fn(async () => {
+		const runTurn = vi.fn(async (input: SendSessionInput) => {
 			if (capturedStart?.sessionMetadata?.factoryTaskId) {
 				if (capturedStart.sessionMetadata.factoryRole === "builder") {
+					expect(input.prompt).toContain(
+						join(capturedStart.config.cwd ?? "", "feature.txt"),
+					);
+					expect(input.prompt).not.toContain(
+						join(canonicalChatWorkspace, "feature.txt"),
+					);
 					writeFileSync(
 						join(capturedStart.config.cwd ?? "", "feature.txt"),
 						"after\n",
@@ -595,6 +602,7 @@ Verify acceptance criteria.`,
 				payload: {
 					type: "follow-up",
 					title: "Update feature behavior",
+					resourcePaths: ["feature.txt"],
 					maxIterations: 12,
 					systemPrompt: "Stay within the approved scope.",
 					instructions: "Acceptance: feature.txt contains after.",
@@ -636,7 +644,7 @@ Verify acceptance criteria.`,
 					},
 				},
 			});
-			expect(feature.ok).toBe(true);
+			expect(feature.ok, feature.error?.message).toBe(true);
 			const featureTask = z
 				.object({ taskId: z.string(), revision: z.number() })
 				.parse(feature.payload?.task);
@@ -882,8 +890,20 @@ Verify acceptance criteria.`,
 				(input) => input.sessionMetadata?.factoryRole === "reviewer",
 			);
 			if (!builder) throw new Error("Expected builder session");
-			expect(builder.config.workspaceRoot).toBe(canonicalChatWorkspace);
+			expect(builder.config.workspaceRoot).toBe(builder.config.cwd);
+			expect(builder.config.configurationRoot).toBe(canonicalChatWorkspace);
 			expect(builder.config.cwd).not.toBe(canonicalChatWorkspace);
+			expect(builder.config.rules).toContain(
+				`Factory execution directory: ${builder.config.cwd}`,
+			);
+			expect(builder.config.rules).toContain(
+				`original project root ${canonicalChatWorkspace}`,
+			);
+			expect(builder.config.rules).toContain(
+				"Preserve literal code and data requirements unchanged",
+			);
+			expect(builder.config.systemPrompt).toContain(builder.config.rules);
+			expect(designer.config.rules).toBeUndefined();
 			for (const role of [designer, builder]) {
 				const assembled = await new DefaultRuntimeBuilder().build({
 					config: {
