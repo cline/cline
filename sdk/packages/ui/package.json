@@ -115,7 +115,10 @@
 		"components/message-scroller.css",
 		"components/carousel.tsx",
 		"components/agent-ux-verification.tsx",
-		"components/agent-ux-verification.css"
+		"components/agent-ux-verification.css",
+		"components/button-control.tsx",
+		"components/button.css",
+		"components/control-sizes.css"
 	],
 	"sideEffects": [
 		"./components.css",
@@ -146,6 +149,7 @@
 		"@pierre/diffs": "^1.3.0",
 		"@shikijs/langs": ">=4.0.0 <5",
 		"@shikijs/themes": ">=4.0.0 <5",
+		"@types/react": ">=18.3.0 <20",
 		"react": ">=18.3.0 <20",
 		"mermaid": ">=11.16.0 <12",
 		"shiki": ">=4.0.0 <5",
@@ -163,6 +167,9 @@
 			"optional": true
 		},
 		"mermaid": {
+			"optional": true
+		},
+		"@types/react": {
 			"optional": true
 		},
 		"react": {
@@ -202,7 +209,8 @@
 		"tailwindcss": "^4.2.0",
 		"typescript": "5.9.3",
 		"vite": "^7.1.11",
-		"vitest": "^4.0.18"
+		"vitest": "^4.0.18",
+		"@radix-ui/react-alert-dialog": "1.1.15"
 	},
 	"dependencies": {
 		"@cline/shared": "workspace:*",
