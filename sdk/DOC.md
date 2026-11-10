@@ -474,7 +474,22 @@ credentials. MCP requests are not replayed after dispatch. Mutations and probes
 are serialized, accepted work keeps the Hub busy, draining rejects new work, and
 shutdown waits for accepted operations. Lock acquisition yields the event loop,
 and Desktop mutation calls wait for completion of queued work. Inspection opens a temporary client and
-always disconnects it. Interactive MCP OAuth remains a separate migration.
+always disconnects it.
+
+`mcp.authorize(name, { openUrl, signal })` starts an interactive OAuth attempt in
+the Hub. Only the initiating client can poll its browser URLs or cancel it. The
+API returns the refreshed catalog after completion or cancellation; it never
+returns OAuth credentials. Desktop owns browser opening and cancels its viewer
+interaction when the webview closes. CLI entry points are unchanged.
+
+`mcp.oauth.start/next/cancel` are authenticated, owner-scoped commands. The Hub
+keeps interaction URLs out of broadcasts and the durable event log. User cancel
+restores a previously enabled server; disable/delete/edit/reinstall, superseding
+login, disconnect, expiry and shutdown prevent that restoration. New attempts
+wait for superseded callback listeners to retire. Settings mutations cancel
+attempts before entering the management queue, and token persistence checks the
+abort signal and original endpoint under the settings lock. Pending OAuth work
+participates in drain/replacement checks; shutdown aborts it and waits for cleanup.
 
 ### Provider authentication metadata for host UIs
 

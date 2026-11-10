@@ -54,7 +54,6 @@ import {
 	readGlobalSettings,
 	readSessionCheckpointHistory,
 	resolveClineAccountTelemetryIdentity,
-	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SESSION_IMPORT_TOOLS,
@@ -64,7 +63,6 @@ import {
 	SqliteSessionStore,
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
-	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	upgradeManagedHub,
@@ -82,7 +80,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
+import { resolveClineDir } from "@cline/shared/storage";
 import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
@@ -152,10 +150,8 @@ import {
 } from "./marketplace";
 
 import {
-	cancelMcpOAuthAuthorizationForReason,
-	McpOAuthAuthorizationCancelledError,
-	runCancellableMcpOAuthAuthorization,
-	shouldRestoreEnabledStateAfterOAuthCancellation,
+	cancelMcpOAuthAuthorization,
+	runMcpOAuthAuthorization,
 } from "./mcp-oauth";
 import {
 	cancelProviderOAuthLogin,
@@ -3400,60 +3396,26 @@ export async function handleCommand(
 	if (command === "list_mcp_servers") {
 		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 	}
+
 	if (command === "authorize_mcp_server_oauth") {
-		const name = String(args?.name ?? "").trim();
-		if (!name) throw new Error("server name is required");
-		const settingsPath = resolveMcpSettingsPath();
-		const registration = resolveMcpServerRegistration(name, {
-			filePath: settingsPath,
-		});
-		if (!registration) {
-			throw new Error(`unknown MCP server: ${name}`);
-		}
-		const wasDisabled = registration.disabled === true;
-		setMcpServerDisabled({ filePath: settingsPath, name, disabled: true });
-		try {
-			await runCancellableMcpOAuthAuthorization(
-				{
-					serverName: name,
-					filePath: settingsPath,
-					openUrl: openUrlInDefaultBrowser,
-				},
-				options?.connection,
-			);
-		} catch (error) {
-			if (!(error instanceof McpOAuthAuthorizationCancelledError)) {
-				throw error;
-			}
-			if (
-				shouldRestoreEnabledStateAfterOAuthCancellation(
-					wasDisabled,
-					error.reason,
-				)
-			) {
-				setMcpServerDisabled({
-					filePath: settingsPath,
-					name,
-					disabled: false,
-				});
-			}
-			return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
-		}
-		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
-		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
+		return runMcpOAuthAuthorization(
+			ctx,
+			String(args?.name ?? "").trim(),
+			options?.connection ?? ctx,
+			openUrlInDefaultBrowser,
+		);
 	}
 	if (command === "cancel_mcp_server_oauth") {
-		const name = String(args?.name ?? "").trim();
-		if (!name) throw new Error("server name is required");
-		cancelMcpOAuthAuthorizationForReason(name, "user");
-		return await createHubMcpApi(await ensureSharedHubClient(ctx)).list();
+		cancelMcpOAuthAuthorization(
+			String(args?.name ?? "").trim(),
+			options?.connection ?? ctx,
+		);
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).list();
 	}
 
 	if (command === "set_mcp_server_disabled") {
 		const name = args?.name;
 		if (typeof name !== "string") throw new Error("server name is required");
-		if (args?.disabled === true)
-			cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
 		return createHubMcpApi(await ensureSharedHubClient(ctx)).setDisabled(
 			name,
 			args?.disabled as boolean,
@@ -3468,7 +3430,6 @@ export async function handleCommand(
 	if (command === "delete_mcp_server") {
 		const name = args?.name;
 		if (typeof name !== "string") throw new Error("server name is required");
-		cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
 		return createHubMcpApi(await ensureSharedHubClient(ctx)).delete(name);
 	}
 	if (command === "ensure_mcp_settings_file") {

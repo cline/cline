@@ -18,6 +18,7 @@ import {
 } from "../extensions/mcp/config-loader";
 import type { McpServerTransportConfig } from "../extensions/mcp/types";
 import { buildMcpInstallTransport, parseMcpInstallArgs } from "./mcp-install";
+import { McpOAuthService } from "./mcp-oauth-service";
 
 type JsonRecord = Record<string, unknown>;
 function stringMap(value: object): Record<string, string> {
@@ -176,6 +177,11 @@ export async function ensureMcpSettingsFile(): Promise<string> {
 
 /** Serializes mutations and network checks so late probes cannot undo later Hub edits. */
 export class McpManagementService {
+	readonly oauth = new McpOAuthService((operation) => this.enqueue(operation));
+	async dispose() {
+		await this.oauth.dispose();
+	}
+
 	private tail: Promise<unknown> = Promise.resolve();
 	private enqueue<T>(operation: () => T | Promise<T>): Promise<T> {
 		const next = this.tail.then(operation);
@@ -191,6 +197,7 @@ export class McpManagementService {
 		}));
 	}
 	install(args: string[]) {
+		this.oauth.cancelServer(parseMcpInstallArgs(args).name.trim());
 		return this.enqueue(async () => {
 			const result = buildMcpInstallTransport(parseMcpInstallArgs(args));
 			await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
@@ -201,6 +208,7 @@ export class McpManagementService {
 		});
 	}
 	delete(name: string) {
+		this.oauth.cancelServer(name);
 		return this.enqueue(async () => {
 			await updateMcpSettingsFile(resolveMcpSettingsPath(), (settings) => {
 				const servers = settings.mcpServers as JsonRecord | undefined;
@@ -210,6 +218,7 @@ export class McpManagementService {
 		});
 	}
 	setDisabled(name: string, disabled: boolean) {
+		this.oauth.cancelServer(name);
 		return this.enqueue(async () => {
 			const path = resolveMcpSettingsPath();
 			if (disabled) {
@@ -261,6 +270,9 @@ export class McpManagementService {
 		});
 	}
 	upsert(input: McpServerConfigInput) {
+		this.oauth.cancelServer(input.name);
+		if (input.previousName !== undefined)
+			this.oauth.cancelServer(input.previousName);
 		return this.enqueue(async () => {
 			const {
 				name,

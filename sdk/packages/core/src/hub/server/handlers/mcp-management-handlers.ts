@@ -50,10 +50,44 @@ const config = z.discriminatedUnion("transportType", [
 export async function handleMcpManagementCommand(
 	envelope: HubCommandEnvelope,
 	service: McpManagementService,
+	owner: string,
 ): Promise<HubReplyEnvelope> {
 	try {
 		const payload = envelope.payload ?? {};
 		switch (envelope.command) {
+			case "mcp.oauth.start": {
+				const input = z
+					.object({ name, loginId: z.string().min(1) })
+					.strict()
+					.parse(payload);
+				return okReply(
+					envelope,
+					service.oauth.start(owner, input.loginId, input.name),
+				);
+			}
+			case "mcp.oauth.next": {
+				const input = z
+					.object({ loginId: z.string().min(1) })
+					.strict()
+					.parse(payload);
+				return okReply(envelope, {
+					...(await service.oauth.next(owner, input.loginId)),
+				});
+			}
+			case "mcp.oauth.cancel": {
+				const input = z
+					.object({
+						loginId: z.string().min(1),
+						reason: z.enum(["user", "disconnected"]),
+					})
+					.strict()
+					.parse(payload);
+				return okReply(
+					envelope,
+					service.oauth.cancel(owner, input.loginId, input.reason),
+				);
+			}
+
 			case "mcp.servers.list":
 				z.object({}).strict().parse(payload);
 				return okReply(envelope, { ...service.list() });
