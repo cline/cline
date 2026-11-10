@@ -962,6 +962,25 @@ secondary buttons through `action` and `secondaryAction`. Each action supplies
 `label`, `onClick`, and optional `disabled`. `align` is `left` (default) or `center`.
 It adds no live-region role; the host decides whether to announce its content.
 
+Use `media` for an illustration above the message. Decorative media should have
+`aria-hidden` or an empty image `alt`; meaningful media needs accessible text.
+`size="md"` preserves the compact spacing; `size="lg"` adds space around the
+illustration, message, and actions. `surface="muted"` preserves the existing card
+background; `surface="transparent"` removes that fill while keeping the dashed
+border. Alignment, size, and surface can be chosen independently.
+
+```tsx
+<EmptyState
+  align="center"
+  size="lg"
+  surface="transparent"
+  media={<CalendarIllustration aria-hidden="true" />}
+  title="No schedules yet"
+  description="Create a schedule to run work automatically."
+  action={{ label: "Create schedule", onClick: createSchedule }}
+/>
+```
+
 ### Detail list
 
 Compose `DetailListItem` directly inside `DetailList`. Rows have a required
@@ -1006,6 +1025,9 @@ these components have description-list semantics.
 `footer`, and `children` remain independent; custom interactive regions can use
 `data-item-card-interactive`. Keep title, icon, description, and badges display-only.
 `primaryAction.disabled` disables the primary button; `selected` is visual only.
+Pass `primaryAction.ref` to access the native `HTMLButtonElement`, for example to
+restore focus after closing a details view. The component's ordinary `ref` still
+targets the outer `HTMLDivElement`; neither ref requires querying internal slots.
 
 ### Banner
 
@@ -1029,8 +1051,19 @@ Footer buttons do not dismiss it automatically. Sizes are `sm` (32rem),
 Escape, outside click, and the close button request dismissal. The content receives
 initial focus; focus returns to the opener if it remains mounted. Use
 `onOpenAutoFocus`/`onCloseAutoFocus` with `preventDefault()` to override this.
-`showCloseButton={false}` hides only the button; guard `onOpenChange` to prevent
-all dismissal while pending. Pass `portalContainer` for scoped themes.
+`showCloseButton={false}` hides only the button. Use `dismissible={false}` to
+block Escape and outside interactions and disable the close button. Host-owned
+footer actions can still change `open`, so disable those independently while
+work is pending. Pass `portalContainer` for scoped themes.
+
+The default `bodyLayout="scroll"` scrolls the body between the fixed header and
+footer. Use `bodyLayout="contained"` when a child list or editor owns scrolling:
+the body fills the available space and clips overflow, allowing its children to
+shrink. Give the dialog a bounded height and arrange its child scroll region
+with `min-height: 0` and `overflow: auto`. The contained body adds no tab stop;
+the host must make its scrolling child keyboard accessible. `bodyClassName`
+remains available for content-specific spacing. Neither layout changes dialog
+width, titles, or footer actions.
 
 ### Alert dialog
 
@@ -1040,8 +1073,32 @@ unless disabled, when the dialog content receives focus. Focus returns to the
 opener if it remains mounted. Outside clicks do not dismiss it; Escape and
 actions request closure through `onOpenChange`.
 
-Call `event.preventDefault()` in `onConfirm` or `onCancel` to keep it open for
-asynchronous work. Promises are not awaited. Hosts handle errors, loading labels,
-`confirmDisabled`, and `cancelDisabled`; guard `onOpenChange` to block Escape
-while pending. `confirmTone` accepts Button tones and defaults to `neutral`;
-`cancelLabel` defaults to “Cancel”. Pass `portalContainer` for scoped themes.
+Set `closeOnConfirm={false}` to keep the dialog open after confirmation, then
+close it by changing `open` when the host's work finishes. Existing
+`event.preventDefault()` handling in `onConfirm` or `onCancel` remains supported;
+promises are not awaited. `confirmLoading` shows a spinner, sets `aria-busy`, and
+disables confirmation. It does not disable Cancel or block Escape: use
+`cancelDisabled` and `dismissible={false}` for those policies. Explicit Cancel
+and Confirm actions remain available when `dismissible` is false, so a mandatory
+choice can still offer two alternatives. `confirmDisabled` can independently
+block confirmation before work begins.
+
+```tsx
+<AlertDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="Save details?"
+  description="Your changes will replace the saved details."
+  confirmLabel={saving ? "Saving…" : "Save"}
+  onConfirm={saveDetails}
+  closeOnConfirm={false}
+  confirmLoading={saving}
+  cancelDisabled={saving}
+  dismissible={!saving}
+/>
+```
+
+The host owns saving state, errors, retries, and completion. `confirmTone` accepts
+Button tones and defaults to `neutral`; `cancelLabel` defaults to “Cancel”. Pass
+`portalContainer` for scoped themes. Existing consumers retain immediate
+confirmation closure and Escape dismissal by default.

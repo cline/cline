@@ -31,6 +31,8 @@ const meta = {
 		footer: { control: false },
 		size: { control: "select", options: ["sm", "md", "lg"] },
 		showCloseButton: { control: "boolean" },
+		dismissible: { control: "boolean" },
+		bodyLayout: { control: "inline-radio", options: ["scroll", "contained"] },
 	},
 	parameters: {
 		docs: {
@@ -39,7 +41,7 @@ const meta = {
 				component:
 					"A controlled dialog for details, forms, and richer content, styled to match AlertDialog. " +
 					"The header and optional footer stay visible while the body scrolls. " +
-					"The caller owns footer actions, pending state, and dismissal guards. " +
+					"The caller owns footer actions and pending state; dismissible controls passive dismissal. " +
 					"Use the toolbar to compare light and dark themes.",
 			},
 		},
@@ -76,6 +78,56 @@ function Example(props: DialogProps) {
 }
 
 export const Default: Story = {};
+
+export const ContainedResults: Story = {
+	args: {
+		title: "Choose sessions",
+		bodyLayout: "contained",
+		className: "h-[32rem]",
+		children: (
+			<div className="flex min-h-0 flex-1 flex-col gap-3">
+				<label>
+					Search sessions
+					<input className="block w-full rounded border p-2" />
+				</label>
+				<div
+					role="document"
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: Allow keyboard users to scroll the results independently of the search field.
+					tabIndex={0}
+					className="min-h-0 flex-1 overflow-y-auto"
+				>
+					<ul>
+						{catalogTools.map((tool) => (
+							<li key={tool} className="border-b py-3">
+								{tool}
+							</li>
+						))}
+					</ul>
+				</div>
+			</div>
+		),
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"The search field stays visible while the child results region owns scrolling and its keyboard focus target.",
+			},
+		},
+	},
+};
+
+export const NonDismissible: Story = {
+	args: { dismissible: false },
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"Escape, overlay clicks, and the close control cannot dismiss this dialog. The host-owned Done action can still close it.",
+			},
+		},
+	},
+};
 
 export const Details: Story = {
 	args: {

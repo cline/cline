@@ -20,6 +20,12 @@ export interface EmptyStateProps
 	extends Omit<ComponentPropsWithoutRef<"div">, "title" | "children"> {
 	/** Align the message and optional actions together. Defaults to left. */
 	align?: "left" | "center";
+	/** Spacious panels use lg; md preserves the compact default. */
+	size?: "md" | "lg";
+	/** Both surfaces retain the dashed border. */
+	surface?: "muted" | "transparent";
+	/** Optional illustration above the message. The host owns its accessible text. */
+	media?: ReactNode;
 	title?: ReactNode;
 	/** Semantic hierarchy is independent of the title's visual size. */
 	headingLevel?: 2 | 3 | 4 | 5 | 6;
@@ -32,11 +38,14 @@ export interface EmptyStateProps
 	secondaryAction?: EmptyStateAction;
 }
 
-/** A compact empty-state panel with an optional title and actions. */
+/** An empty-state panel with optional illustration, title, and actions. */
 export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(
 	function EmptyState(
 		{
 			align = "left",
+			size = "md",
+			surface = "muted",
+			media,
 			title,
 			headingLevel = 3,
 			children,
@@ -58,7 +67,17 @@ export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(
 				className={clsx("cline-ui-empty-state", className)}
 				data-slot="empty-state"
 				data-align={align}
+				data-size={size}
+				data-surface={surface}
 			>
+				{hasContent(media) ? (
+					<div
+						className="cline-ui-empty-state__media"
+						data-slot="empty-state-media"
+					>
+						{media}
+					</div>
+				) : null}
 				{hasTitle || hasDescription ? (
 					<div className="cline-ui-empty-state__message">
 						{hasTitle ? (
