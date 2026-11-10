@@ -18,16 +18,29 @@ export function formatError(error: unknown): string {
 	return String(error);
 }
 
+// The limit is enforced, not advisory: an oversized call is rejected without
+// touching the file. The messages say so explicitly and name the way to split
+// the edit, because models that read the old "recommended limit" wording kept
+// resending the identical call (GitHub #14474).
+const EDITOR_SIZE_RETRY_NOTICE =
+	"The file was not changed. Resending the same call will be rejected again.";
+
 export function getEditorSizeError(input: EditFileInput): string | null {
 	if (
 		typeof input.old_text === "string" &&
 		input.old_text.length > INPUT_ARG_CHAR_LIMIT
 	) {
-		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the limit of ${INPUT_ARG_CHAR_LIMIT}. ${EDITOR_SIZE_RETRY_NOTICE} Replace the region as several smaller edits, each with an old_text of at most ${INPUT_ARG_CHAR_LIMIT} characters that matches exactly once.`;
 	}
 
 	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
-		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+		const split =
+			input.insert_line != null
+				? `Insert the text in several calls of at most ${INPUT_ARG_CHAR_LIMIT} characters each, advancing insert_line by the number of lines already inserted.`
+				: typeof input.old_text === "string"
+					? `Replace a smaller old_text first, then add the remaining text in further calls with insert_line, each new_text at most ${INPUT_ARG_CHAR_LIMIT} characters.`
+					: `Create the file with the first part (at most ${INPUT_ARG_CHAR_LIMIT} characters), then append each further part in its own call with insert_line set to the file's current line count + 1.`;
+		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the limit of ${INPUT_ARG_CHAR_LIMIT}. ${EDITOR_SIZE_RETRY_NOTICE} ${split}`;
 	}
 
 	return null;
