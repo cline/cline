@@ -74,6 +74,55 @@ async function pointer(
 }
 
 describe("FileBrowser", () => {
+	it("keeps fixed sizing by default and exposes content bounds without changing the scroll region", async () => {
+		const source = (
+			<textarea aria-labelledby="instructions-label" defaultValue="Draft" />
+		);
+		await render(
+			<FileBrowserContent
+				headerLabel="Instructions"
+				headerLabelId="instructions-label"
+				source={source}
+			/>,
+		);
+		const content = container.querySelector<HTMLElement>(
+			'[data-slot="file-browser-content"]',
+		);
+		const body = container.querySelector<HTMLElement>('[role="document"]');
+		expect(content?.dataset.sizing).toBe("fixed");
+		expect(body?.getAttribute("aria-label")).toBe("Instructions");
+		expect(body?.tabIndex).toBe(0);
+		expect(document.getElementById("instructions-label")?.textContent).toBe(
+			"Instructions",
+		);
+
+		await render(
+			<FileBrowserContent
+				headerLabel="Instructions"
+				headerLabelId="instructions-label"
+				source={source}
+				sizing="content"
+				minBodyHeight={288}
+				maxBodyHeight="36rem"
+			/>,
+		);
+		expect(container.querySelector('[role="document"]')).toBe(body);
+		expect(content?.dataset.sizing).toBe("content");
+		expect(
+			content?.style.getPropertyValue(
+				"--cline-ui-file-browser-body-min-height",
+			),
+		).toBe("288px");
+		expect(
+			content?.style.getPropertyValue(
+				"--cline-ui-file-browser-body-max-height",
+			),
+		).toBe("36rem");
+		expect(
+			container.querySelector("textarea")?.closest('[role="document"]'),
+		).toBe(body);
+	});
+
 	it.each([
 		"Source",
 		"Edit",
