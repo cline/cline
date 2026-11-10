@@ -76,6 +76,7 @@ export function Dialog({
 	onInteractOutside,
 }: DialogProps) {
 	const focus = useDialogFocus({
+		open,
 		focusContent: true,
 		onOpenAutoFocus,
 		onCloseAutoFocus,
