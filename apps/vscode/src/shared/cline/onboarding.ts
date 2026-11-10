@@ -1,8 +1,21 @@
-import type { OnboardingModel } from "../proto/cline/state"
+import type { OpenRouterModelInfo } from "../proto/cline/models"
+
+export interface OnboardingModelGroup {
+	models: OnboardingModel[]
+}
+
+export interface OnboardingModel {
+	id: string
+	name: string
+	score: number
+	latency: number
+	badge: string
+	group: string
+	info?: OpenRouterModelInfo
+}
 
 /**
- * The list of models available to new users during the onboarding flow.
- * NOTE: Can be overridden by feature flag onboarding models payload.
+ * The fallback list of models available to new users during the onboarding flow.
  */
 export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	{

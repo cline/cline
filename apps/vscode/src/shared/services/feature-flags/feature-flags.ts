@@ -2,8 +2,6 @@ import type { FeatureFlagPayload } from "@/services/feature-flags/providers/IFea
 
 export enum FeatureFlag {
 	WORKTREES = "worktree-exp",
-	// Feature flag for showing the new onboarding flow or old welcome view.
-	ONBOARDING_MODELS = "onboarding_models",
 	// Feature flag for remote banner service
 	REMOTE_BANNERS = "remote-banners",
 	// Feature flag payload (milliseconds) controlling remote banner cache TTL
@@ -24,7 +22,6 @@ export enum FeatureFlag {
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
 	[FeatureFlag.WORKTREES]: false,
-	[FeatureFlag.ONBOARDING_MODELS]: process.env.E2E_TEST === "true" ? { models: {} } : undefined,
 	[FeatureFlag.REMOTE_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL]: 24 * 60 * 60 * 1000,
 	[FeatureFlag.REMOTE_WELCOME_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
