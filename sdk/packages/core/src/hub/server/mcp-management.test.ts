@@ -142,6 +142,81 @@ describe("Hub MCP management", () => {
 		});
 	});
 
+	it.each([
+		{ name: " foo ", neighbor: true, connects: true },
+		{ name: " foo ", neighbor: true, connects: false },
+		{ name: " foo ", neighbor: false, connects: true },
+		{ name: "", neighbor: true, connects: true },
+		{ name: "", neighbor: true, connects: false },
+	])("probes the exact remote key before enabling: %j", async ({
+		name,
+		neighbor,
+		connects,
+	}) => {
+		const requests: string[] = [];
+		const server = createServer(async (request, response) => {
+			requests.push(request.url ?? "");
+			if (request.url === "/requested" && !connects) {
+				response.writeHead(503).end();
+				return;
+			}
+			if (request.method !== "POST") {
+				response.writeHead(405).end();
+				return;
+			}
+			let body = "";
+			for await (const chunk of request) body += chunk;
+			const message = JSON.parse(body);
+			if (message.method === "initialize") {
+				response.writeHead(200, { "content-type": "application/json" });
+				response.end(
+					JSON.stringify({
+						jsonrpc: "2.0",
+						id: message.id,
+						result: {
+							protocolVersion: message.params.protocolVersion,
+							capabilities: {},
+							serverInfo: { name: "test", version: "1.0.0" },
+						},
+					}),
+				);
+			} else response.writeHead(202).end();
+		});
+		await new Promise<void>((resolve) =>
+			server.listen(0, "127.0.0.1", resolve),
+		);
+		const address = server.address();
+		if (!address || typeof address === "string")
+			throw new Error("Expected TCP address");
+		const base = `http://127.0.0.1:${address.port}`;
+		const neighboringServer = {
+			transport: { type: "streamableHttp", url: `${base}/neighbor` },
+			disabled: true,
+		};
+		try {
+			await seed({
+				...(neighbor ? { foo: neighboringServer } : {}),
+				[name]: {
+					transport: { type: "streamableHttp", url: `${base}/requested` },
+					disabled: true,
+					timeout: 1,
+				},
+			});
+			const result = await api.setDisabled(name, false);
+			expect(requests.length).toBeGreaterThan(0);
+			expect(new Set(requests)).toEqual(new Set(["/requested"]));
+			expect(
+				result.servers.find((entry) => entry.name === name)?.disabled,
+			).toBe(!connects);
+			const settings = JSON.parse(await readFile(path, "utf8"));
+			expect(settings.mcpServers[name].disabled).toBe(!connects);
+			if (neighbor) expect(settings.mcpServers.foo).toEqual(neighboringServer);
+		} finally {
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
+	});
+
 	it("times out an SSE stream without an endpoint, releases queued edits, and drains on shutdown", async () => {
 		const opened = deferred<void>();
 		const closed = deferred<void>();
