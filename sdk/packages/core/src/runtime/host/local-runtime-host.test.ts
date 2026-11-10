@@ -595,68 +595,154 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
-	it("rebinds a resumed session to this process so the stale reconciler keeps it running", async () => {
-		const sessionsDir = join(isolatedHomeDir, "sessions");
-		const sessionId = "sess-resume-dead-pid";
-		const sessionService = new FileSessionService(sessionsDir);
-		const { manifestPath } =
-			await sessionService.createRootSessionWithArtifacts({
-				sessionId,
-				source: SessionSource.CLI,
-				pid: 999_999_999,
-				interactive: true,
-				provider: "mock-provider",
-				model: "mock-model",
-				cwd: isolatedHomeDir,
-				workspaceRoot: isolatedHomeDir,
-				enableTools: true,
-				enableSpawn: false,
-				enableTeams: false,
-				prompt: "hello",
-			});
-		const agent = {
-			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
-			getMessages: vi.fn().mockReturnValue([]),
-			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
-			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
-			abort: vi.fn(),
-			subscribeEvents: vi.fn().mockReturnValue(() => {}),
-			canStartRun: vi.fn().mockReturnValue(true),
-			shutdown: vi.fn().mockResolvedValue(undefined),
-		};
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService,
-			runtimeBuilder: {
-				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
-			} as never,
-			createAgent: () => agent as never,
-		});
-
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({
+	describe("resuming a session from disk", () => {
+		const deadPid = 999_999_999;
+		const resumeFromDisk = async (
+			status: "running" | "completed",
+			pid: number,
+		) => {
+			const sessionId = "sess-resume-from-disk";
+			const sessionService = new FileSessionService(
+				join(isolatedHomeDir, "sessions"),
+			);
+			const { manifestPath } =
+				await sessionService.createRootSessionWithArtifacts({
 					sessionId,
+					source: SessionSource.CLI,
+					pid,
+					status,
+					interactive: true,
+					provider: "mock-provider",
+					model: "mock-model",
 					cwd: isolatedHomeDir,
 					workspaceRoot: isolatedHomeDir,
-				}),
-				interactive: true,
-				initialMessages: [{ role: "user", content: "hello" }],
-			}),
-		);
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					prompt: "hello",
+				});
+			const updateSessionStatus = vi.spyOn(
+				sessionService,
+				"updateSessionStatus",
+			);
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService,
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				} as never,
+				createAgent: () => agent as never,
+			});
+			const emittedStatuses: string[] = [];
+			manager.subscribe((event) => {
+				if (event.type === "status") {
+					emittedStatuses.push(event.payload.status);
+				}
+			});
 
-		await expect(sessionService.reconcileDeadSessions()).resolves.toBe(0);
-		const [row] = await sessionService.listSessions(10);
-		expect(row).toMatchObject({
-			sessionId,
-			status: "running",
-			pid: process.pid,
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					interactive: true,
+					initialMessages: [{ role: "user", content: "hello" }],
+				}),
+			);
+
+			const readRow = async () =>
+				(await sessionService.listSessions(10)).find(
+					(row) => row.sessionId === sessionId,
+				);
+			const readManifest = () =>
+				JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest;
+			return {
+				sessionId,
+				manager,
+				sessionService,
+				updateSessionStatus,
+				emittedStatuses,
+				readRow,
+				readManifest,
+			};
+		};
+
+		it.each([
+			["a terminal manifest", "completed", deadPid],
+			["the same pid", "running", process.pid],
+			["an old pid that is still alive", "running", process.ppid],
+		] as const)("writes nothing when resuming %s", async (_case, status, pid) => {
+			const resumed = await resumeFromDisk(status, pid);
+
+			expect(resumed.updateSessionStatus).not.toHaveBeenCalled();
+			expect(resumed.emittedStatuses).toEqual([status]);
+			await expect(resumed.readRow()).resolves.toMatchObject({ status, pid });
 		});
-		const manifest = JSON.parse(
-			readFileSync(manifestPath, "utf8"),
-		) as SessionManifest;
-		expect(manifest).toMatchObject({ status: "running", pid: process.pid });
+
+		it("parks a dead running row as idle on this pid until a turn starts", async () => {
+			const resumed = await resumeFromDisk("running", deadPid);
+
+			expect(resumed.emittedStatuses).toEqual(["idle"]);
+			await expect(
+				resumed.sessionService.reconcileDeadSessions(),
+			).resolves.toBe(0);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(
+				resumed.updateSessionStatus.mock.calls.map(([, status, , pid]) => [
+					status,
+					pid,
+				]),
+			).toEqual([
+				["idle", process.pid],
+				["running", process.pid],
+				["idle", process.pid],
+			]);
+		});
+
+		it("moves a resumed completed session to this pid when its next turn starts", async () => {
+			const resumed = await resumeFromDisk("completed", deadPid);
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(resumed.updateSessionStatus).toHaveBeenCalledWith(
+				resumed.sessionId,
+				"running",
+				null,
+				process.pid,
+			);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				pid: process.pid,
+			});
+		});
 	});
 
 	it("forwards rootOnly to the session backend when listing sessions", async () => {

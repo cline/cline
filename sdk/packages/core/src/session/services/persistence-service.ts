@@ -40,6 +40,21 @@ export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
 const OCC_MAX_RETRIES = 4;
 
+export function isPidAlive(pid: number): boolean {
+	if (!Number.isFinite(pid) || pid <= 0) return false;
+	try {
+		process.kill(Math.floor(pid), 0);
+		return true;
+	} catch (error) {
+		return (
+			typeof error === "object" &&
+			error !== null &&
+			"code" in error &&
+			(error as { code?: string }).code === "EPERM"
+		);
+	}
+}
+
 export class UnifiedSessionPersistenceService {
 	private readonly manifestStore: SessionManifestStore;
 	private readonly teamChildren: TeamChildSessionManager;
@@ -429,27 +444,12 @@ export class UnifiedSessionPersistenceService {
 		return this.teamChildren.handleSubAgentEnd(rootSessionId, context);
 	}
 
-	private isPidAlive(pid: number): boolean {
-		if (!Number.isFinite(pid) || pid <= 0) return false;
-		try {
-			process.kill(Math.floor(pid), 0);
-			return true;
-		} catch (error) {
-			return (
-				typeof error === "object" &&
-				error !== null &&
-				"code" in error &&
-				(error as { code?: string }).code === "EPERM"
-			);
-		}
-	}
-
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
 		if (
 			isNonTerminalSessionStatus(row.status) === false ||
-			this.isPidAlive(row.pid)
+			isPidAlive(row.pid)
 		) {
 			return row;
 		}

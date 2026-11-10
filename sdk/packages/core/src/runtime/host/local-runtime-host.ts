@@ -99,6 +99,7 @@ import {
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import { isPidAlive } from "../../session/services/persistence-service";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -1137,9 +1138,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (resumedArtifacts) {
 			if (
 				isNonTerminalSessionStatus(active.status) &&
-				resumedArtifacts.manifest.pid !== process.pid
+				!isPidAlive(resumedArtifacts.manifest.pid)
 			) {
-				await this.persistStatus(active, active.status);
+				active.status = "idle";
+				await this.persistStatus(active, "idle");
 			}
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
