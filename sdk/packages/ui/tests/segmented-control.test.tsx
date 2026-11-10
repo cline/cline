@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode } from "react";
+import { act, type ReactNode, useState } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SegmentedControl } from "../components/segmented-control.js";
@@ -236,6 +237,34 @@ describe("SegmentedControl", () => {
 		expect(
 			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
 		).toBe("2");
+		expect(onValueChange).not.toHaveBeenCalled();
+	});
+
+	it("uses the latest controlled value committed during form reset", async () => {
+		const onValueChange = vi.fn();
+		function ControlledForm() {
+			const [value, setValue] = useState("dark");
+			return (
+				<form onReset={() => flushSync(() => setValue("light"))}>
+					<SegmentedControl
+						aria-label="Color theme"
+						name="theme"
+						onValueChange={onValueChange}
+						options={options}
+						value={value}
+					/>
+				</form>
+			);
+		}
+		await render(<ControlledForm />);
+		expect(new FormData(form()).getAll("theme")).toEqual(["dark"]);
+		await act(async () => form().reset());
+		expect(input("light").checked).toBe(true);
+		expect(input("dark").checked).toBe(false);
+		expect(new FormData(form()).getAll("theme")).toEqual(["light"]);
+		expect(
+			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+		).toBe("1");
 		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
