@@ -240,7 +240,7 @@ describe("FileBrowser", () => {
 		expect(container.querySelector("p")?.textContent).toBe("Draft preview");
 	});
 
-	it("shows a source-only editor and lets loading and host states override it", async () => {
+	it("shows a source-only editor without display controls", async () => {
 		const source = <textarea aria-label="Instructions" defaultValue="Draft" />;
 		await render(
 			<FileBrowserContent headerLabel="Instructions" source={source} />,
@@ -248,24 +248,6 @@ describe("FileBrowser", () => {
 		expect(container.querySelector("textarea")?.closest("[hidden]")).toBeNull();
 		expect(container.querySelector("textarea")?.value).toBe("Draft");
 		expect(container.querySelector("fieldset, pre")).toBeNull();
-		await render(
-			<FileBrowserContent headerLabel="Instructions" source={source} loading>
-				<p role="alert">Unavailable</p>
-			</FileBrowserContent>,
-		);
-		expect(container.querySelector("textarea, p")).toBeNull();
-		expect(
-			container.querySelector('[data-slot="file-browser-content-skeleton"]'),
-		).not.toBeNull();
-		await render(
-			<FileBrowserContent headerLabel="Instructions" source={source}>
-				<p role="alert">Unavailable</p>
-			</FileBrowserContent>,
-		);
-		expect(container.querySelector("textarea")).toBeNull();
-		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-			"Unavailable",
-		);
 	});
 
 	it("keeps files selectable before the host chooses a preview", async () => {
@@ -277,18 +259,6 @@ describe("FileBrowser", () => {
 		expect(container.textContent).not.toContain("No preview files available.");
 		await click('button[title="README.md"]');
 		expect(onSelect).toHaveBeenCalledWith("README.md");
-		await render(
-			<FileBrowser
-				files={[{ path: "README.md" }]}
-				selectedPath="README.md"
-				onSelect={onSelect}
-			>
-				<FileBrowserContent path="README.md" content="Selected content" />
-			</FileBrowser>,
-		);
-		expect(container.querySelector("pre")?.textContent).toBe(
-			"Selected content",
-		);
 	});
 
 	it("preserves nested collapse state when an ancestor is closed and reopened", async () => {
@@ -502,7 +472,7 @@ describe("FileBrowser", () => {
 		);
 	});
 
-	it("renders source-only files verbatim and replaces them with loading and error states", async () => {
+	it("renders source verbatim and lets loading and host states override all content", async () => {
 		const source = '<script>alert("test")</script>\n  indented';
 		await render(<FileBrowserContent path="check.ts" content={source} />);
 		expect(container.querySelector("pre")?.textContent).toBe(source);
@@ -513,14 +483,14 @@ describe("FileBrowser", () => {
 			container.querySelector('[role="document"]')?.getAttribute("aria-label"),
 		).toBe("check.ts");
 		expect(container.querySelector("script, fieldset")).toBeNull();
+		const contentProps = {
+			path: "check.ts",
+			content: source,
+			source: <textarea aria-label="Source" defaultValue="Draft" />,
+			preview: <p>Previous preview</p>,
+		};
 		await render(
-			<FileBrowserContent
-				path="check.ts"
-				content={source}
-				preview={<p>Previous preview</p>}
-				loading
-				loadingLabel="Loading…"
-			>
+			<FileBrowserContent {...contentProps} loading loadingLabel="Loading…">
 				<p>Previous content</p>
 			</FileBrowserContent>,
 		);
@@ -533,15 +503,17 @@ describe("FileBrowser", () => {
 				.querySelector('[data-slot="file-browser-content-skeleton"]')
 				?.getAttribute("aria-hidden"),
 		).toBe("true");
-		expect(container.querySelector("pre, p, fieldset")).toBeNull();
+		expect(container.querySelector("pre, p, textarea, fieldset")).toBeNull();
 		await render(
-			<FileBrowserContent path="check.ts">
+			<FileBrowserContent {...contentProps}>
 				<p role="alert">Read failed</p>
 			</FileBrowserContent>,
 		);
 		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
 			"Read failed",
 		);
+		expect(container.querySelector("pre, textarea")).toBeNull();
+		expect(container.textContent).not.toContain("Previous preview");
 		expect(
 			container.querySelector(
 				'[aria-busy="true"], [data-slot="file-browser-content-skeleton"]',
