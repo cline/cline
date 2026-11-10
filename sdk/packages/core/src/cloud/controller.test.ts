@@ -282,6 +282,28 @@ describe("CloudSessionController neutral host contract", () => {
 			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
 				missedActivity,
 			);
+			f.api.list.mockResolvedValue([
+				{
+					...record,
+					status: "suspended",
+					lastActivityAt: "2026-07-20T12:00:00.000Z",
+				},
+			]);
+			for (let refresh = 0; refresh < 2; refresh++) {
+				expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+					missedActivity,
+				);
+			}
+			expect(
+				f.controller.getCachedDiscoveryRecord(record.id)?.lastActivityAt,
+			).toBe(missedActivity);
+			const remoteActivity = "2026-07-20T13:00:00.000Z";
+			f.api.list.mockResolvedValue([
+				{ ...record, lastActivityAt: remoteActivity },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				remoteActivity,
+			);
 		} finally {
 			await f.controller.dispose();
 		}
@@ -300,7 +322,11 @@ describe("CloudSessionController neutral host contract", () => {
 			f.emit("run.completed", { reason: "completed" });
 			if (disposal === "detach") await f.controller.detach(record.id);
 			f.api.list.mockResolvedValue([
-				{ ...record, status: disposal === "suspended" ? "suspended" : "ready" },
+				{
+					...record,
+					status: disposal === "suspended" ? "suspended" : "ready",
+					lastActivityAt: "2026-07-20T11:00:00.000Z",
+				},
 			]);
 			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
 				completedAt,

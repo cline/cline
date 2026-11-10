@@ -55,6 +55,8 @@ export type CloudSessionState = {
 	startedAt: number;
 	/** Conversation recency from Hub records and run events, not proxy connections. */
 	lastActivityAt?: number;
+	/** API activity already observed when this viewer's connection ended. */
+	apiActivityAtDisposal?: number;
 	endedAt?: number;
 	status: string;
 	prompt?: string;

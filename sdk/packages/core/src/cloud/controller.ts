@@ -704,15 +704,17 @@ export class CloudSessionController {
 
 	private discoveryRecord(record: CloudSessionRecord): JsonRecord {
 		const projected = cloudSessionToDiscoveryRecord(record);
-		const activityAt = this.sessions.get(record.id)?.lastActivityAt;
+		const live = this.sessions.get(record.id);
+		if (live?.lastActivityAt === undefined) return projected;
+		const apiActivityAt =
+			Date.parse(record.lastActivityAt ?? record.createdAt) || 0;
 		if (
-			activityAt !== undefined &&
-			(this.connections.has(record.id) ||
-				activityAt >
-					(Date.parse(record.lastActivityAt ?? record.createdAt) || 0))
-		) {
-			projected.lastActivityAt = new Date(activityAt).toISOString();
-		}
+			!this.connections.has(record.id) &&
+			apiActivityAt >
+				Math.max(live.lastActivityAt, live.apiActivityAtDisposal ?? 0)
+		)
+			return projected;
+		projected.lastActivityAt = new Date(live.lastActivityAt).toISOString();
 		return projected;
 	}
 
@@ -2672,8 +2674,10 @@ export class CloudSessionController {
 				) {
 					throw error;
 				}
-				if (this.connections.get(outerSessionId) === connection)
+				if (this.connections.get(outerSessionId) === connection) {
+					this.recordApiActivityAtDisposal(outerSessionId);
 					this.connections.delete(outerSessionId);
+				}
 				connection.disposed = true;
 				connection.unsubscribe();
 				// Approvals stored during the failed setup hold resolve closures
@@ -3388,6 +3392,15 @@ export class CloudSessionController {
 			live.config.mode = mode;
 	}
 
+	private recordApiActivityAtDisposal(sessionId: string): void {
+		const live = this.sessions.get(sessionId);
+		if (live?.lastActivityAt === undefined) return;
+		live.apiActivityAtDisposal = Math.max(
+			live.apiActivityAtDisposal ?? 0,
+			Date.parse(this.knownSessions.get(sessionId)?.lastActivityAt ?? "") || 0,
+		);
+	}
+
 	private async disposeConnection(outerSessionId: string): Promise<void> {
 		this.cancelScheduledSnapshot(outerSessionId);
 		const connection = this.connections.get(outerSessionId);
@@ -3395,6 +3408,7 @@ export class CloudSessionController {
 		if (!connection) {
 			return;
 		}
+		this.recordApiActivityAtDisposal(outerSessionId);
 		connection.disposed = true;
 		connection.pendingInputs?.clear();
 		connection.unsubscribe();
