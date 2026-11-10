@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Plus, X } from "lucide-react";
 import {
@@ -11,6 +13,7 @@ import {
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageAction } from "../components/agent-chat/index.js";
 import {
 	Button,
 	buttonVariants,
@@ -248,6 +251,181 @@ describe("managed button icons", () => {
 			if (!disabled) expect(onOpenChange).toHaveBeenCalledWith(false);
 		});
 	}
+});
+
+describe("controlled button loading", () => {
+	it("keeps a loading cancellation action enabled and restores its original content", async () => {
+		const onClick = vi.fn();
+		await render(
+			<Button
+				loading
+				loadingLabel="Cancel upload"
+				leadingIcon={Plus}
+				onClick={onClick}
+			>
+				Upload
+			</Button>,
+		);
+		const button = container.querySelector("button");
+		expect(button?.disabled).toBe(false);
+		expect(button?.getAttribute("aria-busy")).toBe("true");
+		expect(button?.textContent).toBe("Cancel upload");
+		expect(
+			button?.querySelectorAll(".cline-ui-button__icon--loading"),
+		).toHaveLength(1);
+		expect(button?.querySelector(".lucide-plus")).toBeNull();
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+
+		await render(<Button leadingIcon={Plus}>Upload</Button>);
+		expect(container.querySelector("button")).toBe(button);
+		expect(button?.getAttribute("aria-busy")).toBeNull();
+		expect(button?.textContent).toBe("Upload");
+		expect(button?.querySelector(".cline-ui-button__icon--loading")).toBeNull();
+		expect(button?.querySelector(".lucide-plus")).not.toBeNull();
+	});
+
+	it("preserves the label by default and honors explicit disabled while loading", async () => {
+		const onClick = vi.fn();
+		await render(
+			<Button loading disabled onClick={onClick}>
+				Save
+			</Button>,
+		);
+		const button = container.querySelector("button");
+		expect(button?.textContent).toBe("Save");
+		expect(button?.disabled).toBe(true);
+		await act(async () => button?.click());
+		expect(onClick).not.toHaveBeenCalled();
+	});
+
+	it("preserves a composed target, refs, native type, and busy state with a loading label", async () => {
+		const wrapperRef = createRef<HTMLButtonElement>();
+		const childRef = createRef<HTMLButtonElement>();
+		const onClick = vi.fn();
+		await render(
+			<Button asChild loading loadingLabel="Cancel save" ref={wrapperRef}>
+				<button
+					aria-busy={false}
+					type="button"
+					ref={childRef}
+					onClick={onClick}
+				>
+					Save
+				</button>
+			</Button>,
+		);
+		const button = container.querySelector("button");
+		expect(container.querySelectorAll("button")).toHaveLength(1);
+		expect(wrapperRef.current).toBe(button);
+		expect(childRef.current).toBe(button);
+		expect(button?.type).toBe("button");
+		expect(button?.getAttribute("aria-busy")).toBe("true");
+		expect(button?.textContent).toBe("Cancel save");
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+
+	it("allows a custom loading icon without losing the icon-only control's accessible name", async () => {
+		const onClick = vi.fn((event) => event.preventDefault());
+		const childRef = createRef<HTMLAnchorElement>();
+		await render(
+			<IconButton
+				asChild
+				aria-label="Cancel refresh"
+				loading
+				loadingIcon={CustomIcon}
+				icon={Plus}
+			>
+				{/* biome-ignore lint/a11y/useAnchorContent: IconButton supplies the accessible name and icon. */}
+				<a href="/cancel" onClick={onClick} ref={childRef} />
+			</IconButton>,
+		);
+		const link = container.querySelector("a");
+		expect(childRef.current).toBe(link);
+		expect(link?.getAttribute("aria-label")).toBe("Cancel refresh");
+		expect(link?.getAttribute("aria-busy")).toBe("true");
+		const icon = link?.querySelector("svg");
+		expect(icon?.getAttribute("data-icon")).toBe("icon");
+		expect(icon?.getAttribute("aria-hidden")).toBe("true");
+		expect(icon?.classList.contains("cline-ui-button__icon--loading")).toBe(
+			true,
+		);
+		expect(icon?.querySelector("path")?.getAttribute("d")).toBe("M4 12h16");
+		await act(async () => link?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+
+	it("still blocks composed actions explicitly disabled while loading", async () => {
+		const onClick = vi.fn();
+		await render(
+			<IconButton asChild aria-label="Refresh" loading disabled>
+				<a href="/refresh" onClick={onClick}>
+					Refresh
+				</a>
+			</IconButton>,
+		);
+		const link = container.querySelector("a");
+		expect(link?.getAttribute("aria-disabled")).toBe("true");
+		await act(async () => link?.click());
+		expect(onClick).not.toHaveBeenCalled();
+	});
+
+	it("forwards loading through MessageAction without changing its accessible name or chat sizing", async () => {
+		const onClick = vi.fn();
+		await render(
+			<MessageAction
+				label="Fork session"
+				icon={Plus}
+				loading
+				disabled
+				onClick={onClick}
+			/>,
+		);
+		const button = container.querySelector("button");
+		expect(button?.getAttribute("aria-label")).toBe("Fork session");
+		expect(button?.getAttribute("aria-busy")).toBe("true");
+		expect(button?.classList.contains("cline-ui-button-xs")).toBe(true);
+		expect(
+			button?.querySelector(".cline-ui-button__icon--loading"),
+		).not.toBeNull();
+		await act(async () => button?.click());
+		expect(onClick).not.toHaveBeenCalled();
+
+		await render(
+			<MessageAction label="Fork session" icon={Plus} onClick={onClick} />,
+		);
+		expect(button?.getAttribute("aria-busy")).toBeNull();
+		expect(button?.querySelector(".lucide-plus")).not.toBeNull();
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+
+	it("reserves icon tone for managed icons without forwarding component props to the DOM", async () => {
+		await render(
+			<Button iconTone="muted" leadingIcon={Plus}>
+				Add
+			</Button>,
+		);
+		const button = container.querySelector("button");
+		expect(button?.getAttribute("data-icon-tone")).toBe("muted");
+		expect(button?.getAttribute("icontone")).toBeNull();
+		expect(button?.getAttribute("loading")).toBeNull();
+		expect(button?.getAttribute("loadinglabel")).toBeNull();
+	});
+
+	it("only animates loading icons when reduced motion is not requested", () => {
+		const css = readFileSync(
+			join(process.cwd(), "components/button.css"),
+			"utf8",
+		);
+		expect(css).toMatch(
+			/@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.cline-ui-button__icon--loading\s*\{[^}]*animation: cline-ui-button-loading-spin/,
+		);
+		expect(css.match(/animation: cline-ui-button-loading-spin/g)).toHaveLength(
+			1,
+		);
+	});
 });
 
 describe("shared button composition", () => {

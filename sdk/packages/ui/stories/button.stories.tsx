@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	ChevronDown as ChevronIcon,
-	LoaderCircle,
 	Plus as PlusIcon,
+	RefreshCw,
 	Trash2 as TrashIcon,
 } from "lucide-react";
 import { Fragment, type SVGProps, useState } from "react";
@@ -25,6 +25,8 @@ const meta: Meta<typeof Button> = {
 					"Button defaults to primary/accent/md; IconButton defaults to ghost/neutral/sm.\n\n" +
 					"**size** `xs | sm | md | lg` — same names for both Button and IconButton.\n\n" +
 					"**icons** Pass SVG components through `leadingIcon` / `trailingIcon` on Button or `icon` on IconButton. Managed icons inherit dimensions, spacing, and decorative accessibility. Both components also accept existing SVG children; IconButton always requires an accessible label.\n\n" +
+					"**loading** displays a spinner and sets aria-busy. It does not disable the button; set disabled explicitly to block activation or leave it enabled for cancellation. Button accepts loadingLabel; loadingIcon replaces the rotating spinner. Rotation respects reduced motion.\n\n" +
+					"**iconTone** `inherit | muted` changes only managed icons, leaving the label's color unchanged.\n\n" +
 					"**pressScale** defaults to `0.98`. Set `false` to disable press scaling or a number to customize it. Disabled controls and reduced-motion preferences suppress the effect.",
 			},
 		},
@@ -33,6 +35,10 @@ const meta: Meta<typeof Button> = {
 		variant: { control: "select", options: ["primary", "secondary", "ghost"] },
 		tone: { control: "select", options: ["accent", "neutral", "destructive"] },
 		size: { control: "select", options: ["xs", "sm", "md", "lg"] },
+		loading: { control: "boolean" },
+		loadingLabel: { control: "text" },
+		loadingIcon: { control: false },
+		iconTone: { control: "select", options: ["inherit", "muted"] },
 		leadingIcon: {
 			control: "select",
 			options: ["None", "Plus", "Trash"],
@@ -326,15 +332,6 @@ export const Disabled = () => (
 	</div>
 );
 
-function LoadingIcon(props: SVGProps<SVGSVGElement>) {
-	return (
-		<LoaderCircle
-			{...props}
-			className={`${props.className ?? ""} motion-safe:animate-spin`}
-		/>
-	);
-}
-
 export const LoadingWidth = () => {
 	const [loading, setLoading] = useState(false);
 	return (
@@ -352,21 +349,66 @@ export const LoadingWidth = () => {
 			</Button>
 			<div className="flex items-center gap-4">
 				<Button
-					aria-busy={loading}
 					disabled={loading}
-					leadingIcon={loading ? LoadingIcon : undefined}
+					loading={loading}
+					loadingLabel="Saving changes…"
 				>
-					{loading ? "Saving changes…" : "Save"}
+					Save
 				</Button>
 				<Button
-					aria-busy={loading}
 					disabled={loading}
-					leadingIcon={loading ? LoadingIcon : undefined}
+					loading={loading}
+					loadingLabel="Saving changes…"
 					style={{ width: 200 }}
 				>
-					{loading ? "Saving changes…" : "Save"}
+					Save
 				</Button>
 			</div>
 		</div>
 	);
 };
+
+export const LoadingCancellation = () => {
+	const [loading, setLoading] = useState(false);
+	return (
+		<div className="space-y-4 p-8">
+			<p className="text-muted-foreground text-sm">
+				Loading and disabled are independent. This action stays available to
+				cancel.
+			</p>
+			<Button
+				loading={loading}
+				loadingIcon={RefreshCw}
+				loadingLabel="Cancel refresh"
+				leadingIcon={RefreshCw}
+				onClick={() => setLoading(!loading)}
+				variant="secondary"
+				tone="neutral"
+			>
+				Refresh
+			</Button>
+		</div>
+	);
+};
+
+export const MutedIcons = () => (
+	<div className="flex gap-4 p-8">
+		<Button
+			leadingIcon={PlusIcon}
+			trailingIcon={ChevronIcon}
+			tone="neutral"
+			variant="secondary"
+		>
+			Inherited icons
+		</Button>
+		<Button
+			leadingIcon={PlusIcon}
+			trailingIcon={ChevronIcon}
+			iconTone="muted"
+			tone="neutral"
+			variant="secondary"
+		>
+			Muted icons
+		</Button>
+	</div>
+);

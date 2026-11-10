@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { fn } from "storybook/test";
 import { IconButton } from "../components/button";
 
@@ -31,6 +31,9 @@ const meta: Meta<typeof IconButton> = {
 		variant: { control: "select", options: ["primary", "secondary", "ghost"] },
 		tone: { control: "select", options: ["accent", "neutral", "destructive"] },
 		size: { control: "select", options: ["xs", "sm", "md", "lg"] },
+		loading: { control: "boolean" },
+		loadingIcon: { control: false },
+		iconTone: { control: "select", options: ["inherit", "muted"] },
 		pressScale: { control: "select", options: [0.98, 0.95, false] },
 		asChild: { control: false },
 		children: { control: false },
@@ -52,3 +55,12 @@ export default meta;
 type Story = StoryObj<typeof IconButton>;
 
 export const Playground: Story = {};
+
+export const Loading: Story = {
+	args: {
+		"aria-label": "Refreshing",
+		loading: true,
+		loadingIcon: RefreshCw,
+		disabled: true,
+	},
+};

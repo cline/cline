@@ -77,6 +77,11 @@ unless a `type` is specified; a native button without a type submits its form.
 `IconButton` requires an accessible `aria-label`, and both components support
 Radix-style composition through `asChild`.
 
+Both support controlled `loading` with a reduced-motion-aware spinner and
+`aria-busy`; `disabled` remains explicit so loading actions can still offer
+cancellation. `Button` accepts `loadingLabel`, and both accept a custom
+`loadingIcon` and `iconTone="inherit" | "muted"` for managed icons.
+
 Both controls share heights and corner radii per size: `xs`/`sm` use
 `--radius-md`, and `md`/`lg` use `--radius-lg`. At default spacing their heights
 are 1.75rem, 2rem, 2.25rem, and 2.5rem respectively; icon buttons are square.
@@ -108,6 +113,8 @@ dimensions.
 Provide an accessible name with a label or `aria-label`. Its ref targets the
 input; `className` and `style` customize the wrapper. See [switch usage and
 implementation rationale](./ADOPTION.md#switch) for examples and design decisions.
+Use `pending` to temporarily lock a switch while retaining its checked-state
+appearance; explicit `disabled` keeps the unavailable appearance.
 
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.

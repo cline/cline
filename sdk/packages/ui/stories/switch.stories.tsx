@@ -11,7 +11,7 @@ const meta: Meta<typeof Switch> = {
 		docs: {
 			description: {
 				component:
-					"A switch for turning a setting on or off. Pair it with a visible label, or provide an accessible name with aria-label.",
+					"A switch for turning a setting on or off. Pair it with a visible label, or provide an accessible name with aria-label. pending temporarily locks the value and sets aria-busy while retaining its normal appearance, including within a disabled fieldset. Explicit disabled takes precedence and keeps the unavailable appearance.",
 			},
 		},
 	},
@@ -48,6 +48,29 @@ export const Disabled: Story = {
 		<div className="flex items-center gap-6">
 			<Switch {...args} aria-label="Disabled off" disabled />
 			<Switch {...args} aria-label="Disabled on" defaultChecked disabled />
+		</div>
+	),
+};
+
+export const Pending: Story = {
+	render: (args) => (
+		<div className="space-y-5">
+			<div className="flex items-center gap-6">
+				<Switch {...args} aria-label="Saving off" pending />
+				<Switch {...args} aria-label="Saving on" defaultChecked pending />
+				<Switch
+					{...args}
+					aria-label="Unavailable while saving"
+					defaultChecked
+					pending
+					disabled
+				/>
+			</div>
+			<fieldset disabled className="flex items-center gap-6">
+				<legend className="mb-3 text-sm">Temporarily locked form</legend>
+				<Switch {...args} aria-label="Saving form off" pending />
+				<Switch {...args} aria-label="Saving form on" defaultChecked pending />
+			</fieldset>
 		</div>
 	),
 };

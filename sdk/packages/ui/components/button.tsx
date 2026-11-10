@@ -1,6 +1,7 @@
 "use client";
 
 import { cva, type VariantProps } from "class-variance-authority";
+import { LoaderCircle } from "lucide-react";
 import {
 	type ComponentType,
 	cloneElement,
@@ -92,16 +93,25 @@ export interface ButtonProps
 		VariantProps<typeof buttonVariants> {
 	leadingIcon?: ButtonIcon;
 	trailingIcon?: ButtonIcon;
+	/** Show a busy indicator without changing disabled behavior. */
+	loading?: boolean;
+	/** Replace the label while loading; defaults to the existing children. */
+	loadingLabel?: ReactNode;
+	/** Replace the default spinner. The button owns its rotation and reduced motion. */
+	loadingIcon?: ButtonIcon;
+	/** Color managed icons independently of the label. Defaults to inherit. */
+	iconTone?: "inherit" | "muted";
 }
 
 function renderIcon(
 	Icon: ButtonIcon | undefined,
 	position: "leading" | "trailing" | "icon",
+	loading = false,
 ) {
 	return Icon ? (
 		<Icon
 			aria-hidden="true"
-			className="cline-ui-button__icon"
+			className={`cline-ui-button__icon${loading ? " cline-ui-button__icon--loading" : ""}`}
 			data-icon={position}
 			focusable="false"
 		/>
@@ -112,15 +122,21 @@ function composeContent(
 	children: ReactNode,
 	asChild: boolean | undefined,
 	renderContent: (children: ReactNode) => ReactNode,
+	loading = false,
 ) {
 	if (!asChild) return renderContent(children);
-	if (!isValidElement<{ children?: ReactNode }>(children)) return children;
+	if (
+		!isValidElement<Pick<ButtonControlProps, "children" | "aria-busy">>(
+			children,
+		)
+	)
+		return children;
 
 	// Keep the actual target as Slot's only child so ButtonControl can preserve
 	// its ref, native button type, and disabled event handling.
 	return cloneElement(
 		children,
-		undefined,
+		loading ? { "aria-busy": true } : undefined,
 		renderContent(children.props.children),
 	);
 }
@@ -223,6 +239,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 			className,
 			leadingIcon,
 			trailingIcon,
+			loading = false,
+			loadingLabel,
+			loadingIcon = LoaderCircle,
+			iconTone = "inherit",
 			size,
 			tone,
 			variant,
@@ -231,13 +251,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		ref,
 	) => {
 		const animatedRef = useButtonWidthTransition(ref);
+		const activeLeadingIcon = loading ? loadingIcon : leadingIcon;
 		return (
 			<ButtonControl
 				{...props}
+				aria-busy={loading || props["aria-busy"]}
 				asChild={asChild}
 				className={buttonClasses({
 					className: [
-						!leadingIcon && !trailingIcon && "cline-ui-button-legacy-icons",
+						!activeLeadingIcon &&
+							!trailingIcon &&
+							"cline-ui-button-legacy-icons",
 						className,
 					],
 					size,
@@ -245,16 +269,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 					variant,
 				})}
 				data-slot="button"
+				data-icon-tone={iconTone}
+				data-loading={loading || undefined}
 				ref={animatedRef}
 			>
-				{leadingIcon || trailingIcon
-					? composeContent(children, asChild, (label) => (
-							<>
-								{renderIcon(leadingIcon, "leading")}
-								{label}
-								{renderIcon(trailingIcon, "trailing")}
-							</>
-						))
+				{activeLeadingIcon || trailingIcon
+					? composeContent(
+							children,
+							asChild,
+							(label) => (
+								<>
+									{renderIcon(activeLeadingIcon, "leading", loading)}
+									{loading && loadingLabel !== undefined ? loadingLabel : label}
+									{renderIcon(trailingIcon, "trailing")}
+								</>
+							),
+							loading,
+						)
 					: children}
 			</ButtonControl>
 		);
@@ -263,7 +294,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export interface IconButtonProps
-	extends Omit<ButtonProps, "leadingIcon" | "trailingIcon"> {
+	extends Omit<ButtonProps, "leadingIcon" | "trailingIcon" | "loadingLabel"> {
 	"aria-label": string;
 	/** Managed icon content. When omitted, existing children render unchanged. */
 	icon?: ButtonIcon;
@@ -271,25 +302,48 @@ export interface IconButtonProps
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 	(
-		{ asChild, children, className, icon, size, tone, variant, ...props },
+		{
+			asChild,
+			children,
+			className,
+			icon,
+			loading = false,
+			loadingIcon = LoaderCircle,
+			iconTone = "inherit",
+			size,
+			tone,
+			variant,
+			...props
+		},
 		ref,
-	) => (
-		<ButtonControl
-			{...props}
-			asChild={asChild}
-			className={iconButtonClasses({
-				className: [!icon && "cline-ui-button-legacy-icons", className],
-				size,
-				tone,
-				variant,
-			})}
-			data-slot="icon-button"
-			ref={ref}
-		>
-			{icon
-				? composeContent(children, asChild, () => renderIcon(icon, "icon"))
-				: children}
-		</ButtonControl>
-	),
+	) => {
+		const activeIcon = loading ? loadingIcon : icon;
+		return (
+			<ButtonControl
+				{...props}
+				aria-busy={loading || props["aria-busy"]}
+				asChild={asChild}
+				className={iconButtonClasses({
+					className: [!activeIcon && "cline-ui-button-legacy-icons", className],
+					size,
+					tone,
+					variant,
+				})}
+				data-slot="icon-button"
+				data-icon-tone={iconTone}
+				data-loading={loading || undefined}
+				ref={ref}
+			>
+				{activeIcon
+					? composeContent(
+							children,
+							asChild,
+							() => renderIcon(activeIcon, "icon", loading),
+							loading,
+						)
+					: children}
+			</ButtonControl>
+		);
+	},
 );
 IconButton.displayName = "IconButton";

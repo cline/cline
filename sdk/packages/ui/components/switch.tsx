@@ -12,6 +12,8 @@ export interface SwitchProps
 	tone?: "accent" | "neutral";
 	/** Visual size of the switch. Defaults to md. */
 	size?: "sm" | "md";
+	/** Temporarily lock the value while preserving its appearance. Explicit disabled wins. */
+	pending?: boolean;
 	onCheckedChange?: (checked: boolean) => void;
 }
 
@@ -25,6 +27,8 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 			hidden,
 			tone = "accent",
 			size = "md",
+			pending = false,
+			disabled,
 			onChange,
 			onCheckedChange,
 			...props
@@ -45,8 +49,11 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 		>
 			<input
 				{...props}
+				aria-busy={pending || props["aria-busy"]}
 				className="cline-ui-switch__input"
 				data-slot="switch"
+				data-pending={pending && !disabled ? "true" : undefined}
+				disabled={disabled || pending}
 				dir={dir}
 				onChange={(event) => {
 					const checked = event.currentTarget.checked;

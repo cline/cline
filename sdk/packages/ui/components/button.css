@@ -49,6 +49,10 @@
 		flex-shrink: 0;
 	}
 
+	.cline-ui-button[data-icon-tone="muted"] > .cline-ui-button__icon {
+		color: var(--muted-foreground);
+	}
+
 	/* Legacy child icons keep size-based defaults and explicit size overrides. */
 	.cline-ui-button-legacy-icons svg {
 		pointer-events: none;
@@ -259,6 +263,10 @@
 	}
 
 	@media (prefers-reduced-motion: no-preference) {
+		.cline-ui-button__icon--loading {
+			animation: cline-ui-button-loading-spin 1s linear infinite;
+		}
+
 		.cline-ui-button:not([data-press-scale="false"]) {
 			/* Keep SVG pixel snapping consistent before, during, and after a press. */
 			will-change: scale;
@@ -273,5 +281,11 @@
 			) {
 			scale: var(--cline-ui-button-press-scale, 0.98);
 		}
+	}
+}
+
+@keyframes cline-ui-button-loading-spin {
+	to {
+		transform: rotate(360deg);
 	}
 }

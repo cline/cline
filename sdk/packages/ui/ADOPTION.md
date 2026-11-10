@@ -297,6 +297,28 @@ handles sizing, spacing, and decorative accessibility. Custom icons must forward
 SVG props, including `className`. `IconButton` requires an accessible label.
 Existing icon children remain supported.
 
+Use `iconTone="muted"` to give managed icons a quieter color while leaving the
+label unchanged; the default `"inherit"` follows the button's text color.
+Prefer inherited color on solid buttons where the foreground supplies contrast.
+
+Set `loading` to replace the leading icon (or the `IconButton` icon) with a
+spinner and expose `aria-busy`. `Button` keeps its label unless `loadingLabel`
+is supplied. `loadingIcon` accepts an alternative SVG component, such as
+`RefreshCw`; the control owns rotation and respects reduced motion.
+Loading does not disable activation: set `disabled={loading}` for an action
+that must wait, or leave it enabled when clicking should cancel the operation.
+The host owns async work, errors, and the loading state.
+
+```tsx
+<Button loading={saving} loadingLabel="Saving…" disabled={saving}>
+  Save
+</Button>
+<Button loading={refreshing} loadingLabel="Cancel refresh"
+  onClick={refreshing ? cancelRefresh : refresh}>
+  Refresh
+</Button>
+```
+
 Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
 the child's native type behavior is preserved, so set `type="button"` explicitly
 when needed. Custom composed children must forward props, refs, and children;
@@ -361,6 +383,18 @@ Use `defaultChecked` for browser-owned state or `checked` with
 Uncontrolled switches follow native form reset behavior; controlled switches
 must be reset by their owner. Disabled switches, including those in disabled
 fieldsets, are excluded from form submission.
+
+Use `pending={saving}` for a temporary lock that retains the current checked or
+unchecked appearance and sets `aria-busy`. Pending still disables the native
+input, including within a disabled fieldset, so it cannot toggle and is omitted
+from form submission. Explicit `disabled` takes precedence over pending's visual
+treatment; reserve it for unavailable controls instead of repeating the saving
+condition in both props.
+
+```tsx
+<Switch checked={enabled} pending={saving} disabled={!canEdit}
+  onCheckedChange={setEnabled} aria-label="Enable schedule" />
+```
 
 The default `size="md"` preserves the original switch dimensions. Use
 `size="sm"` for a compact switch. Both sizes scale with the root font size and

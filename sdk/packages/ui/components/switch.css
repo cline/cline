@@ -151,6 +151,10 @@
 	cursor: not-allowed;
 }
 
+.cline-ui-switch__input[data-pending="true"] {
+	cursor: wait;
+}
+
 @media (forced-colors: none) {
 	.cline-ui-switch__input:checked + .cline-ui-switch__track {
 		border-color: var(--neutral-a5);
@@ -181,7 +185,7 @@
 	}
 
 	:is(.dark .cline-ui-switch-neutral, .cline-ui-switch-neutral.dark)
-		.cline-ui-switch__input:enabled:checked
+		.cline-ui-switch__input:is(:enabled, [data-pending="true"]):checked
 		+ .cline-ui-switch__track
 		.cline-ui-switch__thumb {
 		/* Match the dark thumb to give it the same visual weight on the light track. */
@@ -193,13 +197,14 @@
 		outline-offset: 2px;
 	}
 
-	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
+		+ .cline-ui-switch__track {
 		border-color: transparent;
 		background: var(--surface-hover-darker);
 		box-shadow: none;
 	}
 
-	.cline-ui-switch__input:disabled
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
 		+ .cline-ui-switch__track
 		.cline-ui-switch__thumb {
 		background: var(--cline-ui-switch-disabled-thumb-background);
@@ -241,12 +246,13 @@
 		outline-offset: 2px;
 	}
 
-	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
+		+ .cline-ui-switch__track {
 		border-color: GrayText;
 		background: Canvas;
 	}
 
-	.cline-ui-switch__input:disabled
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
 		+ .cline-ui-switch__track
 		.cline-ui-switch__thumb {
 		background: GrayText;
