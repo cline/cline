@@ -11,17 +11,20 @@ export interface PillSelectorProps
 	> {
 	/** Item sizing: sm 2rem, md 2.25rem at default spacing. Defaults to md. */
 	size?: "sm" | "md";
+	/** Wrap onto new lines or scroll horizontally. Wrapped arrow navigation follows DOM order. */
+	overflow?: "scroll" | "wrap";
 }
 
 /** A single-selection group. Clicking the selected item emits an empty string. */
 export const PillSelector = forwardRef<HTMLDivElement, PillSelectorProps>(
-	({ className, size = "md", ...props }, ref) => (
+	({ className, size = "md", overflow = "scroll", ...props }, ref) => (
 		<ToggleGroupPrimitive.Root
 			{...props}
 			className={clsx("cline-ui-pill-selector", className)}
 			data-size={size}
+			data-overflow={overflow}
 			data-slot="pill-selector"
-			orientation="horizontal"
+			orientation={overflow === "wrap" ? undefined : "horizontal"}
 			ref={ref}
 			role="radiogroup"
 			rovingFocus
