@@ -194,6 +194,7 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import { exportSessionHistoryFile } from "./session-export";
 import {
 	getCommitDetails,
 	getCommitFileDiff,
@@ -209,7 +210,7 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
-import { pickWorkspaceDirectory } from "./workspace-picker";
+import { pickSaveFilePath, pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
 // single event loop shared by every UI command and streaming chat session, so
@@ -2783,6 +2784,56 @@ export async function handleCommand(
 		}
 		return merged;
 	}
+	if (command === "export_chat_session_history") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("session export requires a trusted desktop connection");
+		}
+		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		// Only local sessions keep their history on this machine's disk.
+		if (getCloudSessionManager(ctx).isCloudSession(sessionId)) {
+			throw new Error("Only local sessions can be exported.");
+		}
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (binding?.kind === "ssh") {
+			throw new Error("Only local sessions can be exported.");
+		}
+		const session = await binding?.sessionManager.get(sessionId);
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (
+			session?.status === "running" ||
+			liveSession?.busy ||
+			liveSession?.status === "running"
+		) {
+			throw new Error(
+				"Wait until the session stops running before exporting its history.",
+			);
+		}
+		let recordedMessagesPath: string | undefined;
+		try {
+			recordedMessagesPath = new SqliteSessionStore().get(
+				sessionId,
+			)?.messagesPath;
+		} catch {
+			// No session database on this host; fall back to the manifest.
+		}
+		const manifest = readSessionManifest(sessionId);
+		const result = await exportSessionHistoryFile({
+			sessionId,
+			destinationPath: String(args?.destinationPath ?? ""),
+			recordedPaths: [
+				recordedMessagesPath,
+				typeof manifest?.messages_path === "string"
+					? manifest.messages_path
+					: null,
+			],
+		});
+		ctx.logger?.log("Desktop chat session history exported", {
+			sessionId,
+			path: result.path,
+		});
+		return result;
+	}
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -3857,6 +3908,9 @@ export async function handleCommand(
 	if (command === "pick_workspace_directory") {
 		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") return null;
 		return await pickWorkspaceDirectory();
+	}
+	if (command === "pick_save_file_path") {
+		return await pickSaveFilePath(String(args?.defaultFileName ?? ""));
 	}
 	if (command === "open_mcp_settings_file") {
 		const path = (

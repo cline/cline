@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -123,5 +124,88 @@ export async function pickWorkspaceDirectory(
 		failures.length > 0
 			? folderPickerFailedMessage(failures)
 			: FOLDER_PICKER_UNAVAILABLE_MESSAGE,
+	);
+}
+
+export const SAVE_DIALOG_UNAVAILABLE_MESSAGE =
+	"No system save dialog found (zenity or kdialog).";
+
+function saveDialogFailedMessage(failures: string[]): string {
+	return `The save dialog could not be opened (${failures.join("; ")}).`;
+}
+
+// Only the line terminator the dialog prints: a file name may legitimately
+// contain other leading or trailing whitespace.
+function normalizePickedFilePath(stdout: string): string | null {
+	const path = stdout.replace(/[\r\n]+$/, "");
+	return path.trim() ? path : null;
+}
+
+/**
+ * "Save as" dialog for sidecar/web mode (the Tauri shell uses its own native
+ * command). Same contract as pickWorkspaceDirectory: resolves to the chosen
+ * file path, resolves to null only when the user cancels, and throws when no
+ * dialog could be opened. Each backend confirms replacing an existing file.
+ */
+export async function pickSaveFilePath(
+	defaultFileName: string,
+	exec: PickerExec = defaultExec,
+	platform: NodeJS.Platform = process.platform,
+): Promise<string | null> {
+	// A suggestion only ever names a file, never a location.
+	const fileName = basename(defaultFileName.trim()) || "export.json";
+	if (platform === "darwin") {
+		try {
+			// The name is passed as an argument, not spliced into the script, so
+			// it cannot be interpreted as AppleScript.
+			const { stdout } = await exec("osascript", [
+				"-e",
+				"on run argv",
+				"-e",
+				'set theFile to choose file name with prompt "Export session history" default name (item 1 of argv)',
+				"-e",
+				"return POSIX path of theFile",
+				"-e",
+				"end run",
+				fileName,
+			]);
+			return normalizePickedFilePath(stdout);
+		} catch (error) {
+			if (isPickerCancellation(error)) return null;
+			throw new Error(
+				saveDialogFailedMessage([describePickerFailure("osascript", error)]),
+			);
+		}
+	}
+	const suggestedPath = join(homedir(), fileName);
+	const backends: { name: string; args: string[] }[] = [
+		{
+			name: "zenity",
+			args: [
+				"--file-selection",
+				"--save",
+				"--confirm-overwrite",
+				"--title=Export session history",
+				`--filename=${suggestedPath}`,
+			],
+		},
+		{ name: "kdialog", args: ["--getsavefilename", suggestedPath] },
+	];
+	const failures: string[] = [];
+	for (const backend of backends) {
+		try {
+			const { stdout } = await exec(backend.name, backend.args);
+			return normalizePickedFilePath(stdout);
+		} catch (error) {
+			if (isPickerCancellation(error)) return null;
+			if (!isPickerCommandMissing(error)) {
+				failures.push(describePickerFailure(backend.name, error));
+			}
+		}
+	}
+	throw new Error(
+		failures.length > 0
+			? saveDialogFailedMessage(failures)
+			: SAVE_DIALOG_UNAVAILABLE_MESSAGE,
 	);
 }

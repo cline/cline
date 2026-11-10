@@ -3,7 +3,9 @@ import {
 	FOLDER_PICKER_UNAVAILABLE_MESSAGE,
 	normalizePickedDirectory,
 	type PickerExec,
+	pickSaveFilePath,
 	pickWorkspaceDirectory,
+	SAVE_DIALOG_UNAVAILABLE_MESSAGE,
 } from "./workspace-picker";
 
 /** Builds an error shaped like execFile's rejection values. */
@@ -109,6 +111,84 @@ describe("pickWorkspaceDirectory (darwin)", () => {
 		await expect(pickWorkspaceDirectory(exec, "darwin")).rejects.toThrow(
 			"osascript failed to launch (EMFILE)",
 		);
+	});
+});
+
+describe("pickSaveFilePath", () => {
+	/** Like fakeExec, but also records the arguments each backend received. */
+	function recordingExec(outcomes: Record<string, string | Error>) {
+		const calls: Array<{ command: string; args: string[] }> = [];
+		const exec: PickerExec = (command, args) => {
+			calls.push({ command, args });
+			const outcome = outcomes[command];
+			if (outcome === undefined) return Promise.reject(MISSING);
+			if (outcome instanceof Error) return Promise.reject(outcome);
+			return Promise.resolve({ stdout: outcome });
+		};
+		return { exec, calls };
+	}
+
+	it("returns the path the user saved to, with the name they typed", async () => {
+		const { exec, calls } = recordingExec({
+			osascript: "/Users/user/Desktop/my export.json\n",
+		});
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "darwin"),
+		).resolves.toBe("/Users/user/Desktop/my export.json");
+		// Passed as an argument rather than spliced into the script.
+		expect(calls[0].args.at(-1)).toBe("ses-1.messages.json");
+		expect(calls[0].args.join(" ")).toContain("choose file name");
+	});
+
+	it("suggests only a file name, never a location", async () => {
+		const { exec, calls } = recordingExec({ osascript: "/tmp/out.json\n" });
+		await pickSaveFilePath("../../etc/ses-1.messages.json", exec, "darwin");
+		expect(calls[0].args.at(-1)).toBe("ses-1.messages.json");
+	});
+
+	it("returns null when the user cancels", async () => {
+		const { exec } = recordingExec({ osascript: CANCEL });
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "darwin"),
+		).resolves.toBeNull();
+	});
+
+	it("throws when osascript fails for a reason other than cancel", async () => {
+		const { exec } = recordingExec({ osascript: LAUNCH_FAILURE });
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "darwin"),
+		).rejects.toThrow("osascript failed to launch (EACCES)");
+	});
+
+	it("asks zenity for a save dialog that confirms overwriting", async () => {
+		const { exec, calls } = recordingExec({
+			zenity: "/home/user/out.json\n",
+		});
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "linux"),
+		).resolves.toBe("/home/user/out.json");
+		expect(calls[0].args).toContain("--save");
+		expect(calls[0].args).toContain("--confirm-overwrite");
+		expect(calls[0].args.at(-1)).toMatch(/ses-1\.messages\.json$/);
+	});
+
+	it("falls back to kdialog when zenity is missing", async () => {
+		const { exec, calls } = recordingExec({
+			zenity: MISSING,
+			kdialog: "/home/user/out.json\n",
+		});
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "linux"),
+		).resolves.toBe("/home/user/out.json");
+		expect(calls.map((call) => call.command)).toEqual(["zenity", "kdialog"]);
+		expect(calls[1].args[0]).toBe("--getsavefilename");
+	});
+
+	it("throws the unavailable message when no backend is installed", async () => {
+		const { exec } = recordingExec({});
+		await expect(
+			pickSaveFilePath("ses-1.messages.json", exec, "linux"),
+		).rejects.toThrow(SAVE_DIALOG_UNAVAILABLE_MESSAGE);
 	});
 });
 

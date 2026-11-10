@@ -167,6 +167,7 @@ await ctx.hubClient.command("schedule.list", { limit: 200 });
 ### 6. Native Commands
 
 - `pick_workspace_directory` — Uses macOS `osascript` / Linux `zenity` for directory picker
+- `pick_save_file_path` — Uses macOS `osascript` / Linux `zenity` or `kdialog` for a "Save as" dialog
 - `open_mcp_settings_file` — Uses `open` / `xdg-open` to open files
 
 ### 7. Frontend Connection
@@ -267,6 +268,8 @@ Supported commands:
 | `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
+| `pick_save_file_path` | OS native dialog |
+| `export_chat_session_history` | Direct file copy |
 | `open_mcp_settings_file` | OS `open` command |
 
 ## Dev Workflow

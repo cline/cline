@@ -97,6 +97,7 @@ import {
 import { useAccount } from "@/contexts/account-context";
 import { useHasConnectedProvider } from "@/hooks/use-has-connected-provider";
 import type {
+	SessionPendingAction,
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
@@ -1591,7 +1592,7 @@ function ThreadItem({
 	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
-	pendingAction: "rename" | "fork" | "delete" | null;
+	pendingAction: NonNullable<SessionPendingAction>["action"] | null;
 	unread: boolean;
 }) {
 	const title = normalizeTitle(thread.title);
@@ -1813,7 +1814,7 @@ function SessionContextMenuContent({
 	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
-	pendingAction: "rename" | "fork" | "delete" | null;
+	pendingAction: NonNullable<SessionPendingAction>["action"] | null;
 }) {
 	const pending = pendingAction !== null;
 	return (
