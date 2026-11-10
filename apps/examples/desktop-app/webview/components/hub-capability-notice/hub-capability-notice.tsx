@@ -44,6 +44,7 @@ function readActivity(value: unknown): HubSessionActivity | null {
 		activePluginRequests,
 		activeCloudCommands,
 		activeProviderMutations,
+		activeMcpRequests,
 	} = value as HubSessionActivity;
 	return typeof activeSessionCount === "number"
 		? {
@@ -52,6 +53,7 @@ function readActivity(value: unknown): HubSessionActivity | null {
 				activePluginRequests,
 				activeCloudCommands,
 				activeProviderMutations,
+				activeMcpRequests,
 			}
 		: null;
 }

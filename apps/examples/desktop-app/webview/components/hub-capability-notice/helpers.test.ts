@@ -5,6 +5,7 @@ import {
 } from "../hub-update-required-helpers";
 import {
 	describeHubRestartInterruption,
+	hubHasNothingToInterrupt,
 	persistHubCapabilityNoticeDismissal,
 	readHubCapabilityNoticeDismissal,
 } from "./helpers";
@@ -138,6 +139,20 @@ describe("the plugin suggestions notice", () => {
 		).toBe(
 			"The Hub is running 2 plugin commands, a cloud session command and a provider settings change. Restarting interrupts them.",
 		);
+	});
+
+	it("words the interruption of MCP server requests the Hub is running", () => {
+		expect(
+			describeHubRestartInterruption({
+				activeSessionCount: 0,
+				activeMcpRequests: 2,
+			}),
+		).toBe(
+			"The Hub is running 2 MCP server requests. Restarting interrupts them.",
+		);
+		expect(
+			hubHasNothingToInterrupt({ activeSessionCount: 0, activeMcpRequests: 1 }),
+		).toBe(false);
 	});
 
 	it("still states the cost when the Hub could not be read", () => {

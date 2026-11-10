@@ -249,6 +249,7 @@ describe("hub_session_activity command", () => {
 			activePluginRequests: 0,
 			activeCloudCommands: 0,
 			activeProviderMutations: 0,
+			activeMcpRequests: 0,
 		});
 		expect(hubCommand).toHaveBeenCalledWith("session.list", { limit: 500 });
 	});

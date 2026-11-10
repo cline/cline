@@ -32,6 +32,7 @@ export type HubSessionActivity = {
 	activePluginRequests?: number;
 	activeCloudCommands?: number;
 	activeProviderMutations?: number;
+	activeMcpRequests?: number;
 };
 
 /** Work the Hub runs without an attached session, and how to name it. */
@@ -43,6 +44,7 @@ const SESSIONLESS_WORK = [
 		"a provider settings change",
 		"provider settings changes",
 	],
+	["activeMcpRequests", "an MCP server request", "MCP server requests"],
 ] as const;
 
 export function hubHasNothingToInterrupt(

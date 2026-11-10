@@ -74,10 +74,12 @@ function createContext() {
 	const hubCommand = vi.fn(async (command: string, _payload?: unknown) =>
 		command === "settings.toggle"
 			? { ok: true, payload: { snapshot: EMPTY_SETTINGS } }
-			: {
-					ok: false,
-					error: { code: "plugin_not_found", message: "not loaded" },
-				},
+			: command === "mcp.servers.list"
+				? { ok: true, payload: { servers: [] } }
+				: {
+						ok: false,
+						error: { code: "plugin_not_found", message: "not loaded" },
+					},
 	);
 	const socketSend = vi.fn();
 	const ctx = {

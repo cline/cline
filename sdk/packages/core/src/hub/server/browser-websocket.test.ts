@@ -685,12 +685,18 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(firstConnection).not.toBe(secondConnection);
 
 		first.emitClose();
-		expect(transport.command).toHaveBeenLastCalledWith({
-			version: "v1",
-			command: "client.unregister",
-			clientId: "client-1",
-			payload: { connectionId: firstConnection },
-		});
+		expect(transport.command).toHaveBeenLastCalledWith(
+			{
+				version: "v1",
+				command: "client.unregister",
+				clientId: "client-1",
+				payload: { connectionId: firstConnection },
+			},
+			expect.objectContaining({
+				clientId: "client-1",
+				connectionId: firstConnection,
+			}),
+		);
 	});
 
 	it("marks commands before registration as explicitly unauthorized", async () => {
