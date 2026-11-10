@@ -118,6 +118,7 @@ export async function startLocalOAuthServer(
 	};
 
 	const waitForCallback = async () => {
+		if (settled) return deferred.promise;
 		timeout = setTimeout(() => {
 			close();
 			settle(null);

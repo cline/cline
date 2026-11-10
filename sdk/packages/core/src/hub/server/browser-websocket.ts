@@ -531,12 +531,15 @@ export class BrowserWebSocketHubAdapter {
 			}
 			subscriptions.clear();
 			for (const clientId of registeredClientIds) {
-				void this.transport.command({
-					version: "v1",
-					command: "client.unregister",
-					clientId,
-					payload: { connectionId },
-				});
+				void this.transport.command(
+					{
+						version: "v1",
+						command: "client.unregister",
+						clientId,
+						payload: { connectionId },
+					},
+					authority ?? null,
+				);
 			}
 			registeredClientIds.clear();
 			socket.removeEventListener("message", onMessage);

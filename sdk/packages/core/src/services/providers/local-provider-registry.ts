@@ -372,16 +372,14 @@ function toStoredModelInfo(
 		if (model.supportsReasoning) capabilities.add("reasoning");
 		else capabilities.delete("reasoning");
 	}
-	// An unspecified capability list fails open for tool calling
-	// (modelSupportsToolCalling), but any populated list is treated as
-	// authoritative — a partial one without "tools" silently revokes every
-	// tool definition (#13463). Stored entries and user-authored provider
-	// metadata cannot declare "cannot call tools" (there is no supportsTools
-	// field, and no writer intentionally omits "tools"): their lists are
-	// partial overlays, not authoritative catalogs. Seed "tools" into any
-	// non-empty list for a language model unless the list is anchored on
-	// generated catalog metadata, which IS authoritative (a genuine no-tools
-	// catalog model must stay that way). An empty set stays absent so every
+	// The runtime treats a populated capability list as authoritative: one
+	// without "tools" drops every tool definition, one without "reasoning"
+	// drops an explicit reasoning disable. A stored entry or user-authored
+	// provider metadata is only a partial overlay, which cannot deny tool
+	// calling (there is no supportsTools field) and denies reasoning only
+	// with supportsReasoning: false, so seed both into a non-empty list for a
+	// language model. Lists anchored on generated catalog metadata are
+	// authoritative and stay as they are; an empty set stays absent so every
 	// gate keeps its own fail-open default.
 	if (
 		!capabilitiesAreAuthoritative &&
@@ -389,6 +387,9 @@ function toStoredModelInfo(
 		(model?.operation === undefined || model.operation === "language")
 	) {
 		capabilities.add("tools");
+		if (model?.supportsReasoning === undefined) {
+			capabilities.add("reasoning");
+		}
 	}
 
 	const apiFormat = model?.apiFormat;

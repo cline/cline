@@ -1068,7 +1068,7 @@ export function MarketplaceView({
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"install_marketplace_entry",
 				{ entry },
-				{ timeoutMs: INSTALL_TIMEOUT_MS },
+				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, {
 				status: "installed",
@@ -1099,7 +1099,7 @@ export function MarketplaceView({
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"uninstall_marketplace_entry",
 				{ entry },
-				{ timeoutMs: INSTALL_TIMEOUT_MS },
+				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, {
 				status: "uninstalled",
