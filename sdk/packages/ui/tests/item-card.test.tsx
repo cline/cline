@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from "react";
+import { act, createRef, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ItemCard } from "../components/item-card.js";
@@ -27,6 +27,24 @@ function primary() {
 }
 
 describe("ItemCard", () => {
+	it("exposes separate root and primary button refs for focus restoration", async () => {
+		const rootRef = createRef<HTMLDivElement>();
+		const actionRef = createRef<HTMLButtonElement>();
+		await render(
+			<ItemCard
+				ref={rootRef}
+				title="Calendar"
+				primaryAction={{ ref: actionRef, onClick: () => {} }}
+			/>,
+		);
+		expect(rootRef.current).toBe(container.firstElementChild);
+		expect(actionRef.current).toBe(primary());
+		await act(async () => actionRef.current?.focus());
+		expect(document.activeElement).toBe(primary());
+		await render(<ItemCard ref={rootRef} title="Calendar" />);
+		expect(actionRef.current).toBeNull();
+		expect(rootRef.current).toBe(container.firstElementChild);
+	});
 	it("uses a named native primary button and keeps all other interactives independent", async () => {
 		const open = vi.fn(),
 			action = vi.fn(),

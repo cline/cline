@@ -6,12 +6,15 @@ import {
 	forwardRef,
 	type MouseEventHandler,
 	type ReactNode,
+	type Ref,
 	useId,
 } from "react";
 import { ButtonControl } from "./button-control.js";
 import { hasContent } from "./has-content.js";
 
 export interface ItemCardPrimaryAction {
+	/** Access the native primary button for focus restoration. */
+	ref?: Ref<HTMLButtonElement>;
 	onClick: MouseEventHandler<HTMLButtonElement>;
 	label?: string;
 	disabled?: boolean;
@@ -115,6 +118,7 @@ export const ItemCard = forwardRef<HTMLDivElement, ItemCardProps>(
 			>
 				{primaryAction ? (
 					<ButtonControl
+						ref={primaryAction.ref}
 						className="cline-ui-item-card__primary"
 						data-slot="item-card-primary"
 						onClick={primaryAction.onClick}

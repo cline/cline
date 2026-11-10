@@ -25,6 +25,12 @@ export interface AlertDialogProps {
 	confirmTone?: ButtonTone;
 	confirmDisabled?: boolean;
 	cancelDisabled?: boolean;
+	/** Shows confirmation progress and disables confirm; cancel remains independently controlled. */
+	confirmLoading?: boolean;
+	/** Request closure after confirmation unless the handler prevents default. Defaults to true. */
+	closeOnConfirm?: boolean;
+	/** Allow Escape dismissal. Explicit Cancel and Confirm actions remain available. */
+	dismissible?: boolean;
 	/** Mount inside a themed wrapper when the host uses scoped tokens. */
 	portalContainer?: ComponentProps<
 		typeof AlertDialogPrimitive.Portal
@@ -46,9 +52,13 @@ export function AlertDialog({
 	confirmTone = "neutral",
 	confirmDisabled = false,
 	cancelDisabled = false,
+	confirmLoading = false,
+	closeOnConfirm = true,
+	dismissible = true,
 	portalContainer,
 	children,
 }: AlertDialogProps) {
+	const isConfirmDisabled = confirmDisabled || confirmLoading;
 	const focus = useDialogFocus({
 		// Radix focuses Cancel unless it is disabled; keep pending dialogs focused.
 		focusContent: cancelDisabled,
@@ -56,7 +66,7 @@ export function AlertDialog({
 	const focusedActionRef = useRef<HTMLButtonElement | null>(null);
 
 	useEffect(() => {
-		if (!open || (!cancelDisabled && !confirmDisabled)) return;
+		if (!open || (!cancelDisabled && !isConfirmDisabled)) return;
 		const content = focus.contentRef.current;
 		const action = focusedActionRef.current;
 		if (!content || !action?.disabled || !content.contains(action)) return;
@@ -68,7 +78,7 @@ export function AlertDialog({
 			activeElement === content.ownerDocument.body
 		)
 			content.focus({ preventScroll: true });
-	}, [open, cancelDisabled, confirmDisabled, focus.contentRef]);
+	}, [open, cancelDisabled, isConfirmDisabled, focus.contentRef]);
 
 	return (
 		<AlertDialogPrimitive.Root onOpenChange={onOpenChange} open={open}>
@@ -83,6 +93,9 @@ export function AlertDialog({
 					data-slot="alert-dialog-content"
 					onCloseAutoFocus={focus.onCloseAutoFocus}
 					onOpenAutoFocus={focus.onOpenAutoFocus}
+					onEscapeKeyDown={(event) => {
+						if (!dismissible) event.preventDefault();
+					}}
 					onFocusCapture={() => {
 						focusedActionRef.current = null;
 					}}
@@ -122,8 +135,12 @@ export function AlertDialog({
 						</AlertDialogPrimitive.Cancel>
 						<AlertDialogPrimitive.Action asChild>
 							<Button
-								disabled={confirmDisabled}
-								onClick={onConfirm}
+								disabled={isConfirmDisabled}
+								loading={confirmLoading}
+								onClick={(event) => {
+									onConfirm(event);
+									if (!closeOnConfirm) event.preventDefault();
+								}}
 								onFocus={(event) => {
 									focusedActionRef.current = event.currentTarget;
 								}}

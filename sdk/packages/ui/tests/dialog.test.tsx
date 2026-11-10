@@ -406,6 +406,55 @@ describe("Dialog", () => {
 		expect(dialog()).not.toBeNull();
 	});
 
+	it("blocks passive dismissal when not dismissible and still lets the host close", async () => {
+		const onOpenChange = vi.fn();
+		const onEscapeKeyDown = vi.fn();
+		const onPointerDownOutside = vi.fn();
+		const props = {
+			open: true,
+			title: "Importing sessions",
+			dismissible: false,
+			onOpenChange,
+			onEscapeKeyDown,
+			onPointerDownOutside,
+		};
+		await render(<Dialog {...props} />);
+		expect(button("Close").disabled).toBe(true);
+		const content = dialog();
+		if (!content) throw new Error("Missing dialog");
+		await pressKey(content, "Escape");
+		await act(async () => button("Close").click());
+		await clickOutside();
+		expect(onEscapeKeyDown).toHaveBeenCalledOnce();
+		expect(onPointerDownOutside).toHaveBeenCalledOnce();
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(dialog()).not.toBeNull();
+		await render(<Dialog {...props} open={false} />);
+		expect(dialog()).toBeNull();
+	});
+
+	it("leaves keyboard scrolling to contained children without adding a body tab stop", async () => {
+		await render(
+			<Example bodyLayout="contained">
+				{/* biome-ignore lint/a11y/noNoninteractiveTabindex: This is the host-owned keyboard scroll target. */}
+				<div role="document" tabIndex={0}>
+					Scrollable results
+				</div>
+			</Example>,
+		);
+		const body = dialog()?.querySelector('[data-slot="dialog-body"]');
+		expect(body?.hasAttribute("tabindex")).toBe(false);
+		const results = body?.querySelector<HTMLElement>('[tabindex="0"]');
+		await act(async () => results?.focus());
+		expect(document.activeElement).toBe(results);
+		await render(<Example>Default scrolling body</Example>);
+		expect(
+			dialog()
+				?.querySelector('[data-slot="dialog-body"]')
+				?.getAttribute("tabindex"),
+		).toBe("0");
+	});
+
 	it("keeps focus inside when the close button is hidden and footer actions are disabled", async () => {
 		await render(
 			<Dialog
