@@ -23,29 +23,113 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
-import { useFactoryAttention } from "@/hooks/use-factory-attention";
+import {
+	type FactoryAttention,
+	useFactoryAttention,
+} from "@/hooks/use-factory-attention";
 import { desktopClient } from "@/lib/desktop-client";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { DEFAULT_FACTORY, FeatureDetail } from "./factory-detail";
 
-const COLUMNS = ["Backlog", "Design", "Running", "Review"] as const;
-export function factoryColumn(
+const COLUMNS = ["Queued", "Working", "Needs you", "Done"] as const;
+function factoryActivity(
 	task: AgendaTaskRecord,
-): (typeof COLUMNS)[number] {
-	switch (task.status) {
-		case "in_progress":
-			return "Running";
-		case "completed":
-			return "Review";
-		case "pending_approval":
-			return task.factory?.approval === "automatic" ? "Backlog" : "Design";
-		case "failed":
-			return "Design";
-		case "approved":
-		case "cancelled":
-		case "expired":
-			return "Backlog";
+	attention: FactoryAttention | undefined,
+): { column: (typeof COLUMNS)[number]; label: string } {
+	const state = attention?.outcome;
+	const pendingQuestion =
+		attention?.questions.length ||
+		task.factoryQuestions?.some(
+			(question) =>
+				question.status === "pending" && question.revision === task.revision,
+		);
+	if (pendingQuestion)
+		return { column: "Needs you", label: "Answer a question" };
+	if (task.status === "failed" || task.error)
+		return { column: "Needs you", label: "Resolve failure" };
+	if (state?.audit?.finding)
+		return { column: "Needs you", label: "Review sampled finding" };
+	const design =
+		task.factoryDesignProgress?.revision === task.revision
+			? task.factoryDesignProgress
+			: undefined;
+	if (
+		(task.status === "pending_approval" || task.status === "approved") &&
+		design &&
+		design.phase !== "complete"
+	)
+		return {
+			column: "Working",
+			label: design.phase === "designing" ? "Scoping" : "Reviewing plan",
+		};
+	if (attention?.needsAttention)
+		return {
+			column: "Needs you",
+			label:
+				state?.phase === "blocked"
+					? "Resolve blocker"
+					: state?.followupPaused
+						? "Resume PR follow-up"
+						: task.status === "pending_approval"
+							? "Approve plan"
+							: "Ready for signoff",
+		};
+	if (state?.humanApproval) return { column: "Done", label: "Checked off" };
+	if (
+		task.status === "in_progress" ||
+		(state &&
+			[
+				"implementing",
+				"verifying",
+				"reviewing",
+				"repairing",
+				"publishing",
+				"watching",
+			].includes(state.phase))
+	) {
+		const roles = state?.activeRoles ?? [];
+		const counts = [
+			["builder", "implementer"],
+			["verifier", "verifier"],
+			["reviewer", "reviewer"],
+		]
+			.map(([role, label]) => {
+				const count = roles.filter((active) => active === role).length;
+				return count ? `${count} ${label}${count === 1 ? "" : "s"}` : "";
+			})
+			.filter(Boolean)
+			.join(" · ");
+		const label = state
+			? {
+					implementing: "Implementing",
+					verifying: "Running checks",
+					reviewing: "Agent code review",
+					repairing: "Fixing findings",
+					publishing: "Publishing draft PR",
+					watching: "Waiting for CI / PR follow-up",
+					ready: "Finishing execution",
+					blocked: "Blocked",
+				}[state.phase]
+			: "Starting execution";
+		return {
+			column: "Working",
+			label: counts ? `${label} · ${counts}` : label,
+		};
 	}
+	return {
+		column: "Queued",
+		label:
+			task.status === "completed"
+				? "Loading outcome…"
+				: task.status === "approved"
+					? "Queued for implementation"
+					: design?.phase === "complete" &&
+							task.factory?.approval === "automatic"
+						? "Queued for implementation"
+						: attention
+							? "Queued for scoping"
+							: "Loading activity…",
+	};
 }
 const labelClass = "block space-y-2 text-sm font-medium";
 
@@ -69,8 +153,31 @@ export function FactoryView({
 	const [needsYouOnly, setNeedsYouOnly] = useState(false);
 	const [showOutcomes, setShowOutcomes] = useState(false);
 	const [samplesOnly, setSamplesOnly] = useState(false);
+	const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
+	const currentAttention = new Map(
+		attention.items
+			.filter((item) => {
+				const task = tasksById.get(item.taskId);
+				return (
+					!attention.error &&
+					task?.revision === item.revision &&
+					(!item.outcome ||
+						item.runId === (task.currentRunId ?? task.lastRunId))
+				);
+			})
+			.map((item) => [item.taskId, item]),
+	);
+	const boardTasks = tasks.filter(
+		(task) => task.status !== "cancelled" && task.status !== "expired",
+	);
+	const activities = new Map(
+		boardTasks.map((task) => [
+			task.taskId,
+			factoryActivity(task, currentAttention.get(task.taskId)),
+		]),
+	);
 	const outcomes = new Map(
-		attention.items.map((item) => [item.taskId, item.outcome]),
+		[...currentAttention.values()].map((item) => [item.taskId, item.outcome]),
 	);
 	const finished = tasks.filter((task) =>
 		["completed", "failed", "cancelled", "expired"].includes(task.status),
@@ -80,10 +187,11 @@ export function FactoryView({
 		return audit && !audit.reviewedAt;
 	});
 	const needsYou = (task: AgendaTaskRecord) =>
-		attention.items.some(
-			(item) => item.taskId === task.taskId && item.needsAttention,
-		);
-	const attentionCount = tasks.filter(needsYou).length;
+		activities.get(task.taskId)?.column === "Needs you";
+	const attentionCount = boardTasks.filter(needsYou).length;
+	const visibleOutcomes = (samplesOnly ? sampleQueue : finished).filter(
+		(task) => !needsYouOnly || needsYou(task),
+	);
 	const [selectedId, setSelectedId] = useState<string | null>(() =>
 		typeof window === "undefined"
 			? null
@@ -96,12 +204,18 @@ export function FactoryView({
 	const selected = tasks.find((task) => task.taskId === selectedId);
 	const ready = tasks.filter(
 		(task) =>
-			task.status === "approved" ||
+			(task.status === "approved" &&
+				activities.get(task.taskId)?.column === "Queued") ||
 			(task.status === "pending_approval" &&
 				task.factory?.approval === "automatic" &&
-				task.factory.checks.length > 0),
+				task.factory.checks.length > 0 &&
+				activities.get(task.taskId)?.column === "Queued" &&
+				(!task.factoryDesignProgress ||
+					task.factoryDesignProgress.phase === "complete")),
 	);
-	const running = tasks.filter((task) => task.status === "in_progress").length;
+	const running = boardTasks.filter(
+		(task) => activities.get(task.taskId)?.column === "Working",
+	).length;
 	const selectTask = (id: string | null) => {
 		setSelectedId(id);
 		if (id) sessionStorage.setItem("factory.selectedTask", id);
@@ -181,7 +295,7 @@ export function FactoryView({
 			<div className="flex items-center gap-3 px-6 py-3 text-xs text-muted-foreground">
 				<span className="size-1.5 rounded-full bg-emerald-500" />
 				Local execution<span>·</span>
-				<span>{running} running</span>
+				<span>{running} working</span>
 				<span>·</span>
 				<span>Draft PRs require opt-in</span>
 				<Button
@@ -274,7 +388,7 @@ export function FactoryView({
 							</tr>
 						</thead>
 						<tbody>
-							{(samplesOnly ? sampleQueue : finished).map((task) => {
+							{visibleOutcomes.map((task) => {
 								const outcome = outcomes.get(task.taskId);
 								return (
 									<tr key={task.taskId} className="border-b">
@@ -288,9 +402,11 @@ export function FactoryView({
 											</button>
 										</td>
 										<td className="p-2">
-											{outcome?.humanApproval
-												? "Checked off"
-												: (outcome?.phase ?? task.status)}
+											{task.status === "cancelled" || task.status === "expired"
+												? task.status
+												: outcome?.humanApproval
+													? "Checked off"
+													: (outcome?.phase ?? task.status)}
 										</td>
 										<td className="p-2">
 											{outcome?.usage
@@ -308,7 +424,7 @@ export function FactoryView({
 							})}
 						</tbody>
 					</table>
-					{(samplesOnly ? sampleQueue : finished).length === 0 ? (
+					{visibleOutcomes.length === 0 ? (
 						<p className="py-8 text-sm text-muted-foreground">
 							{samplesOnly
 								? "No samples waiting for review."
@@ -338,9 +454,9 @@ export function FactoryView({
 			) : (
 				<div className="grid min-h-80 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
 					{COLUMNS.map((column) => {
-						const items = tasks.filter(
+						const items = boardTasks.filter(
 							(task) =>
-								factoryColumn(task) === column &&
+								activities.get(task.taskId)?.column === column &&
 								(!needsYouOnly || needsYou(task)),
 						);
 						return (
@@ -383,28 +499,24 @@ export function FactoryView({
 												{task.description || task.instructions}
 											</p>
 											<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-												{task.status === "in_progress" ? (
+												{column === "Working" ? (
 													<Loader2 className="size-3 animate-spin" />
-												) : task.status === "completed" ? (
+												) : column === "Done" ? (
 													<CheckCircle2 className="size-3 text-emerald-500" />
 												) : null}
-												<span>
-													{task.status === "completed"
-														? "Review changes"
-														: task.status.replaceAll("_", " ")}
-												</span>
+												<span>{activities.get(task.taskId)?.label}</span>
 											</div>
 										</button>
 									))}
 									{items.length === 0 ? (
 										<p className="rounded-lg border border-dashed px-3 py-8 text-center text-xs leading-5 text-muted-foreground">
-											{column === "Backlog"
-												? "Approved features wait here."
-												: column === "Design"
-													? "Clarify scope and approve the checks."
-													: column === "Running"
+											{column === "Queued"
+												? "Features waiting to start."
+												: column === "Needs you"
+													? "Questions, approvals, and blockers appear here."
+													: column === "Working"
 														? "Implementation, tests, review, and repairs."
-														: "Verified changes arrive here for your review."}
+														: "Features you have stamped appear here."}
 										</p>
 									) : null}
 								</div>
@@ -475,10 +587,7 @@ export function FactoryView({
 							task={selected}
 							onRefresh={agenda.refresh}
 							onOpenSession={onOpenSession}
-							questions={
-								attention.items.find((item) => item.taskId === selected.taskId)
-									?.questions ?? []
-							}
+							questions={currentAttention.get(selected.taskId)?.questions ?? []}
 							onAnswer={attention.answer}
 						/>
 					) : (

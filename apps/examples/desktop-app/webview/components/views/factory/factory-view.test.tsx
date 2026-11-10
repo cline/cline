@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 import type { AgendaTaskRecord, AgendaTaskRunRecord } from "@cline/shared";
+import {
+	factoryDesignProgressSchema,
+	factoryRunStateSchema,
+} from "@cline/shared";
+import { handleFactoryCommand } from "../../../../sidecar/factory-commands";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -96,6 +101,235 @@ function changeInput(selector: string, value: string) {
 }
 
 describe("Factory workflow", () => {
+	it("groups actual activity and human actions without treating completion as a stamp", async () => {
+		const design = factoryDesignProgressSchema.parse({
+			revision: 3,
+			repairRound: 0,
+			agents: {},
+			designerSessionId: "designer",
+			findings: [],
+			phase: "designing",
+		});
+		mocks.tasks = [
+			task({ taskId: "queued", title: "Queued feature" }),
+			task({
+				taskId: "scoping",
+				title: "Scoping feature",
+				status: "pending_approval",
+				factoryDesignProgress: design,
+			}),
+			task({
+				taskId: "plan",
+				title: "Plan review feature",
+				status: "pending_approval",
+				factoryDesignProgress: {
+					...design,
+					phase: "reviewing",
+					reviewerSessions: [],
+					reviews: [],
+				},
+			}),
+			task({
+				taskId: "parallel",
+				title: "Parallel feature",
+				status: "in_progress",
+				currentRunId: "parallel",
+			}),
+			task({
+				taskId: "question",
+				title: "Question feature",
+				status: "in_progress",
+				currentRunId: "question",
+			}),
+			task({ taskId: "failed", title: "Failed feature", status: "failed" }),
+			task({
+				taskId: "ready",
+				title: "Ready feature",
+				status: "completed",
+				lastRunId: "ready",
+			}),
+			task({
+				taskId: "stamped",
+				title: "Stamped feature",
+				status: "completed",
+				lastRunId: "stamped",
+			}),
+			task({
+				taskId: "sampled",
+				title: "Sampled feature",
+				status: "completed",
+				lastRunId: "sampled",
+			}),
+			task({
+				taskId: "watching",
+				title: "CI feature",
+				status: "completed",
+				lastRunId: "watching",
+			}),
+			task({
+				taskId: "unknown",
+				title: "Unknown feature",
+				status: "completed",
+			}),
+			task({
+				taskId: "stale",
+				title: "Stale feature",
+				status: "completed",
+				lastRunId: "new-run",
+			}),
+			task({
+				taskId: "cancelled",
+				title: "Cancelled feature",
+				status: "cancelled",
+			}),
+			task({ taskId: "expired", title: "Expired feature", status: "expired" }),
+		];
+		const ready = factoryRunStateSchema.parse({
+			phase: "ready",
+			repairRound: 0,
+			checks: [],
+			sessions: [],
+			workspace: {
+				path: "/repo",
+				branch: "feat/example",
+				baseBranch: "main",
+				baseCommit: "base",
+			},
+		});
+		const stamp = { commit: "candidate", approvedAt: "2026-01-01T00:00:00Z" };
+		const runs = [
+			{
+				runId: "parallel",
+				factory: factoryRunStateSchema.parse({
+					...ready,
+					phase: "verifying",
+					attempts: ["verifier", "reviewer"].map((role) => ({
+						id: role,
+						key: role,
+						role,
+						repairRound: 0,
+						createdAt: "2026-01-01T00:00:00Z",
+						sessionId: role,
+						instructions: "Check",
+						agent: {},
+						status: "running",
+					})),
+				}),
+			},
+			{ runId: "ready", factory: ready },
+			{ runId: "stamped", factory: { ...ready, humanApproval: stamp } },
+			{
+				runId: "sampled",
+				factory: {
+					...ready,
+					humanApproval: stamp,
+					audit: {
+						selectedAt: "2026-01-02T00:00:00Z",
+						finding: "Missing requirement",
+					},
+				},
+			},
+			{ runId: "watching", factory: { ...ready, phase: "watching" } },
+			{ runId: "old-run", factory: { ...ready, humanApproval: stamp } },
+			{ runId: "blocked", factory: { ...ready, phase: "blocked" } },
+		].map((run) => ({ ...run, taskRevision: 3 }));
+		mocks.tasks.push(
+			task({
+				taskId: "blocked",
+				title: "Blocked feature",
+				status: "completed",
+				lastRunId: "blocked",
+			}),
+		);
+		mocks.tasks.push(
+			task({
+				taskId: "old-revision",
+				title: "Old revision feature",
+				status: "completed",
+				revision: 4,
+				lastRunId: "stamped",
+			}),
+		);
+		const item = {
+			requestId: "question-1",
+			sessionId: "designer",
+			createdAt: "2026-01-01T00:00:00Z",
+			question: "Which format?",
+			options: [],
+		};
+		const pendingQuestions = new Map([
+			[item.requestId, { item, resolve: vi.fn(), reject: vi.fn() }],
+		]);
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_attention"
+				? handleFactoryCommand(
+						{ pendingQuestions },
+						"factory_attention",
+						undefined,
+						async (read) =>
+							read === "task.list"
+								? {
+										tasks: mocks.tasks.map((task) =>
+											task.taskId === "stale"
+												? { ...task, lastRunId: "old-run" }
+												: task.taskId === "question"
+													? { ...task, originSessionId: "designer" }
+													: task,
+										),
+									}
+								: { runs },
+					)
+				: [],
+		);
+
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		const column = (name: string) =>
+			container.querySelector(`section[aria-label="${name}"]`)?.textContent ??
+			"";
+		expect(column("Queued")).toContain("Queued feature");
+		expect(column("Queued")).toContain("Unknown feature");
+		expect(column("Queued")).toContain("Stale feature");
+		expect(column("Queued")).toContain("Old revision feature");
+		expect(column("Queued")).toContain("Loading outcome…");
+		for (const label of [
+			"Scoping feature",
+			"Scoping",
+			"Reviewing plan",
+			"Parallel feature",
+			"1 verifier · 1 reviewer",
+			"Waiting for CI / PR follow-up",
+		])
+			expect(column("Working")).toContain(label);
+		for (const label of [
+			"Question feature",
+			"Answer a question",
+			"Failed feature",
+			"Resolve failure",
+			"Ready feature",
+			"Ready for signoff",
+			"Sampled feature",
+			"Review sampled finding",
+			"Blocked feature",
+			"Resolve blocker",
+		])
+			expect(column("Needs you")).toContain(label);
+		expect(column("Done")).toContain("Stamped feature");
+		expect(column("Done")).not.toContain("Ready feature");
+		expect(column("Done")).not.toContain("Sampled feature");
+		expect(container.textContent).not.toContain("Cancelled feature");
+		expect(container.textContent).not.toContain("Expired feature");
+		expect(container.textContent).toContain("Needs you (5)");
+		await act(async () => button("Scoping feature").click());
+		expect(button("Preparing plan…").disabled).toBe(true);
+	});
+
 	it("copies a local workflow into the draft and saves its participants without replacing feature checks, PR settings, or docs", async () => {
 		const feature = task();
 		if (!feature.factory) throw new Error("Missing feature config");
@@ -301,6 +535,7 @@ describe("Factory workflow", () => {
 					? [
 							{
 								taskId: "feature-1",
+								revision: 3,
 								needsAttention: true,
 								questions: [
 									{
@@ -475,6 +710,7 @@ describe("Factory workflow", () => {
 				? [
 						{
 							taskId: feature.taskId,
+							revision: feature.revision,
 							questions: [],
 							needsAttention: phase !== "watching",
 						},

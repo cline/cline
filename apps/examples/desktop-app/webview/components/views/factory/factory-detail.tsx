@@ -97,6 +97,10 @@ export function FeatureDetail({
 			});
 		}
 	}, [task, dirty, savedDraft.revision]);
+	const designActive =
+		!task.error &&
+		task.factoryDesignProgress?.revision === task.revision &&
+		task.factoryDesignProgress.phase !== "complete";
 	const editable =
 		task.status === "pending_approval" ||
 		task.status === "approved" ||
@@ -904,6 +908,7 @@ export function FeatureDetail({
 						<Button
 							disabled={
 								busy ||
+								designActive ||
 								!instructions.trim() ||
 								config.checks.length === 0 ||
 								config.checks.some(
@@ -923,7 +928,7 @@ export function FeatureDetail({
 								})
 							}
 						>
-							Approve and run
+							{designActive ? "Preparing plan…" : "Approve and run"}
 						</Button>
 					</>
 				) : (

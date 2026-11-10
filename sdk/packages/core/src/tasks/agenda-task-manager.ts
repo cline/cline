@@ -1113,10 +1113,13 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					{
 						factoryDesignProgress: progress,
 						originSessionId: progress.designerSessionId,
+						error: null,
+						status: task.status === "failed" ? "pending_approval" : task.status,
 					},
 					task.revision,
 				);
 				if (!updated) throw new Error("Feature design could not be persisted");
+				this.publish("task.updated", updated);
 				task = { ...updated, factory: { ...config, agents } };
 				active.controller.signal.throwIfAborted();
 				if (progress.phase !== "designing")
@@ -1192,8 +1195,31 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		try {
 			return await creating;
 		} catch (error) {
-			this.designSessions.delete(taskId);
-			this.designControllers.delete(taskId);
+			if (this.designSessions.get(taskId) === creating)
+				this.designSessions.delete(taskId);
+			if (this.designControllers.get(taskId) === active)
+				this.designControllers.delete(taskId);
+			const current =
+				!this.disposed && !active.controller.signal.aborted
+					? this.store.getTask(taskId)
+					: undefined;
+			if (
+				current &&
+				current.revision === task.revision &&
+				current.originSessionId ===
+					task.factoryDesignProgress?.designerSessionId &&
+				["pending_approval", "approved", "failed"].includes(current.status)
+			) {
+				this.store.dequeueFactory(taskId);
+				const updated = this.store.updateTaskState(
+					taskId,
+					{
+						error: `Design did not start: ${error instanceof Error ? error.message : String(error)}`,
+					},
+					task.revision,
+				);
+				if (updated) this.publish("task.updated", updated);
+			}
 			throw error;
 		} finally {
 			if (!this.runtime.runDesignSession) {

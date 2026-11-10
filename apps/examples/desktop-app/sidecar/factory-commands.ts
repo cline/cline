@@ -1,4 +1,5 @@
 import {
+	factoryDesignProgressSchema,
 	factoryQuestionSchema,
 	factoryRunStateSchema,
 	factoryTaskConfigSchema,
@@ -30,6 +31,11 @@ const tasksReplySchema = z.object({
 				.optional(),
 			originSessionId: z.string().optional(),
 			status: z.string(),
+			error: z.string().optional(),
+			factoryDesignProgress: z
+				.unknown()
+				.transform((value) => factoryDesignProgressSchema.parse(value))
+				.optional(),
 			revision: z.number(),
 			lastRunId: z.string().optional(),
 			currentRunId: z.string().optional(),
@@ -116,9 +122,13 @@ export async function handleFactoryCommand(
 		tasks.map(async (task) => {
 			const { runs } =
 				(task.currentRunId || task.lastRunId) &&
-				(["completed", "failed", "cancelled", "expired"].includes(
-					task.status,
-				) ||
+				([
+					"in_progress",
+					"completed",
+					"failed",
+					"cancelled",
+					"expired",
+				].includes(task.status) ||
 					pending.length > 0)
 					? runsReplySchema.parse(
 							await readTask("task.get", {
@@ -154,29 +164,50 @@ export async function handleFactoryCommand(
 						options: question.options ?? [],
 					})),
 			);
-			const needsAttention =
-				questions.length > 0 ||
-				(task.status === "pending_approval" &&
-					task.factory?.approval === "required") ||
-				task.status === "failed" ||
-				(task.status === "completed" &&
-					run?.taskRevision === task.revision &&
-					!run.factory?.humanApproval &&
-					(["ready", "blocked"].includes(run.factory?.phase ?? "") ||
-						(run.factory?.phase === "watching" &&
-							!run.factory.pullRequestWatch?.pending &&
-							run.factory.pullRequestChecks?.status === "passed" &&
-							run.factory.pullRequestChecks.headCommit ===
-								run.factory.candidate?.commit)));
 			const state =
 				run?.taskRevision === task.revision ? run.factory : undefined;
+			const design =
+				task.factoryDesignProgress?.revision === task.revision
+					? task.factoryDesignProgress
+					: undefined;
+			const closed = task.status === "cancelled" || task.status === "expired";
+			const needsAttention =
+				!closed &&
+				(questions.length > 0 ||
+					!!task.error ||
+					task.status === "failed" ||
+					!!state?.audit?.finding ||
+					(task.status === "pending_approval" &&
+						task.factory?.approval === "required" &&
+						(design
+							? design.phase === "complete"
+							: task.factory.checks.length > 0)) ||
+					(!state?.humanApproval &&
+						(state?.phase === "blocked" ||
+							state?.pullRequestWatch?.paused === true ||
+							(task.status === "completed" &&
+								(state?.phase === "ready" ||
+									(state?.phase === "watching" &&
+										!state.pullRequestWatch?.pending &&
+										state.pullRequestChecks?.status === "passed" &&
+										state.pullRequestChecks.headCommit ===
+											state.candidate?.commit))))));
 			return {
 				taskId: task.taskId,
-				questions,
+				revision: task.revision,
+				runId: state ? run?.runId : undefined,
+				questions: closed ? [] : questions,
 				needsAttention,
 				outcome: state
 					? {
 							phase: state.phase,
+							activeRoles: (state.attempts ?? [])
+								.filter(
+									(attempt) =>
+										attempt.status === "intent" || attempt.status === "running",
+								)
+								.map((attempt) => attempt.role),
+							followupPaused: state.pullRequestWatch?.paused === true,
 							humanApproval: state.humanApproval,
 							audit: state.audit,
 							usage: state.usage,

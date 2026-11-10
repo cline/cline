@@ -8,12 +8,17 @@ import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
 export type FactoryAttention = {
 	taskId: string;
+	revision: number;
+	runId?: string;
 	questions: AskQuestionRequestItem[];
 	needsAttention: boolean;
 	outcome?: Pick<
 		FactoryRunState,
 		"phase" | "humanApproval" | "audit" | "usage" | "repairRound"
-	>;
+	> & {
+		activeRoles: Array<"builder" | "reviewer" | "verifier">;
+		followupPaused: boolean;
+	};
 };
 
 export function useFactoryAttention() {

@@ -89,30 +89,82 @@ describe("Factory commands", () => {
 		expect(
 			await handleFactoryCommand(ctx, "factory_attention", undefined, readTask),
 		).toEqual([
-			{ taskId: "design", questions: [questions[0]], needsAttention: true },
 			{
+				revision: 2,
+				taskId: "design",
+				questions: [questions[0]],
+				needsAttention: true,
+			},
+			{
+				revision: 2,
 				taskId: "build",
+				runId: "run-build",
 				questions: [questions[1]],
 				needsAttention: true,
-				outcome: { phase: "ready", repairRound: 0 },
+				outcome: {
+					phase: "ready",
+					repairRound: 0,
+					activeRoles: [],
+					followupPaused: false,
+				},
 			},
 			{
+				revision: 2,
 				taskId: "ready",
+				runId: "run-ready",
 				questions: [],
 				needsAttention: true,
-				outcome: { phase: "ready", repairRound: 0 },
+				outcome: {
+					phase: "ready",
+					repairRound: 0,
+					activeRoles: [],
+					followupPaused: false,
+				},
 			},
 			{
+				revision: 2,
 				taskId: "watching",
+				runId: "run-watching",
 				questions: [],
 				needsAttention: false,
-				outcome: { phase: "watching", repairRound: 0 },
+				outcome: {
+					phase: "watching",
+					repairRound: 0,
+					activeRoles: [],
+					followupPaused: false,
+				},
 			},
-			{ taskId: "stale", questions: [], needsAttention: false },
-			{ taskId: "approval", questions: [], needsAttention: true },
-			{ taskId: "automatic", questions: [], needsAttention: false },
-			{ taskId: "failed", questions: [], needsAttention: true },
+			{ revision: 2, taskId: "stale", questions: [], needsAttention: false },
+			{ revision: 2, taskId: "approval", questions: [], needsAttention: false },
+			{
+				revision: 2,
+				taskId: "automatic",
+				questions: [],
+				needsAttention: false,
+			},
+			{ revision: 2, taskId: "failed", questions: [], needsAttention: true },
 		]);
+		ctx.pendingQuestions.clear();
+		readTask.mockClear();
+		const withoutQuestions = await handleFactoryCommand(
+			ctx,
+			"factory_attention",
+			undefined,
+			readTask,
+		);
+		expect(withoutQuestions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					taskId: "build",
+					outcome: expect.objectContaining({ phase: "ready" }),
+				}),
+			]),
+		);
+		expect(
+			readTask.mock.calls
+				.filter(([command]) => command === "task.get")
+				.map(([, args]) => args.taskId),
+		).toEqual(["build", "ready", "watching", "stale"]);
 	});
 
 	it("identifies an already imported issue only within the selected workspace", async () => {

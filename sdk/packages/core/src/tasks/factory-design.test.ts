@@ -197,6 +197,45 @@ describe("Factory design review", () => {
 		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
 	});
 
+	it("clears failed execution when design restarts and exposes a later design failure", async () => {
+		const h = await harness();
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		const approved = await h.approve();
+		await expect(
+			h.manager.runTask(h.task.taskId, { kind: "user" }, approved.revision),
+		).rejects.toThrow();
+		expect((await h.current()).status).toBe("failed");
+		expect((await h.current()).error).toBeTruthy();
+		const delayed = gate();
+		vi.mocked(h.runtime.runDesignSession).mockImplementation(async () => {
+			await delayed.promise;
+			return { status: "failed", error: "Design provider unavailable" };
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		const restarted = await h.current();
+		expect(restarted.status).toBe("pending_approval");
+		expect(restarted.error).toBeUndefined();
+		expect(restarted.factoryDesignProgress?.phase).toBe("designing");
+		delayed.release();
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain(
+				"Design provider unavailable",
+			),
+		);
+		vi.mocked(h.runtime.startDesignSession).mockRejectedValueOnce(
+			new Error("Session startup failed"),
+		);
+		await expect(h.manager.startFactoryDesign(h.task.taskId)).rejects.toThrow(
+			"Session startup failed",
+		);
+		expect((await h.current()).error).toContain(
+			"Design did not start: Session startup failed",
+		);
+	});
+
 	it("retains repair allowance and completed reviews after restart", async () => {
 		const h = await harness({ maxRepairRounds: 1, review: async () => change });
 		await h.manager.startFactoryDesign(h.task.taskId);
