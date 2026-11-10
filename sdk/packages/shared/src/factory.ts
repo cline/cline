@@ -228,6 +228,18 @@ export type FactoryPullRequestChecks = z.infer<
 
 export const factoryRunStateSchema = z.object({
 	verificationRetry: z.number().int().nonnegative().optional(),
+	verificationFeedback: z
+		.object({
+			commit: z.string(),
+			verifier: z.array(z.string()),
+			reviewers: z.array(
+				z.object({
+					reviewerIndex: z.number().int().nonnegative(),
+					gaps: z.array(z.string()),
+				}),
+			),
+		})
+		.optional(),
 	implementationIntegrated: z.boolean().optional(),
 	integrationRepairs: z
 		.array(

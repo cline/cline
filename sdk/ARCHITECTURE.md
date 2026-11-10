@@ -820,9 +820,16 @@ missing usage remains unknown.
 The workflow freezes a candidate commit, runs approved checks, and starts fresh
 reviewers. After deterministic checks pass, behavioral verification and independent
 review lanes run concurrently. Failed checks and review findings return to the
-builder within the persisted repair allowance. Unverified coverage stops for
-attention; a bounded verification retry reruns affected lanes after the missing
-capability is restored. Completion requires current-candidate checks and reviews, and
+builder within the persisted repair allowance. Required coverage gaps automatically
+rerun only the affected verification lanes on the unchanged candidate, with their
+missing criteria included in the new prompt. This persisted allowance uses
+`maxRuntimeRetries` (two retries by default), separately from code repairs. Passing
+lanes and deterministic checks are retained. Gaps remain blocking until fresh role
+results close them. Exhausted verification retries produce attention, including
+when the required environment remains unavailable. Read-only reviewers report
+execution limitations in their summary. The verifier tries available non-mutating
+checks before declaring required behavior unverified. Completion requires
+current-candidate checks and reviews, and
 UI checks require fresh image or video artifacts. Verification source changes
 invalidate evidence. Candidate history preserves earlier attempts and evidence.
 Draft PR readiness also requires passing checks on the recorded head. Human

@@ -335,7 +335,9 @@ function AgentEditor({
 				{label} ·{" "}
 				{agent.modelSelection
 					? `${agent.modelSelection.providerId}/${agent.modelSelection.modelId}`
-					: "Feature model"}
+					: agent.profile
+						? "Profile or feature model"
+						: "Feature model"}
 			</summary>
 			<div className="mt-3 space-y-3">
 				<div className="flex flex-wrap items-center gap-2">
@@ -354,7 +356,9 @@ function AgentEditor({
 							disabled={disabled}
 							onClick={() => onChange({ ...agent, modelSelection: undefined })}
 						>
-							Use feature model
+							{agent.profile
+								? "Use profile or feature model"
+								: "Use feature model"}
 						</Button>
 					) : null}
 				</div>

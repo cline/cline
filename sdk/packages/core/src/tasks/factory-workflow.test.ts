@@ -22,7 +22,6 @@ import {
 } from "./agenda-task-manager";
 import * as factoryLocal from "./factory-local";
 import { runFactoryCommand } from "./factory-local";
-import * as factoryPullRequest from "./factory-pull-request";
 import {
 	type FactoryPullRequestSnapshot,
 	runFactoryPullRequestFollowup,
@@ -572,96 +571,204 @@ describe("durable Factory execution", () => {
 	});
 
 	it.each([
-		"run",
-		"followup",
-	])("retries unavailable verification through %s without charging a code repair", async (resume) => {
-		const options = {
-			review: JSON.stringify({
-				verdict: "pass",
-				summary: "Static review completed",
-				findings: [],
-				coverage: {
-					static: ["feature"],
-					exercised: [],
-					unverified: ["Required execution environment unavailable"],
+		"automatic",
+		"interrupted",
+	])("closes required verifier gaps after %s execution without repeating passing lanes or checks", async (scenario) => {
+		let verifications = 0;
+		const prompts: string[] = [];
+		const gap = "Exercise repeated query, header handling, and fetch failure";
+		const h = harness({
+			verifier: async (task) => {
+				prompts.push(task.instructions);
+				verifications++;
+				if (scenario === "interrupted" && verifications === 2)
+					throw new Error("Verifier transport interrupted");
+				return JSON.stringify({
+					verdict: "pass",
+					summary: "Behavior verification",
+					findings: [],
+					coverage: {
+						static: [],
+						exercised: [],
+						unverified: verifications === 1 ? [gap] : [],
+					},
+				});
+			},
+		});
+		const task = await h.create(2, {
+			agents: {
+				designer: {},
+				planReviewers: [],
+				implementer: {},
+				reviewers: [{}],
+				verifier: {},
+			},
+			checks: [
+				{
+					name: "Counted behavior check",
+					kind: "api",
+					command: `node -e "const fs=require('fs');fs.mkdirSync('.evidence',{recursive:true});fs.appendFileSync('.evidence/check-count','x');if(fs.readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1)"`,
+					artifacts: [],
 				},
-			}),
-		};
-		const h = harness(options);
-		const task = await h.create(2, { watchPullRequest: true });
+			],
+		});
 		await h.start(task);
-		await vi.waitFor(
-			async () =>
-				expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
-			{ timeout: 15000 },
-		);
-		expect(h.builds()).toBe(1);
-		expect(h.manager.getTaskRuns(task.taskId)[0]?.factory).toMatchObject({
-			repairRound: 0,
-			phase: "blocked",
-			error: expect.stringContaining("verification remains unavailable"),
-		});
-		options.review = JSON.stringify({
-			verdict: "pass",
-			summary: "Verification now available",
-			findings: [],
-		});
-		if (resume === "run") {
+		if (scenario === "interrupted") {
+			await vi.waitFor(
+				async () =>
+					expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
+				{ timeout: 15000 },
+			);
+			expect(
+				h.manager.getTaskRuns(task.taskId)[0]?.factory?.verificationFeedback
+					?.verifier,
+			).toEqual([gap]);
 			await h.manager.runTask(
 				task.taskId,
 				{ kind: "user" },
 				task.revision,
 				"test",
 			);
-		} else {
-			const run = h.manager.getTaskRuns(task.taskId)[0];
-			if (!run?.factory?.candidate) throw new Error("Missing candidate");
-			const store = new SqliteAgendaTaskStore({
-				dbPath: join(h.root, "tasks.db"),
-			});
-			try {
-				store.updateTaskState(task.taskId, { status: "completed" });
-				store.updateRun(run.runId, {
-					status: "completed",
-					factory: {
-						...run.factory,
-						pullRequestUrl: "https://github.com/example/project/pull/1",
-						pullRequestWatch: {
-							headCommit: run.factory.candidate.commit,
-							handledFeedbackIds: [],
-							paused: true,
-						},
-					},
-				});
-			} finally {
-				store.close();
-			}
-			const followup = vi
-				.spyOn(factoryPullRequest, "runFactoryPullRequestFollowup")
-				.mockImplementation(async (input) => {
-					await runFactoryWorkflow(input);
-					return "idle";
-				});
-			cleanup.push(async () => {
-				followup.mockRestore();
-			});
-			await h.manager.setFactoryWatch(task.taskId, false, task.revision);
-			await h.manager.setFactoryWatch(task.taskId, true, task.revision);
 		}
 		await vi.waitFor(
 			async () =>
-				expect(
-					h.manager.getTaskRuns(task.taskId)[0]?.factory?.candidate?.reviews[0]
-						?.review.summary,
-				).toBe("Verification now available"),
+				expect((await h.manager.getTask(task.taskId))?.status).toBe(
+					"completed",
+				),
 			{ timeout: 15000 },
 		);
+		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		expect(state).toMatchObject({ repairRound: 0, verificationRetry: 1 });
 		expect(h.builds()).toBe(1);
+		expect(h.reviews()).toBe(1);
+		expect(verifications).toBe(scenario === "interrupted" ? 3 : 2);
+		expect(prompts.at(-1)).toContain(gap);
+		expect(
+			readFileSync(
+				join(state?.workspace.path ?? "", ".evidence/check-count"),
+				"utf8",
+			),
+		).toBe("x");
+		expect(state?.candidateHistory ?? []).toHaveLength(0);
+		expect(
+			state?.attempts?.filter(
+				(attempt) =>
+					attempt.role === "verifier" && attempt.status === "completed",
+			),
+		).toHaveLength(2);
+	});
+
+	it("retains real code findings when a role also reports missing coverage", async () => {
+		const h = harness({
+			review: JSON.stringify({
+				verdict: "changes_requested",
+				summary: "Required behavior is broken",
+				findings: ["Handle empty input"],
+				coverage: {
+					static: [],
+					exercised: [],
+					unverified: ["Failure path not yet exercised"],
+				},
+			}),
+		});
+		const task = await h.create(0);
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
+			{ timeout: 15000 },
+		);
+		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		expect(state?.candidate?.reviews[0]?.review.findings).toEqual([
+			"Handle empty input",
+		]);
+		expect(state?.verificationRetry).toBeUndefined();
+		expect(state?.error).toContain("Repair limit (0)");
+		expect(h.reviews()).toBe(1);
+	});
+
+	it("automatically retries PR repair verification without spending another code repair", async () => {
+		const h = await followupHarness();
+		const original = vi.mocked(h.runtime.runSession).getMockImplementation();
+		if (!original) throw new Error("Missing runtime");
+		let reviews = 0;
+		h.runtime.runSession = vi.fn<AgendaTaskRuntime["runSession"]>(
+			async (...args) => {
+				if (
+					args[1].instructions.startsWith("Independently review") &&
+					++reviews === 1
+				)
+					return {
+						status: "completed",
+						summary: JSON.stringify({
+							verdict: "pass",
+							summary: "Review missing one criterion",
+							findings: [],
+							coverage: {
+								static: [],
+								exercised: [],
+								unverified: ["Trace the empty-input consumer"],
+							},
+						}),
+					};
+				return original(...args);
+			},
+		);
+		expect(await h.follow()).toBe("repaired");
+		expect(h.state()).toMatchObject({ repairRound: 1, verificationRetry: 1 });
+		expect(h.builds()).toBe(2);
+		expect(reviews).toBe(2);
+		expect(h.runtime.runSession).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({
+				instructions: expect.stringContaining("Trace the empty-input consumer"),
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("bounds true unavailable verification across automatic attempts and manual reruns", async () => {
+		const gap = "Required execution environment unavailable";
+		const h = harness({
+			review: JSON.stringify({
+				verdict: "pass",
+				summary: "Required capability is missing",
+				findings: [],
+				coverage: { static: [], exercised: [], unverified: [gap] },
+			}),
+		});
+		const task = await h.create(2, { maxRuntimeRetries: 1 });
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
+			{ timeout: 15000 },
+		);
 		expect(h.reviews()).toBe(2);
+		expect(h.builds()).toBe(1);
 		expect(h.manager.getTaskRuns(task.taskId)[0]?.factory).toMatchObject({
 			repairRound: 0,
 			verificationRetry: 1,
+			phase: "blocked",
+			error: expect.stringContaining("unavailable after 1 retries"),
+			candidate: { reviews: [{ review: { coverage: { unverified: [gap] } } }] },
 		});
+		await h.manager.runTask(
+			task.taskId,
+			{ kind: "user" },
+			task.revision,
+			"test",
+		);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
+			{ timeout: 15000 },
+		);
+		expect(h.reviews()).toBe(2);
+		expect(h.builds()).toBe(1);
+		expect(
+			h.manager.getTaskRuns(task.taskId)[0]?.factory?.verificationRetry,
+		).toBe(1);
 	});
 
 	it("charges completed root sessions once and stops admission at the configured cost boundary", async () => {
@@ -1200,16 +1307,16 @@ describe("feature workflow", () => {
 	it.each([
 		"fresh",
 		"missing",
-		"repaired-missing",
+		"recovered-missing",
 		"stale",
 		"changed-candidate",
-	])("validates verifier %s evidence before final review", async (scenario) => {
+	])("validates verifier %s evidence without treating collection gaps as code defects", async (scenario) => {
 		const png = Buffer.from(
 			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=",
 			"base64",
 		);
 		let verifications = 0;
-		const succeeds = scenario === "fresh" || scenario === "repaired-missing";
+		const succeeds = scenario === "fresh" || scenario === "recovered-missing";
 		const h = harness({
 			verifier: async (task) => {
 				verifications++;
@@ -1217,7 +1324,7 @@ describe("feature workflow", () => {
 				mkdirSync(dir, { recursive: true });
 				if (
 					scenario === "fresh" ||
-					(scenario === "repaired-missing" && verifications === 2)
+					(scenario === "recovered-missing" && verifications === 2)
 				)
 					writeFileSync(join(dir, "screen.png"), png);
 				if (scenario === "changed-candidate")
@@ -1229,35 +1336,32 @@ describe("feature workflow", () => {
 					verdict: "pass",
 					summary: "Verified behavior",
 					findings: [],
+					coverage: {
+						static: ["Verified candidate source"],
+						exercised: ["Ran the behavior harness"],
+						unverified: [],
+					},
 				});
 			},
 		});
-		const task = await h.create(
-			scenario === "repaired-missing" || scenario === "changed-candidate"
-				? 1
-				: 0,
-			{
-				agents: {
-					designer: {},
-					planReviewers: [],
-					implementer: {},
-					reviewers: [{}],
-					verifier: { artifacts: [".evidence/screen.png"] },
-				},
-				...(scenario === "stale"
-					? {
-							checks: [
-								{
-									name: "Prepare evidence",
-									kind: "test",
-									command: `node -e "require('fs').mkdirSync('.evidence',{recursive:true});require('fs').writeFileSync('.evidence/screen.png',Buffer.from('${png.toString("base64")}','base64'))"`,
-									artifacts: [],
-								},
-							],
-						}
-					: {}),
+		const task = await h.create(0, {
+			maxRuntimeRetries: 1,
+			agents: {
+				designer: {},
+				planReviewers: [],
+				implementer: {},
+				reviewers: [{}],
+				verifier: { artifacts: [".evidence/screen.png"] },
 			},
-		);
+			checks: [
+				{
+					name: "Behavior and evidence setup",
+					kind: "api",
+					artifacts: [],
+					command: `node -e "const fs=require('fs');fs.mkdirSync('.evidence',{recursive:true});fs.appendFileSync('.evidence/check-count','x');if(fs.readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1);${scenario === "stale" ? `fs.writeFileSync('.evidence/screen.png',Buffer.from('${png.toString("base64")}','base64'));` : ""}"`,
+				},
+			],
+		});
 		await h.start(task);
 		await vi.waitFor(
 			async () =>
@@ -1267,24 +1371,35 @@ describe("feature workflow", () => {
 			{ timeout: 15000 },
 		);
 		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		expect(
+			readFileSync(
+				join(state?.workspace.path ?? "", ".evidence/check-count"),
+				"utf8",
+			),
+		).toBe("x");
 		if (succeeds) {
 			expect(state?.candidate?.verification?.artifacts).toHaveLength(1);
 			const artifact = state?.candidate?.verification?.artifacts[0];
 			expect(artifact && readFileSync(artifact.path)).toEqual(png);
-			expect(h.reviews()).toBe(scenario === "repaired-missing" ? 2 : 1);
-			const rounds = scenario === "repaired-missing" ? 1 : 0;
-			expect(state?.repairRound).toBe(rounds);
-			expect(h.builds()).toBe(rounds + 1);
+			expect(h.reviews()).toBe(1);
+			const rounds = scenario === "recovered-missing" ? 1 : 0;
+			expect(state?.repairRound).toBe(0);
+			expect(state?.verificationRetry ?? 0).toBe(rounds);
+			expect(h.builds()).toBe(1);
 			expect(verifications).toBe(rounds + 1);
 			expect(state?.candidate?.verification?.review.verdict).toBe("pass");
-			if (scenario === "repaired-missing") {
-				const repair = vi
+			if (scenario === "recovered-missing") {
+				const verificationPrompts = vi
 					.mocked(h.runtime.runSession)
-					.mock.calls.find(([, assigned]) =>
-						assigned.instructions.startsWith("Address these consolidated"),
+					.mock.calls.filter(([, assigned]) =>
+						assigned.instructions.startsWith("Verify the approved behavior"),
 					);
-				expect(repair?.[1].instructions).toContain("Verification:");
-				expect(repair?.[1].instructions).toContain("screen.png");
+				expect(verificationPrompts[1]?.[1].instructions).toContain(
+					"screen.png",
+				);
+				expect(verificationPrompts[1]?.[1].instructions).toContain(
+					"REQUIRED GAPS FROM THE PREVIOUS VERIFICATION ATTEMPT",
+				);
 			}
 		} else {
 			expect(state?.phase).toBe("blocked");
@@ -1295,8 +1410,17 @@ describe("feature workflow", () => {
 				expect(state?.candidate?.verification?.review.verdict).toBe(
 					"changes_requested",
 				);
-				expect(state?.candidate?.verification?.review.findings).toHaveLength(1);
-				expect(state?.error).toContain("Repair limit (0) reached");
+				expect(state?.candidate?.verification?.review.findings).toEqual([]);
+				expect(state?.candidate?.verification?.review.coverage).toMatchObject({
+					static: ["Verified candidate source"],
+					exercised: ["Ran the behavior harness"],
+					unverified: [expect.stringContaining("screen.png")],
+				});
+				expect(state?.verificationRetry).toBe(1);
+				expect(verifications).toBe(2);
+				expect(state?.error).toContain(
+					"verification remains unavailable after 1 retries",
+				);
 			}
 		}
 	});

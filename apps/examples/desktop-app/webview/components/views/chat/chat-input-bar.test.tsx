@@ -377,6 +377,65 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("assigns a suggested model explicitly when a workflow role inherits its feature model", async ({
+		onTestFinished,
+	}) => {
+		onTestFinished(() =>
+			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY),
+		);
+		const model = { id: "example/fable-latest", name: "Fable Latest" };
+		const saved = JSON.stringify({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: model.id },
+		});
+		window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, saved);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: { cline: [model.id] },
+			providerModelDetails: { cline: [model] },
+			providerReasoningModels: { cline: [] },
+		});
+		loadProviderModelsMock.mockResolvedValue([model]);
+		const onSelectionChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<ModelSelector
+					provider=""
+					model=""
+					isBusy={false}
+					autoCorrectModel={false}
+					persistSelection={false}
+					onProviderChange={vi.fn()}
+					onModelChange={vi.fn()}
+					onSelectionChange={onSelectionChange}
+					onModelReadyChange={vi.fn()}
+					onModelSupportsReasoningChange={vi.fn()}
+					onModelSupportsImagesChange={vi.fn()}
+				/>,
+			),
+		);
+		expect(onSelectionChange).not.toHaveBeenCalled();
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		if (!trigger) throw new Error("Missing model picker");
+		expect(trigger.textContent).not.toContain(model.name);
+		await act(async () => trigger.click());
+		const option = Array.from(
+			document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+		).find((item) => item.textContent?.includes(model.name));
+		if (!option) throw new Error("Missing suggested model option");
+		await act(async () => option.click());
+		expect(onSelectionChange).toHaveBeenCalledExactlyOnceWith({
+			providerId: "cline",
+			modelId: model.id,
+		});
+		expect(window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY)).toBe(
+			saved,
+		);
+	});
+
 	it("explains an empty provider catalog without changing a workflow assignment", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],

@@ -2205,9 +2205,10 @@ export const ModelSelector = memo(function ModelSelector({
 		],
 		[onOpenModelSettings, providerNames, providers],
 	);
+	const selectedModel = onSelectionChange && !model ? "" : resolvedModel;
 	const selectedModelLabel =
-		visibleModelPicker.options.find((option) => option.value === resolvedModel)
-			?.label ?? resolvedModel;
+		visibleModelPicker.options.find((option) => option.value === selectedModel)
+			?.label ?? selectedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -2242,7 +2243,7 @@ export const ModelSelector = memo(function ModelSelector({
 			placement="top"
 			searchPlaceholder="Search models"
 			sections={visibleModelPicker.sections}
-			value={resolvedModel}
+			value={selectedModel}
 		/>
 	);
 

@@ -42,7 +42,10 @@ import {
 	readFactoryPullRequest,
 	runFactoryPullRequestFollowup,
 } from "./factory-pull-request";
-import { runFactoryWorkflow } from "./factory-workflow";
+import {
+	retryUnavailableFactoryVerification,
+	runFactoryWorkflow,
+} from "./factory-workflow";
 import { AgendaTaskSpecFileStore } from "./specs/task-spec-file-store";
 import {
 	type AgendaTaskSpec,
@@ -71,37 +74,6 @@ const TERMINAL_RUN_STATUSES = new Set([
 ]);
 const MAINTENANCE_INTERVAL_MS = 30_000;
 const DEFAULT_WATCH_DEBOUNCE_MS = 250;
-
-function retryUnavailableFactoryVerification(
-	state: FactoryRunState,
-	maxRetries: number,
-): FactoryRunState {
-	const candidate = state.candidate;
-	if (!candidate) return state;
-	const verificationMissing = Boolean(
-		candidate.verification?.review.coverage?.unverified.length,
-	);
-	const reviews = candidate.reviews.filter(
-		(entry) => !entry.review.coverage?.unverified.length,
-	);
-	if (!verificationMissing && reviews.length === candidate.reviews.length)
-		return state;
-	const verificationRetry = (state.verificationRetry ?? 0) + 1;
-	if (verificationRetry > maxRetries)
-		throw new Error(
-			"Verification retry limit reached; revise the verification setup before retrying",
-		);
-	return {
-		...state,
-		verificationRetry,
-		candidate: {
-			...candidate,
-			reviews,
-			verification: verificationMissing ? undefined : candidate.verification,
-		},
-		verifierBaseline: verificationMissing ? undefined : state.verifierBaseline,
-	};
-}
 
 export type AgendaTaskManagerEventName =
 	| "task.created"
@@ -947,15 +919,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					sessions: new Set<string>(),
 				};
 				this.factoryControllers.set(taskId, active);
-				let priorState =
+				const priorState =
 					previous?.taskRevision === task.revision
 						? previous.factory
 						: undefined;
-				if (current.status === "failed" && priorState)
-					priorState = retryUnavailableFactoryVerification(
-						priorState,
-						task.factory.maxRuntimeRetries ?? 2,
-					);
 				const workspace =
 					priorState?.workspace ??
 					(await prepareFactoryWorkspace({
