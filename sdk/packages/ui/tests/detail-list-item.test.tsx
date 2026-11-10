@@ -1,22 +1,14 @@
 // @vitest-environment jsdom
 import { Clock3 } from "lucide-react";
 import { act, createElement, Fragment, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DetailList } from "../components/detail-list.js";
 import { DetailListItem } from "../components/detail-list-item.js";
+import { createDomFixture } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.append(container);
-	root = createRoot(container);
-});
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
+const dom = createDomFixture();
+
+afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
@@ -49,7 +41,7 @@ describe("DetailListItem responsive layout", () => {
 	});
 
 	function getItem() {
-		const item = container.querySelector<HTMLElement>(
+		const item = dom.container.querySelector<HTMLElement>(
 			"[data-slot='detail-list-item']",
 		);
 		if (!item) throw new Error("Missing detail row");
@@ -95,7 +87,7 @@ describe("DetailListItem responsive layout", () => {
 		await act(async () => notifyResize());
 		expect(item.hasAttribute("data-stacked")).toBe(false);
 
-		await act(async () => root.render(null));
+		await dom.render(null);
 		expect(disconnect).toHaveBeenCalledOnce();
 	});
 
@@ -115,16 +107,14 @@ describe("DetailListItem responsive layout", () => {
 	});
 
 	it("leaves declared column layouts to the list's responsive grid", async () => {
-		await act(async () =>
-			root.render(
-				<DetailList columns={[{ key: "runs", label: "Runs" }]}>
-					<DetailListItem
-						title="Daily review"
-						values={{ runs: 3 }}
-						actions={<button type="button">Edit</button>}
-					/>
-				</DetailList>,
-			),
+		await dom.render(
+			<DetailList columns={[{ key: "runs", label: "Runs" }]}>
+				<DetailListItem
+					title="Daily review"
+					values={{ runs: 3 }}
+					actions={<button type="button">Edit</button>}
+				/>
+			</DetailList>,
 		);
 		const item = getItem();
 		expect(item.dataset.layout).toBe("columns");
@@ -133,7 +123,7 @@ describe("DetailListItem responsive layout", () => {
 	});
 });
 async function render(node: ReactNode) {
-	await act(async () => root.render(<DetailList>{node}</DetailList>));
+	await dom.render(<DetailList>{node}</DetailList>);
 }
 
 describe("DetailListItem", () => {
@@ -153,9 +143,9 @@ describe("DetailListItem", () => {
 			/>,
 		);
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__trailing"),
+			dom.container.querySelector(".cline-ui-detail-list-item__trailing"),
 		).toBeNull();
-		expect(container.querySelector("dd")?.textContent).toBe(
+		expect(dom.container.querySelector("dd")?.textContent).toBe(
 			"This server does not require credentials.",
 		);
 	});
@@ -169,16 +159,16 @@ describe("DetailListItem", () => {
 				trailingText="Weekdays at 9:00 AM"
 			/>,
 		);
-		const icon = container.querySelector("svg");
+		const icon = dom.container.querySelector("svg");
 		expect(icon?.getAttribute("aria-hidden")).toBe("true");
 		expect(icon?.getAttribute("focusable")).toBe("false");
-		expect(container.querySelector("dt")?.textContent).toBe("Schedule");
+		expect(dom.container.querySelector("dt")?.textContent).toBe("Schedule");
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__description")
+			dom.container.querySelector(".cline-ui-detail-list-item__description")
 				?.textContent,
 		).toBe("Run this task automatically.");
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__trailing-text")
+			dom.container.querySelector(".cline-ui-detail-list-item__trailing-text")
 				?.textContent,
 		).toBe("Weekdays at 9:00 AM");
 	});
@@ -193,14 +183,14 @@ describe("DetailListItem", () => {
 			/>,
 		);
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__description"),
+			dom.container.querySelector(".cline-ui-detail-list-item__description"),
 		).toBeNull();
 		expect(
-			container.querySelector("[data-slot='detail-list-item-count']")
+			dom.container.querySelector("[data-slot='detail-list-item-count']")
 				?.textContent,
 		).toBe("0");
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__trailing-text")
+			dom.container.querySelector(".cline-ui-detail-list-item__trailing-text")
 				?.textContent,
 		).toBe("0");
 	});
@@ -211,7 +201,7 @@ describe("DetailListItem", () => {
 		}
 		await render(<DetailListItem title="Status" trailingText={<Value />} />);
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__trailing-text")
+			dom.container.querySelector(".cline-ui-detail-list-item__trailing-text")
 				?.textContent,
 		).toBe("Connected");
 	});

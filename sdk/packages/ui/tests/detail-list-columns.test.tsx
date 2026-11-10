@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { act, createRef, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createRef } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { DetailList } from "../components/detail-list.js";
 import { DetailListItem } from "../components/detail-list-item.js";
+import { createDomFixture } from "./dom-test-utils.js";
 
 const columns = [
 	{ key: "frequency", label: "Frequency", width: "8rem" },
@@ -11,27 +11,11 @@ const columns = [
 	{ key: "lastRun", label: "Last run" },
 ] as const;
 
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.append(container);
-	root = createRoot(container);
-});
-
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
 
 function primary() {
-	const button = container.querySelector<HTMLButtonElement>(
+	const button = dom.container.querySelector<HTMLButtonElement>(
 		"[data-slot='detail-list-item-primary']",
 	);
 	if (!button) throw new Error("Missing primary action");
@@ -62,13 +46,13 @@ describe("DetailList columns", () => {
 			</DetailList>,
 		);
 
-		const list = container.querySelector("dl");
+		const list = dom.container.querySelector("dl");
 		expect(listRef.current).toBe(list);
 		expect(list?.id).toBe("schedule-list");
 		expect(list?.getAttribute("aria-label")).toBe("Schedules");
 		expect(list?.classList.contains("custom-list")).toBe(true);
 		expect(list?.style.maxWidth).toBe("840px");
-		expect(itemRef.current).toBe(container.querySelector("#daily"));
+		expect(itemRef.current).toBe(dom.container.querySelector("#daily"));
 		expect(itemRef.current?.parentElement).toBe(list);
 		expect(itemRef.current?.hidden).toBe(true);
 
@@ -95,7 +79,7 @@ describe("DetailList columns", () => {
 		);
 
 		const cells = Array.from(
-			container.querySelectorAll("[data-slot='detail-list-item-value']"),
+			dom.container.querySelectorAll("[data-slot='detail-list-item-value']"),
 		);
 		for (const cell of cells) {
 			expect(cell.parentElement?.tagName).toBe("DL");
@@ -110,15 +94,15 @@ describe("DetailList columns", () => {
 			"0",
 			"—",
 		]);
-		expect(container.textContent).not.toContain("Do not render");
-		const trailing = container.querySelector(
+		expect(dom.container.textContent).not.toContain("Do not render");
+		const trailing = dom.container.querySelector(
 			"[data-slot='detail-list-item-trailing-text']",
 		);
 		expect(trailing?.tagName).toBe("DD");
 		expect(trailing?.querySelector("a")?.getAttribute("href")).toBe(
 			"/settings",
 		);
-		expect(container.textContent).toContain("Review recent changes.");
+		expect(dom.container.textContent).toContain("Review recent changes.");
 	});
 
 	it("keeps empty-column lists in the existing detail-list mode", async () => {
@@ -128,15 +112,15 @@ describe("DetailList columns", () => {
 			</DetailList>,
 		);
 		expect(
-			container.querySelector("[data-slot='detail-list-header']"),
+			dom.container.querySelector("[data-slot='detail-list-header']"),
 		).toBeNull();
-		expect(container.querySelector("dt")?.textContent).toBe("Status");
+		expect(dom.container.querySelector("dt")?.textContent).toBe("Status");
 		expect(
-			container.querySelector(".cline-ui-detail-list-item__trailing-text")
+			dom.container.querySelector(".cline-ui-detail-list-item__trailing-text")
 				?.textContent,
 		).toBe("Connected");
 		expect(
-			container.querySelector("[data-slot='detail-list-item-value']"),
+			dom.container.querySelector("[data-slot='detail-list-item-value']"),
 		).toBeNull();
 	});
 
@@ -154,7 +138,7 @@ describe("DetailList columns", () => {
 				/>
 			</DetailList>,
 		);
-		const nested = container.querySelector(
+		const nested = dom.container.querySelector(
 			'dl[aria-label="Connection details"]',
 		);
 		expect(nested?.querySelector("dt")?.textContent).toBe("Status");
@@ -185,7 +169,7 @@ describe("DetailListItem primary action", () => {
 		expect(button.type).toBe("button");
 		expect(button.closest("dt")).not.toBeNull();
 		expect(button.textContent).toBe("Daily review");
-		expect(container.querySelector("[title]")).toBeNull();
+		expect(dom.container.querySelector("[title]")).toBeNull();
 		await act(async () => button.click());
 		expect(onClick).toHaveBeenCalledOnce();
 	});
@@ -218,8 +202,8 @@ describe("DetailListItem primary action", () => {
 		expect(primary().getAttribute("aria-label")).toBe("View review history");
 		expect(primary().querySelector("button, input, a")).toBeNull();
 		await act(async () => {
-			container.querySelector<HTMLInputElement>("input")?.click();
-			Array.from(container.querySelectorAll("button"))
+			dom.container.querySelector<HTMLInputElement>("input")?.click();
+			Array.from(dom.container.querySelectorAll("button"))
 				.find((button) => button.textContent === "Edit")
 				?.click();
 		});
@@ -247,7 +231,7 @@ describe("DetailListItem primary action", () => {
 			</DetailList>,
 		);
 		expect(primary().disabled).toBe(true);
-		const edit = Array.from(container.querySelectorAll("button")).find(
+		const edit = Array.from(dom.container.querySelectorAll("button")).find(
 			(button) => button.textContent === "Edit",
 		);
 		expect(edit?.disabled).toBe(false);
