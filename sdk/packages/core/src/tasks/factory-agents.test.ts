@@ -1,6 +1,14 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgendaTaskRecord, FactoryAgent } from "@cline/shared";
-import { describe, expect, it } from "vitest";
-import { resolveFactoryAgent } from "./factory-agents";
+import { describe, expect, it, onTestFinished } from "vitest";
+import {
+	factoryReviewFindings,
+	freezeFactoryAgent,
+	parseFactoryReview,
+	resolveFactoryAgent,
+} from "./factory-agents";
 
 const task: AgendaTaskRecord = {
 	taskId: "feature",
@@ -27,6 +35,72 @@ const task: AgendaTaskRecord = {
 };
 
 describe("resolveFactoryAgent", () => {
+	it("freezes the existing configured profile format before its source changes", () => {
+		const root = mkdtempSync(join(tmpdir(), "factory-profile-"));
+		onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+		const directory = join(root, ".cline", "agents");
+		mkdirSync(directory, { recursive: true });
+		const path = join(directory, "factory-test.yaml");
+		const contents = `---
+name: factory-test
+description: Test role
+providerId: openai
+modelId: profile-model
+tools: read_file, use_skill
+skills: review
+maxIterations: 6
+---
+Review carefully.`;
+		writeFileSync(path, contents);
+		const scopedTask = { ...task, workspaceRoot: root };
+		const frozen = freezeFactoryAgent(scopedTask, { profile: "factory-test" });
+		expect(frozen.resolvedProfile).toMatchObject({
+			tools: ["read_file", "use_skill"],
+			skills: ["review"],
+			providerId: "openai",
+			modelId: "profile-model",
+		});
+		writeFileSync(path, contents.replace("profile-model", "changed-model"));
+		expect(
+			resolveFactoryAgent(scopedTask, frozen).modelSelection?.modelId,
+		).toBe("profile-model");
+		expect(() =>
+			freezeFactoryAgent(scopedTask, { profile: "absent-factory-test" }),
+		).toThrow("Configured Factory agent profile not found");
+	});
+
+	it("applies frozen configured profiles before explicit role overrides and task caps", () => {
+		const profile = {
+			name: "review",
+			description: "Review",
+			systemPrompt: "Check correctness",
+			providerId: "openai",
+			modelId: "profile-model",
+			maxIterations: 8,
+			skills: ["review"],
+		};
+		expect(
+			resolveFactoryAgent(task, {
+				profile: "review",
+				resolvedProfile: profile,
+			}),
+		).toMatchObject({
+			modelSelection: { providerId: "openai", modelId: "profile-model" },
+			maxIterations: 8,
+			systemPrompt: "Respect the approved scope.\n\nCheck correctness",
+		});
+		expect(
+			resolveFactoryAgent(task, {
+				resolvedProfile: profile,
+				modelSelection: { providerId: "anthropic", modelId: "override" },
+				maxIterations: 50,
+			}),
+		).toMatchObject({
+			modelSelection: { providerId: "anthropic", modelId: "override" },
+			maxIterations: 20,
+		});
+	});
+
 	it("resolves independent reviewer and implementer settings without changing the approved task", () => {
 		const before = structuredClone(task);
 		const reviewer: FactoryAgent = {
@@ -87,5 +161,33 @@ describe("resolveFactoryAgent", () => {
 		expect(inherited.maxIterations).toBeUndefined();
 		expect(inherited.timeoutSeconds).toBeUndefined();
 		expect(inherited.systemPrompt).toBeUndefined();
+	});
+});
+
+describe("factoryReviewFindings", () => {
+	it("blocks a passing review when its parsed coverage still has an unverified path", () => {
+		const review = parseFactoryReview(
+			JSON.stringify({
+				verdict: "pass",
+				summary: "Static checks passed",
+				findings: [],
+				coverage: {
+					static: ["handler"],
+					exercised: [],
+					unverified: ["browser flow"],
+				},
+			}),
+		);
+		expect(factoryReviewFindings(review)).toEqual(["Unverified: browser flow"]);
+		expect(
+			factoryReviewFindings({
+				...review,
+				coverage: {
+					unverified: [],
+					static: ["handler"],
+					exercised: ["browser flow"],
+				},
+			}),
+		).toEqual([]);
 	});
 });

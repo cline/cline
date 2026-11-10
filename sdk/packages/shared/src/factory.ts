@@ -1,6 +1,22 @@
 import { z } from "zod";
 
 export const factoryAgentSchema = z.object({
+	profile: z.string().trim().min(1).optional(),
+	skills: z.array(z.string().trim().min(1)).max(100).optional(),
+	tools: z.array(z.string().trim().min(1)).max(100).optional(),
+	resolvedProfile: z
+		.object({
+			name: z.string(),
+			description: z.string(),
+			systemPrompt: z.string(),
+			tools: z.array(z.string()).optional(),
+			skills: z.array(z.string()).optional(),
+			providerId: z.string().optional(),
+			modelId: z.string().optional(),
+			maxIterations: z.number().int().positive().optional(),
+			path: z.string().optional(),
+		})
+		.optional(),
 	modelSelection: z
 		.object({
 			providerId: z.string().trim().min(1),
@@ -34,10 +50,39 @@ export const factoryCheckSchema = z.object({
 	artifacts: z.array(z.string().trim().min(1)).max(20).default([]),
 });
 
+export const factoryImplementationUnitsSchema = z
+	.array(
+		z.object({
+			id: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+			instructions: z.string().trim().min(1).max(20_000),
+			dependsOn: z.array(z.string()).max(3).default([]),
+		}),
+	)
+	.min(1)
+	.max(4)
+	.superRefine((units, context) => {
+		const preceding = new Set<string>();
+		for (const unit of units) {
+			if (
+				preceding.has(unit.id) ||
+				unit.dependsOn.some((id) => !preceding.has(id))
+			)
+				context.addIssue({
+					code: "custom",
+					message:
+						"Unit IDs must be unique and dependencies must name preceding units",
+				});
+			preceding.add(unit.id);
+		}
+	});
+
 export const factoryTaskConfigSchema = z.object({
+	implementationUnits: factoryImplementationUnitsSchema.optional(),
 	agents: factoryAgentsSchema.optional(),
 	execution: z.enum(["local", "cloud"]).default("local"),
 	approval: z.enum(["required", "automatic"]).default("required"),
+	maxCostUsd: z.number().positive().optional(),
+	maxRuntimeRetries: z.number().int().min(0).max(5).optional(),
 	maxRepairRounds: z.number().int().min(0).max(10).default(2),
 	checks: z.array(factoryCheckSchema).max(20).default([]),
 	publishPullRequest: z.boolean().default(false),
@@ -131,7 +176,111 @@ export const factoryWorkspaceSchema = z.object({
 });
 export type FactoryWorkspace = z.infer<typeof factoryWorkspaceSchema>;
 
+export const factoryUsageSchema = z.object({
+	inputTokens: z.number().nonnegative(),
+	outputTokens: z.number().nonnegative(),
+	cacheReadTokens: z.number().nonnegative(),
+	cacheWriteTokens: z.number().nonnegative(),
+	totalCost: z.number().nonnegative(),
+});
+const factoryAttemptBaseSchema = z.object({
+	id: z.string(),
+	usage: factoryUsageSchema.optional(),
+	key: z.string(),
+	role: z.enum(["builder", "reviewer", "verifier"]),
+	repairRound: z.number().int().nonnegative(),
+	workspace: factoryWorkspaceSchema.optional(),
+	createdAt: z.string(),
+	sessionId: z.string(),
+	instructions: z.string(),
+	agent: factoryAgentSchema,
+});
+export const factoryAttemptSchema = z.discriminatedUnion("status", [
+	factoryAttemptBaseSchema.extend({ status: z.literal("intent") }),
+	factoryAttemptBaseSchema.extend({ status: z.literal("running") }),
+	factoryAttemptBaseSchema.extend({
+		status: z.literal("completed"),
+		summary: z.string(),
+		completedAt: z.string(),
+	}),
+	factoryAttemptBaseSchema.extend({
+		status: z.literal("failed"),
+		failure: z.enum(["runtime", "output"]),
+		error: z.string(),
+		completedAt: z.string(),
+	}),
+]);
+export type FactoryAttempt = z.infer<typeof factoryAttemptSchema>;
+
+export const factoryPullRequestChecksSchema = z.object({
+	headCommit: z.string(),
+	status: z.enum(["passed", "pending", "failed", "unknown"]),
+	checks: z.array(
+		z.object({
+			name: z.string(),
+			status: z.enum(["pass", "fail", "pending", "skipping", "cancel"]),
+		}),
+	),
+});
+export type FactoryPullRequestChecks = z.infer<
+	typeof factoryPullRequestChecksSchema
+>;
+
 export const factoryRunStateSchema = z.object({
+	verificationRetry: z.number().int().nonnegative().optional(),
+	implementationIntegrated: z.boolean().optional(),
+	integrationRepairs: z
+		.array(
+			z.object({ key: z.string(), status: z.enum(["running", "checked"]) }),
+		)
+		.optional(),
+	humanApproval: z
+		.object({ commit: z.string(), approvedAt: z.string() })
+		.optional(),
+	audit: z
+		.object({
+			selectedAt: z.string(),
+			selectionReason: z.enum(["manual", "random"]).optional(),
+			finding: z.string().optional(),
+			reviewedAt: z.string().optional(),
+		})
+		.optional(),
+	sessionUsage: z
+		.array(
+			z.object({ sessionId: z.string(), usage: factoryUsageSchema.optional() }),
+		)
+		.optional(),
+	pullRequestChecks: factoryPullRequestChecksSchema.optional(),
+	usage: z
+		.object({
+			totals: factoryUsageSchema,
+			unknownSessionIds: z.array(z.string()),
+		})
+		.optional(),
+	implementationUnits: z
+		.array(
+			z.discriminatedUnion("status", [
+				z.object({
+					id: z.string(),
+					workspace: factoryWorkspaceSchema,
+					status: z.literal("implementing"),
+				}),
+				z.object({
+					id: z.string(),
+					workspace: factoryWorkspaceSchema,
+					status: z.literal("completed"),
+					commit: z.string(),
+				}),
+			]),
+		)
+		.optional(),
+	agents: factoryAgentsSchema.optional(),
+	attempts: z.array(factoryAttemptSchema).optional(),
+	candidateHistory: z.array(factoryCandidateSchema).optional(),
+	repairInstructions: z.string().optional(),
+	verifierBaseline: z
+		.object({ key: z.string(), versions: z.array(z.string().nullable()) })
+		.optional(),
 	phase: z.enum([
 		"implementing",
 		"verifying",

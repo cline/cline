@@ -72,6 +72,13 @@ const TASK_SCHEMA_STATEMENTS: readonly string[] = [
 		enabled_at TEXT,
 		updated_at TEXT NOT NULL
 	);`,
+	`CREATE TABLE IF NOT EXISTS factory_queue (
+		task_id TEXT PRIMARY KEY REFERENCES agenda_tasks(task_id) ON DELETE CASCADE,
+		task_revision INTEGER NOT NULL,
+		actor_json TEXT NOT NULL,
+		requested_by_client_id TEXT,
+		created_at TEXT NOT NULL
+	);`,
 	`CREATE INDEX IF NOT EXISTS agenda_tasks_ready_idx
 		ON agenda_tasks(status, priority, available_at, expires_at, created_at);`,
 	`CREATE INDEX IF NOT EXISTS agenda_tasks_scope_idx
@@ -94,6 +101,28 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 	for (const statement of TASK_SCHEMA_STATEMENTS) {
 		db.exec(statement);
 	}
+	if (
+		!db
+			.prepare("PRAGMA table_info(agenda_tasks)")
+			.all()
+			.some((column) => column.name === "factory_questions_json")
+	) {
+		db.exec("ALTER TABLE agenda_tasks ADD COLUMN factory_questions_json TEXT");
+	}
+	for (const [table, column, declaration] of [
+		["agenda_tasks", "factory_design_sessions_json", "TEXT"],
+		["agenda_tasks", "factory_design_progress_json", "TEXT"],
+		["factory_queue", "stage", "TEXT NOT NULL DEFAULT 'run'"],
+	]) {
+		if (
+			!db
+				.prepare(`PRAGMA table_info(${table})`)
+				.all()
+				.some((entry) => entry.name === column)
+		)
+			db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
+	}
+
 	for (const table of ["agenda_tasks", "agenda_task_runs"]) {
 		const columns = db.prepare(`PRAGMA table_info(${table})`).all();
 		if (!columns.some((column) => column.name === "factory_json")) {

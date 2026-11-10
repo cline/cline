@@ -443,7 +443,22 @@ describe("NodeHubClient", () => {
 			await expectation;
 		});
 
-		it("allows commands to opt out of the reply timeout", async () => {
+		it.each([
+			{
+				command: "client.list" as const,
+				options: { timeoutMs: null },
+				elapsedMs: 30_001,
+			},
+			{
+				command: "task.factory.stamp" as const,
+				options: undefined,
+				elapsedMs: 45_001,
+			},
+		])("keeps $command awaiting its reply beyond the ordinary read deadline", async ({
+			command,
+			options,
+			elapsedMs,
+		}) => {
 			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
 			const connectPromise = client.connect();
 			const socket = FakeWebSocket.instances[0];
@@ -454,12 +469,12 @@ describe("NodeHubClient", () => {
 			await connectPromise;
 
 			const commandPromise = client.command(
-				"client.list",
+				command,
 				undefined,
 				undefined,
-				{ timeoutMs: null },
+				options,
 			);
-			await vi.advanceTimersByTimeAsync(30_001);
+			await vi.advanceTimersByTimeAsync(elapsedMs);
 
 			let settled = false;
 			void commandPromise.then(

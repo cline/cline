@@ -51,7 +51,9 @@ async function harness(
 			>
 		> = {
 		startSession: vi.fn(async () => ({ sessionId: "unused" })),
-		runSession: vi.fn(async () => ({ status: "completed" })),
+		runSession: vi.fn<AgendaTaskRuntime["runSession"]>(async () => ({
+			status: "completed",
+		})),
 		abortSession: vi.fn(async () => {}),
 		startDesignSession: vi.fn(async () => ({ sessionId: "designer" })),
 		startDesignReviewSession: vi.fn(async () => {
@@ -75,13 +77,14 @@ async function harness(
 			}),
 		),
 	};
-	const manager = new AgendaTaskManager({
+	const managerOptions = {
 		runtime,
 		dbPath: join(root, "tasks.db"),
 		globalSpecsDir: join(root, "specs"),
 		watchFiles: false,
 		automationEnabled: false,
-	});
+	};
+	let manager = new AgendaTaskManager(managerOptions);
 	disposals.push(async () => {
 		await manager.dispose();
 		rmSync(root, { recursive: true, force: true });
@@ -129,10 +132,60 @@ async function harness(
 			{ kind: "user" },
 			(await current()).revision,
 		);
-	return { manager, runtime, task, current, approve };
+	return {
+		manager,
+		runtime,
+		task,
+		current,
+		approve,
+		restart: async () => {
+			await manager.dispose();
+			manager = new AgendaTaskManager(managerOptions);
+			return manager;
+		},
+	};
 }
 
 describe("Factory design review", () => {
+	it("resumes queued design after create without a second UI command", async () => {
+		const h = await harness();
+		const restarted = await h.restart();
+		await restarted.start();
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignReview?.reviews).toHaveLength(2),
+		);
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("retains repair allowance and completed reviews after restart", async () => {
+		const h = await harness({ maxRepairRounds: 1, review: async () => change });
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain(
+				"Plan repair limit (1) reached",
+			),
+		);
+		const before = vi.mocked(h.runtime.runDesignSession).mock.calls.length;
+		const persisted = await h.current();
+		expect(persisted.factoryDesignProgress?.repairRound).toBe(1);
+		const restarted = await h.restart();
+		await restarted.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain(
+				"Plan repair limit (1) reached",
+			),
+		);
+		expect(h.runtime.runDesignSession).toHaveBeenCalledTimes(before);
+		expect((await h.current()).revision).toBe(persisted.revision);
+		const updated = await restarted.updateTask({
+			taskId: h.task.taskId,
+			expectedRevision: persisted.revision,
+			instructions: "A new scope",
+			updatedBy: { kind: "user" },
+		});
+		expect(updated.factoryDesignProgress).toBeUndefined();
+	});
+
 	it("routes participants, gates partial reviews, retains exact-revision results, and invalidates them on edit", async () => {
 		const held = gate();
 		const h = await harness({

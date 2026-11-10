@@ -5,6 +5,7 @@ import type {
 	AgendaTaskRunRecord,
 	AgentExtension,
 	AgentTool,
+	FactoryAgent,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
@@ -19,15 +20,18 @@ import {
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
+import { z } from "zod";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { resolveConfiguredAgentToolName } from "../../extensions/tools/team/configured-agent-config";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
+	SessionUsageRuntimeService,
 } from "../../runtime/host/runtime-host";
 import { SessionNotFoundError } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
@@ -47,7 +51,10 @@ import {
 	createTasksPromptExtension,
 	createTasksTool,
 } from "../../tasks";
-import { resolveFactoryAgent } from "../../tasks/factory-agents";
+import {
+	freezeFactoryAgent,
+	resolveFactoryAgent,
+} from "../../tasks/factory-agents";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
@@ -125,9 +132,13 @@ import {
 
 const factoryProviders = createGateway().listProviders();
 
-function factoryDesignConfig(task: AgendaTaskRecord): string {
+function factoryDesignConfig(
+	task: AgendaTaskRecord,
+	agent?: FactoryAgent,
+): string {
 	return JSON.stringify({
 		instructions: task.systemPrompt,
+		agent,
 		maxIterations: task.maxIterations,
 	});
 }
@@ -288,7 +299,8 @@ export class HubServerTransport implements NativeHubTransport {
 		Partial<
 			PendingPromptsRuntimeService &
 				CommandExecutionRuntimeService &
-				SessionConnectionRuntimeService
+				SessionConnectionRuntimeService &
+				SessionUsageRuntimeService
 		>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
@@ -360,8 +372,33 @@ export class HubServerTransport implements NativeHubTransport {
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
 			runtime: {
-				validateFactoryAgents: (task) => {
+				resolveFactoryAgents: async (task) => {
 					const agents = task.factory?.agents ?? DEFAULT_FACTORY_AGENTS;
+					return {
+						...agents,
+						designer: freezeFactoryAgent(task, agents.designer),
+						implementer: freezeFactoryAgent(task, agents.implementer),
+						verifier: agents.verifier
+							? {
+									...freezeFactoryAgent(task, agents.verifier),
+									artifacts: agents.verifier.artifacts,
+								}
+							: undefined,
+						planReviewers: agents.planReviewers.map((agent) =>
+							freezeFactoryAgent(task, agent),
+						),
+						reviewers: agents.reviewers.map((agent) =>
+							freezeFactoryAgent(task, agent),
+						),
+					};
+				},
+				validateFactoryAgents: (task) => {
+					const agents =
+						(task.factoryDesignProgress?.revision === task.revision
+							? task.factoryDesignProgress.agents
+							: undefined) ??
+						task.factory?.agents ??
+						DEFAULT_FACTORY_AGENTS;
 					for (const agent of [
 						agents.designer,
 						...agents.planReviewers,
@@ -371,13 +408,15 @@ export class HubServerTransport implements NativeHubTransport {
 					])
 						assertFactoryProvider(resolveFactoryAgent(task, agent));
 				},
-				startDesignReviewSession: (task, clientId) =>
+				startDesignReviewSession: (task, clientId, agent, sessionId) =>
 					this.startAgendaTaskSession(
 						{ ...task, mode: "plan" },
 						undefined,
 						clientId,
 						false,
 						"reviewer",
+						agent,
+						sessionId,
 					),
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
@@ -386,7 +425,23 @@ export class HubServerTransport implements NativeHubTransport {
 								capability.name === HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 						),
 					),
-				startDesignSession: async (task, requestedByClientId) => {
+				startDesignSession: async (
+					task,
+					requestedByClientId,
+					agent,
+					requestedSessionId,
+				) => {
+					if (requestedSessionId)
+						return this.startAgendaTaskSession(
+							{ ...task, mode: "plan" },
+							undefined,
+							requestedByClientId,
+							false,
+							"designer",
+							agent,
+							requestedSessionId,
+						);
+					if (agent) agent = freezeFactoryAgent(task, agent);
 					if (task.originSessionId) {
 						const previous = await this.sessionHost.getSession(
 							task.originSessionId,
@@ -399,7 +454,7 @@ export class HubServerTransport implements NativeHubTransport {
 							previous.model ===
 								(task.modelSelection?.modelId || CLINE_DEFAULT_MODEL_ID) &&
 							previous.metadata.factoryDesignConfig ===
-								factoryDesignConfig(task) &&
+								factoryDesignConfig(task, agent) &&
 							this.sessionHost.updateSessionConnection
 						) {
 							try {
@@ -423,6 +478,7 @@ export class HubServerTransport implements NativeHubTransport {
 						requestedByClientId,
 						false,
 						"designer",
+						agent,
 					);
 				},
 				runDesignSession: (sessionId, task, requestedByClientId) =>
@@ -434,7 +490,59 @@ export class HubServerTransport implements NativeHubTransport {
 						requestedByClientId,
 						runtimeOptions?.unattended === true,
 						runtimeOptions?.factoryRole,
+						runtimeOptions?.factoryAgent,
+						runtimeOptions?.sessionId,
 					),
+				reconcileSession: async (sessionId) => {
+					const session = await this.sessionHost.getSession(sessionId);
+					if (!session) return { status: "missing" };
+					const persistedResult = z
+						.object({
+							status: z.enum(["completed", "failed", "cancelled"]),
+							summary: z.string().optional(),
+							error: z.string().optional(),
+						})
+						.safeParse(session.metadata?.factoryRuntimeResult);
+					if (
+						persistedResult.success &&
+						persistedResult.data.status !== "cancelled"
+					)
+						return persistedResult.data;
+					if (
+						session.status === "running" ||
+						session.status === "pending" ||
+						session.status === "idle" ||
+						session.status === "cancelled"
+					)
+						return {
+							status:
+								(this.ctx.activeRpcTurnCountBySession.get(sessionId) ?? 0) > 0
+									? "running"
+									: "resumable",
+						};
+					return {
+						status: "failed",
+						error: "Factory session ended without a durable completion result",
+					};
+				},
+				getSessionUsage: async (sessionId) => {
+					const live = await this.sessionHost.getAccumulatedUsage?.(sessionId);
+					if (live?.aggregateUsage || live?.usage)
+						return live.aggregateUsage ?? live.usage;
+					const session = await this.sessionHost.getSession(sessionId);
+					const usage = z
+						.object({
+							inputTokens: z.number(),
+							outputTokens: z.number(),
+							cacheReadTokens: z.number(),
+							cacheWriteTokens: z.number(),
+							totalCost: z.number(),
+						})
+						.safeParse(
+							session?.metadata?.aggregateUsage ?? session?.metadata?.usage,
+						);
+					return usage.success ? usage.data : undefined;
+				},
 				runSession: (sessionId, task, run) =>
 					this.runAgendaTaskSession(sessionId, task, run),
 				abortSession: async (sessionId, reason) => {
@@ -568,8 +676,46 @@ export class HubServerTransport implements NativeHubTransport {
 		requestedByClientId?: string,
 		unattended = false,
 		factoryRole?: "builder" | "reviewer" | "designer" | "verifier",
+		factoryAgent?: FactoryAgent,
+		requestedSessionId?: string,
 	): Promise<{ sessionId: string }> {
 		if (task.factory) assertFactoryProvider(task);
+		if (factoryAgent) factoryAgent = freezeFactoryAgent(task, factoryAgent);
+		const skills =
+			factoryAgent?.skills ?? factoryAgent?.resolvedProfile?.skills;
+		const profileTools =
+			factoryAgent?.tools ?? factoryAgent?.resolvedProfile?.tools;
+		const allowedProfileTools = profileTools
+			? [
+					...profileTools.map(resolveConfiguredAgentToolName),
+					...(skills !== undefined ? ["skills"] : []),
+				]
+			: undefined;
+		const roleTools =
+			!factoryRole || factoryRole === "builder"
+				? undefined
+				: [
+						"read_files",
+						"search_codebase",
+						"skills",
+						...(factoryRole === "verifier" ? ["run_commands"] : []),
+					];
+		const allowedTools = allowedProfileTools
+			? allowedProfileTools.filter(
+					(name) =>
+						!roleTools ||
+						roleTools.includes(name) ||
+						(factoryRole === "verifier" &&
+							![
+								"editor",
+								"apply_patch",
+								"ask_question",
+								"submit_and_exit",
+								"spawn_agent",
+							].includes(name)),
+				)
+			: roleTools;
+		const desiredSessionId = requestedSessionId ?? createSessionId();
 		const originSession = task.originSessionId
 			? await this.sessionHost.getSession(task.originSessionId)
 			: undefined;
@@ -590,7 +736,9 @@ export class HubServerTransport implements NativeHubTransport {
 				factoryTaskId: task.factory ? task.taskId : undefined,
 				factoryRole,
 				factoryDesignConfig:
-					factoryRole === "designer" ? factoryDesignConfig(task) : undefined,
+					factoryRole === "designer"
+						? factoryDesignConfig(task, factoryAgent)
+						: undefined,
 				agendaTaskAssignee: task.assignee,
 				interactive: !unattended,
 				source: SessionSource.CORE,
@@ -609,6 +757,8 @@ export class HubServerTransport implements NativeHubTransport {
 					workspaceRoot: task.workspaceRoot,
 					cwd: task.cwd,
 					sessionConfig: {
+						sessionId: desiredSessionId,
+						skills,
 						providerId,
 						modelId,
 						systemPrompt: task.systemPrompt ?? "",
@@ -619,16 +769,35 @@ export class HubServerTransport implements NativeHubTransport {
 						enableAgentTeams: !task.factory,
 					},
 					metadata,
-					...(factoryRole === "designer" &&
-					task.originSessionId &&
-					originSession
+					...(requestedSessionId
 						? {
-								initialMessages: await this.sessionHost.readSessionMessages(
-									task.originSessionId,
-								),
+								initialMessages:
+									await this.sessionHost.readSessionMessages(
+										requestedSessionId,
+									),
 							}
-						: {}),
+						: factoryRole === "designer" &&
+								task.originSessionId &&
+								originSession
+							? {
+									initialMessages: await this.sessionHost.readSessionMessages(
+										task.originSessionId,
+									),
+								}
+							: {}),
 					runtimeOptions: {
+						...(task.factory &&
+						(factoryRole === "builder" || factoryRole === "designer")
+							? {
+									clientContributions: [
+										{
+											kind: "toolExecutor",
+											executor: "askQuestion",
+											capabilityName: "factory.askQuestion",
+										},
+									],
+								}
+							: {}),
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,
 						enableTools: true,
@@ -638,30 +807,50 @@ export class HubServerTransport implements NativeHubTransport {
 					toolPolicies: {
 						"*": {
 							autoApprove: autoApproveTools,
-							enabled:
-								factoryRole !== "reviewer" &&
-								factoryRole !== "designer" &&
-								factoryRole !== "verifier",
+							enabled: allowedTools === undefined,
 						},
-						...(factoryRole === "reviewer" ||
-						factoryRole === "designer" ||
-						factoryRole === "verifier"
-							? {
-									read_files: { enabled: true, autoApprove: true },
-									search_codebase: { enabled: true, autoApprove: true },
-									ask_question: { enabled: true },
-									submit_and_exit: { enabled: true, autoApprove: true },
-								}
-							: {}),
-						...(factoryRole === "verifier"
-							? {
-									run_commands: { enabled: true, autoApprove: true },
-								}
+						...Object.fromEntries(
+							(allowedTools ?? []).map((name) => [
+								name,
+								{ enabled: true, autoApprove: true },
+							]),
+						),
+						...(task.factory &&
+						(factoryRole === "builder" || factoryRole === "designer")
+							? { ask_question: { enabled: true, autoApprove: true } }
 							: {}),
 					},
 				},
 			},
 			(request) => requestToolApprovalHandler(this.ctx, request),
+			async (
+				sessionId,
+				capabilityName,
+				payload,
+				targetClientId,
+				onProgress,
+			) => {
+				if (task.factory && capabilityName === "factory.askQuestion") {
+					const [question, options] = z
+						.tuple([z.string(), z.array(z.string())])
+						.parse(payload.args);
+					return {
+						result: await this.tasks.requestFactoryQuestion({
+							taskId: task.taskId,
+							sessionId,
+							question,
+							options,
+						}),
+					};
+				}
+				return this.ctx.requestCapability(
+					sessionId,
+					capabilityName,
+					payload,
+					targetClientId,
+					onProgress,
+				);
+			},
 		);
 		if (!reply.ok) {
 			throw new Error(reply.error?.message ?? "failed to create task session");
@@ -712,12 +901,7 @@ export class HubServerTransport implements NativeHubTransport {
 				timeoutSeconds: task.timeoutSeconds,
 			},
 		});
-		if (!reply.ok) {
-			return {
-				status: "failed",
-				error: reply.error?.message ?? "task session run failed",
-			};
-		}
+
 		const result = reply.payload?.result as
 			| { finishReason?: unknown; text?: unknown }
 			| undefined;
@@ -729,21 +913,33 @@ export class HubServerTransport implements NativeHubTransport {
 			typeof result?.text === "string" && result.text.trim()
 				? result.text.trim()
 				: undefined;
-		if (finishReason === "completed") {
-			return { status: "completed", summary };
+		const outcome: AgendaTaskRuntimeResult = !reply.ok
+			? {
+					status: "failed",
+					error: reply.error?.message ?? "task session run failed",
+				}
+			: finishReason === "completed"
+				? { status: "completed", summary }
+				: finishReason === "aborted"
+					? { status: "cancelled", summary }
+					: {
+							status: "failed",
+							summary,
+							error:
+								summary ??
+								(finishReason
+									? `Task session ended with ${finishReason}`
+									: "Task session did not return a completion result"),
+						};
+		if (task.factory) {
+			const session = await this.sessionHost.getSession(sessionId);
+			const stored = await this.sessionHost.updateSession(sessionId, {
+				metadata: { ...session?.metadata, factoryRuntimeResult: outcome },
+			});
+			if (!stored.updated)
+				throw new Error("Could not persist Factory session result");
 		}
-		if (finishReason === "aborted") {
-			return { status: "cancelled", summary };
-		}
-		return {
-			status: "failed",
-			summary,
-			error:
-				summary ??
-				(finishReason
-					? `Task session ended with ${finishReason}`
-					: "Task session did not return a completion result"),
-		};
+		return outcome;
 	}
 
 	getCronService(): CronService | undefined {

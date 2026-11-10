@@ -1,4 +1,8 @@
-import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
+import {
+	factoryQuestionSchema,
+	factoryRunStateSchema,
+	factoryTaskConfigSchema,
+} from "@cline/shared";
 import { z } from "zod";
 import { factoryPresetSchema } from "../webview/lib/factory-presets";
 import { readDesktopSettings, writeDesktopSettings } from "./desktop-settings";
@@ -20,6 +24,10 @@ const tasksReplySchema = z.object({
 	tasks: z.array(
 		z.object({
 			taskId: z.string(),
+			factoryQuestions: z
+				.unknown()
+				.transform((value) => factoryQuestionSchema.array().parse(value))
+				.optional(),
 			originSessionId: z.string().optional(),
 			status: z.string(),
 			revision: z.number(),
@@ -108,7 +116,10 @@ export async function handleFactoryCommand(
 		tasks.map(async (task) => {
 			const { runs } =
 				(task.currentRunId || task.lastRunId) &&
-				(task.status === "completed" || pending.length > 0)
+				(["completed", "failed", "cancelled", "expired"].includes(
+					task.status,
+				) ||
+					pending.length > 0)
 					? runsReplySchema.parse(
 							await readTask("task.get", {
 								taskId: task.taskId,
@@ -126,6 +137,23 @@ export async function handleFactoryCommand(
 			const questions = pending.filter((question) =>
 				sessions.has(question.sessionId),
 			);
+			questions.push(
+				...(task.factoryQuestions ?? [])
+					.filter(
+						(question) =>
+							question.status === "pending" &&
+							question.revision === task.revision &&
+							task.status !== "cancelled" &&
+							task.status !== "expired",
+					)
+					.map((question) => ({
+						requestId: question.questionId,
+						sessionId: question.sessionId,
+						createdAt: question.createdAt,
+						question: question.question,
+						options: question.options ?? [],
+					})),
+			);
 			const needsAttention =
 				questions.length > 0 ||
 				(task.status === "pending_approval" &&
@@ -133,8 +161,29 @@ export async function handleFactoryCommand(
 				task.status === "failed" ||
 				(task.status === "completed" &&
 					run?.taskRevision === task.revision &&
-					["ready", "blocked"].includes(run.factory?.phase ?? ""));
-			return { taskId: task.taskId, questions, needsAttention };
+					!run.factory?.humanApproval &&
+					(["ready", "blocked"].includes(run.factory?.phase ?? "") ||
+						(run.factory?.phase === "watching" &&
+							!run.factory.pullRequestWatch?.pending &&
+							run.factory.pullRequestChecks?.status === "passed" &&
+							run.factory.pullRequestChecks.headCommit ===
+								run.factory.candidate?.commit)));
+			const state =
+				run?.taskRevision === task.revision ? run.factory : undefined;
+			return {
+				taskId: task.taskId,
+				questions,
+				needsAttention,
+				outcome: state
+					? {
+							phase: state.phase,
+							humanApproval: state.humanApproval,
+							audit: state.audit,
+							usage: state.usage,
+							repairRound: state.repairRound,
+						}
+					: undefined,
+			};
 		}),
 	);
 }

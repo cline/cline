@@ -202,3 +202,22 @@ export function loadConfiguredAgentConfigs(input: {
 	);
 	return { configs, errors };
 }
+
+const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
+	apply_diff: "editor",
+	attempt_completion: "submit_and_exit",
+	bash: "run_commands",
+	execute_command: "run_commands",
+	list_code_definition_names: "search_codebase",
+	list_files: "run_commands",
+	read_file: "read_files",
+	replace_in_file: "editor",
+	search_files: "search_codebase",
+	use_skill: "skills",
+	write_to_file: "editor",
+};
+
+export function resolveConfiguredAgentToolName(toolName: string): string {
+	const normalized = toolName.trim().toLowerCase();
+	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
+}

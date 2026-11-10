@@ -132,10 +132,70 @@ it("reads unresolved feedback and failing checks while excluding resolved thread
 		},
 		run,
 	);
-	expect(run).toHaveBeenCalledTimes(2);
+	expect(run).toHaveBeenCalledTimes(3);
 });
 
 describe("PR snapshot boundaries", () => {
+	it.each([
+		["pass", "passed"],
+		["pending", "pending"],
+		["fail", "failed"],
+		["skipping", "unknown"],
+		["changed-head", "rejected"],
+	])("binds required %s checks to the actual PR head", async (bucket, expected) => {
+		const run = vi.fn<typeof runFactoryCommand>(async ({ args }) => {
+			let payload: unknown;
+			if (args[0] === "api")
+				payload = {
+					data: {
+						repository: {
+							pullRequest: {
+								state: "OPEN",
+								headRefOid: "candidate",
+								headRefName: "feat/test",
+								comments: connection([]),
+								reviews: connection([]),
+								reviewThreads: connection([]),
+							},
+						},
+					},
+				};
+			else if (args[1] === "checks")
+				payload = [
+					{
+						name: "Required test",
+						bucket: bucket === "changed-head" ? "pass" : bucket,
+					},
+				];
+			else if (args.at(-1) === "headRefOid")
+				payload = {
+					headRefOid: bucket === "changed-head" ? "new-head" : "candidate",
+				};
+			else payload = { statusCheckRollup: [] };
+			return {
+				exitCode: bucket === "pending" && args[1] === "checks" ? 8 : 0,
+				timedOut: false,
+				truncated: false,
+				output: JSON.stringify(payload),
+			};
+		});
+		const read = readFactoryPullRequest(
+			{
+				url: "https://github.com/example/project/pull/1",
+				cwd: "/tmp",
+				signal: new AbortController().signal,
+			},
+			run,
+		);
+		if (expected === "rejected")
+			await expect(read).rejects.toThrow("PR head changed");
+		else
+			expect((await read).requiredChecks).toMatchObject({
+				headCommit: "candidate",
+				status: expected,
+			});
+	});
+
 	it("stops on incomplete feedback instead of silently claiming full coverage", async () => {
 		const run = vi.fn<typeof runFactoryCommand>(async () => ({
 			exitCode: 0,

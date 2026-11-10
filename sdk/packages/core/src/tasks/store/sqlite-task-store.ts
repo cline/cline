@@ -10,14 +10,18 @@ import type {
 	AgendaTaskRunStatus,
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
+	FactoryDesignProgress,
 	FactoryDesignReview,
+	FactoryQuestion,
 	FactoryRunState,
 	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
 import {
 	factoryCheckResultSchema,
+	factoryDesignProgressSchema,
 	factoryDesignReviewSchema,
+	factoryQuestionSchema,
 	factoryReviewSchema,
 	factoryRunStateSchema,
 	factoryTaskConfigSchema,
@@ -50,6 +54,9 @@ export class AgendaTaskRevisionConflictError extends Error {
 }
 
 export interface AgendaTaskStatePatch {
+	factoryDesignProgress?: FactoryDesignProgress | null;
+	factoryQuestions?: FactoryQuestion[];
+	factoryDesignSessionIds?: string[];
 	factoryDesignReview?: FactoryDesignReview | null;
 	originSessionId?: string;
 	status?: AgendaTaskStatus;
@@ -65,6 +72,7 @@ export interface AgendaTaskStatePatch {
 }
 
 export interface CreateAgendaTaskRunInput {
+	factory?: FactoryRunState;
 	taskId: string;
 	taskRevision: number;
 	status?: AgendaTaskRunStatus;
@@ -114,6 +122,24 @@ function toInteger(value: unknown): number | undefined {
 
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	return {
+		factoryDesignProgress:
+			row.factory_design_progress_json == null
+				? undefined
+				: factoryDesignProgressSchema.parse(
+						parseJson<unknown>(row.factory_design_progress_json),
+					),
+		factoryDesignSessionIds:
+			row.factory_design_sessions_json == null
+				? undefined
+				: z
+						.array(z.string())
+						.parse(parseJson<unknown>(row.factory_design_sessions_json)),
+		factoryQuestions:
+			row.factory_questions_json == null
+				? undefined
+				: z
+						.array(factoryQuestionSchema)
+						.parse(parseJson<unknown>(row.factory_questions_json)),
 		factoryDesignReview:
 			row.factory_design_review_json == null
 				? undefined
@@ -306,7 +332,10 @@ export class SqliteAgendaTaskStore {
 		this.db.close?.();
 	}
 
-	public createTask(input: AgendaTaskCreateInput): AgendaTaskRecord {
+	public createTask(
+		input: AgendaTaskCreateInput,
+		enqueueDesign = false,
+	): AgendaTaskRecord {
 		const now = nowIso();
 		const taskId = optionalText(input.taskId) ?? `task_${randomUUID()}`;
 		const location = normalizeAgendaTaskLocation(input);
@@ -325,9 +354,11 @@ export class SqliteAgendaTaskStore {
 		const requiresApproval = input.requiresApproval !== false;
 		const initialStatus = requiresApproval ? "pending_approval" : "approved";
 		const approvedRevision = requiresApproval ? null : 1;
-		this.db
-			.prepare(
-				`INSERT INTO agenda_tasks (
+		if (enqueueDesign) this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			this.db
+				.prepare(
+					`INSERT INTO agenda_tasks (
 					task_id, type, status, title, description, instructions, scope,
 					workspace_root, cwd, resource_paths_json, priority, assignee,
 					model_selection_json, mode, system_prompt, max_iterations,
@@ -338,40 +369,53 @@ export class SqliteAgendaTaskStore {
 					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?
 				)`,
-			)
-			.run(
-				taskId,
-				input.type,
-				initialStatus,
-				requiredText(input.title, "title"),
-				optionalText(input.description) ?? null,
-				requiredText(input.instructions, "instructions"),
-				input.scope,
-				location.workspaceRoot ?? null,
-				location.cwd ?? null,
-				JSON.stringify(location.resourcePaths),
-				priority,
-				optionalText(input.assignee) ?? null,
-				input.modelSelection ? JSON.stringify(input.modelSelection) : null,
-				input.mode ?? null,
-				optionalText(input.systemPrompt) ?? null,
-				maxIterations ?? null,
-				timeoutSeconds ?? null,
-				availableAt,
-				expiresAt,
-				input.automationEligible === false ? 0 : 1,
-				approvedRevision,
-				JSON.stringify(input.createdBy),
-				JSON.stringify(input.createdBy),
-				optionalText(input.originSessionId) ?? null,
-				optionalText(input.originTaskId) ?? null,
-				optionalText(input.specPath) ?? null,
-				now,
-				now,
-				input.factory
-					? JSON.stringify(factoryTaskConfigSchema.parse(input.factory))
-					: null,
-			);
+				)
+				.run(
+					taskId,
+					input.type,
+					initialStatus,
+					requiredText(input.title, "title"),
+					optionalText(input.description) ?? null,
+					requiredText(input.instructions, "instructions"),
+					input.scope,
+					location.workspaceRoot ?? null,
+					location.cwd ?? null,
+					JSON.stringify(location.resourcePaths),
+					priority,
+					optionalText(input.assignee) ?? null,
+					input.modelSelection ? JSON.stringify(input.modelSelection) : null,
+					input.mode ?? null,
+					optionalText(input.systemPrompt) ?? null,
+					maxIterations ?? null,
+					timeoutSeconds ?? null,
+					availableAt,
+					expiresAt,
+					input.automationEligible === false ? 0 : 1,
+					approvedRevision,
+					JSON.stringify(input.createdBy),
+					JSON.stringify(input.createdBy),
+					optionalText(input.originSessionId) ?? null,
+					optionalText(input.originTaskId) ?? null,
+					optionalText(input.specPath) ?? null,
+					now,
+					now,
+					input.factory
+						? JSON.stringify(factoryTaskConfigSchema.parse(input.factory))
+						: null,
+				);
+			if (enqueueDesign) {
+				this.enqueueFactory({
+					taskId,
+					expectedRevision: 1,
+					actor: input.createdBy,
+					stage: "design",
+				});
+				this.db.exec("COMMIT;");
+			}
+		} catch (error) {
+			if (enqueueDesign) this.db.exec("ROLLBACK;");
+			throw error;
+		}
 		const record = this.getTask(taskId);
 		if (!record) throw new Error(`failed to create task ${taskId}`);
 		return record;
@@ -495,6 +539,7 @@ export class SqliteAgendaTaskStore {
 	/** Apply user-editable fields, increment revision, and revoke old approval. */
 	public updateTask(
 		input: AgendaTaskUpdateInput,
+		designProgress?: FactoryDesignProgress,
 	): AgendaTaskRecord | undefined {
 		const current = this.getTask(input.taskId);
 		if (!current) return undefined;
@@ -534,72 +579,90 @@ export class SqliteAgendaTaskStore {
 				: current.status;
 		const revision = current.revision + 1;
 		const now = nowIso();
-		this.db
-			.prepare(
-				`UPDATE agenda_tasks SET
+		if (designProgress) this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const changed = this.db
+				.prepare(
+					`UPDATE agenda_tasks SET
 					type = ?, status = ?, title = ?, description = ?, instructions = ?,
 					scope = ?, workspace_root = ?, cwd = ?, resource_paths_json = ?,
 					priority = ?, assignee = ?, model_selection_json = ?, mode = ?,
 					system_prompt = ?, max_iterations = ?, timeout_seconds = ?,
 					available_at = ?, expires_at = ?, automation_eligible = ?, revision = ?,
-					approved_revision = NULL, factory_design_review_json = NULL, error = NULL, updated_by_json = ?, updated_at = ?, factory_json = ?
+					approved_revision = NULL, factory_design_review_json = NULL, factory_questions_json = NULL, error = NULL, updated_by_json = ?, updated_at = ?, factory_json = ?, factory_design_progress_json = ?
 				WHERE task_id = ? AND revision = ?`,
-			)
-			.run(
-				input.type ?? current.type,
-				status,
-				requiredText(input.title ?? current.title, "title"),
-				input.description === null
-					? null
-					: (optionalText(input.description ?? current.description) ?? null),
-				requiredText(
-					input.instructions ?? current.instructions,
-					"instructions",
-				),
-				scope,
-				location.workspaceRoot ?? null,
-				location.cwd ?? null,
-				JSON.stringify(location.resourcePaths),
-				priority,
-				input.assignee === null
-					? null
-					: (optionalText(input.assignee ?? current.assignee) ?? null),
-				input.modelSelection === null
-					? null
-					: JSON.stringify(input.modelSelection ?? current.modelSelection) ||
-							null,
-				input.mode === null ? null : (input.mode ?? current.mode ?? null),
-				input.systemPrompt === null
-					? null
-					: (optionalText(input.systemPrompt ?? current.systemPrompt) ?? null),
-				positiveInteger(
-					input.maxIterations === null
-						? undefined
-						: (input.maxIterations ?? current.maxIterations),
-					"maxIterations",
-				) ?? null,
-				positiveInteger(
-					input.timeoutSeconds === null
-						? undefined
-						: (input.timeoutSeconds ?? current.timeoutSeconds),
-					"timeoutSeconds",
-				) ?? null,
-				availableAt,
-				expiresAt,
-				(input.automationEligible ?? current.automationEligible) ? 1 : 0,
-				revision,
-				JSON.stringify(input.updatedBy),
-				now,
-				input.factory === null
-					? null
-					: (JSON.stringify(
-							input.factory === undefined
-								? current.factory
-								: factoryTaskConfigSchema.parse(input.factory),
-						) ?? null),
-				input.taskId,
-				current.revision,
-			);
+				)
+				.run(
+					input.type ?? current.type,
+					status,
+					requiredText(input.title ?? current.title, "title"),
+					input.description === null
+						? null
+						: (optionalText(input.description ?? current.description) ?? null),
+					requiredText(
+						input.instructions ?? current.instructions,
+						"instructions",
+					),
+					scope,
+					location.workspaceRoot ?? null,
+					location.cwd ?? null,
+					JSON.stringify(location.resourcePaths),
+					priority,
+					input.assignee === null
+						? null
+						: (optionalText(input.assignee ?? current.assignee) ?? null),
+					input.modelSelection === null
+						? null
+						: JSON.stringify(input.modelSelection ?? current.modelSelection) ||
+								null,
+					input.mode === null ? null : (input.mode ?? current.mode ?? null),
+					input.systemPrompt === null
+						? null
+						: (optionalText(input.systemPrompt ?? current.systemPrompt) ??
+								null),
+					positiveInteger(
+						input.maxIterations === null
+							? undefined
+							: (input.maxIterations ?? current.maxIterations),
+						"maxIterations",
+					) ?? null,
+					positiveInteger(
+						input.timeoutSeconds === null
+							? undefined
+							: (input.timeoutSeconds ?? current.timeoutSeconds),
+						"timeoutSeconds",
+					) ?? null,
+					availableAt,
+					expiresAt,
+					(input.automationEligible ?? current.automationEligible) ? 1 : 0,
+					revision,
+					JSON.stringify(input.updatedBy),
+					now,
+					input.factory === null
+						? null
+						: (JSON.stringify(
+								input.factory === undefined
+									? current.factory
+									: factoryTaskConfigSchema.parse(input.factory),
+							) ?? null),
+					JSON.stringify(designProgress) ?? null,
+					input.taskId,
+					current.revision,
+				);
+			if (designProgress) {
+				if (!changed.changes)
+					throw new Error("Feature revision changed during design");
+				this.db
+					.prepare(
+						"UPDATE factory_queue SET task_revision = ? WHERE task_id = ? AND stage = 'design' AND task_revision = ?",
+					)
+					.run(revision, input.taskId, current.revision);
+				this.db.exec("COMMIT;");
+			}
+		} catch (error) {
+			if (designProgress) this.db.exec("ROLLBACK;");
+			throw error;
+		}
 		return this.getTask(input.taskId);
 	}
 
@@ -633,7 +696,7 @@ export class SqliteAgendaTaskStore {
 				`UPDATE agenda_tasks SET
 					status = ?, approved_revision = ?, current_run_id = ?, last_run_id = ?,
 					last_session_id = ?, spec_path = ?, error = ?, completed_at = ?,
-					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?, factory_design_review_json = ?
+					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?, factory_design_review_json = ?, factory_questions_json = ?, factory_design_sessions_json = ?, factory_design_progress_json = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -665,6 +728,16 @@ export class SqliteAgendaTaskStore {
 					? null
 					: (JSON.stringify(
 							patch.factoryDesignReview ?? current.factoryDesignReview,
+						) ?? null),
+				JSON.stringify(patch.factoryQuestions ?? current.factoryQuestions) ??
+					null,
+				JSON.stringify(
+					patch.factoryDesignSessionIds ?? current.factoryDesignSessionIds,
+				) ?? null,
+				patch.factoryDesignProgress === null
+					? null
+					: (JSON.stringify(
+							patch.factoryDesignProgress ?? current.factoryDesignProgress,
 						) ?? null),
 				taskId,
 				current.revision,
@@ -701,8 +774,8 @@ export class SqliteAgendaTaskStore {
 				`INSERT INTO agenda_task_runs (
 					run_id, task_id, task_revision, attempt, status, claim_token,
 					claim_until_at, requested_by_client_id, session_id, claimed_at,
-					created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					created_at, updated_at, factory_json
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				runId,
@@ -717,6 +790,7 @@ export class SqliteAgendaTaskStore {
 				claimedAt,
 				now,
 				now,
+				JSON.stringify(input.factory) ?? null,
 			);
 		const run = this.getRun(runId);
 		if (!run) throw new Error(`failed to create run ${runId}`);
@@ -733,17 +807,18 @@ export class SqliteAgendaTaskStore {
 	public updateRun(
 		runId: string,
 		input: UpdateAgendaTaskRunInput,
+		expectedClaimToken?: string,
 	): AgendaTaskRunRecord | undefined {
 		const current = this.getRun(runId);
 		if (!current) return undefined;
 		const now = nowIso();
-		this.db
+		const changed = this.db
 			.prepare(
 				`UPDATE agenda_task_runs SET
 					status = ?, claim_token = ?, claim_until_at = ?,
 					requested_by_client_id = ?, session_id = ?, started_at = ?,
 					completed_at = ?, result_summary = ?, error = ?, updated_at = ?, factory_json = ?
-				WHERE run_id = ?`,
+				WHERE run_id = ? AND (? IS NULL OR (claim_token = ? AND claim_until_at > ?))`,
 			)
 			.run(
 				input.status ?? current.status,
@@ -772,8 +847,192 @@ export class SqliteAgendaTaskStore {
 				now,
 				JSON.stringify(input.factory ?? current.factory) ?? null,
 				runId,
+				expectedClaimToken ?? null,
+				expectedClaimToken ?? null,
+				now,
 			);
+		if (expectedClaimToken && !changed.changes)
+			throw new Error("Factory run ownership was lost");
 		return this.getRun(runId);
+	}
+
+	public updateFactoryOutcome(
+		task: AgendaTaskRecord,
+		run: AgendaTaskRunRecord,
+		factory: FactoryRunState,
+	): AgendaTaskRunRecord {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const currentTask = this.getTask(task.taskId);
+			const currentRun = this.getRun(run.runId);
+			if (
+				!currentTask ||
+				!currentRun ||
+				currentTask.revision !== task.revision ||
+				currentTask.status !== task.status ||
+				currentTask.currentRunId !== task.currentRunId ||
+				currentTask.lastRunId !== run.runId ||
+				currentRun.taskRevision !== task.revision ||
+				(currentRun.claimUntilAt && currentRun.claimUntilAt > nowIso()) ||
+				JSON.stringify(currentTask.factoryQuestions) !==
+					JSON.stringify(task.factoryQuestions) ||
+				JSON.stringify(currentRun.factory) !== JSON.stringify(run.factory)
+			)
+				throw new Error("Factory outcome changed; refresh before updating it");
+			const updated = this.updateRun(run.runId, { factory });
+			if (!updated) throw new Error("Factory run is missing");
+			this.db.exec("COMMIT;");
+			return updated;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	public claimRun(
+		runId: string,
+		token: string,
+		until: string,
+	): AgendaTaskRunRecord | undefined {
+		const changed = this.db
+			.prepare(`UPDATE agenda_task_runs SET claim_token = ?, claim_until_at = ?
+			WHERE run_id = ? AND status IN ('starting', 'running', 'completed')
+			AND (claim_token = ? OR claim_until_at IS NULL OR claim_until_at <= ?)`)
+			.run(token, until, runId, token, nowIso());
+		return changed.changes ? this.getRun(runId) : undefined;
+	}
+
+	public saveFactoryAnswer(
+		task: AgendaTaskRecord,
+		questions: FactoryQuestion[],
+		actor: AgendaTaskActor,
+	): AgendaTaskRecord {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getTask(task.taskId);
+			if (
+				!current ||
+				current.revision !== task.revision ||
+				current.status !== task.status ||
+				["cancelled", "expired"].includes(current.status) ||
+				JSON.stringify(current.factoryQuestions) !==
+					JSON.stringify(task.factoryQuestions)
+			)
+				throw new Error("Factory question changed; refresh before answering");
+			const updated = this.updateTaskState(
+				task.taskId,
+				{ factoryQuestions: questions },
+				task.revision,
+			);
+			if (!updated) throw new Error("Factory task is missing");
+			this.enqueueFactory({
+				taskId: task.taskId,
+				expectedRevision: task.revision,
+				actor,
+				stage:
+					task.factoryDesignProgress?.revision === task.revision &&
+					task.factoryDesignProgress.phase !== "complete"
+						? "design"
+						: task.status === "completed" ||
+								task.approvedRevision === task.revision
+							? "run"
+							: "design",
+			});
+			this.db.exec("COMMIT;");
+			return updated;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	public enqueueFactory(entry: {
+		taskId: string;
+		expectedRevision: number;
+		actor: AgendaTaskActor;
+		requestedByClientId?: string;
+		stage?: "design" | "run";
+	}): void {
+		this.db
+			.prepare(`INSERT INTO factory_queue (task_id, task_revision, actor_json, requested_by_client_id, created_at, stage)
+			VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(task_id) DO UPDATE SET task_revision = excluded.task_revision,
+			actor_json = excluded.actor_json, requested_by_client_id = excluded.requested_by_client_id, stage = excluded.stage`)
+			.run(
+				entry.taskId,
+				entry.expectedRevision,
+				JSON.stringify(entry.actor),
+				entry.requestedByClientId ?? null,
+				nowIso(),
+				entry.stage ?? "run",
+			);
+	}
+
+	public listFactoryQueue(): Array<{
+		taskId: string;
+		expectedRevision: number;
+		actor: AgendaTaskActor;
+		requestedByClientId?: string;
+		stage?: "design" | "run";
+	}> {
+		return this.db
+			.prepare("SELECT * FROM factory_queue ORDER BY created_at, task_id")
+			.all()
+			.map((row) => ({
+				stage: z.enum(["design", "run"]).parse(row.stage),
+				taskId: asString(row.task_id),
+				expectedRevision: Number(row.task_revision),
+				actor: z
+					.object({
+						kind: z.enum(["user", "agent", "system", "automation_policy"]),
+						id: z.string().optional(),
+						clientId: z.string().optional(),
+						displayName: z.string().optional(),
+						sessionId: z.string().optional(),
+						agentId: z.string().optional(),
+					})
+					.parse(parseJson<unknown>(row.actor_json)),
+				requestedByClientId: asOptionalString(row.requested_by_client_id),
+			}));
+	}
+
+	public dequeueFactory(taskId: string): void {
+		this.db.prepare("DELETE FROM factory_queue WHERE task_id = ?").run(taskId);
+	}
+
+	public finishFactoryRun(
+		runId: string,
+		owner: string,
+		runPatch: UpdateAgendaTaskRunInput,
+		taskPatch: AgendaTaskStatePatch,
+		enqueue?: Parameters<SqliteAgendaTaskStore["enqueueFactory"]>[0],
+	): { task: AgendaTaskRecord; run: AgendaTaskRunRecord } {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getRun(runId);
+			const task = current ? this.getTask(current.taskId) : undefined;
+			if (
+				!current ||
+				!task ||
+				task.currentRunId !== runId ||
+				task.revision !== current.taskRevision ||
+				task.status === "cancelled"
+			)
+				throw new Error("Factory run no longer owns the task");
+			const run = this.updateRun(runId, runPatch, owner);
+			if (!run) throw new Error("Factory run is missing");
+			const updated = this.updateTaskState(
+				task.taskId,
+				taskPatch,
+				task.revision,
+			);
+			if (!updated) throw new Error("Factory task is missing");
+			if (enqueue) this.enqueueFactory(enqueue);
+			this.db.exec("COMMIT;");
+			return { task: updated, run };
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
 	}
 
 	public listRuns(input: ListAgendaTaskRunsInput = {}): AgendaTaskRunRecord[] {

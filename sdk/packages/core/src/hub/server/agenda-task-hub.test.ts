@@ -3,10 +3,14 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+	AgentExtension,
+	AgentTool,
 	HubEventEnvelope,
+	Message,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import { createContributionRegistry } from "@cline/shared";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 
@@ -27,6 +31,7 @@ import type {
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { SessionNotFoundError } from "../../runtime/host/runtime-host";
+import { DefaultRuntimeBuilder } from "../../runtime/orchestration/runtime-builder";
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntime,
@@ -39,6 +44,35 @@ describe("Hub agenda task vertical slice", () => {
 		const chatWorkspace = join(root, "chat-workspace");
 		mkdirSync(chatWorkspace);
 		const canonicalChatWorkspace = realpathSync.native(chatWorkspace);
+		const agentDirectory = join(canonicalChatWorkspace, ".cline", "agents");
+		const skillDirectory = join(
+			canonicalChatWorkspace,
+			".cline",
+			"skills",
+			"factory-review",
+		);
+		mkdirSync(agentDirectory, { recursive: true });
+		mkdirSync(skillDirectory, { recursive: true });
+		writeFileSync(
+			join(agentDirectory, "designer.yaml"),
+			`---
+name: factory-designer
+description: Design features
+providerId: openai
+modelId: gpt-4.1
+skills: factory-review
+maxIterations: 4
+---
+Clarify acceptance criteria.`,
+		);
+		writeFileSync(
+			join(skillDirectory, "SKILL.md"),
+			`---
+name: factory-review
+---
+Verify acceptance criteria.`,
+		);
+
 		// Agent-created schedules anchor in the ~/.cline/schedules home; point
 		// the Cline dir at the test root so that home stays inside this test.
 		// Restore via onTestFinished so an early throw (before the try below)
@@ -168,7 +202,17 @@ describe("Hub agenda task vertical slice", () => {
 			};
 		});
 		const updateSessionConnection = vi.fn(async () => {});
-		const updateSession = vi.fn(async () => ({ updated: false }));
+		const updateSession = vi.fn(
+			async (
+				sessionId: string,
+				updates: { metadata?: Record<string, unknown> | null },
+			) => {
+				const session = sessions.get(sessionId);
+				if (!session) return { updated: false };
+				sessions.set(sessionId, { ...session, metadata: updates.metadata });
+				return { updated: true };
+			},
+		);
 		const readSessionMessages = vi.fn(
 			async (): Promise<Array<{ role: "user"; content: string }>> => [],
 		);
@@ -557,12 +601,9 @@ describe("Hub agenda task vertical slice", () => {
 					expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 					factory: {
 						agents: {
-							designer: {
-								modelSelection: { providerId: "openai", modelId: "gpt-4.1" },
-								maxIterations: 4,
-								instructions: "Clarify acceptance criteria.",
-							},
+							designer: { profile: "factory-designer" },
 							implementer: {
+								skills: ["factory-review"],
 								modelSelection: {
 									providerId: "anthropic",
 									modelId: "claude-sonnet-4-5",
@@ -810,15 +851,16 @@ describe("Hub agenda task vertical slice", () => {
 				(input) => input.sessionMetadata?.factoryTaskId === featureTask.taskId,
 			);
 			expect(
-				featureStarts.map((input) => input.sessionMetadata?.factoryRole),
-			).toEqual([
-				"designer",
-				"designer",
-				"designer",
-				"builder",
-				"verifier",
-				"reviewer",
-			]);
+				featureStarts
+					.slice(0, 4)
+					.map((input) => input.sessionMetadata?.factoryRole),
+			).toEqual(["designer", "designer", "designer", "builder"]);
+			expect(
+				featureStarts
+					.slice(4)
+					.map((input) => input.sessionMetadata?.factoryRole)
+					.sort(),
+			).toEqual(["reviewer", "verifier"]);
 			for (const input of featureStarts) {
 				expect(input.sessionMetadata).toMatchObject({
 					agendaTaskId: featureTask.taskId,
@@ -829,7 +871,73 @@ describe("Hub agenda task vertical slice", () => {
 					enableAgentTeams: false,
 				});
 			}
-			const [designer, , , builder, verifier, reviewer] = featureStarts;
+			const designer = featureStarts[0];
+			const builder = featureStarts.find(
+				(input) => input.sessionMetadata?.factoryRole === "builder",
+			);
+			const verifier = featureStarts.find(
+				(input) => input.sessionMetadata?.factoryRole === "verifier",
+			);
+			const reviewer = featureStarts.find(
+				(input) => input.sessionMetadata?.factoryRole === "reviewer",
+			);
+			if (!builder) throw new Error("Expected builder session");
+			expect(builder.config.workspaceRoot).toBe(canonicalChatWorkspace);
+			expect(builder.config.cwd).not.toBe(canonicalChatWorkspace);
+			for (const role of [designer, builder]) {
+				const assembled = await new DefaultRuntimeBuilder().build({
+					config: {
+						...role.config,
+						cwd: role.config.cwd ?? canonicalChatWorkspace,
+						disableMcpSettingsTools: true,
+					},
+					configExtensions: ["skills"],
+					toolPolicies: role.toolPolicies,
+					toolExecutors: role.capabilities?.toolExecutors,
+				});
+				try {
+					const names = assembled.tools.map((tool) => tool.name);
+					expect(names).toContain("ask_question");
+					expect(names).toContain("read_files");
+					expect(names).not.toContain("submit_and_exit");
+					expect(names).not.toContain("spawn_agent");
+					expect(assembled.completionPolicy?.requireCompletionTool).not.toBe(
+						true,
+					);
+					const registry = createContributionRegistry<
+						AgentExtension,
+						AgentTool,
+						Message[]
+					>({
+						extensions: assembled.extensions ?? [],
+					});
+					await registry.initialize();
+					const skill = registry
+						.getRegisteredTools()
+						.find((tool) => tool.name === "skills");
+					expect(skill).toBeDefined();
+					const result = await skill?.execute(
+						{ skill: "factory-review" },
+						{ agentId: "test", conversationId: "test", iteration: 1 },
+					);
+					expect(result).toContain("Verify acceptance criteria.");
+				} finally {
+					await assembled.shutdown("test");
+				}
+			}
+			expect(designer?.capabilities?.toolExecutors?.askQuestion).toBeTypeOf(
+				"function",
+			);
+			expect(builder?.capabilities?.toolExecutors?.askQuestion).toBeTypeOf(
+				"function",
+			);
+			expect(
+				verifier?.capabilities?.toolExecutors?.askQuestion,
+			).toBeUndefined();
+			expect(
+				reviewer?.capabilities?.toolExecutors?.askQuestion,
+			).toBeUndefined();
+			expect(designer?.capabilities?.toolExecutors?.submit).toBeUndefined();
 			expect(designer?.config).toMatchObject({
 				providerId: "openai",
 				modelId: "gpt-4.1",
@@ -869,8 +977,6 @@ describe("Hub agenda task vertical slice", () => {
 				read_files: { enabled: true },
 				search_codebase: { enabled: true },
 				run_commands: { enabled: true },
-				ask_question: { enabled: true },
-				submit_and_exit: { enabled: true },
 			});
 
 			expect(reviewer?.config.cwd).toBe(builder?.config.cwd);

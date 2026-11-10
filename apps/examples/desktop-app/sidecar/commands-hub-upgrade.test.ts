@@ -1,4 +1,6 @@
+import { NodeHubClient } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ensureSharedHubClient } from "./context";
 import type { SidecarContext, SidecarWebSocketClient } from "./types";
 
 const upgradeManagedHubMock = vi.hoisted(() => vi.fn());
@@ -10,6 +12,11 @@ vi.mock("@cline/core", async () => {
 		...actual,
 		upgradeManagedHub: upgradeManagedHubMock,
 	};
+});
+
+vi.mock("./context", async () => {
+	const actual = await vi.importActual<typeof import("./context")>("./context");
+	return { ...actual, ensureSharedHubClient: vi.fn() };
 });
 
 function createContext(): SidecarContext {
@@ -91,5 +98,38 @@ describe("hub_upgrade command", () => {
 			handleCommand(ctx, "hub_upgrade", {}, { connection: connection(true) }),
 		).rejects.toThrow(/newer than this app/);
 		expect(ctx.hubBuildMismatch).not.toBeNull();
+	});
+});
+
+describe("Factory Hub command routing", () => {
+	it.each([
+		"task.factory.answer",
+		"task.factory.audit",
+		"task.factory.stamp",
+	])("routes trusted %s and rejects untrusted requests before dispatch", async (name) => {
+		const { handleCommand } = await import("./commands");
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const command = vi.spyOn(client, "command").mockResolvedValue({
+			version: "v1",
+			ok: true,
+			payload: { task: { taskId: "feature" } },
+		});
+		vi.mocked(ensureSharedHubClient).mockResolvedValue(client);
+		const ctx = createContext();
+		const args = {
+			taskId: "feature",
+			expectedHead: "head",
+			questionId: "question",
+			answer: "yes",
+			finding: "",
+		};
+		await expect(
+			handleCommand(ctx, name, args, { connection: connection(false) }),
+		).rejects.toThrow("trusted desktop connection");
+		expect(command).not.toHaveBeenCalled();
+		await expect(
+			handleCommand(ctx, name, args, { connection: connection(true) }),
+		).resolves.toEqual({ task: { taskId: "feature" } });
+		expect(command).toHaveBeenCalledWith(name, args);
 	});
 });

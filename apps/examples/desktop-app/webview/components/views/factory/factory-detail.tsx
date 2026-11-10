@@ -62,6 +62,7 @@ export function FeatureDetail({
 	const [runs, setRuns] = useState<AgendaTaskRunRecord[]>([]);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [auditFinding, setAuditFinding] = useState("");
 	const [pendingAnswers, setPendingAnswers] = useState<
 		Record<string, string | undefined>
 	>({});
@@ -225,6 +226,149 @@ export function FeatureDetail({
 					{error || state?.error || task.error}
 				</p>
 			) : null}
+			{state && currentEvidence ? (
+				<section
+					className="space-y-3 rounded-lg border p-4"
+					aria-label="Factory outcome"
+				>
+					<div className="flex flex-wrap items-center gap-3 text-sm">
+						<span>
+							{state.humanApproval
+								? "Checked off"
+								: state.phase === "blocked"
+									? "Needs attention"
+									: state.phase === "ready"
+										? "Local result awaiting your stamp"
+										: state.pullRequestChecks?.status === "passed"
+											? "Required CI passed"
+											: "Factory is handling this feature"}
+						</span>
+						{state.usage ? (
+							<span className="text-muted-foreground">
+								Recorded model cost ${state.usage.totals.totalCost.toFixed(2)}
+								{state.usage.unknownSessionIds.length
+									? ` · ${state.usage.unknownSessionIds.length} sessions have unknown cost`
+									: ""}
+							</span>
+						) : null}
+						<span className="text-muted-foreground">
+							{state.attempts?.length ?? 0} execution attempts
+						</span>
+					</div>
+					{task.status === "completed" &&
+					!state.humanApproval &&
+					!state.audit?.finding &&
+					!state.pullRequestWatch?.pending &&
+					questions.length === 0 &&
+					(state.phase === "ready" ||
+						(state.phase === "watching" &&
+							state.pullRequestChecks?.status === "passed" &&
+							state.pullRequestChecks.headCommit ===
+								state.candidate?.commit)) &&
+					state.candidate ? (
+						<Button
+							disabled={busy}
+							onClick={() =>
+								void perform(async () => {
+									await desktopClient.invoke("task.factory.stamp", {
+										taskId: task.taskId,
+										expectedHead: state.candidate?.commit,
+										allWorkspaces: true,
+									});
+								})
+							}
+						>
+							Check off this result
+						</Button>
+					) : null}
+					{task.status !== "in_progress" ? (
+						<Button
+							variant="outline"
+							disabled={busy || Boolean(state.audit)}
+							onClick={() =>
+								void perform(async () => {
+									await desktopClient.invoke("task.factory.audit", {
+										taskId: task.taskId,
+										allWorkspaces: true,
+									});
+								})
+							}
+						>
+							{state.audit
+								? "Selected for sample review"
+								: "Sample this outcome"}
+						</Button>
+					) : null}
+					{state.audit ? (
+						<div className="space-y-2">
+							<Textarea
+								aria-label="Sample review finding"
+								placeholder="What did the factory miss? Leave empty if the sample passed."
+								value={auditFinding}
+								onChange={(event) => setAuditFinding(event.target.value)}
+								disabled={busy}
+							/>
+							<Button
+								variant="outline"
+								disabled={busy}
+								onClick={() =>
+									void perform(async () => {
+										await desktopClient.invoke("task.factory.audit", {
+											taskId: task.taskId,
+											finding: auditFinding,
+											allWorkspaces: true,
+										});
+									})
+								}
+							>
+								Record sample review
+							</Button>
+							{state.audit.finding ? (
+								<>
+									<p className="text-sm">{state.audit.finding}</p>
+									<Button
+										variant="outline"
+										disabled={busy}
+										onClick={() =>
+											void perform(async () => {
+												const improvement =
+													await desktopClient.createAgendaTask({
+														type: "todo",
+														title: `Improve verification: ${task.title}`,
+														scope: task.scope,
+														workspaceRoot: task.workspaceRoot,
+														cwd: task.cwd,
+														allWorkspaces: true,
+														instructions: `Investigate this sampled factory failure and fix the responsible check, skill, or environment. Reuse existing owners. Prove the changed verification catches this failure and preserves representative passing behavior. Do not weaken quality gates.\n\nFinding: ${state.audit?.finding}\nOriginal acceptance brief: ${task.instructions}\nCandidate: ${state.candidate?.commit ?? "unavailable"}`,
+														factory: {
+															...(task.factory ?? DEFAULT_FACTORY),
+															checks: [],
+															implementationUnits: undefined,
+															watchPullRequest: false,
+															sourceIssue: undefined,
+															publishPullRequest: false,
+														},
+														modelSelection: task.modelSelection,
+														expiresAt: new Date(
+															Date.now() + 90 * 86_400_000,
+														).toISOString(),
+														originTaskId: task.taskId,
+													});
+												await desktopClient.designFactoryTask(
+													improvement.taskId,
+												);
+											})
+										}
+									>
+										Create factory improvement
+									</Button>
+								</>
+							) : null}
+						</div>
+					) : null}
+				</section>
+			) : null}
+
 			{questions.length ? (
 				<section className="space-y-3 rounded-lg border border-amber-500/30 p-4">
 					<h3 className="text-sm font-semibold">Needs your answer</h3>
@@ -775,10 +919,11 @@ export function FeatureDetail({
 										allWorkspaces: true,
 									});
 									setDraftRevision(approved.revision);
+									await desktopClient.startFactoryQueue([approved]);
 								})
 							}
 						>
-							Approve for queue
+							Approve and run
 						</Button>
 					</>
 				) : (

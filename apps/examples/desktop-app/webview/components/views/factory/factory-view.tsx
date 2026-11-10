@@ -67,6 +67,18 @@ export function FactoryView({
 	const tasks = agenda.tasks.filter((task) => task.factory);
 	const attention = useFactoryAttention();
 	const [needsYouOnly, setNeedsYouOnly] = useState(false);
+	const [showOutcomes, setShowOutcomes] = useState(false);
+	const [samplesOnly, setSamplesOnly] = useState(false);
+	const outcomes = new Map(
+		attention.items.map((item) => [item.taskId, item.outcome]),
+	);
+	const finished = tasks.filter((task) =>
+		["completed", "failed", "cancelled", "expired"].includes(task.status),
+	);
+	const sampleQueue = finished.filter((task) => {
+		const audit = outcomes.get(task.taskId)?.audit;
+		return audit && !audit.reviewedAt;
+	});
 	const needsYou = (task: AgendaTaskRecord) =>
 		attention.items.some(
 			(item) => item.taskId === task.taskId && item.needsAttention,
@@ -125,7 +137,8 @@ export function FactoryView({
 						</span>
 					</div>
 					<p className="mt-1 text-sm text-muted-foreground">
-						One feature, from a clear brief to tested changes.
+						Requests progress through implementation, verification, and repair.
+						Only decisions need your attention.
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
@@ -151,7 +164,7 @@ export function FactoryView({
 							void perform(async () => {
 								const result = await desktopClient.startFactoryQueue(ready);
 								setMessage(
-									`${result.queued} feature${result.queued === 1 ? "" : "s"} queued. One runs at a time.`,
+									`${result.queued} feature${result.queued === 1 ? "" : "s"} queued. Independent jobs can run concurrently.`,
 								);
 							})
 						}
@@ -181,6 +194,129 @@ export function FactoryView({
 					Needs you ({attentionCount})
 				</Button>
 			</div>
+			<div className="flex flex-wrap gap-2 px-6 pb-3">
+				<Button
+					size="sm"
+					variant={!showOutcomes ? "secondary" : "ghost"}
+					onClick={() => setShowOutcomes(false)}
+				>
+					Live board
+				</Button>
+				<Button
+					size="sm"
+					variant={showOutcomes && !samplesOnly ? "secondary" : "ghost"}
+					onClick={() => {
+						setShowOutcomes(true);
+						setSamplesOnly(false);
+					}}
+				>
+					Outcomes ({finished.length})
+				</Button>
+				<Button
+					size="sm"
+					variant={showOutcomes && samplesOnly ? "secondary" : "ghost"}
+					onClick={() => {
+						setShowOutcomes(true);
+						setSamplesOnly(true);
+					}}
+				>
+					Sample queue ({sampleQueue.length})
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={
+						busy ||
+						!finished.some(
+							(task) =>
+								outcomes.get(task.taskId) && !outcomes.get(task.taskId)?.audit,
+						)
+					}
+					onClick={() =>
+						void perform(async () => {
+							const eligible = finished.filter(
+								(task) =>
+									outcomes.get(task.taskId) &&
+									!outcomes.get(task.taskId)?.audit,
+							);
+							const task =
+								eligible[Math.floor(Math.random() * eligible.length)];
+							if (!task) return;
+							await desktopClient.invoke("task.factory.audit", {
+								taskId: task.taskId,
+								selectionReason: "random",
+								allWorkspaces: true,
+							});
+							await attention.refresh();
+							setShowOutcomes(true);
+							setSamplesOnly(true);
+						})
+					}
+				>
+					Pick a random outcome
+				</Button>
+			</div>
+			{showOutcomes ? (
+				<div className="overflow-x-auto px-6 pb-6">
+					<p className="mb-3 text-xs text-muted-foreground">
+						Recent loaded outcomes, including failures. Random selection draws
+						from unsampled outcomes with execution evidence in this view; manual
+						samples are recorded separately.
+					</p>
+					<table className="w-full text-left text-sm">
+						<thead>
+							<tr className="border-b">
+								<th className="p-2">Feature</th>
+								<th className="p-2">Outcome</th>
+								<th className="p-2">Recorded model cost</th>
+								<th className="p-2">Repairs</th>
+								<th className="p-2">Sample</th>
+							</tr>
+						</thead>
+						<tbody>
+							{(samplesOnly ? sampleQueue : finished).map((task) => {
+								const outcome = outcomes.get(task.taskId);
+								return (
+									<tr key={task.taskId} className="border-b">
+										<td className="p-2">
+											<button
+												type="button"
+												className="text-left underline underline-offset-4"
+												onClick={() => selectTask(task.taskId)}
+											>
+												{task.title}
+											</button>
+										</td>
+										<td className="p-2">
+											{outcome?.humanApproval
+												? "Checked off"
+												: (outcome?.phase ?? task.status)}
+										</td>
+										<td className="p-2">
+											{outcome?.usage
+												? `$${outcome.usage.totals.totalCost.toFixed(2)}${outcome.usage.unknownSessionIds.length ? " + unknown usage" : ""}`
+												: "Unknown"}
+										</td>
+										<td className="p-2">{outcome?.repairRound ?? "—"}</td>
+										<td className="p-2">
+											{outcome?.audit
+												? `${outcome.audit.selectionReason ?? "manual"} · ${outcome.audit.reviewedAt ? (outcome.audit.finding ? "finding" : "passed") : "pending"}`
+												: "Not sampled"}
+										</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
+					{(samplesOnly ? sampleQueue : finished).length === 0 ? (
+						<p className="py-8 text-sm text-muted-foreground">
+							{samplesOnly
+								? "No samples waiting for review."
+								: "No finished outcomes yet."}
+						</p>
+					) : null}
+				</div>
+			) : null}
 			{error || agenda.error || attention.error ? (
 				<p
 					role="alert"
@@ -194,7 +330,7 @@ export function FactoryView({
 					{message}
 				</output>
 			) : null}
-			{agenda.isLoading && tasks.length === 0 ? (
+			{showOutcomes ? null : agenda.isLoading && tasks.length === 0 ? (
 				<div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
 					<Loader2 className="size-4 animate-spin" />
 					Loading features…
@@ -321,6 +457,7 @@ export function FactoryView({
 							});
 							setCreating(false);
 							selectTask(task.taskId);
+							await desktopClient.designFactoryTask(task.taskId);
 						}}
 					/>
 				</DialogContent>

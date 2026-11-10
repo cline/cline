@@ -24,6 +24,9 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.run",
 	"task.factory.start",
 	"task.factory.stop",
+	"task.factory.stamp",
+	"task.factory.audit",
+	"task.factory.answer",
 	"task.factory.design",
 	"task.factory.watch",
 	"task.automation.get",
@@ -169,6 +172,62 @@ export class HubAgendaTaskCommandService {
 						envelope.clientId,
 					);
 					return okReply(envelope, result);
+				}
+				case "task.factory.stamp": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.stampFactoryTask)
+						throw new Error("Factory stamping is unavailable");
+					const expectedHead = z
+						.string()
+						.trim()
+						.min(1)
+						.parse(payload.expectedHead);
+					return okReply(envelope, {
+						task: await this.tasks.stampFactoryTask(
+							taskIdOf(payload),
+							expectedHead,
+						),
+					});
+				}
+				case "task.factory.audit": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.recordFactoryAudit)
+						throw new Error("Factory audit is unavailable");
+					const finding = z
+						.string()
+						.trim()
+						.max(20_000)
+						.optional()
+						.parse(payload.finding);
+					return okReply(envelope, {
+						task: await this.tasks.recordFactoryAudit(
+							taskIdOf(payload),
+							finding,
+							z
+								.enum(["manual", "random"])
+								.optional()
+								.parse(payload.selectionReason),
+						),
+					});
+				}
+				case "task.factory.answer": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.answerFactoryQuestion)
+						throw new Error("Factory questions are unavailable");
+					const questionId = z.string().trim().min(1).parse(payload.questionId);
+					const answer = z
+						.string()
+						.trim()
+						.min(1)
+						.max(50_000)
+						.parse(payload.answer);
+					return okReply(envelope, {
+						task: await this.tasks.answerFactoryQuestion(
+							taskIdOf(payload),
+							questionId,
+							answer,
+						),
+					});
 				}
 				case "task.factory.design": {
 					await this.requireScopedTask(payload, workspaceRoot);

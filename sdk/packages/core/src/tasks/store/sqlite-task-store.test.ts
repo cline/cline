@@ -5,8 +5,13 @@ import type {
 	AgendaTaskActor,
 	AgendaTaskCreateInput,
 	FactoryDesignReview,
+	FactoryQuestion,
 } from "@cline/shared";
-import { factoryTaskConfigSchema } from "@cline/shared";
+import {
+	factoryDesignProgressSchema,
+	factoryRunStateSchema,
+	factoryTaskConfigSchema,
+} from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -58,6 +63,123 @@ describe("SqliteAgendaTaskStore", () => {
 			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", `${taskId}.task.md`),
 		};
 	}
+
+	it("advances design queue revision with the proposed brief and preserves it after reopening", () => {
+		const task = store.createTask(
+			{
+				...createInput("design-revision"),
+				factory: factoryTaskConfigSchema.parse({}),
+			},
+			true,
+		);
+		const progress = factoryDesignProgressSchema.parse({
+			phase: "reviewing",
+			revision: task.revision + 1,
+			repairRound: 1,
+			agents: {},
+			designerSessionId: "designer",
+			findings: [],
+			reviewerSessions: [{ reviewerIndex: 0, sessionId: "reviewer" }],
+			reviews: [],
+		});
+		const input = {
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			instructions: "Proposed brief",
+			updatedBy: USER,
+		};
+		const db = loadSqliteDb(join(directory, "tasks.db"));
+		try {
+			db.exec(
+				"CREATE TRIGGER reject_design_revision BEFORE UPDATE ON factory_queue BEGIN SELECT RAISE(ABORT, 'queue update unavailable'); END;",
+			);
+			expect(() => store.updateTask(input, progress)).toThrow(
+				"queue update unavailable",
+			);
+			expect(store.getTask(task.taskId)?.revision).toBe(task.revision);
+			expect(store.getTask(task.taskId)?.factoryDesignProgress).toBeUndefined();
+			db.exec("DROP TRIGGER reject_design_revision;");
+		} finally {
+			db.close?.();
+		}
+		store.updateTask(input, progress);
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		expect(store.getTask(task.taskId)?.factoryDesignProgress).toEqual(progress);
+		expect(store.listFactoryQueue()).toMatchObject([
+			{
+				taskId: task.taskId,
+				expectedRevision: progress.revision,
+				stage: "design",
+			},
+		]);
+		const edited = store.updateTask({
+			...input,
+			expectedRevision: progress.revision,
+			instructions: "User changed scope",
+		});
+		expect(edited?.factoryDesignProgress).toBeUndefined();
+		expect(store.listFactoryQueue()[0]?.expectedRevision).toBe(
+			progress.revision,
+		);
+		expect(edited?.revision).toBe(progress.revision + 1);
+	});
+
+	it("commits an answer with its resume intent and rolls both back if queue persistence fails", () => {
+		const initial = store.createTask({
+			...createInput("question"),
+			factory: factoryTaskConfigSchema.parse({}),
+		});
+		const pending: FactoryQuestion = {
+			questionId: "decision",
+			revision: initial.revision,
+			sessionId: "designer",
+			question: "Which behavior?",
+			options: ["Explain"],
+			createdAt: "2035-01-01T00:00:00.000Z",
+			status: "pending",
+		};
+		const task = store.updateTaskState(initial.taskId, {
+			factoryQuestions: [pending],
+		});
+		if (!task) throw new Error("Task missing");
+		const answered: FactoryQuestion = {
+			...pending,
+			status: "answered",
+			answer: "Explain",
+			answeredAt: "2035-01-01T00:00:01.000Z",
+		};
+		const db = loadSqliteDb(join(directory, "tasks.db"));
+		try {
+			db.exec(
+				"CREATE TRIGGER reject_resume BEFORE INSERT ON factory_queue BEGIN SELECT RAISE(ABORT, 'queue unavailable'); END;",
+			);
+			expect(() => store.saveFactoryAnswer(task, [answered], USER)).toThrow(
+				"queue unavailable",
+			);
+			expect(store.getTask(task.taskId)?.factoryQuestions).toEqual([pending]);
+			expect(store.listFactoryQueue()).toEqual([]);
+			db.exec("DROP TRIGGER reject_resume;");
+		} finally {
+			db.close?.();
+		}
+		store.saveFactoryAnswer(task, [answered], USER);
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		const restored = store.getTask(task.taskId);
+		expect(restored?.factoryQuestions).toEqual([answered]);
+		expect(store.listFactoryQueue()).toMatchObject([
+			{ taskId: task.taskId, expectedRevision: task.revision, stage: "design" },
+		]);
+		if (!restored) throw new Error("Task missing");
+		store.dequeueFactory(task.taskId);
+		store.saveFactoryAnswer(restored, [answered], USER);
+		expect(store.listFactoryQueue()).toHaveLength(1);
+		store.updateTaskState(task.taskId, { status: "cancelled" });
+		expect(() => store.saveFactoryAnswer(restored, [answered], USER)).toThrow(
+			"Factory question changed",
+		);
+	});
 
 	it("finds an imported issue by exact workspace and identity beyond list limits", () => {
 		const source = {
@@ -143,6 +265,152 @@ describe("SqliteAgendaTaskStore", () => {
 		).toThrow(AgendaTaskRevisionConflictError);
 		expect(store.deleteTask(created.taskId)).toBe(true);
 		expect(store.getTask(created.taskId)).toBeUndefined();
+	});
+
+	it("persists queued work and fences completion after another owner claims an expired run", () => {
+		const task = store.createTask(createInput("recovery"));
+		store.updateTaskState(task.taskId, {
+			status: "approved",
+			approvedRevision: task.revision,
+		});
+		store.enqueueFactory({
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			actor: USER,
+		});
+		store.enqueueFactory({
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			actor: USER,
+		});
+		const run = store.createRun({
+			taskId: task.taskId,
+			taskRevision: task.revision,
+			claimToken: "old",
+			claimUntilAt: "2000-01-01T00:00:00.000Z",
+		});
+		store.updateTaskState(task.taskId, {
+			status: "in_progress",
+			currentRunId: run.runId,
+			lastRunId: run.runId,
+		});
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		expect(store.listFactoryQueue()).toMatchObject([
+			{ taskId: task.taskId, expectedRevision: task.revision },
+		]);
+		const until = new Date(Date.now() + 60_000).toISOString();
+		expect(store.claimRun(run.runId, "new", until)?.claimToken).toBe("new");
+		expect(store.claimRun(run.runId, "old", until)).toBeUndefined();
+		expect(() =>
+			store.finishFactoryRun(
+				run.runId,
+				"old",
+				{ status: "completed" },
+				{ status: "completed", currentRunId: null },
+			),
+		).toThrow("ownership was lost");
+		expect(store.getTask(task.taskId)?.status).toBe("in_progress");
+		const completed = store.finishFactoryRun(
+			run.runId,
+			"new",
+			{ status: "completed", claimToken: null, claimUntilAt: null },
+			{ status: "completed", currentRunId: null },
+		);
+		expect(completed.task.status).toBe("completed");
+		expect(completed.run.claimToken).toBeUndefined();
+		store.dequeueFactory(task.taskId);
+		expect(store.listFactoryQueue()).toEqual([]);
+	});
+
+	it("rejects stale approval and sampling writes while preserving a current follow-up owner", () => {
+		const task = store.createTask({
+			...createInput("outcome"),
+			factory: factoryTaskConfigSchema.parse({}),
+		});
+		const run = store.createRun({
+			taskId: task.taskId,
+			taskRevision: task.revision,
+			claimToken: "worker",
+			claimUntilAt: new Date(Date.now() + 60_000).toISOString(),
+		});
+		store.updateTaskState(task.taskId, {
+			status: "in_progress",
+			approvedRevision: task.revision,
+			currentRunId: run.runId,
+			lastRunId: run.runId,
+		});
+		const factory = factoryRunStateSchema.parse({
+			phase: "ready",
+			repairRound: 0,
+			workspace: {
+				path: "/workspace/outcome",
+				branch: "feat/outcome",
+				baseBranch: "main",
+				baseCommit: "base",
+			},
+			sessions: [],
+			candidate: { commit: "candidate", checks: [], reviews: [] },
+		});
+		const completed = store.finishFactoryRun(
+			run.runId,
+			"worker",
+			{ status: "completed", claimToken: null, claimUntilAt: null, factory },
+			{ status: "completed", currentRunId: null },
+		);
+		const sampled = store.updateFactoryOutcome(completed.task, completed.run, {
+			...factory,
+			phase: "blocked",
+			audit: {
+				selectedAt: new Date().toISOString(),
+				finding: "Missing empty-input handling",
+			},
+		});
+		expect(() =>
+			store.updateFactoryOutcome(completed.task, completed.run, {
+				...factory,
+				humanApproval: {
+					commit: "candidate",
+					approvedAt: new Date().toISOString(),
+				},
+			}),
+		).toThrow("outcome changed");
+		expect(store.getRun(run.runId)?.factory?.audit?.finding).toBe(
+			"Missing empty-input handling",
+		);
+		const claimed = store.claimRun(
+			run.runId,
+			"followup",
+			new Date(Date.now() + 60_000).toISOString(),
+		);
+		expect(claimed?.claimToken).toBe("followup");
+		expect(() =>
+			store.updateFactoryOutcome(completed.task, sampled, {
+				...factory,
+				audit: { selectedAt: new Date().toISOString(), finding: "" },
+			}),
+		).toThrow("outcome changed");
+		expect(store.getRun(run.runId)).toMatchObject({
+			claimToken: "followup",
+			factory: { audit: { finding: "Missing empty-input handling" } },
+		});
+		store.updateRun(
+			run.runId,
+			{ claimToken: null, claimUntilAt: null },
+			"followup",
+		);
+		const current = store.getRun(run.runId);
+		if (!current?.factory) throw new Error("Missing outcome");
+		expect(
+			store.updateFactoryOutcome(completed.task, current, {
+				...current.factory,
+				audit: {
+					selectedAt: new Date().toISOString(),
+					finding: "",
+					reviewedAt: new Date().toISOString(),
+				},
+			}).factory?.audit?.finding,
+		).toBe("");
 	});
 
 	it("migrates existing tasks and preserves factory intent and evidence across reopen", () => {

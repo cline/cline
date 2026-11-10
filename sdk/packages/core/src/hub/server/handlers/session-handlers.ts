@@ -274,6 +274,7 @@ export async function handleSessionCreate(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	requestCapability: HubTransportContext["requestCapability"] = ctx.requestCapability,
 ): Promise<HubReplyEnvelope> {
 	const startedAt = performance.now();
 	const baseLogContext = {
@@ -364,7 +365,7 @@ export async function handleSessionCreate(
 		targetClientId: clientId,
 		contributions: clientContributions,
 		sessionConfig,
-		requestCapability: ctx.requestCapability,
+		requestCapability,
 	});
 	logHubMessage("info", "session.create.start_session.begin", {
 		...baseLogContext,

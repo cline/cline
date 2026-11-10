@@ -90,9 +90,24 @@ describe("Factory commands", () => {
 			await handleFactoryCommand(ctx, "factory_attention", undefined, readTask),
 		).toEqual([
 			{ taskId: "design", questions: [questions[0]], needsAttention: true },
-			{ taskId: "build", questions: [questions[1]], needsAttention: true },
-			{ taskId: "ready", questions: [], needsAttention: true },
-			{ taskId: "watching", questions: [], needsAttention: false },
+			{
+				taskId: "build",
+				questions: [questions[1]],
+				needsAttention: true,
+				outcome: { phase: "ready", repairRound: 0 },
+			},
+			{
+				taskId: "ready",
+				questions: [],
+				needsAttention: true,
+				outcome: { phase: "ready", repairRound: 0 },
+			},
+			{
+				taskId: "watching",
+				questions: [],
+				needsAttention: false,
+				outcome: { phase: "watching", repairRound: 0 },
+			},
 			{ taskId: "stale", questions: [], needsAttention: false },
 			{ taskId: "approval", questions: [], needsAttention: true },
 			{ taskId: "automatic", questions: [], needsAttention: false },

@@ -1,9 +1,53 @@
+import { z } from "zod";
 import type {
 	FactoryDesignReview,
 	FactoryRunState,
 	FactoryTaskConfig,
 } from "./factory";
+import { factoryAgentsSchema, factoryReviewerResultSchema } from "./factory";
 import type { GatewayModelSelection } from "./llms/gateway";
+
+const factoryQuestionFields = {
+	questionId: z.string(),
+	revision: z.number().int(),
+	sessionId: z.string(),
+	question: z.string(),
+	options: z.array(z.string()).optional(),
+	createdAt: z.string(),
+};
+export const factoryQuestionSchema = z.discriminatedUnion("status", [
+	z.object({ ...factoryQuestionFields, status: z.literal("pending") }),
+	z.object({
+		...factoryQuestionFields,
+		status: z.literal("answered"),
+		answer: z.string(),
+		answeredAt: z.string(),
+	}),
+]);
+export type FactoryQuestion = z.infer<typeof factoryQuestionSchema>;
+
+const factoryDesignProgressFields = {
+	revision: z.number().int().positive(),
+	repairRound: z.number().int().nonnegative(),
+	agents: factoryAgentsSchema,
+	designerSessionId: z.string().min(1),
+	findings: z.array(z.string()),
+};
+export const factoryDesignProgressSchema = z.discriminatedUnion("phase", [
+	z.object({ ...factoryDesignProgressFields, phase: z.literal("designing") }),
+	z.object({
+		...factoryDesignProgressFields,
+		phase: z.enum(["reviewing", "complete"]),
+		reviewerSessions: z.array(
+			z.object({
+				reviewerIndex: z.number().int().nonnegative(),
+				sessionId: z.string().min(1),
+			}),
+		),
+		reviews: z.array(factoryReviewerResultSchema),
+	}),
+]);
+export type FactoryDesignProgress = z.infer<typeof factoryDesignProgressSchema>;
 
 /** Semantic labels used to group work on a user's agenda. */
 export type AgendaTaskType =
@@ -46,6 +90,9 @@ export type AgendaTaskRunStatus =
 	| "interrupted";
 
 export interface AgendaTaskRecord {
+	factoryQuestions?: FactoryQuestion[];
+	factoryDesignSessionIds?: string[];
+	factoryDesignProgress?: FactoryDesignProgress;
 	factory?: FactoryTaskConfig;
 	factoryDesignReview?: FactoryDesignReview;
 	taskId: string;

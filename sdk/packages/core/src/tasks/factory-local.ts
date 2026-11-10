@@ -293,6 +293,80 @@ export async function checkpointFactoryWorkspace(input: {
 	return { candidateCommit, diff };
 }
 
+export async function integrateFactoryCommit(input: {
+	workspace: FactoryWorkspace;
+	commit: string;
+	signal?: AbortSignal;
+}): Promise<"merged" | "conflicted"> {
+	await assertOwnedWorkspace(input.workspace, input.signal);
+	const options = { cwd: input.workspace.path, signal: input.signal };
+	const pending = async () => {
+		const result = await runFactoryCommand({
+			...options,
+			file: "git",
+			args: ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
+		});
+		if (result.exitCode === 1) return false;
+		if (result.exitCode !== 0 || result.output.trim() !== input.commit)
+			throw new Error(
+				"Unexpected pending integration; inspect the owned workspace",
+			);
+		return true;
+	};
+	const contained = await runFactoryCommand({
+		...options,
+		file: "git",
+		args: ["merge-base", "--is-ancestor", input.commit, "HEAD"],
+	});
+	if (contained.exitCode === 0) return "merged";
+	if (contained.exitCode !== 1)
+		throw new Error("Could not inspect implementation unit integration");
+	if (await pending()) return "conflicted";
+	const status = await git({
+		...options,
+		args: ["status", "--porcelain", "--untracked-files=all"],
+	});
+	if (status)
+		throw new Error(
+			"Implementation integration requires a clean owned workspace",
+		);
+
+	const merged = await runFactoryCommand({
+		...options,
+		file: "git",
+		args: [
+			"-c",
+			"core.hooksPath=/dev/null",
+			"merge",
+			"--no-edit",
+			input.commit,
+		],
+	});
+	if (merged.exitCode === 0) return "merged";
+	if (await pending()) return "conflicted";
+	throw new Error(`Implementation integration failed: ${merged.output}`);
+}
+
+export async function finishFactoryIntegration(input: {
+	workspace: FactoryWorkspace;
+	signal?: AbortSignal;
+}): Promise<boolean> {
+	for (const args of [
+		["diff", "--check"],
+		["diff", "--cached", "--check"],
+	]) {
+		const check = await runFactoryCommand({
+			cwd: input.workspace.path,
+			file: "git",
+			args,
+			signal: input.signal,
+		});
+		if (check.exitCode !== 0) return false;
+	}
+	await checkpointFactoryWorkspace(input);
+	return true;
+}
+
 function mimeType(extension: string): string | undefined {
 	switch (extension.toLowerCase()) {
 		case ".png":

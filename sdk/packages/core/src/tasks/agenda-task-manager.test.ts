@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgendaTaskRecord } from "@cline/shared";
+import { type AgendaTaskRecord, factoryTaskConfigSchema } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	AgendaTaskManager,
@@ -85,6 +85,55 @@ async function createPending(
 }
 
 describe("AgendaTaskManager", () => {
+	it("retains a decision across restart, reuses its answer, and rejects a cancelled question", async () => {
+		const { manager, runtime, root } = createHarness();
+		const task = await manager.createTask({
+			type: "todo",
+			title: "Choose feature behavior",
+			instructions: "Clarify behavior",
+			scope: "workspace",
+			workspaceRoot: root,
+			expiresAt: future(),
+			createdBy: { kind: "user" },
+			factory: factoryTaskConfigSchema.parse({}),
+		});
+		const input = {
+			taskId: task.taskId,
+			sessionId: "designer",
+			question: "Which empty state?",
+			options: ["Hide", "Explain"],
+		};
+		const first = manager
+			.requestFactoryQuestion(input)
+			.catch((error: Error) => error.message);
+		const questionId = (await manager.getTask(task.taskId))
+			?.factoryQuestions?.[0]?.questionId;
+		expect(questionId).toBeTruthy();
+		await manager.dispose();
+		expect(await first).toBe("Hub stopped");
+		const restarted = new AgendaTaskManager({
+			runtime,
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+		});
+		managers.push(restarted);
+		const pending = (await restarted.getTask(task.taskId))
+			?.factoryQuestions?.[0];
+		if (!pending) throw new Error("Question was not persisted");
+		await restarted.answerFactoryQuestion(
+			task.taskId,
+			pending.questionId,
+			"Explain",
+		);
+		expect(await restarted.requestFactoryQuestion(input)).toBe("Explain");
+		const second = restarted
+			.requestFactoryQuestion({ ...input, question: "Which wording?" })
+			.catch((error: Error) => error.message);
+		await restarted.cancelTask(task.taskId, { kind: "user" }, task.revision);
+		expect(await second).toBe("Feature cancelled");
+	});
+
 	it("requires approval, links a session, and completes the task", async () => {
 		const { manager, runtime, events } = createHarness();
 		await manager.start();

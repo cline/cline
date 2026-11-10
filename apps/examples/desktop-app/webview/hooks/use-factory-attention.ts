@@ -1,5 +1,6 @@
 "use client";
 
+import type { FactoryRunState } from "@cline/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AskQuestionRequestItem } from "@/hooks/chat-session/types";
 import { desktopClient } from "@/lib/desktop-client";
@@ -9,6 +10,10 @@ export type FactoryAttention = {
 	taskId: string;
 	questions: AskQuestionRequestItem[];
 	needsAttention: boolean;
+	outcome?: Pick<
+		FactoryRunState,
+		"phase" | "humanApproval" | "audit" | "usage" | "repairRound"
+	>;
 };
 
 export function useFactoryAttention() {
@@ -53,11 +58,24 @@ export function useFactoryAttention() {
 	}, [refresh]);
 	const answer = useCallback(
 		async (requestId: string, value: string) => {
-			await desktopClient.invoke("respond_ask_question", {
-				environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
-				requestId,
-				answer: value,
-			});
+			if (requestId.startsWith("factory_question_")) {
+				const task = items.find((item) =>
+					item.questions.some((question) => question.requestId === requestId),
+				);
+				if (!task)
+					throw new Error("This feature question is no longer available.");
+				await desktopClient.invoke("task.factory.answer", {
+					taskId: task.taskId,
+					questionId: requestId,
+					answer: value,
+					allWorkspaces: true,
+				});
+			} else
+				await desktopClient.invoke("respond_ask_question", {
+					environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					requestId,
+					answer: value,
+				});
 			generation.current++;
 			setItems((current) =>
 				current.map((item) => ({
@@ -69,7 +87,7 @@ export function useFactoryAttention() {
 			);
 			await refresh();
 		},
-		[refresh],
+		[refresh, items],
 	);
 	return { items, error, answer, refresh };
 }

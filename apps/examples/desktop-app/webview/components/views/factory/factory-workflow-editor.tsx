@@ -27,6 +27,7 @@ export function FactoryWorkflowEditor({
 	onChange: (config: FactoryTaskConfig) => void;
 }) {
 	const agents = config.agents ?? DEFAULT_FACTORY_AGENTS;
+	const id = useId();
 	const [presets, setPresets] = useState<FactoryPreset[]>([]);
 	const [name, setName] = useState("");
 	const [error, setError] = useState("");
@@ -136,6 +137,51 @@ export function FactoryWorkflowEditor({
 						{error}
 					</p>
 				) : null}
+				<div className="grid gap-3 sm:grid-cols-2">
+					<label htmlFor={`${id}-retries`} className="space-y-1 text-xs">
+						<span>Runtime retries per stage</span>
+						<Input
+							id={`${id}-retries`}
+							type="number"
+							min={0}
+							max={5}
+							value={config.maxRuntimeRetries ?? 2}
+							disabled={disabled}
+							onChange={(event) =>
+								onChange({
+									...config,
+									maxRuntimeRetries: Number(event.target.value),
+								})
+							}
+						/>
+					</label>
+					<label htmlFor={`${id}-cost`} className="space-y-1 text-xs">
+						<span>Pause new work after recorded cost ($)</span>
+						<Input
+							id={`${id}-cost`}
+							type="number"
+							min={0.01}
+							step={0.01}
+							placeholder="No threshold"
+							value={config.maxCostUsd ?? ""}
+							disabled={disabled}
+							onChange={(event) =>
+								onChange({
+									...config,
+									maxCostUsd: event.target.value
+										? Number(event.target.value)
+										: undefined,
+								})
+							}
+						/>
+					</label>
+				</div>
+				<p className="text-xs text-muted-foreground">
+					Runtime retries cover failed sessions and malformed output; code
+					repairs use the separate repair limit. The cost threshold pauses new
+					execution sessions after recorded usage reaches it. In-flight work can
+					exceed it.
+				</p>
 				<AgentEditor
 					label="Designer"
 					agent={agents.designer}
@@ -329,6 +375,44 @@ function AgentEditor({
 						onModelSupportsImagesChange={noop}
 					/>
 				) : null}
+				<label htmlFor={`${id}-profile`} className="block space-y-1 text-xs">
+					<span>Configured agent profile</span>
+					<Input
+						id={`${id}-profile`}
+						aria-label={`${label} profile`}
+						value={agent.profile ?? ""}
+						disabled={disabled}
+						placeholder="Name from .cline/agents"
+						onChange={(event) =>
+							onChange({
+								...agent,
+								profile: event.target.value || undefined,
+								resolvedProfile: undefined,
+							})
+						}
+					/>
+				</label>
+				<label htmlFor={`${id}-skills`} className="block space-y-1 text-xs">
+					<span>Skills override</span>
+					<Input
+						id={`${id}-skills`}
+						aria-label={`${label} skills`}
+						value={agent.skills?.join(", ") ?? ""}
+						disabled={disabled}
+						placeholder="Comma-separated skill names"
+						onChange={(event) =>
+							onChange({
+								...agent,
+								skills: event.target.value.trim()
+									? event.target.value
+											.split(",")
+											.map((name) => name.trim())
+											.filter(Boolean)
+									: undefined,
+							})
+						}
+					/>
+				</label>
 				<Textarea
 					aria-label={`${label} instructions`}
 					placeholder="Additional instructions"

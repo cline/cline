@@ -51,6 +51,20 @@ export interface AgendaTaskManagerApi {
 		requestedByClientId?: string,
 	): Promise<void>;
 	stopFactoryQueue?(workspaceRoot?: string): void;
+	answerFactoryQuestion?(
+		taskId: string,
+		questionId: string,
+		answer: string,
+	): Promise<AgendaTaskRecord>;
+	stampFactoryTask?(
+		taskId: string,
+		expectedHead: string,
+	): Promise<AgendaTaskRecord>;
+	recordFactoryAudit?(
+		taskId: string,
+		finding?: string,
+		selectionReason?: "manual" | "random",
+	): Promise<AgendaTaskRecord>;
 
 	getAutomationPolicy(scopeKey?: string): Promise<AgendaAutomationPolicy>;
 	setAutomationPolicy(

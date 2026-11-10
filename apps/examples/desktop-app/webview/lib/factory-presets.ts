@@ -4,6 +4,8 @@ import { z } from "zod";
 export const factoryPresetConfigSchema = factoryTaskConfigSchema.pick({
 	agents: true,
 	maxRepairRounds: true,
+	maxRuntimeRetries: true,
+	maxCostUsd: true,
 	approval: true,
 });
 export const factoryPresetSchema = z.object({

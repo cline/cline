@@ -36,6 +36,9 @@ export type HubCapabilityName =
 	| "task.run"
 	| "task.factory.start"
 	| "task.factory.stop"
+	| "task.factory.stamp"
+	| "task.factory.audit"
+	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
 	| "task.automation.get"
@@ -70,6 +73,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.run",
 	"task.factory.start",
 	"task.factory.stop",
+	"task.factory.stamp",
+	"task.factory.audit",
+	"task.factory.answer",
 	"task.factory.design",
 	"task.factory.watch",
 	"task.automation.get",
@@ -513,6 +519,15 @@ export interface HubCommandInputMap {
 		allWorkspaces?: boolean;
 	};
 	"task.factory.stop": { allWorkspaces?: boolean };
+	"task.factory.stamp": HubTaskIdInput & { expectedHead: string };
+	"task.factory.audit": HubTaskIdInput & {
+		finding?: string;
+		selectionReason?: "manual" | "random";
+	};
+	"task.factory.answer": HubTaskIdInput & {
+		questionId: string;
+		answer: string;
+	};
 	"task.factory.design": HubTaskIdInput;
 	"task.factory.watch": HubTaskRevisionInput & { enabled: boolean };
 	"task.automation.get": Record<string, never>;
@@ -531,6 +546,9 @@ export interface HubCommandOutputMap {
 	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
 	"task.factory.start": { queued: number };
 	"task.factory.stop": { stopped: boolean };
+	"task.factory.stamp": { task: AgendaTaskRecord };
+	"task.factory.audit": { task: AgendaTaskRecord };
+	"task.factory.answer": { task: AgendaTaskRecord };
 	"task.factory.design": { sessionId: string };
 	"task.factory.watch": { task: AgendaTaskRecord };
 	"task.automation.get": { policy: AgendaAutomationPolicy };
@@ -611,6 +629,9 @@ export type HubCommandName =
 	| "task.run"
 	| "task.factory.start"
 	| "task.factory.stop"
+	| "task.factory.stamp"
+	| "task.factory.audit"
+	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
 	| "task.automation.get"
@@ -638,6 +659,8 @@ export function getDefaultHubCommandTimeoutMs(
 	command: HubCommandName,
 ): number | null {
 	switch (command) {
+		case "task.factory.stamp":
+			return 75_000;
 		case "run.start":
 		case "session.send_input":
 			return null;

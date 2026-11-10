@@ -199,6 +199,8 @@ describe("Factory workflow", () => {
 			runs: [
 				{
 					runId: "run-1",
+					attempt: 1,
+					claimedAt: new Date().toISOString(),
 					taskId: "feature-1",
 					taskRevision: 3,
 					status: "completed",
@@ -271,7 +273,7 @@ describe("Factory workflow", () => {
 			),
 		);
 		await act(async () => button("Export activity").click());
-		await act(async () => button("Approve for queue").click());
+		await act(async () => button("Approve and run").click());
 		expect(mocks.updateAgendaTask).not.toHaveBeenCalled();
 		expect(mocks.approveAgendaTask).toHaveBeenCalledWith({
 			taskId: "feature-1",
@@ -437,6 +439,8 @@ describe("Factory workflow", () => {
 			runs: [
 				{
 					runId: "run-1",
+					attempt: 1,
+					claimedAt: new Date().toISOString(),
 					taskId: feature.taskId,
 					taskRevision: feature.revision,
 					status: "completed",

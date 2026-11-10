@@ -782,37 +782,54 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
 ### Desktop Feature Factory
 
 Factory cards reuse Agenda tasks, revision approvals, task files, and SQLite run
-records. `task.factory.design` runs the existing plan-mode session harness with
-attached documents and Q&A. Its structured brief and checks become a new task
-revision requiring approval. Concurrent edits take precedence over a stale
-design result. After a Hub restart, reopening design preserves the transcript
-in a new session with the canonical read-only tool policy.
-Workflow participant objects select the designer, plan reviewers, implementer,
-optional verification agent, and final reviewers through the existing gateway.
-Task limits cap participant overrides. Desktop presets live in local application
-settings and copy participants, repair limits and approval policy into a task; editing a preset cannot change an
-approved revision. Plan review results are output-only records tied to the exact
-task revision. Edits invalidate them, and configured plan reviewers must pass
-before approval. Failed plan reviews return consolidated findings to the designer
-within the configured repair bound.
-`task.factory.start` explicitly queues approved revisions for sequential local
-execution. Factory tasks do not enter the Agenda automation pump. Queued starts
-are kept in memory; restarting the Hub requires starting the queue again.
+records. Creating a Factory task also writes its design queue entry in the same
+database transaction. The manager consumes this queue independently of the
+Desktop window. Existing imported task specs retain their normal approval flow.
 
-Each task owns a Git worktree. The workflow freezes a candidate commit, executes
-the approved checks, and starts fresh reviewers with read-only tools. Failed
-checks or review findings return to the builder together, up to the configured
-repair limit (two by default). Completion requires passing checks, a passing
-review from every configured reviewer, and an unchanged candidate. UI checks
-also require fresh image or video artifacts. An optional verification agent uses
-the existing command harness to exercise the application and generate declared
-evidence; source changes invalidate its result. Candidate records group the commit, checks, verification and individual
-reviews. Each repair discards the prior candidate evidence. Run records retain
-stage, sessions, check output, and evidence paths for the Desktop review panel.
+`task.factory.design` runs plan-mode sessions with attached documents and durable
+questions. Task-owned design progress records the frozen agents, repair round,
+current phase, designer session, and each reviewer session and result. A generated
+brief becomes a new task revision in the same database update as its review phase.
+Restart resumes unfinished review work without repeating recorded reviewer
+results or granting another repair allowance. A user edit clears this progress
+and invalidates the old revision's reviews. Session IDs are recorded before
+creation, and recovery reads the exact Factory result stored in session metadata.
+An ordinary session status such as `idle` or `completed` is not proof that a
+Factory role completed successfully.
+
+Participants resolve the existing configured-agent profiles, then apply explicit
+role overrides within task limits. The resolved profiles are stored with design
+and execution progress. Skills, tools, provider, and model reach the normal Hub
+session builder. The project workspace root supplies configuration and skills;
+commands execute in the attempt's isolated working directory. Builder and
+designer questions use the existing tool-contribution bridge with manager-owned
+persistence, so answering does not require the original Desktop connection.
+Reviewers return findings instead of asking interactive questions. Roles finish
+with ordinary final responses, and nested delegation remains disabled.
+
+`task.factory.start` queues approved revisions in SQLite. The manager bounds
+concurrent jobs and renews run claims. Recovery reconciles persisted attempts and
+retains repair counts. Optional implementation units run in separate worktrees,
+respect their dependencies, and integrate before candidate verification. Worker
+sessions release their runtime after each attempt. Session usage supplies costs;
+missing usage remains unknown.
+
+The workflow freezes a candidate commit, runs approved checks, and starts fresh
+reviewers. After deterministic checks pass, behavioral verification and independent
+review lanes run concurrently. Failed checks and review findings return to the
+builder within the persisted repair allowance. Unverified coverage stops for
+attention; a bounded verification retry reruns affected lanes after the missing
+capability is restored. Completion requires current-candidate checks and reviews, and
+UI checks require fresh image or video artifacts. Verification source changes
+invalidate evidence. Candidate history preserves earlier attempts and evidence.
+Draft PR readiness also requires passing checks on the recorded head. Human
+stamping uses that exact head. Audit findings revoke readiness and can seed a
+separate improvement task. The desktop lists outcomes and pending samples with
+recorded cost and manual or random selection reasons.
 
 Brief approval is required by default and edits revoke it. Approved builder
-runs auto-approve tools; reviewer and designer sessions enable only read-only
-tools and questions. The verifier uses the command harness; shell access is not
+runs auto-approve tools. Reviewer sessions enable read-only tools, while
+designer sessions also expose questions. The verifier uses the command harness; shell access is not
 sandboxed. Instructions prohibit editing or publication, and candidate checks
 reject tracked source changes after verification. Native CLI providers with
 provider-owned tools are rejected because their tool permissions, nested turn limits and interactive questions are
