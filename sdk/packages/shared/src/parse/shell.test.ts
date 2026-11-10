@@ -4,6 +4,7 @@ import {
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
+	POSIX_STDIN_BOOTSTRAP,
 } from "./shell";
 
 describe("shell helpers", () => {
@@ -476,6 +477,30 @@ describe("shell helpers", () => {
 
 	it("uses POSIX flags for bash-like shells", () => {
 		expect(getShellArgs("/bin/bash", "echo hi")).toEqual(["-c", "echo hi"]);
+		expect(
+			getShellArgs("C:\\Program Files\\Git\\bin\\bash.exe", "echo hi"),
+		).toEqual(["-c", "echo hi"]);
+	});
+
+	it("sends POSIX commands through stdin on Windows only", () => {
+		const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+		const command = `x=${"A".repeat(20_000)}; echo \${#x}`;
+		expect(
+			getShellInvocation(gitBash, command, { platform: "win32" }),
+		).toEqual({
+			executable: gitBash,
+			args: ["-c", POSIX_STDIN_BOOTSTRAP],
+			input: command,
+		});
+		expect(
+			getShellInvocation("/bin/bash", command, { platform: "linux" }),
+		).toEqual({ executable: "/bin/bash", args: ["-c", command] });
+		expect(
+			getShellInvocation("/bin/zsh", command, { platform: "darwin" }),
+		).toEqual({ executable: "/bin/zsh", args: ["-c", command] });
+	});
+
+	it("keeps the command in the arguments for the deprecated helper", () => {
 		expect(
 			getShellArgs("C:\\Program Files\\Git\\bin\\bash.exe", "echo hi"),
 		).toEqual(["-c", "echo hi"]);
