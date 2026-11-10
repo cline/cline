@@ -51,7 +51,7 @@ export function applyPresence(
 		const viewers = store.detachViewer(
 			sessionId,
 			viewer.id,
-			options.system?.connectionId,
+			options.system?.connectionId ?? options.connectionId,
 		);
 		if (viewers === undefined) {
 			if (options.system) return undefined;

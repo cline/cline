@@ -137,6 +137,22 @@ describe("PluginUiService", () => {
 		expect(harness.store.viewers("s1")).toEqual([]);
 	});
 
+	it("keeps a new connection's lease when the old connection's own detach arrives late", async () => {
+		const harness = createHarness();
+		harness.start("s1");
+		const viewer = { id: "client" };
+		await harness.invoke("s1", attach, viewer, "conn-old");
+		await harness.invoke("s1", attach, viewer, "conn-new");
+
+		await harness.invoke("s1", { verb: "detach" }, viewer, "conn-old");
+		expect(harness.store.viewers("s1")).toEqual([
+			{ id: "client", surface: "desktop" },
+		]);
+
+		await harness.invoke("s1", { verb: "detach" }, viewer, "conn-new");
+		expect(harness.store.viewers("s1")).toEqual([]);
+	});
+
 	it("detaches a viewer whose attach was still queued behind another action when its connection closed", async () => {
 		const harness = createHarness();
 		const slow = deferred<PluginUiActionReply>();
