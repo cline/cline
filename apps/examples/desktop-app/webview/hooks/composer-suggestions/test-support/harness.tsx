@@ -41,6 +41,7 @@ export function defaultOptions(
 		promptsInQueue: [],
 		pendingAttachments: [],
 		onAttachFiles: vi.fn(),
+		onUpdateClosedDraft: vi.fn(() => false),
 		onSend: vi.fn(),
 		onUndoTurn: vi.fn(async () => undefined),
 		onRemoveQueuedPrompt: vi.fn(async (promptId: string) =>

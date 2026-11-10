@@ -522,6 +522,28 @@ describe("usePromptDraft", () => {
 			expect(current.pendingAttachments).toEqual([kept]);
 		});
 
+		it("edits the saved text only once the pane closed, and the reopened pane shows it", async () => {
+			await navigate();
+			act(() => current.handlePromptInputChange("typed since"));
+			const update = current.updateClosedDraftText;
+			const takeBack = (text: string) => `taken back\n\n${text}`;
+
+			let edited = true;
+			act(() => {
+				edited = update(takeBack);
+			});
+			expect(edited).toBe(false);
+			expect(drafts.get("new-session")?.text).toBe("typed since");
+
+			await leaveForSessions();
+			act(() => {
+				edited = update(takeBack);
+			});
+			expect(edited).toBe(true);
+			await navigate({ type: "back" });
+			expect(current.promptDraft.value).toBe("taken back\n\ntyped since");
+		});
+
 		it("updates the reopened pane's files, leaving its box and its own pending send alone", async () => {
 			await navigate();
 			const [sent, removed, kept] = files();

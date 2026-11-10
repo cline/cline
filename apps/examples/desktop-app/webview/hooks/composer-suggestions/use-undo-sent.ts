@@ -54,8 +54,9 @@ export function useUndoSent({
 	const undoInFlightRef = useRef(false);
 
 	/**
-	 * A sent prompt the queue still holds comes back into the box with the files
-	 * that went with it and no verb, since no turn ran. Otherwise, including when
+	 * A sent prompt the queue still holds comes back into the box, or into the
+	 * saved draft of a pane that closed meanwhile, with the files that went
+	 * with it and no verb, since no turn ran. Otherwise, including when
 	 * the runtime started it before the removal landed, the turn is forked away
 	 * from before the sent message, after stopping a run the fork would refuse,
 	 * and the fork's draft gets the prompt and those files back. Once its turn
@@ -80,7 +81,11 @@ export function useUndoSent({
 					: promptsInQueue.find((item) => samePrompt(item.prompt, sent.prompt));
 				if (queuedPrompt) {
 					if (await onRemoveQueuedPrompt(queuedPrompt.id)) {
-						composer.setDraft(takenBackDraft(sent.prompt, composer.draft()));
+						const takeBack = (draft: string) =>
+							takenBackDraft(sent.prompt, draft);
+						if (!latest.current.onUpdateClosedDraft(takeBack)) {
+							composer.setDraft(takeBack(composer.draft()));
+						}
 						const { attachments } = sendSnapshotRef.current;
 						if (attachments.length > 0) onAttachFiles([...attachments]);
 						composer.focus();

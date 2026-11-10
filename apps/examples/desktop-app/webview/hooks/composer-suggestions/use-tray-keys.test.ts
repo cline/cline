@@ -403,6 +403,26 @@ describe("useSuggestionTrayKeys", () => {
 		expectSameFiles(onAttachFiles.mock.calls[0]?.[0], [notes]);
 	});
 
+	it("Ctrl+3 takes a queued sent prompt back into the saved draft of a pane that closed during the removal", async () => {
+		const onUpdateClosedDraft = vi.fn(
+			(_update: (draft: string) => string) => true,
+		);
+		const tray = await mountReady({ onUpdateClosedDraft });
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			promptsInQueue: [{ id: "q1", prompt: SENT_PROMPT, steer: false }],
+		});
+
+		await press(tray.composer(), UNDO);
+
+		expect(tray.options().onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
+		expect(tray.composer().value).toBe("");
+		const update = onUpdateClosedDraft.mock.calls[0]?.[0];
+		expect(update?.("")).toBe(SENT_PROMPT);
+		expect(update?.("typed since")).toBe(`${SENT_PROMPT}\n\ntyped since`);
+	});
+
 	it("Ctrl+3 forks a started sent prompt with only the files that went with it", async () => {
 		const verdict = deferred<unknown>();
 		scriptHub({

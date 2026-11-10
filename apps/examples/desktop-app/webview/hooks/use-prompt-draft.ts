@@ -188,6 +188,22 @@ export function usePromptDraft(drafts: PromptDraftCache, threadId: string) {
 		},
 		[drafts, threadId, updateSavedAttachments],
 	);
+	/**
+	 * Edits the text of the thread's saved draft once this pane closed, which a
+	 * reopened pane shows. False while the pane is open: its composer has the text.
+	 */
+	const updateClosedDraftText = useCallback(
+		(update: (text: string) => string): boolean => {
+			if (mountedRef.current) return false;
+			const saved = drafts.get(threadId);
+			if (!saved) return false;
+			return drafts.restore(threadId, saved, {
+				...saved,
+				text: update(saved.text),
+			});
+		},
+		[drafts, threadId],
+	);
 	const clearDraftForHandoff = useCallback(
 		(text: string) => {
 			const rejectedDraft = { text, attachments: draftRef.current.attachments };
@@ -211,5 +227,6 @@ export function usePromptDraft(drafts: PromptDraftCache, threadId: string) {
 		clearDraftForHandoff,
 		takePendingAttachments,
 		updateSavedAttachments,
+		updateClosedDraftText,
 	};
 }

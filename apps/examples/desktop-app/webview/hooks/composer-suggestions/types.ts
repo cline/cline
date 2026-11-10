@@ -50,6 +50,8 @@ export type ComposerSuggestionsOptions = {
 	pendingAttachments: readonly File[];
 	/** Puts files back on the composer, as a send that never left does. */
 	onAttachFiles: (files: File[]) => void;
+	/** Edits the chat's saved draft text once its pane closed. False while the pane is open, when the composer takes the text. */
+	onUpdateClosedDraft: (update: (draft: string) => string) => boolean;
 	/**
 	 * Submits a one-key Send's prompt with the files that were on the composer
 	 * at the press and are still there. The prompt never came from the box, so
