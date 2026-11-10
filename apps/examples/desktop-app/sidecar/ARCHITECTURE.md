@@ -138,6 +138,16 @@ existing local Hub connection. Credential mutations and sign-out cleanup belong
 to the daemon. Desktop retains cloud-view and account-context reactions.
 Provider OAuth and voice operations still use their existing sidecar services.
 
+MCP registration, listing, enable/disable, deletion, settings-file creation and
+on-demand connection/tool inspection use `createHubMcpApi` on the local Hub.
+Marketplace MCP installation/removal uses the same API. The Hub resolves the
+settings path and owns writes, passive probes and interactive OAuth. The
+sidecar's OAuth adapter only opens owner-scoped browser URLs and aborts its
+viewer interaction on cancellation/disconnect. Callback listeners, attempts,
+credential persistence and enable-state restoration belong to the Hub. Desktop
+keeps OS editor opening. Session tool runtimes continue to own their own MCP
+connections.
+
 ### 4. Session Storage — Direct SqliteSessionStore
 
 ```typescript
@@ -238,8 +248,8 @@ Supported commands:
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
-| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
-| `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
+| `authorize_mcp_server_oauth` | Shared Hub OAuth lifecycle via `createHubMcpApi`; Desktop opens the browser |
+| `cancel_mcp_server_oauth` | Cancel the initiating webview interaction; Hub aborts the OAuth attempt |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
 | `get_git_branch` | async `execFile("git", ...)` |
