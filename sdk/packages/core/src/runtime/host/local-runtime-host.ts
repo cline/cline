@@ -2479,7 +2479,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private async markTurnRunning(session: ActiveSession): Promise<void> {
-		if (session.status === "running") return;
+		if (
+			session.status === "running" &&
+			session.artifacts?.manifest.pid === process.pid
+		) {
+			return;
+		}
 		await this.updateStatus(session, "running", null);
 	}
 

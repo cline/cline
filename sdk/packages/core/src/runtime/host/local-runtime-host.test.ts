@@ -692,6 +692,25 @@ describe("LocalRuntimeHost", () => {
 			await expect(resumed.readRow()).resolves.toMatchObject({ status, pid });
 		});
 
+		it("takes the row from a live owner when it runs a turn", async () => {
+			const resumed = await resumeFromDisk("running", process.ppid);
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(resumed.updateSessionStatus).toHaveBeenCalledWith(
+				resumed.sessionId,
+				"running",
+				null,
+				process.pid,
+			);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				pid: process.pid,
+			});
+		});
+
 		it("parks a dead running row as idle on this pid until a turn starts", async () => {
 			const resumed = await resumeFromDisk("running", deadPid);
 
