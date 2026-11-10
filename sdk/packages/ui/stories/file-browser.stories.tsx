@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type CSSProperties, useState } from "react";
+import { useId, useState } from "react";
 import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
 import { Streamdown } from "streamdown";
@@ -101,23 +101,25 @@ export const Default: Story = {
 
 export const EditableInstructions: Story = {
 	render: function Instructions() {
+		const labelId = useId();
 		const [instructions, setInstructions] = useState(
 			"## Review instructions\n\n- Summarize recent changes.\n- Call out **risks** and follow-up work.",
 		);
 		return (
 			<FileBrowserContent
 				className="overflow-hidden rounded-xl border border-border bg-card"
-				style={
-					{ "--cline-ui-file-browser-body-height": "20rem" } as CSSProperties
-				}
+				sizing="content"
+				minBodyHeight="12rem"
+				maxBodyHeight="24rem"
 				headerLabel="Instructions"
+				headerLabelId={labelId}
 				sourceLabel="Edit"
 				defaultMode="source"
 				showActions={false}
 				source={
 					<textarea
-						aria-label="Instructions"
-						className="block h-full w-full resize-none bg-transparent p-5 text-sm leading-relaxed outline-offset-[-2px]"
+						aria-labelledby={labelId}
+						className="block min-h-48 w-full field-sizing-content resize-none overflow-hidden bg-transparent p-5 text-sm leading-relaxed outline-offset-[-2px]"
 						value={instructions}
 						onChange={(event) => setInstructions(event.target.value)}
 					/>

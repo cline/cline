@@ -214,6 +214,20 @@
 	.cline-ui-file-browser__editor {
 		height: 100%;
 	}
+	.cline-ui-file-browser__content[data-sizing="content"]
+		> .cline-ui-file-browser__body {
+		height: auto;
+		min-height: var(--cline-ui-file-browser-body-min-height, 0px);
+		max-height: var(
+			--cline-ui-file-browser-body-max-height,
+			var(--cline-ui-file-browser-body-height, 36rem)
+		);
+	}
+	.cline-ui-file-browser__content[data-sizing="content"]
+		> .cline-ui-file-browser__body
+		> .cline-ui-file-browser__editor {
+		height: auto;
+	}
 	.cline-ui-file-browser__preview,
 	.cline-ui-file-browser__source,
 	.cline-ui-file-browser__empty {
