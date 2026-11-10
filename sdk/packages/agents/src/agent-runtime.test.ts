@@ -7,6 +7,7 @@ import type {
 	AgentRuntimePlugin,
 	AgentTool,
 	ITelemetryService,
+	SubscriptionUsageSnapshot,
 } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -93,6 +94,83 @@ function createTelemetryMock(): {
 }
 
 describe("AgentRuntime", () => {
+	it("passes plan snapshots without accounting, history, logging or telemetry", async () => {
+		let clock = 1_000;
+		const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
+		try {
+			const usage: SubscriptionUsageSnapshot = {
+				providerId: "openai-codex",
+				source: "codex-response-headers",
+				capturedAt: 1_987_654_321_123,
+				windows: [
+					{
+						id: "primary",
+						usedPercent: 123.456789,
+						windowMinutes: 34567,
+						resetsAt: 1_987_655_432_100,
+					},
+				],
+			};
+			const step = (): AgentModelEvent[] => [
+				{ type: "subscription-usage", usage },
+				{ type: "text-delta", text: "hello" },
+				{ type: "usage", usage: { inputTokens: 3, outputTokens: 2 } },
+				{ type: "finish", reason: "stop" },
+			];
+			const model = new ScriptedModel([step, step]);
+			const { telemetry, capture } = createTelemetryMock();
+			const logger = { log: vi.fn(), debug: vi.fn(), error: vi.fn() };
+			const runtime = new AgentRuntime({
+				model,
+				logger,
+				telemetry,
+				hooks: {
+					beforeRun: () => {
+						clock += 1_000;
+						return undefined;
+					},
+				},
+			});
+			const events: AgentRuntimeEvent[] = [];
+			runtime.subscribe((event) => events.push(event));
+			for (const prompt of ["Hi", "Again"]) {
+				const result = await runtime.run(prompt);
+				expect(result.outputText).toBe("hello");
+				expect(result.usage).toEqual({
+					inputTokens: 3,
+					outputTokens: 2,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					reasoningTokenCount: 0,
+					totalCost: 0,
+				});
+				expect(JSON.stringify(result.messages)).not.toContain(usage.source);
+			}
+			expect(model.requests).toHaveLength(2);
+			expect(runtime.snapshot().messages).toHaveLength(4);
+			expect(
+				events.filter((event) => event.type === "subscription-usage"),
+			).toMatchObject([
+				{ usage, runStartedAt: 1_000 },
+				{ usage, runStartedAt: 2_000 },
+			]);
+			const diagnostics = JSON.stringify([
+				...Object.values(logger).flatMap((method) => method.mock.calls),
+				...capture.mock.calls,
+			]);
+			expect(diagnostics).not.toContain("subscription-usage");
+			expect(diagnostics).not.toContain(usage.source);
+			for (const value of [
+				usage.capturedAt,
+				...Object.values(usage.windows[0]),
+			]) {
+				if (typeof value === "number")
+					expect(diagnostics).not.toContain(String(value));
+			}
+		} finally {
+			now.mockRestore();
+		}
+	});
 	it("completes a simple turn without tools", async () => {
 		const model = new ScriptedModel([
 			() => [

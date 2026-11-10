@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { projectSessionEvent } from "../hub/server/handlers/session-event-projector";
 import type { CoreSessionConfig } from "../types/config";
 import type { ActiveSession } from "../types/session";
 import {
@@ -72,6 +73,43 @@ function createContext(telemetry: TelemetryService): AgentEventContext {
 function tokenUsageEmits(adapter: { emit: ReturnType<typeof vi.fn> }) {
 	return adapter.emit.mock.calls.filter(([event]) => event === "task.tokens");
 }
+
+it("keeps plan snapshots ephemeral through the core and hub boundaries", async () => {
+	const { adapter, telemetry } = createTelemetryHarness();
+	const ctx = createContext(telemetry);
+	const emit = vi.fn<AgentEventContext["emit"]>();
+	ctx.emit = emit;
+	const event: AgentEvent = {
+		type: "subscription_usage",
+		runStartedAt: 1_000,
+		usage: {
+			providerId: "openai-codex",
+			source: "codex-response-headers",
+			capturedAt: 2_000,
+			windows: [{ id: "primary", usedPercent: 42 }],
+		},
+	};
+	handleAgentEvent(ctx, event);
+	expect(emit).toHaveBeenCalledTimes(1);
+	expect(emit).toHaveBeenCalledWith({
+		type: "agent_event",
+		payload: expect.objectContaining({ sessionId: ctx.sessionId, event }),
+	});
+	expect(ctx.persistMessages).not.toHaveBeenCalled();
+	expect(ctx.usageBySession.size).toBe(0);
+	expect(ctx.aggregateUsageBySession.size).toBe(0);
+	expect(adapter.emit).not.toHaveBeenCalled();
+	expect(adapter.emitRequired).not.toHaveBeenCalled();
+	// Hub publication is also its durable event-log ingress: neither runs.
+	const appendToLog = vi.fn();
+	const publish = vi.fn((envelope: unknown) => appendToLog(envelope));
+	const hub = { publish } as unknown as Parameters<
+		typeof projectSessionEvent
+	>[0];
+	await projectSessionEvent(hub, emit.mock.calls[0][0]);
+	expect(publish).not.toHaveBeenCalled();
+	expect(appendToLog).not.toHaveBeenCalled();
+});
 
 describe("legacyTokenUsageFromUsageEvent", () => {
 	it("subtracts cache reads/writes from the cache-inclusive inputTokens", () => {

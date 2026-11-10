@@ -1,6 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import type { GeneratedMedia } from "@cline/shared"
+import type { GeneratedMedia, SubscriptionUsageSnapshot } from "@cline/shared"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
@@ -18,6 +18,9 @@ import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
+
+export type { SubscriptionUsageSnapshot } from "@cline/shared"
+
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -39,6 +42,8 @@ export const DEFAULT_PLATFORM = "unknown"
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 
 export interface ExtensionState {
+	/** Ephemeral provider report; never stored in task history or settings. */
+	subscriptionUsage?: SubscriptionUsageSnapshot | null
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	onboardingModels: OnboardingModelGroup | undefined

@@ -759,6 +759,9 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
+			getProviderId: () => this.getActiveProviderId(),
+			getCodexAuthVersion: () => this.authService.codexCredentialsVersion,
+			getCodexAuthChangedAt: () => this.authService.codexCredentialsChangedAt,
 			messageTranslatorState: this.messageTranslatorState,
 			sessions: this.sessions,
 			messages: this.messages,
@@ -823,6 +826,10 @@ export class Controller {
 	}
 
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
+		this.sessionEvents?.handleSubscriptionUsageContextChange()
+		if (event.kind === "fields" && event.providerId.toString() === "openai-codex") {
+			this.sessionEvents?.invalidateSubscriptionUsage()
+		}
 		this.scheduleProviderConfigStatePost()
 
 		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
@@ -833,6 +840,7 @@ export class Controller {
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
+		this.sessionEvents?.handleSubscriptionUsageContextChange()
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
 
@@ -2570,6 +2578,7 @@ export class Controller {
 		if (this.isDisposed) {
 			return Promise.resolve()
 		}
+		this.sessionEvents?.handleSubscriptionUsageContextChange()
 		return this.statePostDebouncer.post()
 	}
 
@@ -2707,6 +2716,7 @@ export class Controller {
 					? processedTaskHistory.find((item) => item.id === snapshotTask.taskId)
 					: undefined,
 				taskHistory: processedTaskHistory,
+				subscriptionUsage: this.sessionEvents.getSubscriptionUsage() ?? null,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
 				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
