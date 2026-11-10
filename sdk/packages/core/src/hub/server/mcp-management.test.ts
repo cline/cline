@@ -80,6 +80,44 @@ describe("Hub MCP management", () => {
 		"__proto__",
 		" foo ",
 		"",
+	])("toggles and inspects the exact stored key %j while preserving its neighbor", async (name) => {
+		const neighbor = { transport: { type: "stdio", command: "neighbor" } };
+		await seed({
+			foo: neighbor,
+			[name]: {
+				transport: { type: "stdio", command: "node" },
+				disabled: false,
+			},
+		});
+		for (const disabled of [true, false]) {
+			const result = await api.setDisabled(name, disabled);
+			expect(
+				result.servers.find((server) => server.name === name)?.disabled,
+			).toBe(disabled);
+			const settings = JSON.parse(await readFile(path, "utf8"));
+			expect(settings.mcpServers[name].disabled).toBe(disabled);
+			expect(settings.mcpServers.foo).toEqual(neighbor);
+		}
+		const client = {
+			connect: vi.fn(),
+			disconnect: vi.fn().mockResolvedValue(undefined),
+			listTools: vi.fn().mockResolvedValue([]),
+			callTool: vi.fn(),
+		};
+		const factory = vi.fn(() => client);
+		vi.spyOn(McpClient, "createDefaultMcpServerClientFactory").mockReturnValue(
+			factory,
+		);
+		expect(await api.inspect(name)).toMatchObject({ name, connected: true });
+		expect(factory).toHaveBeenCalledWith(expect.objectContaining({ name }));
+		expect(client.disconnect).toHaveBeenCalledOnce();
+	});
+	it.each([
+		"constructor",
+		"prototype",
+		"__proto__",
+		" foo ",
+		"",
 	])("renames the exact stored key %j while preserving its neighbor", async (previousName) => {
 		const neighbor = { transport: { type: "stdio", command: "neighbor" } };
 		await seed({

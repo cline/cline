@@ -68,6 +68,22 @@ describe("Desktop MCP Hub adapter", () => {
 		expect(api.delete).toHaveBeenCalledWith(name);
 	});
 
+	it.each([
+		" foo ",
+		"constructor",
+		"prototype",
+		"__proto__",
+		"",
+	])("passes the exact toggle and inspection key %j to the Hub", async (name) => {
+		await handleCommand(ctx, "set_mcp_server_disabled", {
+			name,
+			disabled: true,
+		});
+		expect(api.setDisabled).toHaveBeenCalledWith(name, true);
+		await handleCommand(ctx, "inspect_mcp_server", { name });
+		expect(api.inspect).toHaveBeenCalledWith(name);
+	});
+
 	it("propagates hub failures without a local settings fallback", async () => {
 		api.upsert.mockRejectedValue(new Error("Hub unavailable"));
 		await expect(

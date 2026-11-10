@@ -12,7 +12,9 @@ export function createHubMcpApi(client: Pick<NodeHubClient, "command">) {
 	): Promise<HubCommandOutputMap[T]> {
 		const reply = await client.command(name, { ...input }, undefined, {
 			retryAfterDispatch: false,
-			timeoutMs: null,
+			// Catalog reads do not enter the mutation/probe queue.
+			// Keep their default deadline while allowing queued work to finish.
+			timeoutMs: name === "mcp.servers.list" ? undefined : null,
 		});
 		if (!reply.ok)
 			throw new HubCommandError(
