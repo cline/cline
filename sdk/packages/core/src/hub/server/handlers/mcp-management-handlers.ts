@@ -100,7 +100,7 @@ export async function handleMcpManagementCommand(
 				});
 			case "mcp.servers.set_disabled": {
 				const input = z
-					.object({ name, disabled: z.boolean() })
+					.object({ name: storedKey, disabled: z.boolean() })
 					.strict()
 					.parse(payload);
 				return okReply(envelope, {
@@ -112,7 +112,7 @@ export async function handleMcpManagementCommand(
 				return okReply(envelope, { ...(await service.delete(input.name)) });
 			}
 			case "mcp.servers.inspect": {
-				const input = z.object({ name }).strict().parse(payload);
+				const input = z.object({ name: storedKey }).strict().parse(payload);
 				return okReply(envelope, { ...(await service.inspect(input.name)) });
 			}
 			case "mcp.servers.install": {

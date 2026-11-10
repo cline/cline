@@ -739,6 +739,7 @@ export interface DefaultMcpServerClientFactoryOptions {
 
 export interface ProbeMcpServerConnectionOptions
 	extends Omit<DefaultMcpServerClientFactoryOptions, "settingsPath"> {
+	/** Exact stored settings key, including whitespace or an empty string. */
 	serverName: string;
 	filePath?: string;
 }
@@ -1033,10 +1034,7 @@ export function createDefaultMcpServerClientFactory(
 export async function probeMcpServerConnection(
 	options: ProbeMcpServerConnectionOptions,
 ): Promise<ProbeMcpServerConnectionResult> {
-	const serverName = options.serverName.trim();
-	if (!serverName) {
-		throw new Error("MCP server name cannot be empty.");
-	}
+	const serverName = options.serverName;
 	const { getMcpServerOAuthStatus, resolveMcpServerRegistration } =
 		await import("./config-loader");
 	const registration = resolveMcpServerRegistration(serverName, {

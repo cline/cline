@@ -3414,7 +3414,8 @@ export async function handleCommand(
 	}
 
 	if (command === "set_mcp_server_disabled") {
-		const name = String(args?.name ?? "").trim();
+		const name = args?.name;
+		if (typeof name !== "string") throw new Error("server name is required");
 		return createHubMcpApi(await ensureSharedHubClient(ctx)).setDisabled(
 			name,
 			args?.disabled as boolean,
@@ -3437,9 +3438,9 @@ export async function handleCommand(
 		).settingsPath;
 	}
 	if (command === "inspect_mcp_server") {
-		return createHubMcpApi(await ensureSharedHubClient(ctx)).inspect(
-			String(args?.name ?? "").trim(),
-		);
+		const name = args?.name;
+		if (typeof name !== "string") throw new Error("server name is required");
+		return createHubMcpApi(await ensureSharedHubClient(ctx)).inspect(name);
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
