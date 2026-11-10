@@ -1721,6 +1721,11 @@ export function useSessionHistory({
 		async (threadId: string) => {
 			const sourceSession = getSessionByThreadId(threadId);
 			if (!sourceSession) return false;
+			const exportAction: NonNullable<SessionPendingAction> = {
+				sessionId: threadId,
+				action: "export",
+			};
+			setPendingAction(exportAction);
 			try {
 				const picked = await desktopClient.invoke<string | null>(
 					"pick_save_file_path",
@@ -1728,13 +1733,13 @@ export function useSessionHistory({
 						// The name the history file has on disk; the user can change it.
 						defaultFileName: `${sourceSession.sessionId}.messages.json`,
 					},
+					{ timeoutMs: null },
 				);
 				const destinationPath = typeof picked === "string" ? picked : "";
 				if (!destinationPath.trim()) {
 					// The user dismissed the save dialog.
 					return false;
 				}
-				setPendingAction({ sessionId: threadId, action: "export" });
 				const result = await desktopClient.invoke<{ path?: string }>(
 					"export_chat_session_history",
 					{
@@ -1760,7 +1765,9 @@ export function useSessionHistory({
 				});
 				return false;
 			} finally {
-				setPendingAction(null);
+				setPendingAction((current) =>
+					current === exportAction ? null : current,
+				);
 			}
 		},
 		[getSessionByThreadId],

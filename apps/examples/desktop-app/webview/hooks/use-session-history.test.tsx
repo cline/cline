@@ -141,13 +141,90 @@ describe("useSessionHistory exportThread", () => {
 
 		expect(exported).toBe(true);
 		// The dialog opens on the name the history file has on disk.
-		expect(invokeMock).toHaveBeenCalledWith("pick_save_file_path", {
-			defaultFileName: "ses-export.messages.json",
-		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"pick_save_file_path",
+			{
+				defaultFileName: "ses-export.messages.json",
+			},
+			{ timeoutMs: null },
+		);
 		expect(invokeMock).toHaveBeenCalledWith("export_chat_session_history", {
 			environmentId: "local",
 			sessionId: "ses-export",
 			destinationPath: "/Users/dev/exports/renamed.json",
+		});
+		expect(current.pendingAction).toBeNull();
+	});
+
+	it("keeps export pending while waiting for the save dialog", async () => {
+		const threadId = await renderWithSession();
+		let dismiss!: (value: null) => void;
+		invokeMock.mockImplementation((command: string) => {
+			if (command === "pick_save_file_path") {
+				return new Promise<null>((resolve) => {
+					dismiss = resolve;
+				});
+			}
+			return Promise.resolve([]);
+		});
+		let exporting!: Promise<boolean>;
+		await act(async () => {
+			exporting = current.exportThread(threadId);
+		});
+
+		expect(current.pendingAction).toEqual({
+			sessionId: threadId,
+			action: "export",
+		});
+		await act(async () => {
+			dismiss(null);
+			await exporting;
+		});
+		expect(current.pendingAction).toBeNull();
+	});
+
+	it("does not clear another action when a save dialog is cancelled", async () => {
+		const threadId = await renderWithSession();
+		let dismiss!: (value: null) => void;
+		let finishFork!: (value: { sessionId: string }) => void;
+		invokeMock.mockImplementation((command: string) => {
+			if (command === "pick_save_file_path") {
+				return new Promise<null>((resolve) => {
+					dismiss = resolve;
+				});
+			}
+			if (command === "chat_session_command") {
+				return new Promise<{ sessionId: string }>((resolve) => {
+					finishFork = resolve;
+				});
+			}
+			return Promise.resolve([]);
+		});
+		let exporting!: Promise<boolean>;
+		let forking!: Promise<boolean>;
+		await act(async () => {
+			exporting = current.exportThread(threadId);
+		});
+		await act(async () => {
+			forking = current.forkThread(threadId);
+		});
+		expect(current.pendingAction).toEqual({
+			sessionId: threadId,
+			action: "fork",
+		});
+
+		await act(async () => {
+			dismiss(null);
+			await exporting;
+		});
+
+		expect(current.pendingAction).toEqual({
+			sessionId: threadId,
+			action: "fork",
+		});
+		await act(async () => {
+			finishFork({ sessionId: "forked-session" });
+			await forking;
 		});
 		expect(current.pendingAction).toBeNull();
 	});
