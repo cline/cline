@@ -200,7 +200,7 @@ export function mergeDiscoveredSessionLists(
 		Math.max(
 			...[
 				record.lastActivityAt,
-				record.updatedAt,
+				record.origin === "cloud" ? undefined : record.updatedAt,
 				record.endedAt,
 				record.startedAt,
 			].map((value) => parseTimestamp(value as string | number | undefined)),
