@@ -253,6 +253,65 @@ describe("AlertDialog", () => {
 		expect(dialog()).toBeNull();
 	});
 
+	it("can keep confirmation open declaratively while cancel still closes", async () => {
+		const onConfirm = vi.fn();
+		const onOpenChange = vi.fn();
+		await render(
+			<Example
+				closeOnConfirm={false}
+				onConfirm={onConfirm}
+				onOpenChange={onOpenChange}
+			/>,
+		);
+		await act(async () => button("Delete").click());
+		expect(onConfirm).toHaveBeenCalledOnce();
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(dialog()).not.toBeNull();
+		await act(async () => button("Cancel").click());
+		expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+		expect(dialog()).toBeNull();
+	});
+
+	it.each([
+		"confirm",
+		"cancel",
+	] as const)("blocks passive dismissal while keeping the explicit %s action available", async (action) => {
+		const onAction = vi.fn();
+		const onOpenChange = vi.fn();
+		await render(
+			<Example
+				dismissible={false}
+				onOpenChange={onOpenChange}
+				onConfirm={action === "confirm" ? onAction : undefined}
+				onCancel={action === "cancel" ? onAction : undefined}
+			/>,
+		);
+		await pressKey(button("Cancel"), "Escape");
+		await clickOutside();
+		expect(onOpenChange).not.toHaveBeenCalled();
+		await act(async () =>
+			button(action === "confirm" ? "Delete" : "Cancel").click(),
+		);
+		expect(onAction).toHaveBeenCalledOnce();
+		expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+		expect(dialog()).toBeNull();
+	});
+
+	it("announces confirmation progress, prevents duplicate confirmation, and preserves cancel policy", async () => {
+		const onConfirm = vi.fn();
+		await render(<Example onConfirm={onConfirm} />);
+		await act(async () => button("Delete").focus());
+		await render(<Example confirmLoading onConfirm={onConfirm} />);
+		expect(button("Delete").getAttribute("aria-busy")).toBe("true");
+		expect(button("Delete").disabled).toBe(true);
+		expect(button("Cancel").disabled).toBe(false);
+		expect(document.activeElement).toBe(dialog());
+		await act(async () => button("Delete").click());
+		expect(onConfirm).not.toHaveBeenCalled();
+		await act(async () => button("Cancel").click());
+		expect(dialog()).toBeNull();
+	});
+
 	it("focuses the content when cancel is disabled and confirmation remains available", async () => {
 		await render(<Example cancelDisabled />);
 		expect(button("Delete").disabled).toBe(false);

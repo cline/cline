@@ -107,6 +107,14 @@
 	.cline-dialog__body > * {
 		flex-shrink: 0;
 	}
+	.cline-dialog__body[data-layout="contained"] {
+		flex: 1;
+		overflow: hidden;
+	}
+	.cline-dialog__body[data-layout="contained"] > * {
+		min-height: 0;
+		flex-shrink: 1;
+	}
 	.cline-dialog__footer {
 		display: flex;
 		flex: none;

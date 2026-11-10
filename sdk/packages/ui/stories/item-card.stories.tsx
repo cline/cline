@@ -7,7 +7,7 @@ import {
 	MoreHorizontal,
 	TriangleAlert,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge } from "../components/badge";
 import { Button, IconButton } from "../components/button";
 import { Dialog } from "../components/dialog";
@@ -159,6 +159,32 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+export const PrimaryActionRef: Story = {
+	render: function PrimaryActionRef(args) {
+		const primaryRef = useRef<HTMLButtonElement>(null);
+		const [opened, setOpened] = useState(false);
+		return (
+			<div className="grid gap-4">
+				<Button
+					onClick={() => primaryRef.current?.focus()}
+					variant="secondary"
+					tone="neutral"
+				>
+					Focus item
+				</Button>
+				<ItemCardExample
+					{...args}
+					primaryAction={{ ref: primaryRef, onClick: () => setOpened(true) }}
+				/>
+				<output>
+					{opened
+						? "Item opened"
+						: "Focus the card, then press Enter to open it."}
+				</output>
+			</div>
+		);
+	},
+};
 export const WithCount: Story = { args: { title: "Teams", count: 18 } };
 export const LeadingImage: Story = {
 	args: { showLeadingItem: true, leadingItemType: "image" },

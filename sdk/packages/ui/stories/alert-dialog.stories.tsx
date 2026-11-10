@@ -30,6 +30,9 @@ const meta = {
 		},
 		confirmDisabled: { control: "boolean" },
 		cancelDisabled: { control: "boolean" },
+		confirmLoading: { control: "boolean" },
+		closeOnConfirm: { control: "boolean" },
+		dismissible: { control: "boolean" },
 	},
 	parameters: {
 		docs: {
@@ -37,8 +40,8 @@ const meta = {
 			description: {
 				component:
 					"A controlled, accessible confirmation dialog using shared Button styles. " +
-					"Actions request closure unless the mouse handler calls event.preventDefault(). " +
-					"Keep loading, retries, and dismissal guards in the caller. " +
+					"Actions request closure unless the handler prevents default or closeOnConfirm is false. " +
+					"The caller owns pending state and retries; dismissible controls Escape independently of explicit actions. " +
 					"These examples use harmless callbacks. " +
 					"Use the toolbar to compare light and dark themes.",
 			},
@@ -50,39 +53,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Example({
-	blocking = false,
-	...props
-}: AlertDialogProps & { blocking?: boolean }) {
+function Example(props: AlertDialogProps) {
 	const [open, setOpen] = useState(true);
 	return (
 		<div className="p-6">
 			<Button onClick={() => setOpen(true)} tone="neutral" variant="secondary">
 				Reopen dialog
 			</Button>
-			<AlertDialog
-				{...props}
-				open={open}
-				onOpenChange={(nextOpen) => {
-					if (!blocking) setOpen(nextOpen);
-				}}
-				onCancel={
-					blocking
-						? (event) => {
-								event.preventDefault();
-								setOpen(false);
-							}
-						: props.onCancel
-				}
-				onConfirm={
-					blocking
-						? (event) => {
-								event.preventDefault();
-								setOpen(false);
-							}
-						: props.onConfirm
-				}
-			/>
+			<AlertDialog {...props} open={open} onOpenChange={setOpen} />
 		</div>
 	);
 }
@@ -197,7 +175,7 @@ export const PendingConfirmation: Story = {
 		docs: {
 			description: {
 				story:
-					"Confirm prevents automatic dismissal, disables both actions during a simulated save, and closes on completion. The caller rejects Escape dismissal while saving.",
+					"closeOnConfirm keeps the dialog open during a simulated save. confirmLoading shows progress and disables confirmation, while cancelDisabled and dismissible control other dismissal routes. The caller closes on completion.",
 			},
 		},
 	},
@@ -224,15 +202,13 @@ export const PendingConfirmation: Story = {
 				<AlertDialog
 					{...args}
 					open={open}
-					onOpenChange={(nextOpen) => {
-						if (!pending) setOpen(nextOpen);
-					}}
-					onConfirm={(event) => {
-						event.preventDefault();
-						setPending(true);
-					}}
+					onOpenChange={setOpen}
+					dismissible={!pending}
+					closeOnConfirm={false}
+					onConfirm={() => setPending(true)}
 					confirmLabel={pending ? "Saving…" : args.confirmLabel}
-					confirmDisabled={pending || args.confirmDisabled}
+					confirmLoading={pending}
+					confirmDisabled={args.confirmDisabled}
 					cancelDisabled={pending || args.cancelDisabled}
 				/>
 			</div>
@@ -241,13 +217,13 @@ export const PendingConfirmation: Story = {
 };
 
 export const Blocking: Story = {
+	args: { dismissible: false },
 	parameters: {
 		docs: {
 			description: {
 				story:
-					"The caller rejects Escape dismissal. Either action explicitly closes the dialog.",
+					"Escape dismissal is disabled. Either explicit action can still close the dialog.",
 			},
 		},
 	},
-	render: (args) => <Example {...args} blocking />,
 };

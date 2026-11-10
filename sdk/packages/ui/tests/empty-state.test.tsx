@@ -21,6 +21,49 @@ async function render(node: ReactNode) {
 }
 
 describe("EmptyState", () => {
+	it("renders host-owned illustration semantics above the message and actions", async () => {
+		await render(
+			<EmptyState
+				align="center"
+				size="lg"
+				surface="transparent"
+				media={
+					<img
+						src="illustration.svg"
+						alt="A calendar with no scheduled events"
+					/>
+				}
+				title="No schedules"
+				description="Create your first schedule."
+				action={{ label: "Create schedule", onClick: () => {} }}
+			/>,
+		);
+		const media = container.querySelector('[data-slot="empty-state-media"]');
+		expect(media?.querySelector("img")?.alt).toBe(
+			"A calendar with no scheduled events",
+		);
+		expect(media?.closest('[aria-hidden="true"]')).toBeNull();
+		expect(container.firstElementChild?.firstElementChild).toBe(media);
+		expect(container.querySelector("h3")?.textContent).toBe("No schedules");
+		expect(container.querySelector("button")?.textContent).toBe(
+			"Create schedule",
+		);
+		await render(
+			<EmptyState
+				media={
+					<>
+						{false}
+						{null}
+					</>
+				}
+			>
+				No schedules
+			</EmptyState>,
+		);
+		expect(
+			container.querySelector('[data-slot="empty-state-media"]'),
+		).toBeNull();
+	});
 	it("preserves existing description-only children and forwards native root props", async () => {
 		const ref = createRef<HTMLDivElement>();
 		await render(

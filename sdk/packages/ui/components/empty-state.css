@@ -21,6 +21,17 @@
 		text-align: center;
 		padding: 1.5rem;
 	}
+	.cline-ui-empty-state[data-size="lg"] {
+		gap: 1.25rem;
+		padding: 2rem 1.25rem;
+	}
+	.cline-ui-empty-state[data-surface="transparent"] {
+		background: transparent;
+	}
+	.cline-ui-empty-state__media {
+		min-width: 0;
+		max-width: 100%;
+	}
 	.cline-ui-empty-state__message {
 		display: grid;
 		min-width: 0;

@@ -38,6 +38,10 @@ export interface DialogProps
 	footer?: ReactNode;
 	size?: "sm" | "md" | "lg";
 	showCloseButton?: boolean;
+	/** Allow Escape, outside interactions, and close-button dismissal. Defaults to true. */
+	dismissible?: boolean;
+	/** Contained bodies fill available space and let their children own scrolling. */
+	bodyLayout?: "scroll" | "contained";
 	/** Mount inside a themed wrapper when the host uses scoped tokens. */
 	portalContainer?: ComponentProps<typeof DialogPrimitive.Portal>["container"];
 	className?: string;
@@ -47,7 +51,7 @@ export interface DialogProps
 	headerStyle?: CSSProperties;
 }
 
-/** Controlled content dialog. The host owns actions, pending state, and dismissal guards. */
+/** Controlled content dialog. The host owns actions, pending state, and dismissal policy. */
 export function Dialog({
 	open,
 	onOpenChange,
@@ -58,6 +62,8 @@ export function Dialog({
 	footer,
 	size = "md",
 	showCloseButton = true,
+	dismissible = true,
+	bodyLayout = "scroll",
 	portalContainer,
 	className,
 	bodyClassName,
@@ -104,7 +110,12 @@ export function Dialog({
 	}, [header, hasDescription]);
 
 	return (
-		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+		<DialogPrimitive.Root
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (nextOpen || dismissible) onOpenChange(nextOpen);
+			}}
+		>
 			<DialogPrimitive.Portal container={portalContainer}>
 				<DialogPrimitive.Overlay
 					className="cline-dialog__overlay"
@@ -118,9 +129,18 @@ export function Dialog({
 					data-slot="dialog-content"
 					onOpenAutoFocus={focus.onOpenAutoFocus}
 					onCloseAutoFocus={focus.onCloseAutoFocus}
-					onEscapeKeyDown={onEscapeKeyDown}
-					onPointerDownOutside={onPointerDownOutside}
-					onInteractOutside={onInteractOutside}
+					onEscapeKeyDown={(event) => {
+						onEscapeKeyDown?.(event);
+						if (!dismissible) event.preventDefault();
+					}}
+					onPointerDownOutside={(event) => {
+						onPointerDownOutside?.(event);
+						if (!dismissible) event.preventDefault();
+					}}
+					onInteractOutside={(event) => {
+						onInteractOutside?.(event);
+						if (!dismissible) event.preventDefault();
+					}}
 					ref={focus.contentRef}
 				>
 					<div
@@ -153,9 +173,10 @@ export function Dialog({
 						<div
 							className={clsx("cline-dialog__body", bodyClassName)}
 							data-slot="dialog-body"
+							data-layout={bodyLayout}
 							role="document"
-							// biome-ignore lint/a11y/noNoninteractiveTabindex: Allow keyboard users to scroll details independently of the footer actions.
-							tabIndex={0}
+							// Only the scroll-owning body needs a keyboard scroll target.
+							tabIndex={bodyLayout === "scroll" ? 0 : undefined}
 						>
 							{children}
 						</div>
@@ -170,12 +191,16 @@ export function Dialog({
 							asChild
 							aria-label="Close"
 							icon={X}
+							disabled={!dismissible}
 							className="cline-dialog__close"
 							size="sm"
 							tone="neutral"
 							variant="ghost"
 						>
-							<DialogPrimitive.Close data-slot="dialog-close" />
+							<DialogPrimitive.Close
+								data-slot="dialog-close"
+								disabled={!dismissible}
+							/>
 						</IconButton>
 					) : null}
 				</DialogPrimitive.Content>
