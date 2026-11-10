@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { AgendaTaskRecord, AgendaTaskRunRecord } from "@cline/shared";
 import { factoryRunStateSchema } from "@cline/shared";
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -104,7 +104,10 @@ afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 });
-async function render(value: AgendaTaskRecord) {
+async function render(
+	value: AgendaTaskRecord,
+	questions: ComponentProps<typeof FeatureDetail>["questions"] = [],
+) {
 	await act(async () =>
 		root.render(
 			<Dialog open>
@@ -113,15 +116,7 @@ async function render(value: AgendaTaskRecord) {
 						task={value}
 						onRefresh={vi.fn(async () => {})}
 						onOpenSession={onOpenSession}
-						questions={[
-							{
-								requestId: "q",
-								sessionId: "designer",
-								question: "Which title?",
-								options: [],
-								createdAt: task.createdAt,
-							},
-						]}
+						questions={questions}
 						onAnswer={vi.fn(async () => {})}
 					/>
 				</DialogContent>
@@ -146,7 +141,15 @@ async function tab(text: string) {
 	});
 }
 it("previews Markdown, preserves draft edits across tabs, and retains revision conflict handling", async () => {
-	await render(task);
+	await render(task, [
+		{
+			requestId: "q",
+			sessionId: "designer",
+			question: "Which title?",
+			options: [],
+			createdAt: task.createdAt,
+		},
+	]);
 	expect(
 		document.querySelector('[data-streamdown="heading-1"]')?.textContent,
 	).toBe("Search plan");
@@ -208,7 +211,7 @@ it("renders saved reports, opens the exact role session, and keeps failed or lat
 	await tab("Verification");
 	expect(document.body.textContent).toContain("Loading verification…");
 	mocks.getFactoryTask.mockResolvedValueOnce({ runs: [run] });
-	await render({ ...completed, revision: 2 });
+	await render({ ...completed, lastRunId: "new-run" });
 	expect(
 		document.querySelector('[data-streamdown="heading-2"]')?.textContent,
 	).toBe("Browser results");
@@ -218,7 +221,7 @@ it("renders saved reports, opens the exact role session, and keeps failed or lat
 	expect(document.body.textContent).not.toContain("Check off this result");
 	await act(async () => button("Open agent verification session").click());
 	expect(onOpenSession).toHaveBeenCalledWith("verifier");
-	await act(async () => resolveOld({ runs: [{ ...run, taskRevision: 2 }] }));
+	await act(async () => resolveOld({ runs: [{ ...run, runId: "new-run" }] }));
 	expect(document.body.textContent).toContain(
 		"previous execution — not current evidence",
 	);
