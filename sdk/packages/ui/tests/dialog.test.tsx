@@ -1,29 +1,13 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { AlertDialog } from "../components/alert-dialog.js";
 import { Dialog, type DialogProps } from "../components/dialog.js";
+import { clickOutside, createDomFixture, pressKey } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
-});
-
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
 
 function dialog() {
 	return document.querySelector<HTMLElement>('[role="dialog"]');
@@ -37,36 +21,6 @@ function button(label: string) {
 	);
 	if (!match) throw new Error(`Missing button: ${label}`);
 	return match;
-}
-
-async function pressKey(target: Element, key: string, shiftKey = false) {
-	await act(async () => {
-		target.dispatchEvent(
-			new KeyboardEvent("keydown", {
-				key,
-				shiftKey,
-				bubbles: true,
-				cancelable: true,
-			}),
-		);
-	});
-}
-
-async function clickOutside() {
-	// Radix installs its document pointer listener on the next task, avoiding
-	// treating the pointer event that opened a dialog as an outside interaction.
-	await act(async () => {
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const overlay = document.querySelector('[data-slot="dialog-overlay"]');
-		if (!overlay) throw new Error("Missing dialog overlay");
-		overlay.dispatchEvent(
-			new MouseEvent("pointerdown", {
-				bubbles: true,
-				cancelable: true,
-				button: 0,
-			}),
-		);
-	});
 }
 
 function Example({
@@ -101,12 +55,12 @@ function Example({
 
 describe("Dialog", () => {
 	it("keeps its content and overlay inside an explicitly scoped theme", async () => {
-		container.className = "cline-ui-theme dark";
-		await render(<Example portalContainer={container} />);
-		expect(dialog()?.closest(".cline-ui-theme")).toBe(container);
-		expect(dialog()?.closest(".dark")).toBe(container);
+		dom.container.className = "cline-ui-theme dark";
+		await render(<Example portalContainer={dom.container} />);
+		expect(dialog()?.closest(".cline-ui-theme")).toBe(dom.container);
+		expect(dialog()?.closest(".dark")).toBe(dom.container);
 		expect(
-			container.querySelector('[data-slot="dialog-overlay"]'),
+			dom.container.querySelector('[data-slot="dialog-overlay"]'),
 		).not.toBeNull();
 		expect(document.activeElement).toBe(dialog());
 	});
@@ -129,7 +83,7 @@ describe("Dialog", () => {
 		const content = dialog();
 		const titleId = content?.getAttribute("aria-labelledby");
 		const descriptionId = content?.getAttribute("aria-describedby");
-		expect(container.getAttribute("aria-hidden")).toBe("true");
+		expect(dom.container.getAttribute("aria-hidden")).toBe("true");
 		expect(titleId && document.getElementById(titleId)?.textContent).toBe(
 			"Session details",
 		);
@@ -272,7 +226,7 @@ describe("Dialog", () => {
 		} else if (method === "close button") {
 			await act(async () => button("Close").click());
 		} else {
-			await clickOutside();
+			await clickOutside('[data-slot="dialog-overlay"]');
 		}
 		expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
 		expect(dialog()).toBeNull();
@@ -378,7 +332,7 @@ describe("Dialog", () => {
 		await render(<Dialog {...props} />);
 		await pressKey(button("Close"), "Escape");
 		await act(async () => button("Close").click());
-		await clickOutside();
+		await clickOutside('[data-slot="dialog-overlay"]');
 		expect(onOpenChange).toHaveBeenCalledTimes(3);
 		expect(
 			onOpenChange.mock.calls.every(([nextOpen]) => nextOpen === false),
@@ -401,7 +355,7 @@ describe("Dialog", () => {
 			/>,
 		);
 		await pressKey(button("Close"), "Escape");
-		await clickOutside();
+		await clickOutside('[data-slot="dialog-overlay"]');
 		expect(onOpenChange).not.toHaveBeenCalled();
 		expect(dialog()).not.toBeNull();
 	});
@@ -424,7 +378,7 @@ describe("Dialog", () => {
 		if (!content) throw new Error("Missing dialog");
 		await pressKey(content, "Escape");
 		await act(async () => button("Close").click());
-		await clickOutside();
+		await clickOutside('[data-slot="dialog-overlay"]');
 		expect(onEscapeKeyDown).toHaveBeenCalledOnce();
 		expect(onPointerDownOutside).toHaveBeenCalledOnce();
 		expect(onOpenChange).not.toHaveBeenCalled();

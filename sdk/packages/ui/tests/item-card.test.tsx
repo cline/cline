@@ -1,27 +1,15 @@
 // @vitest-environment jsdom
-import { act, createRef, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createRef } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { ItemCard } from "../components/item-card.js";
 import { Switch } from "../components/switch.js";
+import { createDomFixture } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.append(container);
-	root = createRoot(container);
-});
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
+
 function primary() {
-	return container.querySelector<HTMLButtonElement>(
+	return dom.container.querySelector<HTMLButtonElement>(
 		'[data-slot="item-card-primary"]',
 	)!;
 }
@@ -37,13 +25,13 @@ describe("ItemCard", () => {
 				primaryAction={{ ref: actionRef, onClick: () => {} }}
 			/>,
 		);
-		expect(rootRef.current).toBe(container.firstElementChild);
+		expect(rootRef.current).toBe(dom.container.firstElementChild);
 		expect(actionRef.current).toBe(primary());
 		await act(async () => actionRef.current?.focus());
 		expect(document.activeElement).toBe(primary());
 		await render(<ItemCard ref={rootRef} title="Calendar" />);
 		expect(actionRef.current).toBeNull();
-		expect(rootRef.current).toBe(container.firstElementChild);
+		expect(rootRef.current).toBe(dom.container.firstElementChild);
 	});
 	it("uses a named native primary button and keeps all other interactives independent", async () => {
 		const open = vi.fn(),
@@ -78,7 +66,7 @@ describe("ItemCard", () => {
 		);
 		expect(primary().type).toBe("button");
 		expect(
-			container.querySelector('[data-slot="item-card-count"]')?.textContent,
+			dom.container.querySelector('[data-slot="item-card-count"]')?.textContent,
 		).toBe("3");
 		expect(
 			document.getElementById(primary().getAttribute("aria-labelledby")!)
@@ -90,11 +78,11 @@ describe("ItemCard", () => {
 		).toBe("Schedule events");
 		expect(primary().querySelector("button, input, a")).toBeNull();
 		await act(async () => {
-			for (const button of container.querySelectorAll<HTMLButtonElement>(
+			for (const button of dom.container.querySelectorAll<HTMLButtonElement>(
 				'button:not([data-slot="item-card-primary"])',
 			))
 				button.click();
-			container.querySelector<HTMLInputElement>("input")!.click();
+			dom.container.querySelector<HTMLInputElement>("input")!.click();
 		});
 		expect(open).not.toHaveBeenCalled();
 		expect(action).toHaveBeenCalledOnce();
@@ -126,7 +114,7 @@ describe("ItemCard", () => {
 		expect(primary().getAttribute("aria-label")).toBe("View Calendar details");
 		await act(async () => {
 			primary().click();
-			container
+			dom.container
 				.querySelector<HTMLButtonElement>(
 					'[data-slot="item-card-actions"] button',
 				)!
@@ -151,7 +139,7 @@ describe("ItemCard", () => {
 			</ItemCard>,
 		);
 		expect(
-			container.querySelector(
+			dom.container.querySelector(
 				'[data-slot="item-card-count"], [data-slot="item-card-content"], [data-slot="item-card-footer"], [data-slot="item-card-actions"], .cline-ui-item-card__icon, .cline-ui-item-card__description, .cline-ui-item-card__badges',
 			),
 		).toBeNull();

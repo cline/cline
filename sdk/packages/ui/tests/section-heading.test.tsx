@@ -1,38 +1,24 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SectionHeading } from "../components/section-heading.js";
+import { createDomFixture } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.append(container);
-	root = createRoot(container);
-});
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
 
 describe("SectionHeading", () => {
 	it("defaults to an h2 and keeps a zero count visible outside the heading", async () => {
 		await render(<SectionHeading title="Skills" count={0} />);
-		expect(container.querySelector("h2")?.textContent).toBe("Skills");
+		expect(dom.container.querySelector("h2")?.textContent).toBe("Skills");
 		expect(
-			container.querySelector('[data-slot="section-heading-count"]')
+			dom.container.querySelector('[data-slot="section-heading-count"]')
 				?.textContent,
 		).toBe("0");
 		expect(
-			container.querySelector("h2 [data-slot='section-heading-count']"),
+			dom.container.querySelector("h2 [data-slot='section-heading-count']"),
 		).toBeNull();
 		expect(
-			container.querySelector('[data-slot="section-heading-actions"]'),
+			dom.container.querySelector('[data-slot="section-heading-actions"]'),
 		).toBeNull();
 	});
 
@@ -44,12 +30,12 @@ describe("SectionHeading", () => {
 				headingLevel={4}
 			/>,
 		);
-		expect(container.querySelector("h4 em")?.textContent).toBe(
+		expect(dom.container.querySelector("h4 em")?.textContent).toBe(
 			"Connected accounts",
 		);
-		expect(container.querySelector("h2")).toBeNull();
+		expect(dom.container.querySelector("h2")).toBeNull();
 		expect(
-			container.querySelector('[data-slot="section-heading-count"]'),
+			dom.container.querySelector('[data-slot="section-heading-count"]'),
 		).toBeNull();
 	});
 });

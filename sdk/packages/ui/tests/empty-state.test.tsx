@@ -1,24 +1,11 @@
 // @vitest-environment jsdom
-import { act, createRef, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createRef } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { EmptyState } from "../components/empty-state.js";
+import { createDomFixture } from "./dom-test-utils.js";
 
-let container: HTMLDivElement;
-let root: Root;
-beforeEach(() => {
-	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	container = document.createElement("div");
-	document.body.append(container);
-	root = createRoot(container);
-});
-afterEach(async () => {
-	await act(async () => root.unmount());
-	container.remove();
-});
-async function render(node: ReactNode) {
-	await act(async () => root.render(node));
-}
+const dom = createDomFixture();
+const { render } = dom;
 
 describe("EmptyState", () => {
 	it("renders host-owned illustration semantics above the message and actions", async () => {
@@ -38,14 +25,16 @@ describe("EmptyState", () => {
 				action={{ label: "Create schedule", onClick: () => {} }}
 			/>,
 		);
-		const media = container.querySelector('[data-slot="empty-state-media"]');
+		const media = dom.container.querySelector(
+			'[data-slot="empty-state-media"]',
+		);
 		expect(media?.querySelector("img")?.alt).toBe(
 			"A calendar with no scheduled events",
 		);
 		expect(media?.closest('[aria-hidden="true"]')).toBeNull();
-		expect(container.firstElementChild?.firstElementChild).toBe(media);
-		expect(container.querySelector("h3")?.textContent).toBe("No schedules");
-		expect(container.querySelector("button")?.textContent).toBe(
+		expect(dom.container.firstElementChild?.firstElementChild).toBe(media);
+		expect(dom.container.querySelector("h3")?.textContent).toBe("No schedules");
+		expect(dom.container.querySelector("button")?.textContent).toBe(
 			"Create schedule",
 		);
 		await render(
@@ -61,7 +50,7 @@ describe("EmptyState", () => {
 			</EmptyState>,
 		);
 		expect(
-			container.querySelector('[data-slot="empty-state-media"]'),
+			dom.container.querySelector('[data-slot="empty-state-media"]'),
 		).toBeNull();
 	});
 	it("preserves existing description-only children and forwards native root props", async () => {
@@ -76,12 +65,14 @@ describe("EmptyState", () => {
 				No plugins installed.
 			</EmptyState>,
 		);
-		expect(ref.current).toBe(container.firstElementChild);
+		expect(ref.current).toBe(dom.container.firstElementChild);
 		expect(ref.current?.textContent).toBe("No plugins installed.");
 		expect(ref.current?.hidden).toBe(true);
 		expect(ref.current?.classList.contains("host-empty")).toBe(true);
 		expect(ref.current?.getAttribute("aria-label")).toBe("Plugin inventory");
-		expect(container.querySelector("h3, button, [role='status']")).toBeNull();
+		expect(
+			dom.container.querySelector("h3, button, [role='status']"),
+		).toBeNull();
 	});
 
 	it("supports a centered title with an explicit description instead of fallback children", async () => {
@@ -95,14 +86,14 @@ describe("EmptyState", () => {
 				Fallback description
 			</EmptyState>,
 		);
-		expect(container.querySelector("h4")?.textContent).toBe(
+		expect(dom.container.querySelector("h4")?.textContent).toBe(
 			"No plugins installed",
 		);
-		expect(container.querySelector("p")?.textContent).toBe(
+		expect(dom.container.querySelector("p")?.textContent).toBe(
 			"Browse the marketplace.",
 		);
-		expect(container.textContent).not.toContain("Fallback description");
-		expect(container.querySelector("button")).toBeNull();
+		expect(dom.container.textContent).not.toContain("Fallback description");
+		expect(dom.container.querySelector("button")).toBeNull();
 	});
 
 	it("keeps actions independent, honors disabled state, and never submits a form", async () => {
@@ -129,7 +120,7 @@ describe("EmptyState", () => {
 		);
 		await render(view());
 		const [browse, add] =
-			container.querySelectorAll<HTMLButtonElement>("button");
+			dom.container.querySelectorAll<HTMLButtonElement>("button");
 		expect(browse?.textContent).toBe("Browse marketplace");
 		expect(add?.textContent).toBe("Add MCP Server");
 		await act(async () => add?.click());
