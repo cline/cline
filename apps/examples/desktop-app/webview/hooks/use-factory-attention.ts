@@ -24,14 +24,19 @@ export type FactoryAttention = {
 export function useFactoryAttention() {
 	const [items, setItems] = useState<FactoryAttention[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [hasLoaded, setHasLoaded] = useState(false);
+	const [transportReady, setTransportReady] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
 	const generation = useRef(0);
 	const refresh = useCallback(async () => {
 		const request = ++generation.current;
+		setIsLoading(true);
 		try {
 			const next =
 				await desktopClient.invoke<FactoryAttention[]>("factory_attention");
 			if (request === generation.current) {
 				setItems(next);
+				setHasLoaded(true);
 				setError(null);
 			}
 		} catch (cause) {
@@ -41,6 +46,8 @@ export function useFactoryAttention() {
 						? cause.message
 						: "Unable to load feature questions.",
 				);
+		} finally {
+			if (request === generation.current) setIsLoading(false);
 		}
 	}, []);
 	useEffect(() => {
@@ -54,10 +61,28 @@ export function useFactoryAttention() {
 			"task.run.completed",
 			"task.run.failed",
 		].map((event) => desktopClient.subscribe(event, () => void refresh()));
+		let reconnecting = false;
+		const unsubscribeTransport = desktopClient.subscribeTransportState(
+			(state) => {
+				setTransportReady(state === "connected");
+				if (state === "reconnecting" || state === "unavailable") {
+					reconnecting = true;
+					generation.current++;
+					setHasLoaded(false);
+					setIsLoading(false);
+				}
+				if (state === "connected" && reconnecting) {
+					reconnecting = false;
+					void refresh();
+				}
+			},
+		);
+
 		const timer = window.setInterval(() => void refresh(), 15_000);
 		return () => {
 			generation.current++;
 			window.clearInterval(timer);
+			unsubscribeTransport();
 			for (const stop of unsubscribe) stop();
 		};
 	}, [refresh]);
@@ -94,5 +119,13 @@ export function useFactoryAttention() {
 		},
 		[refresh, items],
 	);
-	return { items, error, answer, refresh };
+	return {
+		items,
+		error,
+		hasLoaded,
+		isLoading,
+		transportReady,
+		answer,
+		refresh,
+	};
 }

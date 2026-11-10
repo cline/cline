@@ -62,16 +62,18 @@ describe("Factory committed review diff", () => {
 		await writeFile(join(cwd, "file.txt"), "later commit\n");
 		await commit();
 		await writeFile(join(cwd, "file.txt"), "uncommitted edit\n");
-		expect(await readFactoryDiff(reply(candidate), "run-1")).toEqual([
-			{
-				path: "file.txt",
-				additions: 1,
-				deletions: 1,
-				hunks: [
-					{ oldStart: 1, newStart: 1, old: "before\n", new: "after  \n" },
-				],
-			},
-		]);
+		expect(await readFactoryDiff(reply(candidate), "run-1", candidate)).toEqual(
+			[
+				{
+					path: "file.txt",
+					additions: 1,
+					deletions: 1,
+					hunks: [
+						{ oldStart: 1, newStart: 1, old: "before\n", new: "after  \n" },
+					],
+				},
+			],
+		);
 	});
 
 	it("includes added, deleted and binary files", async () => {
@@ -79,7 +81,7 @@ describe("Factory committed review diff", () => {
 		await writeFile(join(cwd, "added file.txt"), "first\nsecond\n");
 		await writeFile(join(cwd, "image.bin"), Buffer.from([0, 1, 2, 3]));
 		const candidate = await commit();
-		const files = await readFactoryDiff(reply(candidate), "run-1");
+		const files = await readFactoryDiff(reply(candidate), "run-1", candidate);
 		expect(
 			files.map(({ path, additions, deletions }) => ({
 				path,
@@ -95,18 +97,28 @@ describe("Factory committed review diff", () => {
 	});
 
 	it("requires a recorded candidate on the requested run", async () => {
-		await expect(readFactoryDiff(reply(), "run-1")).rejects.toThrow(
+		await expect(readFactoryDiff(reply(), "run-1", baseCommit)).rejects.toThrow(
 			"no recorded candidate",
 		);
 		await expect(
-			readFactoryDiff(reply(baseCommit), "other-run"),
+			readFactoryDiff(reply(baseCommit), "other-run", baseCommit),
 		).rejects.toThrow("no recorded candidate");
 	});
 
-	it("rejects mutable refs and absent commit objects", async () => {
-		await expect(readFactoryDiff(reply("HEAD"), "run-1")).rejects.toThrow();
+	it("refuses a repaired candidate when the view requested the previous commit", async () => {
+		await writeFile(join(cwd, "file.txt"), "repaired\n");
+		const repaired = await commit();
 		await expect(
-			readFactoryDiff(reply("f".repeat(40)), "run-1"),
+			readFactoryDiff(reply(repaired), "run-1", baseCommit),
+		).rejects.toThrow("candidate changed");
+	});
+
+	it("rejects mutable refs and absent commit objects", async () => {
+		await expect(
+			readFactoryDiff(reply("HEAD"), "run-1", "HEAD"),
+		).rejects.toThrow();
+		await expect(
+			readFactoryDiff(reply("f".repeat(40)), "run-1", "f".repeat(40)),
 		).rejects.toThrow();
 	});
 });

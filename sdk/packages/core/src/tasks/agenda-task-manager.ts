@@ -21,6 +21,7 @@ import {
 	createSessionId,
 	DEFAULT_FACTORY_AGENTS,
 	factoryCheckSchema,
+	factoryReviewFindings,
 	factoryTaskConfigSchema,
 	noopBasicLogger,
 } from "@cline/shared";
@@ -28,11 +29,7 @@ import { resolveTasksDbPath } from "@cline/shared/storage";
 import { z } from "zod";
 import type { SessionUsageMetadata } from "../types/sessions";
 import type { AgendaTaskManagerApi } from "./agenda-task-api";
-import {
-	factoryReviewFindings,
-	parseFactoryReview,
-	resolveFactoryAgent,
-} from "./factory-agents";
+import { parseFactoryReview, resolveFactoryAgent } from "./factory-agents";
 import {
 	assertFactoryCandidate,
 	factoryCheckConfigurationFindings,

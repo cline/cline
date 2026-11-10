@@ -149,6 +149,18 @@ export const factoryReviewSchema = z.object({
 
 export type FactoryReview = z.infer<typeof factoryReviewSchema>;
 
+export function factoryReviewFindings(review: FactoryReview): string[] {
+	const findings = [
+		...review.findings,
+		...(review.coverage?.unverified ?? []).map((path) => `Unverified: ${path}`),
+	];
+	return findings.length > 0
+		? findings
+		: review.verdict === "pass"
+			? []
+			: [review.summary];
+}
+
 export const factoryReviewerResultSchema = z.object({
 	reviewerIndex: z.number().int().nonnegative(),
 	sessionId: z.string(),

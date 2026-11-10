@@ -1,5 +1,7 @@
 "use client";
 
+import type { FactoryDraft } from "@/components/views/factory/factory-detail";
+
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	type ProviderAuthInfo,
@@ -310,6 +312,7 @@ export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
+	const { current: factoryDrafts } = useRef(new Map<string, FactoryDraft>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -963,6 +966,7 @@ export default function Home() {
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "factory" ? (
 									<FactoryView
+										drafts={factoryDrafts}
 										onOpenSession={(sessionId, prompt) =>
 											handleOpenSessionById(
 												sessionId,

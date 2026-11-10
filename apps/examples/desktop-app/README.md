@@ -24,25 +24,32 @@ Run `bun run build:web` from this directory when changing webview imports or sha
 
 ## Feature Factory preview
 
-Open **Factory** in the sidebar and create a feature for a local Git repository.
-Use **Interview with agent** to refine the request, then save the agreed brief
-and verification commands on the card. UI checks require fresh screenshot or
-recording paths; keep generated evidence in a Git-ignored directory. Backend
-checks should exercise the affected routes or APIs.
+Open **Factory** in the sidebar. **Attention** groups questions, plan approvals,
+blockers, and results for your review. **Runs** shows the monitoring board and
+history; **Workflows** configures reusable role/model presets; **Improve** holds
+sample reviews and recorded costs. These views cover the loaded work window,
+not lifetime totals.
 
-Approve the feature and select **Start queue**. Approval authorizes the builder's
-tools and verification commands. The factory runs one feature at a time in its
-own worktree, executes the checks, and starts a fresh read-only code review.
-It allows two repair rounds by default; each card can change that limit. Open a
-transcript from the card if the agent asks a question. **Stop queue** prevents
-new starts; **Cancel execution** stops the active feature.
+Use **Add work** to describe a request or import a GitHub or Linear issue URL.
+Turn off **Start scoping** to save it for later. The task's **Plan** page reuses
+the design conversation and Q&A to refine the brief and verification commands.
+Required plan reviewers must finish the current revision before **Approve and
+run**. This authorizes agent tools and checks in an isolated Git worktree.
+Repair limits default to two rounds and are configurable.
 
-The Review column shows the candidate commit, check output, captured media, and
-review findings. Publishing defaults off, so tested changes remain on the local
-feature branch. Enabling draft PR publication on a card also requires an
-authenticated GitHub CLI and an `origin` remote. Cloud execution is not connected
-in this preview. Restarting the Hub interrupts active work and clears the queue;
-review the retained evidence before explicitly starting another attempt.
+Execution tasks open on **Verification**, with the recorded candidate diff,
+check output, captured media, and independent reports. UI checks should require
+fresh screenshots or recordings; backend checks should exercise routes or APIs.
+Open the relevant role session from the task and return to the same task/tab.
+Unsaved brief/configuration edits survive navigation within the app, but not an
+app restart. Archive, restore, and permanent delete are under **More**.
+
+Publishing defaults off. Opting in opens a draft PR after deterministic checks;
+independent reviews and verification may continue afterward. Publication requires
+an authenticated GitHub CLI and an `origin` remote. Human check-off records
+acceptance of the verified candidate; it does not merge. **Stop queue** prevents
+new starts; **Cancel execution** stops active work. Cloud execution and ongoing
+issue/event subscriptions are not connected in this preview.
 
 ## Pull Requests
 

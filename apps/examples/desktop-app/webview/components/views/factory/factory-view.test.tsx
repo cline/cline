@@ -8,12 +8,14 @@ import {
 	factoryDesignProgressSchema,
 	factoryRunStateSchema,
 } from "@cline/shared";
-import { handleFactoryCommand } from "../../../../sidecar/factory-commands";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FactoryView } from "./factory-view";
 import { factoryPresetSchema } from "@/lib/factory-presets";
+import { handleFactoryCommand } from "../../../../sidecar/factory-commands";
+import { FactoryView } from "./factory-view";
+import type { FactoryDraft } from "./factory-detail";
+const drafts = new Map<string, FactoryDraft>();
 
 const mocks = vi.hoisted(() => ({
 	tasks: [] as AgendaTaskRecord[],
@@ -28,7 +30,11 @@ const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(
 		async (_command: string, _args?: unknown): Promise<unknown> => [],
 	),
-	subscribe: vi.fn(() => () => {}),
+	subscribe: vi.fn((_event: string, _listener: () => void) => () => {}),
+	subscribeTransportState: vi.fn((listener: (state: string) => void) => {
+		listener("connected");
+		return () => {};
+	}),
 }));
 vi.mock("@/hooks/use-toast", () => ({ toast: mocks.toast }));
 vi.mock("@/hooks/use-agenda-tasks", () => ({
@@ -79,8 +85,19 @@ let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
 	vi.clearAllMocks();
+	drafts.clear();
 	mocks.invoke.mockImplementation(async (command) =>
-		command === "get_desktop_settings" ? {} : [],
+		command === "factory_attention"
+			? handleFactoryCommand(
+					{ pendingQuestions: new Map() },
+					"factory_attention",
+					undefined,
+					async (read) =>
+						read === "task.list" ? { tasks: mocks.tasks } : { runs: [] },
+				)
+			: command === "get_desktop_settings"
+				? {}
+				: [],
 	);
 	mocks.createTask.mockImplementation(async (input: HubTaskCreateInput) => {
 		const created = task({ taskId: input.taskId, status: "pending_approval" });
@@ -96,6 +113,7 @@ beforeEach(() => {
 	}
 	window.localStorage.clear();
 	sessionStorage.clear();
+	sessionStorage.setItem("factory.destination", "board");
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -136,6 +154,185 @@ function selectTab(label: string) {
 }
 
 describe("Factory workflow", () => {
+	it("lands on Attention without treating a delayed or failed read as an empty inbox", async () => {
+		sessionStorage.removeItem("factory.destination");
+		let rejectActivity: (reason: Error) => void = () => {
+			throw new Error("Request not started");
+		};
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_attention"
+				? new Promise((_, reject) => {
+						rejectActivity = reject;
+					})
+				: {},
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					drafts={drafts}
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		expect(container.textContent).toContain("Loading current activity");
+		expect(container.textContent).not.toContain("No decisions waiting");
+		expect(
+			container.querySelector('button[aria-current="page"]')?.textContent,
+		).toBe("Attention");
+		await act(async () => rejectActivity(new Error("Activity unavailable")));
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Activity unavailable",
+		);
+		expect(container.textContent).not.toContain("No decisions waiting");
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_attention" ? [] : {},
+		);
+		await act(async () => button("Retry current activity").click());
+		expect(container.textContent).toContain(
+			"No decisions waiting in loaded work",
+		);
+		const transportListener = mocks.subscribeTransportState.mock.calls[0]?.[0];
+		if (!transportListener) throw new Error("Missing transport subscription");
+		await act(async () => transportListener("reconnecting"));
+		expect(container.textContent).not.toContain("No decisions waiting");
+		expect(container.textContent).toContain("Factory connection is not ready");
+		expect(
+			mocks.invoke.mock.calls.filter(
+				([command]) => command === "factory_attention",
+			),
+		).toHaveLength(2);
+		await act(async () => transportListener("connected"));
+		expect(container.textContent).toContain(
+			"No decisions waiting in loaded work",
+		);
+
+		await act(async () => button("Runs").click());
+		await act(async () => button("Improve").click());
+		await act(async () => button("Attention").click());
+		expect(
+			mocks.invoke.mock.calls.filter(
+				([command]) => command === "factory_attention",
+			),
+		).toHaveLength(3);
+	});
+
+	it.each([
+		1, 200,
+	])("shares one attention read across destinations for %i loaded tasks", async (count) => {
+		sessionStorage.removeItem("factory.destination");
+		mocks.tasks = Array.from({ length: count }, (_, index) =>
+			task({
+				taskId: `feature-${index}`,
+				title: `Feature ${index}`,
+				status: "failed",
+			}),
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					drafts={drafts}
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		expect(
+			container
+				.querySelector('section[aria-label="Resolve failure"]')
+				?.querySelectorAll("li"),
+		).toHaveLength(count);
+		for (const destination of ["Runs", "Improve", "Workflows", "Attention"]) {
+			await act(async () => button(destination).click());
+		}
+		expect(mocks.getFactoryTask).not.toHaveBeenCalled();
+		expect(
+			mocks.invoke.mock.calls.filter(
+				([command]) => command === "factory_attention",
+			),
+		).toHaveLength(1);
+		expect(
+			mocks.subscribe.mock.calls.filter(([event]) => event === "task.updated"),
+		).toHaveLength(1);
+	});
+
+	it("returns from a full task page to the saved Runs filter and restores it after remount", async () => {
+		mocks.tasks = [
+			task({ status: "failed" }),
+			task({ taskId: "other", title: "Other work" }),
+		];
+		const render = () =>
+			root.render(
+				<FactoryView
+					drafts={drafts}
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			);
+		await act(async () => render());
+		await act(async () => button("Needs you (1)").click());
+		await act(async () => button("Export activity").click());
+		expect(
+			container.querySelector('nav[aria-label="Factory destinations"]'),
+		).toBeNull();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(sessionStorage.getItem("factory.selectedTask")).toBe("feature-1");
+		await act(async () => button("Back to factory").click());
+		expect(button("Needs you (1)").getAttribute("aria-pressed")).toBe("true");
+		expect(container.textContent).not.toContain("Other work");
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await act(async () => render());
+		expect(
+			container.querySelector('button[aria-current="page"]')?.textContent,
+		).toBe("Runs");
+		expect(button("Needs you (1)").getAttribute("aria-pressed")).toBe("true");
+		expect(container.textContent).not.toContain("Other work");
+	});
+
+	it("keeps unavailable activity distinct from queued work and exposes failures inside retained detail", async () => {
+		mocks.tasks = [task()];
+		let fail = false;
+		mocks.invoke.mockImplementation(async (command) => {
+			if (command === "factory_attention") {
+				if (fail) throw new Error("Connection lost");
+				return [];
+			}
+			return command === "get_desktop_settings" ? {} : [];
+		});
+		await act(async () =>
+			root.render(
+				<FactoryView
+					drafts={drafts}
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		expect(
+			container.querySelector('section[aria-label="Queued"]')?.textContent,
+		).not.toContain("Export activity");
+		expect(
+			container.querySelector('section[aria-label="Status unavailable"]')
+				?.textContent,
+		).toContain("Export activity");
+		expect(button("Start queue").disabled).toBe(true);
+		await act(async () => button("Export activity").click());
+		fail = true;
+		const invalidation = mocks.subscribe.mock.calls.find(
+			([event]) => event === "task.updated",
+		);
+		if (!invalidation) throw new Error("Missing task event subscription");
+		await act(async () => invalidation[1]());
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Connection lost",
+		);
+		expect(container.textContent).toContain(
+			"Questions and current activity could not be confirmed",
+		);
+		expect(container.textContent).toContain("Export activity");
+	});
+
 	it("selects the saved default, displays its participants, and copies it into queued work", async () => {
 		const preset = factoryPresetSchema.parse({
 			name: "Focused",
@@ -164,6 +361,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -202,6 +400,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -238,6 +437,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -278,6 +478,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -352,22 +553,22 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
 			),
 		);
 		expect(container.textContent).not.toContain("Archived feature");
-		await act(async () => button("Outcomes").click());
+		await act(async () => button("History").click());
 		expect(container.textContent).not.toContain("Archived feature");
 		await act(async () => button("Archived (1)").click());
 		expect(container.textContent).toContain("Archived feature");
 		expect(container.textContent).not.toContain("Active feature");
 		expect(container.textContent).not.toContain("Needs you (");
 		await act(async () => button("Archived feature").click());
-		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-			"Archived feature",
-		);
+		expect(container.textContent).toContain("Archived feature");
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
 	});
 	it("groups actual activity and human actions without treating completion as a stamp", async () => {
 		const design = factoryDesignProgressSchema.parse({
@@ -555,6 +756,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -564,10 +766,10 @@ describe("Factory workflow", () => {
 			container.querySelector(`section[aria-label="${name}"]`)?.textContent ??
 			"";
 		expect(column("Queued")).toContain("Queued feature");
-		expect(column("Queued")).toContain("Unknown feature");
-		expect(column("Queued")).toContain("Stale feature");
-		expect(column("Queued")).toContain("Old revision feature");
-		expect(column("Queued")).toContain("Loading outcome…");
+		expect(column("Status unavailable")).toContain("Unknown feature");
+		expect(column("Status unavailable")).toContain("Stale feature");
+		expect(column("Status unavailable")).toContain("Old revision feature");
+		expect(column("Queued")).not.toContain("Unknown feature");
 		for (const label of [
 			"Scoping feature",
 			"Scoping",
@@ -583,7 +785,7 @@ describe("Factory workflow", () => {
 			"Failed feature",
 			"Resolve failure",
 			"Ready feature",
-			"Ready for signoff",
+			"Review result",
 			"Sampled feature",
 			"Review sampled finding",
 			"Blocked feature",
@@ -596,6 +798,17 @@ describe("Factory workflow", () => {
 		expect(container.textContent).not.toContain("Cancelled feature");
 		expect(container.textContent).not.toContain("Expired feature");
 		expect(container.textContent).toContain("Needs you (5)");
+		const transportListener = mocks.subscribeTransportState.mock.calls[0]?.[0];
+		if (!transportListener) throw new Error("Missing transport subscription");
+		await act(async () => transportListener("reconnecting"));
+		expect(column("Done")).not.toContain("Stamped feature");
+		expect(column("Needs you")).not.toContain("Ready feature");
+		expect(column("Status unavailable")).toContain("Ready feature");
+		expect(button("Start queue").disabled).toBe(true);
+		await act(async () => transportListener("connected"));
+		expect(column("Done")).toContain("Stamped feature");
+		expect(column("Needs you")).toContain("Review result");
+
 		await act(async () => button("Scoping feature").click());
 		expect(button("Preparing plan…").disabled).toBe(true);
 	});
@@ -642,6 +855,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -744,6 +958,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -776,6 +991,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -793,7 +1009,11 @@ describe("Factory workflow", () => {
 		const openSession = vi.fn(async () => {});
 		await act(async () =>
 			root.render(
-				<FactoryView workspacePaths={[]} onOpenSession={openSession} />,
+				<FactoryView
+					drafts={drafts}
+					workspacePaths={[]}
+					onOpenSession={openSession}
+				/>,
 			),
 		);
 		await act(async () => button("Export activity").click());
@@ -845,6 +1065,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -866,6 +1087,7 @@ describe("Factory workflow", () => {
 			answer: "CSV",
 		});
 		expect(document.body.textContent).not.toContain("Which format?");
+		await act(async () => button("Back to factory").click());
 		expect(container.textContent).toContain("Needs you (0)");
 	});
 	it("loads an agent-saved brief into the open feature without copying from chat", async () => {
@@ -873,6 +1095,7 @@ describe("Factory workflow", () => {
 		const render = () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -915,6 +1138,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -979,6 +1203,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -1037,6 +1262,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -1056,7 +1282,7 @@ describe("Factory workflow", () => {
 		);
 		expect(mocks.designFactoryTask).not.toHaveBeenCalled();
 		expect(document.querySelector("#feature-name")).toBeNull();
-		const detail = document.querySelector('[role="dialog"]');
+		const detail = container;
 		expect(detail?.textContent).toContain(existing.title);
 		expect(detail?.textContent).toContain(existing.instructions);
 	});
@@ -1068,6 +1294,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -1120,6 +1347,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={["/repo"]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,
@@ -1217,6 +1445,7 @@ describe("Factory workflow", () => {
 		await act(async () =>
 			root.render(
 				<FactoryView
+					drafts={drafts}
 					workspacePaths={[]}
 					onOpenSession={vi.fn(async () => {})}
 				/>,

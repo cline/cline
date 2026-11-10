@@ -71,15 +71,3 @@ export function parseFactoryReview(summary: string): FactoryReview {
 		),
 	);
 }
-
-export function factoryReviewFindings(review: FactoryReview): string[] {
-	const findings = [
-		...review.findings,
-		...(review.coverage?.unverified ?? []).map((path) => `Unverified: ${path}`),
-	];
-	return findings.length > 0
-		? findings
-		: review.verdict === "pass"
-			? []
-			: [review.summary];
-}

@@ -6,12 +6,12 @@ import type {
 	FactoryRunState,
 	FactoryWorkspace,
 } from "@cline/shared";
-import { DEFAULT_FACTORY_AGENTS } from "@cline/shared";
+import { DEFAULT_FACTORY_AGENTS, factoryReviewFindings } from "@cline/shared";
 import type {
 	AgendaTaskRuntime,
 	AgendaTaskRuntimeResult,
 } from "./agenda-task-manager";
-import { factoryReviewFindings, parseFactoryReview } from "./factory-agents";
+import { parseFactoryReview } from "./factory-agents";
 import {
 	assertFactoryCandidate,
 	captureFactoryArtifactVersions,

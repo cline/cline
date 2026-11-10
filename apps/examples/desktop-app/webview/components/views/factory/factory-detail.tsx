@@ -3,13 +3,13 @@
 import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
-	FactoryCheck,
-	FactoryReview,
 	FactoryTaskConfig,
 } from "@cline/shared";
 import { AgentAskQuestion } from "@cline/ui";
-import { ArrowUpRight, Plus, X } from "lucide-react";
+import { factoryReviewFindings } from "@cline/shared/browser";
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
 	AlertDialog,
@@ -20,27 +20,20 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MemoizedMarkdown } from "@/components/ui/markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import type { AskQuestionRequestItem } from "@/hooks/chat-session/types";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import type { SessionFileDiff } from "@/lib/session-diff";
-import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { DiffView } from "../chat/diff-view";
 import { PullRequestBar } from "../chat/pull-request-bar";
 
-import { FactoryWorkflowEditor } from "./factory-workflow-editor";
+import { FactoryTaskHeader } from "./factory-task-header";
+import { EvidencePreview, ReviewResult } from "./factory-detail-evidence";
+import { FactoryDetailConfiguration } from "./factory-detail-configuration";
 
 export const DEFAULT_FACTORY: FactoryTaskConfig = {
 	execution: "local",
@@ -49,11 +42,18 @@ export const DEFAULT_FACTORY: FactoryTaskConfig = {
 	checks: [],
 	publishPullRequest: false,
 };
-const labelClass = "block space-y-2 text-sm font-medium";
-const selectClass =
-	"h-9 rounded-md border border-input bg-background px-3 text-sm";
+
+const taskEvidenceEventSchema = z.object({
+	task: z.object({ taskId: z.string() }),
+});
+export type FactoryDraft = {
+	revision: number;
+	instructions: string;
+	config: FactoryTaskConfig;
+};
 
 export function FeatureDetail({
+	drafts,
 	task,
 	onRefresh,
 	onClose,
@@ -61,6 +61,7 @@ export function FeatureDetail({
 	questions,
 	onAnswer,
 }: {
+	drafts: Map<string, FactoryDraft>;
 	task: AgendaTaskRecord;
 	onRefresh: () => Promise<void>;
 	onClose: () => void;
@@ -71,12 +72,80 @@ export function FeatureDetail({
 		initialPromptDraft?: string,
 	) => Promise<void>;
 }) {
+	const [restoredDraft] = useState(() => drafts.get(task.taskId));
 	const [editing, setEditing] = useState(false);
+	const pageStorageKey = `factory.taskSection.${task.taskId}`;
+	const [page, setPage] = useState(() => {
+		const saved =
+			typeof window === "undefined"
+				? null
+				: sessionStorage.getItem(pageStorageKey);
+		if (saved === "plan" || saved === "verification") return saved;
+		return (task.status === "in_progress" ||
+			task.status === "completed" ||
+			task.status === "failed") &&
+			(task.currentRunId || task.lastRunId)
+			? "verification"
+			: "plan";
+	});
+	useEffect(() => {
+		sessionStorage.setItem(pageStorageKey, page);
+	}, [pageStorageKey, page]);
+	const [pendingNavigation, setPendingNavigation] = useState<
+		(() => void) | null
+	>(null);
 	const [runsLoading, setRunsLoading] = useState(true);
+	const [evidenceVersion, setEvidenceVersion] = useState(0);
+	const [transportReady, setTransportReady] = useState(false);
+	useEffect(() => {
+		const invalidate = () => setEvidenceVersion((version) => version + 1);
+		const onTaskEvent = (payload: unknown) => {
+			const result = taskEvidenceEventSchema.safeParse(payload);
+			if (result.success && result.data.task.taskId === task.taskId)
+				invalidate();
+		};
+		const unsubscribeEvents = [
+			"task.updated",
+			"task.run.started",
+			"task.run.completed",
+			"task.run.failed",
+		].map((event) => desktopClient.subscribe(event, onTaskEvent));
+		let reconnecting = false;
+		const unsubscribeTransport = desktopClient.subscribeTransportState(
+			(state) => {
+				setTransportReady(state === "connected");
+				if (state === "reconnecting" || state === "unavailable")
+					reconnecting = true;
+				if (state === "connected" && reconnecting) {
+					reconnecting = false;
+					invalidate();
+				}
+			},
+		);
+		return () => {
+			for (const unsubscribe of unsubscribeEvents) unsubscribe();
+			unsubscribeTransport();
+		};
+	}, [task.taskId]);
+	const evidenceKey = JSON.stringify([
+		task.taskId,
+		task.revision,
+		task.currentRunId,
+		task.lastRunId,
+		task.updatedAt,
+		evidenceVersion,
+	]);
+	const [loadedEvidenceKey, setLoadedEvidenceKey] = useState<string>();
 	const [evidenceError, setEvidenceError] = useState<string | null>(null);
-	const [instructions, setInstructions] = useState(task.instructions);
-	const [draftRevision, setDraftRevision] = useState(task.revision);
-	const [config, setConfig] = useState(task.factory ?? DEFAULT_FACTORY);
+	const [instructions, setInstructions] = useState(
+		restoredDraft?.instructions ?? task.instructions,
+	);
+	const [draftRevision, setDraftRevision] = useState(
+		restoredDraft?.revision ?? task.revision,
+	);
+	const [config, setConfig] = useState(
+		restoredDraft?.config ?? task.factory ?? DEFAULT_FACTORY,
+	);
 	const [runs, setRuns] = useState<AgendaTaskRunRecord[]>([]);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -104,7 +173,16 @@ export function FeatureDetail({
 		instructions !== savedDraft.instructions ||
 		JSON.stringify(config) !== JSON.stringify(savedDraft.config);
 	useEffect(() => {
-		if (!dirty && task.revision > savedDraft.revision) {
+		if (dirty)
+			drafts.set(task.taskId, {
+				revision: draftRevision,
+				instructions,
+				config,
+			});
+		else drafts.delete(task.taskId);
+	}, [dirty, drafts, task.taskId, draftRevision, instructions, config]);
+	useEffect(() => {
+		if (!dirty && task.revision > draftRevision) {
 			setInstructions(task.instructions);
 			setConfig(task.factory ?? DEFAULT_FACTORY);
 			setDraftRevision(task.revision);
@@ -114,7 +192,7 @@ export function FeatureDetail({
 				config: task.factory ?? DEFAULT_FACTORY,
 			});
 		}
-	}, [task, dirty, savedDraft.revision]);
+	}, [task, dirty, draftRevision]);
 	const designActive =
 		!task.error &&
 		task.factoryDesignProgress?.revision === task.revision &&
@@ -133,6 +211,7 @@ export function FeatureDetail({
 			.then((result) => {
 				if (active) {
 					setRuns(result.runs ?? []);
+					setLoadedEvidenceKey(evidenceKey);
 					setRunsLoading(false);
 				}
 			})
@@ -149,7 +228,7 @@ export function FeatureDetail({
 		return () => {
 			active = false;
 		};
-	}, [task]);
+	}, [evidenceKey, task.taskId]);
 	const run =
 		runs.find((item) => item.runId === task.currentRunId) ??
 		runs.find((item) => item.runId === task.lastRunId) ??
@@ -162,14 +241,19 @@ export function FeatureDetail({
 	const matchesTask =
 		run?.taskRevision === task.revision &&
 		run?.runId === (task.currentRunId ?? task.lastRunId);
-	const currentEvidence = matchesTask && !runsLoading && !evidenceError;
+	const currentEvidence =
+		transportReady &&
+		matchesTask &&
+		loadedEvidenceKey === evidenceKey &&
+		!runsLoading &&
+		!evidenceError;
 	const canFollowUp =
 		!task.archivedAt &&
 		task.status === "completed" &&
 		task.factory?.watchPullRequest &&
 		state?.pullRequestWatch &&
 		state.pullRequestUrl &&
-		currentEvidence;
+		matchesTask;
 	const followUpStopped =
 		state?.pullRequestWatch?.paused ||
 		state?.phase === "blocked" ||
@@ -189,11 +273,48 @@ export function FeatureDetail({
 			reviewer.sessionId,
 			`Plan reviewer ${reviewer.reviewerIndex + 1}${task.factoryDesignReview?.revision === task.revision ? "" : " (previous plan)"}`,
 		);
-	for (const [index, session] of (state?.sessions ?? []).entries())
+	const roleCounts = { builder: 0, reviewer: 0, verifier: 0 };
+	for (const session of state?.sessions ?? []) {
+		roleCounts[session.role] += 1;
 		sessions.set(
 			session.sessionId,
-			`${session.role === "builder" ? "Implementer" : session.role === "reviewer" ? "Reviewer" : "Verifier"} ${index + 1}${matchesTask ? "" : " (previous execution)"}`,
+			`${session.role === "builder" ? "Implementer" : session.role === "reviewer" ? "Reviewer" : "Verifier"} ${roleCounts[session.role]}${matchesTask ? "" : " (previous execution)"}`,
 		);
+	}
+	const planReviewers = config.agents?.planReviewers ?? [];
+	const planReviewBlocked =
+		planReviewers.length > 0 &&
+		(dirty ||
+			task.factoryDesignReview?.revision !== task.revision ||
+			planReviewers.some((_, index) => {
+				const result = task.factoryDesignReview?.reviews.find(
+					(review) => review.reviewerIndex === index,
+				);
+				return !result || factoryReviewFindings(result.review).length > 0;
+			}));
+	const approvalReason = designActive
+		? "The plan is still being prepared. Wait for scoping and review to finish."
+		: dirty && planReviewers.length > 0
+			? "Draft changes need a new plan review. Refine the design to save and review them."
+			: planReviewBlocked
+				? "Complete plan review for this revision before approval. Refine the design to resolve missing reviews, findings or unverified work."
+				: !instructions.trim() ||
+						config.checks.length === 0 ||
+						config.checks.some(
+							(check) => !check.name.trim() || !check.command.trim(),
+						)
+					? "Add a brief and at least one named verification command before approval."
+					: null;
+	function navigate(action: () => void) {
+		if (dirty) setPendingNavigation(() => action);
+		else action();
+	}
+	async function openSession(sessionId: string) {
+		navigate(() => {
+			void onOpenSession(sessionId);
+		});
+	}
+
 	async function perform(action: () => Promise<void>) {
 		setBusy(true);
 		setError(null);
@@ -222,122 +343,70 @@ export function FeatureDetail({
 		return saved;
 	}
 	return (
-		<Tabs defaultValue="plan">
-			<DialogHeader>
-				<DialogTitle>{task.title}</DialogTitle>
-				<DialogDescription>
-					{task.workspaceRoot} · Revision {task.revision}
-					{task.modelSelection
-						? ` · ${task.modelSelection.providerId}/${task.modelSelection.modelId ?? "default"}`
-						: ""}
-				</DialogDescription>
-			</DialogHeader>
-			<div className="flex items-center gap-2">
-				{task.archivedAt ? (
-					<span className="mr-auto text-xs text-muted-foreground">
-						Archived
-					</span>
-				) : null}
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={busy}
-					onClick={() =>
-						void perform(async () => {
-							await desktopClient.invoke(
-								task.archivedAt ? "task.restore" : "task.archive",
-								{
-									taskId: task.taskId,
-									expectedRevision: task.revision,
-									allWorkspaces: true,
-								},
-							);
-							onClose();
-						})
-					}
-				>
-					{task.archivedAt
-						? "Restore"
-						: task.status === "in_progress" || designActive
-							? "Cancel and archive"
-							: "Archive"}
-				</Button>
-				<AlertDialog>
-					<AlertDialogTrigger asChild>
-						<Button size="sm" variant="ghost" disabled={busy}>
-							Delete…
-						</Button>
-					</AlertDialogTrigger>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Delete this task permanently?</AlertDialogTitle>
-							<AlertDialogDescription>
-								This stops any active work and deletes the task and its run
-								history. Files, branches, and session transcripts are kept. You
-								cannot undo this.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>Keep task</AlertDialogCancel>
-							<AlertDialogAction
-								onClick={() =>
-									void perform(async () => {
-										await desktopClient.invoke("task.delete", {
-											taskId: task.taskId,
-											expectedRevision: task.revision,
-											allWorkspaces: true,
-										});
-										onClose();
-									})
-								}
-							>
-								Delete permanently
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
-			</div>
-			{task.factory?.sourceIssue ? (
-				<Button
-					variant="link"
-					className="h-auto justify-start p-0"
-					onClick={() =>
-						void openExternalUrl(task.factory?.sourceIssue?.url ?? "")
-					}
-				>
-					Source issue <ArrowUpRight className="ml-1 size-3" />
-				</Button>
-			) : null}
-			<div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
-				<span
-					className={cn(
-						"rounded px-2 py-1 text-xs",
-						task.status === "failed"
-							? "bg-destructive/10 text-destructive"
-							: "bg-background",
-					)}
-				>
-					{currentEvidence &&
-					(task.status === "in_progress" ||
-						task.status === "completed" ||
-						task.status === "failed")
-						? (state?.phase ?? task.status.replaceAll("_", " "))
-						: task.status.replaceAll("_", " ")}
-				</span>
-
-				{state && currentEvidence ? (
-					<span className="text-xs text-muted-foreground">
-						{state.phase === "watching"
-							? "Watching CI and review comments · "
-							: ""}
-						Repair round {state.repairRound} of {task.factory?.maxRepairRounds}
-					</span>
-				) : (
-					<span className="text-xs text-muted-foreground">
-						Design → implement → verify → review
-					</span>
-				)}
-			</div>
+		<Tabs value={page} onValueChange={setPage} className="space-y-4">
+			<FactoryTaskHeader
+				task={task}
+				busy={busy}
+				designActive={designActive}
+				state={currentEvidence ? state : undefined}
+				approvalReason={approvalReason}
+				onBack={() => navigate(onClose)}
+				onArchive={() =>
+					void perform(async () => {
+						await desktopClient.invoke(
+							task.archivedAt ? "task.restore" : "task.archive",
+							{
+								taskId: task.taskId,
+								expectedRevision: task.revision,
+								allWorkspaces: true,
+							},
+						);
+						onClose();
+					})
+				}
+				onDelete={() =>
+					void perform(async () => {
+						await desktopClient.invoke("task.delete", {
+							taskId: task.taskId,
+							expectedRevision: task.revision,
+							allWorkspaces: true,
+						});
+						drafts.delete(task.taskId);
+						onClose();
+					})
+				}
+			/>
+			<AlertDialog
+				open={pendingNavigation !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingNavigation(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Leave unsaved brief changes?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Your draft has not been saved. Stay here to save it, or discard
+							the draft and continue.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Keep editing</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								drafts.delete(task.taskId);
+								setInstructions(savedDraft.instructions);
+								setConfig(savedDraft.config);
+								setDraftRevision(savedDraft.revision);
+								pendingNavigation?.();
+								setPendingNavigation(null);
+							}}
+						>
+							Discard and continue
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			{error ||
 			evidenceError ||
 			task.error ||
@@ -399,7 +468,7 @@ export function FeatureDetail({
 								key={sessionId}
 								size="sm"
 								variant="outline"
-								onClick={() => void onOpenSession(sessionId)}
+								onClick={() => void openSession(sessionId)}
 							>
 								{label}
 								<ArrowUpRight className="ml-1 size-3" />
@@ -408,7 +477,7 @@ export function FeatureDetail({
 					</div>
 				</details>
 			) : null}
-			<TabsList aria-label="Feature pages">
+			<TabsList aria-label="Task sections">
 				<TabsTrigger value="plan">Plan</TabsTrigger>
 				<TabsTrigger value="verification">Verification</TabsTrigger>
 			</TabsList>
@@ -434,6 +503,7 @@ export function FeatureDetail({
 						<Button
 							size="sm"
 							variant="outline"
+							id="factory-design-action"
 							disabled={busy || !editable}
 							onClick={() =>
 								void perform(async () => {
@@ -466,7 +536,7 @@ export function FeatureDetail({
 						<Button
 							size="sm"
 							variant="ghost"
-							onClick={() => void onOpenSession(designSession)}
+							onClick={() => void openSession(designSession)}
 						>
 							Open design conversation <ArrowUpRight className="ml-1 size-3" />
 						</Button>
@@ -528,187 +598,27 @@ export function FeatureDetail({
 								label={`Plan reviewer ${result.reviewerIndex + 1}`}
 								review={result.review}
 								sessionId={result.sessionId}
-								onOpenSession={onOpenSession}
+								onOpenSession={openSession}
 							/>
 						))}
 					</section>
 				) : null}
-				<details className="space-y-4 rounded-lg border p-4">
-					<summary className="cursor-pointer text-sm font-medium">
-						Configuration
-					</summary>
-
-					<label className={labelClass} htmlFor="feature-documents">
-						Reference docs
-						<Input
-							id="feature-documents"
-							type="file"
-							accept=".md,.markdown,.txt,text/plain,text/markdown"
-							multiple
-							disabled={!editable || busy}
-							onChange={(event) => {
-								const files = Array.from(event.target.files ?? []);
-								event.target.value = "";
-								void perform(async () => {
-									if (
-										files.some(
-											(file) =>
-												!/\.(md|markdown|txt)$/i.test(file.name) ||
-												file.size > 100_000,
-										)
-									)
-										throw new Error(
-											"Use Markdown or text files up to 100 KB each.",
-										);
-									if ((config.documents?.length ?? 0) + files.length > 10)
-										throw new Error("Attach up to 10 reference docs.");
-									const attachments = await serializeAttachments(files);
-									setConfig((current) => ({
-										...current,
-										documents: [
-											...(current.documents ?? []),
-											...attachments.userFiles,
-										],
-									}));
-								});
-							}}
-						/>
-					</label>
-					{config.documents?.map((doc, index) => (
-						<div
-							key={`${doc.name}-${index}`}
-							className="flex items-center justify-between rounded border px-3 py-1 text-xs"
-						>
-							<span>{doc.name}</span>
-							<Button
-								size="icon"
-								variant="ghost"
-								aria-label={`Remove ${doc.name}`}
-								disabled={!editable || busy}
-								onClick={() =>
-									setConfig({
-										...config,
-										documents: config.documents?.filter((_, i) => i !== index),
-									})
-								}
-							>
-								<X className="size-3" />
-							</Button>
-						</div>
-					))}
-					<FactoryWorkflowEditor
-						config={config}
-						disabled={!editable || busy}
-						onChange={setConfig}
-					/>
-					<section className="space-y-3">
-						<div className="flex items-center justify-between">
-							<h3 className="text-sm font-semibold">
-								Required checks and evidence
-							</h3>
-							<Button
-								variant="ghost"
-								size="sm"
-								disabled={!editable || busy}
-								onClick={() =>
-									setConfig({
-										...config,
-										checks: [
-											...config.checks,
-											{ name: "", command: "", kind: "test", artifacts: [] },
-										],
-									})
-								}
-							>
-								<Plus className="mr-1 size-3" />
-								Add check
-							</Button>
-						</div>
-						<p className="text-xs leading-5 text-muted-foreground">
-							Commands run in the feature worktree. For UI changes, require
-							screenshots or recordings; for backend changes, include route/API
-							or end-to-end tests. Artifact paths are relative to the worktree.
-						</p>
-						{config.checks.map((check, index) => (
-							<CheckEditor
-								key={index}
-								check={check}
-								disabled={!editable || busy}
-								onChange={(next) =>
-									setConfig({
-										...config,
-										checks: config.checks.map((item, i) =>
-											i === index ? next : item,
-										),
-									})
-								}
-								onRemove={() =>
-									setConfig({
-										...config,
-										checks: config.checks.filter((_, i) => i !== index),
-									})
-								}
-							/>
-						))}
-						{config.checks.length === 0 ? (
-							<p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-								Add at least one concrete verification command before approval.
-							</p>
-						) : null}
-					</section>
-					<div className={labelClass}>
-						Execution<p className="pt-2 text-sm font-normal">Local</p>
-						<p className="text-xs font-normal text-muted-foreground">
-							Cloud runner not connected yet.
-						</p>
-					</div>
-					<label className="flex items-start gap-2 text-sm">
-						<input
-							type="checkbox"
-							className="mt-1"
-							disabled={!editable || busy}
-							checked={config.publishPullRequest}
-							onChange={(event) =>
-								setConfig({
-									...config,
-									publishPullRequest: event.target.checked,
-								})
-							}
-						/>
-						<span>
-							Publish a draft PR after checks and review pass
-							<span className="mt-1 block text-xs text-muted-foreground">
-								Off: retain tested changes on the local feature branch for
-								inspection.
-							</span>
-						</span>
-					</label>
-					{config.publishPullRequest ? (
-						<label className="flex items-start gap-2 text-sm">
-							<input
-								type="checkbox"
-								className="mt-1"
-								disabled={!editable || busy}
-								checked={config.watchPullRequest ?? false}
-								onChange={(event) =>
-									setConfig({
-										...config,
-										watchPullRequest: event.target.checked,
-									})
-								}
-							/>
-							<span>
-								Babysit the PR after publishing
-								<span className="mt-1 block text-xs text-muted-foreground">
-									Watch CI and review comments, repair within the round limit,
-									and reply after verification. You decide when to merge.
-								</span>
-							</span>
-						</label>
-					) : null}
-				</details>
+				<FactoryDetailConfiguration
+					config={config}
+					disabled={!editable || busy}
+					setConfig={setConfig}
+					perform={perform}
+				/>
 			</TabsContent>
 			<TabsContent value="verification" className="space-y-4">
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={runsLoading || !transportReady}
+					onClick={() => setEvidenceVersion((version) => version + 1)}
+				>
+					Refresh verification
+				</Button>
 				{runsLoading ? (
 					<p className="text-sm text-muted-foreground">Loading verification…</p>
 				) : !state && !evidenceError ? (
@@ -721,15 +631,17 @@ export function FeatureDetail({
 					<section className="space-y-3 border-t pt-4">
 						<h3 className="text-sm font-semibold">
 							Verification · revision {run?.taskRevision}
-							{runsLoading
-								? " (refreshing…)"
-								: evidenceError
-									? " (cached; refresh failed)"
-									: currentEvidence
-										? dirty
-											? " (saved plan; draft edits not verified)"
-											: ""
-										: " (previous execution — not current evidence)"}
+							{!transportReady
+								? " (cached; connection unavailable)"
+								: runsLoading
+									? " (refreshing…)"
+									: evidenceError
+										? " (cached; refresh failed)"
+										: currentEvidence
+											? dirty
+												? " (saved plan; draft edits not verified)"
+												: ""
+											: " (previous execution — not current evidence)"}
 						</h3>
 						{state.error && !currentEvidence ? (
 							<p className="text-sm text-muted-foreground">
@@ -753,7 +665,11 @@ export function FeatureDetail({
 								void perform(async () => {
 									const diff = await desktopClient.invoke<SessionFileDiff[]>(
 										"factory_get_diff",
-										{ taskId: task.taskId, runId: run?.runId },
+										{
+											taskId: task.taskId,
+											runId: run?.runId,
+											expectedCommit: state.candidate?.commit,
+										},
 									);
 									setDiff({
 										runId: run?.runId,
@@ -827,7 +743,7 @@ export function FeatureDetail({
 								label={`Final reviewer ${result.reviewerIndex + 1}`}
 								review={result.review}
 								sessionId={result.sessionId}
-								onOpenSession={onOpenSession}
+								onOpenSession={openSession}
 							/>
 						))}
 						{state.candidate?.verification ? (
@@ -836,7 +752,7 @@ export function FeatureDetail({
 									label="Agent verification"
 									review={state.candidate.verification.review}
 									sessionId={state.candidate.verification.sessionId}
-									onOpenSession={onOpenSession}
+									onOpenSession={openSession}
 								/>
 								{state.candidate.verification.artifacts.map((artifact) => (
 									<EvidencePreview
@@ -865,23 +781,31 @@ export function FeatureDetail({
 						) : null}
 					</section>
 				) : null}
-				{state && currentEvidence ? (
+				{state && matchesTask ? (
 					<fieldset
-						disabled={!!task.archivedAt}
+						disabled={!!task.archivedAt || !currentEvidence}
 						className="min-w-0 space-y-3 rounded-lg border p-4"
 						aria-label="Factory outcome"
 					>
+						{!currentEvidence ? (
+							<p className="text-xs text-muted-foreground">
+								Saved outcome. Actions are unavailable until current evidence is
+								refreshed.
+							</p>
+						) : null}
 						<div className="flex flex-wrap items-center gap-3 text-sm">
 							<span>
-								{state.humanApproval
-									? "Checked off"
-									: state.phase === "blocked"
-										? "Needs attention"
-										: state.phase === "ready"
-											? "Local result awaiting your stamp"
-											: state.pullRequestChecks?.status === "passed"
-												? "Required CI passed"
-												: "Factory is handling this feature"}
+								{!currentEvidence
+									? "Saved outcome"
+									: state.humanApproval
+										? "Checked off"
+										: state.phase === "blocked"
+											? "Needs attention"
+											: state.phase === "ready"
+												? "Local result awaiting your stamp"
+												: state.pullRequestChecks?.status === "passed"
+													? "Required CI passed"
+													: "Factory is handling this feature"}
 							</span>
 							{state.usage ? (
 								<span className="text-muted-foreground">
@@ -907,7 +831,7 @@ export function FeatureDetail({
 									state.candidate?.commit)) &&
 						state.candidate ? (
 							<Button
-								disabled={busy}
+								disabled={busy || !currentEvidence || dirty}
 								onClick={() =>
 									void perform(async () => {
 										await desktopClient.invoke("task.factory.stamp", {
@@ -1009,6 +933,23 @@ export function FeatureDetail({
 					</fieldset>
 				) : null}
 			</TabsContent>
+			{editable && approvalReason ? (
+				<p id="factory-approval-reason" className="text-sm text-amber-600">
+					{approvalReason}{" "}
+					<Button
+						variant="link"
+						size="sm"
+						onClick={() => {
+							setPage("plan");
+							requestAnimationFrame(() =>
+								document.getElementById("factory-design-action")?.focus(),
+							);
+						}}
+					>
+						Open plan and design review
+					</Button>
+				</p>
+			) : null}
 			<div className="flex flex-wrap justify-end gap-2 border-t pt-4">
 				{!task.archivedAt &&
 				(task.status === "in_progress" || (editable && designActive)) ? (
@@ -1041,7 +982,7 @@ export function FeatureDetail({
 						</p>
 						<Button
 							variant="outline"
-							disabled={busy}
+							disabled={busy || !currentEvidence}
 							onClick={() =>
 								void perform(async () => {
 									await desktopClient.invoke("task.factory.watch", {
@@ -1070,15 +1011,10 @@ export function FeatureDetail({
 							Save brief
 						</Button>
 						<Button
-							disabled={
-								busy ||
-								designActive ||
-								!instructions.trim() ||
-								config.checks.length === 0 ||
-								config.checks.some(
-									(check) => !check.name.trim() || !check.command.trim(),
-								)
+							aria-describedby={
+								approvalReason ? "factory-approval-reason" : undefined
 							}
+							disabled={busy || Boolean(approvalReason)}
 							onClick={() =>
 								void perform(async () => {
 									const saved = await save();
@@ -1095,203 +1031,13 @@ export function FeatureDetail({
 							{designActive ? "Preparing plan…" : "Approve and run"}
 						</Button>
 					</>
-				) : task.status !== "in_progress" ? (
+				) : !task.archivedAt &&
+					(task.status === "cancelled" || task.status === "expired") ? (
 					<p className="text-xs text-muted-foreground">
-						This feature is closed. Create a new feature for further changes.
+						This task is closed. Create a new task for further changes.
 					</p>
 				) : null}
 			</div>
 		</Tabs>
-	);
-}
-
-function CheckEditor({
-	check,
-	disabled,
-	onChange,
-	onRemove,
-}: {
-	check: FactoryCheck;
-	disabled: boolean;
-	onChange: (check: FactoryCheck) => void;
-	onRemove: () => void;
-}) {
-	return (
-		<div className="space-y-2 rounded-lg border p-3">
-			<div className="flex gap-2">
-				<Input
-					aria-label="Check name"
-					placeholder="API integration tests"
-					value={check.name}
-					disabled={disabled}
-					onChange={(event) => onChange({ ...check, name: event.target.value })}
-				/>
-				<select
-					aria-label="Check type"
-					className={selectClass}
-					value={check.kind}
-					disabled={disabled}
-					onChange={(event) => {
-						const kind = event.target.value;
-						if (kind === "test" || kind === "api" || kind === "ui")
-							onChange({ ...check, kind });
-					}}
-				>
-					<option value="test">Tests</option>
-					<option value="api">API / E2E</option>
-					<option value="ui">UI</option>
-				</select>
-				<Button
-					size="icon"
-					variant="ghost"
-					aria-label="Remove check"
-					disabled={disabled}
-					onClick={onRemove}
-				>
-					<X className="size-4" />
-				</Button>
-			</div>
-			<Input
-				aria-label="Check command"
-				className="font-mono text-xs"
-				placeholder="bun run test:api"
-				value={check.command}
-				disabled={disabled}
-				onChange={(event) =>
-					onChange({ ...check, command: event.target.value })
-				}
-			/>
-			<Input
-				aria-label="Required evidence paths"
-				className="text-xs"
-				placeholder="Required artifacts, separated by commas: evidence/export.png"
-				value={check.artifacts.join(", ")}
-				disabled={disabled}
-				onChange={(event) =>
-					onChange({
-						...check,
-						artifacts: event.target.value
-							.split(",")
-							.map((path) => path.trim())
-							.filter(Boolean),
-					})
-				}
-			/>
-		</div>
-	);
-}
-
-function EvidencePreview({
-	taskId,
-	runId,
-	artifact,
-}: {
-	taskId: string;
-	runId: string;
-	artifact: { path: string; label: string; mimeType: string };
-}) {
-	const [dataUrl, setDataUrl] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	const [loading, setLoading] = useState(false);
-	return (
-		<div className="mt-3">
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={loading}
-				onClick={() => {
-					setLoading(true);
-					void desktopClient
-						.invoke<{ dataUrl: string }>("factory_read_artifact", {
-							taskId,
-							runId,
-							path: artifact.path,
-						})
-						.then((result) => {
-							setDataUrl(result.dataUrl);
-							setError(null);
-						})
-						.catch((cause: unknown) =>
-							setError(
-								cause instanceof Error
-									? cause.message
-									: "Unable to load evidence.",
-							),
-						)
-						.finally(() => setLoading(false));
-				}}
-			>
-				{loading ? "Loading…" : artifact.label}
-			</Button>
-			{error ? (
-				<p role="alert" className="mt-1 text-xs text-destructive">
-					{error}
-				</p>
-			) : null}
-			{dataUrl && artifact.mimeType.startsWith("image/") ? (
-				<img
-					src={dataUrl}
-					alt={artifact.label}
-					className="mt-2 max-h-96 rounded border object-contain"
-				/>
-			) : dataUrl && artifact.mimeType.startsWith("video/") ? (
-				<video src={dataUrl} controls className="mt-2 max-h-96 rounded border">
-					<track kind="captions" />
-				</video>
-			) : null}
-		</div>
-	);
-}
-
-function ReviewResult({
-	label,
-	review,
-	sessionId,
-	onOpenSession,
-}: {
-	label: string;
-	review: FactoryReview;
-	sessionId: string;
-	onOpenSession: (sessionId: string) => Promise<void>;
-}) {
-	return (
-		<div className="rounded-lg border p-3 text-sm">
-			<h4 className="font-medium">
-				{label} · {review.verdict.replaceAll("_", " ")}
-			</h4>
-			<MemoizedMarkdown content={review.summary} classNames="mt-2 text-sm" />
-			{review.findings.length ? (
-				<ul className="mt-2 list-disc space-y-1 pl-5">
-					{review.findings.map((finding) => (
-						<li key={finding}>
-							<MemoizedMarkdown content={finding} classNames="text-sm" />
-						</li>
-					))}
-				</ul>
-			) : null}
-			{review.coverage ? (
-				<details className="mt-2 text-xs">
-					<summary className="cursor-pointer">Private local coverage</summary>
-					{Object.entries(review.coverage).map(([kind, paths]) => (
-						<div key={kind} className="mt-2">
-							<strong>{kind}</strong>
-							<ul className="list-disc pl-5">
-								{paths.map((path) => (
-									<li key={path}>{path}</li>
-								))}
-							</ul>
-						</div>
-					))}
-				</details>
-			) : null}
-			<Button
-				variant="link"
-				size="sm"
-				onClick={() => void onOpenSession(sessionId)}
-			>
-				Open {label.toLowerCase()} session
-				<ArrowUpRight className="ml-1 size-3" />
-			</Button>
-		</div>
 	);
 }

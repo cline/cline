@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgendaTaskRecord, FactoryAgent } from "@cline/shared";
+import { factoryReviewFindings } from "@cline/shared";
 import { describe, expect, it, onTestFinished } from "vitest";
 import {
-	factoryReviewFindings,
 	freezeFactoryAgent,
 	parseFactoryReview,
 	resolveFactoryAgent,

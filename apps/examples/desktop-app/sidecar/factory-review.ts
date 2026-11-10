@@ -26,6 +26,7 @@ const diffReplySchema = z.object({
 export async function readFactoryDiff(
 	reply: unknown,
 	runId: string,
+	expectedCommit: string,
 ): Promise<SessionFileDiff[]> {
 	const run = diffReplySchema
 		.parse(reply)
@@ -37,6 +38,10 @@ export async function readFactoryDiff(
 	}
 	const { workspace, candidate } = run.factory;
 	const candidateCommit = candidate.commit;
+	if (candidateCommit !== expectedCommit)
+		throw new Error(
+			"The candidate changed. Refresh verification before reviewing changes.",
+		);
 	const git = async (...args: string[]) =>
 		(
 			await execFileAsync("git", args, {

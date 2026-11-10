@@ -112,7 +112,11 @@ export async function handleFactoryCommand(
 	}
 	if (command === "factory_get_diff") {
 		const input = z
-			.object({ taskId: z.string().min(1), runId: z.string().min(1) })
+			.object({
+				taskId: z.string().min(1),
+				runId: z.string().min(1),
+				expectedCommit: z.string().min(1),
+			})
 			.parse(args);
 		return readFactoryDiff(
 			await readTask("task.get", {
@@ -120,12 +124,15 @@ export async function handleFactoryCommand(
 				allWorkspaces: true,
 			}),
 			input.runId,
+			input.expectedCommit,
 		);
 	}
 	const pending = [...ctx.pendingQuestions.values()].map(
 		(question) => question.item,
 	);
-	const tasks = (await list()).filter((task) => task.factory && !task.archivedAt);
+	const tasks = (await list()).filter(
+		(task) => task.factory && !task.archivedAt,
+	);
 	return Promise.all(
 		tasks.map(async (task) => {
 			const { runs } =

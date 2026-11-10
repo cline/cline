@@ -222,7 +222,12 @@ describe("Factory commands", () => {
 			handleFactoryCommand(
 				ctx,
 				"factory_get_diff",
-				{ taskId: "feature", runId: "run-1", cwd: "/untrusted" },
+				{
+					taskId: "feature",
+					runId: "run-1",
+					expectedCommit: "candidate",
+					cwd: "/untrusted",
+				},
 				readTask,
 			),
 		).resolves.toEqual([]);
@@ -230,6 +235,6 @@ describe("Factory commands", () => {
 			taskId: "feature",
 			allWorkspaces: true,
 		});
-		expect(readFactoryDiff).toHaveBeenCalledWith(reply, "run-1");
+		expect(readFactoryDiff).toHaveBeenCalledWith(reply, "run-1", "candidate");
 	});
 });

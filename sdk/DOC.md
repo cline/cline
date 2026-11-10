@@ -9,6 +9,12 @@ Entries expire after five further model iterations without a cache read, across 
 
 ## Agenda task lifecycle
 
+`factoryReviewFindings(review)` from `@cline/shared` (also available through
+`@cline/shared/browser`) returns actionable findings, including unverified
+coverage. A `pass` verdict with findings still requires attention; a non-pass
+verdict without findings uses the review summary. Hosts can reuse this
+interpretation for display while core validates approval and execution.
+
 `task.create` accepts the transient `queueFactoryDesign` option. Factory creation
 queues initial design by default. Set it to `false` to save a pending brief until
 an explicit `task.factory.design` command. The option is not stored in the task
