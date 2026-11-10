@@ -24,114 +24,18 @@ import {
 	zeroCliUsageCost,
 } from "../utils/free-model-cost";
 import { createRuntimeHooks } from "../utils/hooks";
-import {
-	c,
-	emitJsonLine,
-	formatUsd,
-	getActiveCliSession,
-	setActiveCliSession,
-	writeErr,
-	writeln,
-	writeWarn,
-} from "../utils/output";
+import { setActiveCliSession, writeWarn } from "../utils/output";
 import { formatPluginIssueWarnings } from "../utils/plugin-issues";
 import type { Config } from "../utils/types";
-import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
 import { setActiveRuntimeAbort } from "./active-runtime";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
-import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
+import { resolveMistakeLimitDecision } from "./format";
 import { buildUserInputMessage } from "./prompt";
+import { createRunOutputter } from "./run-outputter";
 import { subscribeToAgentEvents } from "./session-events";
-
-function printModelProviderInfo(config: Config): void {
-	const catalog = config.knownModels ? "live" : "bundled";
-	const thinking = config.thinking ? "on" : "off";
-	const { mode, providerId, modelId } = config;
-	if (config.outputMode === "json") {
-		emitJsonLine("stdout", {
-			type: "run_start",
-			providerId,
-			modelId,
-			catalog,
-			thinking,
-			mode,
-			sessionId: getActiveCliSession()?.manifest.session_id,
-		});
-		return;
-	}
-	writeln(
-		`${c.dim}[model] provider=${providerId} model=${modelId} catalog=${catalog} thinking=${thinking} mode=${mode}${c.reset}\n`,
-	);
-}
-
-function emitAbortRequested(
-	config: Config,
-	reason: "sigint" | "sigterm",
-): void {
-	if (config.outputMode === "json") {
-		emitJsonLine("stdout", { type: "run_abort_requested", reason });
-	} else if (reason === "sigint") {
-		writeln(`\n${c.dim}[abort] requested${c.reset}`);
-	}
-}
-
-function emitTeamRestored(config: Config): void {
-	const teamName = config.teamName ?? "(unknown team)";
-	if (config.outputMode === "json") {
-		emitJsonLine("stdout", { type: "team_restored", teamName });
-		return;
-	}
-	writeln(
-		`${c.dim}[team] restored persisted team state for "${teamName}"${c.reset}`,
-	);
-}
-
-function printRunStats(
-	config: Config,
-	result: AgentResult,
-	usage: AgentResult["usage"],
-	startTime: number,
-	reasoningChunkCount: number,
-	redactedReasoningChunkCount: number,
-): void {
-	if (config.outputMode !== "text") {
-		return;
-	}
-	if (config.verbose) {
-		writeln();
-		const parts: string[] = [];
-		parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
-		const tokenParts: string[] = [
-			`${usage.inputTokens} in`,
-			`${usage.outputTokens} out`,
-		];
-		if (usage.cacheReadTokens) {
-			tokenParts.push(`${usage.cacheReadTokens} cache read`);
-		}
-		if (usage.cacheWriteTokens) {
-			tokenParts.push(`${usage.cacheWriteTokens} cache write`);
-		}
-		parts.push(tokenParts.join(", "));
-		if (
-			shouldShowCliUsageCost(config.providerId) &&
-			typeof usage.totalCost === "number"
-		) {
-			parts.push(`${formatUsd(usage.totalCost)} est. cost`);
-		}
-		if (result.iterations > 1) {
-			parts.push(`${result.iterations} iterations`);
-		}
-		writeln(`${c.dim}[${parts.join(" | ")}]${c.reset}`);
-		if (config.thinking) {
-			writeln(
-				`${c.dim}[thinking] chunks=${reasoningChunkCount} redacted=${redactedReasoningChunkCount}${c.reset}`,
-			);
-		}
-	}
-}
 
 export async function runAgent(
 	prompt: string,
@@ -145,6 +49,7 @@ export async function runAgent(
 	// A clean one-shot run should not inherit a stale nonzero process exit code
 	// from lower layers or prior bookkeeping inside the same process.
 	process.exitCode = 0;
+	const output = createRunOutputter(config);
 
 	if (config.verbose) {
 		const clineWelcomeLine = await resolveClineWelcomeLine({
@@ -152,8 +57,8 @@ export async function runAgent(
 			clineApiBaseUrl: options?.clineApiBaseUrl,
 			clineProviderSettings: options?.clineProviderSettings,
 		});
-		if (clineWelcomeLine && config.outputMode !== "json") {
-			writeln(clineWelcomeLine);
+		if (clineWelcomeLine) {
+			output.welcome(clineWelcomeLine);
 		}
 	}
 
@@ -254,7 +159,7 @@ export async function runAgent(
 
 	const handleSigint = () => {
 		if (abortAll()) {
-			emitAbortRequested(config, "sigint");
+			output.abortRequested("sigint");
 			return;
 		}
 		void cleanupRuntime().finally(() => {
@@ -264,7 +169,7 @@ export async function runAgent(
 	};
 	const handleSigterm = () => {
 		if (abortAll()) {
-			emitAbortRequested(config, "sigterm");
+			output.abortRequested("sigterm");
 		}
 	};
 	process.on("SIGINT", handleSigint);
@@ -272,9 +177,7 @@ export async function runAgent(
 
 	// --- Main execution ---
 	try {
-		if (config.verbose) {
-			printModelProviderInfo(config);
-		}
+		output.runStarted(plannedSessionId);
 		const {
 			prompt: userInput,
 			userImages,
@@ -304,7 +207,8 @@ export async function runAgent(
 			userFiles: userFiles.length > 0 ? userFiles : undefined,
 			interactive: false,
 			localRuntime: {
-				onTeamRestored: () => emitTeamRestored(config),
+				onTeamRestored: () =>
+					output.teamRestored(config.teamName ?? "(unknown team)"),
 			},
 		});
 
@@ -366,35 +270,18 @@ export async function runAgent(
 			shouldZeroCost,
 		);
 
-		if (config.outputMode === "json") {
-			emitJsonLine("stdout", {
-				type: "run_result",
-				finishReason: result.finishReason,
-				iterations: result.iterations,
-				usage,
-				...(aggregateUsage ? { aggregateUsage } : {}),
-				durationMs: result.durationMs,
-				text: result.text,
-				model: result.model,
-			});
-		}
+		output.runResult(result, usage, aggregateUsage);
 
 		if (abortRequested || result.finishReason === "aborted") {
+			output.runAborted({
+				abortRequested,
+				timedOut,
+				timeoutSeconds: config.timeoutSeconds,
+			});
 			if (timedOut) {
-				writeErr(`run timed out after ${config.timeoutSeconds}s`);
 				process.exitCode = 1;
-			} else if (config.outputMode === "json") {
-				emitJsonLine("stdout", {
-					type: "run_aborted",
-					reason: abortRequested ? "local_abort" : "external_abort",
-					message: describeAbortSource({ abortRequested, timedOut }),
-				});
-			} else {
-				writeln(
-					`${c.dim}[abort] ${describeAbortSource({ abortRequested, timedOut })}${c.reset}`,
-				);
 			}
-			writeln();
+			output.blankLine();
 			return;
 		}
 
@@ -402,29 +289,25 @@ export async function runAgent(
 			const errorText = formatCliErrorMessage(result.text, {
 				modelId: config.modelId,
 			}).trim();
-			if (
-				errorText &&
-				(config.outputMode === "json" || !displayedErrorMessages.has(errorText))
-			) {
-				writeErr(errorText);
+			if (errorText) {
+				output.reportError(errorText, displayedErrorMessages.has(errorText));
 			}
 			process.exitCode = 1;
 			return;
 		}
 
-		printRunStats(
-			config,
+		output.runFinished({
 			result,
 			usage,
 			startTime,
 			reasoningChunkCount,
 			redactedReasoningChunkCount,
-		);
+		});
 		process.exitCode = 0;
 	} catch (err) {
 		const message = formatCliErrorMessage(err, { modelId: config.modelId });
 		logCliError(config.logger, "CLI task run failed", { error: err });
-		writeErr(message);
+		output.reportError(message);
 		process.exitCode = 1;
 	} finally {
 		await cleanupRuntime();
