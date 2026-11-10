@@ -1,13 +1,60 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../components/button.js";
 import { Dialog, type DialogProps } from "../components/dialog.js";
+import { CompactDocsPage } from "./compact-docs-page";
+
+type DialogStoryArgs = DialogProps & {
+	showFooter: boolean;
+	loadingBody: boolean;
+};
 
 const catalogTools = Array.from(
 	{ length: 24 },
 	(_, index) => `Catalog action ${index + 1}`,
 );
+
+function LoadingContent() {
+	return (
+		<output className="flex min-h-48 flex-col items-center justify-center gap-3 text-cline-ui-muted-foreground text-cline-ui-sm">
+			<LoaderCircle
+				aria-hidden="true"
+				className="size-5 motion-safe:animate-spin"
+			/>
+			Loading session details…
+		</output>
+	);
+}
+
+function Example({ showFooter, loadingBody, ...props }: DialogStoryArgs) {
+	const [open, setOpen] = useState(true);
+	return (
+		<div className="p-6">
+			<Button onClick={() => setOpen(true)} tone="neutral" variant="secondary">
+				Reopen dialog
+			</Button>
+			<Dialog
+				{...props}
+				footer={
+					showFooter ? (
+						props.footer === undefined ? (
+							<Button onClick={() => setOpen(false)} size="sm" tone="neutral">
+								Done
+							</Button>
+						) : (
+							props.footer
+						)
+					) : null
+				}
+				onOpenChange={setOpen}
+				open={open}
+			>
+				{loadingBody ? <LoadingContent /> : props.children}
+			</Dialog>
+		</div>
+	);
+}
 
 const meta = {
 	title: "Components/Dialog",
@@ -18,6 +65,10 @@ const meta = {
 		onOpenChange: () => {},
 		title: "Session details",
 		description: "Review the details of your current session.",
+		showFooter: true,
+		loadingBody: false,
+		showCloseButton: true,
+		dismissible: true,
 		children: (
 			<p className="text-cline-ui-sm">
 				This session is saved locally and can be continued from your history.
@@ -29,6 +80,8 @@ const meta = {
 		onOpenChange: { control: false },
 		children: { control: false },
 		footer: { control: false },
+		showFooter: { name: "Show footer", control: "boolean" },
+		loadingBody: { name: "Loading body", control: "boolean" },
 		size: { control: "select", options: ["sm", "md", "lg"] },
 		showCloseButton: { control: "boolean" },
 		dismissible: { control: "boolean" },
@@ -36,148 +89,101 @@ const meta = {
 	},
 	parameters: {
 		docs: {
+			page: CompactDocsPage,
 			story: { inline: false, height: "640px" },
 			description: {
 				component:
-					"A controlled dialog for details, forms, and richer content, styled to match AlertDialog. " +
-					"The header and optional footer stay visible while the body scrolls. " +
-					"The caller owns footer actions and pending state; dismissible controls passive dismissal. " +
-					"Use the toolbar to compare light and dark themes.",
+					"A controlled dialog with a scrollable body and optional footer. The host owns actions and saving. Dismissible controls Escape, outside clicks, and the close button; explicit footer actions remain independent.",
 			},
 		},
 	},
 	render: (args) => <Example {...args} />,
-} satisfies Meta<typeof Dialog>;
+} satisfies Meta<DialogStoryArgs>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Example(props: DialogProps) {
-	const [open, setOpen] = useState(true);
-	return (
-		<div className="p-6">
-			<Button onClick={() => setOpen(true)} tone="neutral" variant="secondary">
-				Reopen dialog
-			</Button>
-			<Dialog
-				{...props}
-				footer={
-					props.footer === undefined ? (
-						<Button onClick={() => setOpen(false)} size="sm" tone="neutral">
-							Done
-						</Button>
-					) : (
-						props.footer
-					)
-				}
-				onOpenChange={setOpen}
-				open={open}
-			/>
-		</div>
-	);
-}
+export const Playground: Story = {};
 
-export const Default: Story = {};
-
-export const ContainedResults: Story = {
+export const Saving: Story = {
 	args: {
-		title: "Choose sessions",
-		bodyLayout: "contained",
-		className: "h-[32rem]",
-		children: (
-			<div className="flex min-h-0 flex-1 flex-col gap-3">
-				<label>
-					Search sessions
-					<input className="block w-full rounded border p-2" />
-				</label>
-				<div
-					role="document"
-					// biome-ignore lint/a11y/noNoninteractiveTabindex: Allow keyboard users to scroll the results independently of the search field.
-					tabIndex={0}
-					className="min-h-0 flex-1 overflow-y-auto"
+		title: "Save session details",
+		description: "The dialog stays open while the simulated save finishes.",
+		showCloseButton: false,
+		dismissible: false,
+	},
+	argTypes: {
+		showFooter: { control: false },
+		loadingBody: { control: false },
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"Save focuses and disables its footer button. Focus stays inside the open dialog while both actions are disabled.",
+			},
+		},
+	},
+	render: function Saving({
+		showFooter: _showFooter,
+		loadingBody: _loadingBody,
+		...props
+	}) {
+		const [open, setOpen] = useState(true);
+		const [pending, setPending] = useState(false);
+		useEffect(() => {
+			if (!pending) return;
+			const timeout = setTimeout(() => {
+				setPending(false);
+				setOpen(false);
+			}, 2000);
+			return () => clearTimeout(timeout);
+		}, [pending]);
+
+		return (
+			<div className="p-6">
+				<Button
+					onClick={() => setOpen(true)}
+					tone="neutral"
+					variant="secondary"
 				>
-					<ul>
-						{catalogTools.map((tool) => (
-							<li key={tool} className="border-b py-3">
-								{tool}
-							</li>
-						))}
-					</ul>
-				</div>
-			</div>
-		),
-	},
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"The search field stays visible while the child results region owns scrolling and its keyboard focus target.",
-			},
-		},
-	},
-};
-
-export const NonDismissible: Story = {
-	args: { dismissible: false },
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"Escape, overlay clicks, and the close control cannot dismiss this dialog. The host-owned Done action can still close it.",
-			},
-		},
-	},
-};
-
-export const Details: Story = {
-	args: {
-		title: "Daily change digest",
-		description: undefined,
-		children: (
-			<div className="space-y-5 text-cline-ui-sm">
-				<dl className="grid grid-cols-2 gap-4">
-					<div>
-						<dt className="mb-1 text-cline-ui-muted-foreground">Schedule</dt>
-						<dd>Daily at 5:00 PM</dd>
-					</div>
-					<div>
-						<dt className="mb-1 text-cline-ui-muted-foreground">Status</dt>
-						<dd>Enabled</dd>
-					</div>
-				</dl>
-				<section className="space-y-2">
-					<h3 className="font-cline-ui-medium text-cline-ui-muted-foreground">
-						Recent runs
-					</h3>
-					<ul className="divide-y divide-cline-ui-border rounded-cline-ui-md border border-cline-ui-border">
-						{["Today", "Yesterday", "Two days ago"].map((date) => (
-							<li className="flex justify-between gap-4 p-3" key={date}>
-								<span>Completed</span>
-								<span className="text-cline-ui-muted-foreground">{date}</span>
-							</li>
-						))}
-					</ul>
-				</section>
-			</div>
-		),
-	},
-};
-
-export const Loading: Story = {
-	args: {
-		title: "Import sessions",
-		description:
-			"Bring your conversation history from other coding tools into Cline.",
-		footer: null,
-		children: (
-			<output className="flex min-h-64 flex-col items-center justify-center gap-3 text-cline-ui-muted-foreground text-cline-ui-sm">
-				<LoaderCircle
-					aria-hidden="true"
-					className="size-5 animate-spin motion-reduce:animate-none"
+					Reopen dialog
+				</Button>
+				<Dialog
+					{...props}
+					open={open}
+					onOpenChange={(nextOpen) => {
+						setOpen(nextOpen);
+						if (!nextOpen) setPending(false);
+					}}
+					footer={
+						<>
+							<Button
+								size="sm"
+								tone="neutral"
+								variant="secondary"
+								disabled={pending}
+								onClick={() => setOpen(false)}
+							>
+								Cancel
+							</Button>
+							<Button
+								size="sm"
+								tone="neutral"
+								disabled={pending}
+								loading={pending}
+								onClick={(event) => {
+									event.currentTarget.focus();
+									setPending(true);
+								}}
+							>
+								Save details
+							</Button>
+						</>
+					}
 				/>
-				Scanning for sessions…
-			</output>
-		),
+			</div>
+		);
 	},
 };
 
@@ -204,7 +210,7 @@ export const LongContent: Story = {
 		docs: {
 			description: {
 				story:
-					"The long list scrolls independently, keeping the title, close button, and footer action visible.",
+					"The body scrolls while the title, close button, and footer stay visible.",
 			},
 		},
 	},
