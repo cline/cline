@@ -441,6 +441,14 @@ settings path, allowing hosts to update account and cloud views. Provider API
 calls do not automatically resend dispatched requests after a connection loss.
 OAuth login and audio transcription remain separate APIs.
 
+### Anthropic base URLs
+
+The Anthropic transport honors `metadata.routing.baseUrlDefaultPath` for base
+URLs with no path beyond `/`. The builtin Anthropic provider sets it to `/v1`,
+so CLI, Desktop, and VS Code resolve an origin-only proxy URL consistently.
+Explicit paths such as `/v1` or `/proxy/v1` are preserved. Other
+Anthropic-compatible providers retain their configured URLs unless they opt in.
+
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
