@@ -10,21 +10,34 @@ import {
 	type FileBrowserProps,
 } from "../components/file-browser.js";
 
+// Mirrors the layout of the repo's cline-sdk skill.
 const files = [
 	{
 		path: "SKILL.md",
-		content: "# Overview\n\nInstructions for working with this skill.",
+		content:
+			"# Cline SDK Skill\n\nConsolidated skill for building AI agents with the Cline SDK.",
 	},
 	{
-		path: "references/guide.md",
-		content: "# Guide\n\nAdditional reference material.",
+		path: "references/agent/REFERENCE.md",
+		content: "# Agent\n\nThe Agent runtime and its loop.",
 	},
 	{
-		path: "references/examples/providers/anthropic/streaming/guide.md",
-		content: "# Streaming\n\nA deep path, shortened in the header when narrow.",
+		path: "references/agent/api.md",
+		content: "# Agent API\n\nConstructor options, methods, and events.",
 	},
-	{ path: "scripts/check.ts", content: 'console.log("Ready");' },
-	{ path: "scripts/setup.ts", content: 'console.log("Set up");' },
+	{
+		path: "references/agent/gotchas.md",
+		content:
+			"# Agent Gotchas\n\n## Agent Loop Never Stops\n\nIf the agent keeps iterating without completing, check its stop conditions.",
+	},
+	{
+		path: "references/providers/REFERENCE.md",
+		content: "# Providers\n\nConfiguring LLM providers and credentials.",
+	},
+	{
+		path: "references/tools/REFERENCE.md",
+		content: "# Tools\n\nDefining custom tools for an agent.",
+	},
 ];
 
 const openFileLocation = fn();
