@@ -455,6 +455,86 @@ describe("Dialog", () => {
 		).toBe("0");
 	});
 
+	it.each([
+		false,
+		true,
+	])("recovers focus when a focused footer button is disabled with native blur=%s", async (nativeBlur) => {
+		const view = (pending = false) => (
+			<Example
+				showCloseButton={false}
+				footer={
+					<button type="button" disabled={pending}>
+						Save
+					</button>
+				}
+			/>
+		);
+		await render(view());
+		const save = button("Save");
+		await act(async () => save.focus());
+		// Browsers may blur a disabled button to body; jsdom keeps it focused.
+		if (nativeBlur) await act(async () => save.blur());
+		// Keep the label unchanged so only the disabled attribute changes.
+		await render(view(true));
+		expect(button("Save")).toBe(save);
+		expect(save.disabled).toBe(true);
+		const content = dialog();
+		if (!content) throw new Error("Missing dialog");
+		expect(document.activeElement).toBe(content);
+		await pressKey(content, "Tab");
+		await pressKey(content, "Tab", true);
+		expect(document.activeElement).toBe(content);
+	});
+
+	it("recovers focus when a footer component disables its own focused button", async () => {
+		function SaveAction() {
+			const [pending, setPending] = useState(false);
+			return (
+				<button
+					type="button"
+					disabled={pending}
+					onClick={() => setPending(true)}
+				>
+					Save
+				</button>
+			);
+		}
+		await render(<Example footer={<SaveAction />} />);
+		const save = button("Save");
+		await act(async () => {
+			save.focus();
+			save.click();
+		});
+		expect(save.disabled).toBe(true);
+		expect(document.activeElement).toBe(dialog());
+	});
+
+	it.each([
+		"input",
+		'[role="document"]',
+	])("preserves focus on %s when a previously focused footer button becomes disabled", async (selector) => {
+		const view = (pending = false) => (
+			<Example
+				footer={
+					<button type="button" disabled={pending}>
+						Save
+					</button>
+				}
+			>
+				<input aria-label="Session name" />
+			</Example>
+		);
+		await render(view());
+		const target = dialog()?.querySelector<HTMLElement>(selector);
+		if (!target) throw new Error("Missing focus target");
+		await act(async () => {
+			button("Save").focus();
+			target.focus();
+		});
+		await render(view(true));
+		expect(document.activeElement).toBe(target);
+	});
+
 	it("keeps focus inside when the close button is hidden and footer actions are disabled", async () => {
 		await render(
 			<Dialog
