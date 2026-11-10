@@ -84,6 +84,9 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 		const lastStart = Math.max(firstPage, lastPage - count + 1);
 		// Keep the selection centered until the window reaches either end.
 		const start = clamp(current - Math.floor(count / 2), firstPage, lastStart);
+		const height = "var(--cline-ui-pagination-height)";
+		// Long page numbers widen the slots without changing the control height.
+		const pageWidth = `max(${height}, ${String(total).length + 1}ch)`;
 
 		const navRef = useRef<HTMLElement>(null);
 		const trackRef = useRef<HTMLDivElement>(null);
@@ -98,6 +101,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			start,
 			count,
 			size,
+			pageWidth,
 		});
 		useImperativeHandle(ref, () => navRef.current as HTMLElement);
 
@@ -108,10 +112,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 		const renderStart = Math.max(firstPage, start - overscan);
 		const renderCount =
 			Math.min(lastPage, start + count - 1 + overscan) - renderStart + 1;
-		const height = "var(--cline-ui-pagination-height)";
 		const buttonSize = size === "xxs" ? "xs" : size;
-		// Long page numbers widen the slots without changing the control height.
-		const pageWidth = `max(${height}, ${String(total).length + 1}ch)`;
 		const position = useCallback(
 			(index: number) => `calc(${index} * ${pageWidth})`,
 			[pageWidth],
@@ -138,12 +139,13 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			const before = previous.current;
 			const interrupted = interruptedTrack.current;
 			interruptedTrack.current = null;
-			previous.current = { page: current, start, count, size };
+			previous.current = { page: current, start, count, size, pageWidth };
 			const track = trackRef.current;
 			if (
 				(before.page === current && !interrupted) ||
 				before.count !== count ||
 				before.size !== size ||
+				before.pageWidth !== pageWidth ||
 				Math.abs(start - before.start) > overscan ||
 				(before.start === start && !interrupted) ||
 				!track?.animate ||
@@ -186,6 +188,7 @@ export const Pagination = forwardRef<HTMLElement, PaginationProps>(
 			start,
 			count,
 			size,
+			pageWidth,
 			overscan,
 			renderStart,
 			renderCount,

@@ -904,6 +904,41 @@ describe("Pagination", () => {
 	});
 
 	it.each([
+		{ pageCount: 9_999, nextPageCount: 10_000 },
+		{ pageCount: 10_000, nextPageCount: 9_999 },
+	])("snaps an interrupted slide when the page count changes from $pageCount to $nextPageCount", async ({
+		pageCount,
+		nextPageCount,
+	}) => {
+		const { animations } = mockMotion(false);
+		await render(
+			<Pagination defaultPage={5_000} pageCount={pageCount} visiblePages={9} />,
+		);
+		await click(buttonNamed("Next page"));
+		expect(animations).toHaveLength(1);
+		const track = animations[0]?.element as HTMLElement;
+		const previousWidth = track.style.gridAutoColumns;
+		mockTrackOffset("-138px");
+
+		await render(<Pagination pageCount={nextPageCount} visiblePages={9} />);
+		expect(currentPage()).toBe(5_001);
+		expect(animations[0]?.cancel).toHaveBeenCalledOnce();
+		expect(animations).toHaveLength(1);
+		const width = track.style.gridAutoColumns;
+		expect(width).not.toBe(previousWidth);
+		expect(width).toBe(pageButton(5_001).style.inlineSize);
+		expect(track.style.translate).toBe(`calc(-4 * ${width})`);
+
+		await click(buttonNamed("Next page"));
+		expect(currentPage()).toBe(5_002);
+		expect(animations).toHaveLength(2);
+		expect(animations[1]?.keyframes).toEqual([
+			{ translate: `calc(-3 * ${width})` },
+			{ translate: `calc(-4 * ${width})` },
+		]);
+	});
+
+	it.each([
 		{ visiblePages: 7, size: "xs" as const },
 		{ visiblePages: 9, size: "sm" as const },
 	])("cancels a slide when geometry changes to $visiblePages slots at size $size", async ({
