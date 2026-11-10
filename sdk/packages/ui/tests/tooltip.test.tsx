@@ -67,28 +67,47 @@ describe("Tooltip", () => {
 	});
 
 	it.each([
-		undefined,
-		"save-help",
-	])("describes focus and restores existing description %s after Escape", async (description) => {
+		[false, undefined],
+		[false, "button-help"],
+		[true, undefined],
+		[true, "button-help"],
+	] as const)("restores descriptions after Escape with asChild=%s and description=%s", async (asChild, description) => {
 		await render(
 			<>
-				<p id="save-help">Saves changes to this workspace.</p>
+				<p id="button-help">Saves changes to this workspace.</p>
+				<p id="link-help">Opens the workspace settings.</p>
 				<Tooltip content="Save your changes">
-					<Button aria-describedby={description}>Save</Button>
+					<Button asChild={asChild} aria-describedby={description}>
+						{asChild ? (
+							<a href="#settings" aria-describedby="link-help">
+								Settings
+							</a>
+						) : (
+							"Save"
+						)}
+					</Button>
 				</Tooltip>
 			</>,
 		);
-		const button = trigger();
+		const target = container.querySelector<HTMLElement>("button, a");
+		if (!target) throw new Error("Missing tooltip trigger");
+		const descriptions = [
+			asChild ? "link-help" : undefined,
+			description,
+		].filter(Boolean);
 		expect(tooltip()).toBeNull();
-		expect(button.getAttribute("aria-describedby")).toBe(description ?? null);
-		await act(async () => button.focus());
-		expect(button.getAttribute("aria-describedby")?.split(" ")).toEqual(
-			[description, tooltip()?.id].filter(Boolean),
+		expect(target.getAttribute("aria-describedby")).toBe(
+			descriptions.join(" ") || null,
 		);
+		await act(async () => target.focus());
+		expect(target.getAttribute("aria-describedby")?.split(" ")).toEqual([
+			...descriptions,
+			tooltip()?.id,
+		]);
 		expect(tooltip()?.textContent).toBe("Save your changes");
 		expect(container.contains(tooltip())).toBe(false);
 		await act(async () => {
-			button.dispatchEvent(
+			target.dispatchEvent(
 				new KeyboardEvent("keydown", {
 					key: "Escape",
 					bubbles: true,
@@ -97,8 +116,10 @@ describe("Tooltip", () => {
 			);
 		});
 		expect(tooltip()).toBeNull();
-		expect(button.getAttribute("aria-describedby")).toBe(description ?? null);
-		expect(document.activeElement).toBe(button);
+		expect(target.getAttribute("aria-describedby")).toBe(
+			descriptions.join(" ") || null,
+		);
+		expect(document.activeElement).toBe(target);
 	});
 
 	it("dismisses when keyboard focus leaves the trigger", async () => {
@@ -119,56 +140,19 @@ describe("Tooltip", () => {
 		expect(document.activeElement).toBe(nextControl);
 	});
 
-	it.each([
-		undefined,
-		"button-help",
-	])("preserves descriptions on an asChild link with outer description %s", async (description) => {
-		await render(
-			<>
-				<p id="link-help">Opens the workspace settings.</p>
-				<p id="button-help">Manage your workspace.</p>
-				<Tooltip content="Open settings">
-					<Button asChild aria-describedby={description}>
-						<a href="#settings" aria-describedby="link-help">
-							Settings
-						</a>
-					</Button>
-				</Tooltip>
-			</>,
-		);
-		const link = container.querySelector("a");
-		if (!link) throw new Error("Missing tooltip link trigger");
-		await act(async () => link.focus());
-		expect(tooltip()?.textContent).toBe("Open settings");
-		expect(link.getAttribute("aria-describedby")?.split(" ")).toEqual(
-			["link-help", description, tooltip()?.id].filter(Boolean),
-		);
-		await act(async () => {
-			link.dispatchEvent(
-				new KeyboardEvent("keydown", {
-					key: "Escape",
-					bubbles: true,
-					cancelable: true,
-				}),
-			);
-		});
-		expect(tooltip()).toBeNull();
-		expect(link.getAttribute("aria-describedby")?.split(" ")).toEqual(
-			["link-help", description].filter(Boolean),
-		);
-		expect(document.activeElement).toBe(link);
-	});
-
-	it("preserves the shared Button ref, focus handler, and action without adding a trigger wrapper", async () => {
+	it("preserves trigger composition and focuses immediately under a delayed provider", async () => {
+		vi.useFakeTimers();
 		const ref = createRef<HTMLButtonElement>();
 		const onFocus = vi.fn();
 		const onClick = vi.fn();
 		await render(
-			<Tooltip content="Save your changes">
-				<Button onClick={onClick} onFocus={onFocus} ref={ref}>
-					Save
-				</Button>
-			</Tooltip>,
+			<TooltipProvider delayDuration={150}>
+				<Tooltip content="Save your changes">
+					<Button onClick={onClick} onFocus={onFocus} ref={ref}>
+						Save
+					</Button>
+				</Tooltip>
+			</TooltipProvider>,
 		);
 		const button = trigger();
 		expect(ref.current).toBe(button);
@@ -176,26 +160,11 @@ describe("Tooltip", () => {
 		expect(container.firstElementChild).toBe(button);
 		await act(async () => button.focus());
 		expect(onFocus).toHaveBeenCalledOnce();
+		expect(document.activeElement).toBe(button);
 		expect(tooltip()?.textContent).toBe("Save your changes");
 		await act(async () => button.click());
 		expect(onClick).toHaveBeenCalledOnce();
 		expect(tooltip()).toBeNull();
-	});
-
-	it("honors the configured hover delay", async () => {
-		vi.useFakeTimers();
-		await render(
-			<Tooltip content="Save your changes" delayDuration={150}>
-				<Button>Save</Button>
-			</Tooltip>,
-		);
-		await act(async () => {
-			movePointer(trigger());
-			await vi.advanceTimersByTimeAsync(149);
-		});
-		expect(tooltip()).toBeNull();
-		await act(async () => vi.advanceTimersByTimeAsync(1));
-		expect(tooltip()?.textContent).toBe("Save your changes");
 	});
 
 	it.each([
@@ -250,15 +219,24 @@ describe("Tooltip", () => {
 	});
 
 	it.each([
-		0, 50,
-	])("allows a tooltip to override the provider delay with %i ms", async (delayDuration) => {
+		[undefined, 150],
+		[150, 0],
+		[150, 50],
+	] as const)("honors provider delay %s overridden by tooltip delay %s", async (providerDelay, delayDuration) => {
 		vi.useFakeTimers();
+		const content = (
+			<Tooltip content="Save your changes" delayDuration={delayDuration}>
+				<Button>Save</Button>
+			</Tooltip>
+		);
 		await render(
-			<TooltipProvider delayDuration={150}>
-				<Tooltip content="Save your changes" delayDuration={delayDuration}>
-					<Button>Save</Button>
-				</Tooltip>
-			</TooltipProvider>,
+			providerDelay === undefined ? (
+				content
+			) : (
+				<TooltipProvider delayDuration={providerDelay}>
+					{content}
+				</TooltipProvider>
+			),
 		);
 		await act(async () => movePointer(trigger()));
 		if (delayDuration > 0) {
@@ -269,19 +247,5 @@ describe("Tooltip", () => {
 			vi.advanceTimersByTimeAsync(delayDuration > 0 ? 1 : 0),
 		);
 		expect(tooltip()?.textContent).toBe("Save your changes");
-	});
-
-	it("opens immediately on keyboard focus under a delayed provider", async () => {
-		vi.useFakeTimers();
-		await render(
-			<TooltipProvider delayDuration={150}>
-				<Tooltip content="Save your changes">
-					<Button>Save</Button>
-				</Tooltip>
-			</TooltipProvider>,
-		);
-		await act(async () => trigger().focus());
-		expect(tooltip()?.textContent).toBe("Save your changes");
-		expect(document.activeElement).toBe(trigger());
 	});
 });
