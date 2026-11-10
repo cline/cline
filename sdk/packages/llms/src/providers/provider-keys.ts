@@ -132,6 +132,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "aiand",
 	},
 	{
+		modelsDevKey: "dothoosh",
+		generatedProviderId: "dothoosh",
+		runtimeProviderId: "dothoosh",
+	},
+	{
 		modelsDevKey: "aihubmix",
 		generatedProviderId: "aihubmix",
 		runtimeProviderId: "aihubmix",
