@@ -273,20 +273,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 				data-loading={loading || undefined}
 				ref={animatedRef}
 			>
-				{activeLeadingIcon || trailingIcon
-					? composeContent(
-							children,
-							asChild,
-							(label) => (
-								<>
-									{renderIcon(activeLeadingIcon, "leading", loading)}
-									{loading && loadingLabel !== undefined ? loadingLabel : label}
-									{renderIcon(trailingIcon, "trailing")}
-								</>
-							),
-							loading,
-						)
-					: children}
+				{/* Stable slots preserve label state when loading adds a leading icon. */}
+				{composeContent(
+					children,
+					asChild,
+					(label) => (
+						<>
+							{renderIcon(activeLeadingIcon, "leading", loading)}
+							{loading && loadingLabel !== undefined ? loadingLabel : label}
+							{renderIcon(trailingIcon, "trailing")}
+						</>
+					),
+					loading,
+				)}
 			</ButtonControl>
 		);
 	},

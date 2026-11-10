@@ -8,6 +8,8 @@ import {
 	createRef,
 	type ReactNode,
 	type SVGProps,
+	useEffect,
+	useState,
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -223,6 +225,49 @@ describe("managed button icons", () => {
 });
 
 describe("controlled button loading", () => {
+	it.each([
+		false,
+		true,
+	])("preserves stateful label identity across loading changes with asChild=%s", async (asChild) => {
+		const mounted = vi.fn();
+		const unmounted = vi.fn();
+		const labelState: { update?: (value: string) => void } = {};
+		function StatefulLabel() {
+			const [label, setLabel] = useState("Original label");
+			labelState.update = setLabel;
+			useEffect(() => {
+				mounted();
+				return unmounted;
+			}, []);
+			return <span data-testid="stateful-label">{label}</span>;
+		}
+		const renderButton = (loading: boolean) =>
+			render(
+				<Button asChild={asChild} loading={loading}>
+					{asChild ? (
+						<button type="button">
+							<StatefulLabel />
+						</button>
+					) : (
+						<StatefulLabel />
+					)}
+				</Button>,
+			);
+
+		await renderButton(false);
+		await act(async () => labelState.update?.("Edited label"));
+		const label = container.querySelector('[data-testid="stateful-label"]');
+		for (const loading of [true, false, true, false]) {
+			await renderButton(loading);
+			expect(container.querySelector('[data-testid="stateful-label"]')).toBe(
+				label,
+			);
+			expect(label?.textContent).toBe("Edited label");
+			expect(mounted).toHaveBeenCalledOnce();
+			expect(unmounted).not.toHaveBeenCalled();
+		}
+	});
+
 	it("keeps a loading cancellation action enabled and restores its original content", async () => {
 		const onClick = vi.fn();
 		await render(
