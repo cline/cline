@@ -4,7 +4,6 @@ import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
 import { Streamdown } from "streamdown";
 import "../components/markdown.css";
-import { Button } from "../components/button.js";
 import {
 	FileBrowser,
 	FileBrowserContent,
@@ -14,17 +13,36 @@ import {
 const files = [
 	{
 		path: "SKILL.md",
-		content:
-			"---\nname: example\n---\n# Overview\n\nInstructions for working with this skill.",
+		content: "# Overview\n\nInstructions for working with this skill.",
 	},
 	{
 		path: "references/guide.md",
 		content: "# Guide\n\nAdditional reference material.",
 	},
+	{
+		path: "references/examples/providers/anthropic/streaming/guide.md",
+		content: "# Streaming\n\nA deep path, shortened in the header when narrow.",
+	},
 	{ path: "scripts/check.ts", content: 'console.log("Ready");' },
+	{ path: "scripts/setup.ts", content: 'console.log("Set up");' },
 ];
 
 const openFileLocation = fn();
+
+const Markdown = ({ children }: { children: string }) => (
+	<Streamdown className="cline-markdown" mode="static">
+		{children}
+	</Streamdown>
+);
+
+/** Keep the selectedPath control in sync with clicks in the tree. */
+function useSelect(args: FileBrowserProps) {
+	const [, updateArgs] = useArgs<FileBrowserProps>();
+	return (selectedPath: string) => {
+		updateArgs({ selectedPath });
+		args.onSelect(selectedPath);
+	};
+}
 
 const meta: Meta<typeof FileBrowser> = {
 	title: "Components/File Browser",
@@ -61,21 +79,11 @@ const meta: Meta<typeof FileBrowser> = {
 			</div>
 		),
 	],
-};
-export default meta;
-type Story = StoryObj<typeof FileBrowser>;
-
-export const Default: Story = {
 	render: function Browser(args) {
-		const [, updateArgs] = useArgs<FileBrowserProps>();
-		const path = args.selectedPath;
-		const file = args.files.some((candidate) => candidate.path === path)
-			? files.find((candidate) => candidate.path === path)
+		const onSelect = useSelect(args);
+		const file = args.files.some((file) => file.path === args.selectedPath)
+			? files.find((file) => file.path === args.selectedPath)
 			: undefined;
-		const onSelect = (selectedPath: string) => {
-			updateArgs({ selectedPath });
-			args.onSelect(selectedPath);
-		};
 		return (
 			<FileBrowser {...args} onSelect={onSelect}>
 				{file ? (
@@ -86,10 +94,7 @@ export const Default: Story = {
 						onOpenFileLocation={openFileLocation}
 						preview={
 							file.path.endsWith(".md") ? (
-								<article>
-									<h2>{file.path === "SKILL.md" ? "Overview" : "Guide"}</h2>
-									<p>{file.content.split("\n\n").at(-1)}</p>
-								</article>
+								<Markdown>{file.content}</Markdown>
 							) : undefined
 						}
 					/>
@@ -98,6 +103,10 @@ export const Default: Story = {
 		);
 	},
 };
+export default meta;
+type Story = StoryObj<typeof FileBrowser>;
+
+export const Default: Story = {};
 
 export const EditableInstructions: Story = {
 	render: function Instructions() {
@@ -126,9 +135,7 @@ export const EditableInstructions: Story = {
 				}
 				preview={
 					instructions.trim() ? (
-						<Streamdown className="cline-markdown" mode="static">
-							{instructions}
-						</Streamdown>
+						<Markdown>{instructions}</Markdown>
 					) : (
 						<p className="text-muted-foreground">Nothing to preview yet.</p>
 					)
@@ -139,7 +146,6 @@ export const EditableInstructions: Story = {
 };
 
 export const Narrow: Story = {
-	...Default,
 	decorators: [
 		(Story) => (
 			<div style={{ width: "100%", maxWidth: 440 }}>
@@ -149,137 +155,25 @@ export const Narrow: Story = {
 	],
 };
 
-export const Loading: Story = {
-	args: {
-		files: [],
-		loading: true,
-	},
-};
-
-export const FileLoading: Story = {
-	render: function Browser(args) {
-		const [, updateArgs] = useArgs<FileBrowserProps>();
-		const path = args.selectedPath;
-		const onSelect = (selectedPath: string) => {
-			updateArgs({ selectedPath });
-			args.onSelect(selectedPath);
-		};
-		return (
-			<FileBrowser {...args} onSelect={onSelect}>
-				{path ? <FileBrowserContent key={path} path={path} loading /> : null}
-			</FileBrowser>
-		);
-	},
-};
-
-export const NarrowLoading: Story = {
-	...Loading,
-	decorators: Narrow.decorators,
+export const NoSelection: Story = {
+	args: { selectedPath: null },
 };
 
 export const Empty: Story = {
 	args: { files: [] },
 };
 
-export const WithoutActions: Story = {
-	render: (args) => (
-		<FileBrowser {...args} selectedPath="SKILL.md">
-			<FileBrowserContent
-				path="SKILL.md"
-				content={files[0].content}
-				showActions={false}
-			/>
-		</FileBrowser>
-	),
+export const Loading: Story = {
+	args: { files: [], loading: true },
 };
 
-export const NoSelection: Story = {
-	...Default,
-	args: { selectedPath: null },
-};
-
-export const NestedFolders: Story = {
-	args: {
-		files: [{ path: "references/examples/nested.md" }, { path: "SKILL.md" }],
-		selectedPath: null,
-	},
+export const FileLoading: Story = {
 	render: function Browser(args) {
-		const [, updateArgs] = useArgs<FileBrowserProps>();
+		const path = args.selectedPath;
 		return (
-			<FileBrowser
-				{...args}
-				onSelect={(selectedPath) => {
-					updateArgs({ selectedPath });
-					args.onSelect(selectedPath);
-				}}
-			>
-				{args.selectedPath ? (
-					<FileBrowserContent
-						key={args.selectedPath}
-						path={args.selectedPath}
-						content="# Nested reference"
-					/>
-				) : null}
+			<FileBrowser {...args} onSelect={useSelect(args)}>
+				{path ? <FileBrowserContent key={path} path={path} loading /> : null}
 			</FileBrowser>
-		);
-	},
-};
-
-const largeFiles = Array.from({ length: 10_000 }, (_, index) => ({
-	path: `packages/package-${String(Math.floor(index / 100)).padStart(3, "0")}/file-${String(index % 100).padStart(3, "0")}.ts`,
-}));
-
-export const LargeTree: Story = {
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"10,000 files with automatic windowing. Tab and Shift+Tab traverse every expanded row. This example host removes the selected file on Delete to demonstrate focus recovery.",
-			},
-		},
-	},
-	render: function LargeBrowser(args) {
-		const [items, setItems] = useState(largeFiles);
-		const [selectedPath, setSelectedPath] = useState<string | null>(null);
-		return (
-			<>
-				<p className="mb-3 text-sm text-muted-foreground">
-					{items.length.toLocaleString()} files. Tab through the tree; press
-					Delete to remove the selected file.
-				</p>
-				<FileBrowser
-					{...args}
-					files={items}
-					selectedPath={selectedPath}
-					onSelect={setSelectedPath}
-					onKeyDown={(event) => {
-						if (event.key === "Delete" && selectedPath) {
-							event.preventDefault();
-							setItems((current) =>
-								current.filter((file) => file.path !== selectedPath),
-							);
-							setSelectedPath(null);
-						}
-					}}
-				>
-					{selectedPath ? (
-						<FileBrowserContent
-							path={selectedPath}
-							content={`// ${selectedPath}\nexport const ready = true;`}
-							showActions={false}
-						/>
-					) : null}
-				</FileBrowser>
-				<Button
-					className="mt-3"
-					onClick={() => {
-						setItems(largeFiles);
-						setSelectedPath(null);
-					}}
-				>
-					Reset files
-				</Button>
-			</>
 		);
 	},
 };

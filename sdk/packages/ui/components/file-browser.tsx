@@ -18,6 +18,7 @@ import {
 	FileBrowserNavigation,
 	fileBrowserLayoutStyle,
 } from "./file-browser-navigation.js";
+import { FileBrowserPath } from "./file-browser-path.js";
 import { hasContent } from "./has-content.js";
 import { SegmentedControl } from "./segmented-control.js";
 import { TooltipProvider } from "./tooltip.js";
@@ -80,6 +81,9 @@ export interface FileBrowserContentProps
 	/** Host-owned state that takes precedence over the file contents. */
 	children?: ReactNode;
 }
+
+const cssLength = (value?: number | string) =>
+	typeof value === "number" ? `${value}px` : value;
 
 function FileBrowserContentSkeleton() {
 	return (
@@ -246,6 +250,7 @@ export const FileBrowserContent = forwardRef<
 	const hasPreview = hasContent(preview);
 	const hasSource = hasContent(source);
 	const showPreview = hasPreview && mode === "preview";
+	const showFileActions = showActions && actionPath && !loading;
 	return (
 		<div
 			{...props}
@@ -254,27 +259,25 @@ export const FileBrowserContent = forwardRef<
 			data-sizing={sizing}
 			style={
 				{
-					"--cline-ui-file-browser-body-min-height":
-						typeof minBodyHeight === "number"
-							? `${minBodyHeight}px`
-							: minBodyHeight,
-					"--cline-ui-file-browser-body-max-height":
-						typeof maxBodyHeight === "number"
-							? `${maxBodyHeight}px`
-							: maxBodyHeight,
+					"--cline-ui-file-browser-body-min-height": cssLength(minBodyHeight),
+					"--cline-ui-file-browser-body-max-height": cssLength(maxBodyHeight),
 					...style,
 				} as CSSProperties
 			}
 			ref={ref}
 		>
 			<div className="cline-ui-file-browser__header">
-				<span
-					className="cline-ui-file-browser__path"
-					id={headerLabelId}
-					title={headerLabel ?? path}
-				>
-					{headerLabel ?? (path ? `/${path}` : undefined)}
-				</span>
+				{headerLabel === undefined && path ? (
+					<FileBrowserPath id={headerLabelId} path={path} />
+				) : (
+					<span
+						className="cline-ui-file-browser__path"
+						id={headerLabelId}
+						title={headerLabel}
+					>
+						{headerLabel}
+					</span>
+				)}
 				<div className="cline-ui-file-browser__controls">
 					{hasPreview && !loading ? (
 						<TooltipProvider delayDuration={600}>
@@ -304,7 +307,7 @@ export const FileBrowserContent = forwardRef<
 							/>
 						</TooltipProvider>
 					) : null}
-					{showActions && actionPath && !loading ? (
+					{showFileActions ? (
 						<FileBrowserActions
 							key={actionPath}
 							path={actionPath}
@@ -318,10 +321,7 @@ export const FileBrowserContent = forwardRef<
 					) : null}
 				</div>
 			</div>
-			{showActions &&
-			actionPath &&
-			!loading &&
-			actionError?.path === actionPath ? (
+			{showFileActions && actionError?.path === actionPath ? (
 				<div className="cline-ui-file-browser__action-error">
 					<Banner tone="error" description={actionError.message} />
 				</div>
@@ -341,23 +341,26 @@ export const FileBrowserContent = forwardRef<
 					<FileBrowserContentSkeleton />
 				) : hasContent(children) ? (
 					children
-				) : hasSource ? (
+				) : (
 					<>
-						<div className="cline-ui-file-browser__editor" hidden={showPreview}>
-							{source}
-						</div>
+						{hasSource ? (
+							<div
+								className="cline-ui-file-browser__editor"
+								hidden={showPreview}
+							>
+								{source}
+							</div>
+						) : null}
 						{showPreview ? (
 							<div className="cline-ui-file-browser__preview">{preview}</div>
-						) : null}
+						) : hasSource ? null : (
+							<section aria-label="File source">
+								<pre className="cline-ui-file-browser__source">
+									<code>{content}</code>
+								</pre>
+							</section>
+						)}
 					</>
-				) : showPreview ? (
-					<div className="cline-ui-file-browser__preview">{preview}</div>
-				) : (
-					<section aria-label="File source">
-						<pre className="cline-ui-file-browser__source">
-							<code>{content}</code>
-						</pre>
-					</section>
 				)}
 			</div>
 		</div>
