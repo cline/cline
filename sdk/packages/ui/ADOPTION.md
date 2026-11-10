@@ -1188,11 +1188,8 @@ an enclosing `TooltipProvider` shares hover timing.
 `FileBrowser` combines a collapsible tree with children in its content pane. Pass
 unique root-relative paths with `/` separators; the host loads files and controls
 `selectedPath` through `onSelect`. Folders sort first and start expanded.
-Trees with more than 200 expanded rows automatically render a window of rows,
-retaining nested lists and sibling positions. Tab and Shift+Tab follow every
-expanded row; scrolling keeps keyboard focus intact. Collapsing or removing a
-focused file restores focus to its nearest surviving folder or adjacent row.
-File names remain single-line so row heights stay uniform.
+Every expanded row is rendered, so the tree suits a skill or project folder
+rather than thousands of files.
 
 ```tsx
 <FileBrowser aria-label="Skill content" files={files}
