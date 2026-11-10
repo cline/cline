@@ -40,6 +40,7 @@ export enum BUILT_IN_PROVIDER {
 	NEBIUS = "nebius",
 	CRUSOE = "crusoe",
 	WALLY = "wally",
+	TEAMOROUTER = "teamorouter",
 	BASETEN = "baseten",
 	REQUESTY = "requesty",
 	LITELLM = "litellm",
