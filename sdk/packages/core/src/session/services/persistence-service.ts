@@ -461,6 +461,7 @@ export class UnifiedSessionPersistenceService {
 			const latest = await this.adapter.getSession(row.sessionId);
 			if (!latest) return undefined;
 			if (isNonTerminalSessionStatus(latest.status) === false) return latest;
+			if (isPidAlive(latest.pid)) return latest;
 
 			const nextMetadata = {
 				...(latest.metadata ?? {}),

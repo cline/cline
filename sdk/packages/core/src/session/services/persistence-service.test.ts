@@ -15,6 +15,7 @@ import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
+import type { SessionPersistenceAdapter } from "./persistence-service";
 
 const require = createRequire(import.meta.url);
 const sqliteAvailable = (() => {
@@ -442,6 +443,38 @@ describe("UnifiedSessionPersistenceService", () => {
 		await expect(
 			service.updateSessionStatus(sessionId, "running", null, process.pid),
 		).resolves.toMatchObject({ updated: true });
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "running",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps a row running when its owner takes it during reconcile (%s)", async (kind) => {
+		const sessionId = "raced-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+		const { adapter } = service as unknown as {
+			adapter: SessionPersistenceAdapter;
+		};
+		const updateSession = adapter.updateSession.bind(adapter);
+		let raced = false;
+		vi.spyOn(adapter, "updateSession").mockImplementation(async (input) => {
+			if (input.status === "failed" && !raced) {
+				raced = true;
+				await service.updateSessionStatus(
+					sessionId,
+					"running",
+					null,
+					process.pid,
+				);
+			}
+			return updateSession(input);
+		});
 
 		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
 		const rows = await service.listSessions(10);
