@@ -5,6 +5,7 @@ import {
 	type AlertDialogProps,
 } from "../components/alert-dialog.js";
 import { Button } from "../components/button.js";
+import { CompactDocsPage } from "./compact-docs-page";
 
 const meta = {
 	title: "Components/AlertDialog",
@@ -17,6 +18,12 @@ const meta = {
 		description: "Review the details before continuing.",
 		confirmLabel: "Continue",
 		onConfirm: () => {},
+		confirmTone: "neutral",
+		confirmDisabled: false,
+		cancelDisabled: false,
+		confirmLoading: false,
+		closeOnConfirm: true,
+		dismissible: true,
 	},
 	argTypes: {
 		open: { control: false },
@@ -36,14 +43,11 @@ const meta = {
 	},
 	parameters: {
 		docs: {
+			page: CompactDocsPage,
 			story: { inline: false, height: "520px" },
 			description: {
 				component:
-					"A controlled, accessible confirmation dialog using shared Button styles. " +
-					"Actions request closure unless the handler prevents default or closeOnConfirm is false. " +
-					"The caller owns pending state and retries; dismissible controls Escape independently of explicit actions. " +
-					"These examples use harmless callbacks. " +
-					"Use the toolbar to compare light and dark themes.",
+					"Confirmation with independently controlled actions and Escape dismissal. Use the controls to compare tones, disabled actions, and loading. The host owns completion and cancellation.",
 			},
 		},
 	},
@@ -65,19 +69,64 @@ function Example(props: AlertDialogProps) {
 	);
 }
 
-export const Default: Story = {};
+export const Playground: Story = {};
 
-export const Destructive: Story = {
-	args: { confirmTone: "destructive" },
-};
-
-export const WithDetails: Story = {
+export const PendingConfirmation: Story = {
 	args: {
-		children: (
-			<div className="wrap-break-word max-h-32 overflow-y-auto rounded-md bg-cline-ui-muted p-3 font-mono text-sm">
-				https://docs.cline.bot/getting-started/installing-cline
+		title: "Save session details?",
+		description: "The dialog stays open until the simulated save finishes.",
+		confirmLabel: "Save details",
+		closeOnConfirm: false,
+	},
+	argTypes: {
+		confirmLoading: { control: false },
+		closeOnConfirm: { control: false },
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"Save disables the focused confirmation while keeping the dialog open. Cancel and Escape remain independently configurable; closing cancels the simulated save.",
+			},
+		},
+	},
+	render: function PendingConfirmation(args) {
+		const [open, setOpen] = useState(true);
+		const [pending, setPending] = useState(false);
+		useEffect(() => {
+			if (!pending) return;
+			const timeout = setTimeout(() => {
+				setPending(false);
+				setOpen(false);
+			}, 2000);
+			return () => clearTimeout(timeout);
+		}, [pending]);
+		return (
+			<div className="p-6">
+				<Button
+					onClick={() => setOpen(true)}
+					tone="neutral"
+					variant="secondary"
+				>
+					Reopen dialog
+				</Button>
+				<AlertDialog
+					{...args}
+					open={open}
+					onOpenChange={(nextOpen) => {
+						setOpen(nextOpen);
+						if (!nextOpen) setPending(false);
+					}}
+					closeOnConfirm={false}
+					onConfirm={(event) => {
+						event.currentTarget.focus();
+						setPending(true);
+					}}
+					confirmLabel={pending ? "Saving…" : args.confirmLabel}
+					confirmLoading={pending}
+				/>
 			</div>
-		),
+		);
 	},
 };
 
@@ -148,81 +197,6 @@ export const LongContent: Story = {
 			description: {
 				story:
 					"Long title, multiple description paragraphs, file paths, and action labels exercise wrapping in a height-limited dialog. The content scrolls while the actions remain visible.",
-			},
-		},
-	},
-};
-
-export const DisabledActions: Story = {
-	args: { confirmDisabled: true, cancelDisabled: true },
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"Confirm and cancel can be disabled independently using the controls.",
-			},
-		},
-	},
-};
-
-export const PendingConfirmation: Story = {
-	args: {
-		title: "Save session details?",
-		description: "The dialog stays open until the simulated save finishes.",
-		confirmLabel: "Save details",
-	},
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"closeOnConfirm keeps the dialog open during a simulated save. confirmLoading shows progress and disables confirmation, while cancelDisabled and dismissible control other dismissal routes. The caller closes on completion.",
-			},
-		},
-	},
-	render: function PendingConfirmation(args) {
-		const [open, setOpen] = useState(true);
-		const [pending, setPending] = useState(false);
-		useEffect(() => {
-			if (!pending) return;
-			const timeout = setTimeout(() => {
-				setPending(false);
-				setOpen(false);
-			}, 1200);
-			return () => clearTimeout(timeout);
-		}, [pending]);
-		return (
-			<div className="p-6">
-				<Button
-					onClick={() => setOpen(true)}
-					tone="neutral"
-					variant="secondary"
-				>
-					Reopen dialog
-				</Button>
-				<AlertDialog
-					{...args}
-					open={open}
-					onOpenChange={setOpen}
-					dismissible={!pending}
-					closeOnConfirm={false}
-					onConfirm={() => setPending(true)}
-					confirmLabel={pending ? "Saving…" : args.confirmLabel}
-					confirmLoading={pending}
-					confirmDisabled={args.confirmDisabled}
-					cancelDisabled={pending || args.cancelDisabled}
-				/>
-			</div>
-		);
-	},
-};
-
-export const Blocking: Story = {
-	args: { dismissible: false },
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"Escape dismissal is disabled. Either explicit action can still close the dialog.",
 			},
 		},
 	},
