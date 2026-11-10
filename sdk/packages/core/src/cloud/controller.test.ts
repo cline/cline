@@ -771,7 +771,7 @@ describe("CloudSessionController neutral host contract", () => {
 			source: "desktop",
 			interactive: true,
 			startedAt: record.createdAt,
-			updatedAt: record.updatedAt,
+			updatedAt: "2026-07-20T10:00:00.000Z",
 			workspaceRoot: "/workspace/repo",
 			cwd: "/workspace/repo",
 			provider: "cline",
@@ -800,6 +800,9 @@ describe("CloudSessionController neutral host contract", () => {
 			return original(...args);
 		});
 		await f.controller.attach(record.id);
+		expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+			"2026-07-20T10:00:00.000Z",
+		);
 		const restored = f.command.mock.calls.find(
 			([command]) =>
 				command === (supportsResume ? "session.resume" : "session.create"),

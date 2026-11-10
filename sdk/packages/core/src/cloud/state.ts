@@ -130,7 +130,7 @@ export function resolveSessionListTitle(options: {
 	return `Session ${options.sessionId.slice(-6)}`;
 }
 
-function recordRunActivity(
+export function recordActivity(
 	state: CloudSessionState,
 	timestamp: number | undefined,
 ): void {
@@ -320,7 +320,7 @@ export function reduceCloudEvent(
 			state.status = status;
 			state.busy = status === "running";
 			if (event.event === "run.started") {
-				recordRunActivity(state, event.timestamp);
+				recordActivity(state, event.timestamp);
 				// Queue/steer acknowledgements are not a new assistant turn.
 				if (!alreadyRunning) streams.delete(sessionId);
 				state.endedAt = undefined;
@@ -347,7 +347,7 @@ export function reduceCloudEvent(
 							? "aborted"
 							: "completed";
 			state.busy = false;
-			recordRunActivity(state, event.timestamp);
+			recordActivity(state, event.timestamp);
 			state.endedAt = Date.now();
 			streams.delete(sessionId);
 			return;

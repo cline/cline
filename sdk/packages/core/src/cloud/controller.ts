@@ -41,6 +41,7 @@ import {
 } from "./snapshots";
 import {
 	immutableCopy,
+	recordActivity,
 	reduceCloudEvent,
 	resolveSessionListTitle,
 } from "./state";
@@ -2749,8 +2750,7 @@ export class CloudSessionController {
 		this.pendingInitialTasks.delete(outerSessionId);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(outerSessionId, connection);
-		const modelId = sessionRowModelId(session);
-		if (modelId) this.applyModel(connection, modelId);
+		this.applySessionModel(connection, session);
 		await this.ensureAttached(connection);
 	}
 
@@ -3379,13 +3379,7 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
-		const activityAt = updatedAt(row);
-		if (live && Number.isFinite(activityAt) && activityAt > 0) {
-			live.lastActivityAt = Math.max(
-				live.lastActivityAt ?? live.startedAt,
-				activityAt,
-			);
-		}
+		if (live) recordActivity(live, updatedAt(row));
 		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&

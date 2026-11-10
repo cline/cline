@@ -196,18 +196,20 @@ export function mergeDiscoveredSessionLists(
 				"",
 		});
 	}
-	const activityTime = (record: JsonRecord) =>
-		Math.max(
-			...(record.origin === "cloud"
-				? [record.lastActivityAt ?? record.startedAt]
-				: [
-						record.lastActivityAt,
-						record.updatedAt,
-						record.endedAt,
-						record.startedAt,
-					]
-			).map((value) => parseTimestamp(value as string | number | undefined)),
+	const activityTime = (record: JsonRecord) => {
+		if (record.origin === "cloud") {
+			const activity = record.lastActivityAt ?? record.startedAt;
+			return parseTimestamp(activity as string | number | undefined);
+		}
+		return Math.max(
+			...[
+				record.lastActivityAt,
+				record.updatedAt,
+				record.endedAt,
+				record.startedAt,
+			].map((value) => parseTimestamp(value as string | number | undefined)),
 		);
+	};
 	return Array.from(merged.values())
 		.sort(
 			(left, right) =>
