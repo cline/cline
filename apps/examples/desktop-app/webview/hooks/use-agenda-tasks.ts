@@ -283,7 +283,12 @@ export function useAgendaTasks(
 			setError(null);
 			try {
 				const created = await desktopClient.createAgendaTask(input);
-				setTasks((current) => sortAgendaTasks([created, ...current]));
+				setTasks((current) =>
+					sortAgendaTasks([
+						created,
+						...current.filter((task) => task.taskId !== created.taskId),
+					]),
+				);
 				void refresh();
 				return created;
 			} catch (cause) {

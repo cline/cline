@@ -971,6 +971,25 @@ export function FeatureDetail({
 				) : null}
 			</TabsContent>
 			<div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+				{task.status === "in_progress" || (editable && designActive) ? (
+					<Button
+						variant="destructive"
+						disabled={busy}
+						onClick={() =>
+							void perform(async () => {
+								await desktopClient.cancelAgendaTask({
+									taskId: task.taskId,
+									expectedRevision: task.revision,
+									allWorkspaces: true,
+								});
+							})
+						}
+					>
+						{task.status === "in_progress"
+							? "Cancel execution"
+							: "Cancel scoping"}
+					</Button>
+				) : null}
 				{canFollowUp ? (
 					<>
 						<p className="mr-auto self-center text-xs text-muted-foreground">
@@ -997,22 +1016,6 @@ export function FeatureDetail({
 							{followUpStopped ? "Resume PR follow-up" : "Pause PR follow-up"}
 						</Button>
 					</>
-				) : task.status === "in_progress" ? (
-					<Button
-						variant="destructive"
-						disabled={busy}
-						onClick={() =>
-							void perform(async () => {
-								await desktopClient.cancelAgendaTask({
-									taskId: task.taskId,
-									expectedRevision: task.revision,
-									allWorkspaces: true,
-								});
-							})
-						}
-					>
-						Cancel execution
-					</Button>
 				) : editable ? (
 					<>
 						<Button
@@ -1052,11 +1055,11 @@ export function FeatureDetail({
 							{designActive ? "Preparing plan…" : "Approve and run"}
 						</Button>
 					</>
-				) : (
+				) : task.status !== "in_progress" ? (
 					<p className="text-xs text-muted-foreground">
 						This feature is closed. Create a new feature for further changes.
 					</p>
-				)}
+				) : null}
 			</div>
 		</Tabs>
 	);

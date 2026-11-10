@@ -1,6 +1,7 @@
 "use client";
 
 import type { AgendaTaskRecord, FactoryTaskConfig } from "@cline/shared";
+import { createSessionId } from "@cline/shared/browser";
 import {
 	CheckCircle2,
 	Columns3,
@@ -553,7 +554,9 @@ export function FactoryView({
 								LOCAL_WORKSPACE_ENVIRONMENT_ID,
 								{ executionTarget: "local" },
 							);
+							const requestedTaskId = createSessionId("task_");
 							const task = await agenda.createTask({
+								taskId: requestedTaskId,
 								type: "todo",
 								title,
 								description: request,
@@ -572,7 +575,7 @@ export function FactoryView({
 							});
 							setCreating(false);
 							selectTask(task.taskId);
-							if (startScoping) {
+							if (startScoping && task.taskId === requestedTaskId) {
 								try {
 									await desktopClient.designFactoryTask(task.taskId);
 								} catch (cause) {

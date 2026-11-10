@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import type { AgendaTaskRecord, AgendaTaskRunRecord } from "@cline/shared";
+import type {
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	HubTaskCreateInput,
+} from "@cline/shared";
 import {
 	factoryDesignProgressSchema,
 	factoryRunStateSchema,
@@ -75,8 +79,8 @@ let root: Root;
 beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.invoke.mockImplementation(async () => []);
-	mocks.createTask.mockImplementation(async () => {
-		const created = task({ status: "pending_approval" });
+	mocks.createTask.mockImplementation(async (input: HubTaskCreateInput) => {
+		const created = task({ taskId: input.taskId, status: "pending_approval" });
 		mocks.tasks = [...mocks.tasks, created];
 		return created;
 	});
@@ -759,6 +763,50 @@ describe("Factory workflow", () => {
 		expect(mocks.designFactoryTask).not.toHaveBeenCalled();
 	});
 
+	it("opens existing work returned by creation without restarting scoping", async () => {
+		const existing = task();
+		mocks.tasks = [existing];
+		mocks.createTask.mockResolvedValueOnce(existing);
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_import_issue"
+				? {
+						title: "Imported request",
+						description: "An issue already tracked by the factory.",
+						source: {
+							provider: "github",
+							id: "example/repo#7",
+							url: "https://github.com/example/repo/issues/7",
+						},
+					}
+				: [],
+		);
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={["/repo"]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Add work").click());
+		await act(async () => selectTab("GitHub / Linear issue"));
+		await act(async () =>
+			changeInput("#feature-issue", "https://github.com/example/repo/issues/7"),
+		);
+		await act(async () => button("Import").click());
+		expect(button("Add and scope").disabled).toBe(false);
+		await act(async () => button("Add and scope").click());
+		expect(mocks.createTask).toHaveBeenCalledTimes(1);
+		expect(mocks.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: expect.stringMatching(/^task_/) }),
+		);
+		expect(mocks.designFactoryTask).not.toHaveBeenCalled();
+		expect(document.querySelector("#feature-name")).toBeNull();
+		const detail = document.querySelector('[role="dialog"]');
+		expect(detail?.textContent).toContain(existing.title);
+		expect(detail?.textContent).toContain(existing.instructions);
+	});
+
 	it("adds a direct request once and reports scoping startup failure without offering a duplicate submission", async () => {
 		mocks.designFactoryTask.mockRejectedValueOnce(
 			new Error("Provider unavailable"),
@@ -786,7 +834,9 @@ describe("Factory workflow", () => {
 				factory: expect.objectContaining({ sourceIssue: undefined }),
 			}),
 		);
-		expect(mocks.designFactoryTask).toHaveBeenCalledWith("feature-1");
+		const created = await mocks.createTask.mock.results[0].value;
+		expect(created.taskId).toEqual(expect.stringMatching(/^task_/));
+		expect(mocks.designFactoryTask).toHaveBeenCalledWith(created.taskId);
 		expect(mocks.toast).toHaveBeenCalledWith({
 			title: "Scoping could not start",
 			description:

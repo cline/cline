@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import type { AgendaTaskRecord, AgendaTaskRunRecord } from "@cline/shared";
-import { factoryRunStateSchema } from "@cline/shared";
+import {
+	factoryDesignProgressSchema,
+	factoryRunStateSchema,
+} from "@cline/shared";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -10,6 +13,7 @@ import { FeatureDetail } from "./factory-detail";
 const mocks = vi.hoisted(() => ({
 	getFactoryTask: vi.fn<() => Promise<{ runs: AgendaTaskRunRecord[] }>>(),
 	updateAgendaTask: vi.fn(),
+	cancelAgendaTask: vi.fn(async () => {}),
 	invoke: vi.fn(async (_command: string): Promise<unknown> => []),
 }));
 vi.mock("@/lib/desktop-client", () => ({
@@ -235,4 +239,29 @@ it("renders saved reports, opens the exact role session, and keeps failed or lat
 	expect(document.body.textContent).toContain("Evidence refresh failed");
 	expect(document.body.textContent).toContain("cached; refresh failed");
 	expect(document.body.textContent).not.toContain("Check off this result");
+});
+
+it("cancels an active designer using the displayed task revision", async () => {
+	const designing: AgendaTaskRecord = {
+		...task,
+		status: "pending_approval",
+		factoryDesignProgress: factoryDesignProgressSchema.parse({
+			revision: task.revision,
+			repairRound: 0,
+			agents: {},
+			designerSessionId: "designer",
+			findings: [],
+			phase: "designing",
+		}),
+	};
+	await render(designing);
+	await act(async () => button("Cancel scoping").click());
+	expect(mocks.cancelAgendaTask).toHaveBeenCalledTimes(1);
+	expect(mocks.cancelAgendaTask).toHaveBeenCalledWith({
+		taskId: task.taskId,
+		expectedRevision: task.revision,
+		allWorkspaces: true,
+	});
+	await render({ ...designing, status: "cancelled" });
+	expect(document.body.textContent).not.toContain("Cancel scoping");
 });
