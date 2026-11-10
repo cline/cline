@@ -600,6 +600,7 @@ describe("LocalRuntimeHost", () => {
 		const resumeFromDisk = async (
 			status: "running" | "completed",
 			pid: number,
+			statusWriteError?: Error,
 		) => {
 			const sessionId = "sess-resume-from-disk";
 			const sessionService = new FileSessionService(
@@ -625,6 +626,9 @@ describe("LocalRuntimeHost", () => {
 				sessionService,
 				"updateSessionStatus",
 			);
+			if (statusWriteError) {
+				updateSessionStatus.mockRejectedValue(statusWriteError);
+			}
 			const agent = {
 				run: vi.fn().mockResolvedValue(createResult()),
 				continue: vi.fn().mockResolvedValue(createResult()),
@@ -690,6 +694,19 @@ describe("LocalRuntimeHost", () => {
 			expect(resumed.updateSessionStatus).not.toHaveBeenCalled();
 			expect(resumed.emittedStatuses).toEqual([status]);
 			await expect(resumed.readRow()).resolves.toMatchObject({ status, pid });
+		});
+
+		it("still starts when adopting a dead row fails to write", async () => {
+			const resumed = await resumeFromDisk(
+				"running",
+				deadPid,
+				new Error("database is locked"),
+			);
+
+			expect(resumed.updateSessionStatus).toHaveBeenCalledTimes(1);
+			await expect(
+				resumed.manager.getSession(resumed.sessionId),
+			).resolves.toMatchObject({ status: "running" });
 		});
 
 		it("takes the row from a live owner when it runs a turn", async () => {

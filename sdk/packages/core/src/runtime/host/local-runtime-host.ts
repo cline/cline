@@ -1136,13 +1136,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 		}
 		if (resumedArtifacts) {
-			if (
-				isNonTerminalSessionStatus(active.status) &&
-				!isPidAlive(resumedArtifacts.manifest.pid)
-			) {
-				active.status = "idle";
-				await this.persistStatus(active, "idle");
-			}
+			await this.adoptOrphanedSession(active, resumedArtifacts.manifest.pid);
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
@@ -2475,6 +2469,38 @@ export class LocalRuntimeHost implements RuntimeHost {
 			if (!result.updated) {
 				session.compactionState = undefined;
 			}
+		}
+	}
+
+	private async adoptOrphanedSession(
+		session: ActiveSession,
+		recordedPid: number,
+	): Promise<void> {
+		if (
+			!isNonTerminalSessionStatus(session.status) ||
+			isPidAlive(recordedPid)
+		) {
+			return;
+		}
+		try {
+			await this.persistStatus(session, "idle");
+		} catch (error) {
+			session.config.logger?.error?.("Failed to adopt resumed session", {
+				sessionId: session.sessionId,
+				error,
+			});
+			captureSdkError(session.config.telemetry, {
+				component: "core",
+				operation: "session.adopt_orphaned",
+				error,
+				severity: "warn",
+				handled: true,
+				context: {
+					sessionId: session.sessionId,
+					providerId: session.config.providerId,
+					modelId: session.config.modelId,
+				},
+			});
 		}
 	}
 
