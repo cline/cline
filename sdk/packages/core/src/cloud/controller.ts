@@ -712,8 +712,10 @@ export class CloudSessionController {
 			!this.connections.has(record.id) &&
 			apiActivityAt >
 				Math.max(live.lastActivityAt, live.apiActivityAtDisposal ?? 0)
-		)
+		) {
+			recordActivity(live, apiActivityAt);
 			return projected;
+		}
 		projected.lastActivityAt = new Date(live.lastActivityAt).toISOString();
 		return projected;
 	}

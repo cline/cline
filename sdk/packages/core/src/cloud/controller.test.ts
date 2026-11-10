@@ -311,7 +311,7 @@ describe("CloudSessionController neutral host contract", () => {
 	it.each([
 		"detach",
 		"suspended",
-	] as const)("refreshes activity after %s without losing a known completion", async (disposal) => {
+	] as const)("preserves accepted activity after %s and a failed reopen", async (disposal) => {
 		vi.useFakeTimers({ toFake: ["Date"] });
 		const f = fixture();
 		const completedAt = "2026-07-20T12:05:00.000Z";
@@ -342,6 +342,19 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(
 				f.controller.getCachedDiscoveryRecord(record.id)?.lastActivityAt,
 			).toBe(remoteActivity);
+			const failure = new HubCommandError(
+				"session.get",
+				"forbidden",
+				"Open failed",
+			);
+			f.command.mockRejectedValueOnce(failure);
+			await expect(f.controller.attach(record.id)).rejects.toBe(failure);
+			expect(
+				f.controller.getCachedDiscoveryRecord(record.id)?.lastActivityAt,
+			).toBe(remoteActivity);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				remoteActivity,
+			);
 		} finally {
 			await f.controller.dispose();
 			vi.useRealTimers();

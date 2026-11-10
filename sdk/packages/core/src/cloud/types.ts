@@ -53,7 +53,7 @@ export type CloudSessionState = {
 	promptsInQueue: CloudQueuedPrompt[];
 	busy: boolean;
 	startedAt: number;
-	/** Conversation recency from Hub records and run events, not proxy connections. */
+	/** Accepted recency from Hub activity and newer API activity while disconnected. */
 	lastActivityAt?: number;
 	/** API activity already observed when this viewer's connection ended. */
 	apiActivityAtDisposal?: number;
