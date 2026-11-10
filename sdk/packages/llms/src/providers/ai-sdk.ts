@@ -54,6 +54,11 @@ import {
 	isRetryableBeyondSdkRetries,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import {
+	resolveModelStreamTimeout,
+	withoutFetchIdleTimeout,
+	withResponseStartTimeout,
+} from "./http";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
@@ -1517,10 +1522,13 @@ function captureStreamError(
 		errorClass: classifyProviderError(error),
 		// Error parts reaching the consumer have exhausted AI SDK stream recovery.
 		// Do not multiply its retry budget in the agent's whole-turn retry loop.
+		// A native timeout is the exception: the AI SDK treats it as an abort
+		// and never retries it, so it arrives here with no budget spent.
 		retryable:
-			phase !== "stream_callback" &&
-			phase !== "stream_part" &&
-			isRetryableBeyondSdkRetries(error),
+			isTimeoutReason(error) ||
+			(phase !== "stream_callback" &&
+				phase !== "stream_part" &&
+				isRetryableBeyondSdkRetries(error)),
 	};
 }
 
@@ -2255,13 +2263,27 @@ function createAiSdkProvider(
 				});
 				await recordTraceError?.(captured.error);
 			};
+			// Text streams trade the runtime's fetch idle timeout for explicit
+			// stall limits. Dedicated image generation has no stream to time, so
+			// it keeps the runtime's own timeout as its deadline.
+			const streamTimeout = usesImageGenerationOperation(context.model)
+				? undefined
+				: resolveModelStreamTimeout();
+			const modelFetch = usesImageGenerationOperation(context.model)
+				? config.fetch
+				: streamTimeout
+					? withResponseStartTimeout(
+							withoutFetchIdleTimeout(config.fetch),
+							streamTimeout.firstChunkMs,
+						)
+					: withoutFetchIdleTimeout(config.fetch);
 			try {
 				const provider = await createProviderModule(
 					kind,
 					{
 						...config,
 						fetch: wrapFetchForAimlapiAttribution(
-							wrapFetchForStickySession(config.fetch, request, context),
+							wrapFetchForStickySession(modelFetch, request, context),
 							request.providerId,
 						),
 					},
@@ -2456,6 +2478,7 @@ function createAiSdkProvider(
 							...(provider.executesModelTools && activeModelTools.length
 								? { stopWhen: stepCountIs(8) }
 								: {}),
+							...(streamTimeout ? { timeout: streamTimeout } : {}),
 							...requestConfig,
 							streamRetries: MODEL_STREAM_MAX_RETRIES,
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),

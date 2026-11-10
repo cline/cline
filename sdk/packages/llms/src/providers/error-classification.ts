@@ -366,6 +366,22 @@ function isRetryableTypedError(
 	return undefined;
 }
 
+/** Whether a native `TimeoutError` occurs anywhere in the `cause` chain. */
+function hasTimeoutError(value: unknown): boolean {
+	let current = value;
+	for (
+		let depth = 0;
+		depth <= MAX_WALK_DEPTH && typeof current === "object" && current !== null;
+		depth++
+	) {
+		if ((current as { name?: unknown }).name === "TimeoutError") {
+			return true;
+		}
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
+}
+
 /**
  * Structural retryability for a value that is not a typed AI SDK error: a
  * flattened message, a gateway-forwarded JSON payload, or the final attempt
@@ -405,6 +421,12 @@ function isRetryableFromSignals(value: unknown): boolean {
 	// Any other visible 4xx is a non-retryable client error.
 	if (statuses.some((status) => status >= 400 && status < 500)) {
 		return false;
+	}
+	// A request that timed out without an HTTP answer (the runtime's fetch
+	// timeout or the stream stall limit) is transient: providers do not resume
+	// a dropped response, so the turn is retried from the start.
+	if (hasTimeoutError(value)) {
+		return true;
 	}
 	// No typed error and no status: the one provider quirk we special-case.
 	return signals.messages.some((message) =>

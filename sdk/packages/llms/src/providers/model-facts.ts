@@ -89,21 +89,6 @@ function normalizedModelId(
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
-function geminiModelDescriptor(input: {
-	request: Pick<GatewayStreamRequest, "modelId">;
-	context: GatewayProviderContext;
-}): string {
-	return [
-		input.request.modelId,
-		input.context.model.id,
-		input.context.model.name,
-		input.context.model.metadata?.family,
-	]
-		.filter(Boolean)
-		.join(" ")
-		.toLowerCase();
-}
-
 function isProviderBaseOrigin(
 	context: GatewayProviderContext,
 	origin: string,
@@ -287,32 +272,6 @@ export function isOpenAIReasoningEraModelId(
 		OPENAI_O_SERIES_MODEL_ID_PATTERN.test(normalized) ||
 		OPENAI_GPT5_AND_LATER_MODEL_ID_PATTERN.test(normalized)
 	);
-}
-
-export function resolveGeminiThinkingMode(input: {
-	request: Pick<GatewayStreamRequest, "modelId">;
-	context: GatewayProviderContext;
-}): "level" | "budget" | undefined {
-	const controls = getModelReasoningControls(
-		input.context.model.reasoningOptions,
-	);
-	if (controls) {
-		return controls.effort
-			? "level"
-			: controls.budget || controls.toggle
-				? "budget"
-				: undefined;
-	}
-
-	// Legacy/offline catalogs do not yet carry reasoning_options. Keep their
-	// wire choice in one fallback boundary; live models use metadata above.
-	const descriptor = geminiModelDescriptor(input);
-	return /(^|[/\s])gemini-3([.-]|$)/.test(descriptor)
-		? "level"
-		: /(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
-				descriptor.includes("gemini-flash-latest")
-			? "budget"
-			: undefined;
 }
 
 function modelFamilyMatches(

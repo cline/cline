@@ -2485,6 +2485,26 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		});
 	});
 
+	it("keeps exact token budgets away from Gemini models with thinking levels", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "gemini",
+				modelId: "gemini-4-argon",
+				reasoning: { enabled: true, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-4-argon",
+				reasoningOptions: [
+					...effortOptions(["low", "medium", "high"]),
+					...budgetOptions(0, 32_768),
+				],
+			}),
+		);
+
+		expect(result).not.toHaveProperty("google");
+	});
+
 	it("leaves Gemini level coercion to the AI SDK", () => {
 		const withMinimal = composeAiSdkProviderOptions(
 			makeRequest({

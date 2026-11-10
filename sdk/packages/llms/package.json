@@ -53,7 +53,7 @@
 		"@ai-sdk/amazon-bedrock": "^5.0.113",
 		"@ai-sdk/anthropic": "^4.0.78",
 		"@ai-sdk/gateway": "^4.0.110",
-		"@ai-sdk/google": "^4.0.93",
+		"@ai-sdk/google": "^4.0.114",
 		"@ai-sdk/google-vertex": "^5.0.109",
 		"@ai-sdk/mistral": "^4.0.62",
 		"@ai-sdk/openai": "^4.0.91",

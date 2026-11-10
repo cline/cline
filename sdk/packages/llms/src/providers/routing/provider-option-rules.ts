@@ -110,6 +110,15 @@ function buildReasoningPatchForProvider(
 	});
 }
 
+function modelTakesGeminiThinkingBudget(
+	input: ProviderOptionMatchInput,
+): boolean {
+	const controls = getModelReasoningControls(
+		input.context.model.reasoningOptions,
+	);
+	return controls?.budget !== undefined && controls.effort === undefined;
+}
+
 function buildGeminiThinkingConfig(input: ProviderOptionBuildInput) {
 	const budgetTokens = input.request.reasoning?.budgetTokens;
 	if (typeof budgetTokens === "number") {
@@ -369,15 +378,14 @@ const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
 	description:
-		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets, and only on models that advertise one; level-only models reject thinkingBudget.",
+		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets on budget-only models; models with thinking levels (Gemini 3 and later) reject thinkingBudget and take the portable reasoning level.",
 	suppresses: { genericThinking: true },
 	applies: (input) =>
 		(input.request.providerId === "google" ||
 			input.request.providerId === "gemini" ||
 			input.request.providerId === "vertex") &&
 		typeof input.request.reasoning?.budgetTokens === "number" &&
-		getModelReasoningControls(input.context.model.reasoningOptions)?.budget !==
-			undefined,
+		modelTakesGeminiThinkingBudget(input),
 	build: (input) => {
 		const providerOptionsName =
 			input.request.providerId === "vertex" ? "vertex" : "google";

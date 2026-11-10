@@ -45,7 +45,11 @@ export async function createGoogleProviderModule(
 			> = {};
 			for (const tool of tools) {
 				if (tool.name === "web_search") {
-					result.web_search = { tool: provider.tools.googleSearch({}) };
+					// `@ai-sdk/google` ships a newer `@ai-sdk/provider-utils` than
+					// `ai` pins, so the same tool shape is two nominal types.
+					result.web_search = {
+						tool: provider.tools.googleSearch({}) as never,
+					};
 				}
 			}
 			return result;

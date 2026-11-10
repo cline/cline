@@ -39,6 +39,16 @@ attempts) for retryable request-start failures. Provider errors received after
 streaming starts have a separate budget of three stream retries. Exhausting
 either budget does not trigger another whole-turn retry.
 
+Model requests do not use the runtime's fetch idle timeout (Bun aborts a silent
+request after five minutes), because long-thinking models can stay silent for
+longer. A text request is abandoned instead when the response does not start,
+or the stream produces no first content chunk or no further chunk, within 20
+minutes. Set `CLINE_MODEL_STREAM_IDLE_TIMEOUT_MS` to change that limit, or to
+`0` to disable it. A request that times out is retried from the start by the
+agent's whole-turn retry when the turn produced no content beyond reasoning.
+Dedicated image-generation requests are not streamed and keep the runtime's
+own fetch timeout.
+
 When Langfuse tracing is enabled, each failed request-start or stream attempt
 records its error on its model-call span, including attempts followed by a
 successful retry. Request-start failures close their attempt spans before retry

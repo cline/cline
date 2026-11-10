@@ -449,6 +449,32 @@ describe("isRetryableProviderError", () => {
 		});
 	});
 
+	describe("timeouts", () => {
+		const timeout = () =>
+			new DOMException("The operation timed out.", "TimeoutError");
+
+		it("retries a native fetch or stream-stall timeout", () => {
+			expect(isRetryableProviderError(timeout())).toBe(true);
+			expect(isRetryableBeyondSdkRetries(timeout())).toBe(true);
+		});
+
+		it("retries a timeout wrapped as a cause", () => {
+			expect(
+				isRetryableProviderError(
+					new Error("stream failed", { cause: timeout() }),
+				),
+			).toBe(true);
+		});
+
+		it("does not retry a user abort", () => {
+			expect(
+				isRetryableProviderError(
+					new DOMException("The operation was aborted.", "AbortError"),
+				),
+			).toBe(false);
+		});
+	});
+
 	describe("not retryable", () => {
 		it("does not retry a credential rejection (401)", () => {
 			expect(
