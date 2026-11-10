@@ -396,6 +396,118 @@ describe("UnifiedSessionPersistenceService", () => {
 		15_000,
 	);
 
+	const deadPid = 999_999_999;
+	const adapterKinds = sqliteAvailable
+		? (["file", "sqlite"] as const)
+		: (["file"] as const);
+	const createServiceWithDeadRoot = async (
+		kind: (typeof adapterKinds)[number],
+		sessionId: string,
+	) => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), `pid-rebind-${kind}-`));
+		tempDirs.push(sessionsDir);
+		let service: FileSessionService | CoreSessionService;
+		if (kind === "file") {
+			service = new FileSessionService(sessionsDir);
+		} else {
+			const store = new SqliteSessionStore({ sessionsDir });
+			stores.push(store);
+			service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+		}
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: deadPid,
+			interactive: true,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			prompt: "hello",
+		});
+		return service;
+	};
+
+	it.each(
+		adapterKinds,
+	)("rebinds a live status update to the new pid so the reconciler keeps it running (%s)", async (kind) => {
+		const sessionId = "resumed-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await expect(
+			service.updateSessionStatus(sessionId, "running", null, process.pid),
+		).resolves.toMatchObject({ updated: true });
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "running",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps the recorded pid when no pid is given (%s)", async (kind) => {
+		const sessionId = "no-pid-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await service.updateSessionStatus(sessionId, "idle", null);
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(1);
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps the recorded pid on terminal statuses (%s)", async (kind) => {
+		const sessionId = "terminal-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await service.updateSessionStatus(sessionId, "completed", 0, process.pid);
+
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "completed",
+			pid: deadPid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("moves a reused subagent row to the root's current pid (%s)", async (kind) => {
+		const rootSessionId = "subagent-root";
+		const service = await createServiceWithDeadRoot(kind, rootSessionId);
+		const subagent = {
+			rootSessionId,
+			parentAgentId: "lead",
+			agentId: "worker",
+			conversationId: "conv-worker",
+			prompt: "task",
+		};
+		const childSessionId = await service.upsertSubagentSession(subagent);
+
+		await service.updateSessionStatus(
+			rootSessionId,
+			"running",
+			null,
+			process.pid,
+		);
+		await service.upsertSubagentSession(subagent);
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const child = (await service.listSessions(10)).find(
+			(row) => row.sessionId === childSessionId,
+		);
+		expect(child).toMatchObject({ status: "running", pid: process.pid });
+	});
+
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",
 		async () => {

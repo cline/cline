@@ -191,6 +191,7 @@ export class TeamChildSessionManager {
 		await this.adapter.updateSession({
 			sessionId,
 			setRunning: true,
+			pid: root.pid,
 			parentSessionId: rootSessionId,
 			parentAgentId: input.parentAgentId,
 			agentId: input.agentId,

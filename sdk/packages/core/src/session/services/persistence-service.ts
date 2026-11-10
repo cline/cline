@@ -187,6 +187,7 @@ export class UnifiedSessionPersistenceService {
 		sessionId: string,
 		status: SessionStatus,
 		exitCode?: number | null,
+		pid?: number,
 	): Promise<{ updated: boolean; endedAt?: string }> {
 		let endedAt: string | undefined;
 		const result = await withOccRetry(
@@ -202,6 +203,7 @@ export class UnifiedSessionPersistenceService {
 						: typeof exitCode === "number"
 							? exitCode
 							: null,
+					pid: isNonTerminalSessionStatus(status) ? pid : undefined,
 					expectedStatusLock: row.statusLock,
 				});
 			},

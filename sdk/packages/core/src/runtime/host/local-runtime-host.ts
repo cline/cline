@@ -1135,6 +1135,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 		}
 		if (resumedArtifacts) {
+			if (
+				isNonTerminalSessionStatus(active.status) &&
+				resumedArtifacts.manifest.pid !== process.pid
+			) {
+				await this.persistStatus(active, active.status);
+			}
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
@@ -2746,14 +2752,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) return;
+		if (await this.persistStatus(session, status, exitCode)) {
+			this.emitStatus(session.sessionId, status);
+		}
+	}
+
+	private async persistStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		exitCode?: number | null,
+	): Promise<boolean> {
+		if (!session.artifacts) return false;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
 			status,
 			exitCode,
+			process.pid,
 		);
-		if (!result.updated) return;
+		if (!result.updated) return false;
 		const latestManifest = await this.mutateSessionManifest(
 			session,
 			(manifest) => {
@@ -2761,20 +2778,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (isNonTerminalSessionStatus(status)) {
 					delete manifest.ended_at;
 					manifest.exit_code = null;
+					manifest.pid = process.pid;
 				} else {
 					manifest.ended_at = result.endedAt ?? nowIso();
 					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
 				}
 			},
 		);
-		if (!latestManifest) return;
+		if (!latestManifest) return false;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		this.emitStatus(session.sessionId, status);
+		return true;
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────

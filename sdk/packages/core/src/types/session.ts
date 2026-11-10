@@ -113,6 +113,7 @@ export interface PersistedSessionUpdateInput {
 	parentAgentId?: string | null;
 	agentId?: string | null;
 	conversationId?: string | null;
+	pid?: number;
 	setRunning?: boolean;
 }
 

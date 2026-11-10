@@ -595,6 +595,70 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("rebinds a resumed session to this process so the stale reconciler keeps it running", async () => {
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const sessionId = "sess-resume-dead-pid";
+		const sessionService = new FileSessionService(sessionsDir);
+		const { manifestPath } =
+			await sessionService.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: 999_999_999,
+				interactive: true,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: isolatedHomeDir,
+				workspaceRoot: isolatedHomeDir,
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+			});
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+				}),
+				interactive: true,
+				initialMessages: [{ role: "user", content: "hello" }],
+			}),
+		);
+
+		await expect(sessionService.reconcileDeadSessions()).resolves.toBe(0);
+		const [row] = await sessionService.listSessions(10);
+		expect(row).toMatchObject({
+			sessionId,
+			status: "running",
+			pid: process.pid,
+		});
+		const manifest = JSON.parse(
+			readFileSync(manifestPath, "utf8"),
+		) as SessionManifest;
+		expect(manifest).toMatchObject({ status: "running", pid: process.pid });
+	});
+
 	it("forwards rootOnly to the session backend when listing sessions", async () => {
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -1249,18 +1313,21 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"pending",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
@@ -1761,6 +1828,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
@@ -2105,7 +2173,12 @@ describe("LocalRuntimeHost", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(continueFn).not.toHaveBeenCalled();
 		expect(persistSessionMessages).toHaveBeenCalledTimes(1);
-		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
+		expect(updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"completed",
+			0,
+			process.pid,
+		);
 		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
 		expect(shutdown).toHaveBeenCalledTimes(1);
 	});
@@ -2390,7 +2463,12 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		expect(started.result?.finishReason).toBe("completed");
-		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
+		expect(updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"completed",
+			0,
+			process.pid,
+		);
 		// `SessionRuntime.shutdown(reason?, timeoutMs?)` forwards the
 		// reason string into the `session_shutdown` hook payload, so
 		// host-level hook-file handlers can route on it (e.g.
@@ -4454,24 +4532,28 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			4,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(events).not.toContainEqual(
 			expect.objectContaining({
@@ -4800,6 +4882,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 	});
 
@@ -5299,12 +5382,14 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenCalledTimes(2);
 		const persistedMetadata = updateSession.mock.calls[0]?.[0]
@@ -6097,6 +6182,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 		expect(agentShutdown).toHaveBeenCalledTimes(1);
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
@@ -6226,6 +6312,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 	});
 
@@ -7726,6 +7813,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"completed",
 			0,
+			process.pid,
 		);
 	});
 
