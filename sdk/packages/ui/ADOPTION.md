@@ -1205,7 +1205,16 @@ File names remain single-line so row heights stay uniform.
 Drag the divider to resize, use arrows/Home/End while it has focus, or double-click
 to reset. `loading` on FileBrowser shows both skeletons; on FileBrowserContent
 it preserves navigation and resizing.
-The default content height is 36rem; override `--cline-ui-file-browser-body-height`.
+`FileBrowserContent` uses `sizing="fixed"` by default with a 36rem body height;
+override `--cline-ui-file-browser-body-height` to change that fixed viewport.
+Use `sizing="content"` for an editor or preview that grows with its content.
+`minBodyHeight` and `maxBodyHeight` bound the body in content sizing; numbers are
+pixels and strings are CSS lengths. Their defaults are 0 and the fixed body
+height (36rem), respectively. The body owns scrolling after it reaches the
+maximum. An auto-growing source editor should size itself to its content and
+avoid a competing inner scrollbar. These bounds are also available as
+`--cline-ui-file-browser-body-min-height` and
+`--cline-ui-file-browser-body-max-height` for themed containers.
 
 `FileBrowserContent` shows Source/Preview when `preview` exists and preserves
 `content` verbatim in Source mode. For editing, pass a controlled editor as
@@ -1213,6 +1222,24 @@ The default content height is 36rem; override `--cline-ui-file-browser-body-heig
 use `defaultMode="source"` to start editing, and `sourceLabel` to rename that option.
 Key by path to reset mode/scroll on file selection. `headerLabel` replaces the path heading.
 Loading and host children take precedence over source/preview content.
+
+Pass `headerLabelId` to assign an ID to that visible header label, then reference
+it from a surrounding region and a source editor with `aria-labelledby`. The
+host owns the editor's accessible name. Generate a distinct ID for each instance
+(for example, with React `useId`) and provide readable `headerLabel` or `path` text.
+
+```tsx
+<section aria-labelledby={instructionsLabelId}>
+  <FileBrowserContent
+    headerLabel="Instructions" headerLabelId={instructionsLabelId}
+    sizing="content" minBodyHeight="12rem" maxBodyHeight="24rem"
+    defaultMode="source" showActions={false}
+    source={<AutoGrowingEditor aria-labelledby={instructionsLabelId}
+      value={instructions} onChange={setInstructions} />}
+    preview={<Markdown content={instructions} />}
+  />
+</section>
+```
 
 File actions use `actionPath` or `path` unchanged. Copy uses the Clipboard API
 unless `onCopyPath` is supplied. `onOpenFileLocation` enables the reveal action;

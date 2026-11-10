@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Code, Eye } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
+	type CSSProperties,
 	forwardRef,
 	type ReactNode,
 	useState,
@@ -49,6 +50,14 @@ export interface FileBrowserContentProps
 	path?: string;
 	/** Header text shown instead of the display path. */
 	headerLabel?: string;
+	/** ID for the visible header label, usable by a surrounding region or source editor. */
+	headerLabelId?: string;
+	/** Fixed viewport by default; content grows to its bounds and scrolls within the body. */
+	sizing?: "fixed" | "content";
+	/** Minimum body height in content sizing. CSS length; numbers are pixels. Defaults to 0. */
+	minBodyHeight?: number | string;
+	/** Maximum body height in content sizing. CSS length; numbers are pixels. Defaults to the fixed body height (36rem). */
+	maxBodyHeight?: number | string;
 	/** Show the file actions menu when a path is available. Defaults to true. */
 	showActions?: boolean;
 	/** Full local path or remote URL passed to actions. Defaults to the display path. */
@@ -206,6 +215,10 @@ export const FileBrowserContent = forwardRef<
 	{
 		path,
 		headerLabel,
+		headerLabelId,
+		sizing = "fixed",
+		minBodyHeight,
+		maxBodyHeight,
 		showActions = true,
 		actionPath = path,
 		onOpenFileLocation,
@@ -220,6 +233,7 @@ export const FileBrowserContent = forwardRef<
 		loadingLabel = "Loading file…",
 		children,
 		className,
+		style,
 		...props
 	},
 	ref,
@@ -237,11 +251,26 @@ export const FileBrowserContent = forwardRef<
 			{...props}
 			className={clsx("cline-ui-file-browser__content", className)}
 			data-slot="file-browser-content"
+			data-sizing={sizing}
+			style={
+				{
+					"--cline-ui-file-browser-body-min-height":
+						typeof minBodyHeight === "number"
+							? `${minBodyHeight}px`
+							: minBodyHeight,
+					"--cline-ui-file-browser-body-max-height":
+						typeof maxBodyHeight === "number"
+							? `${maxBodyHeight}px`
+							: maxBodyHeight,
+					...style,
+				} as CSSProperties
+			}
 			ref={ref}
 		>
 			<div className="cline-ui-file-browser__header">
 				<span
 					className="cline-ui-file-browser__path"
+					id={headerLabelId}
 					title={headerLabel ?? path}
 				>
 					{headerLabel ?? (path ? `/${path}` : undefined)}
