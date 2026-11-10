@@ -286,6 +286,41 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it.each([
+		"detach",
+		"suspended",
+	] as const)("refreshes activity after %s without losing a known completion", async (disposal) => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		const f = fixture();
+		const completedAt = "2026-07-20T12:05:00.000Z";
+		f.setUpdatedAt(Date.parse("2026-07-20T10:00:00.000Z"));
+		try {
+			await f.controller.attach(record.id);
+			vi.setSystemTime(new Date(completedAt));
+			f.emit("run.completed", { reason: "completed" });
+			if (disposal === "detach") await f.controller.detach(record.id);
+			f.api.list.mockResolvedValue([
+				{ ...record, status: disposal === "suspended" ? "suspended" : "ready" },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				completedAt,
+			);
+			expect(f.dispose).toHaveBeenCalled();
+			const remoteActivity = "2026-07-20T13:00:00.000Z";
+			f.api.list.mockResolvedValue([
+				{ ...record, lastActivityAt: remoteActivity },
+			]);
+			expect((await f.controller.listForDiscovery())[0]?.lastActivityAt).toBe(
+				remoteActivity,
+			);
+			expect(
+				f.controller.getCachedDiscoveryRecord(record.id)?.lastActivityAt,
+			).toBe(remoteActivity);
+		} finally {
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
 	it("keeps genuine run activity when REST and rehydration timestamps lag", async () => {
 		vi.useFakeTimers({ toFake: ["Date"] });
 		const f = fixture();

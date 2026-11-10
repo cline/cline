@@ -704,7 +704,12 @@ export class CloudSessionController {
 	private discoveryRecord(record: CloudSessionRecord): JsonRecord {
 		const projected = cloudSessionToDiscoveryRecord(record);
 		const activityAt = this.sessions.get(record.id)?.lastActivityAt;
-		if (activityAt !== undefined) {
+		if (
+			activityAt !== undefined &&
+			(this.connections.has(record.id) ||
+				activityAt >
+					(Date.parse(record.lastActivityAt ?? record.createdAt) || 0))
+		) {
 			projected.lastActivityAt = new Date(activityAt).toISOString();
 		}
 		return projected;
