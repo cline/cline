@@ -95,7 +95,7 @@ function TreeList({
 							aria-expanded={node.children ? !folds.has(node.path) : undefined}
 							className={entryClassName}
 							data-file-path={node.path}
-							pressScale={false}
+							pressScale={0.99}
 							onClick={() =>
 								node.children ? onToggle(node.path) : onSelect(node.path)
 							}
