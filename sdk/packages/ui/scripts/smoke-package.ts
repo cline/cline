@@ -13,9 +13,12 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import {
 	Button, IconButton, Badge,
 	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider,
+	Pagination,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -84,15 +87,32 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider]) {
+for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, Pagination]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
+// Empty pagination must also render without layout-effect warnings under React 18.
+const serverErrors = [];
+const originalConsoleError = console.error;
+try {
+ console.error = (...args) => serverErrors.push(args);
+ if (renderToString(createElement(Pagination, { pageCount: 0 })) !== "") {
+  throw new Error("empty pagination emitted server markup");
+ }
+} finally {
+ console.error = originalConsoleError;
+}
+if (serverErrors.length) throw new Error("pagination server render warned: " + serverErrors.flat().join(" "));
+
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
 for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "file-browser", "item-card", "section-heading", "pill-selector", "segmented-control", "tooltip"]) {
  const path = "./components/" + name + ".css";
  if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
   throw new Error("packed component stylesheet is missing: " + name);
  }
+}
+
+if (!existsSync(fileURLToPath(new URL("./components/pagination.css", packageJsonUrl))) || !componentStyles.includes("./components/pagination.css")) {
+ throw new Error("packed pagination stylesheet is missing");
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -242,7 +262,7 @@ async function verifyDeclarations(root: string): Promise<void> {
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, Pagination, type PaginationSize, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -250,6 +270,7 @@ createElement(Badge, { ...spanProps, ref: createRef<HTMLSpanElement>() });
 createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
+createElement(Pagination, { pageCount: 10, page: 2, size: "xxs" satisfies PaginationSize, onPageChange(page) { page.toFixed(); }, ref: createRef<HTMLElement>() });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
 createElement(AlertDialog, { open: false, onOpenChange() {}, title: "Confirm", description: "Continue?", confirmLabel: "Continue", onConfirm() {} });
 createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload", label: "Reload", onClick() {} }], ref: createRef<HTMLDivElement>() });
@@ -414,6 +435,11 @@ async function verifyTailwindContract(
 			output,
 			".cline-ui-segmented-control__input",
 			"packed segmented control CSS",
+		);
+		expectFragment(
+			output,
+			".cline-ui-pagination__track",
+			"packed pagination CSS",
 		);
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(

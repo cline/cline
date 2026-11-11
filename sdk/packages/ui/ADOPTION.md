@@ -1243,3 +1243,26 @@ unless `onCopyPath` is supplied. `onOpenFileLocation` enables the reveal action;
 rejections show inline errors. Use `showActions={false}` to hide the menu and
 `actionsPortalContainer` for scoped themes. Hosts own Markdown/link handling,
 clipboard bridges, editor state, save actions, and error recovery.
+### Pagination
+
+`Pagination` combines numbered page buttons, previous/next controls, and a moving
+selection. Pages are one-based. Use `page` and `onPageChange` for controlled state,
+or `defaultPage` for internal selection (default 1). A `pageCount` of zero hides
+it; `disabled` disables the whole control.
+
+`visiblePages` sets the total page/ellipsis slots from 5 to 50 (default 5),
+including the first and last pages and excluding previous/next buttons.
+The selected page remains visible; width and slot count stay fixed while
+navigating, and rendering remains bounded for large counts.
+
+Sizes `xs` (default), `sm`, `md`, and `lg` follow the
+[shared control sizes](#buttons). The additional `xxs` size is 6 spacing units
+high (1.5rem at default spacing).
+
+The root is a navigation landmark; use a distinct `aria-label` when a page has
+multiple navigation regions. The current button exposes `aria-current="page"`;
+Tab, Enter, and Space retain native button behavior. Customize names with
+`previousLabel`, `nextLabel`, and `getPageLabel(page)`. `dir="rtl"` reverses the
+layout and arrows, and selection motion respects reduced-motion preferences.
+Hosts own page size, slicing, fetching, loading, and URL navigation. The control
+does not move focus to new results.

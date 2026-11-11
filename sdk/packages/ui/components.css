@@ -11,6 +11,7 @@
 @import "./components/section-heading.css";
 @import "./components/segmented-control.css";
 @import "./components/tooltip.css";
+@import "./components/pagination.css";
 @import "./components/agent-changes.css";
 @import "./components/agent-pull-request-bar.css";
 @import "./components/agent-approval-card.css";

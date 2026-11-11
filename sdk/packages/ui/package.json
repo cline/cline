@@ -147,7 +147,9 @@
 		"components/file-browser-path.tsx",
 		"components/file-browser-tree.tsx",
 		"components/file-browser.css",
-		"components/file-browser.tsx"
+		"components/file-browser.tsx",
+		"components/pagination.tsx",
+		"components/pagination.css"
 	],
 	"sideEffects": [
 		"./components.css",
