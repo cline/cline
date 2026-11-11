@@ -657,3 +657,13 @@ No message text leaves the client: `textSignature` and `session.input_sent`'s
 `AgentEventBridge` forwards a plugin event named `next_turn.suggestions` as the core session event `plugin_event` (`CorePluginEvent` in `@cline/core`). The hub session projector publishes that as `plugin.event`. `HubRuntimeHost` emits `plugin_event` to local subscribers.
 
 `PluginManifest.rootOnly` keeps that extension off delegated and teammate runtimes. `buildDelegatedAgentConfig` drops extensions with the flag set.
+
+## Plugin asides
+
+A plugin whose manifest lists `asides` gets `ctx.asides.ask(request)`: one model call about the chat that never enters it. `AsideRequest`, `AsideResult`, and `PluginAsides` are exported from `@cline/shared`.
+
+An aside runs `SessionRuntime.fork`: the root runtime's `EphemeralForkController` resends the latest run's last model request with the run's reply and the prompt appended, so the provider's prompt cache covers the conversation. The controller exists only when a loaded plugin declares `asides`, and never in a runtime with a `parentAgentId`. `runId` is optional: a hook passes its own so a question about a run the chat has moved past is skipped, and a request without one is about the latest run, which may still be working. A request that names a `context` other than `"chat"` is rejected.
+
+`AsideService` (`packages/core/src/services/asides.ts`), owned by `LocalRuntimeHost`, decides whether an aside runs: the `asidesEnabled` global setting, 20 asides per plugin per chat in a rolling hour, a default and maximum output cap and timeout, and `supersede(sessionId)` when the session's next lead run starts or the session stops. An aside that arrives after that is refused before anything is sent: `stale_run` when the `runId` it names is no longer the runtime's latest run (`SessionRuntime.isLatestRun`), `superseded` while the session is stopping. The timeout holds even when a model call ignores its abort signal. The allowance is kept in memory. `ask` always resolves with an `AsideResult`.
+
+The sandbox can only send events to the host, so `ctx.asides.ask` emits the reserved event `__cline_aside_request` with a request id, and `loadSandboxedPlugins` answers by calling the bootstrap's `resolveAside` method. The event is consumed there and never reaches the session. Only plugins whose loaded manifest lists `asides` are answered, and plugin code cannot send the event itself: `ctx.emitEvent` throws on a name that starts with `__cline_`. In the worker transport each plugin has its own worker. Plugins loaded in the `subprocess` transport share one process and so one trust domain.

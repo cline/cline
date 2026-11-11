@@ -11,6 +11,7 @@ import type {
 	AgentRuntimeHooks,
 	AgentTool,
 	AgentToolContext,
+	AsideResult,
 	Message,
 	PluginSetupContext,
 	WorkspaceInfo,
@@ -71,6 +72,11 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	 */
 	idleTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * Answers `ctx.asides.ask` for plugins whose manifest lists `asides`.
+	 * Without it every aside is skipped as `unsupported`.
+	 */
+	onAside?: PluginAsideHandler;
 	/** Worker transport only: the worker ended on its own (crash, exit). */
 	onUnexpectedExit?: (error: Error) => void;
 	/**
@@ -114,6 +120,12 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	telemetryAvailable?: boolean;
 }
 
+/** `request` is what the plugin passed, unvalidated. */
+export type PluginAsideHandler = (ask: {
+	pluginName: string;
+	request: unknown;
+}) => Promise<AsideResult>;
+
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
 type SandboxedAgentExtension = AgentExtension & {
@@ -139,6 +151,7 @@ type SandboxedContributionDescriptor = {
  */
 const TOOL_UPDATE_EVENT = "__cline_tool_update";
 const SETUP_STARTED_EVENT = "__cline_setup_started";
+const ASIDE_REQUEST_EVENT = "__cline_aside_request";
 
 /** Progress callbacks of tool calls in flight, by call id. */
 type ToolUpdateRoutes = Map<string, (update: unknown) => void>;
@@ -484,6 +497,36 @@ export async function loadSandboxedPlugins(
 			: withTimeoutFallback(options.setupTimeoutMs, 4000);
 	const initTimeoutMs = importTimeoutMs + (setupTimeoutMs ?? 0);
 	const toolUpdates: ToolUpdateRoutes = new Map();
+	/** Names of the loaded plugins whose manifest lists `asides`. */
+	let asidePlugins: ReadonlySet<string> = new Set();
+	let stopped = false;
+	const answerAside = async (
+		payload: Record<string, unknown> | undefined,
+	): Promise<void> => {
+		const pluginName = String(payload?.pluginName);
+		let result: AsideResult;
+		try {
+			result =
+				options.onAside && asidePlugins.has(pluginName)
+					? await options.onAside({ pluginName, request: payload?.request })
+					: { status: "skipped", reason: "unsupported" };
+		} catch (error) {
+			result = {
+				status: "error",
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+		// A call would start a stopped sandbox again, with nobody left to read
+		// the answer and nothing to stop it a second time.
+		if (stopped) return;
+		await sandbox
+			.call(
+				"resolveAside",
+				{ id: String(payload?.id), result },
+				{ timeoutMs: hookTimeoutMs },
+			)
+			.catch(() => {});
+	};
 	const onEvent = (event: { name: string; payload?: unknown }) => {
 		const payload = event.payload as Record<string, unknown> | undefined;
 		if (event.name === TOOL_UPDATE_EVENT) {
@@ -492,6 +535,10 @@ export async function loadSandboxedPlugins(
 		}
 		if (event.name === SETUP_STARTED_EVENT) {
 			options.onSetupStarted?.(String(payload?.pluginPath));
+			return;
+		}
+		if (event.name === ASIDE_REQUEST_EVENT) {
+			void answerAside(payload);
 			return;
 		}
 		options.onEvent?.(event);
@@ -566,6 +613,15 @@ export async function loadSandboxedPlugins(
 		throw error;
 	}
 	const descriptors = initialized.plugins.map(normalizeDescriptor);
+	asidePlugins = new Set(
+		descriptors
+			// A manifest without a capability list is rejected when its extension
+			// is validated; throwing here would leave its sandbox running.
+			.filter((descriptor) =>
+				descriptor.manifest.capabilities?.includes("asides"),
+			)
+			.map((descriptor) => descriptor.name),
+	);
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
@@ -624,6 +680,7 @@ export async function loadSandboxedPlugins(
 		failures: initialized.failures,
 		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
+			stopped = true;
 			await sandbox.shutdown();
 		},
 		warnings: initialized.warnings,

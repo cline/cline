@@ -140,6 +140,7 @@ Declare what the plugin uses in `manifest.capabilities`. Each one unlocks one pa
 | `providers`        | `api.registerProvider()` |
 | `messageBuilders`  | `api.registerMessageBuilder()` |
 | `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |
+| `asides`           | `ctx.asides?.ask()`: a model call about the chat that stays out of it |
 | `hooks`            | runtime lifecycle callbacks (see below) |
 
 The setup `ctx` may include `session`, `client`, `user`, `workspaceInfo`, `automation`, `logger`, and `telemetry` depending on the host. See [`automation-events.ts`](./automation-events.ts) for an end-to-end example.

@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { AsideService } from "../../services/asides";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -3085,6 +3086,93 @@ describe("LocalRuntimeHost", () => {
 			undefined,
 			undefined,
 		);
+	});
+
+	it("ends a chat's asides when its next run starts and when the session stops, and one that arrives during the stop", async () => {
+		const sessionId = "sess-asides";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const supersede = vi.spyOn(AsideService.prototype, "supersede");
+		const ask = vi.spyOn(AsideService.prototype, "ask");
+		const run = vi.fn().mockImplementation(async () => {
+			expect(supersede).toHaveBeenCalledExactlyOnceWith(sessionId);
+			return createResult();
+		});
+		let duringStop: unknown;
+		const shutdown = vi.fn().mockImplementation(async () => {
+			duringStop = await (
+				manager as unknown as {
+					answerPluginAside(sessionId: string, ask: unknown): Promise<unknown>;
+				}
+			).answerPluginAside(sessionId, {
+				pluginName: "asker",
+				request: { runId: "run-1", prompt: "What next?" },
+			});
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown,
+					getMessages: vi.fn().mockReturnValue([]),
+					canStartRun: vi.fn().mockReturnValue(true),
+				}) as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+			expect(run).toHaveBeenCalledTimes(1);
+
+			await manager.stopSession(sessionId);
+			expect(supersede).toHaveBeenCalledTimes(2);
+			expect(supersede).toHaveBeenLastCalledWith(sessionId);
+			expect(shutdown).toHaveBeenCalledOnce();
+			expect(duringStop).toEqual({ status: "superseded" });
+			expect(ask).not.toHaveBeenCalled();
+		} finally {
+			supersede.mockRestore();
+			ask.mockRestore();
+		}
 	});
 
 	it("promotes queued prompts to the front when they become steer", async () => {

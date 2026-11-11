@@ -6,6 +6,7 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
+	type AsideResult,
 	type BasicLogger,
 	captureSdkError,
 	createSessionId,
@@ -34,6 +35,7 @@ import {
 	formatSessionPluginIssue,
 	isPluginCommand,
 } from "../../extensions/plugin/plugin-registry";
+import type { PluginAsideHandler } from "../../extensions/plugin/plugin-sandbox";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -43,7 +45,9 @@ import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executor
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
+import { AsideService } from "../../services/asides";
 import { resolveWorkspacePath } from "../../services/config";
+import { readGlobalSettings } from "../../services/global-settings";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import {
 	executePluginCommand,
@@ -323,6 +327,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly sessionVersioning = new SessionVersioningService();
 	private readonly runCommandExecutionController =
 		new RunCommandExecutionController();
+	private readonly asides: AsideService;
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -333,6 +338,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
 			options.createAgent ?? ((config) => new SessionRuntime(config));
+		this.asides = new AsideService({
+			enabled: () => readGlobalSettings().asidesEnabled !== false,
+			logger: options.logger,
+		});
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
 			options.capabilities,
 		);
@@ -720,6 +729,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultFetch: this.defaultFetch,
 			connectorsRequest: this.connectorsRequest,
+			onPluginAside: (ask) => this.answerPluginAside(sessionId, ask),
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
 					this.eventBridge.handlePluginLog(
@@ -2163,12 +2173,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
+	private async answerPluginAside(
+		sessionId: string,
+		ask: Parameters<PluginAsideHandler>[0],
+	): Promise<AsideResult> {
+		const session = this.sessions.get(sessionId);
+		// Teardown ends the asides in flight once; one that arrives after that
+		// sweep, while the runtime is still up, ends the same way.
+		if (session?.pluginCommandsClosing) return { status: "superseded" };
+		return this.asides.ask(sessionId, session?.agent, ask);
+	}
+
 	private async executeAgentTurn(
 		session: ActiveSession,
 		prompt: string,
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		this.asides.supersede(session.sessionId);
 		const shouldContinue =
 			session.started || session.agent.getMessages().length > 0;
 		const baselineMessages =
@@ -2591,6 +2613,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// the shared teardown choke point so it can neither double-fire nor
 		// be skipped by teardown routing.
 		session.pluginCommandsClosing = true;
+		this.asides.supersede(session.sessionId);
 		this.emitTaskCompletedOnTeardown(session, input.status);
 		notifyTeamRunWaiters(session);
 
@@ -2680,6 +2703,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// this is the branch that silently dropped `task.completed` when
 		// truthful status reporting re-routed interactive stops onto it.
 		session.pluginCommandsClosing = true;
+		this.asides.supersede(session.sessionId);
 		this.emitTaskCompletedOnTeardown(session);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {

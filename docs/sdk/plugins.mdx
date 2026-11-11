@@ -142,9 +142,10 @@ A session only gets tools, hooks, rules, and providers from plugins it enabled. 
 |-------|---------|
 | `ctx.cwd` | The session's working directory |
 | `ctx.session?.sessionId` | The session that is setting the plugin up |
-| `ctx.emitEvent(name, payload)` | Sends a plugin event, such as `steer_message`, to that session |
+| `ctx.emitEvent(name, payload)` | Sends a plugin event, such as `steer_message`, to that session. Names that start with `__cline_` are reserved for the host and throw |
 | `ctx.workspaceInfo` | Workspace root and git metadata |
 | `ctx.onDispose(fn)` | Registers cleanup to run when that session ends |
+| `ctx.asides?.ask(request)` | Asks the session's model a question that stays out of the chat (see [Asides](#asides)) |
 
 When a session ends, the host runs your `onDispose` callbacks. Plugins share the host process, so stop everything you start for a session there: timers, child processes, sockets, listeners on shared emitters.
 
@@ -157,6 +158,58 @@ setup(api, ctx) {
 ```
 
 Plugin tools also receive `cwd` and `emitEvent` in their call context (`execute(input, context)`). `globalThis.__clinePluginHost.emitEvent` still works for plugins written for the sandbox; it routes to the session whose hook or tool is running.
+
+## Asides
+
+An aside is one model call about a chat that never enters it: nothing is added to the transcript, no tool runs, and the session's events and storage do not see it. Use it for work that should read the conversation without changing it, such as answering a side question, suggesting the next prompt or keeping a running summary.
+
+The model reads the chat before your `prompt`. The host sends the run's last model request again, with the run's reply and your prompt appended as one more user message. The system prompt, tools, and thinking settings are the chat's own, so the provider's prompt cache serves everything but that tail: the model sees the whole conversation at the cached-read price.
+
+Declare the `asides` capability, then ask from an `afterRun` hook with that run's id:
+
+```typescript
+let ctx: PluginSetupContext | undefined
+
+const plugin: AgentPlugin = {
+  name: "recap",
+  manifest: { capabilities: ["hooks", "asides"], rootOnly: true },
+  setup(_api, setupCtx) {
+    ctx = setupCtx
+  },
+  hooks: {
+    afterRun({ snapshot }) {
+      if (!snapshot.runId) return
+      void ctx?.asides
+        ?.ask({
+          runId: snapshot.runId,
+          prompt: "In two sentences, what did this turn change?",
+          maxOutputTokens: 200,
+        })
+        .then((result) => {
+          if (result.status === "ok") ctx?.emitEvent?.("recap.ready", { text: result.text })
+        })
+    },
+  },
+}
+```
+
+The example publishes the answer as a plugin event for a client to show.
+
+`runId` says which run the question is about. A hook passes its own `snapshot.runId`: if a later run has begun by the time the aside arrives, it is skipped as `stale_run` instead of being answered about a different turn. Leave `runId` out to ask about the chat's latest run, whichever it is. A command does that, because it has no run of its own; it can also ask while a run is still working, and a tool call that has not returned yet is shown to the model as unanswered.
+
+`ask` never rejects. Check `status` on what it resolves with:
+
+| `status` | Meaning |
+|----------|---------|
+| `"ok"` | `text` is the answer. `usage` is what it cost, and `calledTools` names tools the model asked for (none of them ran). |
+| `"skipped"` | Nothing was sent. `reason` is `disabled` (the user turned asides off), `budget` (your plugin used this chat's hourly allowance), `unsupported` (this host does not answer asides), `no_recorded_request` (the chat has made no model request yet), `stale_run` (the `runId` you gave is no longer the chat's latest run), or `no_prompt_cache` (the chat's model has no prompt cache, so the aside would pay full price for the whole conversation). |
+| `"superseded"` | A new run began or the session ended before the answer arrived. |
+| `"timeout"` | The answer took longer than `timeoutMs` (default 20 s, at most 60 s). |
+| `"error"` | The provider failed or the request was malformed; `error` says why. |
+
+The host bounds every aside. Each plugin may make 20 per chat in a rolling hour (skips are not counted; the count is kept in memory and starts over when the host restarts), `maxOutputTokens` defaults to 400 and is capped at 4,000, and setting `"asidesEnabled": false` in the global settings file turns asides off. An aside reads the whole conversation, so treat its answer as you would any model output built from untrusted text.
+
+`ctx.asides` is undefined when the manifest does not list `asides`, so feature-detect it.
 
 ## Plugin Status and Errors
 
