@@ -820,7 +820,7 @@ export class SqliteCronStore {
 		const spec = this.getHubSchedule(scheduleId);
 		if (
 			!spec ||
-			!spec.enabled ||
+			(!spec.enabled && triggerKind !== "manual") ||
 			spec.removed ||
 			spec.parseStatus !== "valid"
 		) {
@@ -847,7 +847,6 @@ export class SqliteCronStore {
 				!current ||
 				current.revision !== spec.revision ||
 				current.triggerKind !== "one_off" ||
-				!current.enabled ||
 				current.removed ||
 				current.parseStatus !== "valid"
 			) {

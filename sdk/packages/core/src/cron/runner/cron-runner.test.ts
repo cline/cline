@@ -100,6 +100,90 @@ describe("CronRunner", () => {
 	});
 
 	it.each([
+		"schedule",
+		"one_off",
+		"event",
+		"retry",
+	] as const)("cancels queued %s runs when the schedule is disabled", async (triggerKind) => {
+		const { handlers, calls } = fakeHandlers();
+		const specTrigger = triggerKind === "retry" ? "schedule" : triggerKind;
+		const { record } = store.upsertSpec({
+			externalId: "paused",
+			sourcePath: "paused.md",
+			triggerKind: specTrigger,
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				...(specTrigger === "schedule"
+					? { triggerKind: specTrigger, schedule: "* * * * *" }
+					: specTrigger === "event"
+						? { triggerKind: specTrigger, event: "test.event" }
+						: { triggerKind: specTrigger }),
+				prompt: "Do the work",
+				workspaceRoot,
+				enabled: false,
+			},
+		});
+		const run = store.enqueueRun({
+			specId: record.specId,
+			specRevision: record.revision,
+			triggerKind,
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		try {
+			await runner.tick();
+			expect(store.getRun(run.runId)?.status).toBe("cancelled");
+			expect(calls.start).toBe(0);
+		} finally {
+			await runner.dispose();
+		}
+	});
+
+	it.each([
+		"removed",
+		"invalid",
+	] as const)("cancels a queued manual run if the schedule becomes %s", async (state) => {
+		const { handlers, calls } = fakeHandlers();
+		const spec = store.createHubSchedule({
+			name: "Routine",
+			cronPattern: "0 * * * *",
+			prompt: "Do the work",
+			workspaceRoot,
+		});
+		const run = requireValue(store.enqueueHubScheduleRun(spec.externalId));
+		if (state === "removed") store.markSpecRemoved(spec.specId);
+		else {
+			store.upsertSpec({
+				externalId: spec.externalId,
+				sourcePath: spec.sourcePath,
+				triggerKind: "schedule",
+				sourceHash: "invalid",
+				parseStatus: "invalid",
+			});
+		}
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		try {
+			await runner.tick();
+			expect(store.getRun(run.runId)?.status).toBe("cancelled");
+			expect(calls.start).toBe(0);
+		} finally {
+			await runner.dispose();
+		}
+	});
+
+	it.each([
 		false,
 		true,
 	])("dispatches other schedules while a run is pending (expired lease: %s)", async (expiredLease) => {

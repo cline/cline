@@ -40,6 +40,70 @@ afterEach(async () => {
 describe("HubScheduleService", () => {
 	const sqliteIt = sqliteAvailable ? it : it.skip;
 
+	sqliteIt.each([
+		{ oneTime: false, detached: false },
+		{ oneTime: false, detached: true },
+		{ oneTime: true, detached: false },
+		{ oneTime: true, detached: true },
+	])(
+		"runs disabled schedules manually without enabling them (one-time: $oneTime, detached: $detached)",
+		async ({ oneTime, detached }) => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const startSession = vi.fn(async () => ({ sessionId: "manual-session" }));
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession,
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const created = service.createSchedule({
+					name: "Paused routine",
+					cronPattern: oneTime ? ONE_TIME_SCHEDULE_CRON_PATTERN : "* * * * *",
+					prompt: "Test the routine",
+					workspaceRoot: dirname(dbPath),
+					enabled: false,
+					...(oneTime
+						? {
+								metadata: {
+									[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: Date.now() + 60_000,
+								},
+							}
+						: {}),
+				});
+				const execution = detached
+					? service.triggerScheduleNowDetached(created.scheduleId)
+					: await service.triggerScheduleNow(created.scheduleId);
+				expect(execution).toBeDefined();
+				await expect
+					.poll(
+						() =>
+							service.listScheduleExecutions({
+								scheduleId: created.scheduleId,
+							})[0]?.status,
+					)
+					.toBe("success");
+				expect(startSession).toHaveBeenCalledTimes(1);
+				expect(service.getSchedule(created.scheduleId)).toEqual(
+					expect.objectContaining({ enabled: false, nextRunAt: undefined }),
+				);
+				expect(service.getUpcomingRuns(10)).toEqual([]);
+				await service.start();
+				expect(
+					service.listScheduleExecutions({ scheduleId: created.scheduleId }),
+				).toHaveLength(1);
+				expect(startSession).toHaveBeenCalledTimes(1);
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
 	sqliteIt("creates, triggers, and reports schedule history", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);
