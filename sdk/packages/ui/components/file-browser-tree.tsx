@@ -73,6 +73,7 @@ function TreeList({
 	folds,
 	onToggle,
 	depth = 0,
+	inert = false,
 }: {
 	nodes: FileNode[];
 	selectedPath?: string | null;
@@ -80,9 +81,15 @@ function TreeList({
 	folds: Folds;
 	onToggle: (path: string) => void;
 	depth?: number;
+	inert?: boolean;
 }) {
+	const listRef = useRef<HTMLUListElement>(null);
+	useBrowserLayoutEffect(() => {
+		listRef.current?.toggleAttribute("inert", inert);
+	}, [inert]);
+
 	return (
-		<ul className="cline-ui-file-browser__tree">
+		<ul className="cline-ui-file-browser__tree" ref={listRef}>
 			{nodes.map((node) => {
 				const Icon = node.children ? Folder : FileText;
 				return (
@@ -126,6 +133,7 @@ function TreeList({
 								onSelect={onSelect}
 								selectedPath={selectedPath}
 								depth={depth + 1}
+								inert={folds.get(node.path) === "closing"}
 							/>
 						) : null}
 					</li>
