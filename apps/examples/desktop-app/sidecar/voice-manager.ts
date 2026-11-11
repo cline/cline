@@ -34,7 +34,7 @@ function resolveVoiceManagerProvider(manager: ProviderSettingsManager) {
 		if (config && apiKey) return { id, config, apiKey };
 	}
 	throw new Error(
-		"Talking to Cline needs an OpenAI or Vercel AI Gateway API key. Add one in Settings → Providers.",
+		"Talking to Cline needs an OpenAI or Vercel AI Gateway API key. Add one in Settings → Provider → BYOK.",
 	);
 }
 

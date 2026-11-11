@@ -224,10 +224,6 @@ export function VoiceManager({
 	const sessionHistoryRef = useRef(sessionHistory);
 	sessionHistoryRef.current = sessionHistory;
 
-	useEffect(() => {
-		void resolveSetupUrl().then(setSetupUrl, () => {});
-	}, []);
-
 	const findSession = useCallback((sessionId: string) => {
 		const history = sessionHistoryRef.current;
 		const thread = history.threads.find(
@@ -527,6 +523,7 @@ export function VoiceManager({
 					"get_voice_manager_model",
 				),
 			);
+			setSetupUrl(await resolveSetupUrl());
 			setPendingConnect(true);
 		} catch (error) {
 			setSetupError(errorText(error));
@@ -573,7 +570,10 @@ export function VoiceManager({
 							{setupError.includes("Settings") ? (
 								<button
 									className="self-start text-xs font-medium text-primary hover:underline"
-									onClick={onOpenProviders}
+									onClick={() => {
+										setSetupError(null);
+										onOpenProviders();
+									}}
 									type="button"
 								>
 									Open Providers
