@@ -1,0 +1,27 @@
+.categories {
+	min-width: 0;
+}
+
+.categories button {
+	max-width: 100%;
+	text-align: left;
+	white-space: normal;
+}
+
+@container detail-content (min-width: 60rem) {
+	.page.categories > div {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	/* Match Customize and the compact title without enlarging Category. */
+	.page.categories > h2 {
+		font-size: var(--text-xl);
+		line-height: var(--text-xl--line-height);
+	}
+
+	.page.categories > h2 > span {
+		font-size: var(--text-md);
+		line-height: var(--text-md--line-height);
+	}
+}
