@@ -456,6 +456,7 @@ describe("GenericProviderSettings", () => {
 
 		const baseUrlInput = screen.getByPlaceholderText("Default: https://generativelanguage.googleapis.com")
 		fireEvent.input(baseUrlInput, { target: { value: "https://new.example" } })
+		fireEvent.blur(baseUrlInput)
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
 		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
@@ -466,12 +467,12 @@ describe("GenericProviderSettings", () => {
 		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
 	})
 
-	it("refreshes provider models after saving an API key", async () => {
+	it("refreshes credential-backed provider models once on blur rather than per keystroke", async () => {
 		const write = vi.fn(async () => undefined)
 		const refresh = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
-			models: {},
-			defaultModelId: "",
+			models: { "baseten-static": { name: "Baseten Static", supportsPromptCache: false, contextWindow: 128_000 } },
+			defaultModelId: "baseten-static",
 			isLoading: false,
 			isStale: false,
 			error: undefined,
@@ -494,9 +495,79 @@ describe("GenericProviderSettings", () => {
 			/>,
 		)
 
-		fireEvent.input(screen.getByPlaceholderText("Enter API Key..."), { target: { value: "bt-secret-key" } })
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.focus(apiKeyInput)
+		fireEvent.input(apiKeyInput, { target: { value: "bt-" } })
+		fireEvent.input(apiKeyInput, { target: { value: "bt-secret-key" } })
+		fireEvent.blur(apiKeyInput)
 
-		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "bt-secret-key" }))
+		await waitFor(() => expect(write).toHaveBeenLastCalledWith({ apiKey: "bt-secret-key" }))
 		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+	})
+
+	it("does not refetch static provider catalogs when saving an API key", async () => {
+		const write = vi.fn(async () => undefined)
+		const refresh = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: { "llama-3.3-70b-versatile": { name: "Llama 3.3 70B", supportsPromptCache: false, contextWindow: 128_000 } },
+			defaultModelId: "llama-3.3-70b-versatile",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh,
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 0 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="groq"
+				providerName="Groq"
+				showModelOptions={true}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.focus(apiKeyInput)
+		fireEvent.input(apiKeyInput, { target: { value: "gsk_test_key" } })
+		fireEvent.blur(apiKeyInput)
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "gsk_test_key" }))
+		expect(refresh).not.toHaveBeenCalled()
+	})
+
+	it("surfaces model refresh errors in the model picker", () => {
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: "Baseten model refresh failed: HTTP 401",
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 10 }),
+			write: vi.fn(),
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="baseten"
+				providerName="Baseten"
+				showModelOptions={true}
+			/>,
+		)
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Baseten model refresh failed: HTTP 401")
 	})
 })
