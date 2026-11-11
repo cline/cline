@@ -177,8 +177,8 @@ const plugin: AgentPlugin = {
     ctx = setupCtx
   },
   hooks: {
-    afterRun({ snapshot }) {
-      if (!snapshot.runId) return
+    afterRun({ snapshot, continuation }) {
+      if (continuation || !snapshot.runId) return
       void ctx?.asides
         ?.ask({
           runId: snapshot.runId,
@@ -193,7 +193,7 @@ const plugin: AgentPlugin = {
 }
 ```
 
-The example publishes the answer as a plugin event for a client to show.
+The example publishes the answer as a plugin event for a client to show. It skips a run the host is about to continue (`continuation` is set), because the turn is not over and the next run would end the aside anyway.
 
 `runId` says which run the question is about. A hook passes its own `snapshot.runId`: if a later run has begun by the time the aside arrives, it is skipped as `stale_run` instead of being answered about a different turn. Leave `runId` out to ask about the chat's latest run, whichever it is. A command does that, because it has no run of its own; it can also ask while a run is still working, and a tool call that has not returned yet is shown to the model as unanswered.
 
