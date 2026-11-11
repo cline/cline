@@ -27,11 +27,13 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	createSidecarContext,
 	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import { writeDesktopSettings } from "./desktop-settings";
 import * as sessionPaths from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {
@@ -3352,5 +3354,41 @@ describe("queue steering routing", () => {
 			});
 			expect(steerFirst).not.toHaveBeenCalled();
 		}
+	});
+});
+
+describe("cloud session start gate", () => {
+	const cloudStart = {
+		action: "start",
+		config: { executionTarget: "cloud" },
+	} as const;
+
+	it("rejects with the Settings message when the rollout is on and the user turned cloud agents off", async () => {
+		enableCloudHandoffGates();
+		writeDesktopSettings({ cloudAgentsEnabled: false });
+		await expect(
+			handleChatSessionCommand(createSidecarContext("/workspace"), cloudStart),
+		).rejects.toThrow("Cloud agents are turned off in Settings.");
+	});
+
+	it("keeps the account message when the rollout is off, whatever the setting", async () => {
+		enableCloudHandoffGates();
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		for (const cloudAgentsEnabled of [true, false]) {
+			writeDesktopSettings({ cloudAgentsEnabled });
+			await expect(
+				handleChatSessionCommand(
+					createSidecarContext("/workspace"),
+					cloudStart,
+				),
+			).rejects.toThrow("Cloud sessions are not enabled for this account yet.");
+		}
+	});
+
+	it("passes the gate when the setting is on", async () => {
+		enableCloudHandoffGates();
+		await expect(
+			handleChatSessionCommand(createSidecarContext("/workspace"), cloudStart),
+		).rejects.toThrow("repoUrl and model are required for a cloud session");
 	});
 });

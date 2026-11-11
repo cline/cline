@@ -21,6 +21,7 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { createSidecarContext, getEnvironmentContext } from "./context";
+import { writeDesktopSettings } from "./desktop-settings";
 import * as sessionConfig from "./session-config";
 import {
 	cleanupCloudHandoffGates,
@@ -892,5 +893,34 @@ describe("summary cloud handoff", () => {
 			f.handoff({ ...f.request, gitPreparationId: "stale" }),
 		).rejects.toThrow("review");
 		expect(f.launch).not.toHaveBeenCalled();
+	});
+
+	it("rejects prepare and confirm when the user turned cloud agents off", async () => {
+		const f = await fixture();
+		await f.prepare();
+		writeDesktopSettings({ cloudAgentsEnabled: false });
+		await expect(
+			handlePrepareHandoff(
+				f.ctx,
+				{ ...f.request, operation: "prepare" },
+				f.summarize,
+			),
+		).rejects.toThrow("Cloud agents are turned off in Settings.");
+		await expect(f.handoff()).rejects.toThrow(
+			"Cloud agents are turned off in Settings.",
+		);
+		expect(f.launch).not.toHaveBeenCalled();
+		expect(f.send).not.toHaveBeenCalled();
+	});
+
+	it("keeps the account message when the rollout is off, whatever the setting", async () => {
+		const f = await fixture();
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		for (const cloudAgentsEnabled of [true, false]) {
+			writeDesktopSettings({ cloudAgentsEnabled });
+			await expect(f.handoff()).rejects.toThrow(
+				"Cloud sessions are not available for this account.",
+			);
+		}
 	});
 });

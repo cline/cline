@@ -233,7 +233,9 @@ Supported commands:
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
+| `get_feature_flags` | PostHog flag snapshot + `cloudAgents` (`isCloudAgentsEnabled()`: env override or `code-cloud-agents` rollout flag, AND the desktop `cloudAgentsEnabled` setting) + `cloudAgentsUserEnabled` |
+| `get_desktop_settings` | `settings/clients/desktop/preferences.json` (`cloudAgentsEnabled`, default on) + `cloudAgentsRolloutEnabled` (no PostHog poll) |
+| `set_cloud_agents_enabled` | Atomically writes `cloudAgentsEnabled` to the desktop preferences file; broadcasts `desktop_settings_changed`. Only restricts: never enables cloud when the rollout is off |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |

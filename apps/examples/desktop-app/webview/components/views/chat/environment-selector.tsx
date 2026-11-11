@@ -31,6 +31,7 @@ export type EnvironmentSelectorModel = {
 export type EnvironmentSelectorProps = {
 	activeEnvironmentId: string;
 	cloudEnabled?: boolean;
+	cloudHidden?: boolean;
 	executionTarget?: "local" | "cloud";
 	onSelectExecutionTarget?: (target: "local" | "cloud") => void;
 	profiles: RemoteEnvironmentProfile[];
@@ -79,6 +80,7 @@ export function buildEnvironmentSelectorModel(
 export function EnvironmentSelector({
 	activeEnvironmentId,
 	cloudEnabled = false,
+	cloudHidden = false,
 	executionTarget = "local",
 	onSelectExecutionTarget,
 	profiles,
@@ -178,25 +180,29 @@ export function EnvironmentSelector({
 					) : null}
 				</DropdownMenuItem>
 
-				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					aria-current={cloudSelected ? "true" : undefined}
-					className="aria-current:bg-purple-500/20 aria-current:focus:bg-purple-500/25"
-					disabled={!cloudEnabled || busy}
-					onSelect={() => {
-						if (!cloudSelected) onSelectExecutionTarget?.("cloud");
-					}}
-				>
-					<Cloud className="size-4" />
-					<span className="uppercase">Cloud</span>
-					{!cloudEnabled ? (
-						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
-							Coming soon
-						</span>
-					) : cloudSelected ? (
-						<Check className="ml-auto" />
-					) : null}
-				</DropdownMenuItem>
+				{cloudHidden ? null : (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							aria-current={cloudSelected ? "true" : undefined}
+							className="aria-current:bg-purple-500/20 aria-current:focus:bg-purple-500/25"
+							disabled={!cloudEnabled || busy}
+							onSelect={() => {
+								if (!cloudSelected) onSelectExecutionTarget?.("cloud");
+							}}
+						>
+							<Cloud className="size-4" />
+							<span className="uppercase">Cloud</span>
+							{!cloudEnabled ? (
+								<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+									Coming soon
+								</span>
+							) : cloudSelected ? (
+								<Check className="ml-auto" />
+							) : null}
+						</DropdownMenuItem>
+					</>
+				)}
 
 				<DropdownMenuSeparator />
 				<div className="flex items-center justify-between">

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
 import { createSidecarContext } from "./context";
+import { readDesktopSettings } from "./desktop-settings";
 import {
 	getDesktopFeatureFlagsService,
 	resetDesktopFeatureFlagsForTesting,
@@ -169,6 +170,120 @@ describe("desktop settings commands", () => {
 		expect(await rows()).toEqual(["local"]);
 		expect(discovery).not.toHaveBeenCalled();
 		expect(ctx.liveSessions.has("cloud")).toBe(true);
+	});
+
+	it("reports the cloud agents preference and rollout state", async () => {
+		const { ctx } = createContext();
+		expect(await handleCommand(ctx, "get_desktop_settings")).toEqual({
+			cloudAgentsEnabled: true,
+			cloudAgentsRolloutEnabled: false,
+		});
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		expect(await handleCommand(ctx, "get_desktop_settings")).toEqual({
+			cloudAgentsEnabled: true,
+			cloudAgentsRolloutEnabled: true,
+		});
+	});
+
+	it("rejects a non-boolean cloud agents preference", async () => {
+		const { ctx, events } = createContext();
+		await expect(
+			handleCommand(ctx, "set_cloud_agents_enabled", {
+				cloud_agents_enabled: "false",
+			}),
+		).rejects.toThrow("cloud_agents_enabled must be a boolean");
+		await expect(
+			handleCommand(ctx, "set_cloud_agents_enabled"),
+		).rejects.toThrow("cloud_agents_enabled must be a boolean");
+		expect(
+			events.filter((event) => event.name === "desktop_settings_changed"),
+		).toEqual([]);
+		expect(readDesktopSettings()).toEqual({ cloudAgentsEnabled: true });
+	});
+
+	it("saves the cloud agents preference, broadcasts it, and keeps it across a restart", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		const { ctx, events } = createContext();
+		const payload = {
+			cloudAgentsEnabled: false,
+			cloudAgentsRolloutEnabled: true,
+		};
+		expect(
+			await handleCommand(ctx, "set_cloud_agents_enabled", {
+				cloud_agents_enabled: false,
+			}),
+		).toEqual(payload);
+		expect(
+			events.filter((event) => event.name === "desktop_settings_changed"),
+		).toEqual([
+			{
+				name: "desktop_settings_changed",
+				payload: expect.objectContaining(payload),
+			},
+		]);
+
+		resetDesktopFeatureFlagsForTesting();
+		const restarted = createContext();
+		expect(await handleCommand(restarted.ctx, "get_desktop_settings")).toEqual(
+			payload,
+		);
+	});
+
+	it("reports the effective cloud agents flag from get_feature_flags", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		const { ctx } = createContext();
+		expect(await handleCommand(ctx, "get_feature_flags")).toMatchObject({
+			cloudAgents: true,
+			cloudAgentsUserEnabled: true,
+		});
+		await handleCommand(ctx, "set_cloud_agents_enabled", {
+			cloud_agents_enabled: false,
+		});
+		expect(await handleCommand(ctx, "get_feature_flags")).toMatchObject({
+			cloudAgents: false,
+			cloudAgentsUserEnabled: false,
+		});
+	});
+
+	it.each([
+		"list_chat_sessions",
+		"list_discovered_sessions",
+		"search_sessions",
+	])("hides cloud rows from %s while the user setting is off", async (command) => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		const { ctx } = createContext();
+		for (const target of ["local", "cloud"] as const) {
+			ctx.liveSessions.set(target, {
+				config: { executionTarget: target, provider: "cline", model: "test" },
+				prompt: "match",
+				messages: [],
+				promptsInQueue: [],
+				busy: false,
+				status: "completed",
+				startedAt: Date.now(),
+			});
+		}
+		const discovery = vi
+			.spyOn(getCloudSessionManager(ctx), "listForDiscovery")
+			.mockResolvedValue([
+				{ sessionId: "cloud", origin: "cloud", prompt: "match" },
+			]);
+		const rows = async () =>
+			(
+				(await handleCommand(ctx, command, { query: "match" })) as Array<{
+					sessionId: string;
+				}>
+			)
+				.map((row) => row.sessionId)
+				.sort();
+
+		expect(await rows()).toEqual(["cloud", "local"]);
+		await handleCommand(ctx, "set_cloud_agents_enabled", {
+			cloud_agents_enabled: false,
+		});
+		discovery.mockClear();
+		expect(await rows()).toEqual(["local"]);
+		expect(discovery).not.toHaveBeenCalled();
 	});
 
 	it("routes local model discovery through the local hub without cloud-only models", async () => {

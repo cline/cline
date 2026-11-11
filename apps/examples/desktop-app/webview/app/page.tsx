@@ -1653,6 +1653,7 @@ function ChatThreadPane({
 	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
 		boolean | null
 	>(null);
+	const [cloudAgentsUserEnabled, setCloudAgentsUserEnabled] = useState(true);
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
@@ -1687,6 +1688,10 @@ function ChatThreadPane({
 						setCloudAgentsFlagEnabled(
 							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
 						);
+						setCloudAgentsUserEnabled(
+							(flags as { cloudAgentsUserEnabled?: boolean })
+								?.cloudAgentsUserEnabled !== false,
+						);
 					}
 				})
 				.catch(() => {
@@ -1702,8 +1707,16 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
+		const unsubscribeSettings = desktopClient.subscribe(
+			"desktop_settings_changed",
+			() => {
+				attempts = 0;
+				fetchFlags();
+			},
+		);
 		return () => {
 			cancelled = true;
+			unsubscribeSettings();
 			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
 	}, [accountUserId]);
@@ -3474,6 +3487,7 @@ function ChatThreadPane({
 						<EnvironmentSelector
 							activeEnvironmentId={environmentId}
 							cloudEnabled={cloudAgentsEnabled}
+							cloudHidden={!cloudAgentsUserEnabled}
 							executionTarget={isCloudSession ? "cloud" : "local"}
 							onSelectExecutionTarget={handleSelectExecutionTarget}
 							loading={environmentProfilesLoading}

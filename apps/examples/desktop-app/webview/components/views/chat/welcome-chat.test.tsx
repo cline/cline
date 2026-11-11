@@ -451,6 +451,27 @@ describe("WelcomeScreen", () => {
 		accountRef.user = null;
 	});
 
+	it("stays inactive for a remembered Cloud target when cloud agents are disabled", async () => {
+		accountRef.user = { id: "user-1" };
+		invokeMock.mockClear();
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: false,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(invokeMock.mock.calls.map(([command]) => command)).not.toContain(
+			"list_cloud_repositories",
+		);
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).not.toContain("Sign in with Cline");
+		expect(
+			container.querySelector('[aria-label="Cloud repository"]'),
+		).toBeNull();
+		accountRef.user = null;
+	});
+
 	it("places the environment selector before the workspace selector", async () => {
 		await renderWelcomeScreen({
 			environmentSelector: (

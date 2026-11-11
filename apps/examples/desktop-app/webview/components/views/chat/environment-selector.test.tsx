@@ -211,6 +211,41 @@ describe("EnvironmentSelector", () => {
 		expect(onSelectEnvironment).not.toHaveBeenCalled();
 	});
 
+	it("omits Cloud when it is hidden while Local and remotes still work", async () => {
+		const onSelectExecutionTarget = vi.fn();
+		const onSelectEnvironment = vi.fn(async () => undefined);
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="pi-server"
+					cloudEnabled
+					cloudHidden
+					executionTarget="local"
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		expect(document.body.textContent).not.toContain("Cloud");
+		expect(document.body.textContent).not.toContain("Coming soon");
+		expect(document.querySelectorAll('[role="separator"]')).toHaveLength(1);
+		expect(menuItemContaining("Build box")).toBeDefined();
+
+		await click(menuItemContaining("Local"));
+		await vi.waitFor(() => {
+			expect(onSelectEnvironment).toHaveBeenCalledWith("local");
+		});
+		await pointerDown(trigger());
+		await click(menuItemContaining("Build box"));
+		await vi.waitFor(() => {
+			expect(onSelectEnvironment).toHaveBeenCalledWith("build-box");
+		});
+		expect(onSelectExecutionTarget).not.toHaveBeenCalledWith("cloud");
+	});
+
 	it("remembers an explicit Local pick after Cloud falls back to Local", async () => {
 		writeExecutionTargetToWindow("cloud");
 		const onSelectExecutionTarget = vi.fn(writeExecutionTargetToWindow);

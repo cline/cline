@@ -98,6 +98,15 @@ type GlobalSettingsResponse = {
 	autoUpdateEnabled: boolean;
 };
 
+type DesktopSettingsResponse = {
+	cloudAgentsEnabled: boolean;
+	cloudAgentsRolloutEnabled: boolean;
+};
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
 let providerCatalogCache: {
@@ -727,6 +736,12 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(true);
+	const [cloudAgentsRolloutEnabled, setCloudAgentsRolloutEnabled] =
+		useState(false);
+	const [cloudAgentsLoading, setCloudAgentsLoading] = useState(true);
+	const [cloudAgentsSaving, setCloudAgentsSaving] = useState(false);
+	const [cloudAgentsError, setCloudAgentsError] = useState<string | null>(null);
 
 	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
@@ -736,20 +751,31 @@ function GeneralSettingsContent() {
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+		setCloudAgentsLoading(true);
+		setCloudAgentsError(null);
+		const [globalSettings, desktopSettings] = await Promise.allSettled([
+			desktopClient.invoke<GlobalSettingsResponse>("get_global_settings"),
+			desktopClient.invoke<DesktopSettingsResponse>("get_desktop_settings"),
+		]);
+		if (globalSettings.status === "fulfilled") {
+			setTelemetryOptOut(globalSettings.value.telemetryOptOut);
+			setAutoUpdateEnabled(globalSettings.value.autoUpdateEnabled);
+		} else {
+			const message = errorMessage(globalSettings.reason);
 			setTelemetryError(message);
 			setAutoUpdateError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
 		}
+		if (desktopSettings.status === "fulfilled") {
+			setCloudAgentsEnabled(desktopSettings.value.cloudAgentsEnabled);
+			setCloudAgentsRolloutEnabled(
+				desktopSettings.value.cloudAgentsRolloutEnabled,
+			);
+		} else {
+			setCloudAgentsError(errorMessage(desktopSettings.reason));
+		}
+		setTelemetryLoading(false);
+		setAutoUpdateLoading(false);
+		setCloudAgentsLoading(false);
 	}, []);
 
 	useEffect(() => {
@@ -796,6 +822,25 @@ function GeneralSettingsContent() {
 			setAutoUpdateError(message);
 		} finally {
 			setAutoUpdateSaving(false);
+		}
+	};
+
+	const updateCloudAgentsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudAgentsEnabled;
+		setCloudAgentsEnabled(nextValue);
+		setCloudAgentsSaving(true);
+		setCloudAgentsError(null);
+		try {
+			const settings = await desktopClient.invoke<DesktopSettingsResponse>(
+				"set_cloud_agents_enabled",
+				{ cloud_agents_enabled: nextValue },
+			);
+			setCloudAgentsEnabled(settings.cloudAgentsEnabled);
+		} catch (error) {
+			setCloudAgentsEnabled(previousValue);
+			setCloudAgentsError(errorMessage(error));
+		} finally {
+			setCloudAgentsSaving(false);
 		}
 	};
 
@@ -1009,6 +1054,32 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				{cloudAgentsRolloutEnabled ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								Enable cloud agents
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Show Cloud as an environment and allow handing sessions off to
+								Cloud. Turn off to keep everything local.
+							</p>
+							{cloudAgentsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud agents setting: {cloudAgentsError}
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Enable cloud agents"
+							checked={cloudAgentsEnabled}
+							disabled={cloudAgentsLoading || cloudAgentsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudAgentsEnabled(checked)
+							}
+						/>
+					</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>

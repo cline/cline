@@ -22,6 +22,7 @@ import {
 } from "@cline/core/services/feature-flags/posthog";
 import { FeatureFlag as SharedFeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { readDesktopSettings } from "./desktop-settings";
 
 const FEATURE_FLAG_CODE_CLOUD_AGENTS = SharedFeatureFlag.CODE_CLOUD_AGENTS;
 
@@ -281,14 +282,32 @@ export function readCloudAgentsEnvOverride(): boolean | undefined {
 	return undefined;
 }
 
-/** Whether the rollout enables cloud sessions for this install. */
-export function isCloudAgentsEnabled(options?: {
+export const CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE =
+	"Cloud agents are turned off in Settings.";
+
+type CloudAgentsGateOptions = {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
-}): boolean {
+};
+
+/** Whether the rollout enables cloud sessions for this install. */
+export function isCloudAgentsRolloutEnabled(
+	options?: CloudAgentsGateOptions,
+): boolean {
 	const override = readCloudAgentsEnvOverride();
 	if (override !== undefined) return override;
 	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
 		FEATURE_FLAG_CODE_CLOUD_AGENTS,
 	);
+}
+
+export function isCloudAgentsUserEnabled(): boolean {
+	return readDesktopSettings().cloudAgentsEnabled;
+}
+
+/** The user setting only restricts; it never enables what the rollout disables. */
+export function isCloudAgentsEnabled(
+	options?: CloudAgentsGateOptions,
+): boolean {
+	return isCloudAgentsRolloutEnabled(options) && isCloudAgentsUserEnabled();
 }

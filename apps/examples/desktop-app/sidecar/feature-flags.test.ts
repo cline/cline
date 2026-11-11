@@ -51,9 +51,15 @@ vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 	PostHogFeatureFlagsProvider: mocks.PostHogFeatureFlagsProvider,
 }));
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	buildFeatureFlagsSnapshot,
 	disposeDesktopFeatureFlagsService,
@@ -366,5 +372,56 @@ describe("cloud agents gate", () => {
 		expect(isCloudAgentsEnabled()).toBe(true);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+
+	describe("with the user setting", () => {
+		function enableRollout() {
+			mocks.getBooleanFlagEnabled.mockImplementation(
+				(flag: unknown) => flag === "code-cloud-agents",
+			);
+		}
+
+		it("is enabled when the rollout is on and the setting is left at its default", async () => {
+			const { isCloudAgentsEnabled } = await import("./feature-flags");
+			enableRollout();
+			expect(isCloudAgentsEnabled()).toBe(true);
+		});
+
+		it("is disabled when the rollout is on and the setting is off", async () => {
+			const { isCloudAgentsEnabled, isCloudAgentsRolloutEnabled } =
+				await import("./feature-flags");
+			const { writeDesktopSettings } = await import("./desktop-settings");
+			enableRollout();
+			writeDesktopSettings({ cloudAgentsEnabled: false });
+			expect(isCloudAgentsRolloutEnabled()).toBe(true);
+			expect(isCloudAgentsEnabled()).toBe(false);
+		});
+
+		it("cannot enable cloud when the rollout is off", async () => {
+			const { isCloudAgentsEnabled } = await import("./feature-flags");
+			const { writeDesktopSettings } = await import("./desktop-settings");
+			writeDesktopSettings({ cloudAgentsEnabled: true });
+			expect(isCloudAgentsEnabled()).toBe(false);
+		});
+
+		it("overrides CLINE_CODE_CLOUD_AGENTS=1 when the setting is off", async () => {
+			const { isCloudAgentsEnabled } = await import("./feature-flags");
+			const { writeDesktopSettings } = await import("./desktop-settings");
+			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+			expect(isCloudAgentsEnabled()).toBe(true);
+			writeDesktopSettings({ cloudAgentsEnabled: false });
+			expect(isCloudAgentsEnabled()).toBe(false);
+		});
+
+		it("defaults to on when the settings file is missing or corrupt", async () => {
+			const { isCloudAgentsEnabled } = await import("./feature-flags");
+			const { resolveDesktopSettingsPath } = await import("./desktop-settings");
+			enableRollout();
+			expect(existsSync(resolveDesktopSettingsPath())).toBe(false);
+			expect(isCloudAgentsEnabled()).toBe(true);
+			mkdirSync(dirname(resolveDesktopSettingsPath()), { recursive: true });
+			writeFileSync(resolveDesktopSettingsPath(), "{not json");
+			expect(isCloudAgentsEnabled()).toBe(true);
+		});
 	});
 });

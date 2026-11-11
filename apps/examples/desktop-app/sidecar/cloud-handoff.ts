@@ -25,7 +25,11 @@ import {
 	getSidecarContextOwner,
 	sendEvent,
 } from "./context";
-import { isCloudAgentsEnabled } from "./feature-flags";
+import {
+	CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE,
+	isCloudAgentsEnabled,
+	isCloudAgentsRolloutEnabled,
+} from "./feature-flags";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
@@ -72,8 +76,12 @@ export type PrepareHandoffResult =
 	| { cancelled: true };
 
 function assertCloudHandoffAvailable(): void {
-	if (!isCloudAgentsEnabled())
-		throw new Error("Cloud sessions are not available for this account.");
+	if (isCloudAgentsEnabled()) return;
+	throw new Error(
+		isCloudAgentsRolloutEnabled()
+			? CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE
+			: "Cloud sessions are not available for this account.",
+	);
 }
 
 async function assertHandoffIdle(
@@ -202,6 +210,7 @@ export async function handlePrepareHandoff(
 ): Promise<PrepareHandoffResult> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	assertCloudHandoffAvailable();
 	if (isCloudHandoffInProgress(ctx, sessionId))
 		throw new Error("Cloud preparation is already in progress.");
 	const previous = handoffRequests.get(ctx)?.get(sessionId);
@@ -464,6 +473,7 @@ export async function handleHandoff(
 ): Promise<HandoffResponse> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	assertCloudHandoffAvailable();
 	if (gitPreparations.get(ctx)?.has(sessionId))
 		throw new Error("Wait for Git preparation to finish before continuing.");
 	let requests = handoffRequests.get(ctx);

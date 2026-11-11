@@ -129,10 +129,13 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
+import { readDesktopSettings, writeDesktopSettings } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsEnabled,
+	isCloudAgentsRolloutEnabled,
+	isCloudAgentsUserEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import { getHubStatus, restartHub } from "./hub-admin";
@@ -227,6 +230,16 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // app until the child exits.
 const execFileAsync = promisify(execFile);
 type DesktopDebugLogLevel = "debug" | "info" | "error";
+
+function readDesktopSettingsPayload(ctx: SidecarContext) {
+	return {
+		...readDesktopSettings(),
+		cloudAgentsRolloutEnabled: isCloudAgentsRolloutEnabled({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		}),
+	};
+}
 
 function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
 	if (!value) return undefined;
@@ -2414,6 +2427,7 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
+			cloudAgentsUserEnabled: isCloudAgentsUserEnabled(),
 		};
 	}
 	if (command === "list_cloud_models") {
@@ -3394,6 +3408,18 @@ export async function handleCommand(
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
+	}
+	if (command === "get_desktop_settings") {
+		return readDesktopSettingsPayload(ctx);
+	}
+	if (command === "set_cloud_agents_enabled") {
+		if (typeof args?.cloud_agents_enabled !== "boolean") {
+			throw new Error("cloud_agents_enabled must be a boolean");
+		}
+		writeDesktopSettings({ cloudAgentsEnabled: args.cloud_agents_enabled });
+		const payload = readDesktopSettingsPayload(ctx);
+		broadcastEvent(ctx, "desktop_settings_changed", payload);
+		return payload;
 	}
 	if (command === "get_keybindings") {
 		return readKeybindings();
