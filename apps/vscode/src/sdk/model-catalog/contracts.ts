@@ -422,6 +422,14 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
 	 */
 	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection, baseModelInfoHint?: ModelInfo): void
+
+	/**
+	 * Refresh the cached base model metadata for any existing Plan or Act
+	 * selection whose model ID appears in `catalogModels`. Does not alter
+	 * committed model IDs, user-authored overrides, or `providers.json`, and
+	 * does not emit a `"selection"` event.
+	 */
+	refreshSelectionBaseModelInfo?(providerId: ProviderId, catalogModels: ReadonlyMap<string, ModelInfo>): void
 }
 
 /**

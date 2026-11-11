@@ -13,6 +13,7 @@ import type {
 	ProviderModelsResult,
 	ResolvedModelSelection,
 } from "@/sdk/model-catalog/contracts"
+import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
 	AwsProviderConfig,
@@ -53,6 +54,22 @@ export function hasProviderCatalogStateController(
 	return typeof candidate.stateManager?.setGlobalStateBatch === "function"
 }
 
+export function syncResolvedCatalogToStore(controller: ProviderCatalogController, result: ProviderModelsResult): void {
+	if (!result.ok) {
+		return
+	}
+	try {
+		const store = controller.getProviderConfigStore()
+		const currentFingerprint = computeConfigFingerprint(result.providerId, store.read(result.providerId))
+		if (result.configFingerprint !== currentFingerprint) {
+			return
+		}
+		store.refreshSelectionBaseModelInfo?.(result.providerId, result.models)
+	} catch {
+		// Read-only catalog callers may not wire a store; ignore.
+	}
+}
+
 /**
  * Resolve a provider's models through the SDK provider catalog and return
  * them as a plain record, throwing on catalog errors. Shared by the
@@ -67,6 +84,7 @@ export async function resolveProviderModelsRecord(
 	if (!result.ok) {
 		throw new Error(result.error.message)
 	}
+	syncResolvedCatalogToStore(controller, result)
 	return Object.fromEntries(result.models)
 }
 

@@ -63,4 +63,41 @@ describe("useProviderModelSelection", () => {
 			},
 		})
 	})
+
+	it("prefers live catalog model info over a stale committed snapshot when no overrides exist", () => {
+		const commitSelection = vi.fn(async () => undefined)
+		const liveModelInfo = {
+			name: "DeepSeek V3 (refreshed)",
+			contextWindow: 163_840,
+			maxTokens: 32_768,
+			supportsPromptCache: false,
+			supportsReasoning: true,
+		}
+		const { result } = renderHook(() =>
+			useProviderModelSelection("baseten", "act", {
+				models: { "deepseek-ai/DeepSeek-V3": liveModelInfo },
+				config: {
+					providerId: "baseten",
+					headers: {},
+					apiKeyLength: 8,
+					hasAccessToken: false,
+					hasRefreshToken: false,
+					actSelection: {
+						providerId: "baseten",
+						modelId: "deepseek-ai/DeepSeek-V3",
+						modelInfo: {
+							name: "DeepSeek V3 (stale)",
+							contextWindow: 64_000,
+							maxTokens: 8_192,
+							supportsPromptCache: false,
+							tiers: [],
+						},
+					},
+				},
+				commitSelection,
+			}),
+		)
+
+		expect(result.current.selectedModelInfo).toEqual(liveModelInfo)
+	})
 })

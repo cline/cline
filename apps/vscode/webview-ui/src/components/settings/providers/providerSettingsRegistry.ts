@@ -25,7 +25,6 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"ollama",
 	"openai",
 	"openai-codex",
-	"openai-native",
 	"openrouter",
 	"qwen",
 	"qwen-code",
@@ -98,6 +97,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	nousResearch: {
 		fallbackName: "NousResearch",
+	},
+	"openai-native": {
+		fallbackName: "OpenAI",
+		signupUrl: "https://platform.openai.com/api-keys",
 	},
 	sambanova: {
 		fallbackName: "SambaNova",

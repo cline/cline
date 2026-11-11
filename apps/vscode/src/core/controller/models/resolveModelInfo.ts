@@ -2,7 +2,7 @@ import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/custom-model-ids"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
-import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"
+import { type ProviderCatalogController, parseProviderIdRequest, syncResolvedCatalogToStore } from "./providerCatalogShared"
 
 /**
  * Resolve a single (provider, model) pair for the webview's status /
@@ -120,6 +120,7 @@ export async function resolveModelInfo(
 	// and caches the result, so the per-fingerprint cost is paid once.
 	const resolved = await catalog.resolveModels(providerId).catch(() => undefined)
 	if (resolved?.ok) {
+		syncResolvedCatalogToStore(controller, resolved)
 		const hit = pickFromCatalog(resolved, requestedModelId, allowCustomModelIds)
 		if (hit && (hit.matchedRequested || !fallbackSelection)) {
 			return ResolveModelInfoResponse.create({

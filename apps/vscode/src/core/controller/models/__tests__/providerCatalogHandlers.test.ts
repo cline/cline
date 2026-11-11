@@ -19,6 +19,7 @@ function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
 		write: vi.fn(() => config),
 		commitSelection: vi.fn(),
+		refreshSelectionBaseModelInfo: vi.fn(),
 	}
 }
 
@@ -154,6 +155,51 @@ describe("provider model catalog handlers", () => {
 		// filtered out. The picker can leave the selection unset instead.
 		expect(response.defaultModelId).toBeUndefined()
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
+		expect(store.refreshSelectionBaseModelInfo).toHaveBeenCalledWith(providerId, expect.any(Map))
+	})
+
+	it("resolveProviderModels does not refresh store base metadata when the resolved catalog fingerprint is stale", async () => {
+		const { resolveProviderModels } = await import("../resolveProviderModels")
+		const providerId = parseProviderId("litellm")
+		const staleFingerprint = computeConfigFingerprint(providerId, {
+			providerId,
+			baseUrl: "https://old-endpoint.example/v1",
+			apiKey: "old-key",
+		})
+		const store = makeStore({
+			providerId,
+			baseUrl: "https://new-endpoint.example/v1",
+			apiKey: "new-key",
+		})
+		const catalog = makeCatalog()
+		vi.mocked(catalog.resolveModels).mockResolvedValue({
+			ok: true,
+			providerId,
+			configFingerprint: staleFingerprint,
+			models: new Map([
+				[
+					"openai/grok-4.6",
+					{
+						name: "Stale Grok",
+						maxTokens: 4_096,
+						contextWindow: 32_000,
+						supportsPromptCache: false,
+					},
+				],
+			]),
+			defaultModelId: "openai/grok-4.6",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await resolveProviderModels(controller, {
+			providerId: "litellm",
+			forceRefresh: true,
+			requestId: "req-stale",
+		})
+
+		expect(store.refreshSelectionBaseModelInfo).not.toHaveBeenCalled()
 	})
 
 	it("readProviderConfig redacts secrets", async () => {

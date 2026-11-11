@@ -105,7 +105,7 @@ describe("ApiOptions Component", () => {
 	})
 
 	it.each([
-		["openai-native", "OpenAI API Key"],
+		["openai-native", "OpenAI"],
 		["openai-codex", "Sign in to OpenAI Codex"],
 	])("renders only the dedicated form for %s", (provider, dedicatedFormText) => {
 		mockExtensionState({

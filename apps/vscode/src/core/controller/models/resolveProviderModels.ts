@@ -1,5 +1,10 @@
 import { ProviderModelsResponse, ResolveProviderModelsRequest } from "@/shared/proto/cline/models"
-import { type ProviderCatalogController, parseProviderIdRequest, toProviderModelsResponse } from "./providerCatalogShared"
+import {
+	type ProviderCatalogController,
+	parseProviderIdRequest,
+	syncResolvedCatalogToStore,
+	toProviderModelsResponse,
+} from "./providerCatalogShared"
 
 export async function resolveProviderModels(
 	controller: ProviderCatalogController,
@@ -8,5 +13,6 @@ export async function resolveProviderModels(
 	const providerId = parseProviderIdRequest(request.providerId)
 	const requestId = request.requestId?.trim() || crypto.randomUUID()
 	const result = await controller.getProviderCatalog().resolveModels(providerId, { forceRefresh: request.forceRefresh })
+	syncResolvedCatalogToStore(controller, result)
 	return toProviderModelsResponse(providerId, requestId, result)
 }
