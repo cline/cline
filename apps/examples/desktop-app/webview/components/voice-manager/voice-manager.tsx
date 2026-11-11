@@ -32,7 +32,7 @@ const INSTRUCTIONS = `You are Cline, a small friendly robot who lives in the cor
 You manage the user's Cline coding agents, called sessions. You never write code yourself: you check on sessions, start new ones, send them instructions, interrupt them, and stop them.
 Speak in short, casual sentences, usually one or two. Refer to sessions by their titles, never by IDs.
 When the user mentions a session, call list_sessions to find it. Use read_session before summarizing what a session did.
-To redirect a session that is running, use send_message with interrupt set to true. To queue a follow-up instead, leave interrupt false.
+To redirect a session that is running, use send_message with interrupt set to true, without stopping it first. To queue a follow-up instead, leave interrupt false.
 Messages starting with "${APP_UPDATE_PREFIX}" come from the app, not the user. Give the user a quick heads-up about them in a few words.`;
 
 const SESSION_ID_PARAM = {
@@ -93,7 +93,7 @@ const SESSION_CONFIG: Experimental_RealtimeSessionConfig = {
 			type: "function",
 			name: "send_message",
 			description:
-				"Send a message to a session. Set interrupt to stop its current work first.",
+				"Send a message to a session. A busy session gets it after its current work; set interrupt to deliver it right away instead.",
 			parameters: {
 				type: "object",
 				properties: {
@@ -320,24 +320,27 @@ export function VoiceManager({
 					if (getVoiceManagerActiveChat()?.sessionId !== sessionId) {
 						await onOpenSession(sessionId);
 					}
-					let chat = await waitForVoiceManagerActiveChat(
+					const chat = await waitForVoiceManagerActiveChat(
 						(candidate) =>
 							candidate.sessionId === sessionId && !candidate.isHydrating,
 					);
-					const busy = (status: string) =>
-						status === "running" || status === "starting";
-					if (args.interrupt === true && busy(chat.status)) {
+					const busy = chat.status === "running" || chat.status === "starting";
+					if (args.interrupt === true && busy) {
+						// Steering hands the message to the running agent at its next step.
+						// Stopping it first would strand the message: the queue does not
+						// drain while an abort settles.
 						await desktopClient.invoke("chat_session_command", {
-							request: { action: "abort", sessionId },
+							request: {
+								action: "send",
+								sessionId,
+								prompt: message,
+								delivery: "steer",
+							},
 						});
-						chat = await waitForVoiceManagerActiveChat(
-							(candidate) =>
-								candidate.sessionId === sessionId && !busy(candidate.status),
-							10_000,
-						).catch(() => chat);
+						return { ok: true };
 					}
 					if (!(await dispatchPrompt(chat, message))) return NOT_SENT;
-					return { ok: true, queued: busy(chat.status) };
+					return { ok: true, queued: busy };
 				}
 				case "stop_session": {
 					setActivity(`Stopping “${title}”`);
