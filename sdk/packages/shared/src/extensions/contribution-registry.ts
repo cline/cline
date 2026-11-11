@@ -229,6 +229,7 @@ const ExtensionCapabilityOptions = [
 	"providers",
 	"automationEvents",
 	"mcp",
+	"asides",
 ] as const;
 
 export type AgentExtensionCapability =
