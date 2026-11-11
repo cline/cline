@@ -25,11 +25,7 @@ import {
 	getSidecarContextOwner,
 	sendEvent,
 } from "./context";
-import {
-	CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE,
-	isCloudAgentsEnabled,
-	isCloudAgentsRolloutEnabled,
-} from "./feature-flags";
+import { assertCloudAgentsEnabled } from "./feature-flags";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
@@ -76,11 +72,8 @@ export type PrepareHandoffResult =
 	| { cancelled: true };
 
 function assertCloudHandoffAvailable(): void {
-	if (isCloudAgentsEnabled()) return;
-	throw new Error(
-		isCloudAgentsRolloutEnabled()
-			? CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE
-			: "Cloud sessions are not available for this account.",
+	assertCloudAgentsEnabled(
+		"Cloud sessions are not available for this account.",
 	);
 }
 
@@ -126,7 +119,6 @@ async function prepareCloudHandoff(
 	request: ChatSessionCommandRequest & { sessionId: string },
 ) {
 	const { sessionId } = request;
-	assertCloudHandoffAvailable();
 	const manager = getSessionRuntimeBinding(ctx).sessionManager;
 	await assertHandoffIdle(ctx, manager, sessionId);
 	const persisted = await manager.get(sessionId);

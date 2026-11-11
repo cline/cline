@@ -282,7 +282,7 @@ export function readCloudAgentsEnvOverride(): boolean | undefined {
 	return undefined;
 }
 
-export const CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE =
+const CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE =
 	"Cloud agents are turned off in Settings.";
 
 type CloudAgentsGateOptions = {
@@ -310,4 +310,13 @@ export function isCloudAgentsEnabled(
 	options?: CloudAgentsGateOptions,
 ): boolean {
 	return isCloudAgentsRolloutEnabled(options) && isCloudAgentsUserEnabled();
+}
+
+export function assertCloudAgentsEnabled(rolloutDisabledMessage: string): void {
+	if (isCloudAgentsEnabled()) return;
+	throw new Error(
+		isCloudAgentsRolloutEnabled()
+			? CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE
+			: rolloutDisabledMessage,
+	);
 }

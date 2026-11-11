@@ -68,11 +68,7 @@ import {
 	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
-import {
-	CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE,
-	isCloudAgentsEnabled,
-	isCloudAgentsRolloutEnabled,
-} from "./feature-flags";
+import { assertCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
 import {
@@ -2557,13 +2553,9 @@ export async function handleChatSessionCommand(
 					return await cloud.attach(requestedSessionId);
 				}
 				// Gate new sessions only; existing cloud sessions must remain usable.
-				if (!isCloudAgentsEnabled()) {
-					throw new Error(
-						isCloudAgentsRolloutEnabled()
-							? CLOUD_AGENTS_DISABLED_BY_USER_MESSAGE
-							: "Cloud sessions are not enabled for this account yet.",
-					);
-				}
+				assertCloudAgentsEnabled(
+					"Cloud sessions are not enabled for this account yet.",
+				);
 				const repoUrl = String(request.config?.repoUrl ?? "").trim();
 				const modelId = String(
 					request.config?.model ?? request.config?.modelId ?? "",

@@ -84,7 +84,7 @@ describe("SettingsView font size", () => {
 		const slider = container.querySelector<HTMLElement>(
 			'[role="slider"][aria-label="Font size"]',
 		);
-		const increaseButton = container.querySelector<HTMLInputElement>(
+		const increaseButton = container.querySelector<HTMLButtonElement>(
 			'button[aria-label="Increase font size"]',
 		);
 		expect(slider?.getAttribute("aria-valuenow")).toBe("17");
