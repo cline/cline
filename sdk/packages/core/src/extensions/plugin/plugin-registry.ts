@@ -25,7 +25,10 @@ import type {
 	PluginInitializationWarning,
 } from "./plugin-load-report";
 import { fingerprintPluginSources } from "./plugin-module-import";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	loadSandboxedPlugins,
+	type PluginAsideHandler,
+} from "./plugin-sandbox";
 
 export { isPluginCommand } from "./plugin-command-origin";
 
@@ -140,6 +143,8 @@ export interface PluginSessionLoadInput extends PluginTargeting {
 	hookErrorMode?: PluginHookErrorMode;
 	setupContext?: PluginSetupContext;
 	emitEvent?: (event: { name: string; payload?: unknown }) => void;
+	/** Answers the asides this session's plugins ask. */
+	onAside?: PluginAsideHandler;
 	/**
 	 * Called when a call made for this session moves a plugin to `degraded`
 	 * or `failed`. Setup runs lazily on the first turn, after the session
@@ -555,6 +560,7 @@ export class PluginRegistry {
 				hookTimeoutMs: timeouts.hook,
 				contributionTimeoutMs: timeouts.call,
 				onEvent: input.emitEvent,
+				onAside: input.onAside,
 				onSetupStarted: () => {
 					setupStarted = true;
 				},

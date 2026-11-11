@@ -12,11 +12,15 @@
  * depend on local helpers that can be inlined into the sandbox build.
  */
 
+import { randomUUID } from "node:crypto";
 import { isMainThread, parentPort } from "node:worker_threads";
 import {
 	type AgentExtensionMcpServer,
+	type AsideRequest,
+	type AsideResult,
 	type AutomationEventEnvelope,
 	normalizePluginManifest,
+	type PluginAsides,
 	type PluginManifest,
 } from "@cline/shared";
 import { installParentDisconnectGuard } from "../../runtime/tools/subprocess-sandbox-lifecycle";
@@ -110,6 +114,7 @@ interface PluginSetupCtx {
 	automation?: {
 		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
 	};
+	asides?: PluginAsides;
 	logger?: {
 		debug(message: string, metadata?: Record<string, unknown>): void;
 		log(message: string, metadata?: Record<string, unknown>): void;
@@ -446,11 +451,65 @@ function emitEvent(name: string, payload?: unknown): void {
 
 /**
  * Internal events (never forwarded to the session): progress updates for a
- * tool call, and the end of a plugin's import so the host can tell an import
- * failure from a setup failure. Keep in sync with plugin-sandbox.ts.
+ * tool call, the end of a plugin's import so the host can tell an import
+ * failure from a setup failure, and a plugin's aside for the host to answer.
+ * Keep in sync with plugin-sandbox.ts.
  */
 const TOOL_UPDATE_EVENT = "__cline_tool_update";
 const SETUP_STARTED_EVENT = "__cline_setup_started";
+const ASIDE_REQUEST_EVENT = "__cline_aside_request";
+const INTERNAL_EVENT_PREFIX = "__cline_";
+
+/**
+ * What plugin code is handed as `emitEvent`. The host acts on internal events,
+ * so a plugin that could send one could, for example, ask an aside it was not
+ * offered. Plugins that share a subprocess still share one trust domain.
+ */
+function emitPluginEvent(name: string, payload?: unknown): void {
+	if (String(name).startsWith(INTERNAL_EVENT_PREFIX)) {
+		throw new Error(
+			`Event names starting with "${INTERNAL_EVENT_PREFIX}" are reserved for the host`,
+		);
+	}
+	emitEvent(name, payload);
+}
+
+/** Asides the host has not answered yet, by request id. */
+const pendingAsides = new Map<string, (result: AsideResult) => void>();
+
+/**
+ * The sandbox can only send events up, so an aside goes to the host as an
+ * event and its answer comes back as the `resolveAside` call.
+ */
+function askAside(
+	pluginName: string,
+	request: AsideRequest,
+): Promise<AsideResult> {
+	return new Promise((resolve) => {
+		// Random, so an answer meant for a sandbox that was restarted cannot
+		// resolve a later aside.
+		const id = randomUUID();
+		pendingAsides.set(id, resolve);
+		try {
+			emitEvent(ASIDE_REQUEST_EVENT, { id, pluginName, request });
+		} catch (error) {
+			pendingAsides.delete(id);
+			resolve({
+				status: "error",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+}
+
+async function resolveAside(args: {
+	id: string;
+	result: AsideResult;
+}): Promise<void> {
+	const resolve = pendingAsides.get(args.id);
+	pendingAsides.delete(args.id);
+	resolve?.(args.result);
+}
 
 /** A tool's definition fields as plain data (functions dropped). */
 function toolDefinitionData(tool: PluginTool): Record<string, unknown> {
@@ -481,7 +540,9 @@ function withTimeout<T>(
 }
 
 // Expose event emitter to plugins.
-(globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
+(globalThis as Record<string, unknown>).__clinePluginHost = {
+	emitEvent: emitPluginEvent,
+};
 
 /**
  * Session workspace env — populated by `initialize()` and available to any
@@ -771,9 +832,10 @@ async function loadPluginDescriptor(args: {
 			// crashes the sandbox is reported as setup, not import.
 			emitEvent(SETUP_STARTED_EVENT, { pluginPath: args.pluginPath });
 			try {
+				const pluginName = plugin.name;
 				const setupCtx = {
 					...args.setupCtxBase,
-					emitEvent,
+					emitEvent: emitPluginEvent,
 					onDispose: (cleanup: () => void | Promise<void>) => {
 						if (typeof cleanup === "function") disposers.push(cleanup);
 					},
@@ -792,6 +854,13 @@ async function loadPluginDescriptor(args: {
 									ingestEvent: (event: AutomationEventEnvelope) => {
 										emitEvent("automation_event", event);
 									},
+								},
+							}
+						: {}),
+					...(plugin.manifest.capabilities.includes("asides")
+						? {
+								asides: {
+									ask: (request: AsideRequest) => askAside(pluginName, request),
 								},
 							}
 						: {}),
@@ -1032,7 +1101,7 @@ async function executeTool(args: {
 	const context = {
 		...sanitizeObject(args.context),
 		signal: controller.signal,
-		emitEvent,
+		emitEvent: emitPluginEvent,
 		emitUpdate: (update: unknown) => {
 			if (callId) emitEvent(TOOL_UPDATE_EVENT, { callId, update });
 		},
@@ -1131,6 +1200,7 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	executeCommand,
 	buildMessages,
 	resolveRuleContent,
+	resolveAside,
 };
 
 async function onHostMessage(message: {

@@ -21,7 +21,10 @@ import {
 	type PluginHookErrorMode,
 	type PluginRegistry,
 } from "./plugin-registry";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	loadSandboxedPlugins,
+	type PluginAsideHandler,
+} from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export { getPluginDisplayName };
@@ -310,6 +313,8 @@ export interface ResolveAndLoadAgentPluginsOptions
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/** Answers the asides the session's plugins ask. */
+	onAside?: PluginAsideHandler;
 	/**
 	 * Structured workspace and git metadata, forwarded to plugins via
 	 * PluginSetupCtx.workspaceInfo.
@@ -374,6 +379,7 @@ export async function resolveAndLoadAgentPlugins(
 			cwd: options.cwd,
 			hookErrorMode: options.hookErrorMode,
 			emitEvent: options.onEvent,
+			onAside: options.onAside,
 			onIssue: options.onIssue,
 			importTimeoutMs: options.importTimeoutMs,
 			hookTimeoutMs: options.hookTimeoutMs,
@@ -418,6 +424,7 @@ export async function resolveAndLoadAgentPlugins(
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
 		onEvent: options.onEvent,
+		onAside: options.onAside,
 		telemetryAvailable: Boolean(options.telemetry),
 		providerId: options.providerId,
 		modelId: options.modelId,

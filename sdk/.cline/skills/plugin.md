@@ -107,6 +107,7 @@ manifest: {
 | `messageBuilders`  | `api.registerMessageBuilder()` (rewrites provider-bound messages)     |
 | `providers`        | `api.registerProvider()` (e.g. a custom model provider)               |
 | `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |
+| `asides`           | `ctx.asides?.ask()` (a model call about the chat that stays out of it) |
 | `hooks`            | The runtime `hooks` object on the plugin (lifecycle callbacks)        |
 
 You declare any combination — most real plugins need 1–3 capabilities.

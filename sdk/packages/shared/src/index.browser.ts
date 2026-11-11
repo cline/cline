@@ -38,6 +38,16 @@ export {
 } from "./connectors/platforms";
 export type { AutomationEventEnvelope } from "./cron";
 export type {
+	AsideAnswer,
+	AsideFailed,
+	AsideRequest,
+	AsideResult,
+	AsideSkipped,
+	AsideSkipReason,
+	AsideUsage,
+	PluginAsides,
+} from "./extensions/asides";
+export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,

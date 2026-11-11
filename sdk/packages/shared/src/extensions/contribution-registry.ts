@@ -3,6 +3,7 @@ import type { AutomationEventEnvelope } from "../cron";
 import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
+import type { PluginAsides } from "./asides";
 import type { ClientContext, UserContext } from "./context";
 
 export interface AgentExtensionCommand {
@@ -217,6 +218,12 @@ export interface PluginSetupContext {
 	 * emitters) must be stopped here.
 	 */
 	onDispose?: (cleanup: () => void | Promise<void>) => void;
+	/**
+	 * Model calls about the chat that stay out of it. Present when the manifest
+	 * lists the `asides` capability; feature-detect it (`ctx.asides?.ask(...)`).
+	 * A host that does not answer asides skips each one as `unsupported`.
+	 */
+	asides?: PluginAsides;
 }
 
 const ExtensionCapabilityOptions = [

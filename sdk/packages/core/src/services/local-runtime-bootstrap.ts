@@ -33,6 +33,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import type { PluginAsideHandler } from "../extensions/plugin/plugin-sandbox";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -289,6 +290,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
+	onPluginAside?: PluginAsideHandler;
 	/** A plugin this session uses became degraded or failed after start. */
 	onPluginIssue?: (issue: SessionPluginIssue) => void;
 	onTeamEvent: (event: TeamEvent) => void;
@@ -340,6 +342,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultFetch,
 		connectorsRequest,
 		onPluginEvent,
+		onPluginAside,
 		onPluginIssue,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
@@ -466,6 +469,7 @@ export async function prepareLocalRuntimeBootstrap(
 				workspacePath,
 				cwd: input.config.cwd,
 				onEvent: onPluginEvent,
+				onAside: onPluginAside,
 				providerId: input.config.providerId,
 				modelId: input.config.modelId,
 				workspaceInfo,
