@@ -87,6 +87,11 @@ import {
 } from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
+import {
+	EphemeralForkController,
+	type ForkRequest,
+	type ForkResult,
+} from "./ephemeral-fork";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
 
 export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
@@ -384,6 +389,7 @@ export class SessionRuntime {
 	private activeRunPromise: Promise<AgentResult> | null = null;
 	/** Per-run `Agent → AgentEvent` adapter; `reset()` each run. */
 	private readonly eventAdapter = new RuntimeEventAdapter();
+	private readonly forks?: EphemeralForkController;
 	/** Session-shutdown gate — rejects late runs. */
 	private shutdownCalled = false;
 	/** Running tally of tool-call records for `AgentResult.toolCalls`. */
@@ -470,6 +476,12 @@ export class SessionRuntime {
 		// constructor.
 		this.contributionRegistry.resolve();
 		this.contributionRegistry.validate();
+		const hasAsidePlugin = this.contributionRegistry
+			.getValidatedExtensions()
+			.some((extension) => extension.manifest.capabilities.includes("asides"));
+		if (hasAsidePlugin && !config.parentAgentId) {
+			this.forks = new EphemeralForkController();
+		}
 
 		const maxMistakes = config.execution?.maxConsecutiveMistakes ?? 6;
 		this.mistakeTracker = new MistakeTracker({
@@ -711,7 +723,28 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		this.forks?.dispose();
 		this.toolResultCache.clear();
+	}
+
+	/**
+	 * Resends the latest run's last model request with one appended user
+	 * message, outside the agent loop: nothing reaches the transcript, events
+	 * or storage, and no tool runs. Only the root runtime of a session with a
+	 * plugin that declares `asides` keeps a request to resend.
+	 */
+	fork(request: ForkRequest): Promise<ForkResult> {
+		return this.forks
+			? this.forks.fork(request)
+			: Promise.resolve({
+					runId: request.runId,
+					unavailable: "no_recorded_request",
+				});
+	}
+
+	/** Whether no later run has begun. Only a runtime that keeps a request to fork keeps track. */
+	isLatestRun(runId: string): boolean {
+		return this.forks?.isLatestRun(runId) ?? false;
 	}
 
 	// -------------------------------------------------------------------
@@ -905,6 +938,7 @@ export class SessionRuntime {
 			);
 		}
 		this.running = true;
+		this.forks?.beginRun();
 		this.abortRequested = false;
 		this.abortReason = undefined;
 		this.activeRunId = `run_${Date.now()}_${Math.random()
@@ -950,11 +984,23 @@ export class SessionRuntime {
 		}
 
 		// Build the AgentRuntime for this turn.
-		const agentModel = createAgentModelFromConfig(
+		const modelInfo = tryGetModelInfo(this.config);
+		const model = createAgentModelFromConfig(
 			this.config,
 			this.logger,
 			this.telemetry,
 		);
+		const agentModel = this.forks
+			? this.forks.recordingModel(model, {
+					supportsPromptCache:
+						modelInfo?.capabilities?.includes("prompt-cache") === true,
+					mayThink: this.config.thinking !== false,
+					thinkingBudgetTokens:
+						this.config.thinking === false
+							? undefined
+							: this.config.thinkingBudgetTokens,
+				})
+			: model;
 		// Merge extension-contributed tools with the config-declared
 		// tools for this turn. Extensions register tools via
 		// `api.registerTool` during `setup()` — parity with legacy
@@ -980,7 +1026,6 @@ export class SessionRuntime {
 			mergedToolsByName.set(tool.name, tool);
 		}
 		const conversationId = this.conversation.getConversationId();
-		const modelInfo = tryGetModelInfo(this.config);
 		const dedicatedImageGeneration = usesImageGenerationOperation(
 			modelInfo ?? {},
 		);
@@ -1053,6 +1098,7 @@ export class SessionRuntime {
 				runtime.abort(this.abortReason);
 			}
 			runHealth?.observe(event);
+			this.forks?.observe(event);
 			this.handleRuntimeEvent(event);
 		});
 		if (this.config.abortSignal) {
