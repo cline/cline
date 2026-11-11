@@ -54,6 +54,7 @@ const KNOWN_API_PROVIDERS = {
 	aihubmix: true,
 	minimax: true,
 	hicap: true,
+	melious: true,
 	nousResearch: true,
 	wandb: true,
 	xiaomi: true,
