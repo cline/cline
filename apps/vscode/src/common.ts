@@ -5,7 +5,6 @@ import { setSdkLogger } from "@cline/core"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
-import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
@@ -175,7 +174,6 @@ export async function tearDown(): Promise<void> {
 		// Dispose all webview instances
 		await WebviewProvider.disposeAllInstances()
 		syncWorker().dispose()
-		clearOnboardingModelsCache()
 
 		// Kill any running hook processes to prevent zombies
 		await HookProcessRegistry.terminateAll()
