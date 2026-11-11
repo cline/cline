@@ -76,6 +76,14 @@ async function click(selector: string) {
 	await act(async () => control?.click());
 }
 
+function folderChildren(path: string) {
+	const list = container.querySelector<HTMLElement>(
+		`button[title="${path}"]`,
+	)?.nextElementSibling;
+	expect(list).toBeInstanceOf(HTMLUListElement);
+	return list as HTMLUListElement;
+}
+
 async function finishAnimation(animation: FoldAnimation) {
 	expect(animation.onfinish).not.toBeNull();
 	await act(async () => animation.onfinish?.());
@@ -175,6 +183,7 @@ describe("FileBrowser", () => {
 		expect(
 			container.querySelector('button[title="references/guide.md"]'),
 		).not.toBeNull();
+		expect(folderChildren("references").getAttribute("inert")).toBe("");
 		expect(foldAnimations).toHaveLength(1);
 		await finishAnimation(foldAnimations[0]);
 		expect(foldAnimations[0].cancel).toHaveBeenCalledOnce();
@@ -227,8 +236,12 @@ describe("FileBrowser", () => {
 				onSelect={() => {}}
 			/>,
 		);
+		const nestedChildren = folderChildren("references/examples");
+		const parentChildren = folderChildren("references");
 		await click('button[title="references/examples"]');
+		expect(nestedChildren.getAttribute("inert")).toBe("");
 		await click('button[title="references"]');
+		expect(parentChildren.getAttribute("inert")).toBe("");
 		const parentMotion = foldAnimations[1];
 		expect(
 			container.querySelector('button[title="references/examples/guide.md"]'),
@@ -240,6 +253,8 @@ describe("FileBrowser", () => {
 				.querySelector('button[title="references"]')
 				?.getAttribute("aria-expanded"),
 		).toBe("true");
+		expect(parentChildren.hasAttribute("inert")).toBe(false);
+		expect(nestedChildren.getAttribute("inert")).toBe("");
 		await finishAnimation(parentMotion);
 		expect(
 			container.querySelector('button[title="references/examples/guide.md"]'),
