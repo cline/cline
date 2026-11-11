@@ -30,6 +30,15 @@ function input() {
 	return element;
 }
 
+/** Browsers move focus to the body once a control is disabled; jsdom leaves it. */
+function dropFocus() {
+	const other = document.createElement("button");
+	document.body.appendChild(other);
+	other.focus();
+	other.blur();
+	other.remove();
+}
+
 function form() {
 	const element = container.querySelector("form");
 	if (!element) throw new Error("Expected a form");
@@ -139,6 +148,45 @@ describe("Switch", () => {
 		expect(element.getAttribute("data-pending")).toBeNull();
 		await act(async () => element.click());
 		expect(onCheckedChange).toHaveBeenCalledExactlyOnceWith(!checked);
+	});
+
+	it("returns keyboard focus when a pending lock lifts", async () => {
+		await render(<Switch aria-label="Enable" />);
+		const element = input();
+		element.focus();
+		await render(<Switch aria-label="Enable" pending />);
+		dropFocus();
+		expect(document.activeElement).toBe(document.body);
+
+		await render(<Switch aria-label="Enable" />);
+		expect(document.activeElement).toBe(element);
+	});
+
+	it("leaves focus alone when it moved elsewhere or was never on the switch", async () => {
+		await render(
+			<>
+				<Switch aria-label="Enable" />
+				<button type="button">Next</button>
+			</>,
+		);
+		const next = container.querySelector("button") as HTMLButtonElement;
+		const pendingSwitch = (pending: boolean) => (
+			<>
+				<Switch aria-label="Enable" pending={pending} />
+				<button type="button">Next</button>
+			</>
+		);
+
+		input().focus();
+		await render(pendingSwitch(true));
+		next.focus();
+		await render(pendingSwitch(false));
+		expect(document.activeElement).toBe(next);
+
+		next.blur();
+		await render(pendingSwitch(true));
+		await render(pendingSwitch(false));
+		expect(document.activeElement).toBe(document.body);
 	});
 
 	it("keeps explicitly disabled styling when pending is also true", async () => {

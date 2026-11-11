@@ -387,9 +387,11 @@ fieldsets, are excluded from form submission.
 Use `pending={saving}` for a temporary lock that retains the current checked or
 unchecked appearance and sets `aria-busy`. Pending still disables the native
 input, including within a disabled fieldset, so it cannot toggle and is omitted
-from form submission. Explicit `disabled` takes precedence over pending's visual
-treatment; reserve it for unavailable controls instead of repeating the saving
-condition in both props.
+from form submission. Browsers move focus off a control that becomes disabled,
+so a switch that was focused when the lock began takes focus back when it
+lifts, unless focus has since moved elsewhere. Explicit `disabled` takes
+precedence over pending's visual treatment; reserve it for unavailable controls
+instead of repeating the saving condition in both props.
 
 ```tsx
 <Switch checked={enabled} pending={saving} disabled={!canEdit}
