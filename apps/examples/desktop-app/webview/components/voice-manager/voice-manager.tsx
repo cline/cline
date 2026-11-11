@@ -483,6 +483,8 @@ export function VoiceManager({
 	useEffect(() => {
 		if (!connected) {
 			greetedRef.current = false;
+			awaitingToolResponseRef.current = false;
+			setResponding(false);
 			return;
 		}
 		setSetupError(null);
