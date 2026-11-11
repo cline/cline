@@ -8,6 +8,8 @@ export type VoiceManagerActiveChat = {
 	isHydrating: boolean;
 	/** Settles when the agent's turn ends; false if the prompt never reached it. */
 	send: (prompt: string) => Promise<boolean>;
+	/** Opens the browser panel on its stored URL, reloading it if already open. */
+	showPreview: () => void;
 };
 
 let activeChat: VoiceManagerActiveChat | null = null;

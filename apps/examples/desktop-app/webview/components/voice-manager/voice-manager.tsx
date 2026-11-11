@@ -33,6 +33,8 @@ You manage the user's Cline coding agents, called sessions. You never write code
 Speak in short, casual sentences, usually one or two. Refer to sessions by their titles, never by IDs.
 When the user mentions a session, call list_sessions to find it. Use read_session before summarizing what a session did.
 To redirect a session that is running, use send_message with interrupt set to true, without stopping it first. To queue a follow-up instead, leave interrupt false.
+When the user asks for something they can look at, like a web page or an app, ask the session to serve it with a standard dev server that hot reloads, such as Vite, started in the background, and to tell you its URL. Once the session reports the URL, open it with show_preview.
+While the preview is open, treat what the user says about the page as feedback for that session: pass it on with send_message straight away, and tell them when the change is in. The page updates by itself; if it does not, call show_preview again to reload it.
 Messages starting with "${APP_UPDATE_PREFIX}" come from the app, not the user. Give the user a quick heads-up about them in a few words.`;
 
 const SESSION_ID_PARAM = {
@@ -112,6 +114,22 @@ const SESSION_CONFIG: Experimental_RealtimeSessionConfig = {
 				type: "object",
 				properties: SESSION_ID_PARAM,
 				required: ["sessionId"],
+			},
+		},
+		{
+			type: "function",
+			name: "show_preview",
+			description:
+				"Show a web page, such as a session's dev server, in the browser panel beside the chat that is on screen.",
+			parameters: {
+				type: "object",
+				properties: {
+					url: {
+						type: "string",
+						description: "For example http://localhost:5173.",
+					},
+				},
+				required: ["url"],
 			},
 		},
 		{
@@ -354,6 +372,25 @@ export function VoiceManager({
 					await desktopClient.invoke("chat_session_command", {
 						request: { action: "abort", sessionId },
 					});
+					return { ok: true };
+				}
+				case "show_preview": {
+					// Imported on demand, like the panel itself.
+					const { normalizeBrowserUrl, storeBrowserUrl } = await import(
+						"@/components/views/chat/browser-panel"
+					);
+					const url = normalizeBrowserUrl(String(args.url ?? ""));
+					const chat = getVoiceManagerActiveChat();
+					if (!url) return { ok: false, error: "That is not a web address." };
+					if (!chat?.sessionId) {
+						return {
+							ok: false,
+							error: "The preview opens beside a session. Open one first.",
+						};
+					}
+					setActivity("Opening the preview");
+					storeBrowserUrl(url);
+					chat.showPreview();
 					return { ok: true };
 				}
 				case "respond_to_approval": {

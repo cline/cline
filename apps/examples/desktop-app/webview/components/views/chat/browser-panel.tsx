@@ -41,6 +41,15 @@ function readStoredUrl(): string | null {
 	}
 }
 
+/** Sets the URL the panel opens on the next time it mounts. */
+export function storeBrowserUrl(url: string): void {
+	try {
+		window.localStorage.setItem(URL_STORAGE_KEY, url);
+	} catch {
+		// Not remembering the URL is harmless.
+	}
+}
+
 export function BrowserPanel({ onClose }: { onClose: () => void }) {
 	const [url, setUrl] = useState(readStoredUrl);
 	const [input, setInput] = useState(url ?? "");
@@ -57,11 +66,7 @@ export function BrowserPanel({ onClose }: { onClose: () => void }) {
 		setInput(next);
 		setUrl(next);
 		setReloadKey((key) => key + 1);
-		try {
-			window.localStorage.setItem(URL_STORAGE_KEY, next);
-		} catch {
-			// Not remembering the URL is harmless.
-		}
+		storeBrowserUrl(next);
 	};
 
 	return (

@@ -1658,6 +1658,13 @@ function ChatThreadPane({
 			),
 		[],
 	);
+	// The panel reads its URL when it mounts, so a new key points it at the
+	// URL the voice manager just stored.
+	const [browserPanelKey, setBrowserPanelKey] = useState(0);
+	const showBrowserPanel = useCallback(() => {
+		setBrowserPanelKey((key) => key + 1);
+		setWorkspacePanel("browser");
+	}, []);
 	const toggleChangesPanel = useCallback(() => {
 		setChangesScope("session");
 		setChangesPath(null);
@@ -2706,6 +2713,7 @@ function ChatThreadPane({
 					inNewWorktree: workIn === "worktree" && isNewThread,
 				});
 			},
+			showPreview: showBrowserPanel,
 		});
 	}, [
 		isHydratingSession,
@@ -2713,6 +2721,7 @@ function ChatThreadPane({
 		onThreadStarted,
 		sendPrompt,
 		sessionId,
+		showBrowserPanel,
 		status,
 		threadId,
 		workIn,
@@ -3602,7 +3611,7 @@ function ChatThreadPane({
 					/>
 				) : null}
 				{browserPanelVisible ? (
-					<BrowserPanel onClose={toggleBrowserPanel} />
+					<BrowserPanel key={browserPanelKey} onClose={toggleBrowserPanel} />
 				) : null}
 			</AttachmentDropZone>
 			{terminalEnabled && terminal?.open ? (
