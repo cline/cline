@@ -2,10 +2,7 @@ import type { ModelInfo } from "@shared/api"
 import { describe, expect, it, vi } from "vitest"
 import type { ProviderCatalog } from "@/sdk/model-catalog/contracts"
 import type { ProviderCatalogController } from "../providerCatalogShared"
-import { refreshBasetenModels } from "../refreshBasetenModels"
-import { refreshGroqModels } from "../refreshGroqModels"
 import { refreshOpenRouterModels } from "../refreshOpenRouterModels"
-import { refreshVercelAiGatewayModels } from "../refreshVercelAiGatewayModels"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -49,17 +46,12 @@ function okResult(providerId: string) {
 }
 
 describe("provider model refresh handlers (SDK catalog delegation)", () => {
-	it.each([
-		["openrouter", refreshOpenRouterModels],
-		["groq", refreshGroqModels],
-		["baseten", refreshBasetenModels],
-		["vercel-ai-gateway", refreshVercelAiGatewayModels],
-	] as const)("resolves %s models through the SDK provider catalog", async (providerId, refresh) => {
-		const { controller, resolveModels } = makeController(okResult(providerId))
+	it("resolves openrouter models through the SDK provider catalog", async () => {
+		const { controller, resolveModels } = makeController(okResult("openrouter"))
 
-		const models = await refresh(controller)
+		const models = await refreshOpenRouterModels(controller)
 
-		expect(resolveModels).toHaveBeenCalledWith(providerId, undefined)
+		expect(resolveModels).toHaveBeenCalledWith("openrouter", undefined)
 		expect(models).toEqual({ "vendor/rich-model": MODEL })
 	})
 
