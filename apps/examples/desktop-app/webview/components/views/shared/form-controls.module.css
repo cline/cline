@@ -1,0 +1,31 @@
+/* One field treatment across native inputs, Radix triggers, and shared buttons. */
+.control {
+	border: 1px solid var(--border-2);
+	border-radius: var(--radius-md);
+	background-color: var(--surface-1);
+	padding-inline: 0.75rem;
+	color: var(--foreground);
+	font-size: var(--text-sm);
+	font-weight: var(--font-weight-normal);
+	box-shadow: none;
+	outline: none;
+}
+
+@media (hover: hover) {
+	.control:where(
+			:hover:not(:disabled, [data-disabled], [aria-disabled="true"])
+		) {
+		border-color: var(--neutral-6);
+	}
+}
+
+.control:is(:focus-visible, [data-state="open"], [aria-expanded="true"]) {
+	border-color: var(--ring);
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+.control[aria-invalid="true"] {
+	border-color: var(--destructive);
+	outline-color: var(--destructive);
+}

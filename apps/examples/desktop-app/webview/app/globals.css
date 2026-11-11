@@ -54,11 +54,13 @@
 	}
 
 	/* Selectable content surfaces: chat message bodies (incl. markdown and
-	 * code blocks), reasoning/tool panels, settings, and diff text. */
+	 * code blocks), reasoning/tool panels, settings, Customize, Schedule, and diff text. */
 	.cline-chat-message-content,
 	.cline-markdown,
 	.cline-chat-selectable,
 	.cline-settings-content,
+	.cline-customize-content,
+	.cline-schedules-content,
 	pre,
 	code {
 		-webkit-user-select: text;
@@ -103,6 +105,41 @@ html[data-windows-custom-titlebar] [data-slot="toast-viewport"] {
 @media (prefers-reduced-motion: reduce) {
 	.cline-view-enter {
 		animation: none;
+	}
+}
+
+/* Match the sidebar's scroll fade using each page's themed background. */
+[data-scroll-fade]::after {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	left: 0;
+	height: 2rem;
+	background: linear-gradient(
+		to bottom,
+		var(--background),
+		color-mix(in oklab, var(--background) 70%, transparent),
+		transparent
+	);
+	content: "";
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 200ms;
+}
+
+[data-scroll-fade="true"]::after {
+	opacity: 1;
+}
+
+/* A stacked section heading owns the fade below the combined header. */
+[data-page-frame]:has([data-slot="section-heading"][data-scroll-fade="true"])
+	:is([data-page-header], [data-customize-toolbar])::after {
+	opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-scroll-fade]::after {
+		transition: none;
 	}
 }
 

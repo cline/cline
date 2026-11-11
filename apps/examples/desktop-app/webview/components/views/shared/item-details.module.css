@@ -1,0 +1,153 @@
+.layout {
+	display: grid;
+	min-width: 0;
+	max-width: 56rem;
+	grid-template-areas: "header" "aside" "body";
+	gap: 2.5rem;
+}
+
+.layout:not(.withAside) {
+	grid-template-areas: "header" "body";
+}
+
+/* Keep keyboard-focused controls clear of the opaque sticky header. */
+[data-radix-scroll-area-viewport]:has(.page) {
+	scroll-padding-top: var(
+		--item-details-scroll-header-height,
+		calc(2rem + var(--text-xl--line-height))
+	);
+}
+
+/* Span the full content so the title remains sticky beyond the main header. */
+.scrollHeaderAnchor {
+	position: sticky;
+	z-index: 10;
+	top: 0;
+	min-width: 0;
+	height: 0;
+	grid-column: 1;
+	grid-row: 1 / -1;
+	align-self: start;
+	margin-inline: -1px;
+}
+
+.scrollHeader {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1rem;
+	padding-block: 1rem;
+	background: var(--background);
+	visibility: hidden;
+}
+
+.scrollHeader[data-visible="true"] {
+	visibility: visible;
+}
+
+.scrollTitle {
+	min-width: 0;
+	flex: 1 1 12rem;
+}
+
+.headerActions {
+	display: flex;
+	min-width: 0;
+	max-width: 100%;
+	flex: 0 1 auto;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.headerActions[data-item-header-actions="inline"][data-active="false"] {
+	visibility: hidden;
+}
+
+.scrollHeader > .headerActions {
+	margin-left: auto;
+}
+
+.header {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	grid-area: header;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.actionBar {
+	display: flex;
+	min-width: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.6rem;
+	margin-left: auto;
+}
+
+.actions:only-child {
+	justify-content: flex-start;
+	margin-left: 0;
+}
+
+.body {
+	display: flex;
+	min-width: 0;
+	grid-area: body;
+	flex-direction: column;
+	gap: 2.5rem;
+}
+
+.aside {
+	min-width: 0;
+	grid-area: aside;
+	align-self: start;
+}
+
+@container detail-content (min-width: 60rem) {
+	.page.withAside {
+		max-width: 75rem;
+		grid-template-areas: "header aside" "body aside";
+		grid-template-columns: minmax(0, 56rem) 12rem;
+		column-gap: 7rem;
+	}
+
+	.page .aside {
+		position: sticky;
+		top: 1rem;
+	}
+}
+
+/* The Windows caption buttons float over the window's top-right corner. Keep
+   the rows that pass beneath them clear, rather than narrowing the whole page. */
+@media (min-width: 768px) {
+	html[data-windows-custom-titlebar] .page :is(.header, .scrollHeader) {
+		padding-right: calc(var(--spacing) * 44);
+	}
+
+	html[data-windows-custom-titlebar] .page .aside {
+		top: calc(var(--window-title-bar-height) + 1rem);
+	}
+}
+
+/* With the aside in its own column, that column sits beneath the buttons. */
+@container detail-content (min-width: 60rem) {
+	html[data-windows-custom-titlebar]
+		.page.withAside
+		:is(.header, .scrollHeader) {
+		padding-right: 0;
+	}
+}
