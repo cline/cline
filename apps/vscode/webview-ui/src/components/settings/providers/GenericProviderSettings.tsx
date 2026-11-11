@@ -43,7 +43,7 @@ export const GenericProviderSettings = ({
 	isPopup,
 	currentMode,
 }: GenericProviderSettingsProps) => {
-	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
+	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(providerId)
 	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
@@ -58,17 +58,25 @@ export const GenericProviderSettings = ({
 		)
 	}
 
+	const writeAndRefreshModels = async (patch: { apiKey?: string; baseUrl?: string }) => {
+		const response = await write(patch)
+		void refresh()
+		return response
+	}
+
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
 		providerName,
-		write,
+		write: writeAndRefreshModels,
 	})
 	const handleBaseUrlChange = (value: string) => {
-		void write({ baseUrl: value }).catch((err) => console.error(`Failed to update ${providerName} base URL:`, err))
+		void writeAndRefreshModels({ baseUrl: value }).catch((err) =>
+			console.error(`Failed to update ${providerName} base URL:`, err),
+		)
 	}
 	const handleBaseUrlClear = async () => {
 		try {
-			await write({ baseUrl: "" })
+			await writeAndRefreshModels({ baseUrl: "" })
 		} catch (error) {
 			console.error(`Failed to clear ${providerName} base URL:`, error)
 			throw error

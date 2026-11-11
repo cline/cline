@@ -417,6 +417,7 @@ describe("GenericProviderSettings", () => {
 
 	it("can render and update an optional base URL field through provider config", async () => {
 		const write = vi.fn(async () => undefined)
+		const refresh = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
 			models: {
 				"gemini-3.1-pro-preview": {
@@ -430,7 +431,7 @@ describe("GenericProviderSettings", () => {
 			isLoading: false,
 			isStale: false,
 			error: undefined,
-			refresh: vi.fn(),
+			refresh,
 			fingerprint: "fingerprint",
 		})
 		vi.mocked(useProviderConfig).mockReturnValue({
@@ -457,9 +458,45 @@ describe("GenericProviderSettings", () => {
 		fireEvent.input(baseUrlInput, { target: { value: "https://new.example" } })
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 
 		fireEvent.click(screen.getByText("Use custom base URL"))
 
-		expect(write).toHaveBeenCalledWith({ baseUrl: "" })
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "" }))
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
+	})
+
+	it("refreshes provider models after saving an API key", async () => {
+		const write = vi.fn(async () => undefined)
+		const refresh = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh,
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 0 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="baseten"
+				providerName="Baseten"
+				showModelOptions={true}
+			/>,
+		)
+
+		fireEvent.input(screen.getByPlaceholderText("Enter API Key..."), { target: { value: "bt-secret-key" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "bt-secret-key" }))
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 	})
 })
