@@ -6,6 +6,7 @@ export {
 	formatModePrompt,
 	hasPendingTeamRunWork,
 	notifyTeamRunWaiters,
+	resolveTurnContinuation,
 	shouldAutoContinueTeamRuns,
 	trackTeamRunState,
 	waitForTeamRunUpdates,

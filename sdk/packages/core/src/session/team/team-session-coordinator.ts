@@ -1,6 +1,8 @@
 import {
 	type AgentMode,
 	type AgentResult,
+	type AgentRunResult,
+	type AgentTurnContinuation,
 	formatUserInputBlock,
 } from "@cline/shared";
 import type { TeamEvent } from "../../extensions/tools/team";
@@ -229,6 +231,22 @@ function publishTeamProgress(
 			summary: buildTeamProgressSummary(teamName, teamRuntime.exportState()),
 		},
 	});
+}
+
+/**
+ * Mirrors the host's decisions after a run ends: auto-continue on teammate
+ * results first, then drain queued prompts unless the run errored.
+ */
+export function resolveTurnContinuation(
+	session: ActiveSession,
+	status: AgentRunResult["status"],
+	queuedPromptCount: number,
+): AgentTurnContinuation | undefined {
+	const finishReason = status === "failed" ? "error" : status;
+	if (shouldAutoContinueTeamRuns(session, finishReason)) return "team_runs";
+	if (session.interactive && finishReason !== "error" && queuedPromptCount > 0)
+		return "queued_prompt";
+	return undefined;
 }
 
 export function hasPendingTeamRunWork(session: ActiveSession): boolean {

@@ -1152,8 +1152,13 @@ export class AgentRuntime {
 	}
 
 	private async callAfterRunHooks(result: AgentRunResult): Promise<void> {
+		const continuation = this.config.turnContinuation?.(result.status);
 		for (const hook of this.hooks.afterRun) {
-			await hook({ snapshot: this.snapshot(), result });
+			await hook({
+				snapshot: this.snapshot(),
+				result,
+				...(continuation ? { continuation } : {}),
+			});
 		}
 	}
 
