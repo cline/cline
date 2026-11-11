@@ -76,6 +76,7 @@ describe("providerSettingsRegistry", () => {
 			["poolside", "Poolside", undefined],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["tencent-tokenhub", "Tencent TokenHub", "https://cloud.tencent.com/document/product/1823/130050"],
+			["umans-ai", "Umans AI", "https://app.umans.ai/billing"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
 			["v0", "Vercel v0", undefined],
 			["wandb", "CoreWeave", "https://wandb.ai/settings"],
@@ -212,6 +213,12 @@ describe("providerSettingsRegistry", () => {
 			providerId: "aiand",
 			providerName: "ai&",
 			signupUrl: "https://console.aiand.com/",
+		})
+		expect(getFallbackGenericProviderSettings("umans-ai")).toEqual({
+			allowsCustomIds: false,
+			providerId: "umans-ai",
+			providerName: "Umans AI",
+			signupUrl: "https://app.umans.ai/billing",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})
