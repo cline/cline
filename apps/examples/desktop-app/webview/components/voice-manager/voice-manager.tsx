@@ -188,7 +188,10 @@ export function VoiceManager({
 	onOpenProviders,
 }: {
 	sessionHistory: UseSessionHistoryResult;
-	onOpenSession: (sessionId: string) => Promise<unknown>;
+	onOpenSession: (
+		sessionId: string,
+		options?: { environmentId?: string },
+	) => Promise<{ opened: boolean } | undefined>;
 	onNewThread: () => void;
 	onOpenProviders: () => void;
 }) {
@@ -239,6 +242,14 @@ export function VoiceManager({
 			const sessionId =
 				typeof args.sessionId === "string" ? args.sessionId : "";
 			const { thread, session, title } = findSession(sessionId);
+			const openSession = async () => {
+				const result = await onOpenSession(sessionId, {
+					environmentId: session?.environmentId,
+				});
+				if (result?.opened === false) {
+					throw new Error("Couldn't open that session.");
+				}
+			};
 			switch (name) {
 				case "list_sessions": {
 					setActivity("Checking your sessions");
@@ -290,7 +301,7 @@ export function VoiceManager({
 				}
 				case "open_session": {
 					setActivity(`Opening “${title}”`);
-					await onOpenSession(sessionId);
+					await openSession();
 					return { ok: true };
 				}
 				case "start_session": {
@@ -318,7 +329,7 @@ export function VoiceManager({
 					const message = String(args.message ?? "").trim();
 					setActivity(`Messaging “${title}”`);
 					if (getVoiceManagerActiveChat()?.sessionId !== sessionId) {
-						await onOpenSession(sessionId);
+						await openSession();
 					}
 					const chat = await waitForVoiceManagerActiveChat(
 						(candidate) =>
