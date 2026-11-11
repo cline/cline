@@ -173,6 +173,7 @@ import {
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
+import { revealPath } from "./reveal-path";
 import {
 	getSessionChanges,
 	localGit,
@@ -3864,6 +3865,10 @@ export async function handleCommand(
 		).settingsPath;
 		openFileInEditor(path);
 		return path;
+	}
+	if (command === "reveal_path") {
+		await revealPath(args?.path);
+		return { revealed: true };
 	}
 	if (command === "list_available_editors") {
 		return await listAvailableCodeEditors();
