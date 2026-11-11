@@ -2,8 +2,11 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconButton } from "./button.js";
+
+const useBrowserLayoutEffect =
+	typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 export interface FileBrowserActionHandlers {
 	/** Reveal the file using the host's file manager or open its remote source URL. */
@@ -27,9 +30,15 @@ export function FileBrowserActions({
 	const [copied, setCopied] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
+	const mounted = useRef(false);
 
-	// A result that arrives after the file changes is ignored: the host keys this
-	// menu by path and only shows errors for the current one.
+	useBrowserLayoutEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+
 	const runAction = async (action: "open" | "copy") => {
 		if (pending.current) return;
 		pending.current = true;
@@ -42,17 +51,21 @@ export function FileBrowserActions({
 			} else {
 				if (onCopyPath) await onCopyPath(path);
 				else await navigator.clipboard.writeText(path);
-				setCopied(true);
+				if (mounted.current) setCopied(true);
 			}
 		} catch {
-			onError(
-				action === "open"
-					? "Could not open file location."
-					: "Could not copy path.",
-			);
+			if (mounted.current) {
+				onError(
+					action === "open"
+						? "Could not open file location."
+						: "Could not copy path.",
+				);
+			}
 		} finally {
-			pending.current = false;
-			setBusy(false);
+			if (mounted.current) {
+				pending.current = false;
+				setBusy(false);
+			}
 		}
 	};
 

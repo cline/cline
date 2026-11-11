@@ -10,11 +10,26 @@ const render = dom.render;
 let container: HTMLDivElement;
 let resizeObservers: Array<() => void>;
 const writeText = vi.fn();
+type FoldAnimation = {
+	onfinish: (() => void) | null;
+	cancel: ReturnType<typeof vi.fn>;
+	reverse: ReturnType<typeof vi.fn>;
+};
+let foldAnimations: FoldAnimation[];
+let animate: ReturnType<typeof vi.fn<Element["animate"]>>;
+let originalAnimate: PropertyDescriptor | undefined;
 beforeEach(() => {
 	container = dom.container;
 	resizeObservers = [];
+	foldAnimations = [];
 	writeText.mockReset().mockResolvedValue(undefined);
 	vi.stubGlobal("navigator", { clipboard: { writeText } });
+	vi.stubGlobal(
+		"matchMedia",
+		vi.fn((query: string) => ({
+			matches: query === "(prefers-reduced-motion: no-preference)",
+		})),
+	);
 	vi.stubGlobal(
 		"ResizeObserver",
 		class {
@@ -28,15 +43,52 @@ beforeEach(() => {
 			disconnect() {}
 		},
 	);
+	animate = vi.fn<Element["animate"]>(() => {
+		const animation: FoldAnimation = {
+			onfinish: null,
+			cancel: vi.fn(),
+			reverse: vi.fn(),
+		};
+		foldAnimations.push(animation);
+		return animation as unknown as Animation;
+	});
+	originalAnimate = Object.getOwnPropertyDescriptor(
+		Element.prototype,
+		"animate",
+	);
+	Object.defineProperty(Element.prototype, "animate", {
+		configurable: true,
+		value: animate,
+	});
 });
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	if (originalAnimate) {
+		Object.defineProperty(Element.prototype, "animate", originalAnimate);
+	} else {
+		Reflect.deleteProperty(Element.prototype, "animate");
+	}
 });
 async function click(selector: string) {
 	const control = container.querySelector<HTMLElement>(selector);
 	expect(control).not.toBeNull();
 	await act(async () => control?.click());
+}
+
+async function finishAnimation(animation: FoldAnimation) {
+	expect(animation.onfinish).not.toBeNull();
+	await act(async () => animation.onfinish?.());
+}
+
+function deferred() {
+	let resolve!: () => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<void>((onResolve, onReject) => {
+		resolve = onResolve;
+		reject = onReject;
+	});
+	return { promise, reject, resolve };
 }
 
 function mockBrowserGeometry(layoutWidth: number) {
@@ -122,6 +174,12 @@ describe("FileBrowser", () => {
 		).toBe("false");
 		expect(
 			container.querySelector('button[title="references/guide.md"]'),
+		).not.toBeNull();
+		expect(foldAnimations).toHaveLength(1);
+		await finishAnimation(foldAnimations[0]);
+		expect(foldAnimations[0].cancel).toHaveBeenCalledOnce();
+		expect(
+			container.querySelector('button[title="references/guide.md"]'),
 		).toBeNull();
 		expect(container.querySelector("h2")?.textContent).toBe(
 			"references/guide.md",
@@ -136,7 +194,15 @@ describe("FileBrowser", () => {
 			/>,
 		);
 		await click('button[title="references/examples"]');
+		await finishAnimation(foldAnimations[0]);
 		await click('button[title="references"]');
+		expect(
+			container.querySelector('button[title="references/examples"]'),
+		).not.toBeNull();
+		await finishAnimation(foldAnimations[1]);
+		expect(
+			container.querySelector('button[title="references/examples"]'),
+		).toBeNull();
 		await click('button[title="references"]');
 		expect(
 			container
@@ -146,10 +212,47 @@ describe("FileBrowser", () => {
 		expect(
 			container.querySelector('button[title="references/examples/guide.md"]'),
 		).toBeNull();
+		await finishAnimation(foldAnimations[2]);
 		await click('button[title="references/examples"]');
 		expect(
 			container.querySelector('button[title="references/examples/guide.md"]'),
 		).not.toBeNull();
+		await finishAnimation(foldAnimations[3]);
+	});
+
+	it("reverses repeated toggles while nested folder motion is in flight", async () => {
+		await render(
+			<FileBrowser
+				files={[{ path: "references/examples/guide.md" }]}
+				onSelect={() => {}}
+			/>,
+		);
+		await click('button[title="references/examples"]');
+		await click('button[title="references"]');
+		const parentMotion = foldAnimations[1];
+		expect(
+			container.querySelector('button[title="references/examples/guide.md"]'),
+		).not.toBeNull();
+		await click('button[title="references"]');
+		expect(parentMotion.reverse).toHaveBeenCalledOnce();
+		expect(
+			container
+				.querySelector('button[title="references"]')
+				?.getAttribute("aria-expanded"),
+		).toBe("true");
+		await finishAnimation(parentMotion);
+		expect(
+			container.querySelector('button[title="references/examples/guide.md"]'),
+		).not.toBeNull();
+		await finishAnimation(foldAnimations[0]);
+		expect(
+			container
+				.querySelector('button[title="references/examples"]')
+				?.getAttribute("aria-expanded"),
+		).toBe("false");
+		expect(
+			container.querySelector('button[title="references/examples/guide.md"]'),
+		).toBeNull();
 	});
 
 	it("shows the unselected pane until the host renders content", async () => {
@@ -516,6 +619,68 @@ describe("FileBrowserContent actions", () => {
 		await select("Copy path");
 		expect(container.querySelector('[role="alert"]')).toBeNull();
 		expect(container.textContent).toContain("Path copied.");
+	});
+
+	it("ignores a delayed failure from an actions menu replaced during loading", async () => {
+		const firstCopy = deferred();
+		const retry = deferred();
+		const copy = vi
+			.fn()
+			.mockReturnValueOnce(firstCopy.promise)
+			.mockReturnValueOnce(retry.promise);
+		const content = (loading = false) => (
+			<FileBrowserContent path="SKILL.md" onCopyPath={copy} loading={loading} />
+		);
+		await render(content());
+		await openMenu();
+		await select("Copy path");
+		await render(content(true));
+		expect(container.querySelector('[aria-label="File actions"]')).toBeNull();
+		await render(content());
+		await openMenu();
+		await select("Copy path");
+		await act(async () => {
+			retry.resolve();
+			await retry.promise;
+		});
+		expect(container.textContent).toContain("Path copied.");
+		await act(async () => {
+			firstCopy.reject(new Error("Late failure"));
+			await Promise.resolve();
+		});
+		expect(container.querySelector('[role="alert"]')).toBeNull();
+		expect(container.textContent).toContain("Path copied.");
+	});
+
+	it("keeps the current error when an old action path fails later", async () => {
+		const oldCopy = deferred();
+		const copy = vi
+			.fn()
+			.mockReturnValueOnce(oldCopy.promise)
+			.mockRejectedValueOnce(new Error("Current failure"));
+		const content = (actionPath: string) => (
+			<FileBrowserContent
+				path="SKILL.md"
+				actionPath={actionPath}
+				onCopyPath={copy}
+			/>
+		);
+		await render(content("/old/SKILL.md"));
+		await openMenu();
+		await select("Copy path");
+		await render(content("/current/SKILL.md"));
+		await openMenu();
+		await select("Copy path");
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Could not copy path.",
+		);
+		await act(async () => {
+			oldCopy.reject(new Error("Late failure"));
+			await Promise.resolve();
+		});
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Could not copy path.",
+		);
 	});
 });
 
