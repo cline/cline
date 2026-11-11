@@ -2700,7 +2700,16 @@ function ChatThreadPane({
 			workIn,
 		],
 	);
+	// A fresh pane picks up its provider key a render after mounting; a prompt
+	// sent before that would go out without credentials.
+	const selectedCredentials = providerCredentials[config.provider];
+	const providerKeySynced =
+		providersLoaded &&
+		(!selectedCredentials ||
+			(config.apiKey === selectedCredentials.apiKey &&
+				config.providerAuth === selectedCredentials.auth));
 	useEffect(() => {
+		if (!providerKeySynced) return;
 		setVoiceManagerActiveChat({
 			threadId,
 			sessionId: sessionId ?? null,
@@ -2719,6 +2728,7 @@ function ChatThreadPane({
 		isHydratingSession,
 		isNewThread,
 		onThreadStarted,
+		providerKeySynced,
 		sendPrompt,
 		sessionId,
 		showBrowserPanel,
