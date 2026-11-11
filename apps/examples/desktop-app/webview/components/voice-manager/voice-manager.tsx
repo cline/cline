@@ -597,8 +597,9 @@ export function VoiceManager({
 	const showBubble = active || Boolean(setupError);
 
 	return (
-		// Sits above the docked chat composer so it never covers the send button.
-		<div className="pointer-events-none fixed bottom-48 right-4 z-40 flex flex-col items-end gap-1">
+		// Sits above the docked chat composer so it never covers the send button,
+		// and left of an open side panel so it never covers the preview.
+		<div className="pointer-events-none fixed bottom-48 right-[calc(var(--workspace-panel-width,0px)+1rem)] z-40 flex flex-col items-end gap-1">
 			{showBubble ? (
 				<div className="pointer-events-auto flex w-72 flex-col gap-2 rounded-2xl rounded-br-sm border bg-popover/95 p-3 text-sm text-popover-foreground shadow-lg backdrop-blur">
 					{setupError && !active ? (
