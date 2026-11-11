@@ -64,6 +64,7 @@ export const GlobalSettingsSchema = z
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
 		compactionEnabled: z.boolean().optional().catch(undefined),
+		asidesEnabled: z.boolean().optional().catch(undefined),
 		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
@@ -80,6 +81,7 @@ export const GlobalSettingsSchema = z
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
 			compactionEnabled?: boolean;
+			asidesEnabled?: boolean;
 			planActMode?: GlobalPlanActMode;
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
@@ -97,6 +99,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.compactionEnabled !== undefined) {
 			normalized.compactionEnabled = settings.compactionEnabled;
+		}
+		if (settings.asidesEnabled !== undefined) {
+			normalized.asidesEnabled = settings.asidesEnabled;
 		}
 		if (settings.planActMode) {
 			normalized.planActMode = settings.planActMode;

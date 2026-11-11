@@ -283,12 +283,14 @@ describe("global-settings", () => {
 		expect(
 			GlobalSettingsSchema.parse({
 				compactionEnabled: false,
+				asidesEnabled: false,
 				planActMode: "plan",
 				toolAutoApprove: false,
 			}),
 		).toEqual({
 			autoUpdateEnabled: true,
 			compactionEnabled: false,
+			asidesEnabled: false,
 			planActMode: "plan",
 			telemetryOptOut: false,
 			toolAutoApprove: false,
@@ -297,6 +299,7 @@ describe("global-settings", () => {
 		expect(
 			GlobalSettingsSchema.parse({
 				compactionEnabled: "yes",
+				asidesEnabled: "no",
 				planActMode: "chaos",
 				toolAutoApprove: 42,
 			}),
