@@ -1,8 +1,4 @@
-import type {
-	AgentMessage,
-	AgentRunResult,
-	ClientContext,
-} from "@cline/shared";
+import type { AgentMessage, AgentRunResult, PluginAsides } from "@cline/shared";
 import { summarizeTurn } from "../turn";
 import type {
 	Facts,
@@ -10,8 +6,6 @@ import type {
 	NextTurnStatus,
 	NextTurnSuggestion,
 } from "../types";
-import type { Allowance, PlannerOutcome } from "./allowance";
-import type { Complete } from "./completer";
 import { readGitFacts } from "./git";
 import { parsePlannerOutput, withFailureLead } from "./output";
 import { buildPlannerInput } from "./prompt";
@@ -20,13 +14,19 @@ import type { RunCommand } from "./run";
 
 /**
  * The planner runs detached from `afterRun`, after the rule set is already
- * out: it reads the workspace, makes one bounded tool-less model call, and
- * publishes the model's set for the same run. Whatever goes wrong leaves the
- * rule set as the run's set.
+ * out: it reads the workspace, asks the host one aside, and publishes the
+ * model's set for the same run. Whatever goes wrong leaves the rule set as
+ * the run's set.
+ *
+ * The aside reads none of the chat (`context: "none"`): the planner sends its
+ * own redacted digest of the turn. The host makes the call on the chat's
+ * provider, counts it against the plugin's hourly allowance, and ends it when
+ * the chat moves on.
  */
 
-/** The whole attempt: reading the workspace and the model call, a low-reasoning retry included. */
+/** The model call, a low-reasoning retry included. */
 export const PLANNER_TIMEOUT_MS = 20_000;
+export const PLANNER_MAX_OUTPUT_TOKENS = 400;
 /** The git read may not hold the model call back longer than this. */
 export const WORKSPACE_READ_BUDGET_MS = 400;
 
@@ -35,18 +35,15 @@ const REPO_NAME = "This repository's commands";
 
 export type PlanRequest = {
 	runId: string;
-	sessionId: string;
 	messages: readonly AgentMessage[];
 	result: AgentRunResult;
 	/** The rule set for this run: its lead is kept after a failed or stopped turn. */
 	rules: readonly NextTurnSuggestion[];
 	workspaceRoot?: string;
-	client?: ClientContext;
 };
 
 export type PlannerDeps = {
-	complete: Complete;
-	allowance: Allowance;
+	ask: PluginAsides["ask"];
 	run: RunCommand;
 	repo: RepoReader;
 	timeoutMs?: number;
@@ -58,7 +55,7 @@ export type PlannerDeps = {
 	log(message: string, error?: unknown): void;
 };
 
-type Attempt = { runId: string; abort: AbortController };
+type Attempt = { runId: string };
 
 /** The work's result, or `onTimeout` when it throws or outlasts the budget. */
 async function withinBudget<T>(
@@ -82,18 +79,6 @@ async function withinBudget<T>(
 	}
 }
 
-/** Rejects once `signal` aborts; the work's late result or failure is ignored. */
-function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const onAbort = () => reject(new Error("the planner call was aborted"));
-		if (signal.aborted) return onAbort();
-		signal.addEventListener("abort", onAbort, { once: true });
-		work
-			.then(resolve, reject)
-			.finally(() => signal.removeEventListener("abort", onAbort));
-	});
-}
-
 export class NextTurnPlanner {
 	private current: Attempt | undefined;
 
@@ -106,15 +91,11 @@ export class NextTurnPlanner {
 	 * attempt supersedes this one.
 	 */
 	async start(request: PlanRequest): Promise<void> {
-		this.supersede();
-		const attempt: Attempt = {
-			runId: request.runId,
-			abort: new AbortController(),
-		};
+		const attempt: Attempt = { runId: request.runId };
 		this.current = attempt;
 		try {
 			await new Promise<void>((resolve) => setImmediate(resolve));
-			if (!attempt.abort.signal.aborted) await this.plan(request, attempt);
+			if (this.current === attempt) await this.plan(request, attempt);
 		} catch (error) {
 			this.deps.log("the planner failed", error);
 		} finally {
@@ -124,7 +105,6 @@ export class NextTurnPlanner {
 
 	/** A new run began or the session ended: nothing the planner still waits for is worth showing. */
 	supersede(): void {
-		this.current?.abort.abort();
 		this.current = undefined;
 	}
 
@@ -160,74 +140,38 @@ export class NextTurnPlanner {
 	private async plan(request: PlanRequest, attempt: Attempt): Promise<void> {
 		const summary = summarizeTurn(request.messages, request.result);
 		if (!summary.chat) return;
-		const slot = this.deps.allowance.reserve(request.sessionId);
-		if (!slot) {
-			this.deps.log("the planner's hourly allowance is used; the rules stay");
+		const { sources, unread } = await this.readSources(request.workspaceRoot);
+		if (this.current !== attempt) return;
+		const input = buildPlannerInput({
+			facts: summary.facts,
+			context: summary.context,
+			mode: summary.mode,
+			sources,
+			unread,
+		});
+		const answer = await this.deps.ask({
+			runId: request.runId,
+			context: "none",
+			system: input.system,
+			prompt: input.user,
+			maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
+			timeoutMs: this.deps.timeoutMs ?? PLANNER_TIMEOUT_MS,
+		});
+		if (this.current !== attempt) return;
+		if (answer.status !== "ok") {
+			const why = answer.status === "skipped" ? answer.reason : answer.status;
+			this.deps.log(`the planner's aside ended as ${why}; the rules stay`);
 			return;
 		}
-		const { signal } = attempt.abort;
-		const startedAt = Date.now();
-		let timedOut = false;
-		const timer = setTimeout(() => {
-			timedOut = true;
-			attempt.abort.abort();
-		}, this.deps.timeoutMs ?? PLANNER_TIMEOUT_MS);
-		let sent = false;
-		let outcome: PlannerOutcome = "error";
-		let spend: {
-			inputTokens?: number;
-			outputTokens?: number;
-			costUsd?: number;
-		} = {};
-		try {
-			const { sources, unread } = await this.readSources(request.workspaceRoot);
-			if (signal.aborted) throw new Error("the planner call was aborted");
-			sent = true;
-			const completion = await raceAbort(
-				this.deps.complete({
-					input: buildPlannerInput({
-						facts: summary.facts,
-						context: summary.context,
-						mode: summary.mode,
-						sources,
-						unread,
-					}),
-					chat: summary.chat,
-					sessionId: request.sessionId,
-					client: request.client,
-					signal,
-				}),
-				signal,
-			);
-			if (!completion) {
-				sent = false;
-				return;
-			}
-			spend = completion.usage ?? {};
-			const rows = parsePlannerOutput(completion.text);
-			if (!rows) outcome = "unparseable";
-			else {
-				this.deps.publish(
-					request.runId,
-					summary.facts.status,
-					withFailureLead(rows, request.rules, summary.facts),
-				);
-				outcome = "ok";
-			}
-		} catch (error) {
-			outcome = timedOut ? "timeout" : signal.aborted ? "aborted" : "error";
-			if (outcome === "error") this.deps.log("the planner call failed", error);
-		} finally {
-			clearTimeout(timer);
-			if (sent)
-				slot.record({
-					outcome,
-					totalMs: Date.now() - startedAt,
-					providerId: summary.chat.providerId,
-					modelId: summary.chat.modelId,
-					...spend,
-				});
-			else slot.release();
+		const rows = parsePlannerOutput(answer.text);
+		if (!rows) {
+			this.deps.log("the planner's answer had no usable row; the rules stay");
+			return;
 		}
+		this.deps.publish(
+			request.runId,
+			summary.facts.status,
+			withFailureLead(rows, request.rules, summary.facts),
+		);
 	}
 }

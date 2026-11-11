@@ -1,11 +1,5 @@
 import type { AgentPlugin } from "@cline/core";
 import type { PluginSetupContext } from "@cline/shared";
-import {
-	Allowance,
-	defaultLedgerPath,
-	fileLedgerStore,
-} from "./planner/allowance";
-import { clineCompleter } from "./planner/completer";
 import { NextTurnPlanner, type PlannerDeps } from "./planner/planner";
 import { RepoReader } from "./planner/repo";
 import { runCommand } from "./planner/run";
@@ -107,17 +101,12 @@ export function pool(facts: TurnFacts): NextTurnSuggestion[] {
 export interface NextTurnPluginOptions {
 	/**
 	 * `false` keeps the plugin rule-only. Otherwise each field replaces its
-	 * default: the chat's own provider, the shared `planner.jsonl` ledger, and
-	 * `git` on the workspace.
+	 * default: the host's `ctx.asides.ask` and `git` on the workspace. A host
+	 * that offers no asides leaves the plugin rule-only too.
 	 */
 	planner?:
 		| false
-		| Partial<
-				Pick<
-					PlannerDeps,
-					"complete" | "allowance" | "run" | "repo" | "timeoutMs"
-				>
-		  >;
+		| Partial<Pick<PlannerDeps, "ask" | "run" | "repo" | "timeoutMs">>;
 }
 
 export function createNextTurnPlugin(
@@ -141,18 +130,21 @@ export function createNextTurnPlugin(
 	};
 	return {
 		name: "next-turn",
-		manifest: { capabilities: ["hooks"], rootOnly: true },
+		manifest: { capabilities: ["hooks", "asides"], rootOnly: true },
 		setup(_api, setupContext) {
 			context = setupContext;
 			planner?.supersede();
-			planner =
+			const asides = setupContext.asides;
+			const ask =
 				options.planner === false
 					? undefined
+					: (options.planner?.ask ??
+						(asides ? (request) => asides.ask(request) : undefined));
+			planner =
+				options.planner === false || !ask
+					? undefined
 					: new NextTurnPlanner({
-							complete: options.planner?.complete ?? clineCompleter(),
-							allowance:
-								options.planner?.allowance ??
-								new Allowance(fileLedgerStore(defaultLedgerPath())),
+							ask,
 							run: options.planner?.run ?? runCommand,
 							repo: options.planner?.repo ?? new RepoReader(),
 							timeoutMs: options.planner?.timeoutMs,
@@ -171,19 +163,20 @@ export function createNextTurnPlugin(
 				if (!snapshot.parentAgentId) planner?.supersede();
 				return undefined;
 			},
-			afterRun({ snapshot, result }) {
+			afterRun({ snapshot, result, continuation }) {
 				if (snapshot.parentAgentId) return;
 				const facts = factsOf(result.messages, result);
 				const rules = pool(facts).slice(0, MAX_SUGGESTIONS);
 				emit(result.runId, facts.status, rules, "rules");
+				// The host is about to start another run in this turn, which would
+				// end the aside before it answered.
+				if (continuation) return;
 				void planner?.start({
 					runId: result.runId,
-					sessionId: context.session?.sessionId ?? "",
 					messages: result.messages,
 					result,
 					rules,
 					workspaceRoot: context.workspaceInfo?.rootPath ?? context.cwd,
-					client: context.client,
 				});
 			},
 		},
