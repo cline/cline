@@ -63,6 +63,16 @@ export type {
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export type {
+	AsideAnswer,
+	AsideFailed,
+	AsideRequest,
+	AsideResult,
+	AsideSkipped,
+	AsideSkipReason,
+	AsideUsage,
+	PluginAsides,
+} from "./extensions/asides";
+export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,
