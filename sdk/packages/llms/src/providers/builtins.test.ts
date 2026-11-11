@@ -396,6 +396,7 @@ describe("built-in provider metadata", () => {
 		const generatedOnlyProviderIds = [
 			"fireworks",
 			"poolside",
+			"pioneer",
 			"nebius",
 			"baseten",
 			"requesty",

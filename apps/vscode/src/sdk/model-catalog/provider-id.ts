@@ -42,6 +42,7 @@ const KNOWN_API_PROVIDERS = {
 	sapaicore: true,
 	groq: true,
 	poolside: true,
+	pioneer: true,
 	huggingface: true,
 	"huawei-cloud-maas": true,
 	dify: true,
