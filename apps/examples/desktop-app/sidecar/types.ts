@@ -23,19 +23,6 @@ export type ChatTurnAttachments = {
 };
 
 export type ChatSessionCommandRequest = {
-	action:
-		| "start"
-		| "attach"
-		| "send"
-		| "stop"
-		| "abort"
-		| "fork"
-		| "reset"
-		| "restore_checkpoint"
-		| "pending_prompts"
-		| "steer_prompt"
-		| "update_pending_prompt"
-		| "remove_pending_prompt";
 	sessionId?: string;
 	prompt?: string;
 	promptId?: string;
@@ -44,7 +31,30 @@ export type ChatSessionCommandRequest = {
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
-};
+	/** Opaque webview correlation token echoed on handoff progress events. */
+	handoffAttemptId?: string;
+	completedHandoffAttemptId?: string;
+	gitPreparationId?: string;
+	/** Optional instruction appended to the locally generated summary. */
+	nextCommand?: string;
+} & (
+	| {
+			action:
+				| "start"
+				| "attach"
+				| "send"
+				| "stop"
+				| "abort"
+				| "fork"
+				| "reset"
+				| "restore_checkpoint"
+				| "pending_prompts"
+				| "steer_prompt"
+				| "update_pending_prompt"
+				| "remove_pending_prompt";
+	  }
+	| { action: "handoff"; operation: "prepare" | "discard" | "launch" }
+);
 
 export type PromptInQueue = {
 	id: string;

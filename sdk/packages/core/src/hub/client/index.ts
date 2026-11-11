@@ -1223,6 +1223,10 @@ export interface HubSessionActivity {
 	activePluginRequests: number;
 	/** Cloud session commands, such as provisioning, executing in the hub. */
 	activeCloudCommands: number;
+	/** Provider settings and model-file writes accepted by the Hub. */
+	activeProviderMutations: number;
+	/** MCP configuration and connection checks accepted by the Hub. */
+	activeMcpRequests: number;
 }
 
 /**
@@ -1269,7 +1273,13 @@ export function summarizeHubSessionActivity(
 			}
 		}
 	}
-	const count = (key: "activePluginRequests" | "activeCloudCommands") => {
+	const count = (
+		key:
+			| "activePluginRequests"
+			| "activeCloudCommands"
+			| "activeProviderMutations"
+			| "activeMcpRequests",
+	) => {
 		const value =
 			payload && typeof payload === "object"
 				? (payload as Record<string, unknown>)[key]
@@ -1283,6 +1293,8 @@ export function summarizeHubSessionActivity(
 		participantClientCount: clientIds.size,
 		activePluginRequests: count("activePluginRequests"),
 		activeCloudCommands: count("activeCloudCommands"),
+		activeProviderMutations: count("activeProviderMutations"),
+		activeMcpRequests: count("activeMcpRequests"),
 	};
 }
 
@@ -1291,7 +1303,9 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 	return (
 		activity.activeSessionCount > 0 ||
 		activity.activePluginRequests > 0 ||
-		activity.activeCloudCommands > 0
+		activity.activeCloudCommands > 0 ||
+		activity.activeProviderMutations > 0 ||
+		activity.activeMcpRequests > 0
 	);
 }
 
@@ -1339,7 +1353,9 @@ export async function localHubHasNoActiveSessions(
 		return (
 			activity.activeSessionCount === 0 &&
 			activity.activePluginRequests === 0 &&
-			activity.activeCloudCommands === 0
+			activity.activeCloudCommands === 0 &&
+			activity.activeProviderMutations === 0 &&
+			activity.activeMcpRequests === 0
 		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe

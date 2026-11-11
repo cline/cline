@@ -4,7 +4,7 @@ import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -20,6 +20,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
+import { reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -118,7 +119,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
-	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
+	const { config, write: writeProviderConfig, commitSelection, reasoningEffort } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const effectiveClineModels = catalogClineModels
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
@@ -473,10 +474,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	}, [selectedIndex])
 
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
-	const adaptiveThinkingDefaultEffort = useMemo(
-		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
-		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
-	)
 	// Show reasoning effort selector for all models that support reasoning,
 	// using the SDK catalog's supportsReasoning capability flag.
 	const showReasoningEffort = useMemo(
@@ -621,7 +618,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
 							}
 							currentMode={currentMode}
-							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
 							description={
 								showAdaptiveThinkingEffort
 									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
@@ -629,13 +625,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
 							onEffortChange={(effort) => {
-								writeProviderConfig({
-									reasoning: {
-										enabled: effort !== "none",
-										effort: effort !== "none" ? effort : undefined,
-									},
-								})
+								writeProviderConfig(reasoningEffortPatch(effort))
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 

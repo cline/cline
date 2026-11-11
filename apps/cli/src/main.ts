@@ -893,7 +893,12 @@ export async function runCli(): Promise<void> {
 			autoApprove: effectiveToolAutoApprove,
 		},
 	};
-	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings, {
+		nonInteractive:
+			!args.interactive &&
+			(!!args.prompt || (!process.stdin.isTTY && stdinHasPipedInput())),
+		toolAutoApprove: effectiveToolAutoApprove,
+	});
 	const effectiveCompactionMode = resolveStartupCompactionMode(
 		args,
 		persistedGlobalSettings,
@@ -972,7 +977,7 @@ export async function runCli(): Promise<void> {
 		const providedApiKey = args.key?.trim() || undefined;
 		let apiKey = providedApiKey || persistedApiKey || undefined;
 
-		const isYoloMode = args.mode === "yolo";
+		const isYoloMode = effectiveMode === "yolo";
 		const isZenMode = args.mode === "zen";
 
 		// In headless mode (yolo / json / piped stdin without --tui),
@@ -1025,6 +1030,12 @@ export async function runCli(): Promise<void> {
 			// "default", so they keep falling back to the first catalog entry.
 			if (provider === "cline") {
 				providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
+				// A new user has no saved model: start on the first free one.
+				if (!args.model && !selectedProviderSettings?.model) {
+					providerDefaultModelId =
+						(await coreServer.resolveClineDefaultModelId()) ||
+						providerDefaultModelId;
+				}
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

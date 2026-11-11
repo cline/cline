@@ -69,15 +69,28 @@ their utilities are emitted without changing generic host utility names.
 share welcome/conversation geometry and header groups through host-owned slots.
 See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
 
-`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
-accent, neutral, and destructive tones. Both default to `type="button"` so they
-are safe inside forms. `IconButton` requires an accessible `aria-label`, and
-both components support Radix-style composition through `asChild`.
+`Button` and `IconButton` share `primary`, `secondary`, and `ghost` variants
+across accent, neutral, and destructive tones. Existing `fill` and `surface`
+variants remain aliases for `primary` and `secondary`. Without `asChild`, both
+default to `type="button"`. Composed children retain their native form behavior
+unless a `type` is specified; a native button without a type submits its form.
+`IconButton` requires an accessible `aria-label`, and both components support
+Radix-style composition through `asChild`.
+
+Both support controlled `loading` with a reduced-motion-aware spinner and
+`aria-busy`; `disabled` remains explicit so loading actions can still offer
+cancellation. `Button` accepts `loadingLabel`, and both accept a custom
+`loadingIcon` and `iconTone="inherit" | "muted"` for managed icons.
+
+Both controls share heights and corner radii per size: `xs`/`sm` use
+`--radius-md`, and `md`/`lg` use `--radius-lg`. At default spacing their heights
+are 1.75rem, 2rem, 2.25rem, and 2.5rem respectively; icon buttons are square.
+See the [button sizing table](./ADOPTION.md#buttons).
 
 ```tsx
 import { Button, IconButton } from "@cline/ui";
 
-<Button size="sm" tone="accent" variant="fill">
+<Button size="sm" tone="accent" variant="primary">
 	Continue
 </Button>;
 
@@ -86,14 +99,22 @@ import { Button, IconButton } from "@cline/ui";
 </IconButton>;
 ```
 
+Icon props are optional; existing child icons keep working. `Badge` renders a
+span by default and a native button when `interactive` is supplied. See the
+[control adoption examples](./ADOPTION.md#buttons) for icon props, press
+feedback, and badge variants.
+
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
-`Switch` is a medium-size native checkbox styled as a switch. It supports
+`Switch` is a native checkbox styled as a switch, with `sm` and `md` sizes
+(default: `md`). It supports
 `checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.
 Provide an accessible name with a label or `aria-label`. Its ref targets the
 input; `className` and `style` customize the wrapper. See [switch usage and
 implementation rationale](./ADOPTION.md#switch) for examples and design decisions.
+Use `pending` to temporarily lock a switch while retaining its checked-state
+appearance; explicit `disabled` keeps the unavailable appearance.
 
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
@@ -122,13 +143,21 @@ The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`palette.css` and `tokens.css` are the canonical theme sources;
-`scoped-tokens.css` and the internal component Tailwind mapping are generated
-from them and `theme.css`. Contributors change the source theme files and run
-`bun run generate:theme`; tests and CI reject drift in either generated output.
-Consumers may import either public token entry point.
+The solid colors in `palette.css`, the semantic values in `tokens.css`, and
+the mappings in `theme.css` are the authored sources. `bun run generate:theme`
+derives alpha colors in `palette.css`, then generates `scoped-tokens.css` and
+the internal component Tailwind mapping. Tests and CI reject drift in all
+derived values. Consumers may import either public token entry point.
 
 ## Theme usage
+
+Existing consumers can keep `text-destructive` for error text and
+`bg-destructive text-destructive-foreground` for filled actions. The Tailwind
+mapping uses `--error-text` for destructive text and `--destructive` (the
+`--error-solid` alias) for backgrounds, borders, and rings. The label stays
+white through `--destructive-foreground`. Opacity modifiers, interaction
+variants, and the namespaced `cline-ui` utilities follow the same mapping.
+Framework-neutral CSS should use `--error-text` for readable error text.
 
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
@@ -172,7 +201,7 @@ normal Tailwind utilities inherit Cline defaults without custom adapters.
 Theme authors work through three layers:
 
 1. Cline-owned 12-step solid and alpha palettes: Slate as `--neutral-*`,
-   Violet as `--accent-*`, Ruby as `--error-*`, Green as `--success-*`, Amber
+   Iris as `--accent-*`, Vermilion as `--error-*`, Emerald as `--success-*`, Amber
    as `--warning-*`, and Sky as `--info-*`.
 2. Readable visual roles such as `--surface-1`, `--text-2`, `--border-1`, and
    `--success-surface`.
@@ -184,8 +213,17 @@ Tailwind exposes the role and compatibility layers, but intentionally does not
 register every raw palette step. Brand artwork may use the separate
 `--brand-*` colors.
 
-The palette values are derived from Radix Colors 3.0.0 under the included MIT
-license; `@cline/ui` does not depend on Radix Colors at runtime.
+Iris, Vermilion, and Emerald use Cline brand OKLCH scales. Neutral scales
+began with Radix Colors 3.0.0 under the included MIT license. Solid colors are
+authored; alpha counterparts are generated to reproduce those colors over each
+mode's `--neutral-1` within 3/255 per sRGB channel. This equivalence applies over
+`--neutral-1`, not arbitrary host backgrounds. No palette package is required
+at runtime.
+
+Use `--accent-foreground` and the status `-text` roles for small colored text.
+Pair solid fills with their foreground or `-contrast` roles.
+The existing token names and component APIs remain available. Typography adds
+`--text-xxs` for 11px text at the default 15px root size.
 
 ## Agent-chat usage
 
@@ -379,3 +417,38 @@ requires Tailwind v4 and the two font packages shown above.
 and usage-detail body through a render callback. The host keeps its existing
 button/popover behavior and passes its formatted cost separately from the latest
 request's context tokens. See [context usage](./ADOPTION.md#context-usage).
+
+### UX verification reports
+
+`AgentUxVerification` renders the shared `UxVerificationReport` contract from `@cline/shared/browser` as an evidence carousel. It supports passed/failed/blocked checks, titles, observations, thumbnails, keyboard navigation and optional slideshow. Pass `state="running"` while verification runs, then `state="completed"` with its report. Invalid output or `state="error"` displays a failure state rather than a success count.
+
+Inline screenshots use the existing safe Blob renderer. Hosts can supply `renderScreenshot(check, className, presentation)` to resolve authenticated asset references, and `onExpandScreenshot(check)` to open their focus-managed image viewer. The component owns no transport or upload client. Its styles ship in `@cline/ui/components.css`; see the **Agent/UX verification** Storybook stories.
+
+When the carousel has focus, Left/Right switch slides and Space toggles slideshow playback without scrolling the page. Arrow navigation pauses playback. Space on a focused button retains that button’s normal action.
+
+Screenshot evidence uses the existing `GeneratedMedia` image contract: `id`, `modality: "image"`, a supported raster `mediaType`, and `source` (`base64`, `url`, or `artifact`). Optional `name` and `sizeBytes` metadata are preserved. Persist artifact IDs in reports and let the host resolve access URLs when displaying them; the shared component does not invent or refresh signed URLs.
+
+A Desktop consumer can pass `check.screenshot` directly to its existing `ArtifactImage` component from the cloud-artifact integration, without converting between image formats:
+
+```tsx
+<AgentUxVerification
+  output={report}
+  state="completed"
+  renderScreenshot={(check, className, presentation) =>
+    check.screenshot?.source.type === "artifact" ? (
+      <ArtifactImage
+        media={check.screenshot}
+        sessionId={sessionId}
+        className={className}
+        interactive={presentation !== "thumbnail"}
+      />
+    ) : undefined
+  }
+/>
+```
+
+`ArtifactImage` belongs to the Desktop host, not this package. Other hosts supply their own media renderer. Unresolved URL and artifact sources show a resolver-required placeholder by default; inline base64 sources use `GeneratedMediaContent`. See the **Artifact reference** Storybook example.
+
+A host renderer can return `undefined` to keep the shared default renderer for a source it does not own. For example, an artifact renderer returns `undefined` for inline screenshots so the shared Blob rendering and image-load fallback stay active.
+
+`presentation` is `"slide"` or `"thumbnail"`. Thumbnail content lives inside the selection button and must not render buttons, links or other interactive controls. Hosts should disable retry controls in that context while keeping recovery available in the main view. `GeneratedMediaContent` shows its unavailable fallback if inline image bytes fail to decode, including in expanded host viewers.

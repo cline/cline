@@ -11,6 +11,10 @@ import type {
 	UserCurrentPlan,
 } from "@cline/core";
 import {
+	getClineEnvironmentConfig,
+	resolveClineAppUrl,
+} from "@cline/shared/browser";
+import {
 	AlertCircle,
 	Building,
 	CreditCard,
@@ -21,6 +25,7 @@ import {
 	Plus,
 	Receipt,
 	RefreshCw,
+	ShieldCheck,
 	Sparkles,
 	User,
 	UserCircleIcon,
@@ -195,6 +200,10 @@ export function AccountView() {
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
+	const privacySettingsUrl = resolveClineAppUrl(
+		user?.dataPrivacyPath,
+		getClineEnvironmentConfig().appBaseUrl,
+	);
 	const [balance, setBalance] = useState<ClineAccountBalance | null>(null);
 	const [organizationBalance, setOrganizationBalance] =
 		useState<ClineAccountOrganizationBalance | null>(null);
@@ -695,14 +704,26 @@ export function AccountView() {
 											Member since {formatDate(user.createdAt)}
 										</p>
 									</div>
-									<button
-										type="button"
-										title="Open dashboard"
-										onClick={() => void openExternalUrl(DASHBOARD_URL)}
-										className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-									>
-										<ExternalLink className="h-4 w-4" />
-									</button>
+									<div className="flex items-center gap-1">
+										{privacySettingsUrl && (
+											<button
+												type="button"
+												title="Privacy settings"
+												onClick={() => void openExternalUrl(privacySettingsUrl)}
+												className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+											>
+												<ShieldCheck className="h-4 w-4" />
+											</button>
+										)}
+										<button
+											type="button"
+											title="Open dashboard"
+											onClick={() => void openExternalUrl(DASHBOARD_URL)}
+											className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+										>
+											<ExternalLink className="h-4 w-4" />
+										</button>
+									</div>
 								</div>
 							</div>
 

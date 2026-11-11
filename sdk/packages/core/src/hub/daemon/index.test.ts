@@ -39,6 +39,8 @@ const {
 			participantClientCount: number;
 			activePluginRequests: number;
 			activeCloudCommands?: number;
+			activeProviderMutations?: number;
+			activeMcpRequests?: number;
 		}> => ({
 			activeSessionCount: 0,
 			participantClientCount: 0,
@@ -561,12 +563,16 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("attaches to an older hub that is provisioning a cloud session instead of retiring it", async () => {
+	it.each([
+		"activeCloudCommands",
+		"activeProviderMutations",
+		"activeMcpRequests",
+	] as const)("preserves an older hub with %s instead of retiring it", async (activity) => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
 			activePluginRequests: 0,
-			activeCloudCommands: 1,
+			[activity]: 1,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1099,12 +1105,16 @@ describe("upgradeManagedHub", () => {
 		expect(spawn).not.toHaveBeenCalled();
 	});
 
-	it("leaves a hub provisioning a cloud session running when not forced", async () => {
+	it.each([
+		"activeCloudCommands",
+		"activeProviderMutations",
+		"activeMcpRequests",
+	] as const)("leaves a hub with %s running when not forced", async (activity) => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
 			activePluginRequests: 0,
-			activeCloudCommands: 1,
+			[activity]: 1,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1425,5 +1435,24 @@ describe("setHubDaemonLauncher", () => {
 		expect(__test__.resolveLaunchCommand("/work").launcher).toBe(
 			process.execPath,
 		);
+	});
+
+	it("applies child-only runtime settings while preserving daemon markers", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		const env = { ELECTRON_RUN_AS_NODE: "1", CLINE_RUN_AS_HUB_DAEMON: "0" };
+		setHubDaemonLauncher({
+			command: "/editor",
+			args: ["/extension/hub.js"],
+			env,
+		});
+		env.ELECTRON_RUN_AS_NODE = "0";
+		const command = __test__.resolveLaunchCommand("/work");
+		expect(command.args.slice(0, 2)).toEqual(["/extension/hub.js", "--cwd"]);
+		expect(command.env.ELECTRON_RUN_AS_NODE).toBe("1");
+		expect(command.env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+		setHubDaemonLauncher(undefined);
+		expect(
+			__test__.resolveLaunchCommand("/work").env.ELECTRON_RUN_AS_NODE,
+		).toBe(process.env.ELECTRON_RUN_AS_NODE);
 	});
 });

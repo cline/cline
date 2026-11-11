@@ -1492,9 +1492,15 @@ export class SessionRuntime {
 	}
 
 	private emitLegacyEvent(event: AgentEvent): void {
+		const identifiedEvent: AgentEvent = {
+			...event,
+			agentId: this.agentId,
+			conversationId: this.conversation.getConversationId(),
+			parentAgentId: this.parentAgentId ?? null,
+		};
 		for (const listener of this.listeners) {
 			try {
-				listener(event);
+				listener(identifiedEvent);
 			} catch (error) {
 				this.logger?.error?.("SessionRuntime event listener threw", {
 					agentId: this.agentId,

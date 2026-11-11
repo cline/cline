@@ -11,7 +11,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -26,6 +26,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
 
 const {
@@ -205,10 +206,12 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 	readOnly = false,
+	placeholder,
 	executionTarget,
 	onAttachFiles = vi.fn(),
 	sessionId,
 	strictMode = false,
+	cloudHandoffAvailable = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -220,10 +223,12 @@ async function renderVoiceComposer({
 	promptVersion?: number;
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	placeholder?: string;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
 	strictMode?: boolean;
+	cloudHandoffAvailable?: boolean;
 } = {}) {
 	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
@@ -234,6 +239,8 @@ async function renderVoiceComposer({
 						environmentId="local"
 						workspaceRoot="/workspace/cline"
 						readOnly={readOnly}
+						placeholder={placeholder}
+						cloudHandoffAvailable={cloudHandoffAvailable}
 						executionTarget={executionTarget}
 						sessionId={sessionId}
 						attachments={attachments}
@@ -278,7 +285,7 @@ function DraftComposer({
 	threadId,
 	sendPrompt,
 }: {
-	drafts: Map<string, string>;
+	drafts: PromptDraftCache;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
 }) {
@@ -326,7 +333,9 @@ function DraftComposer({
 
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
-		const drafts = new Map([["A", "Try again"]]);
+		const drafts = new PromptDraftCache([
+			["A", { text: "Try again", attachments: [] }],
+		]);
 		const response = deferred<boolean>();
 		await act(async () => {
 			root.render(
@@ -345,11 +354,11 @@ describe("ChatInputBar draft navigation", () => {
 		expect(container.querySelector("textarea")?.value).toBe("");
 		await act(async () => response.resolve(false));
 		expect(container.querySelector("textarea")?.value).toBe("Try again");
-		expect(drafts.get("A")).toBe("Try again");
+		expect(drafts.get("A")?.text).toBe("Try again");
 	});
 
 	it("restores typed text on return and does not restore it after sending", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftCache();
 		const showThread = async (threadId: string) => {
 			await act(async () => {
 				root.render(
@@ -395,6 +404,20 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("highlights /cloud only when handoff is available", async () => {
+		for (const enabled of [false, true, false]) {
+			await renderVoiceComposer({
+				prompt: "/cloud Continue",
+				cloudHandoffAvailable: enabled,
+			});
+			expect(
+				container
+					.querySelector("textarea")
+					?.parentElement?.querySelector("[aria-hidden] span")?.textContent,
+			).toBe(enabled ? "/cloud" : undefined);
+		}
+	});
+
 	it("retains skills and workflows when plugin discovery rejects", async () => {
 		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
 			if (name === "list_plugin_commands") throw new Error("hub unavailable");
@@ -616,6 +639,32 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Old skill");
 		expect(container.textContent).toContain("New workflow");
 		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
+	it("uses caller placeholder text while preserving defaults and repository prompts", async () => {
+		await renderVoiceComposer({
+			status: "starting",
+			placeholder: "Custom prompt",
+		});
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.placeholder).toBe("Custom prompt");
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			placeholder: "Custom prompt",
+		});
+		expect(textarea?.placeholder).toBe("Choose a repository");
+		await renderVoiceComposer({ status: "starting" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer({ status: "running" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer();
+		expect(textarea?.placeholder).toBe(
+			"Enter your question or type / for commands or @ for context",
+		);
 	});
 
 	it("prevents sending from a read-only session", async () => {
@@ -873,6 +922,21 @@ describe("ChatInputBar", () => {
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+		]);
+	});
+
+	it("shows the reserved cloud command only while Cloud sessions are available", () => {
+		const commands = [
+			{ name: "fork", description: "Fork" },
+			{ name: "cloud", description: "User workflow" },
+		];
+		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
+		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
+			{
+				name: "cloud",
+				description: "Continue this local session in Cline Cloud",
+			},
+			{ name: "fork", description: "Fork" },
 		]);
 	});
 
@@ -1503,6 +1567,7 @@ describe("ChatInputBar", () => {
 			onSend,
 			prompt: "external replacement",
 			promptVersion: 1,
+			placeholder: "Custom prompt",
 		});
 		expect(textarea?.value).toBe("external replacement");
 		expect(textarea?.readOnly).toBe(true);
@@ -2057,7 +2122,10 @@ describe("ChatInputBar", () => {
 		).toEqual({ cline: "high" });
 	});
 
-	it("seeds an unset thinking level from the remembered provider choice instead of Low", async () => {
+	it.each([
+		"medium",
+		"max",
+	] as const)("seeds an unset thinking level from the remembered provider choice (%s) instead of Low", async (remembered) => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -2066,7 +2134,7 @@ describe("ChatInputBar", () => {
 		});
 		window.localStorage.setItem(
 			REASONING_SELECTION_STORAGE_KEY,
-			JSON.stringify({ cline: "medium", anthropic: "high" }),
+			JSON.stringify({ cline: remembered, anthropic: "high" }),
 		);
 		const onReasoningChange = vi.fn();
 		await act(async () => {
@@ -2110,7 +2178,7 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onReasoningChange).toHaveBeenCalledWith({
 				thinking: true,
-				reasoningEffort: "medium",
+				reasoningEffort: remembered,
 			});
 		});
 		expect(onReasoningChange).not.toHaveBeenCalledWith({
@@ -3152,6 +3220,47 @@ describe("ChatInputBar", () => {
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
 		});
 
+		it.each([
+			"empty",
+			"failed",
+		])("does not replace the active cloud model with bundled choices when its catalog is %s", async (result) => {
+			if (result === "failed")
+				loadProviderModelCatalogMock.mockRejectedValue(new Error("offline"));
+			else
+				loadProviderModelCatalogMock.mockResolvedValue({
+					providers: [],
+					enabledProviderIds: [],
+					providerNames: {},
+					providerModels: {},
+					providerModelDetails: {},
+					providerReasoningModels: {},
+				});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "selected-model",
+				provider: "cline",
+				onModelChange,
+			});
+			if (result === "failed") {
+				expect(container.textContent).toContain(
+					"Could not load cloud models. Retry",
+				);
+			} else {
+				const trigger = container.querySelector<HTMLButtonElement>(
+					'[aria-label="Model: selected-model"]',
+				);
+				expect(trigger).not.toBeNull();
+				await act(async () => trigger?.click());
+				const options = [...document.querySelectorAll('[role="option"]')];
+				expect(options).toHaveLength(1);
+				expect(options[0]?.textContent).toContain("selected-model");
+			}
+			expect(loadProviderModelsMock).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
+		});
+
 		it("keeps an active model that is absent from the gated catalog", async () => {
 			const onModelChange = vi.fn();
 			await renderComposer({
@@ -3456,7 +3565,9 @@ describe("ChatInputBar token ring", () => {
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
 		const circumference = 2 * Math.PI * 8.5;
 		expect(
@@ -3494,13 +3605,17 @@ describe("ChatInputBar token ring", () => {
 			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
 			1000,
 		);
-		expect(warning?.querySelector("circle.stroke-orange-500")).not.toBeNull();
+		expect(
+			warning?.querySelector("circle.stroke-cline-ui-warning-text"),
+		).not.toBeNull();
 
 		const critical = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 750, tokensOut: 0 },
 			1000,
 		);
-		expect(critical?.querySelector("circle.stroke-red-500")).not.toBeNull();
+		expect(
+			critical?.querySelector("circle.stroke-cline-ui-error-text"),
+		).not.toBeNull();
 	});
 
 	it("opens only supported usage details on click", async () => {
@@ -3558,7 +3673,9 @@ describe("ChatInputBar token ring", () => {
 			},
 			128_000,
 		);
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
 	});
 });

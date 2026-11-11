@@ -102,9 +102,10 @@ export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
-export { Badge, type BadgeProps } from "./badge.js";
+export { Badge, type BadgeProps, type InteractiveBadgeProps } from "./badge.js";
 export {
 	Button,
+	type ButtonIcon,
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonTone,
@@ -133,3 +134,18 @@ export {
 	type SessionStatusTone,
 } from "./session-status.js";
 export { Switch, type SwitchProps } from "./switch.js";
+
+export {
+	AgentUxVerification,
+	type AgentUxVerificationProps,
+	type UxScreenshotRenderer,
+	type UxScreenshotPresentation,
+} from "./agent-ux-verification.js";
+export {
+	Carousel,
+	CarouselContent,
+	CarouselItem,
+	CarouselPrevious,
+	CarouselNext,
+	type CarouselApi,
+} from "./carousel.js";

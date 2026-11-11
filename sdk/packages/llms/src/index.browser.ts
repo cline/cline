@@ -1,5 +1,6 @@
 /** @deprecated Import from `@cline/shared`; kept for compatibility. */
 export {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	type ProviderLocalCli,
 	resolveProviderLocalCli,

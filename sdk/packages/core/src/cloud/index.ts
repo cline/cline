@@ -1,6 +1,19 @@
 /** Experimental cloud execution client. No local runtime or tool execution is initialized. */
 
+export type { CloudArtifactDownload } from "../artifacts/cloud/download-url";
+export { createArtifactFetcher } from "../artifacts/cloud/fetch";
+export { createArtifactPublisher } from "../artifacts/cloud/publish";
 export * from "../services/cloud-handoff";
+export {
+	type HandoffGitPlan,
+	type HandoffGitPreview,
+	inspectHandoffGit,
+	previewHandoffGit,
+} from "../services/cloud-handoff/git-preparation";
+export {
+	type PublishedHandoffInput,
+	publishCloudHandoff,
+} from "../services/cloud-handoff/publication";
 export * from "./api";
 export * from "./controller";
 export * from "./hub-client";

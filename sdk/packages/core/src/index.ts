@@ -436,6 +436,10 @@ export {
 	toTeamProgressLifecycleEvent,
 } from "./extensions/tools/team";
 export {
+	createUxVerifierTool,
+	UX_VERIFIER_INSTRUCTIONS,
+} from "./extensions/tools/team/ux-verification";
+export {
 	createAgentHooksExtension,
 	createHookAuditHooks,
 	createHookConfigFileExtension,
@@ -618,6 +622,7 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -629,6 +634,7 @@ export {
 	resolveDisabledToolNames,
 	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
@@ -982,6 +988,13 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
+export {
+	type ArtifactPublicationFile,
+	type ArtifactPublicationResult,
+	type ArtifactPublisher,
+	createPublishArtifactsTool,
+} from "./artifacts/publish";
+export { createUxVerificationReportTool } from "./artifacts/ux-verification";
 export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
 export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
@@ -1048,7 +1061,9 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { createHubMcpApi, type HubMcpApi } from "./hub/client/mcp";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
@@ -1062,6 +1077,7 @@ export {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
+	resolveClineDefaultModelId,
 } from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,

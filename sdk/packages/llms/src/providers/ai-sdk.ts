@@ -61,10 +61,6 @@ import {
 	resolveModelFamily,
 } from "./model-facts";
 import {
-	recordProviderRequestCapture,
-	wrapFetchForProviderRequestCapture,
-} from "./provider-request-capture";
-import {
 	appendRequestId,
 	extractResponseRequestId,
 	findRequestIdHeader,
@@ -399,8 +395,12 @@ function buildAiSdkRequestMessages(
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
+	const includeReasoning = shouldIncludeReasoningHistory(request, context);
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
-		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		includeReasoning,
+		fillMissingReasoning:
+			includeReasoning &&
+			context.model.metadata?.interleavedReasoningField === "reasoning_content",
 		supportedInputModalities:
 			context.model.modalities?.input ??
 			(context.model.capabilities
@@ -747,6 +747,7 @@ function toAiSdkMessages(
 	systemPrompt?: string,
 	options?: {
 		includeReasoning?: boolean;
+		fillMissingReasoning?: boolean;
 		supportedInputModalities?: readonly string[];
 	},
 ) {
@@ -843,6 +844,17 @@ function toAiSdkMessages(
 					isError: part.isError ?? false,
 				});
 			}
+		}
+
+		// Models with interleaved reasoning reject assistant history that has
+		// none (it was compacted away, or came from another model). A single
+		// space is the smallest value such providers accept; empty is rejected.
+		if (
+			options?.fillMissingReasoning &&
+			message.role === "assistant" &&
+			!content.some((part) => part.type === "reasoning" && part.text.trim())
+		) {
+			content.unshift({ type: "reasoning", text: " " });
 		}
 
 		// A message left empty only because its reasoning was dropped is
@@ -2247,11 +2259,7 @@ function createAiSdkProvider(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
-						),
+						fetch: wrapFetchForStickySession(config.fetch, request, context),
 					},
 					context,
 				);
@@ -2311,21 +2319,6 @@ function createAiSdkProvider(
 						);
 					}
 					const prompt = resolveImageGenerationPrompt(request, context);
-					recordProviderRequestCapture({
-						stage: "ai_sdk_prompt",
-						request,
-						payload: {
-							operation: "generate_image",
-							prompt:
-								typeof prompt === "string"
-									? prompt
-									: {
-											text: prompt.text,
-											imageCount: prompt.images.length,
-										},
-							providerOptions,
-						},
-					});
 					const result = await generateImage({
 						model: provider.operations.imageGeneration(
 							context.model.id,
@@ -2417,18 +2410,6 @@ function createAiSdkProvider(
 					provider.buildStreamConfig
 						? provider.buildStreamConfig(request, context)
 						: buildAiSdkStreamConfig(request, context);
-				recordProviderRequestCapture({
-					stage: "ai_sdk_prompt",
-					request,
-					payload: {
-						messages,
-						...(useSystemOption ? { system: systemPrompt } : {}),
-						tools,
-						providerOptions,
-						...requestConfig,
-						...(portableReasoning ? { reasoning: portableReasoning } : {}),
-					},
-				});
 				stream = await withAiSdkLangfuseTraceContext(
 					aiSdkTelemetry.isEnabled,
 					request,

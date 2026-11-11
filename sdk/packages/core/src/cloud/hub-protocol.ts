@@ -1,4 +1,4 @@
-import type { CreateCloudSessionInput } from "./api";
+import type { PublishedHandoffInput } from "../services/cloud-handoff/publication";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
@@ -11,6 +11,8 @@ export const CLOUD_HUB_OPERATIONS = [
 	"updatePendingPrompt",
 	"removePendingPrompt",
 	"readMessages",
+	"readArchivedMessages",
+	"getArtifactDownloadUrl",
 	"updateTitle",
 	"delete",
 	"list",
@@ -22,13 +24,25 @@ export const CLOUD_HUB_OPERATIONS = [
 	"respondApproval",
 	"restoreCreationOptions",
 	"refreshOrganization",
+	"prepareHandoffRepository",
 ] as const;
-export type CloudHubScope = { serviceId: string; scopeGeneration: number };
+export type CloudHubScope = {
+	serviceId: string;
+	scopeGeneration: number;
+	expectedAccountId?: string;
+};
 
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
+type CloudCreateInput = Omit<
+	Parameters<CloudSessionController["create"]>[0],
+	"handoff"
+>;
+export type CloudHubCreateInput =
+	| (CloudCreateInput & { localGit?: never })
+	| PublishedHandoffInput;
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
-	? [input: Omit<CreateCloudSessionInput, "handoff">]
+	? [input: CloudHubCreateInput]
 	: K extends "send"
 		? [
 				sessionId: string,
