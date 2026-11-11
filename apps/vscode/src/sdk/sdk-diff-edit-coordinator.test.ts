@@ -364,6 +364,128 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews[0].closed).toBe(1)
 	})
 
+	it("rejects an apply_patch preview when the file changes before approval, then allows a fresh preview", async () => {
+		const original = "const save = () => {\n  return submit(form)\n}\n"
+		const newer = "const save = () => {\n  return await submit(form)\n}\n"
+		await writeFile("sample.ts", original)
+		const input = {
+			input: [
+				"*** Begin Patch",
+				"*** Update File: sample.ts",
+				"@@",
+				" const save = () => {",
+				"-  return submit(form)",
+				"+  return submit({ ...form, enabled: false })",
+				" }",
+				"*** End Patch",
+			].join("\n"),
+		}
+
+		await coordinator.openForApproval("tc-stale", "apply_patch", input)
+		expect(previews[0].opened?.rightContent).toContain("enabled: false")
+		await fs.writeFile(path.join(tempDir, "sample.ts"), newer)
+
+		await expect(coordinator.executeApplyPatchTool(input, tempDir, makeContext("tc-stale"))).rejects.toThrow(
+			"A file changed after its edit preview was shown",
+		)
+		expect(fallbackApplyPatch).not.toHaveBeenCalled()
+		expect(await fs.readFile(path.join(tempDir, "sample.ts"), "utf-8")).toBe(newer)
+		expect(previews[0].closed).toBe(1)
+
+		// The failed tool call closes its snapshot; a re-preview against current content can proceed.
+		await coordinator.openForApproval("tc-stale", "apply_patch", input)
+		await expect(coordinator.executeApplyPatchTool(input, tempDir, makeContext("tc-stale"))).resolves.toBe(
+			"fallback apply_patch result",
+		)
+		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
+	})
+
+	it("rejects previewed file creation and deletion if target existence changes", async () => {
+		const addPatch = {
+			input: ["*** Begin Patch", "*** Add File: new.ts", "+content", "*** End Patch"].join("\n"),
+		}
+		await coordinator.openForApproval("tc-add", "apply_patch", addPatch)
+		await writeFile("new.ts", "created externally")
+		await expect(coordinator.executeApplyPatchTool(addPatch, tempDir, makeContext("tc-add"))).rejects.toThrow(
+			"A file changed after its edit preview was shown",
+		)
+
+		await writeFile("existing.ts", "old content\n")
+		const updatePatch = {
+			input: [
+				"*** Begin Patch",
+				"*** Update File: existing.ts",
+				"@@",
+				"-old content",
+				"+new content",
+				"*** End Patch",
+			].join("\n"),
+		}
+		await coordinator.openForApproval("tc-delete", "apply_patch", updatePatch)
+		await fs.rm(path.join(tempDir, "existing.ts"))
+		await expect(coordinator.executeApplyPatchTool(updatePatch, tempDir, makeContext("tc-delete"))).rejects.toThrow(
+			"A file changed after its edit preview was shown",
+		)
+		expect(fallbackApplyPatch).not.toHaveBeenCalled()
+	})
+
+	it("rejects a changed DELETE target in a patch with a visible preview", async () => {
+		const shownOriginal = "shown old\n"
+		const deleteOriginal = "delete old\n"
+		const deleteUpdated = "delete changed externally\n"
+		await writeFile("shown.ts", shownOriginal)
+		await writeFile("deleted.ts", deleteOriginal)
+		const input = {
+			input: [
+				"*** Begin Patch",
+				"*** Update File: shown.ts",
+				"@@",
+				"-shown old",
+				"+shown new",
+				"*** Delete File: deleted.ts",
+				"*** End Patch",
+			].join("\n"),
+		}
+
+		await coordinator.openForApproval("tc-delete-changed", "apply_patch", input)
+		await fs.writeFile(path.join(tempDir, "deleted.ts"), deleteUpdated)
+
+		await expect(coordinator.executeApplyPatchTool(input, tempDir, makeContext("tc-delete-changed"))).rejects.toThrow(
+			"A file changed after its edit preview was shown",
+		)
+		expect(fallbackApplyPatch).not.toHaveBeenCalled()
+		expect(await fs.readFile(path.join(tempDir, "shown.ts"), "utf-8")).toBe(shownOriginal)
+		expect(await fs.readFile(path.join(tempDir, "deleted.ts"), "utf-8")).toBe(deleteUpdated)
+	})
+
+	it("rejects a changed MOVE destination after preview", async () => {
+		const destinationOriginal = "destination original\n"
+		const destinationUpdated = "destination edited externally\n"
+		await writeFile("source.ts", "source original\n")
+		await writeFile("destination.ts", destinationOriginal)
+		const input = {
+			input: [
+				"*** Begin Patch",
+				"*** Update File: source.ts",
+				"*** Move to: destination.ts",
+				"@@",
+				"-source original",
+				"+source updated",
+				"*** End Patch",
+			].join("\n"),
+		}
+
+		await coordinator.openForApproval("tc-move-changed", "apply_patch", input)
+		await fs.writeFile(path.join(tempDir, "destination.ts"), destinationUpdated)
+
+		await expect(coordinator.executeApplyPatchTool(input, tempDir, makeContext("tc-move-changed"))).rejects.toThrow(
+			"A file changed after its edit preview was shown",
+		)
+		expect(fallbackApplyPatch).not.toHaveBeenCalled()
+		expect(await fs.readFile(path.join(tempDir, "source.ts"), "utf-8")).toBe("source original\n")
+		expect(await fs.readFile(path.join(tempDir, "destination.ts"), "utf-8")).toBe(destinationUpdated)
+	})
+
 	it("closes the preview even when the write fails", async () => {
 		await writeFile("a.ts", "old content")
 		const input = { path: "a.ts", old_text: "old", new_text: "new" }
@@ -640,6 +762,26 @@ describe("SdkDiffEditCoordinator", () => {
 		await coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc-move"))
 
 		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "destination.ts"))
+	})
+
+	it("keeps the SDK's existing move-overwrite behavior when the destination is unchanged", async () => {
+		await writeFile("source.ts", "line one\n")
+		await writeFile("destination.ts", "existing destination\n")
+		const patch = [
+			"*** Begin Patch",
+			"*** Update File: source.ts",
+			"*** Move to: destination.ts",
+			"@@",
+			"-line one",
+			"+line ONE",
+			"*** End Patch",
+		].join("\n")
+
+		await coordinator.openForApproval("tc-move-existing", "apply_patch", { input: patch })
+		await expect(coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc-move-existing"))).resolves.toBe(
+			"fallback apply_patch result",
+		)
+		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
 	})
 
 	it("shows a brief preview around auto-approved patches", async () => {

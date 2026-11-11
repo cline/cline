@@ -54,6 +54,8 @@ interface DiffEditSession {
 	absolutePath: string
 	/** File to show after the write; differs from absolutePath for apply_patch moves. */
 	revealPath: string
+	/** Preimage for every target covered by the approval preview, including absent paths. */
+	expectedFiles: Map<string, string | undefined>
 }
 
 /**
@@ -128,6 +130,7 @@ export class SdkDiffEditCoordinator {
 					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve preview: ${error}`)
 				}
 			}
+			await this.assertPreviewTargetsUnchanged(this.sessions.get(toolCallId)?.expectedFiles)
 			const result = await this.fallbackEditorExecutor(input, cwd, context)
 			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
 				// Keep the auto-approve preview visible briefly after the write; an abort
@@ -154,6 +157,7 @@ export class SdkDiffEditCoordinator {
 		// The pre-approval preview is discarded before the patch applies, so remember
 		// which file it showed for the post-edit reveal.
 		const preApprovalRevealPath = this.livePreviewRevealPath(toolCallId)
+		let expectedFiles = this.sessions.get(toolCallId)?.expectedFiles
 		try {
 			if (hadPreApprovalPreview) {
 				await this.discardPreview(toolCallId)
@@ -163,8 +167,10 @@ export class SdkDiffEditCoordinator {
 				} catch (error) {
 					Logger.warn(`[SdkDiffEditCoordinator] Failed to show auto-approve patch preview: ${error}`)
 				}
+				expectedFiles = this.sessions.get(toolCallId)?.expectedFiles
 			}
 
+			await this.assertPreviewTargetsUnchanged(expectedFiles)
 			const result = await this.fallbackApplyPatchExecutor(input, cwd, context)
 			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
@@ -186,6 +192,29 @@ export class SdkDiffEditCoordinator {
 	private livePreviewRevealPath(toolCallId: string): string | undefined {
 		const session = this.sessions.get(toolCallId)
 		return session?.preview ? session.revealPath : undefined
+	}
+
+	/** Refuse to apply an approved diff if any file it showed has since changed. */
+	private async assertPreviewTargetsUnchanged(
+		expectedFiles: ReadonlyMap<string, string | undefined> | undefined,
+	): Promise<void> {
+		if (!expectedFiles) {
+			return
+		}
+
+		for (const [absolutePath, expectedContent] of expectedFiles) {
+			let currentContent: string | undefined
+			try {
+				currentContent = await fs.readFile(absolutePath, "utf-8")
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+					throw error
+				}
+			}
+			if (currentContent !== expectedContent) {
+				throw new Error("A file changed after its edit preview was shown. Review the current file and retry the edit.")
+			}
+		}
 	}
 
 	/**
@@ -267,6 +296,7 @@ export class SdkDiffEditCoordinator {
 			editType,
 			leftContent: originalContent ?? "",
 			rightContent: newContent,
+			expectedFiles: new Map([[absolutePath, originalContent]]),
 		})
 	}
 
@@ -276,6 +306,25 @@ export class SdkDiffEditCoordinator {
 		}
 		const cwd = await this.options.getCwd()
 		const { changes } = await computePatchChanges(input.input, cwd)
+		const expectedFiles = new Map<string, string | undefined>()
+		for (const [filePath, change] of Object.entries(changes)) {
+			const absolutePath = resolveEditPath(cwd, filePath)
+			expectedFiles.set(absolutePath, change.oldContent)
+			if (change.type === PatchActionType.ADD) {
+				expectedFiles.set(absolutePath, undefined)
+			}
+			if (change.movePath) {
+				const movePath = resolveEditPath(cwd, change.movePath)
+				try {
+					expectedFiles.set(movePath, await fs.readFile(movePath, "utf-8"))
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+						throw error
+					}
+					expectedFiles.set(movePath, undefined)
+				}
+			}
+		}
 		// Preview the first file the patch creates or updates. Multi-file patches are
 		// uncommon; any remaining files apply without a preview.
 		const first = Object.entries(changes).find(
@@ -294,6 +343,7 @@ export class SdkDiffEditCoordinator {
 			editType: change.type === PatchActionType.ADD ? "create" : "modify",
 			leftContent: change.oldContent ?? "",
 			rightContent: change.newContent ?? "",
+			expectedFiles,
 		})
 	}
 
@@ -306,6 +356,7 @@ export class SdkDiffEditCoordinator {
 			editType: "create" | "modify"
 			leftContent: string
 			rightContent: string
+			expectedFiles: Map<string, string | undefined>
 		},
 	): Promise<void> {
 		// A newer preview for the same file supersedes an older pending one (approvals
@@ -359,6 +410,7 @@ export class SdkDiffEditCoordinator {
 			preview,
 			absolutePath: content.absolutePath,
 			revealPath: content.revealPath ?? content.absolutePath,
+			expectedFiles: content.expectedFiles,
 		})
 	}
 
