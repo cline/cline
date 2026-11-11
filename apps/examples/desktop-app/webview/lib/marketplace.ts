@@ -125,7 +125,36 @@ function parseOptionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
+const CATALOG_CACHE_TTL_MS = 5 * 60_000;
+let catalogCache: { value: MarketplaceCatalog; fetchedAt: number } | null =
+	null;
+let catalogRequest: Promise<MarketplaceCatalog> | null = null;
+
+export function getCachedMarketplaceCatalog(): MarketplaceCatalog | null {
+	return catalogCache?.value ?? null;
+}
+
+export function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
+	if (catalogRequest) return catalogRequest;
+	if (
+		catalogCache &&
+		Date.now() - catalogCache.fetchedAt < CATALOG_CACHE_TTL_MS
+	) {
+		return Promise.resolve(catalogCache.value);
+	}
+	const request = loadMarketplaceCatalog()
+		.then((value) => {
+			catalogCache = { value, fetchedAt: Date.now() };
+			return value;
+		})
+		.finally(() => {
+			if (catalogRequest === request) catalogRequest = null;
+		});
+	catalogRequest = request;
+	return request;
+}
+
+async function loadMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	const urls = [MARKETPLACE_CATALOG_URL];
 	try {
 		const backendEndpoint = await resolveDesktopBackendHttpEndpoint();
@@ -156,13 +185,21 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 			? lastError
 			: new Error("Failed to fetch marketplace");
 	}
+	const payload: Record<string, unknown> =
+		data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+	// The sidecar returns an empty fallback with an error when its upstream
+	// fails. Do not retain that fallback as a successful catalog for the TTL.
+	if (typeof payload.error === "string") throw new Error(payload.error);
 
-	const baseUrl = typeof data?.baseUrl === "string" ? data.baseUrl : undefined;
-	const rawCounts =
-		typeof data?.counts === "object" && data.counts !== null ? data.counts : {};
+	const baseUrl =
+		typeof payload.baseUrl === "string" ? payload.baseUrl : undefined;
+	const rawCounts: Record<string, unknown> =
+		typeof payload.counts === "object" && payload.counts !== null
+			? (payload.counts as Record<string, unknown>)
+			: {};
 
-	const tags: MarketplaceTag[] = Array.isArray(data?.tags)
-		? data.tags
+	const tags: MarketplaceTag[] = Array.isArray(payload.tags)
+		? payload.tags
 				.map((tag: unknown) => {
 					if (!tag || typeof tag !== "object") return null;
 					const candidate = tag as Record<string, unknown>;
@@ -183,9 +220,9 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 				)
 		: [];
 
-	const entries: MarketplaceEntry[] = Array.isArray(data?.entries)
-		? data.entries
-				.map((entry: unknown) => {
+	const entries: MarketplaceEntry[] = Array.isArray(payload.entries)
+		? payload.entries
+				.map((entry: unknown): MarketplaceEntry | null => {
 					if (!entry || typeof entry !== "object") return null;
 					const candidate = entry as Record<string, unknown>;
 					const install =
@@ -238,9 +275,9 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 		: [];
 
 	return {
-		version: parseCount(data?.version) || EMPTY_CATALOG.version,
+		version: parseCount(payload.version) || EMPTY_CATALOG.version,
 		generatedAt:
-			typeof data?.generatedAt === "string" ? data.generatedAt : undefined,
+			typeof payload.generatedAt === "string" ? payload.generatedAt : undefined,
 		baseUrl,
 		counts: {
 			total: parseCount(rawCounts.total) || entries.length,
