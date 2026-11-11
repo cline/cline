@@ -1,5 +1,6 @@
 import type {
 	AgentUsage,
+	AsideContext,
 	AsideRequest,
 	AsideResult,
 	AsideUsage,
@@ -8,7 +9,9 @@ import type {
 import type {
 	ForkRequest,
 	ForkResult,
+	ModelAnswer,
 } from "../runtime/orchestration/ephemeral-fork";
+import type { FreshRequest } from "../runtime/orchestration/fresh-request";
 
 export const ASIDES_PER_HOUR = 20;
 export const ASIDE_DEFAULT_TIMEOUT_MS = 20_000;
@@ -24,6 +27,7 @@ export interface AsideSession {
 	/** Whether no later run has begun: the run is in progress or was the last to finish. */
 	isLatestRun(runId: string): boolean;
 	fork(request: ForkRequest): Promise<ForkResult>;
+	askFresh(request: FreshRequest): Promise<ModelAnswer>;
 }
 
 export interface AsideServiceOptions {
@@ -36,8 +40,10 @@ export interface AsideServiceOptions {
 
 type AbortCause = "timeout" | "superseded";
 type BudgetSlot = { at: number };
-type ParsedAsideRequest = Pick<AsideRequest, "runId"> &
-	Required<Omit<AsideRequest, "runId">>;
+type ParsedAsideRequest = Pick<AsideRequest, "runId" | "system"> &
+	Required<Omit<AsideRequest, "runId" | "system">>;
+
+const CONTEXTS: readonly AsideContext[] = ["chat", "none"];
 
 function boundedInteger(
 	value: unknown,
@@ -54,16 +60,24 @@ function boundedInteger(
 export function parseAsideRequest(value: unknown): ParsedAsideRequest {
 	if (typeof value !== "object" || value === null)
 		throw new Error("an aside request must be an object");
-	const { runId, context, prompt, maxOutputTokens, timeoutMs } =
-		value as Record<string, unknown>;
+	const {
+		runId,
+		context = "chat",
+		prompt,
+		system,
+		maxOutputTokens,
+		timeoutMs,
+	} = value as Record<string, unknown>;
 	if (runId !== undefined && (typeof runId !== "string" || !runId))
 		throw new Error("an aside request's runId must be a non-empty string");
-	// A plugin written for a host that offers other contexts must not get a
-	// replay of the whole chat it did not ask for.
-	if (context !== undefined && context !== "chat")
-		throw new Error('this host answers asides with context "chat" only');
+	// An unknown context must not fall back to a replay of the whole chat the
+	// plugin did not ask for.
+	if (!CONTEXTS.includes(context as AsideContext))
+		throw new Error('an aside request\'s context is "chat" or "none"');
 	if (typeof prompt !== "string" || !prompt.trim())
 		throw new Error("an aside request needs a prompt");
+	if (system !== undefined && typeof system !== "string")
+		throw new Error("an aside request's system prompt must be a string");
 	const outputCap = boundedInteger(
 		maxOutputTokens,
 		ASIDE_DEFAULT_MAX_OUTPUT_TOKENS,
@@ -80,7 +94,9 @@ export function parseAsideRequest(value: unknown): ParsedAsideRequest {
 		throw new Error("an aside request's timeoutMs must be at least 1");
 	return {
 		...(runId === undefined ? {} : { runId }),
+		context: context as AsideContext,
 		prompt,
+		...(system ? { system } : {}),
 		maxOutputTokens: outputCap,
 		timeoutMs: timeout,
 	};
@@ -185,9 +201,12 @@ export class AsideService {
 			sessionId,
 			pluginName: ask.pluginName,
 			runId: request.runId,
+			context: request.context,
 			status: result.status,
 			...(result.status === "skipped" ? { reason: result.reason } : {}),
-			...(result.status === "ok" ? result.usage : {}),
+			...(result.status === "ok"
+				? { transport: result.transport, ...result.usage }
+				: {}),
 			totalMs: this.now() - startedAt,
 		});
 		return result;
@@ -204,6 +223,27 @@ export class AsideService {
 		request: ParsedAsideRequest,
 		signal: AbortSignal,
 	): Promise<AsideResult> {
+		if (request.context === "none") {
+			try {
+				const answer = await session.askFresh({
+					system: request.system,
+					prompt: request.prompt,
+					maxOutputTokens: request.maxOutputTokens,
+					signal,
+				});
+				if (signal.aborted) return endedBy(signal);
+				return {
+					status: "ok",
+					text: answer.text,
+					transport: "fresh",
+					usage: toAsideUsage(answer.usage),
+					calledTools: answer.calledTools,
+				};
+			} catch (error) {
+				if (signal.aborted) return endedBy(signal);
+				return { status: "error", error: errorMessage(error) };
+			}
+		}
 		const fork = await session.fork({
 			runId: request.runId,
 			instruction: request.prompt,
@@ -214,6 +254,7 @@ export class AsideService {
 			return {
 				status: "ok",
 				text: fork.text,
+				transport: "replay",
 				usage: toAsideUsage(fork.usage),
 				calledTools: fork.calledTools,
 			};

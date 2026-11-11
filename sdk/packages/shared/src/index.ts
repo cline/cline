@@ -64,6 +64,7 @@ export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export type {
 	AsideAnswer,
+	AsideContext,
 	AsideFailed,
 	AsideRequest,
 	AsideResult,
