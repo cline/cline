@@ -39,6 +39,7 @@ export {
 export type { AutomationEventEnvelope } from "./cron";
 export type {
 	AsideAnswer,
+	AsideContext,
 	AsideFailed,
 	AsideRequest,
 	AsideResult,

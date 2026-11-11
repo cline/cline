@@ -6,6 +6,10 @@
 // final request. The fork must send the turn's request back byte for byte,
 // apart from the moving cache marker, with only the reply and the instruction
 // appended.
+//
+// The same routes check the opposite for a fresh request: it must carry
+// nothing of the chat, and its bounds (output cap, temperature, reasoning off)
+// must reach the provider's body, where each adapter spells them differently.
 import { resolveProviderRequestHeaders } from "@cline/llms";
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { describe, expect, it } from "vitest";
@@ -25,6 +29,8 @@ interface Route {
 	markers: { turn: number[]; fork: number[] };
 	/** Body field or header that pins the conversation to one upstream. */
 	sticky?: { body: string } | { header: string };
+	/** How the adapter spells reasoning off; empty where it sends no field. */
+	reasoningOff: Record<string, unknown>;
 }
 
 const SESSION_ID = "session_wire_test";
@@ -39,6 +45,7 @@ const ROUTES: Route[] = [
 		modelId: "claude-sonnet-4-6",
 		wire: "anthropic",
 		markers: { turn: [0], fork: [4] },
+		reasoningOff: {},
 	},
 	{
 		providerId: "openrouter",
@@ -46,18 +53,21 @@ const ROUTES: Route[] = [
 		wire: "chat-completions",
 		markers: { turn: [1], fork: [5] },
 		sticky: { body: "session_id" },
+		reasoningOff: { reasoning: { effort: "none" } },
 	},
 	{
 		providerId: "vercel-ai-gateway",
 		modelId: "anthropic/claude-sonnet-4.6",
 		wire: "chat-completions",
 		markers: { turn: [1], fork: [5] },
+		reasoningOff: { reasoning_effort: "none" },
 	},
 	{
 		providerId: "fireworks",
 		modelId: "accounts/fireworks/models/glm-5p3-flash",
 		wire: "chat-completions",
 		markers: { turn: [], fork: [] },
+		reasoningOff: {},
 	},
 	{
 		providerId: "cline",
@@ -65,6 +75,7 @@ const ROUTES: Route[] = [
 		wire: "chat-completions",
 		markers: { turn: [1], fork: [5] },
 		sticky: { header: "x-task-id" },
+		reasoningOff: { reasoning: { enabled: false } },
 	},
 ];
 
@@ -302,5 +313,52 @@ describe.each(ROUTES)("fork completion on the wire ($providerId)", (route) => {
 			expect(turn.headers[sticky.header]).toBe(SESSION_ID);
 			expect(fork.headers[sticky.header]).toBe(SESSION_ID);
 		}
+	});
+});
+
+const REASONING_FIELDS = [
+	"thinking",
+	"output_config",
+	"reasoning",
+	"reasoning_effort",
+];
+
+describe.each(ROUTES)("a fresh request on the wire ($providerId)", (route) => {
+	it("carries only its own question, capped, with reasoning off", async () => {
+		const { captured, fetch } = stubFetch(route, [
+			{ text: "Done." },
+			{ text: "Plan the work" },
+		]);
+		const session = new SessionRuntime(chatConfig(route, fetch));
+		await session.run("Fix the bug");
+
+		const answer = await session.askFresh({
+			system: "You plan.",
+			prompt: "Plan it.",
+			maxOutputTokens: 400,
+			signal: new AbortController().signal,
+		});
+
+		expect(answer.text).toBe("Plan the work");
+		const [turn, fresh] = captured as [CapturedRequest, CapturedRequest];
+		expect(fresh.url).toBe(turn.url);
+		expect(
+			REASONING_FIELDS.some((field) => turn.body[field] !== undefined),
+		).toBe(true);
+		expect(
+			Object.fromEntries(
+				REASONING_FIELDS.filter((field) => fresh.body[field] !== undefined).map(
+					(field) => [field, fresh.body[field]],
+				),
+			),
+		).toEqual(route.reasoningOff);
+		expect(fresh.body.max_tokens).toBe(400);
+		expect(fresh.body.temperature).toBe(0.3);
+		expect(fresh.body.tools).toBeUndefined();
+		const sent = JSON.stringify(fresh.body);
+		expect(sent).toContain("You plan.");
+		expect(sent).toContain("Plan it.");
+		expect(sent).not.toContain("You are a helpful assistant.");
+		expect(sent).not.toContain("Fix the bug");
 	});
 });

@@ -133,6 +133,7 @@ describe.each([
 			expect(events[0]?.payload).toMatchObject({
 				status: "ok",
 				text: "Run the tests",
+				transport: "replay",
 				calledTools: [],
 			});
 			expect(model.requests).toHaveLength(2);

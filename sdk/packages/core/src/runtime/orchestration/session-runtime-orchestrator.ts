@@ -91,7 +91,9 @@ import {
 	EphemeralForkController,
 	type ForkRequest,
 	type ForkResult,
+	type ModelAnswer,
 } from "./ephemeral-fork";
+import { type FreshRequest, sendFreshRequest } from "./fresh-request";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
 
 export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
@@ -745,6 +747,14 @@ export class SessionRuntime {
 	/** Whether no later run has begun. Only a runtime that keeps a request to fork keeps track. */
 	isLatestRun(runId: string): boolean {
 		return this.forks?.isLatestRun(runId) ?? false;
+	}
+
+	/** Asks the session's model one question that reads none of the chat. */
+	askFresh(request: FreshRequest): Promise<ModelAnswer> {
+		return sendFreshRequest(this.config, request, {
+			logger: this.logger,
+			telemetry: this.telemetry,
+		});
 	}
 
 	// -------------------------------------------------------------------

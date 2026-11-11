@@ -2,12 +2,18 @@
  * An aside is one model call a plugin makes about a chat. Its question and its
  * answer never enter the chat: nothing is added to the transcript, no tool
  * runs, and the session's events and storage do not see it.
- *
- * The model reads the chat before the question: the last model request of the
- * run is sent again with the run's reply and the question appended. The
- * provider's prompt cache serves everything but that tail, so the model sees
- * the whole conversation for a fraction of its price.
  */
+
+/**
+ * What the model reads before the question.
+ *
+ * `chat` sends the last model request of the run again, with the run's reply
+ * and the question appended. The provider's prompt cache serves everything but
+ * that tail, so the model sees the whole conversation for a fraction of its
+ * price. `none` sends only `system` and `prompt`: a small fresh request for a
+ * question that needs no conversation, or for a chat whose model has no cache.
+ */
+export type AsideContext = "chat" | "none";
 
 export interface AsideRequest {
 	/**
@@ -16,8 +22,12 @@ export interface AsideRequest {
 	 * Leave unset to ask about the latest run, whichever it is.
 	 */
 	runId?: string;
+	/** Defaults to `chat`. */
+	context?: AsideContext;
 	/** The question, sent as one user message. */
 	prompt: string;
+	/** `none` only: the system prompt of the fresh request. A `chat` aside keeps the chat's own. */
+	system?: string;
 	/** Cap on the answer. Thinking room is added on top for a model that thinks. */
 	maxOutputTokens?: number;
 	/** How long the answer may take before the aside ends as `timeout`. */
@@ -35,6 +45,8 @@ export interface AsideUsage {
 export interface AsideAnswer {
 	status: "ok";
 	text: string;
+	/** `replay` read the chat through the prompt cache; `fresh` sent a new request. */
+	transport: "replay" | "fresh";
 	usage: AsideUsage;
 	/** Tools the model asked for instead of, or besides, answering. None of them ran. */
 	calledTools: string[];
@@ -45,10 +57,11 @@ export interface AsideAnswer {
  * - `disabled`: asides are turned off in settings.
  * - `budget`: the plugin used this chat's hourly allowance.
  * - `unsupported`: the host cannot answer asides for this session.
- * - `no_recorded_request`: the chat has made no model request to replay.
+ * - `no_recorded_request`: `chat` only: the chat has made no model request to
+ *   replay.
  * - `stale_run`: `runId` was given and is not the chat's latest run.
- * - `no_prompt_cache`: the chat's model has no prompt cache, so a replay would
- *   pay full price for the whole conversation.
+ * - `no_prompt_cache`: `chat` only: the chat's model has no prompt cache, so a
+ *   replay would pay full price for the whole conversation.
  */
 export type AsideSkipReason =
 	| "disabled"

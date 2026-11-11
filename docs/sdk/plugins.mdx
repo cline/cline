@@ -163,7 +163,7 @@ Plugin tools also receive `cwd` and `emitEvent` in their call context (`execute(
 
 An aside is one model call about a chat that never enters it: nothing is added to the transcript, no tool runs, and the session's events and storage do not see it. Use it for work that should read the conversation without changing it, such as answering a side question, suggesting the next prompt or keeping a running summary.
 
-The model reads the chat before your `prompt`. The host sends the run's last model request again, with the run's reply and your prompt appended as one more user message. The system prompt, tools, and thinking settings are the chat's own, so the provider's prompt cache serves everything but that tail: the model sees the whole conversation at the cached-read price.
+By default the model reads the chat before your `prompt`. The host sends the run's last model request again, with the run's reply and your prompt appended as one more user message. The system prompt, tools, and thinking settings are the chat's own, so the provider's prompt cache serves everything but that tail: the model sees the whole conversation at the cached-read price.
 
 Declare the `asides` capability, then ask from an `afterRun` hook with that run's id:
 
@@ -197,17 +197,26 @@ The example publishes the answer as a plugin event for a client to show.
 
 `runId` says which run the question is about. A hook passes its own `snapshot.runId`: if a later run has begun by the time the aside arrives, it is skipped as `stale_run` instead of being answered about a different turn. Leave `runId` out to ask about the chat's latest run, whichever it is. A command does that, because it has no run of its own; it can also ask while a run is still working, and a tool call that has not returned yet is shown to the model as unanswered.
 
+`context` chooses what the model reads before your `prompt`. Leave it out for `"chat"`:
+
+| `context` | What is sent | Cost |
+|-----------|--------------|------|
+| `"chat"` | The run's last model request, its reply, and your prompt as one more user message | Cached-read price for the conversation, plus the answer |
+| `"none"` | Only your `system` and `prompt`, with no tools and reasoning off | A small request at full price |
+
+Use `"none"` when the question does not need the conversation, when you would rather send your own digest of it, or when the chat's model has no prompt cache.
+
 `ask` never rejects. Check `status` on what it resolves with:
 
 | `status` | Meaning |
 |----------|---------|
-| `"ok"` | `text` is the answer. `usage` is what it cost, and `calledTools` names tools the model asked for (none of them ran). |
-| `"skipped"` | Nothing was sent. `reason` is `disabled` (the user turned asides off), `budget` (your plugin used this chat's hourly allowance), `unsupported` (this host does not answer asides), `no_recorded_request` (the chat has made no model request yet), `stale_run` (the `runId` you gave is no longer the chat's latest run), or `no_prompt_cache` (the chat's model has no prompt cache, so the aside would pay full price for the whole conversation). |
+| `"ok"` | `text` is the answer. `transport` is `"replay"` for a `chat` aside and `"fresh"` for a `none` aside, `usage` is what it cost, and `calledTools` names tools the model asked for (none of them ran). |
+| `"skipped"` | Nothing was sent. `reason` is `disabled` (the user turned asides off), `budget` (your plugin used this chat's hourly allowance), `unsupported` (this host does not answer asides), `no_recorded_request` (`chat` only: the chat has made no model request yet), `stale_run` (the `runId` you gave is no longer the chat's latest run), or `no_prompt_cache` (`chat` only: the chat's model has no prompt cache, so the aside would pay full price for the whole conversation; ask with `"none"` instead). |
 | `"superseded"` | A new run began or the session ended before the answer arrived. |
 | `"timeout"` | The answer took longer than `timeoutMs` (default 20 s, at most 60 s). |
 | `"error"` | The provider failed or the request was malformed; `error` says why. |
 
-The host bounds every aside. Each plugin may make 20 per chat in a rolling hour (skips are not counted; the count is kept in memory and starts over when the host restarts), `maxOutputTokens` defaults to 400 and is capped at 4,000, and setting `"asidesEnabled": false` in the global settings file turns asides off. An aside reads the whole conversation, so treat its answer as you would any model output built from untrusted text.
+The host bounds every aside. Each plugin may make 20 per chat in a rolling hour (skips are not counted; the count is kept in memory and starts over when the host restarts), `maxOutputTokens` defaults to 400 and is capped at 4,000, and setting `"asidesEnabled": false` in the global settings file turns asides off. A `chat` aside reads the whole conversation, so treat its answer as you would any model output built from untrusted text.
 
 `ctx.asides` is undefined when the manifest does not list `asides`, so feature-detect it.
 
