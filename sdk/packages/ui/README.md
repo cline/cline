@@ -56,6 +56,25 @@ transcript outline examples.
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
 
+The package also provides `SectionHeading`, `DetailList`/`DetailListItem`,
+`ItemCard`, `EmptyState`, `Banner`, `Dialog`, and `AlertDialog`. See the
+[shared page component guide](./ADOPTION.md#shared-page-components) for composition
+and action handling. Dialogs also require React DOM and support scoped themes
+through `portalContainer`. Hosts retain data, navigation, persistence, and action state.
+
+`Tooltip` wraps a focusable trigger with hover and keyboard descriptions. Use
+`TooltipProvider` to share hover timing across a group; see the
+[tooltip guide](./ADOPTION.md#tooltips) for timing and scoped portals.
+
+`PillSelector`/`PillSelectorItem` provide category filtering; `SegmentedControl`
+uses native radios for form-aware selection. See the
+[selection controls guide](./ADOPTION.md#selection-controls) for keyboard behavior
+and controlled state.
+
+`FileBrowser`/`FileBrowserContent` combine collapsible file navigation, a resizable
+preview pane, and host-owned source editing. See the
+[file browser guide](./ADOPTION.md#file-browser) for loading, actions, and scoped portals.
+
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 

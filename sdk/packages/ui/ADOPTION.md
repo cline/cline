@@ -220,6 +220,11 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
+`Dialog`, `AlertDialog`, and `Tooltip` portal to `document.body` by default. For
+scoped themes, pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
+that clip overflow or constrain fixed positioning. Use a callback ref stored
+in state to pass the mounted element.
+
 Do not import `theme.css` for this scoped setup. That entry point deliberately
 registers the complete, generic Cline utility vocabulary and is intended only
 for applications that want Cline to own those utility names globally.
@@ -930,3 +935,311 @@ jumps and reader-position tracking. A collapsed tool group can keep the same
 row ID as its expanded form. The host chooses which rows anchor turns and
 which messages appear in its outline; transport and session state remain in
 the app. Key the provider by session ID when switching transcripts.
+
+## Shared page components
+
+Import these components from `@cline/ui` with theme tokens and
+`@cline/ui/components.css`. React 18.3 or 19 is required.
+`Dialog` and `AlertDialog` also require a compatible React DOM version.
+Hosts own data, navigation, persistence, loading state, and action callbacks.
+See Storybook for examples and visual variants.
+
+Optional regions are omitted for nullish values, booleans, empty strings, and
+arrays or fragments containing only those values. Zero and whitespace remain
+content. If a child component might return null, conditionally pass the slot
+itself to omit its surrounding region.
+
+### Section heading
+
+`SectionHeading` accepts `title`, `description`, `count`, and `actions`. Choose
+`headingLevel` (2–6, default 2) independently of `size` (`sm`, `md`, `base`, `lg`,
+`xl`, or `2xl`; default `lg`). Keep interactive content in `actions`.
+
+### Empty state
+
+`EmptyState` displays a description, optional title, and optional neutral
+secondary buttons through `action` and `secondaryAction`. Each action supplies
+`label`, `onClick`, and optional `disabled`. `align` is `left` (default) or `center`.
+It adds no live-region role; the host decides whether to announce its content.
+
+Use `media` for an illustration above the message. Decorative media should have
+`aria-hidden` or an empty image `alt`; meaningful media needs accessible text.
+`size="md"` preserves the compact spacing; `size="lg"` adds space around the
+illustration, message, and actions. `surface="muted"` preserves the existing card
+background; `surface="transparent"` removes that fill while keeping the dashed
+border. Alignment, size, and surface can be chosen independently.
+
+```tsx
+<EmptyState
+  align="center"
+  size="lg"
+  surface="transparent"
+  media={<CalendarIllustration aria-hidden="true" />}
+  title="No schedules yet"
+  description="Create a schedule to run work automatically."
+  action={{ label: "Create schedule", onClick: createSchedule }}
+/>
+```
+
+### Detail list
+
+Compose `DetailListItem` directly inside `DetailList`. Rows have a required
+`title` and optional `description`, `trailingText`, `actions`, `count`, and
+`leadingIcon` (an SVG component that forwards props). Rows adapt to narrow containers.
+
+For a clickable row, use `primaryAction={{ onClick: openDetails, label: "Open details" }}`.
+Its native button covers the row; `actions` remain independent. The label defaults
+to the title. `primaryAction.disabled` disables only the row action. Keep title and
+description display-only, with interactive controls in `actions`.
+
+For aligned entity rows, pass `columns` and keyed item `values`:
+
+```tsx
+<DetailList titleLabel="Workspace" columns={[
+  { key: "owner", label: "Owner" },
+  { key: "updated", label: "Updated", width: "7rem" },
+]}>
+  <DetailListItem title="Website" values={{ owner: "Design", updated: "Today" }} />
+</DetailList>
+```
+
+Column keys must be unique. Widths accept numeric pixels, `px`, `rem`, or `fr`
+(default `1fr`); `actionsWidth` accepts pixels or `rem` (default `4rem`). Missing
+values show an em dash; zero remains visible. `trailingText` becomes supplemental
+content below the description. Omit `columns` for ordinary details. Use a table
+instead when users need header/cell relationships, table navigation, or sorting;
+these components have description-list semantics.
+
+### ItemCard
+
+`ItemCard` presents a title with optional `icon`, `description`, `badges`, `count`,
+`actions`, `footer`, and `children`. Use shared Buttons and Badges in trailing slots.
+
+```tsx
+<ItemCard title={item.name} description={item.description}
+  primaryAction={{ onClick: openDetails, label: `View ${item.name}` }}
+  actions={<Button size="xs" tone="neutral" variant="secondary" onClick={edit}>Edit</Button>} />
+```
+
+`primaryAction` renders a native button covering the card. Controls in `actions`,
+`footer`, and `children` remain independent; custom interactive regions can use
+`data-item-card-interactive`. Keep title, icon, description, and badges display-only.
+`primaryAction.disabled` disables the primary button; `selected` is visual only.
+Pass `primaryAction.ref` to access the native `HTMLButtonElement`, for example to
+restore focus after closing a details view. The component's ordinary `ref` still
+targets the outer `HTMLDivElement`; neither ref requires querying internal slots.
+
+### Banner
+
+`Banner` accepts `title`, `description` (or children as its fallback), `icon`, and
+`actions`. Tones are `neutral`, `info` (default), `success`, `warning`, and `error`;
+sizes are `sm` and `md` (default). Decorative icons need `aria-hidden`.
+
+Actions supply a stable `id`, `label`, and native button props such as `onClick`.
+The banner owns button size and tone; `destructive: true` opts into destructive colors.
+Use `onDismiss` to show its dismiss button and `dismissLabel` to customize the
+accessible name. The host removes the banner. Errors default to `role="alert"`;
+other tones default to `role="status"`. Override `role` for static content.
+
+### Dialog
+
+`Dialog` is controlled by `open` and `onOpenChange`; `title` supplies its accessible
+name. It supports `description`, scrollable children, and a host-owned `footer`.
+Footer buttons do not dismiss it automatically. Sizes are `sm` (32rem),
+`md` (40rem, default), and `lg` (48rem), bounded by the viewport.
+
+Escape, outside click, and the close button request dismissal. The content receives
+initial focus; focus returns to the opener if it remains mounted. Use
+`onOpenAutoFocus`/`onCloseAutoFocus` with `preventDefault()` to override this.
+`showCloseButton={false}` hides only the button. Use `dismissible={false}` to
+block Escape and outside interactions and disable the close button. Host-owned
+footer actions can still change `open`, so disable those independently while
+work is pending. Pass `portalContainer` for scoped themes.
+
+The default `bodyLayout="scroll"` scrolls the body between the fixed header and
+footer. Use `bodyLayout="contained"` when a child list or editor owns scrolling:
+the body fills the available space and clips overflow, allowing its children to
+shrink. Give the dialog a bounded height and arrange its child scroll region
+with `min-height: 0` and `overflow: auto`. The contained body adds no tab stop;
+the host must make its scrolling child keyboard accessible. `bodyClassName`
+remains available for content-specific spacing. Neither layout changes dialog
+width, titles, or footer actions.
+
+### Alert dialog
+
+`AlertDialog` is controlled by `open` and `onOpenChange`, with required `title`,
+`description`, `confirmLabel`, and `onConfirm`. Cancel receives initial focus
+unless disabled, when the dialog content receives focus. Focus returns to the
+opener if it remains mounted. Outside clicks do not dismiss it; Escape and
+actions request closure through `onOpenChange`.
+
+Set `closeOnConfirm={false}` to keep the dialog open after confirmation, then
+close it by changing `open` when the host's work finishes. Existing
+`event.preventDefault()` handling in `onConfirm` or `onCancel` remains supported;
+promises are not awaited. `confirmLoading` shows a spinner, sets `aria-busy`, and
+disables confirmation. It does not disable Cancel or block Escape: use
+`cancelDisabled` and `dismissible={false}` for those policies. Explicit Cancel
+and Confirm actions remain available when `dismissible` is false, so a mandatory
+choice can still offer two alternatives. `confirmDisabled` can independently
+block confirmation before work begins.
+
+```tsx
+<AlertDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="Save details?"
+  description="Your changes will replace the saved details."
+  confirmLabel={saving ? "Saving…" : "Save"}
+  onConfirm={saveDetails}
+  closeOnConfirm={false}
+  confirmLoading={saving}
+  cancelDisabled={saving}
+  dismissible={!saving}
+/>
+```
+
+The host owns saving state, errors, retries, and completion. `confirmTone` accepts
+Button tones and defaults to `neutral`; `cancelLabel` defaults to “Cancel”. Pass
+`portalContainer` for scoped themes. Existing consumers retain immediate
+confirmation closure and Escape dismissal by default.
+
+## Tooltips
+
+`Tooltip` takes a plain-text `content` description and one focusable child that
+forwards its ref and event props, such as `Button`, `IconButton`, or a native link.
+The trigger keeps its existing `aria-describedby`, event handlers, and ref. Keep
+an accessible name on the trigger; tooltip text is supplemental. Native disabled
+buttons cannot receive keyboard focus.
+
+```tsx
+<Tooltip content="Create a conversation">
+  <Button>New conversation</Button>
+</Tooltip>
+```
+
+Hover and keyboard focus open the tooltip; Escape, blur, and trigger clicks dismiss
+it. Hover opens immediately by default. Set `delayDuration` in milliseconds for a
+hover delay; keyboard focus stays immediate. Wrap a group in `TooltipProvider` to
+share `delayDuration` and `skipDelayDuration` (the interval during which neighboring
+tooltips open without waiting). A Tooltip's `delayDuration` overrides its provider.
+
+Use `side` (default `top`), `align` (default `center`), and `sideOffset` (default 6)
+for placement. Import theme tokens and `@cline/ui/components.css`, and install
+compatible React and React DOM versions (18.3 or 19). Pass `portalContainer` inside
+`.cline-ui-theme` when using scoped tokens.
+
+## Selection controls
+
+Import these controls from `@cline/ui` with theme tokens and `@cline/ui/components.css`.
+Supply an accessible group name and unique, non-empty option values.
+
+### Pill selector
+
+`PillSelector` and `PillSelectorItem` provide single selection with horizontal
+scrolling. Left/Right and Home/End move focus; Space/Enter selects. Clicking the
+selected item emits `""`; ignore that value to require a selection:
+
+```tsx
+<PillSelector aria-label="Categories" value={category}
+  onValueChange={(value) => { if (value) setCategory(value); }}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+</PillSelector>
+```
+
+Use `defaultValue` for uncontrolled state. Groups and items support `disabled`;
+`dir` controls RTL behavior. Sizes are `sm` (2rem) and `md` (default, 2.25rem)
+at default spacing. The host owns filtering; this control does not submit a form value.
+
+`overflow="scroll"` (the default) keeps one horizontally scrolling row.
+Use `overflow="wrap"` to fit categories across multiple lines; focus outlines
+remain visible without horizontal scrolling. In wrapped mode, Up/Down and
+Left/Right move focus through enabled items in DOM order, including across line
+breaks. Horizontal arrows respect `dir`, and Home/End still reach the first/last
+item. This is ordered navigation, not spatial grid navigation. Selection still
+requires Space/Enter or a click. Focused items scroll into view in an enclosing
+scroll region; an item `onFocus` handler can call `preventDefault()` to take over.
+
+```tsx
+<PillSelector aria-label="Installed categories" overflow="wrap"
+  value={category} onValueChange={(value) => setCategory(value || "all")}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+  <PillSelectorItem value="plugins">Plugins</PillSelectorItem>
+</PillSelector>
+```
+
+### Segmented control
+
+`SegmentedControl` accepts `options` with `value` and readable `label` fields.
+Use `value`/`onValueChange` for controlled selection or `defaultValue` for internal
+state. Native radios support arrow-key selection, `name`, `required`, and `form`;
+uncontrolled groups follow form resets without emitting a user change.
+
+Options accept `icon`, `disabled`, and `tooltip`. `iconOnly` hides labels visually;
+provide an icon for every option. Group `disabled` disables all options, and `dir`
+controls layout. Sizes `xs`, `sm`, `md` (default), and `lg` match the
+[Button heights and corner radii](#buttons). Selection motion respects reduced motion.
+Pass `tooltipPortalContainer` inside `.cline-ui-theme` for scoped tooltips;
+an enclosing `TooltipProvider` shares hover timing.
+
+## File browser
+
+`FileBrowser` combines a collapsible tree with children in its content pane. Pass
+unique root-relative paths with `/` separators; the host loads files and controls
+`selectedPath` through `onSelect`. Folders sort first and start expanded.
+Every expanded row is rendered, so the tree suits a skill or project folder
+rather than thousands of files.
+
+```tsx
+<FileBrowser aria-label="Skill content" files={files}
+  selectedPath={path} onSelect={setPath}>
+  <FileBrowserContent key={path} path={path} content={source}
+    preview={<Markdown content={source} />} />
+</FileBrowser>
+```
+
+Drag the divider to resize, use arrows/Home/End while it has focus, or double-click
+to reset. `loading` on FileBrowser shows both skeletons; on FileBrowserContent
+it preserves navigation and resizing.
+`FileBrowserContent` uses `sizing="fixed"` by default with a 36rem body height;
+override `--cline-ui-file-browser-body-height` to change that fixed viewport.
+Use `sizing="content"` for an editor or preview that grows with its content.
+`minBodyHeight` and `maxBodyHeight` bound the body in content sizing; numbers are
+pixels and strings are CSS lengths. Their defaults are 0 and the fixed body
+height (36rem), respectively. The body owns scrolling after it reaches the
+maximum. An auto-growing source editor should size itself to its content and
+avoid a competing inner scrollbar. These bounds are also available as
+`--cline-ui-file-browser-body-min-height` and
+`--cline-ui-file-browser-body-max-height` for themed containers.
+
+`FileBrowserContent` shows Source/Preview when `preview` exists and preserves
+`content` verbatim in Source mode. For editing, pass a controlled editor as
+`source`; it stays mounted across mode switches. `defaultMode` is `preview`;
+use `defaultMode="source"` to start editing, and `sourceLabel` to rename that option.
+Key by path to reset mode/scroll on file selection. `headerLabel` replaces the path heading.
+Loading and host children take precedence over source/preview content.
+
+Pass `headerLabelId` to assign an ID to that visible header label, then reference
+it from a surrounding region and a source editor with `aria-labelledby`. The
+host owns the editor's accessible name. Generate a distinct ID for each instance
+(for example, with React `useId`) and provide readable `headerLabel` or `path` text.
+
+```tsx
+<section aria-labelledby={instructionsLabelId}>
+  <FileBrowserContent
+    headerLabel="Instructions" headerLabelId={instructionsLabelId}
+    sizing="content" minBodyHeight="12rem" maxBodyHeight="24rem"
+    defaultMode="source" showActions={false}
+    source={<AutoGrowingEditor aria-labelledby={instructionsLabelId}
+      value={instructions} onChange={setInstructions} />}
+    preview={<Markdown content={instructions} />}
+  />
+</section>
+```
+
+File actions use `actionPath` or `path` unchanged. Copy uses the Clipboard API
+unless `onCopyPath` is supplied. `onOpenFileLocation` enables the reveal action;
+rejections show inline errors. Use `showActions={false}` to hide the menu and
+`actionsPortalContainer` for scoped themes. Hosts own Markdown/link handling,
+clipboard bridges, editor state, save actions, and error recovery.

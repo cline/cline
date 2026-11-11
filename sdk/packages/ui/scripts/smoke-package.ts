@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	Button, IconButton, Badge,
+	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -83,12 +84,15 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge]) {
+for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
- throw new Error("packed button stylesheet is missing");
+for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "file-browser", "item-card", "section-heading", "pill-selector", "segmented-control", "tooltip"]) {
+ const path = "./components/" + name + ".css";
+ if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
+  throw new Error("packed component stylesheet is missing: " + name);
+ }
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -232,13 +236,13 @@ function createConsumer(
 	);
 }
 
-async function verifyDiffDeclarations(root: string): Promise<void> {
+async function verifyDeclarations(root: string): Promise<void> {
 	const consumer = join(root, "tool-diff-consumer.ts");
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -247,6 +251,18 @@ createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
+createElement(AlertDialog, { open: false, onOpenChange() {}, title: "Confirm", description: "Continue?", confirmLabel: "Continue", onConfirm() {} });
+createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload", label: "Reload", onClick() {} }], ref: createRef<HTMLDivElement>() });
+createElement(DetailList, { ref: createRef<HTMLDListElement>() }, createElement(DetailListItem, { title: "Path", description: "/project" }));
+createElement(Dialog, { open: false, onOpenChange() {}, title: "Details" });
+createElement(EmptyState, { title: "No files", description: "Add a file." });
+createElement(FileBrowser, { files: [{ path: "README.md" }], onSelect() {}, ref: createRef<HTMLElement>() }, createElement(FileBrowserContent, { path: "README.md", content: "Hello", ref: createRef<HTMLDivElement>() }));
+createElement(ItemCard, { title: "Skill", description: "A reusable skill" });
+createElement(SectionHeading, { title: "Skills", count: 2 });
+createElement(PillSelector, { "aria-label": "Categories", defaultValue: "skills", ref: createRef<HTMLDivElement>() }, createElement(PillSelectorItem, { value: "skills", ref: createRef<HTMLButtonElement>() }, "Skills"));
+createElement(SegmentedControl, { "aria-label": "View", options: [{ value: "source", label: "Source", tooltip: "View source" }], name: "view", required: true, ref: createRef<HTMLFieldSetElement>() });
+createElement(TooltipProvider, { delayDuration: 200, skipDelayDuration: 300,
+  children: createElement(Tooltip, { content: "Create a conversation", side: "bottom", align: "start", sideOffset: 8, portalContainer: document.body, children: createElement(Button, { children: "New conversation" }) }) });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -388,6 +404,17 @@ async function verifyTailwindContract(
 		]) {
 			expectCandidate(output, candidate);
 		}
+		expectFragment(output, ".cline-ui-tooltip__content", "packed tooltip CSS");
+		expectFragment(
+			output,
+			".cline-ui-pill-selector__item",
+			"packed pill selector CSS",
+		);
+		expectFragment(
+			output,
+			".cline-ui-segmented-control__input",
+			"packed segmented control CSS",
+		);
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,
@@ -437,7 +464,7 @@ try {
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
-	await verifyDiffDeclarations(bunConsumer);
+	await verifyDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
@@ -468,7 +495,7 @@ try {
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
-	await verifyDiffDeclarations(npmConsumer);
+	await verifyDeclarations(npmConsumer);
 	await verifyTailwindContract(npmConsumer, [
 		"npx",
 		"--no-install",
