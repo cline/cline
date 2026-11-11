@@ -1,9 +1,10 @@
 import { Mode } from "@shared/storage/types"
-import { useCallback, useEffect, useRef } from "react"
+import { useRef, useState } from "react"
 import { type ProviderId } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -12,10 +13,6 @@ import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
-// Providers whose model catalog is fetched with the user's API key (mirrors
-// PRIVATE_PROVIDER_MODEL_FETCHERS in @cline/core). Static-catalog providers do
-// not use credentials to resolve their model list.
-const CREDENTIAL_BACKED_CATALOG_PROVIDER_IDS = new Set<string>(["baseten", "hicap", "litellm", "poolside"])
 const MODEL_REFRESH_DEBOUNCE_MS = 500
 
 interface GenericProviderBaseUrlFieldConfig {
@@ -65,101 +62,52 @@ export const GenericProviderSettings = ({
 		)
 	}
 
-	const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const pendingWriteRef = useRef<Promise<unknown> | null>(null)
-	const needsModelRefreshRef = useRef(false)
+	const [refreshRevision, setRefreshRevision] = useState(0)
+	const hasUnrefreshedChangeRef = useRef(false)
 	const isInputFocusedRef = useRef(false)
 
-	const clearRefreshTimer = useCallback(() => {
-		if (refreshTimerRef.current !== null) {
-			clearTimeout(refreshTimerRef.current)
-			refreshTimerRef.current = null
-		}
-	}, [])
-
-	useEffect(() => {
-		return () => clearRefreshTimer()
-	}, [clearRefreshTimer])
-
-	const shouldRefreshModelsForPatch = (patch: { apiKey?: string; baseUrl?: string }): boolean => {
-		if ("baseUrl" in patch) {
-			return true
-		}
-		return CREDENTIAL_BACKED_CATALOG_PROVIDER_IDS.has(providerId) || Boolean(error) || Object.keys(models).length === 0
-	}
-
-	const writeAndScheduleRefresh = async (patch: { apiKey?: string; baseUrl?: string }, immediate = false) => {
-		const shouldRefresh = shouldRefreshModelsForPatch(patch)
-		if (shouldRefresh) {
-			clearRefreshTimer()
-			needsModelRefreshRef.current = true
-		}
-		const writePromise = write(patch)
-		pendingWriteRef.current = writePromise
-		try {
-			const response = await writePromise
-			if (shouldRefresh && pendingWriteRef.current === writePromise && needsModelRefreshRef.current) {
-				clearRefreshTimer()
-				if (immediate || !isInputFocusedRef.current) {
-					needsModelRefreshRef.current = false
-					void refresh()
-				} else {
-					refreshTimerRef.current = setTimeout(() => {
-						refreshTimerRef.current = null
-						if (needsModelRefreshRef.current) {
-							needsModelRefreshRef.current = false
-							void refresh()
-						}
-					}, MODEL_REFRESH_DEBOUNCE_MS)
-				}
-			}
-			return response
-		} finally {
-			if (pendingWriteRef.current === writePromise) {
-				pendingWriteRef.current = null
-			}
-		}
-	}
-
-	const handleInputFocus = useCallback(() => {
-		isInputFocusedRef.current = true
-	}, [])
-
-	const flushPendingModelRefresh = useCallback(() => {
-		isInputFocusedRef.current = false
-		clearRefreshTimer()
-		const inFlight = pendingWriteRef.current
-		if (inFlight) {
-			void inFlight
-				.then(() => {
-					if (needsModelRefreshRef.current) {
-						needsModelRefreshRef.current = false
-						clearRefreshTimer()
-						void refresh()
-					}
-				})
-				.catch(() => {})
-			return
-		}
-		if (needsModelRefreshRef.current) {
-			needsModelRefreshRef.current = false
+	const flushModelRefresh = () => {
+		if (hasUnrefreshedChangeRef.current) {
+			hasUnrefreshedChangeRef.current = false
 			void refresh()
 		}
-	}, [clearRefreshTimer, refresh])
+	}
+
+	useDebounceEffect(flushModelRefresh, MODEL_REFRESH_DEBOUNCE_MS, [refreshRevision])
+
+	const writeAndRefreshModels = async (patch: { apiKey?: string; baseUrl?: string }) => {
+		const response = await write(patch)
+		hasUnrefreshedChangeRef.current = true
+		if (isInputFocusedRef.current) {
+			setRefreshRevision((rev) => rev + 1)
+		} else {
+			flushModelRefresh()
+		}
+		return response
+	}
+
+	const handleInputFocus = () => {
+		isInputFocusedRef.current = true
+	}
+
+	const handleInputBlur = () => {
+		isInputFocusedRef.current = false
+		flushModelRefresh()
+	}
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
 		providerName,
-		write: (patch) => writeAndScheduleRefresh(patch),
+		write: writeAndRefreshModels,
 	})
 	const handleBaseUrlChange = (value: string) => {
-		void writeAndScheduleRefresh({ baseUrl: value }).catch((err) =>
+		void writeAndRefreshModels({ baseUrl: value }).catch((err) =>
 			console.error(`Failed to update ${providerName} base URL:`, err),
 		)
 	}
 	const handleBaseUrlClear = async () => {
 		try {
-			await writeAndScheduleRefresh({ baseUrl: "" }, true)
+			await writeAndRefreshModels({ baseUrl: "" })
 		} catch (error) {
 			console.error(`Failed to clear ${providerName} base URL:`, error)
 			throw error
@@ -170,7 +118,7 @@ export const GenericProviderSettings = ({
 		<div>
 			<ApiKeyField
 				initialValue={savedApiKeyMask}
-				onBlur={flushPendingModelRefresh}
+				onBlur={handleInputBlur}
 				onChange={handleApiKeyChange}
 				onFocus={handleInputFocus}
 				placeholder="Enter API Key..."
@@ -182,7 +130,7 @@ export const GenericProviderSettings = ({
 				<BaseUrlField
 					initialValue={config?.baseUrl}
 					label={baseUrlField.label}
-					onBlur={flushPendingModelRefresh}
+					onBlur={handleInputBlur}
 					onChange={handleBaseUrlChange}
 					onClear={handleBaseUrlClear}
 					onFocus={handleInputFocus}

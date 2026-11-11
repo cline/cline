@@ -467,7 +467,7 @@ describe("GenericProviderSettings", () => {
 		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
 	})
 
-	it("refreshes credential-backed provider models once on blur rather than per keystroke", async () => {
+	it("debounces model refreshes while typing and refreshes immediately on blur", async () => {
 		const write = vi.fn(async () => undefined)
 		const refresh = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
@@ -498,19 +498,25 @@ describe("GenericProviderSettings", () => {
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		fireEvent.focus(apiKeyInput)
 		fireEvent.input(apiKeyInput, { target: { value: "bt-" } })
-		fireEvent.input(apiKeyInput, { target: { value: "bt-secret-key" } })
-		fireEvent.blur(apiKeyInput)
 
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "bt-" }))
+		// Still focused inside the 500ms refresh debounce window: no refresh yet.
+		expect(refresh).not.toHaveBeenCalled()
+
+		fireEvent.input(apiKeyInput, { target: { value: "bt-secret-key" } })
 		await waitFor(() => expect(write).toHaveBeenLastCalledWith({ apiKey: "bt-secret-key" }))
+		expect(refresh).not.toHaveBeenCalled()
+
+		// Blurring flushes the pending refresh immediately.
+		fireEvent.blur(apiKeyInput)
 		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 	})
 
-	it("does not refetch static provider catalogs when saving an API key", async () => {
-		const write = vi.fn(async () => undefined)
+	it("does not refresh on blur when nothing changed", () => {
 		const refresh = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
-			models: { "llama-3.3-70b-versatile": { name: "Llama 3.3 70B", supportsPromptCache: false, contextWindow: 128_000 } },
-			defaultModelId: "llama-3.3-70b-versatile",
+			models: { "deepseek-chat": { name: "DeepSeek Chat", supportsPromptCache: false, contextWindow: 128_000 } },
+			defaultModelId: "deepseek-chat",
 			isLoading: false,
 			isStale: false,
 			error: undefined,
@@ -518,8 +524,8 @@ describe("GenericProviderSettings", () => {
 			fingerprint: "fingerprint",
 		})
 		vi.mocked(useProviderConfig).mockReturnValue({
-			config: providerConfig({ apiKeyLength: 0 }),
-			write,
+			config: providerConfig({ apiKeyLength: 8 }),
+			write: vi.fn(async () => undefined),
 			commitSelection: vi.fn(),
 		})
 
@@ -527,18 +533,16 @@ describe("GenericProviderSettings", () => {
 			<GenericProviderSettings
 				allowsCustomIds={false}
 				currentMode="act"
-				providerId="groq"
-				providerName="Groq"
+				providerId="deepseek"
+				providerName="DeepSeek"
 				showModelOptions={true}
 			/>,
 		)
 
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
 		fireEvent.focus(apiKeyInput)
-		fireEvent.input(apiKeyInput, { target: { value: "gsk_test_key" } })
 		fireEvent.blur(apiKeyInput)
 
-		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "gsk_test_key" }))
 		expect(refresh).not.toHaveBeenCalled()
 	})
 
