@@ -2683,9 +2683,24 @@ function ChatThreadPane({
 			sessionId: sessionId ?? null,
 			status,
 			isHydrating: isHydratingSession,
-			send: handleSend,
+			// Not handleSend: that would consume the user's unsent draft and attachments.
+			send: (prompt) => {
+				onThreadStarted?.(threadId);
+				return sendPrompt(prompt, [], {
+					inNewWorktree: workIn === "worktree" && isNewThread,
+				});
+			},
 		});
-	}, [handleSend, isHydratingSession, sessionId, status, threadId]);
+	}, [
+		isHydratingSession,
+		isNewThread,
+		onThreadStarted,
+		sendPrompt,
+		sessionId,
+		status,
+		threadId,
+		workIn,
+	]);
 	useEffect(() => () => clearVoiceManagerActiveChat(threadId), [threadId]);
 
 	const handleReasoningChange = useCallback(

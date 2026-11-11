@@ -154,16 +154,19 @@ function messageText(message: UIMessage | undefined): string {
 	);
 }
 
-// `send` settles only when the agent's turn ends; wait just long enough to surface immediate failures.
+const NOT_SENT = {
+	ok: false,
+	error: "The session did not accept the message.",
+};
+
+// `send` settles only when the agent's turn ends; wait just long enough to catch a prompt that was rejected outright.
 function dispatchPrompt(
 	chat: VoiceManagerActiveChat,
 	prompt: string,
-): Promise<void> {
-	const sent = chat.send(prompt);
-	sent.catch(() => {});
+): Promise<boolean> {
 	return Promise.race([
-		sent,
-		new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+		chat.send(prompt).catch(() => false),
+		new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2_000)),
 	]);
 }
 
@@ -300,14 +303,16 @@ export function VoiceManager({
 							candidate.threadId !== previousThreadId &&
 							candidate.sessionId === null,
 					);
-					await dispatchPrompt(chat, prompt);
+					if (!(await dispatchPrompt(chat, prompt))) return NOT_SENT;
 					const started = await waitForVoiceManagerActiveChat(
 						(candidate) =>
 							candidate.threadId === chat.threadId &&
 							candidate.sessionId !== null,
 						20_000,
 					).catch(() => null);
-					return { ok: true, sessionId: started?.sessionId };
+					return started
+						? { ok: true, sessionId: started.sessionId }
+						: NOT_SENT;
 				}
 				case "send_message": {
 					const message = String(args.message ?? "").trim();
@@ -331,7 +336,7 @@ export function VoiceManager({
 							10_000,
 						).catch(() => chat);
 					}
-					await dispatchPrompt(chat, message);
+					if (!(await dispatchPrompt(chat, message))) return NOT_SENT;
 					return { ok: true, queued: busy(chat.status) };
 				}
 				case "stop_session": {

@@ -6,7 +6,8 @@ export type VoiceManagerActiveChat = {
 	sessionId: string | null;
 	status: ChatSessionStatus;
 	isHydrating: boolean;
-	send: (prompt: string) => Promise<void>;
+	/** Settles when the agent's turn ends; false if the prompt never reached it. */
+	send: (prompt: string) => Promise<boolean>;
 };
 
 let activeChat: VoiceManagerActiveChat | null = null;
