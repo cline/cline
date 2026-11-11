@@ -1,4 +1,10 @@
-import { closeSync, existsSync, openSync, readdirSync, readSync } from "node:fs";
+import {
+	closeSync,
+	existsSync,
+	openSync,
+	readdirSync,
+	readSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
