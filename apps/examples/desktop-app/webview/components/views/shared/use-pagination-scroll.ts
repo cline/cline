@@ -10,7 +10,7 @@ export function usePaginationScroll({
 	page: number;
 	resetKey: string | number;
 	/** Return false when the page change is rejected. */
-	onPageChange: (page: number) => false | undefined;
+	onPageChange: (page: number) => false | void;
 }) {
 	const content = useRef<HTMLDivElement | null>(null);
 	const observer = useRef<ResizeObserver | null>(null);

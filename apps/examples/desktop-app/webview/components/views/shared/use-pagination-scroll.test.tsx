@@ -19,7 +19,7 @@ function Harness({
 	onPageChange,
 }: {
 	page: number;
-	onPageChange: (page: number) => false | undefined;
+	onPageChange: (page: number) => false | void;
 }) {
 	const pagination = usePaginationScroll({
 		page,

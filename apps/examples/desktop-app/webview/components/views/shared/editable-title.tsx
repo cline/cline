@@ -41,7 +41,7 @@ export function EditableTitle({
 				value={value}
 				onFocus={onFocus}
 				onChange={(event) => onChange(event.target.value)}
-				className="-ml-1 h-8 w-full border-transparent bg-transparent px-1 py-0 font-cline-ui-medium text-2xl shadow-none"
+				className="-ml-1 h-8 w-full border-transparent bg-transparent px-1 py-0 font-cline-ui-medium text-2xl shadow-none md:text-2xl dark:bg-transparent"
 			/>
 		</h1>
 	);
