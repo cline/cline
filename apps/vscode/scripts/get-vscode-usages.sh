@@ -27,7 +27,7 @@ fi
   grep -hr 'vscode.commands.executeCommand' $FILES |
   perl -ne 'print if /["\x27"]/'  | # Remove occurrences where the command is not on the same line (line doesnt contain quote chars) :(
   sed -n 's|.*\(vscode.commands.executeCommand[^,]*\).*|\1|p'| # Remove all params after the first one
-  sed 's|\(".*"\).*|\1)|'| # Close the parantheses
+  sed 's|\(".*"\).*|\1)|'| # Close the parentheses
   cat >> $TMP
 }
 
