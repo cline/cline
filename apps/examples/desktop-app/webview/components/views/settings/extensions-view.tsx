@@ -271,6 +271,18 @@ function normalizeInstructionListsResponse(
 const EXTENSION_LISTS_CACHE_TTL_MS = 60_000;
 const EXTENSION_HOOK_STATS_CACHE_TTL_MS = 30_000;
 
+let extensionInventoryMutationQueue = Promise.resolve();
+function enqueueExtensionInventoryMutation<T>(
+	mutation: () => Promise<T>,
+): Promise<T> {
+	const result = extensionInventoryMutationQueue.then(mutation);
+	extensionInventoryMutationQueue = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	return result;
+}
+
 let extensionListsCache:
 	| (UserInstructionListsResponse & {
 			fetchedAt: number;
@@ -608,10 +620,29 @@ export function CustomizationSectionView({
 		[],
 	);
 
+	const mutateExtensionInventory = useCallback(
+		(
+			command:
+				| "set_tool_disabled"
+				| "set_plugin_disabled"
+				| "set_skill_disabled",
+			args: Record<string, unknown>,
+		) =>
+			enqueueExtensionInventoryMutation(async () => {
+				setErrorMessage(null);
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
+						command,
+						args,
+					);
+				applyResponse(response);
+			}),
+		[applyResponse],
+	);
+
 	const setToolEnabled = useCallback(
 		async (tool: ToolItem) => {
 			setTogglingToolIds((current) => new Set(current).add(tool.id));
-			setErrorMessage(null);
 			try {
 				const names = [tool.name, ...(tool.headlessToolNames ?? [])].filter(
 					Boolean,
@@ -619,12 +650,10 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_tool_disabled",
-						{ names, disabled: tool.enabled },
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_tool_disabled", {
+					names,
+					disabled: tool.enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -636,7 +665,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setAllToolsEnabled = useCallback(
@@ -653,7 +682,6 @@ export function CustomizationSectionView({
 				}
 				return next;
 			});
-			setErrorMessage(null);
 			try {
 				const names = targets.flatMap((tool) =>
 					[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
@@ -661,12 +689,10 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_tool_disabled",
-						{ names, disabled: !enabled },
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_tool_disabled", {
+					names,
+					disabled: !enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -680,23 +706,17 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setPluginEnabled = useCallback(
 		async (plugin: PluginItem) => {
 			setTogglingPluginPaths((current) => new Set(current).add(plugin.path));
-			setErrorMessage(null);
 			try {
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_plugin_disabled",
-						{
-							path: plugin.path,
-							disabled: plugin.enabled,
-						},
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_plugin_disabled", {
+					path: plugin.path,
+					disabled: plugin.enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -708,23 +728,17 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setSkillEnabled = useCallback(
 		async (skill: CommandItem) => {
 			setTogglingSkillPaths((current) => new Set(current).add(skill.path));
-			setErrorMessage(null);
 			try {
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_skill_disabled",
-						{
-							path: skill.path,
-							disabled: skill.enabled !== false,
-						},
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_skill_disabled", {
+					path: skill.path,
+					disabled: skill.enabled !== false,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -736,7 +750,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const uninstallLocalPrimitive = useCallback(

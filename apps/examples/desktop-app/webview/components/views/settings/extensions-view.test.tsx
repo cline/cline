@@ -146,6 +146,87 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 		expect(details?.open).toBe(false);
 	});
 
+	it("serializes full-inventory mutations so older replies cannot undo newer toggles", async () => {
+		const secondPlugin = {
+			...AGENT_PLUGIN,
+			id: "agent-plugin:/Users/test/.agents/plugins/second",
+			name: "agent-plugins-second",
+			path: "/Users/test/.agents/plugins/second",
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") {
+				return {
+					workspaceRoot: "/workspace",
+					plugins: [AGENT_PLUGIN, secondPlugin],
+				};
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		await act(async () => {
+			root.render(
+				<CustomizationSectionView
+					catalogPrimitive="plugin"
+					chrome="embedded"
+					marketplaceVariant="installed"
+					section="Plugins"
+				/>,
+			);
+		});
+		const firstToggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Toggle agent-plugins-example"]',
+		);
+		const secondToggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Toggle agent-plugins-second"]',
+		);
+		let resolveFirst!: (response: unknown) => void;
+		let resolveSecond!: (response: unknown) => void;
+		const first = new Promise((resolve) => {
+			resolveFirst = resolve;
+		});
+		const second = new Promise((resolve) => {
+			resolveSecond = resolve;
+		});
+		invoke.mockReset();
+		invoke.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+		await act(async () => {
+			firstToggle?.click();
+			secondToggle?.click();
+			await Promise.resolve();
+		});
+		expect(invoke).toHaveBeenCalledExactlyOnceWith("set_plugin_disabled", {
+			path: AGENT_PLUGIN.path,
+			disabled: true,
+		});
+		await act(async () =>
+			resolveFirst({
+				workspaceRoot: "/workspace",
+				plugins: [
+					{ ...AGENT_PLUGIN, enabled: false },
+					{ ...secondPlugin, enabled: true },
+				],
+			}),
+		);
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(invoke).toHaveBeenLastCalledWith("set_plugin_disabled", {
+			path: secondPlugin.path,
+			disabled: true,
+		});
+		await act(async () =>
+			resolveSecond({
+				workspaceRoot: "/workspace",
+				plugins: [
+					{ ...AGENT_PLUGIN, enabled: false },
+					{ ...secondPlugin, enabled: false },
+				],
+			}),
+		);
+		expect(firstToggle?.checked).toBe(false);
+		expect(secondToggle?.checked).toBe(false);
+	});
+
 	it("shows Hub-managed Agent Plugins in the installed Plugins view", async () => {
 		await act(async () => {
 			root.render(
@@ -282,11 +363,14 @@ describe("tool state controls", () => {
 		await act(async () => {
 			root.render(<CustomizationSectionView section="Tools" />);
 		});
-		await act(async () => {
-			container
-				.querySelector<HTMLInputElement>('[aria-label="Toggle web_search"]')
-				?.click();
+		const toggle = await vi.waitFor(() => {
+			const element = container.querySelector<HTMLInputElement>(
+				'[aria-label="Toggle web_search"]',
+			);
+			expect(element).not.toBeNull();
+			return element;
 		});
+		await act(async () => toggle?.click());
 		expect(enabled).toBe(!initialEnabled);
 		expect(invoke).toHaveBeenCalledWith("set_tool_disabled", {
 			names: ["web_search", "web_search"],
